@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M0 — Discovery, Solution and foundation
+Current milestone: M1 — Mock minimum end-to-end vertical slice
 Branch: `master`
-Recent relevant commit: none; repository began with no commits
+Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`)
 
 ## Completed
 
@@ -22,14 +22,14 @@ Recent relevant commit: none; repository began with no commits
 - Rendered and validated `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/vertical-overlay.mp4` with MP4/H.264/AAC, 540×960, exact 4.000-second duration, 491,732 bytes and full decode.
 - Actually viewed `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/quality/contact-sheet.png`; title/captions/layout passed visual review and the quality report records `viewed_passed`.
 - `make lint` passes and all 27 unit tests pass.
+- Created the local M0 milestone commit `136d8bd` after staged whitespace/scope checks.
 
 ## In progress
 
-- Review staged M0 scope and create the local checkpoint.
+- M1 secure ingest, media preprocessing and Mock vertical-slice implementation.
 
 ## Not completed
 
-- M0 local checkpoint.
 - All M1–M6 implementation and final acceptance.
 
 ## Verified
@@ -74,11 +74,11 @@ No product decision blocker. OpenAI credentials are absent, so cloud smoke is ex
 
 ## Worktree state
 
-M0 documentation, code, tests and lock are currently uncommitted. Run `git status --short --branch` for the authoritative current list before editing.
+M0 documentation, code, tests and lock are committed at `136d8bd`. This status update follows that checkpoint; run `git status --short --branch` for the authoritative current list before editing.
 
 ## Next concrete task
 
-Review the complete staged scope, create the local M0 commit, record its hash, then start M1 secure ingest/preprocess foundations.
+Implement M1 secure source-path validation, streaming fingerprint and ffprobe ingest models with unit tests, then proceed to real audio chunk preprocessing.
 
 ## Resume prompt
 

@@ -44,7 +44,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-03 Run M0 targeted lint/tests and initial read-only milestone review.
 - [x] 2026-08-03 Fix all six initial review findings and add regression coverage (27 tests pass, including exact environment-name behavior).
 - [x] 2026-08-03 Run post-fix read-only M0 re-review; verdict PASS with no residual blocker.
-- [ ] Create local M0 commit if worktree scope and identity remain valid.
+- [x] 2026-08-03 Create local M0 commit `136d8bd` after staged scope and whitespace checks.
 
 ### M1 — Mock minimum end-to-end vertical slice
 
@@ -203,10 +203,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: review and commit the M0 checkpoint, record its hash, then enter M1 with secure ingest and real audio preprocessing.
+Current first task: implement M1 secure source validation, streamed fingerprint and ffprobe ingest contract with unit tests, followed by real audio preprocessing.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 implementation and verification are complete: discovery, Solution, native environment, initial review fixes, 27-test regression run, newly viewed overlay Spike and post-fix Reviewer PASS. Only the local checkpoint commit remains before M1 begins.
+M0 is complete at commit `136d8bd`: discovery, Solution, native environment, initial review fixes, 27-test regression run, newly viewed overlay Spike and post-fix Reviewer PASS. M1 has begun with secure ingest as the first vertical-slice dependency.
