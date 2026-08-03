@@ -48,18 +48,20 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M1 — Mock minimum end-to-end vertical slice
 
-- [ ] Generate copyright-free H.264/AAC Demo video with visual motion, audio and silence.
-- [ ] Securely ingest, ffprobe and stream-hash source.
-- [ ] Extract mono compressed audio, chunk with overlap and emit silence/chunk manifest.
-- [ ] Mock Chinese transcript with absolute times and overlap deduplication.
-- [ ] Generate at least three deterministic candidates and Mock-edited strict EditPlans.
-- [ ] Render and validate 540×960 proxies with captions/title.
-- [ ] Create a new revision from a Demo title/boundary edit and prove old render stale.
-- [ ] Approve current revision and render/validate 1080×1920 final plus relative SRT.
-- [ ] Atomically create v001 manifest and path-safe delivery.zip.
-- [ ] Generate and actually view contact sheet; update quality report with observation.
-- [ ] Make `make demo` repeatable, fail closed, and print required absolute paths.
-- [ ] Add unit/integration tests, run lint/tests/demo and close reviewer findings.
+- [x] 2026-08-03 Generate copyright-free H.264/AAC Demo video with visual motion, audio and measured silence.
+- [x] 2026-08-03 Securely ingest, ffprobe and stream-hash source.
+- [x] 2026-08-03 Extract mono compressed audio into three overlapped chunks and emit recoverable silence/chunk manifest.
+- [x] 2026-08-03 Mock Chinese transcript with absolute times, cache identity and overlap deduplication.
+- [x] 2026-08-03 Generate three deterministic candidates and Mock-edited strict EditPlans.
+- [x] 2026-08-03 Render and validate three 540×960 proxies with captions/title.
+- [x] 2026-08-03 Create a human title revision, preserve history and prove old proxy stale.
+- [x] 2026-08-03 Reapprove revision 2 and render/validate 1080×1920 final plus relative SRT.
+- [x] 2026-08-03 Atomically create v001 manifest and path-safe delivery.zip with verified media hash.
+- [x] 2026-08-03 Generate and actually view final contact sheet; record `viewed_passed` and UTC time.
+- [x] 2026-08-03 Run `make demo` twice; each succeeds with a distinct project and required absolute paths.
+- [x] 2026-08-03 Add 68 unit plus one real integration test; lint/type and all 69 tests pass.
+- [x] 2026-08-03 Run independent read-only M1 review; fix the clean provenance gap and receive `VERDICT: PASS` with 70 tests green.
+- [ ] Create the local M1 checkpoint and record its hash.
 
 ### M2 — Domain persistence, Pipeline, CLI and Worker
 
@@ -122,6 +124,14 @@ M1 dependency order:
 5. Delivery/quality validation.
 6. CLI/Make target integration and real artifact inspection.
 
+Active M1 file ownership (recorded before delegation):
+
+- `m1_media`: only `src/liveclip/media/models.py`, `ingest.py`, `preprocess.py`, and `tests/unit/test_ingest.py`, `test_preprocess.py`.
+- `m1_content`: only `src/liveclip/providers/asr/base.py`, `mock.py`, `src/liveclip/providers/llm/base.py`, `mock.py`, `src/liveclip/pipeline/transcript.py`, `candidates.py`, and `tests/unit/test_transcript.py`, `test_candidates.py`.
+- Main Agent: shared domain schemas, Settings/dependencies, Demo/review/render/delivery integration (including `src/liveclip/delivery/package.py`), CLI/Makefile, all persistent planning documents and cross-module tests. A third write delegation was not started because the agent thread limit was reached.
+
+Agents may read the full repository but may not modify another owner's files. The main Agent integrates and reviews all returned changes before any test or checkpoint claim.
+
 M2 introduces persistence behind the M1 service ports rather than creating an alternate pipeline. M3 and M4 can proceed on separate adapters after M2; M5 integrates both.
 
 ## Concrete commands and expected observations
@@ -180,6 +190,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Initial M0 review found six concrete gaps. Publication now validates container/codecs/decode/frames/edges/safe bounds before exposure, uses an atomic hard-link no-clobber operation, and falls back on VideoToolbox runtime exceptions. Font detection no longer points from renderer into CLI, and EditPlan tests cover generic paths, shell commands and FFmpeg option fragments.
 - 2026-08-03: The post-review render `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/vertical-overlay.mp4` passed MP4/H.264/AAC, exact 540×960/4.000s, full decode, automatic quality and actual contact-sheet inspection. Its SHA-256 is `4713a270416b9def76a023211fd5b40e9a72538739e33f9b1000b6e7d8e19e56`.
 - 2026-08-03: Settings initially applied the `LIVECLIP_` prefix to fields whose public contract is explicitly unprefixed (`ASR_CHUNK_SECONDS`, `DEFAULT_TOP_N`, and peers). Explicit validation aliases and an environment behavior test now keep runtime parsing aligned with `.env.example`.
+- 2026-08-03: M1 uses a 32-second generated source and explicit 8–12 second candidate limits so a full local acceptance finishes in about 23 seconds; configured product defaults remain 30–90 seconds. It still exercises three overlapped audio chunks, three proxies, revision invalidation, a 1080×1920 final and ZIP delivery.
+- 2026-08-03: The first full Demo `demo_20260803T075537_0e3ca9f9` reached `delivered`. Final MP4 is H.264/AAC 1080×1920, 12.000s, 3,411,094 bytes, SHA-256 `f1ddd09178868745ea88c82995b35a5f7ecd1542d7ba616e0559db7ab7ac2ddd`; complete decode and actual visual review passed.
+- 2026-08-03: A second `make demo` created distinct project `demo_20260803T075904_1fdd3288`, proving rerun isolation rather than overwriting the first immutable v001.
+- 2026-08-03: M1 review identified that directory confinement alone did not prove `clean-demo` ownership. Cleanup now requires both a generated project-name shape and a valid `.phase.json` marker; unknown and unmarked content is preserved. The independent Reviewer returned PASS after 70 tests, lint and retained-artifact inspection.
 
 ## Decision Log
 
@@ -203,10 +217,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: implement M1 secure source validation, streamed fingerprint and ffprobe ingest contract with unit tests, followed by real audio preprocessing.
+Current first task: create the local M1 milestone checkpoint after the staged diff check, record its hash in this plan and STATUS, then begin centralized state transitions and SQLite persistence for M2.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`: discovery, Solution, native environment, initial review fixes, 27-test regression run, newly viewed overlay Spike and post-fix Reviewer PASS. M1 has begun with secure ingest as the first vertical-slice dependency.
+M0 is complete at commit `136d8bd`. M1 implementation and independent validation are complete: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. Only the local checkpoint remains.

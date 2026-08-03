@@ -23,14 +23,22 @@ Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`
 - Actually viewed `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/quality/contact-sheet.png`; title/captions/layout passed visual review and the quality report records `viewed_passed`.
 - `make lint` passes and all 27 unit tests pass.
 - Created the local M0 milestone commit `136d8bd` after staged whitespace/scope checks.
+- Implemented secure allowed-root ingest, streamed SHA-256, ffprobe metadata, mutation checks and strict source models.
+- Implemented resumable mono AAC/m4a preprocessing with three overlapped Demo chunks, `silencedetect`, cache keys, hash verification, cancellation boundaries and atomic checkpoints.
+- Implemented Mock ASR/LLM ports, absolute transcript merge/de-duplication/cache, deterministic candidate scoring/de-duplication/fallback and strict EditPlans.
+- Implemented immutable EditPlan revision/review/render history, old-render stale rules, renderer integration and safe versioned MP4/SRT/manifest/ZIP delivery.
+- Implemented `liveclip demo`, `make demo`, guarded `liveclip clean-demo`, 68 unit tests and one real FFmpeg integration test.
+- Ran two complete Demos; both reached `delivered` with distinct project IDs. The first final/contact/ZIP were fully inspected and retained below `data/demo`.
+- Closed the `clean-demo` provenance gap: only marker-validated generated Demo project directories are removed; unknown and unmarked content is preserved.
+- Completed the independent read-only M1 review with `VERDICT: PASS`; no M1 blocker remains.
 
 ## In progress
 
-- M1 secure ingest, media preprocessing and Mock vertical-slice implementation.
+- M1 local milestone checkpoint.
 
 ## Not completed
 
-- All M1–M6 implementation and final acceptance.
+- M1 checkpoint plus all M2–M6 implementation and final acceptance.
 
 ## Verified
 
@@ -45,8 +53,9 @@ Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`
 ## Not yet verified
 
 - Pillow overlay performance on full 30–90 second clips and many cues.
-- The M1 complete Mock Demo, database/pipeline, API, Web, Worker and cloud calls.
-- M3-specific performance and 2–4 hour media behavior.
+- Full 30–90 second raster performance and many-cue clips.
+- Persistent database/task Pipeline, real-input CLI, API, Web, Worker and cloud calls.
+- Apple M3-specific performance and 2–4 hour media behavior.
 
 ## Recent commands and real results
 
@@ -67,6 +76,21 @@ Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`
 - reviewed overlay Spike: exit 0; `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/vertical-overlay.mp4`, SHA-256 `4713a270416b9def76a023211fd5b40e9a72538739e33f9b1000b6e7d8e19e56`, 491,732-byte MP4/H.264/AAC, 540×960, 4.000s.
 - independent ffprobe and complete FFmpeg decode passed with no decode output; pre-publication and durable automatic quality checks passed.
 - `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/quality/contact-sheet.png` was actually viewed with correct portrait layout, background/foreground ratio, Chinese glyphs and safe areas; report records `viewed_passed` at `2026-08-03T07:27:16.848767+00:00`.
+- media Agent: 19 targeted tests pass; actual 3-second ingest/preprocess/resume Spike produced three AAC mono 16 kHz chunks at `/private/tmp/liveclip-m1-media.Z9mTDh/audio-current`.
+- content Agent: 9 targeted tests pass; strict mypy/Ruff pass; no network/subprocess execution in Mock content path.
+- `make lint`: exit 0; Ruff/format pass on 62 files and mypy passes on 45 source files.
+- `make test`: exit 0 before review; 69 passed in 21.60s, including the real local integration chain.
+- first `make demo`: exit 0 in 22.28s; `demo_20260803T075537_0e3ca9f9`, 3 candidates, project status `delivered`.
+- first final: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260803T075537_0e3ca9f9/renders/final/clip_01_bdc52e84/r002/final.mp4`; MP4/H.264/AAC 1080×1920, 12.000s, 3,411,094 bytes, full decode passed, SHA-256 `f1ddd09178868745ea88c82995b35a5f7ecd1542d7ba616e0559db7ab7ac2ddd`.
+- first contact: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260803T075537_0e3ca9f9/renders/final/clip_01_bdc52e84/r002/final-quality/contact-sheet.png`; actually viewed and report records `viewed_passed` at `2026-08-03T07:56:21.348579+00:00`.
+- first delivery ZIP: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260803T075537_0e3ca9f9/deliveries/v001/delivery.zip`; exactly one clip, one SRT and manifest; delivered copy hash equals final hash.
+- state inspection proves revision 1 AI/approved/proxy→stale, revision 2 human/approved/final→succeeded, and Project `delivered`.
+- second `make demo`: exit 0 in 23.57s; distinct `demo_20260803T075904_1fdd3288` and independent v001 delivery.
+- latest `make doctor`: exit 0; READY with the same four truthful warnings.
+- `clean-demo` provenance regression: targeted 5 tests pass; unknown files/directories and unmarked Demo-shaped directories are preserved.
+- post-fix `make lint`: exit 0; Ruff/format pass on 62 files and mypy passes on 45 source files.
+- post-fix `make test`: exit 0; 70 passed in 23.34s.
+- independent M1 Reviewer: `PASS`; it independently reran the updated targeted tests/full suite/lint, inspected retained media/state/ZIP, and actually viewed the final contact sheet.
 
 ## Current blockers
 
@@ -74,11 +98,11 @@ No product decision blocker. OpenAI credentials are absent, so cloud smoke is ex
 
 ## Worktree state
 
-M0 documentation, code, tests and lock are committed at `136d8bd`. This status update follows that checkpoint; run `git status --short --branch` for the authoritative current list before editing.
+M0 is committed at `136d8bd` and its status checkpoint at `1dbed41`. M1 code/docs/tests are staged after Reviewer PASS and await the local milestone commit. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
 
 ## Next concrete task
 
-Implement M1 secure source-path validation, streaming fingerprint and ffprobe ingest models with unit tests, then proceed to real audio chunk preprocessing.
+Create the local M1 milestone commit after the final staged diff check, record its hash, then begin M2 with centralized state transitions and the SQLite schema/UoW foundation.
 
 ## Resume prompt
 

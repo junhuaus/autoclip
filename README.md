@@ -2,7 +2,7 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It will turn a local 2–4 hour video into reviewable 9:16 clips, let a user adjust and approve exact revisions, and create immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: M0 foundation is in progress. The authoritative completion snapshot is [STATUS.md](STATUS.md); commands and features below must not be assumed complete until STATUS records a successful run.
+> Development status: the M1 real-media Mock vertical slice is implemented and independently inspectable; persistent SQLite orchestration, full CLI/API/Web and cloud providers remain later milestones. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -46,7 +46,14 @@ This will start FastAPI, Worker and Vite, print local addresses and stop all chi
 
 ## Demo and cloud smoke
 
-`make demo` requires no API key and must create/validate real copyright-free media through the complete Mock chain. `make smoke-cloud INPUT=/absolute/path/short.mp4` is opt-in, requires real OpenAI configuration, and never falls back to Mock. Missing configuration is a clear nonzero `not_run` result.
+`make demo` now requires no API key and creates real copyright-free H.264/AAC media, three overlapped mono audio chunks, a Mock Chinese transcript, three candidates and validated proxies. It approves one Demo clip, creates a human title revision that stales the old proxy, renders a validated 1080×1920 final, then emits SRT, manifest and `delivery.zip`. It prints the project ID and every required absolute path; reruns create a new isolated Demo project.
+
+```bash
+make demo
+make clean-demo  # removes only validated generated content below data/demo
+```
+
+`make smoke-cloud INPUT=/absolute/path/short.mp4` remains planned for M4. It will be opt-in, require real OpenAI configuration and never fall back to Mock; it is not yet an implemented cloud-success path.
 
 ## Data and privacy
 
@@ -66,4 +73,4 @@ Known development-host differences are tracked in Solution: current PATH Python 
 
 ## Current limitations
 
-No real cloud smoke has run because no credential is configured. M3 performance and representative 2–4 hour processing remain unverified. See STATUS for all current gaps rather than inferring completion from repository structure.
+The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent task leases/database state, real-input CLI processing, API/Web review, real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain unverified or unimplemented. See STATUS for exact evidence.
