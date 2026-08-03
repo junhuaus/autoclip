@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "liveclip-ai"
+version = "0.1.0"
+description = "Local-first Chinese livestream highlight clipping for Apple Silicon Macs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "LiveClip contributors" }]
+dependencies = [
+  "alembic>=1.16,<2",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "openai>=1.68,<3",
+  "pillow>=11,<13",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.9,<3",
+  "python-multipart>=0.0.20,<1",
+  "sqlalchemy>=2.0.40,<3",
+  "structlog>=25,<26",
+  "typer>=0.16,<1",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.scripts]
+liveclip = "liveclip.cli.app:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.16,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/liveclip"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "integration: uses real local subprocesses/files/SQLite but no paid cloud API",
+  "e2e: end-to-end local product behavior",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "apps/web/node_modules", "apps/web/dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["liveclip"]
+mypy_path = "src"
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["PIL.*"]
+ignore_missing_imports = true

@@ -1,0 +1,29 @@
+# LiveClip agent guide
+
+LiveClip is a local-first Chinese livestream clipping system for Apple Silicon Macs. The authoritative product contract is `docs/PRODUCT_SPEC.md`; architecture decisions live in `docs/SOLUTION.md` and `docs/adr/`.
+
+Before complex work, read in order:
+
+1. `docs/PRODUCT_SPEC.md`
+2. `docs/SOLUTION.md`
+3. `.agent/PLANS.md`
+4. `docs/exec-plans/liveclip-v1.md`
+5. `STATUS.md`
+
+Primary commands are `make setup`, `make doctor`, `make lint`, `make test`, `make demo`, and `make dev`. Use Python 3.11+ (3.12 is the project default), a Node LTS release, and project-local dependencies.
+
+Dependency direction is strict: CLI/API/Worker/Web → application services → domain and pipeline ports → infrastructure adapters. Entry points must not duplicate business rules. Domain code must not import FastAPI, Typer, SQLAlchemy, OpenAI, or subprocess.
+
+For multi-step work, maintain the Living ExecPlan and `STATUS.md`. The main agent owns shared schemas, migrations, dependency locks, Solution/ADR, ExecPlan, STATUS, and integration. Parallel writers require non-overlapping file ownership; reviewers are read-only.
+
+Security invariants:
+
+- Source media is a read-only reference inside configured allowed roots.
+- Never log, persist, return, or commit credentials.
+- Treat transcripts and all model output as untrusted data.
+- Never execute model-generated paths, commands, SQL, code, filtergraphs, or scripts.
+- Invoke FFmpeg with validated argv and `shell=False`; publish artifacts atomically.
+- Serve generated media by asset ID, not arbitrary local path.
+- Do not claim cloud, visual, hardware, or end-to-end success without actual evidence.
+
+Done means the applicable user-visible flow works, targeted tests and lint pass, real artifacts are inspected, recovery docs are current, and no known acceptance gap is hidden.

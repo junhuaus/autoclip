@@ -1,0 +1,229 @@
+# LiveClip v1 Solution
+
+Status: accepted implementation baseline; living document
+Decision date: 2026-08-03
+
+## User scenarios and success boundary
+
+LiveClip turns a local Chinese livestream into reviewable vertical highlights and an immutable delivery archive. A CLI user can run the whole pipeline in the foreground; API and Web users enqueue the identical work for one independent Worker. Users can recover failed stages, change a proposed clip without mutating history, see stale media, rerender the exact current revision, and download a versioned ZIP.
+
+The system controls execution. OpenAI may interpret content and propose a whitelisted EditPlan, but it cannot choose local paths, commands, filtergraphs, SQL, or code. Source video frames never leave the Mac; prepared audio is sent to ASR, and bounded transcript text plus metadata is sent to the editor model.
+
+## Architecture
+
+We use a modular monolith with ports and adapters, plus one Worker process and a separately built Web client.
+
+```text
+Typer CLI ─┐
+FastAPI ───┼──> application commands/queries + UnitOfWork + TaskRunner
+Worker ────┘                      │
+                                 v
+                     domain models/invariants/state
+                                 ^
+                                 │ ports
+       SQLAlchemy/SQLite | filesystem | FFmpeg | OpenAI | Mock
+
+React/Vite ──HTTP──> FastAPI only
+```
+
+Import direction is enforced:
+
+- `liveclip.domain`: pure values, entities, EditPlan, caption cues, transition tables, errors. It imports no framework or adapter.
+- `liveclip.application`: use cases, DTOs, repository/UoW/provider/renderer/asset ports, fixed pipeline orchestration.
+- `liveclip.config`: environment parsing and safe public configuration views.
+- `liveclip.db`: SQLAlchemy models, Alembic, repositories, SQLite queue and UoW.
+- `liveclip.media`: allowed-root checks, streaming hashes, ffprobe, audio extraction/chunk manifests, silence signals.
+- `liveclip.providers`: OpenAI and Mock ASR/LLM adapters.
+- `liveclip.renderer`: deterministic layout mapping, raster text assets, FFmpeg execution, validation/contact sheets.
+- `liveclip.review`: revision/review application helpers where they do not belong in generic commands.
+- `liveclip.delivery`: immutable snapshot, manifest, filenames, ZIP validation and atomic publish.
+- `liveclip.observability`: structured logging, redaction, usage and subprocess diagnostics.
+- `liveclip.bootstrap`: the single composition root.
+- `apps/api`, `apps/worker`, and `liveclip.cli`: thin entry adapters.
+- `apps/web`: API client and review UI; no domain transition implementation.
+
+The fixed six automated stages are `ingest`, `preprocess`, `transcribe`, `candidates`, `edit`, and `proxy_render`. We deliberately do not introduce a general workflow engine, broker, microservices, event sourcing, local vector database, or local ML runtime.
+
+## Shared application-service boundary
+
+Commands such as ImportProject, StartPipelineRun, CancelRun, RetryRun, ReviseClip, ReviewClip, RenderClip, and CreateDelivery live once in application services. Queries return sanitized DTOs. CLI commands either enqueue and return, or enqueue then run/poll through the same TaskRunner. They never directly call a private “CLI implementation” of a stage. API returns 202 for enqueued commands. Worker only claims Tasks and dispatches application handlers.
+
+## Canonical time and identifiers
+
+UUID4 strings identify resources. All stored and domain media times are integer milliseconds measured from the beginning of the original source. Field names use `_ms`. This avoids binary floating drift across revisions, SQLite, JSON, captions, and manifests. CLI/API decimal seconds are converted exactly at ingress; FFmpeg seconds and SRT timestamps are formatted only at adapter egress. UTC aware timestamps use ISO 8601.
+
+The public EditPlan representation exposes both clearly named millisecond fields and computed decimal-second fields only where API ergonomics require them; there is never an ambiguous numeric `start` with undocumented units.
+
+## Data model
+
+The initial relational model is:
+
+- Project: user-created workspace, current successful generation/run, current processing run, revision epoch.
+- SourceMedia: one read-only resolved reference per Project, filename, fingerprint, stat identity, ffprobe metadata.
+- PipelineRun: immutable configuration snapshot, generation, run state, progress and error.
+- StageRun: logical stage state, input/output fingerprint, checkpoint and progress.
+- StageAttempt: append-only lease/attempt/error/metrics audit.
+- Task: operational queue item targeting a StageRun, RenderJob, or Delivery; queue state is separate from domain state.
+- Asset: generated project-relative path, kind/MIME/size/hash/producer/input fingerprint and validation metadata. SourceMedia is not a downloadable Asset by default.
+- AudioChunk: source absolute interval, overlap, generated audio Asset, size/hash/cache key/provider state.
+- Transcript: versioned run output; TranscriptSegment and optional TranscriptWord hold real absolute times and timing availability.
+- CandidateClip: rough bounds, transcript/context, rule score/reasons, dedup evidence, current EditPlan revision.
+- EditPlanRevision: immutable validated plan, parent, origin (`ai`, `deterministic`, `human`), prompt/model/degraded metadata.
+- CaptionCue: immutable per-revision structured relative cue; caption edits create a revision.
+- ReviewDecision: append-only decision bound to an exact revision, reason and timestamp.
+- RenderJob: exact revision, kind, dimensions/spec hash, render state, Asset, quality report/contact sheet.
+- Delivery: unique Project version and immutable status/snapshot metadata.
+- DeliveryClip: ordered immutable snapshot of clip/revision/render/title/bounds/filenames/hash.
+- ApiUsage: provider/method/model/request ID/attempts/latency/audio seconds/token or duration usage; optional configured-cost estimate.
+- IdempotencyRecord: endpoint scope, caller key, canonical request hash and resulting resource.
+
+Fingerprint is informational on SourceMedia, not globally unique, so an explicit second import creates a second Project. `current_run_id` and generation boundaries prevent transcript/candidate rows from different attempts being mixed.
+
+## State model
+
+Allowed transitions are defined only in `domain/state_transitions.py` and are covered by table-driven tests. Database columns use check constraints. Services request a transition; they do not assign arbitrary status strings.
+
+- PipelineRun: `queued → running → completed|failed|cancelled`; explicit retry of a deterministic unchanged run goes through `queued` with a new attempt.
+- StageRun: `queued → running → succeeded|failed|skipped|cancelled`; expired recoverable work is requeued.
+- Review is the effective decision for the current revision. A new revision has no inherited approval and therefore computes `pending_review`.
+- Render: `queued → running → succeeded|failed`; any non-current revision becomes or remains `stale`.
+- Delivery: `queued → creating → succeeded|failed`; succeeded snapshots are immutable.
+
+Project state is derived for the current generation, never manually set as a second source of truth. Active pipeline/render/delivery work yields `processing`; an unrecovered current-generation failure yields `failed`; no completed generation yields `imported`; pending/all-rejected/no-approved clips yield `pending_review`; at least one approved current revision with all required current final renders yields `ready_for_delivery`; the latest successful Delivery whose snapshot fingerprint equals the current deliverable set yields `delivered`. Editing after delivery leaves the old version downloadable and recomputes a non-delivered current state.
+
+## Pipeline execution, lease, and recovery
+
+SQLite connections enable WAL, `foreign_keys=ON`, a configurable busy timeout, and `synchronous=NORMAL`. SQLAlchemy uses a synchronous engine and short transactions. HTTP handlers may run DB work in FastAPI's thread pool; we do not maintain parallel async and sync repository stacks.
+
+A Task claim uses `BEGIN IMMEDIATE`, recovers expired eligible leases, selects one dependency-ready task whose `not_before` has passed, and atomically updates it with worker ID, random lease token, heartbeat and expiry using `UPDATE … RETURNING`. Heartbeat and completion require `(task_id, worker_id, lease_token)`. This fencing prevents an expired old worker from publishing after a replacement has claimed the task.
+
+No FFmpeg, filesystem hash, or network call holds a database write transaction. Each attempt writes a system-owned temporary directory. The handler checks cancellation between bounded operations and terminates an owned subprocess group when necessary. It validates results, verifies that it still owns the lease and relevant revision/generation, then publishes through a same-directory atomic hard link that fails if the immutable destination already exists. It never uses a replacing rename for revision artifacts. Lost-lease or outdated results become diagnostics/orphans, never current success.
+
+One heavy task is claimed by default. `proxy_render` renders candidate proxies sequentially within the stage and checkpoints each RenderJob, avoiding parent/child queue deadlock. Cheap API queries remain concurrent.
+
+Stage retry uses the same PipelineRun and resumes the first failed/incomplete stage when configuration and input fingerprints are unchanged. A different configuration creates a new PipelineRun/generation. Deterministic errors require user/config/input change; transient errors respect bounded retry count and `not_before` backoff.
+
+## Idempotency, cache, and artifact graph
+
+File existence is insufficient for success. Every stage input fingerprint includes relevant source/artifact hashes, configuration, algorithm/schema/prompt version, provider/model, and tool version. A cache hit requires a succeeded database record, matching manifest and hashes, and successful artifact validation.
+
+Representative fingerprints:
+
+- ingest: source SHA/stat and ffprobe contract version.
+- preprocess: source SHA, chunk/overlap/audio/loudness settings and FFmpeg version.
+- transcribe: chunk SHA, provider/model/context/timestamp mode and adapter version.
+- candidates: transcript SHA, duration/top-N settings and algorithm version.
+- edit: canonical candidate/context, prompt file SHA, model and EditPlan schema version.
+- render: source SHA, exact revision/captions, layout/dimensions/font hash/effect/codec spec and renderer version.
+- delivery: ordered approved revision+render hashes, manifest schema and ZIP setting.
+
+Artifacts use immutable revision/generation-specific system paths. Project-local caching is the v1 boundary; cross-project global media caching is deferred because it complicates privacy and lifecycle management.
+
+## Ingest and source mutation protection
+
+Allowed roots are strict existing directories resolved at configuration load. An input must be absolute, exist, be a regular file, and after `resolve(strict=True)` remain inside at least one resolved root using path-component ancestry—not string prefix. This rejects `..`, prefix tricks, and symlink escape.
+
+We save resolved path, size, mtime nanoseconds, inode/device where available, streamed SHA-256 and ffprobe metadata. Expensive stages recheck stat identity, and publication-sensitive points can rehash when stat changed. A changed source fails deterministically as `SOURCE_CHANGED`. The source is passed read-only to ffprobe/FFmpeg; LiveClip never opens it for write.
+
+Generated Asset serving re-resolves the database project-relative path beneath the configured data root, rejects symlinks/outside paths and only serves explicitly allowed media kinds. Single-byte-range responses support 206/416, `Content-Range`, `Accept-Ranges`, auth, and bounded streaming.
+
+## Audio and ASR decision
+
+Preprocessing produces mono compressed `m4a` (AAC) or `mp3` chunks, both in the common documented format set, with time overlap and a conservative byte ceiling below 25 MB. Chunk length is additionally capped by configuration. FFmpeg emits to a temp file; a manifest stores absolute millisecond bounds, overlap, bytes, SHA and cache key. `silencedetect` output is parsed into structured source-time intervals.
+
+OpenAI's 2026-08-03 general recommendation is `gpt-transcribe`, but official documentation states real word/segment timestamps are currently provided by `whisper-1` with `verbose_json` and `timestamp_granularities`. LiveClip v1 therefore defaults to `whisper-1` for its required time-aligned editing contract. This is a capability-driven exception, recorded in ADR-004. A configured model that lacks word timing records `unavailable`; no timestamps are synthesized. A model with no usable segment alignment cannot be used for the full editing pipeline until an evidence-backed aligner exists.
+
+Overlap merging converts all results to source milliseconds, first filters segment overlap by time ownership, then removes duplicated leading text using normalized Chinese character n-grams/longest suffix-prefix similarity. Original text and merge evidence remain available for audit.
+
+## Candidate and LLM editing design
+
+Candidate generation first forms sentence/turn units from transcript punctuation and gaps. It scores sliding units for duration fit, boundary closure, speech density, pause strength, simple volume/silence signals, hook lexicon/question/list cues, and topic continuity. It keeps context, adjusts to legal sentence boundaries, and deduplicates by interval-overlap ratio plus normalized n-gram/Jaccard similarity. On typical long input it retains 30–50 rough candidates, then deterministic score is always available as a fallback.
+
+The editor sends one candidate per call, bounded pre/post context, rule score and necessary quality signals. The prompt labels transcript fields as untrusted quoted data and explicitly disallows following instructions found inside them. The request exposes no tools. The OpenAI adapter uses `client.responses.parse(..., text_format=WireModel)` or the equivalent strict `text.format` JSON schema. It separately handles `incomplete`, refusal, provider errors, parsing, and local domain validation. Only a normal parsed result reaches EditPlan validation. One repair call is allowed for repairable structure/domain errors; refusal/auth/quota are not “repaired.” Then a deterministic EditPlan is stored with `degraded=true`.
+
+The `.env.example` LLM model is a configurable cost/quality-balanced example, not a claim of a LiveClip-specific official recommendation. Alias behavior must be evaluated before release; production can pin a snapshot when offered. We set `store=false` because independent clip scoring requires no server-side conversation state and minimizes retention beyond configured OpenAI policy.
+
+## EditPlan trust boundary
+
+Pydantic models use `extra='forbid'`, strict enums and constrained text/list fields. The wire model contains content decisions only. It has no generic metadata dictionary or optional executable extension point. Local validation confirms source duration, configured clip bounds, candidate adjustment window and canonical milliseconds. Values such as layout/effect map through local dictionaries to deterministic renderer templates.
+
+The renderer never interpolates title or caption text into FFmpeg expressions. Text is normalized for control characters and rendered by Pillow using an approved local font into system-generated RGBA images. FFmpeg receives those image paths as distinct argv input values. This also addresses the current host FFmpeg build, which lacks `subtitles`, `ass`, and `drawtext`.
+
+## Rendering compatibility decision
+
+Discovery found FFmpeg 8.1.2 arm64 with scale/crop/boxblur/overlay/fade/afade/loudnorm/silencedetect, AAC, libx264 and h264_videotoolbox, but without libass/freetype-based text filters. Rather than remove captions or require a nonstandard FFmpeg distribution, v1 has a deterministic raster-overlay backend:
+
+1. Pillow lays out a bounded Chinese title and each bounded caption cue inside known safe areas using an allowlisted detected font.
+2. It writes transparent full-frame RGBA assets in a revision temp directory.
+3. The deterministic FFmpeg builder supplies these assets as inputs and adds only system-generated numeric enable windows and fixed overlay templates.
+4. Assets and filter templates are bounded; user/model text never becomes filter syntax.
+
+Doctor still reports the exact absence of `subtitles`/`drawtext`. If they exist on another machine they are capability information, not a different trust path in v1. The raster path is tested for performance on 30–90 second clips; it avoids generating a frame for every video frame.
+
+The layout graph creates a fill-cropped blurred background plus aspect-fit foreground, or a centered fill crop. Effects and loudness are fixed enum mappings. Every cut re-encodes. We attempt VideoToolbox first when selected and validated; any runtime failure retains diagnostics, removes the partial temp artifact, and retries once with libx264. Actual discovery showed VideoToolbox succeeds on the host but fails inside the Codex sandbox with OSStatus -12903, so doctor reports the environment context and fallback honestly.
+
+## Render invalidation and review consistency
+
+A visual change transaction inserts a new immutable EditPlanRevision and caption snapshot, increments the Project revision epoch, points CandidateClip to it, makes the effective review pending, and marks queued/running/succeeded RenderJobs for older revisions stale. A worker that finishes an old render fails revision/lease fencing before publication.
+
+Approval and rejection are append-only decisions on an exact revision. Delivery eligibility requires the current revision, its current approval, and a succeeded validated final RenderJob with the same revision and render-spec hash. Editing after approval never inherits approval.
+
+## Quality verification
+
+Validation is a first-class output. ffprobe confirms MP4, H.264/AAC, both streams, expected dimensions/orientation and duration tolerance. File size has a conservative floor. FFmpeg performs a full decode to null. The validator extracts start/middle/end samples, calculates simple luminance/variance/edge/aspect heuristics, checks renderer-owned title/caption bounds against safe areas, and builds a contact sheet. Heuristics are labeled automatic; only an actual image-viewer observation sets visual status to viewed, with notes and timestamp.
+
+## Immutable delivery
+
+The service allocates a unique version and snapshots ordered eligible revisions/render assets before I/O. It copies or hard-links only validated final media into a same-filesystem temp directory, emits relative SRT and canonical manifest, hashes copied bytes, creates a ZIP from allowlisted relative entries, reopens the ZIP to reject absolute/`..`/backslash/duplicate entries, and verifies all manifest hashes. Before atomic rename it rechecks Project revision epoch and current eligibility in a short transaction. An existing version is never removed or overwritten. Crash recovery can validate and adopt an exact temp attempt or retry into a new temp directory.
+
+## API, errors, and idempotency
+
+API schemas are DTOs, never ORM serialization. Internal absolute paths are omitted unless a CLI-only command explicitly needs them; Web receives asset IDs and source filenames/ranges. The stable error envelope contains version, code, message, retryable, resource ID, and optional safe field details/correlation ID. Exception mapping strips headers, tokens, provider request content, raw SQL and stack traces.
+
+An Idempotency-Key is scoped by authenticated caller and endpoint. The canonical request hash is stored with the created resource. Reuse with the same hash returns that resource; reuse with a different payload is a stable 409. Creation and record insert occur in one transaction.
+
+## Configuration and secrets
+
+Pydantic Settings reads environment variables and optional local `.env`; `.env` is ignored. Settings validation never includes secret values in exceptions or dumps. The composition root reads `OPENAI_API_KEY` only when constructing a real provider. Mock startup does not instantiate an OpenAI client. API public configuration exposes only booleans such as `cloud_configured`.
+
+## Observability
+
+Structured JSON logs include timestamp, level, event, correlation/project/run/stage/task/clip IDs, attempt, duration and stable error code. A centralized processor redacts authorization, API keys, bearer tokens, cookies, common secret fields and matching secret substrings. FFmpeg logs store a sanitized logical argv using asset IDs/relative paths plus a bounded stderr tail in a diagnostic file. ApiUsage captures provider metrics but no prompts containing transcript text unless an explicit local debug mode is later designed.
+
+## Testing strategy
+
+- Unit tests own pure domain, security paths, fingerprints, timestamp conversion/merge, candidates, EditPlan/schema, prompt boundary, subtitles, argv, fallback, states, leases, stale rules, delivery/ZIP and redaction.
+- Integration tests use actual generated H.264/AAC media and FFmpeg/ffprobe, a temp data root and SQLite database, Mock providers, interruption/failure injection, and full artifact validation.
+- API tests use a real application composition with temp resources and verify 202/idempotency/error/auth/Range/user-visible flows.
+- Web unit/component tests cover all critical states and actions; Playwright performs one local review/delivery flow.
+- `make demo` is a deterministic real-media acceptance, not a unit-test alias.
+- `make smoke-cloud` is opt-in, calls both real providers, and cannot construct Mock providers.
+- Milestones receive an independent read-only review; M6 receives a Product Spec verification matrix.
+
+## Technical alternatives and deliberate exclusions
+
+- A full FFmpeg build with libass/drawtext would work but adds a system-level installation prerequisite. Raster overlays work on the inspected stock Homebrew build and create a safer data/execution separation.
+- `gpt-transcribe` is more current for general ASR, but lacks the timestamp contract needed for v1. We retain a provider path and research it rather than invent timing.
+- PostgreSQL/external queues improve high concurrency but violate local prerequisites. Fenced SQLite leases are sufficient for one heavy Worker.
+- Async SQLAlchemy would add a second concurrency model with little local benefit; sync UoW plus short transactions is simpler.
+- Copying source video would improve immutability but doubles large storage. We keep a read-only reference plus mutation checks.
+- Whole-transcript LLM editing, local embeddings and local model weights are excluded by privacy/resource/product constraints.
+
+## Known risks and uncertainties
+
+- Current development hardware is Apple M2, not M3; M3 throughput remains unmeasured.
+- A project-local native arm64 Python 3.12 must be installed because PATH Python is 3.9 and the existing 3.12 is x86_64.
+- Default PATH Node 26 is not LTS; Node 22 LTS exists at `/usr/local/bin` and setup/doctor must choose/report it.
+- Raster overlay speed and Chinese glyph fallback need the M1 Spike and real contact-sheet inspection.
+- VideoToolbox is inaccessible inside the current sandbox but proved available in a host process; ordinary-terminal final verification remains distinct.
+- No real API key is configured, so cloud request/usage/model entitlement behavior remains unverified until smoke testing.
+- Official audio guide and API reference differ on `flac`/`ogg`; v1 emits common `m4a`/`mp3` and does not depend on those formats.
+- Two-to-four-hour memory/disk/runtime, VFR/rotation/multiple audio tracks and source replacement races require M5 fixtures/measurement.
+- Automated severe-crop and subtitle-quality checks are heuristic and cannot replace the explicitly recorded visual inspection.
+
+## Decision index
+
+- ADR-001: modular monolith, inward dependencies and millisecond timebase.
+- ADR-002: SQLite fenced task leases and immutable artifact publication.
+- ADR-003: deterministic Pillow text rasterization plus FFmpeg overlay.
+- ADR-004: timestamp-capable ASR default and strict Responses integration.
