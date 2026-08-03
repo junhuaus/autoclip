@@ -61,7 +61,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-03 Run `make demo` twice; each succeeds with a distinct project and required absolute paths.
 - [x] 2026-08-03 Add 68 unit plus one real integration test; lint/type and all 69 tests pass.
 - [x] 2026-08-03 Run independent read-only M1 review; fix the clean provenance gap and receive `VERDICT: PASS` with 70 tests green.
-- [ ] Create the local M1 checkpoint and record its hash.
+- [x] 2026-08-03 Create local M1 checkpoint `cfc8889` and record its hash.
 
 ### M2 — Domain persistence, Pipeline, CLI and Worker
 
@@ -217,10 +217,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: create the local M1 milestone checkpoint after the staged diff check, record its hash in this plan and STATUS, then begin centralized state transitions and SQLite persistence for M2.
+Current first task: implement and table-test centralized domain state transitions, then add the SQLAlchemy SQLite engine/ORM/UoW foundation for PipelineRun, StageRun and fenced Task leases.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 implementation and independent validation are complete: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. Only the local checkpoint remains.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 has started with centralized state and persistence as the first dependency.

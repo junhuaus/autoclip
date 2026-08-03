@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M1 — Mock minimum end-to-end vertical slice
+Current milestone: M2 — Domain persistence, Pipeline, CLI and Worker
 Branch: `master`
-Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`)
+Recent relevant commit: `cfc8889` (`milestone: complete LiveClip M1 mock vertical slice`)
 
 ## Completed
 
@@ -31,14 +31,15 @@ Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`
 - Ran two complete Demos; both reached `delivered` with distinct project IDs. The first final/contact/ZIP were fully inspected and retained below `data/demo`.
 - Closed the `clean-demo` provenance gap: only marker-validated generated Demo project directories are removed; unknown and unmarked content is preserved.
 - Completed the independent read-only M1 review with `VERDICT: PASS`; no M1 blocker remains.
+- Created local M1 milestone commit `cfc8889` after staged scope/whitespace checks and Reviewer PASS.
 
 ## In progress
 
-- M1 local milestone checkpoint.
+- M2 centralized state transitions and SQLite schema/UoW foundation.
 
 ## Not completed
 
-- M1 checkpoint plus all M2–M6 implementation and final acceptance.
+- All M2–M6 implementation and final acceptance.
 
 ## Verified
 
@@ -91,6 +92,7 @@ Recent relevant commit: `136d8bd` (`milestone: establish LiveClip M0 foundation`
 - post-fix `make lint`: exit 0; Ruff/format pass on 62 files and mypy passes on 45 source files.
 - post-fix `make test`: exit 0; 70 passed in 23.34s.
 - independent M1 Reviewer: `PASS`; it independently reran the updated targeted tests/full suite/lint, inspected retained media/state/ZIP, and actually viewed the final contact sheet.
+- `git commit`: local M1 checkpoint `cfc8889`; 31 scoped files, 4,963 insertions and no generated media.
 
 ## Current blockers
 
@@ -98,11 +100,11 @@ No product decision blocker. OpenAI credentials are absent, so cloud smoke is ex
 
 ## Worktree state
 
-M0 is committed at `136d8bd` and its status checkpoint at `1dbed41`. M1 code/docs/tests are staged after Reviewer PASS and await the local milestone commit. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
+M0 is committed at `136d8bd` with status checkpoint `1dbed41`; M1 is committed at `cfc8889`. This checkpoint update is the only expected post-commit change. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
 
 ## Next concrete task
 
-Create the local M1 milestone commit after the final staged diff check, record its hash, then begin M2 with centralized state transitions and the SQLite schema/UoW foundation.
+Implement and table-test centralized domain state transitions, then add the SQLAlchemy SQLite engine/ORM/UoW schema required for PipelineRun, StageRun and fenced Task leases.
 
 ## Resume prompt
 
