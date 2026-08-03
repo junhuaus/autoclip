@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. The current implementation focus after M0 is the real-media Mock vertical slice (M1).
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0 and M1 are committed; M2 passed independent review, and the current implementation focus is M3 REST/review/delivery services and Web.
 
 ## Architecture Summary
 
@@ -65,13 +65,16 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M2 — Domain persistence, Pipeline, CLI and Worker
 
-- [ ] Implement full entities, central transitions and SQLAlchemy repositories/UoW.
-- [ ] Add Alembic initial schema with WAL/FK/busy-timeout integration.
-- [ ] Implement Task claim/lease token/heartbeat/expiry/crash recovery and concurrency tests.
-- [ ] Implement stage fingerprints/checkpoints/cancel/retry and source mutation detection.
-- [ ] Implement required CLI commands through shared services.
-- [ ] Implement independent Worker and foreground `--wait` ownership/polling behavior.
-- [ ] Review, fix and commit M2.
+- [x] 2026-08-03 Implement 20 persistent entities, central transition tables and SQLAlchemy repositories/UoW.
+- [x] 2026-08-03 Add a drift-checked Alembic initial schema plus WAL/FK/busy-timeout/FULL integration and an unsafe-runtime gate.
+- [x] 2026-08-03 Implement atomic Task claim, random lease token, heartbeat, expiry/crash recovery, bounded retry and generation fences.
+- [x] 2026-08-03 Implement real six-stage Mock handlers with committed Asset checkpoints, exact downstream fingerprints, cancellation and resume.
+- [x] 2026-08-03 Implement pipeline CLI `run --wait`, `status`, `clips`, and `worker` through shared services. Review/rerender/delivery CLI commands remain paired with their M3 application services; product scope is unchanged.
+- [x] 2026-08-03 Implement independent Worker and foreground ownership/polling with a real competition integration test proving one execution per stage.
+- [x] 2026-08-03 Replace long FFmpeg validation/extraction/render calls with process-group cancellation; cancellation never publishes a successful artifact.
+- [x] 2026-08-03 Run migration round-trip/drift/integrity checks, strict lint/types and 204 local tests including real persistent media and CLI chains.
+- [x] 2026-08-03 Complete two independent read-only review passes, fix every P0/P1 finding and receive final `PASS` with 82 focused and 204 full tests green.
+- [ ] Create the scoped local M2 milestone and documentation checkpoint commits.
 
 ### M3 — REST API, Web review and versioned delivery
 
@@ -134,6 +137,26 @@ Agents may read the full repository but may not modify another owner's files. Th
 
 M2 introduces persistence behind the M1 service ports rather than creating an alternate pipeline. M3 and M4 can proceed on separate adapters after M2; M5 integrates both.
 
+Active M2 file ownership (recorded before delegation):
+
+- Main Agent: `domain/state_transitions.py`, shared ORM/entity schemas, repositories/UoW, Task queue integration, Alembic head, application services, CLI/Worker integration, dependencies and persistent planning documents.
+- `m1_media`: only `src/liveclip/db/engine.py` and `tests/unit/test_db_engine.py`; implement SQLite connection/transaction configuration without editing Settings, ORM models or migrations.
+- `m1_content`: read-only M2 state/lease/idempotency/crash-recovery acceptance matrix; no file changes.
+- `verifier_researcher`: read-only primary-source check of current SQLAlchemy 2, Alembic and SQLite behaviors relevant to `BEGIN IMMEDIATE`, pragmas and atomic claim; no file changes.
+
+No delegated M2 task may modify shared schemas, migrations, dependencies or status documents. Main integrates returned evidence before declaring any persistence behavior.
+
+M2 integrated shape:
+
+1. `PipelineService` creates a Project, immutable PipelineRun config, six visible StageRuns, and only the dependency-free ingest Task.
+2. `StageTaskRunner` is shared by foreground CLI and Worker. It claims a fenced lease, starts a stage, heartbeats on an independent connection, executes external I/O without a DB transaction, and commits through one repository boundary.
+3. Each handler reserves Assets before I/O, writes under an attempt identity, validates and atomically publishes bytes, commits Asset hashes, then completes the Stage. Only then is the next Task created from the actual upstream output plus config fingerprint.
+4. The persistent Mock chain stores source metadata, audio chunks, transcript rows, rough candidates, selected immutable EditPlan revisions, captions and real validated proxy RenderJobs.
+5. CLI review/rerender/deliver commands intentionally remain unimplemented until M3 supplies the shared revision/render/delivery services; adapters will not grow duplicate domain logic to make M2 appear complete.
+6. Asset scope is derived inside the reservation/commit transaction from TaskAttempt → Task → PipelineRun → Project. Caller-provided project/generation/revision values are assertions, not authority; only the same logical Task may recover its failed/lost pending reservation.
+7. Typed stage checkpoint validation proves both committed artifacts and required domain rows before stage success. Stage/Task/Run/Project updates share an active lease and generation fence under `BEGIN IMMEDIATE`.
+8. Proxy RenderJobs are durable before media I/O and transition through the centralized state model. Failure, cancellation and lease expiry persist a safe error code; success requires every associated Asset to be committed.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -194,6 +217,14 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: The first full Demo `demo_20260803T075537_0e3ca9f9` reached `delivered`. Final MP4 is H.264/AAC 1080×1920, 12.000s, 3,411,094 bytes, SHA-256 `f1ddd09178868745ea88c82995b35a5f7ecd1542d7ba616e0559db7ab7ac2ddd`; complete decode and actual visual review passed.
 - 2026-08-03: A second `make demo` created distinct project `demo_20260803T075904_1fdd3288`, proving rerun isolation rather than overwriting the first immutable v001.
 - 2026-08-03: M1 review identified that directory confinement alone did not prove `clean-demo` ownership. Cleanup now requires both a generated project-name shape and a valid `.phase.json` marker; unknown and unmarked content is preserved. The independent Reviewer returned PASS after 70 tests, lint and retained-artifact inspection.
+- 2026-08-03: SQLite 3.51.0 on the system runtime is inside an officially disclosed WAL-reset race range; the project CPython embeds SQLite 3.53.1. Setup, doctor and runtime now reject known-unsafe branches instead of trusting the standalone `sqlite3` executable.
+- 2026-08-03: Pre-creating all six Tasks produced false downstream input fingerprints. M2 now pre-creates StageRuns for visibility but creates each downstream Task only after validating the prior stage's committed Asset hashes.
+- 2026-08-03: Chunk-boundary cancellation was insufficient for a long FFmpeg call. A shared `Popen(..., shell=False, start_new_session=True)` runner polls the durable heartbeat signal and terminates the owned process group on cancellation, lease loss or timeout.
+- 2026-08-03: The real persistent Mock pipeline produces three 270×480 H.264/AAC proxies from six leased stages; a separate foreground/Worker race test observes one handler execution for every stage and no duplicate claim.
+- 2026-08-03: Initial M2 review demonstrated that an arbitrary committed Asset could satisfy a stage and that StageStateStore mutations were not lease-fenced. Completion now uses typed per-stage domain checkpoints and all related mutations validate Task/Attempt/Run/Project generation in one immediate transaction.
+- 2026-08-03: Final M2 review demonstrated that caller-supplied Asset scope could cross project/revision boundaries and that proxy render rows appeared only after successful I/O. Asset scope is now database-derived, cross-logical-Task adoption is forbidden, and observable RenderJobs persist through running/failure/cancel/lease-expiry states.
+- 2026-08-03: Ingest, preprocess and quality subprocess timeout paths are explicitly transient. Argument, media-contract and validation errors remain deterministic, so bounded retry does not conceal bad inputs.
+- 2026-08-03: The independent final M2 Reviewer returned `PASS` after 82 focused tests, lint, 204 full tests and whitespace validation. It retained three P2 risks for M3/M5: non-interruptible in-process fingerprint/ffprobe latency, non-generation-scoped canonical paths and lack of a true separate-process contention test.
 
 ## Decision Log
 
@@ -204,6 +235,12 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Choose `whisper-1` as capability-driven v1 default; rationale: official real segment/word timestamps.
 - 2026-08-03: Choose stateless strict Responses with no tools and at most one repair; rationale: privacy and deterministic safety boundary.
 - 2026-08-03: Publish validated renderer output with `link(2)` from a same-directory private temp name and fail if the destination exists; rationale: `os.replace` can overwrite a competing immutable revision artifact after an `exists()` race.
+- 2026-08-03: Gate the active Python SQLite library on officially fixed WAL branches and use `synchronous=FULL`; rationale: durability and lease correctness depend on the embedded library, not a separate CLI version.
+- 2026-08-03: Create only the next dependency Task after stage commit; rationale: its idempotency identity must include actual validated upstream output.
+- 2026-08-03: Use one cancellation-aware process-group runner for pipeline FFmpeg/ffprobe work; rationale: a durable cancel must stop owned work before any success publication.
+- 2026-08-03: Treat caller Asset scope only as a checked assertion and derive authority from the active TaskAttempt graph; rationale: API/service bugs must not widen a lease into another project, generation, candidate or revision.
+- 2026-08-03: Persist proxy RenderJob intent and running state before FFmpeg I/O; rationale: failure, cancellation and crash recovery must remain user-observable and retryable.
+- 2026-08-03: Use explicit transient exception types for bounded process timeouts; rationale: retry behavior must not depend on fragile message matching or generic runtime exceptions.
 
 ## Risks and Mitigations
 
@@ -214,13 +251,16 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - SQLite/filesystem split-brain: immutable paths, lease/revision fencing, hashes, validation and atomic publish.
 - Model/schema drift: pinned SDK, configurable models, contract smoke, local validation and deterministic fallback.
 - Visual heuristics overclaim: quality report distinguishes automatic from actual viewed status.
+- Canonical stage paths currently omit PipelineRun generation: M3 will make run/generation part of persistent pipeline artifact names before supporting a second run on one Project; immutable collision remains fail-closed meanwhile.
+- Current ownership race test uses two independent runners/connections in one process: add a spawned-process contention/lease-expiry test in M5; database fencing, not the test topology, is the correctness mechanism.
+- Stream hashing and the Python-side ffprobe wrapper cannot be interrupted mid-call: bounded subprocess timeouts and late-publication fences cap correctness impact; M5 will measure cancellation latency and add polling where practical.
 
 ## Recovery Notes
 
-Current first task: implement and table-test centralized domain state transitions, then add the SQLAlchemy SQLite engine/ORM/UoW foundation for PipelineRun, StageRun and fenced Task leases.
+Current first task: create the scoped M2 milestone/checkpoint commits from the independently reviewed 204-test snapshot, then implement M3 shared review/revision/rerender/delivery services and REST routes.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 has started with centralized state and persistence as the first dependency.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 has independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. Only its local checkpoint commit remains before M3 implementation begins.

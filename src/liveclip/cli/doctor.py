@@ -15,6 +15,7 @@ from typing import Literal
 
 from liveclip.config import Settings
 from liveclip.config.fonts import available_chinese_fonts
+from liveclip.db.engine import assert_supported_sqlite_runtime
 
 CheckStatus = Literal["pass", "warning", "fail"]
 
@@ -208,6 +209,7 @@ def _data_dir_check(data_dir: Path) -> DoctorCheck:
 
 def _sqlite_check(data_dir: Path) -> DoctorCheck:
     try:
+        runtime = assert_supported_sqlite_runtime()
         data_dir.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".doctor-sqlite-", dir=data_dir) as temp_dir:
             db_path = Path(temp_dir) / "doctor.sqlite3"
@@ -226,12 +228,16 @@ def _sqlite_check(data_dir: Path) -> DoctorCheck:
                 ).fetchone()
             finally:
                 connection.close()
-    except (OSError, sqlite3.Error) as exc:
+    except (OSError, sqlite3.Error, RuntimeError) as exc:
         return DoctorCheck(
             "sqlite",
             "fail",
             "SQLite capability check failed",
-            {"version": sqlite3.sqlite_version, "error": exc.__class__.__name__},
+            {
+                "version": sqlite3.sqlite_version,
+                "error": exc.__class__.__name__,
+                "wal_concurrency_safe": False,
+            },
         )
     ok = journal_mode.lower() == "wal" and foreign_keys == 1 and returned == ("running",)
     return DoctorCheck(
@@ -240,7 +246,12 @@ def _sqlite_check(data_dir: Path) -> DoctorCheck:
         "SQLite WAL, foreign keys, busy timeout and RETURNING work"
         if ok
         else "SQLite lacks a required capability",
-        {"version": sqlite3.sqlite_version, "journal_mode": journal_mode},
+        {
+            "version": ".".join(str(part) for part in runtime.version),
+            "journal_mode": journal_mode,
+            "wal_concurrency_safe": runtime.wal_concurrency_safe,
+            "threadsafety": runtime.threadsafety,
+        },
     )
 
 

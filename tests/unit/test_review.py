@@ -6,14 +6,13 @@ from liveclip.domain.review import (
     EditPlanRevision,
     RenderKind,
     RenderRecord,
-    RenderStatus,
-    ReviewStatus,
     RevisionOrigin,
     add_render,
     decide_clip,
     revise_clip,
     start_clip_lifecycle,
 )
+from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 from liveclip.media.fingerprint import stream_sha256
 
 
@@ -61,6 +60,15 @@ def test_new_revision_invalidates_approval_and_stales_old_render(tmp_path: Path)
             sha256=stream_sha256(video),
         ),
     )
+    lifecycle = add_render(
+        lifecycle,
+        RenderRecord(
+            render_id="failed-final-r1",
+            revision=1,
+            kind=RenderKind.FINAL,
+            status=RenderStatus.FAILED,
+        ),
+    )
     lifecycle = decide_clip(lifecycle, status=ReviewStatus.APPROVED, decided_at=moment)
     assert lifecycle.review_status == ReviewStatus.APPROVED
 
@@ -74,5 +82,6 @@ def test_new_revision_invalidates_approval_and_stales_old_render(tmp_path: Path)
     assert revised.current_revision == 2
     assert revised.review_status == ReviewStatus.PENDING_REVIEW
     assert revised.renders[0].status == RenderStatus.STALE
+    assert revised.renders[1].status == RenderStatus.STALE
     assert revised.revisions[1].parent_revision == 1
     assert revised.revisions[1].origin == RevisionOrigin.HUMAN

@@ -12,6 +12,7 @@ import liveclip.media.ingest as ingest_module
 from liveclip.media.fingerprint import stream_sha256
 from liveclip.media.ingest import (
     MediaIngestError,
+    MediaIngestTransientError,
     ingest_source,
     parse_ffprobe_metadata,
     resolve_allowed_source,
@@ -207,6 +208,18 @@ def test_ffprobe_invocation_is_argv_with_shell_disabled_and_redacted_error(
     assert observed["shell"] is False
     assert source.as_posix() not in str(caught.value)
     assert "private command" not in str(caught.value)
+
+
+def test_ffprobe_timeout_is_explicitly_transient(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(["ffprobe"], timeout=1)
+
+    monkeypatch.setattr(ingest_module.subprocess, "run", timeout)
+
+    with pytest.raises(MediaIngestTransientError, match="could not inspect"):
+        run_ffprobe(tmp_path / "source.mp4", ffprobe_path="/system/ffprobe")
 
 
 def test_ingest_source_combines_validation_stream_hash_probe_and_mutation_guard(

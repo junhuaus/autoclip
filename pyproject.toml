@@ -27,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 liveclip = "liveclip.cli.app:app"
+liveclip-worker = "liveclip.worker:main"
 
 [dependency-groups]
 dev = [

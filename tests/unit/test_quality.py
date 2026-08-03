@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -5,7 +6,9 @@ import pytest
 import liveclip.renderer.quality as quality_module
 from liveclip.renderer.quality import (
     MediaValidationError,
+    MediaValidationTransientError,
     _validate_safe_bounds,
+    probe_media,
     validate_rendered_media,
 )
 
@@ -21,6 +24,18 @@ def test_safe_bounds_reject_text_near_video_edge(tmp_path: Path) -> None:
     del tmp_path
     with pytest.raises(MediaValidationError):
         _validate_safe_bounds(((0, 0, 540, 960),), width=540, height=960)
+
+
+def test_probe_timeout_is_explicitly_transient(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(["ffprobe"], timeout=1)
+
+    monkeypatch.setattr(quality_module, "run_cancellable_process", timeout)
+
+    with pytest.raises(MediaValidationTransientError, match="could not inspect"):
+        probe_media(tmp_path / "render.mp4", ffprobe_path="/system/ffprobe")
 
 
 @pytest.mark.parametrize(

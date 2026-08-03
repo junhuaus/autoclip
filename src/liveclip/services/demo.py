@@ -18,8 +18,6 @@ from liveclip.domain.review import (
     EditPlanRevision,
     RenderKind,
     RenderRecord,
-    RenderStatus,
-    ReviewStatus,
     RevisionOrigin,
     add_render,
     current_final_render,
@@ -27,6 +25,7 @@ from liveclip.domain.review import (
     revise_clip,
     start_clip_lifecycle,
 )
+from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 from liveclip.media.ingest import ingest_source
 from liveclip.media.preprocess import preprocess_audio
 from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_fallback_candidates

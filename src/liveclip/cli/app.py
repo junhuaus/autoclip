@@ -2,14 +2,24 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 
 from liveclip import __version__
+from liveclip.bootstrap import (
+    BootstrapError,
+    LiveClipRuntime,
+    local_worker_id,
+    pipeline_config_from_settings,
+)
 from liveclip.cli.doctor import DoctorReport, run_doctor
 from liveclip.config import get_settings
+from liveclip.domain.state_transitions import PipelineRunStatus
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
+from liveclip.worker import run_worker
 
 app = typer.Typer(
     name="liveclip",
@@ -51,6 +61,126 @@ def version() -> None:
     typer.echo(__version__)
 
 
+@app.command("run")
+def run_pipeline(
+    input_path: Annotated[Path, typer.Option("--input", help="Absolute local source video path.")],
+    top_n: Annotated[int | None, typer.Option("--top-n", min=1, max=100)] = None,
+    minimum_seconds: Annotated[int | None, typer.Option("--min-seconds", min=1, max=600)] = None,
+    maximum_seconds: Annotated[int | None, typer.Option("--max-seconds", min=1, max=1_800)] = None,
+    wait: Annotated[
+        bool, typer.Option("--wait", help="Process in this foreground process.")
+    ] = False,
+) -> None:
+    """Create a persisted project/run and optionally process it to human review."""
+
+    if not input_path.is_absolute() or ".." in input_path.parts:
+        typer.echo("--input must be an absolute path without '..'", err=True)
+        raise typer.Exit(code=2)
+    settings = get_settings()
+    try:
+        config = pipeline_config_from_settings(
+            settings,
+            top_n=top_n,
+            minimum_clip_seconds=minimum_seconds,
+            maximum_clip_seconds=maximum_seconds,
+        )
+        with LiveClipRuntime.open(settings) as runtime:
+            created = runtime.pipeline_service.create_project_and_run(
+                source_path=input_path,
+                config=config,
+                max_stage_retries=settings.max_stage_retries,
+            )
+            typer.echo(f"Project ID: {created.project_id}")
+            typer.echo(f"Pipeline run ID: {created.run_id}")
+            if not wait:
+                typer.echo("Pipeline status: queued")
+                return
+            snapshot = runtime.stage_runner.run_until_terminal(
+                created.run_id,
+                worker_id=local_worker_id("foreground"),
+            )
+            project = runtime.pipeline_service.get_project(created.project_id)
+            typer.echo(f"Pipeline status: {snapshot.status.value}")
+            typer.echo(f"Project status: {project.status.value}")
+            typer.echo(f"Progress: {snapshot.progress}%")
+            if snapshot.status != PipelineRunStatus.COMPLETED:
+                if snapshot.error_code:
+                    typer.echo(f"Error: {snapshot.error_code}", err=True)
+                if snapshot.safe_error_message:
+                    typer.echo(snapshot.safe_error_message, err=True)
+                raise typer.Exit(code=1)
+    except typer.Exit:
+        raise
+    except (BootstrapError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def status(project_id: str) -> None:
+    """Show the current derived project state and detailed pipeline stages."""
+
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            project = runtime.pipeline_service.get_project(project_id)
+            run = runtime.pipeline_service.get_run(project.current_run_id)
+            typer.echo(f"Project ID: {project.project_id}")
+            typer.echo(f"Project status: {project.status.value}")
+            typer.echo(f"Pipeline run ID: {run.run_id}")
+            typer.echo(f"Pipeline status: {run.status.value}")
+            typer.echo(f"Progress: {run.progress}%")
+            for stage in run.stages:
+                detail = f" - {stage.stage}: {stage.status.value} ({stage.progress}%)"
+                if stage.error_code:
+                    detail += f" [{stage.error_code}]"
+                typer.echo(detail)
+    except (BootstrapError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def clips(project_id: str) -> None:
+    """List the selected review candidates for a project."""
+
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            values = runtime.clip_query_service.list_project_clips(project_id)
+            if not values:
+                typer.echo("No review clips are available")
+                return
+            for clip in values:
+                typer.echo(
+                    f"{clip.clip_id} | {clip.review_status.value} | "
+                    f"{clip.source_start_ms / 1000:.3f}-{clip.source_end_ms / 1000:.3f}s | "
+                    f"{clip.score:.1f} | {clip.title}"
+                )
+    except (BootstrapError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def worker(
+    once: Annotated[
+        bool, typer.Option("--once", help="Process at most one ready stage task.")
+    ] = False,
+) -> None:
+    """Run the independent SQLite-leased local worker."""
+
+    try:
+        raise typer.Exit(code=run_worker(get_settings(), once=once))
+    except typer.Exit:
+        raise
+    except KeyboardInterrupt:
+        typer.echo("LiveClip worker stopped")
+    except (BootstrapError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
 @app.command()
 def demo() -> None:
     """Run the no-key, real-media Mock acceptance pipeline in the foreground."""
@@ -86,3 +216,10 @@ def clean_demo() -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(f"Removed {removed} generated Demo entries from data/demo")
+
+
+def _safe_cli_error(exc: Exception) -> str:
+    message = str(exc).replace("\r", " ").replace("\n", " ").strip()
+    if not message or len(message) > 500:
+        return "LiveClip operation failed; inspect local diagnostics"
+    return message

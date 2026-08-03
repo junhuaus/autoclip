@@ -2,7 +2,7 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It will turn a local 2–4 hour video into reviewable 9:16 clips, let a user adjust and approve exact revisions, and create immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: the M1 real-media Mock vertical slice is implemented and independently inspectable; persistent SQLite orchestration, full CLI/API/Web and cloud providers remain later milestones. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: M0–M2 are implemented and independently reviewed. The persistent SQLite pipeline, foreground CLI and Worker have fenced ownership, recoverable tasks and real proxy media. M3 REST/review/delivery services and Web work are now active; cloud providers remain M4. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -22,7 +22,7 @@ make demo
 
 `make setup` uses uv to provision a project-local native Python and installs frontend dependencies when the Web lockfile exists. Copy `.env.example` to an ignored `.env` and set absolute allowed media roots before importing real files. Never place a real key in `.env.example` or commit `.env`.
 
-## Planned CLI workflow
+## CLI workflow
 
 ```bash
 liveclip doctor
@@ -34,7 +34,7 @@ liveclip rerender CLIP_ID --wait
 liveclip deliver PROJECT_ID --zip
 ```
 
-Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
+`doctor`, `run --wait`, `status`, `clips`, and `worker` are implemented. Review/rerender/deliver arrive with their shared M3 services. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
 
 ## Planned local Web workflow
 
@@ -73,4 +73,4 @@ Known development-host differences are tracked in Solution: current PATH Python 
 
 ## Current limitations
 
-The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent task leases/database state, real-input CLI processing, API/Web review, real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain unverified or unimplemented. See STATUS for exact evidence.
+The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing and foreground/Worker lease competition are verified on generated local media. API/Web review, review/rerender/delivery CLI, real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain unverified or unimplemented. Cross-process lease contention and generation-scoped canonical artifact paths are explicit later hardening items. See STATUS for exact evidence.

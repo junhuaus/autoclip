@@ -83,25 +83,27 @@ Fingerprint is informational on SourceMedia, not globally unique, so an explicit
 
 Allowed transitions are defined only in `domain/state_transitions.py` and are covered by table-driven tests. Database columns use check constraints. Services request a transition; they do not assign arbitrary status strings.
 
-- PipelineRun: `queued → running → completed|failed|cancelled`; explicit retry of a deterministic unchanged run goes through `queued` with a new attempt.
+- PipelineRun: `queued → running → completed|failed|cancelled`; transient failure can be explicitly requeued on the same immutable run. A deterministic failure with unchanged input/config is rejected; changed input/config creates a new run/generation.
 - StageRun: `queued → running → succeeded|failed|skipped|cancelled`; expired recoverable work is requeued.
 - Review is the effective decision for the current revision. A new revision has no inherited approval and therefore computes `pending_review`.
-- Render: `queued → running → succeeded|failed`; any non-current revision becomes or remains `stale`.
+- Render: `queued → running → succeeded|failed`; queued, running, succeeded or failed renders for a non-current revision become `stale` and stale is terminal.
 - Delivery: `queued → creating → succeeded|failed`; succeeded snapshots are immutable.
 
 Project state is derived for the current generation, never manually set as a second source of truth. Active pipeline/render/delivery work yields `processing`; an unrecovered current-generation failure yields `failed`; no completed generation yields `imported`; pending/all-rejected/no-approved clips yield `pending_review`; at least one approved current revision with all required current final renders yields `ready_for_delivery`; the latest successful Delivery whose snapshot fingerprint equals the current deliverable set yields `delivered`. Editing after delivery leaves the old version downloadable and recomputes a non-delivered current state.
 
 ## Pipeline execution, lease, and recovery
 
-SQLite connections enable WAL, `foreign_keys=ON`, a configurable busy timeout, and `synchronous=NORMAL`. SQLAlchemy uses a synchronous engine and short transactions. HTTP handlers may run DB work in FastAPI's thread pool; we do not maintain parallel async and sync repository stacks.
+SQLite connections enable WAL, `foreign_keys=ON`, a configurable busy timeout, and `synchronous=FULL`. Application startup gates on the embedded SQLite runtime: it must support RETURNING and include the official WAL-reset race fix. Python sqlite3 legacy transaction control is disabled; SQLAlchemy emits explicit `BEGIN` and queue ownership uses `BEGIN IMMEDIATE`. SQLAlchemy uses a synchronous engine and short transactions. HTTP handlers may run DB work in FastAPI's thread pool; we do not maintain parallel async and sync repository stacks. ADR-005 and `docs/research/sqlite-concurrency.md` record the evidence and exact safe versions.
 
 A Task claim uses `BEGIN IMMEDIATE`, recovers expired eligible leases, selects one dependency-ready task whose `not_before` has passed, and atomically updates it with worker ID, random lease token, heartbeat and expiry using `UPDATE … RETURNING`. Heartbeat and completion require `(task_id, worker_id, lease_token)`. This fencing prevents an expired old worker from publishing after a replacement has claimed the task.
 
-No FFmpeg, filesystem hash, or network call holds a database write transaction. Each attempt writes a system-owned temporary directory. The handler checks cancellation between bounded operations and terminates an owned subprocess group when necessary. It validates results, verifies that it still owns the lease and relevant revision/generation, then publishes through a same-directory atomic hard link that fails if the immutable destination already exists. It never uses a replacing rename for revision artifacts. Lost-lease or outdated results become diagnostics/orphans, never current success.
+No FFmpeg, filesystem hash, or network call holds a database write transaction. Before external I/O, a short transaction reserves a pending Asset with producer attempt, expected path and input fingerprint. Asset authority is derived in that transaction through the active TaskAttempt → Task → PipelineRun → Project graph; caller project/generation/candidate/revision values are checked assertions, never trusted authority. Only a later failed or lost attempt of the same logical Task may adopt an exact matching pending reservation. Each attempt writes a system-owned temporary directory. The handler checks cancellation between bounded operations and terminates an owned subprocess group when necessary. Running cancellation remains a request until the owner acknowledges that safe boundary; queued work may cancel immediately. The handler validates results, verifies that it still owns the lease and relevant revision/generation, then publishes through a same-directory atomic hard link that fails if the immutable destination already exists. It never uses a replacing rename for revision artifacts. Lost-lease or outdated results become diagnostics/orphans, never current success.
 
-One heavy task is claimed by default. `proxy_render` renders candidate proxies sequentially within the stage and checkpoints each RenderJob, avoiding parent/child queue deadlock. Cheap API queries remain concurrent.
+One heavy task is claimed by default. `proxy_render` renders candidate proxies sequentially within the stage and checkpoints each RenderJob, avoiding parent/child queue deadlock. Before FFmpeg I/O, each proxy RenderJob is durably inserted and transitioned `queued → running`; success requires committed video/subtitle/quality Assets, while failure, cancellation and lease expiry persist a safe error code. Cheap API queries remain concurrent.
 
-Stage retry uses the same PipelineRun and resumes the first failed/incomplete stage when configuration and input fingerprints are unchanged. A different configuration creates a new PipelineRun/generation. Deterministic errors require user/config/input change; transient errors respect bounded retry count and `not_before` backoff.
+Stage completion is not inferred from arbitrary file existence or a generic Asset row. Each stage has a typed checkpoint contract covering its committed artifacts and required domain rows. The StageStateStore validates that checkpoint and the active Task/Attempt/Run/Project generation under the same `BEGIN IMMEDIATE` transaction before mutating StageRun, PipelineRun, Project or downstream Task state.
+
+Stage retry uses the same PipelineRun and resumes the first failed/incomplete stage when configuration and input fingerprints are unchanged. A different configuration creates a new PipelineRun/generation. Deterministic errors require user/config/input change; transient errors—including bounded ingest, preprocess and validation subprocess timeouts—respect retry count and `not_before` backoff. Authentication, arguments and failed media contracts never become transient merely because they pass through FFmpeg.
 
 ## Idempotency, cache, and artifact graph
 
@@ -164,7 +166,7 @@ The layout graph creates a fill-cropped blurred background plus aspect-fit foreg
 
 ## Render invalidation and review consistency
 
-A visual change transaction inserts a new immutable EditPlanRevision and caption snapshot, increments the Project revision epoch, points CandidateClip to it, makes the effective review pending, and marks queued/running/succeeded RenderJobs for older revisions stale. A worker that finishes an old render fails revision/lease fencing before publication.
+A visual change transaction inserts a new immutable EditPlanRevision and caption snapshot, increments the Project revision epoch, points CandidateClip to it, makes the effective review pending, and marks queued/running/succeeded/failed RenderJobs for older revisions stale. A worker that finishes an old render fails revision/lease fencing before publication.
 
 Approval and rejection are append-only decisions on an exact revision. Delivery eligibility requires the current revision, its current approval, and a succeeded validated final RenderJob with the same revision and render-spec hash. Editing after approval never inherits approval.
 
@@ -227,3 +229,4 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-002: SQLite fenced task leases and immutable artifact publication.
 - ADR-003: deterministic Pillow text rasterization plus FFmpeg overlay.
 - ADR-004: timestamp-capable ASR default and strict Responses integration.
+- ADR-005: WAL-safe SQLite runtime, explicit transaction control and FULL durability.

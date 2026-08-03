@@ -7,26 +7,13 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.domain.edit_plan import CaptionCue, EditPlan, validate_caption_cues
+from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 
 
 class RevisionOrigin(StrEnum):
     AI = "ai"
     DETERMINISTIC = "deterministic"
     HUMAN = "human"
-
-
-class ReviewStatus(StrEnum):
-    PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
-class RenderStatus(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    STALE = "stale"
 
 
 class RenderKind(StrEnum):
@@ -178,7 +165,13 @@ def revise_clip(
     stale_renders = tuple(
         render.model_copy(update={"status": RenderStatus.STALE})
         if render.revision < next_revision_number
-        and render.status in {RenderStatus.QUEUED, RenderStatus.RUNNING, RenderStatus.SUCCEEDED}
+        and render.status
+        in {
+            RenderStatus.QUEUED,
+            RenderStatus.RUNNING,
+            RenderStatus.SUCCEEDED,
+            RenderStatus.FAILED,
+        }
         else render
         for render in lifecycle.renders
     )

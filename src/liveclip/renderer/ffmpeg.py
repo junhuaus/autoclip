@@ -5,14 +5,19 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
 from liveclip.domain.edit_plan import Effect, Layout
 from liveclip.domain.time import ms_to_ffmpeg
-from liveclip.renderer.quality import MediaValidationError, validate_rendered_media
+from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.renderer.quality import (
+    MediaValidationCancelled,
+    MediaValidationError,
+    validate_rendered_media,
+)
 from liveclip.renderer.text import TextOverlay
 
 
@@ -44,6 +49,10 @@ class RenderResult:
 
 
 class FFmpegRenderError(RuntimeError):
+    pass
+
+
+class FFmpegRenderCancelled(FFmpegRenderError):
     pass
 
 
@@ -159,7 +168,12 @@ def build_filtergraph(request: RenderRequest) -> str:
     return ";".join(chains)
 
 
-def render_clip(request: RenderRequest, *, ffmpeg_path: str | None = None) -> RenderResult:
+def render_clip(
+    request: RenderRequest,
+    *,
+    ffmpeg_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> RenderResult:
     _validate_request(request)
     executable = ffmpeg_path or shutil.which("ffmpeg")
     if executable is None:
@@ -179,7 +193,13 @@ def render_clip(request: RenderRequest, *, ffmpeg_path: str | None = None) -> Re
                 request, encoder=encoder, temporary_output=temporary, ffmpeg_path=executable
             )
             try:
-                result = run_ffmpeg(argv)
+                result = run_ffmpeg(
+                    argv,
+                    timeout_seconds=_render_timeout_seconds(request),
+                    cancel_requested=cancel_requested,
+                )
+            except ProcessCancelled as exc:
+                raise FFmpegRenderCancelled("FFmpeg rendering was cancelled") from exc
             except (OSError, subprocess.TimeoutExpired) as exc:
                 diagnostics.append(f"{encoder} runtime: {exc.__class__.__name__}")
                 continue
@@ -187,7 +207,13 @@ def render_clip(request: RenderRequest, *, ffmpeg_path: str | None = None) -> Re
             diagnostics.append(f"{encoder}: {stderr_tail}")
             if result.returncode == 0 and temporary.is_file() and temporary.stat().st_size > 1_024:
                 try:
-                    _validate_temporary_media(temporary, request)
+                    _validate_temporary_media(
+                        temporary,
+                        request,
+                        cancel_requested=cancel_requested,
+                    )
+                except MediaValidationCancelled as exc:
+                    raise FFmpegRenderCancelled("render validation was cancelled") from exc
                 except (MediaValidationError, OSError, subprocess.TimeoutExpired) as exc:
                     diagnostics.append(f"{encoder} validation: {exc.__class__.__name__}: {exc}")
                     continue
@@ -204,15 +230,25 @@ def render_clip(request: RenderRequest, *, ffmpeg_path: str | None = None) -> Re
         temporary.unlink(missing_ok=True)
 
 
-def run_ffmpeg(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        list(argv),
-        check=False,
-        capture_output=True,
-        text=True,
-        shell=False,
-        timeout=1_800,
+def run_ffmpeg(
+    argv: Sequence[str],
+    *,
+    timeout_seconds: float = 1_800,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return run_cancellable_process(
+        argv,
+        timeout_seconds=timeout_seconds,
+        cancel_requested=cancel_requested,
     )
+
+
+def _render_timeout_seconds(request: RenderRequest) -> float:
+    """Bound a hung encoder without penalizing normal high-resolution final renders."""
+
+    duration_seconds = request.duration_ms / 1_000
+    pixel_scale = max(1.0, (request.width * request.height) / (540 * 960))
+    return min(1_800.0, max(120.0, duration_seconds * 8 * pixel_scale))
 
 
 def _encoder_order(configured: str) -> tuple[str, ...]:
@@ -241,7 +277,12 @@ def _bounded_tail(value: str, *, maximum_lines: int = 20) -> str:
     return "\n".join(value.splitlines()[-maximum_lines:])[-4_000:]
 
 
-def _validate_temporary_media(path: Path, request: RenderRequest) -> None:
+def _validate_temporary_media(
+    path: Path,
+    request: RenderRequest,
+    *,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> None:
     with tempfile.TemporaryDirectory(prefix=".liveclip-prepublish-", dir=path.parent) as temp_dir:
         validate_rendered_media(
             media_path=path,
@@ -250,6 +291,7 @@ def _validate_temporary_media(path: Path, request: RenderRequest) -> None:
             expected_duration_ms=request.duration_ms,
             output_dir=Path(temp_dir),
             safe_bounds=tuple(overlay.safe_bounds for overlay in request.overlays),
+            cancel_requested=cancel_requested,
         )
 
 

@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M2 — Domain persistence, Pipeline, CLI and Worker
+Current milestone: M3 — REST API, Web review and versioned delivery
 Branch: `master`
-Recent relevant commit: `cfc8889` (`milestone: complete LiveClip M1 mock vertical slice`)
+Recent relevant commit: `8d8004c` (`docs: record M1 checkpoint`)
 
 ## Completed
 
@@ -32,14 +32,30 @@ Recent relevant commit: `cfc8889` (`milestone: complete LiveClip M1 mock vertica
 - Closed the `clean-demo` provenance gap: only marker-validated generated Demo project directories are removed; unknown and unmarked content is preserved.
 - Completed the independent read-only M1 review with `VERDICT: PASS`; no M1 blocker remains.
 - Created local M1 milestone commit `cfc8889` after staged scope/whitespace checks and Reviewer PASS.
+- Implemented centralized PipelineRun/StageRun/Task/Asset/Review/Render/Delivery transitions and 20-table SQLAlchemy schema.
+- Added Alembic initial migration `c0a0568060fb`, repeatable upgrade/downgrade, schema drift check, integrity check and foreign-key check.
+- Added a WAL-safe embedded SQLite runtime gate, explicit transactions, `BEGIN IMMEDIATE`, foreign keys, busy timeout and `synchronous=FULL`; project Python embeds safe SQLite 3.53.1.
+- Implemented atomic Task claims, heavy-work singleton, fenced lease tokens, independent heartbeat, expiry/crash recovery, bounded retry, durable cancellation and generation/revision checks.
+- Implemented pending/committed Asset reservations, attempt-owned paths, hash/tamper checks, safe adoption and committed-Asset stage checkpoints.
+- Implemented all six persistent Mock Stage handlers and a shared `StageTaskRunner`; only a committed stage creates the next Task from its real output fingerprint.
+- Implemented `liveclip run --wait`, `status`, `clips`, `worker` and `liveclip-worker`; foreground CLI and Worker use the identical queue/runner path.
+- Added cancellation-aware FFmpeg/ffprobe process groups; cancelling or losing a lease terminates owned subprocess work and cleans unpublished temporary files.
+- Proved a real persistent 32-second Mock chain reaches `pending_review` with three actual 270×480 H.264/AAC proxies and durable DB facts.
+- Proved a foreground/independent-Worker race executes every logical stage once, and a running durable cancel is observed and acknowledged by the lease owner.
+- Closed the first M2 review findings with typed stage checkpoint validation, transaction-local stage mutation fences and cancellation-precedence handling.
+- Closed the final M2 review findings by deriving Asset ownership from the active Task lease, rejecting cross-project/cross-generation/cross-revision publication and forbidding pending-Asset adoption across logical Tasks.
+- Persisted proxy RenderJobs through `queued → running → succeeded|failed`; FFmpeg failure, cancellation and lease expiry now leave durable error evidence instead of disappearing before commit.
+- Classified bounded ingest, preprocess and quality process timeouts as transient while keeping validation/parameter faults deterministic.
+- Completed the final independent read-only M2 review with `PASS`; no P0/P1 issue remains. Reviewer-focused 82 tests and all 204 tests passed.
 
 ## In progress
 
-- M2 centralized state transitions and SQLite schema/UoW foundation.
+- M3 shared review/revision/rerender/delivery application services and REST API design/implementation.
 
 ## Not completed
 
-- All M2–M6 implementation and final acceptance.
+- M3–M6 implementation/final acceptance.
+- Review/rerender/delivery CLI commands remain M3 work with their shared application services; they are not separate CLI-only implementations.
 
 ## Verified
 
@@ -55,8 +71,10 @@ Recent relevant commit: `cfc8889` (`milestone: complete LiveClip M1 mock vertica
 
 - Pillow overlay performance on full 30–90 second clips and many cues.
 - Full 30–90 second raster performance and many-cue clips.
-- Persistent database/task Pipeline, real-input CLI, API, Web, Worker and cloud calls.
+- REST API, Web review, revision/final-render/delivery services and cloud calls.
 - Apple M3-specific performance and 2–4 hour media behavior.
+- True multi-process lease contention; the current independent runner proof uses separate runners/connections in one process.
+- Generation-scoped canonical stage artifact paths for a second PipelineRun on the same Project.
 
 ## Recent commands and real results
 
@@ -93,6 +111,20 @@ Recent relevant commit: `cfc8889` (`milestone: complete LiveClip M1 mock vertica
 - post-fix `make test`: exit 0; 70 passed in 23.34s.
 - independent M1 Reviewer: `PASS`; it independently reran the updated targeted tests/full suite/lint, inspected retained media/state/ZIP, and actually viewed the final contact sheet.
 - `git commit`: local M1 checkpoint `cfc8889`; 31 scoped files, 4,963 insertions and no generated media.
+- SQLite primary-source research: active `.venv` SQLite 3.53.1 passes the WAL-safety gate; system SQLite 3.51.0 is rejected as an unsafe branch.
+- Alembic integration: upgrade twice, `command.check`, downgrade/base, re-upgrade, schema-head match, `PRAGMA integrity_check` and `foreign_key_check` all pass.
+- persistent Mock integration: six Tasks succeeded; at least three rough candidates, exactly three selected EditPlans and three validated proxy RenderJobs persisted.
+- CLI integration: `run --wait`, `status` and `clips` complete through an Alembic-created file database and real FFmpeg media.
+- competition integration: independent Worker receives `idle` while foreground owns ingest; all six stage handler counts equal one and PipelineRun completes.
+- cancellation tests: durable running cancel reaches `cancelled`; actual long child process terminates in under three seconds without writing its late marker.
+- `uv lock --check` with project-local cache: exit 0; 56 packages resolved.
+- pre-review `make lint`: exit 0; Ruff/format pass on 97 files and strict mypy passes on 66 source files.
+- pre-review `make test`: exit 0; 185 passed in 40.93s, including five real local integration flows and no cloud calls.
+- final M2 `make lint`: exit 0; Ruff/format pass on 99 files and strict mypy passes on 66 source files.
+- final M2 `make test`: exit 0; 204 passed in 50.18s on the main integration snapshot; the independent Reviewer repeated it as 204 passed in 170.25s.
+- final M2 focused review suite: exit 0; 82 passed in 28.30s, covering Asset ownership attacks, timeout taxonomy, RenderJob lifecycle, stale lease fences, cancellation precedence and recovery.
+- final M2 `git diff --check`: exit 0.
+- independent M2 Reviewer: `PASS`; no remaining P0/P1 issue. Residual P2 items are bounded ingest/ffprobe cancellation latency, generation-scoped paths and a future true multi-process race test.
 
 ## Current blockers
 
@@ -100,11 +132,11 @@ No product decision blocker. OpenAI credentials are absent, so cloud smoke is ex
 
 ## Worktree state
 
-M0 is committed at `136d8bd` with status checkpoint `1dbed41`; M1 is committed at `cfc8889`. This checkpoint update is the only expected post-commit change. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
+M0 is committed at `136d8bd` with status checkpoint `1dbed41`; M1 is committed at `cfc8889` with checkpoint `8d8004c`. M2 has Reviewer PASS and is ready for its scoped local checkpoint commit. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
 
 ## Next concrete task
 
-Implement and table-test centralized domain state transitions, then add the SQLAlchemy SQLite engine/ORM/UoW schema required for PipelineRun, StageRun and fenced Task leases.
+Create the scoped local M2 milestone/checkpoint commits, then implement the shared M3 review/revision/rerender/delivery services and expose them through the REST API.
 
 ## Resume prompt
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,12 +30,13 @@ def render_edit_plan_revision(
     width: int,
     height: int,
     encoder: str,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> RenderedArtifact:
     render_root = output_path.parent
     overlay_dir = render_root / f"{output_path.stem}-overlays"
     quality_dir = render_root / f"{output_path.stem}-quality"
     overlay_dir.mkdir(parents=True, exist_ok=False)
-    overlays = _render_overlays(
+    overlays = render_revision_overlays(
         revision=revision,
         output_dir=overlay_dir,
         width=width,
@@ -52,7 +54,8 @@ def render_edit_plan_revision(
             effect=revision.plan.effect,
             overlays=overlays,
             encoder=encoder,
-        )
+        ),
+        cancel_requested=cancel_requested,
     )
     quality = validate_rendered_media(
         media_path=output_path,
@@ -61,6 +64,7 @@ def render_edit_plan_revision(
         expected_duration_ms=revision.plan.duration_ms,
         output_dir=quality_dir,
         safe_bounds=tuple(overlay.safe_bounds for overlay in overlays),
+        cancel_requested=cancel_requested,
     )
     quality_report_path = quality_dir / "quality-report.json"
     return RenderedArtifact(
@@ -74,7 +78,7 @@ def render_edit_plan_revision(
     )
 
 
-def _render_overlays(
+def render_revision_overlays(
     *,
     revision: EditPlanRevision,
     output_dir: Path,

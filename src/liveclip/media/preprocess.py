@@ -22,6 +22,7 @@ from liveclip.media.models import (
     SilenceInterval,
     SourceMediaMetadata,
 )
+from liveclip.media.process import ProcessCancelled, run_cancellable_process
 
 _ALGORITHM_VERSION = "audio-preprocess-v1"
 _SILENCE_EVENT = re.compile(r"silence_(?P<event>start|end):\s*(?P<seconds>-?[0-9]+(?:\.[0-9]+)?)")
@@ -29,6 +30,10 @@ _SILENCE_EVENT = re.compile(r"silence_(?P<event>start|end):\s*(?P<seconds>-?[0-9
 
 class AudioPreprocessError(RuntimeError):
     """A caller-safe deterministic preprocessing failure."""
+
+
+class AudioPreprocessTransientError(AudioPreprocessError):
+    """A local preprocessing execution failure that can be retried unchanged."""
 
 
 class AudioPreprocessCancelled(AudioPreprocessError):
@@ -144,7 +149,9 @@ def preprocess_audio(
     try:
         destination.mkdir(parents=True, exist_ok=True)
         destination = destination.resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
+    except OSError as exc:
+        raise AudioPreprocessTransientError("audio output directory cannot be resolved") from exc
+    except RuntimeError as exc:
         raise AudioPreprocessError("audio output directory cannot be resolved") from exc
     if not destination.is_dir():
         raise AudioPreprocessError("audio output target must be a directory")
@@ -159,6 +166,7 @@ def preprocess_audio(
             noise_db=silence_noise_db,
             minimum_duration_ms=silence_min_duration_ms,
             ffmpeg_path=executable,
+            cancel_requested=cancel_requested,
         )
         manifest = AudioChunkManifest(
             source_sha256=source.sha256,
@@ -221,6 +229,7 @@ def preprocess_audio(
                 sample_rate_hz=sample_rate_hz,
                 bitrate=bitrate,
                 ffmpeg_path=executable,
+                cancel_requested=cancel_requested,
             )
             _check_cancel(cancel_requested)
             if not temporary.is_file() or temporary.stat().st_size <= 0:
@@ -262,6 +271,7 @@ def detect_silence(
     noise_db: int,
     minimum_duration_ms: int,
     ffmpeg_path: str,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> tuple[SilenceInterval, ...]:
     argv = [
         ffmpeg_path,
@@ -282,16 +292,15 @@ def detect_silence(
         "-",
     ]
     try:
-        result = subprocess.run(
+        result = run_cancellable_process(
             argv,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=21_600,
-            shell=False,
+            timeout_seconds=21_600,
+            cancel_requested=cancel_requested,
         )
+    except ProcessCancelled as exc:
+        raise AudioPreprocessCancelled("silence analysis was cancelled") from exc
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise AudioPreprocessError("silence analysis could not be executed") from exc
+        raise AudioPreprocessTransientError("silence analysis could not be executed") from exc
     if result.returncode != 0:
         raise AudioPreprocessError("silence analysis failed")
     return parse_silencedetect(result.stderr, analysis_duration_ms=source_duration_ms)
@@ -329,6 +338,7 @@ def _run_audio_extract(
     sample_rate_hz: int,
     bitrate: str,
     ffmpeg_path: str,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> None:
     argv = [
         ffmpeg_path,
@@ -360,16 +370,15 @@ def _run_audio_extract(
         str(temporary_path),
     ]
     try:
-        result = subprocess.run(
+        result = run_cancellable_process(
             argv,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=1_800,
-            shell=False,
+            timeout_seconds=1_800,
+            cancel_requested=cancel_requested,
         )
+    except ProcessCancelled as exc:
+        raise AudioPreprocessCancelled("audio extraction was cancelled") from exc
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise AudioPreprocessError("audio extraction could not be executed") from exc
+        raise AudioPreprocessTransientError("audio extraction could not be executed") from exc
     if result.returncode != 0:
         raise AudioPreprocessError("audio extraction failed")
 
@@ -395,7 +404,7 @@ def _write_manifest_atomic(manifest: AudioChunkManifest, path: Path) -> None:
             os.fsync(handle.fileno())
         os.replace(temporary, path)
     except OSError as exc:
-        raise AudioPreprocessError("audio checkpoint could not be written") from exc
+        raise AudioPreprocessTransientError("audio checkpoint could not be written") from exc
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -511,7 +520,9 @@ def _publish_no_clobber(temporary: Path, destination: Path) -> None:
     except FileExistsError as exc:
         raise AudioPreprocessError("audio chunk publication lost a no-clobber race") from exc
     except OSError as exc:
-        raise AudioPreprocessError("audio chunk could not be published atomically") from exc
+        raise AudioPreprocessTransientError(
+            "audio chunk could not be published atomically"
+        ) from exc
     with suppress(OSError):
         temporary.unlink()
 
@@ -543,4 +554,4 @@ def _hash_audio_file(path: Path) -> str:
     try:
         return stream_sha256(path)
     except OSError as exc:
-        raise AudioPreprocessError("audio chunk could not be fingerprinted") from exc
+        raise AudioPreprocessTransientError("audio chunk could not be fingerprinted") from exc

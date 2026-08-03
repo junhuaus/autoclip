@@ -18,6 +18,7 @@ setup:
 	$(UV_ENV) $(UV) sync --python $(PYTHON_VERSION) --managed-python --all-groups
 	@if [ -f apps/web/package-lock.json ]; then PATH="$(NODE_LTS_BIN):$$PATH" npm ci --prefix apps/web; fi
 	@"$(VENV_BIN)/python" -c 'import platform, sys; assert sys.version_info >= (3, 11); assert platform.machine() == "arm64", platform.machine(); print("Python", platform.python_version(), platform.machine())'
+	@"$(VENV_BIN)/python" -c 'from liveclip.db.engine import assert_supported_sqlite_runtime; r = assert_supported_sqlite_runtime(); print("SQLite", ".".join(map(str, r.version)), "WAL-safe")'
 
 doctor:
 	@PATH="$(NODE_LTS_BIN):$$PATH" "$(VENV_BIN)/liveclip" doctor

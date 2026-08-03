@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,9 +12,18 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageOps, ImageStat
 
 from liveclip.domain.time import ms_to_ffmpeg
+from liveclip.media.process import ProcessCancelled, run_cancellable_process
 
 
 class MediaValidationError(RuntimeError):
+    pass
+
+
+class MediaValidationTransientError(MediaValidationError):
+    pass
+
+
+class MediaValidationCancelled(MediaValidationError):
     pass
 
 
@@ -67,11 +77,12 @@ def validate_rendered_media(
     output_dir: Path,
     safe_bounds: tuple[tuple[int, int, int, int], ...] = (),
     duration_tolerance_ms: int = 600,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> QualityReport:
     if not media_path.is_file() or media_path.stat().st_size < 10_000:
         raise MediaValidationError("rendered media is missing or below the size floor")
     output_dir.mkdir(parents=True, exist_ok=True)
-    probe = probe_media(media_path)
+    probe = probe_media(media_path, cancel_requested=cancel_requested)
     streams = probe.get("streams", [])
     video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
     audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
@@ -96,11 +107,12 @@ def validate_rendered_media(
         raise MediaValidationError("ffprobe did not return a valid duration") from exc
     if abs(actual_duration_ms - expected_duration_ms) > duration_tolerance_ms:
         raise MediaValidationError("rendered duration is outside tolerance")
-    full_decode(media_path)
+    full_decode(media_path, cancel_requested=cancel_requested)
     frames = extract_representative_frames(
         media_path=media_path,
         duration_ms=actual_duration_ms,
         output_dir=output_dir / "frames",
+        cancel_requested=cancel_requested,
     )
     metrics = tuple(_frame_metric(path, timestamp_ms) for path, timestamp_ms in frames)
     if any(metric.mean_luma < 3 or metric.luma_variance < 1 for metric in metrics):
@@ -139,12 +151,17 @@ def validate_rendered_media(
     return report
 
 
-def probe_media(media_path: Path, *, ffprobe_path: str | None = None) -> dict[str, Any]:
+def probe_media(
+    media_path: Path,
+    *,
+    ffprobe_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
     executable = ffprobe_path or shutil.which("ffprobe")
     if executable is None:
         raise MediaValidationError("ffprobe is not available")
     try:
-        result = subprocess.run(
+        result = run_cancellable_process(
             [
                 executable,
                 "-v",
@@ -155,14 +172,13 @@ def probe_media(media_path: Path, *, ffprobe_path: str | None = None) -> dict[st
                 "json",
                 str(media_path),
             ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            shell=False,
+            timeout_seconds=60,
+            cancel_requested=cancel_requested,
         )
+    except ProcessCancelled as exc:
+        raise MediaValidationCancelled("ffprobe inspection was cancelled") from exc
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise MediaValidationError("ffprobe could not inspect rendered media") from exc
+        raise MediaValidationTransientError("ffprobe could not inspect rendered media") from exc
     if result.returncode != 0:
         raise MediaValidationError("ffprobe failed: " + _tail(result.stderr))
     try:
@@ -174,21 +190,25 @@ def probe_media(media_path: Path, *, ffprobe_path: str | None = None) -> dict[st
     return payload
 
 
-def full_decode(media_path: Path, *, ffmpeg_path: str | None = None) -> None:
+def full_decode(
+    media_path: Path,
+    *,
+    ffmpeg_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
+) -> None:
     executable = ffmpeg_path or shutil.which("ffmpeg")
     if executable is None:
         raise MediaValidationError("ffmpeg is not available")
     try:
-        result = subprocess.run(
+        result = run_cancellable_process(
             [executable, "-v", "error", "-i", str(media_path), "-f", "null", "-"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=1_800,
-            shell=False,
+            timeout_seconds=1_800,
+            cancel_requested=cancel_requested,
         )
+    except ProcessCancelled as exc:
+        raise MediaValidationCancelled("full media decode was cancelled") from exc
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise MediaValidationError("full media decode could not be executed") from exc
+        raise MediaValidationTransientError("full media decode could not be executed") from exc
     if result.returncode != 0 or result.stderr.strip():
         raise MediaValidationError("full media decode failed: " + _tail(result.stderr))
 
@@ -199,6 +219,7 @@ def extract_representative_frames(
     duration_ms: int,
     output_dir: Path,
     ffmpeg_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> tuple[tuple[Path, int], ...]:
     executable = ffmpeg_path or shutil.which("ffmpeg")
     if executable is None:
@@ -211,7 +232,7 @@ def extract_representative_frames(
     for label, timestamp_ms in zip(labels, timestamps, strict=True):
         target = output_dir / f"{label}.png"
         try:
-            result = subprocess.run(
+            result = run_cancellable_process(
                 [
                     executable,
                     "-y",
@@ -226,14 +247,13 @@ def extract_representative_frames(
                     "1",
                     str(target),
                 ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                shell=False,
+                timeout_seconds=60,
+                cancel_requested=cancel_requested,
             )
+        except ProcessCancelled as exc:
+            raise MediaValidationCancelled(f"{label} frame extraction was cancelled") from exc
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise MediaValidationError(f"could not extract the {label} frame") from exc
+            raise MediaValidationTransientError(f"could not extract the {label} frame") from exc
         if result.returncode != 0 or not target.is_file():
             raise MediaValidationError(f"failed to extract {label} frame: {_tail(result.stderr)}")
         frames.append((target, timestamp_ms))

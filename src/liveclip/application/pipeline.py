@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+from typing import Protocol
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from liveclip.domain.state_transitions import (
+    FailureClass,
+    PipelineRunStatus,
+    PipelineStage,
+    ProjectStatus,
+    StageRunStatus,
+    TaskStatus,
+)
+
+
+class StageLeaseLost(RuntimeError):
+    """The caller no longer owns the durable stage task fence."""
+
+
+class PipelineRunConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    schema_version: str = Field(default="1", pattern=r"^1$")
+    provider: str = Field(pattern=r"^(mock|openai)$")
+    top_n: int = Field(ge=1, le=100)
+    minimum_clip_ms: int = Field(ge=1_000, le=600_000)
+    maximum_clip_ms: int = Field(ge=1_000, le=1_800_000)
+    chunk_duration_ms: int = Field(ge=10_000, le=3_600_000)
+    chunk_overlap_ms: int = Field(ge=0, le=60_000)
+    max_chunk_bytes: int = Field(ge=1_000_000, le=25_000_000)
+    transcription_model: str = Field(min_length=1, max_length=100)
+    llm_model: str = Field(min_length=1, max_length=100)
+    preview_width: int = Field(ge=180, le=2_160)
+    preview_height: int = Field(ge=320, le=3_840)
+    video_encoder: str = Field(pattern=r"^(auto|h264_videotoolbox|libx264)$")
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> PipelineRunConfig:
+        if self.minimum_clip_ms > self.maximum_clip_ms:
+            raise ValueError("minimum clip duration cannot exceed maximum")
+        if self.chunk_overlap_ms >= self.chunk_duration_ms:
+            raise ValueError("audio overlap must be shorter than a chunk")
+        if self.preview_width >= self.preview_height:
+            raise ValueError("preview render dimensions must be portrait")
+        if self.preview_width % 2 or self.preview_height % 2:
+            raise ValueError("preview render dimensions must be even")
+        return self
+
+    @property
+    def fingerprint(self) -> str:
+        payload = self.model_dump_json(exclude_none=False)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class CreatedPipeline(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    project_id: str
+    run_id: str
+
+
+class StageSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    stage: str
+    status: StageRunStatus
+    progress: int = Field(ge=0, le=100)
+    retry_count: int = Field(ge=0)
+    error_code: str | None = None
+    safe_error_message: str | None = None
+
+
+class RunSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    run_id: str
+    project_id: str
+    status: PipelineRunStatus
+    progress: int = Field(ge=0, le=100)
+    cancellation_requested: bool
+    error_code: str | None = None
+    safe_error_message: str | None = None
+    stages: tuple[StageSnapshot, ...]
+
+
+class ProjectSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    project_id: str
+    name: str
+    source_filename: str
+    status: ProjectStatus
+    current_run_id: str
+    generation: int = Field(ge=1)
+
+
+class LeaseIdentity(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    task_id: str
+    worker_id: str
+    lease_token: str
+
+
+class StageWork(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    task_id: str
+    stage_run_id: str
+    run_id: str
+    project_id: str
+    stage: PipelineStage
+    source_path: Path
+    config: PipelineRunConfig
+    input_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    generation: int = Field(ge=1)
+    revision_epoch: int = Field(ge=0)
+    already_succeeded: bool
+    output_fingerprint: str | None = None
+    checkpoint: dict[str, object] | None = None
+    cancellation_requested: bool
+
+
+class StageExecutionRepository(Protocol):
+    def start_or_resume_stage(self, lease: LeaseIdentity) -> StageWork: ...
+
+    def complete_stage(
+        self,
+        lease: LeaseIdentity,
+        *,
+        output_fingerprint: str,
+        checkpoint: dict[str, object],
+    ) -> bool: ...
+
+    def fail_stage(
+        self,
+        lease: LeaseIdentity,
+        *,
+        failure_class: FailureClass,
+        error_code: str,
+        safe_message: str,
+        retry_delay_ms: int,
+    ) -> TaskStatus | None: ...
+
+    def cancel_stage(self, lease: LeaseIdentity) -> bool: ...
+
+
+class PipelineRepository(Protocol):
+    def create_project_and_run(
+        self,
+        *,
+        source_path: Path,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+    ) -> CreatedPipeline: ...
+
+    def get_run(self, run_id: str) -> RunSnapshot: ...
+
+    def get_project(self, project_id: str) -> ProjectSnapshot: ...
+
+    def request_run_cancel(self, run_id: str) -> RunSnapshot: ...
+
+    def retry_failed_run(self, run_id: str) -> RunSnapshot: ...
+
+
+class PipelineService:
+    def __init__(self, repository: PipelineRepository) -> None:
+        self._repository = repository
+
+    def create_project_and_run(
+        self,
+        *,
+        source_path: Path,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+    ) -> CreatedPipeline:
+        if not source_path.is_absolute() or ".." in source_path.parts:
+            raise ValueError("source path must be absolute and cannot contain '..'")
+        if max_stage_retries < 0:
+            raise ValueError("max stage retries must be nonnegative")
+        return self._repository.create_project_and_run(
+            source_path=source_path,
+            config=config,
+            max_stage_retries=max_stage_retries,
+        )
+
+    def get_run(self, run_id: str) -> RunSnapshot:
+        return self._repository.get_run(run_id)
+
+    def get_project(self, project_id: str) -> ProjectSnapshot:
+        return self._repository.get_project(project_id)
+
+    def cancel(self, run_id: str) -> RunSnapshot:
+        return self._repository.request_run_cancel(run_id)
+
+    def retry(self, run_id: str) -> RunSnapshot:
+        return self._repository.retry_failed_run(run_id)

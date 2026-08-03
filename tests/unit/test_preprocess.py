@@ -11,6 +11,7 @@ from liveclip.media.models import AudioChunkManifest, SilenceInterval, SourceMed
 from liveclip.media.preprocess import (
     AudioPreprocessCancelled,
     AudioPreprocessError,
+    AudioPreprocessTransientError,
     ChunkWindow,
     _run_audio_extract,
     audio_chunk_cache_key,
@@ -97,7 +98,7 @@ def test_audio_extract_and_silence_detection_disable_shell(
         stderr = "silence_start: 0.25\nsilence_end: 0.75 | silence_duration: 0.5"
         return subprocess.CompletedProcess(argv, 0, "", stderr)
 
-    monkeypatch.setattr(preprocess_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(preprocess_module, "run_cancellable_process", fake_run)
     _run_audio_extract(
         source_path=tmp_path / "source.mp4",
         window=ChunkWindow(index=0, start_ms=2_000, end_ms=7_000),
@@ -115,11 +116,31 @@ def test_audio_extract_and_silence_detection_disable_shell(
     )
 
     assert len(observed) == 2
-    assert all(kwargs["shell"] is False for _, kwargs in observed)
+    assert all(kwargs["timeout_seconds"] > 0 for _, kwargs in observed)
+    assert all("cancel_requested" in kwargs for _, kwargs in observed)
     extract_argv = observed[0][0]
     assert extract_argv[extract_argv.index("-ac") + 1] == "1"
     assert extract_argv[extract_argv.index("-c:a") + 1] == "aac"
     assert intervals == (SilenceInterval(start_ms=250, end_ms=750),)
+
+
+def test_audio_extract_timeout_is_explicitly_transient(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(["ffmpeg"], timeout=1)
+
+    monkeypatch.setattr(preprocess_module, "run_cancellable_process", timeout)
+
+    with pytest.raises(AudioPreprocessTransientError, match="could not be executed"):
+        _run_audio_extract(
+            source_path=tmp_path / "source.mp4",
+            window=ChunkWindow(index=0, start_ms=0, end_ms=1_000),
+            temporary_path=tmp_path / ".private.m4a",
+            sample_rate_hz=16_000,
+            bitrate="48k",
+            ffmpeg_path="/system/ffmpeg",
+        )
 
 
 def test_preprocess_checkpoints_and_reuses_hash_verified_chunks(

@@ -22,6 +22,10 @@ class MediaIngestError(RuntimeError):
     """A deterministic, caller-safe source ingest failure."""
 
 
+class MediaIngestTransientError(MediaIngestError):
+    """A local probe execution failure that can be retried unchanged."""
+
+
 def resolve_allowed_source(source_path: str | Path, allowed_roots: Iterable[Path]) -> Path:
     """Resolve and validate a source path against strict real allowed roots."""
 
@@ -72,7 +76,7 @@ def run_ffprobe(path: Path, *, ffprobe_path: str | None = None) -> dict[str, Any
             shell=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise MediaIngestError("ffprobe could not inspect source media") from exc
+        raise MediaIngestTransientError("ffprobe could not inspect source media") from exc
     if result.returncode != 0:
         raise MediaIngestError("ffprobe rejected source media")
     try:

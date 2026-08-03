@@ -6,10 +6,13 @@ import pytest
 
 import liveclip.renderer.ffmpeg as renderer_module
 from liveclip.domain.edit_plan import Effect, Layout
+from liveclip.media.process import ProcessCancelled
 from liveclip.renderer.ffmpeg import (
+    FFmpegRenderCancelled,
     FFmpegRenderError,
     RenderRequest,
     _publish_no_clobber,
+    _render_timeout_seconds,
     build_ffmpeg_argv,
     build_filtergraph,
     render_clip,
@@ -77,7 +80,7 @@ def test_videotoolbox_runtime_exception_falls_back_to_libx264(
     request = make_request(tmp_path)
     attempted_encoders: list[str] = []
 
-    def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+    def fake_run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         encoder = argv[argv.index("-c:v") + 1]
         attempted_encoders.append(encoder)
         if encoder == "h264_videotoolbox":
@@ -86,7 +89,11 @@ def test_videotoolbox_runtime_exception_falls_back_to_libx264(
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr(renderer_module, "run_ffmpeg", fake_run)
-    monkeypatch.setattr(renderer_module, "_validate_temporary_media", lambda *_: None)
+    monkeypatch.setattr(
+        renderer_module,
+        "_validate_temporary_media",
+        lambda *_args, **_kwargs: None,
+    )
 
     result = render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
 
@@ -101,11 +108,11 @@ def test_invalid_temporary_render_is_never_published(
 ) -> None:
     request = replace(make_request(tmp_path), encoder="libx264")
 
-    def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+    def fake_run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         Path(argv[-1]).write_bytes(b"invalid-render" * 1_000)
         return subprocess.CompletedProcess(argv, 0, "", "")
 
-    def reject_validation(*_: object) -> None:
+    def reject_validation(*_: object, **_kwargs: object) -> None:
         raise MediaValidationError("invalid temporary media")
 
     monkeypatch.setattr(renderer_module, "run_ffmpeg", fake_run)
@@ -115,6 +122,40 @@ def test_invalid_temporary_render_is_never_published(
         render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
 
     assert not request.output_path.exists()
+
+
+def test_renderer_cancellation_does_not_fallback_or_publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = make_request(tmp_path)
+    attempts = 0
+
+    def cancel_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        raise ProcessCancelled("cancelled")
+
+    monkeypatch.setattr(renderer_module, "run_ffmpeg", cancel_run)
+
+    with pytest.raises(FFmpegRenderCancelled, match="cancelled"):
+        render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
+
+    assert attempts == 1
+    assert not request.output_path.exists()
+    assert not list(tmp_path.glob(".*.tmp-*.mp4"))
+
+
+def test_render_timeout_scales_with_duration_and_resolution(tmp_path: Path) -> None:
+    preview = make_request(tmp_path)
+    final = replace(
+        preview,
+        source_end_ms=91_000,
+        width=1080,
+        height=1920,
+    )
+
+    assert _render_timeout_seconds(preview) == 120
+    assert _render_timeout_seconds(final) == 1_800
 
 
 def test_atomic_publication_losing_race_does_not_clobber_winner(tmp_path: Path) -> None:
