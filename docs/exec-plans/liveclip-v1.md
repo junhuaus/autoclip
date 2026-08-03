@@ -74,7 +74,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-03 Replace long FFmpeg validation/extraction/render calls with process-group cancellation; cancellation never publishes a successful artifact.
 - [x] 2026-08-03 Run migration round-trip/drift/integrity checks, strict lint/types and 204 local tests including real persistent media and CLI chains.
 - [x] 2026-08-03 Complete two independent read-only review passes, fix every P0/P1 finding and receive final `PASS` with 82 focused and 204 full tests green.
-- [ ] Create the scoped local M2 milestone and documentation checkpoint commits.
+- [x] 2026-08-03 Create scoped local M2 milestone commit `09a6f10`; record it in the documentation checkpoint.
 
 ### M3 — REST API, Web review and versioned delivery
 
@@ -257,10 +257,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: create the scoped M2 milestone/checkpoint commits from the independently reviewed 204-test snapshot, then implement M3 shared review/revision/rerender/delivery services and REST routes.
+Current first task: implement M3 shared review/revision/rerender/delivery services, including generation-scoped persistent artifact paths, then expose them through REST routes and CLI.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 has independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. Only its local checkpoint commit remains before M3 implementation begins.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 implementation is active.

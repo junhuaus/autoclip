@@ -3,7 +3,7 @@
 Updated: 2026-08-03
 Current milestone: M3 — REST API, Web review and versioned delivery
 Branch: `master`
-Recent relevant commit: `8d8004c` (`docs: record M1 checkpoint`)
+Recent relevant commit: `09a6f10` (`milestone: complete LiveClip M2 persistent pipeline`)
 
 ## Completed
 
@@ -47,6 +47,7 @@ Recent relevant commit: `8d8004c` (`docs: record M1 checkpoint`)
 - Persisted proxy RenderJobs through `queued → running → succeeded|failed`; FFmpeg failure, cancellation and lease expiry now leave durable error evidence instead of disappearing before commit.
 - Classified bounded ingest, preprocess and quality process timeouts as transient while keeping validation/parameter faults deterministic.
 - Completed the final independent read-only M2 review with `PASS`; no P0/P1 issue remains. Reviewer-focused 82 tests and all 204 tests passed.
+- Created the scoped local M2 milestone commit `09a6f10` after lint/type, staged whitespace and staged-scope checks.
 
 ## In progress
 
@@ -132,11 +133,11 @@ No product decision blocker. OpenAI credentials are absent, so cloud smoke is ex
 
 ## Worktree state
 
-M0 is committed at `136d8bd` with status checkpoint `1dbed41`; M1 is committed at `cfc8889` with checkpoint `8d8004c`. M2 has Reviewer PASS and is ready for its scoped local checkpoint commit. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
+M0 is committed at `136d8bd` with status checkpoint `1dbed41`; M1 is committed at `cfc8889` with checkpoint `8d8004c`; M2 is committed at `09a6f10` and this status update is its documentation checkpoint. Generated Demo media is ignored and retained as evidence. Run `git status --short --branch` for the authoritative list.
 
 ## Next concrete task
 
-Create the scoped local M2 milestone/checkpoint commits, then implement the shared M3 review/revision/rerender/delivery services and expose them through the REST API.
+Implement the shared M3 review/revision/rerender/delivery services, including generation-scoped persistent artifact paths, then expose them through the REST API and CLI.
 
 ## Resume prompt
 
