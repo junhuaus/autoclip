@@ -20,6 +20,7 @@ from liveclip.application.rendering import (
     render_asset_paths,
 )
 from liveclip.application.reviewing import RenderRequest
+from liveclip.application.tasks import validate_task_diagnostic_relative_path
 from liveclip.config.fonts import detect_chinese_font
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
@@ -99,6 +100,10 @@ class SqlAlchemyRenderRepository:
                 "overlay_renderer": "pillow-overlay-v1",
                 "revision_epoch": int(row.revision_epoch),
                 "source_sha256": str(row.source_sha256),
+                "source_streams": {
+                    "video": int(row.video_stream_index),
+                    "audio": int(row.audio_stream_index),
+                },
                 "source_identity": {
                     "size_bytes": int(row.source_size_bytes),
                     "mtime_ns": int(row.source_mtime_ns),
@@ -258,6 +263,8 @@ class SqlAlchemyRenderRepository:
                     SourceMediaRow.mtime_ns.label("source_mtime_ns"),
                     SourceMediaRow.device.label("source_device"),
                     SourceMediaRow.inode.label("source_inode"),
+                    SourceMediaRow.video_stream_index,
+                    SourceMediaRow.audio_stream_index,
                 )
                 .join(RenderJobRow, RenderJobRow.task_id == TaskRow.id)
                 .join(CandidateClipRow, CandidateClipRow.id == RenderJobRow.candidate_clip_id)
@@ -355,6 +362,9 @@ class SqlAlchemyRenderRepository:
                 source_mtime_ns=int(row.source_mtime_ns),
                 source_device=(int(row.source_device) if row.source_device is not None else None),
                 source_inode=int(row.source_inode) if row.source_inode is not None else None,
+                source_sha256=str(row.source_sha256),
+                video_stream_index=int(row.video_stream_index),
+                audio_stream_index=int(row.audio_stream_index),
                 font_path=font_path,
                 revision=revision,
                 kind=str(row.kind),
@@ -396,6 +406,13 @@ class SqlAlchemyRenderRepository:
         now = datetime.now(UTC)
         if work.task_id != lease.task_id:
             raise RenderConflict("render work belongs to another task")
+        diagnostic_relative_path = validate_task_diagnostic_relative_path(
+            persistence.diagnostic_relative_path
+        )
+        if diagnostic_relative_path is not None:
+            parts = diagnostic_relative_path.split("/")
+            if parts[1:3] != [lease.task_id, lease.lease_token]:
+                raise RenderConflict("render diagnostic belongs to another task attempt")
         if not _source_matches_work_identity(work):
             raise RenderConflict("source media changed while the render was executing")
         asset_ids = (
@@ -601,7 +618,11 @@ class SqlAlchemyRenderRepository:
                     TaskAttemptRow.lease_token == lease.lease_token,
                     TaskAttemptRow.outcome == AttemptOutcome.RUNNING.value,
                 )
-                .values(outcome=AttemptOutcome.SUCCEEDED.value, finished_at=now)
+                .values(
+                    outcome=AttemptOutcome.SUCCEEDED.value,
+                    finished_at=now,
+                    diagnostic_relative_path=diagnostic_relative_path,
+                )
             )
             return True
 
@@ -621,6 +642,8 @@ def _load_enqueue_context(connection: Connection, clip_id: str):  # type: ignore
             SourceMediaRow.mtime_ns.label("source_mtime_ns"),
             SourceMediaRow.device.label("source_device"),
             SourceMediaRow.inode.label("source_inode"),
+            SourceMediaRow.video_stream_index,
+            SourceMediaRow.audio_stream_index,
         )
         .join(
             EditPlanRevisionRow,
@@ -674,7 +697,16 @@ def _source_matches_persisted_identity(
     except (OSError, RuntimeError):
         return False
     identity = spec.get("source_identity")
-    if not isinstance(identity, dict) or spec.get("source_sha256") != str(row.source_sha256):  # type: ignore[attr-defined]
+    streams = spec.get("source_streams")
+    if (
+        not isinstance(identity, dict)
+        or spec.get("source_sha256") != str(row.source_sha256)  # type: ignore[attr-defined]
+        or streams
+        != {
+            "video": int(row.video_stream_index),  # type: ignore[attr-defined]
+            "audio": int(row.audio_stream_index),  # type: ignore[attr-defined]
+        }
+    ):
         return False
     observed = {
         "size_bytes": metadata.st_size,

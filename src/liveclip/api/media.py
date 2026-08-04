@@ -71,8 +71,9 @@ def stream_asset_response(
     if download_filename is not None:
         safe_name = re.sub(r"[^A-Za-z0-9_.-]", "-", download_filename)[:160]
         headers["Content-Disposition"] = f'attachment; filename="{safe_name or "download.bin"}"'
+    descriptor = _open_verified_asset_descriptor(asset)
     return StreamingResponse(
-        _read_file_range(asset, start=start, length=length),
+        _read_file_range(descriptor, asset=asset, start=start, length=length),
         status_code=206 if selected is not None else 200,
         media_type=asset.mime_type,
         headers=headers,
@@ -80,6 +81,7 @@ def stream_asset_response(
 
 
 def _read_file_range(
+    descriptor: int,
     asset: ResolvedMediaAsset,
     *,
     start: int,
@@ -87,11 +89,7 @@ def _read_file_range(
     chunk_size: int = 1024 * 1024,
 ) -> Iterator[bytes]:
     remaining = length
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(asset.path, flags)
     try:
-        if _descriptor_identity(descriptor) != asset.stat_identity:
-            raise OSError("asset identity changed after integrity verification")
         with os.fdopen(descriptor, "rb", closefd=True) as source:
             descriptor = -1
             source.seek(start)
@@ -101,18 +99,50 @@ def _read_file_range(
                     raise OSError("asset ended before its committed size")
                 remaining -= len(block)
                 yield block
-            if _descriptor_identity(source.fileno()) != asset.stat_identity:
+            if not _descriptor_content_remained_stable(source.fileno(), asset.stat_identity):
                 raise OSError("asset changed while it was being streamed")
     finally:
         if descriptor >= 0:
             os.close(descriptor)
 
 
-def _descriptor_identity(descriptor: int) -> tuple[int, int, int | None, int | None]:
+def _open_verified_asset_descriptor(asset: ResolvedMediaAsset) -> int:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(asset.path, flags)
+    try:
+        if _descriptor_identity(descriptor) != asset.stat_identity:
+            raise OSError("asset identity changed after integrity verification")
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _descriptor_identity(descriptor: int) -> tuple[int, int, int, int | None, int | None]:
     metadata = os.fstat(descriptor)
     return (
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        getattr(metadata, "st_dev", None),
+        getattr(metadata, "st_ino", None),
+    )
+
+
+def _descriptor_content_remained_stable(
+    descriptor: int,
+    expected: tuple[int, int, int, int | None, int | None],
+) -> bool:
+    metadata = os.fstat(descriptor)
+    stable_content_identity = (
         metadata.st_size,
         metadata.st_mtime_ns,
         getattr(metadata, "st_dev", None),
         getattr(metadata, "st_ino", None),
     )
+    expected_content_identity = (expected[0], expected[1], expected[3], expected[4])
+    if stable_content_identity != expected_content_identity:
+        return False
+    # Replacing the pathname can change ctime on the already-open old inode while
+    # reducing its link count to zero; its pinned bytes remain the verified body.
+    return metadata.st_ctime_ns == expected[2] or metadata.st_nlink == 0

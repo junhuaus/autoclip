@@ -9,6 +9,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.engine import Connection, Engine
 
 from liveclip.application.stage_execution import (
+    CommittedStageAsset,
     PersistedCandidate,
     PersistedRevision,
     PreparedRevision,
@@ -71,14 +72,55 @@ class SqlAlchemyStageStateStore:
         with begin_immediate(self._engine) as connection:
             _assert_mutation_fence(connection, fence)
             existing = connection.execute(
-                select(SourceMediaRow.id, SourceMediaRow.probe_json).where(
-                    SourceMediaRow.project_id == fence.project_id
-                )
+                select(
+                    SourceMediaRow.id,
+                    SourceMediaRow.probe_json,
+                    SourceMediaRow.video_stream_index,
+                    SourceMediaRow.audio_stream_index,
+                    SourceMediaRow.video_rotation_degrees,
+                ).where(SourceMediaRow.project_id == fence.project_id)
             ).one_or_none()
             if existing is not None:
-                if (
-                    SourceMediaMetadata.model_validate_json(json.dumps(existing.probe_json))
-                    != source
+                selection = (
+                    existing.video_stream_index,
+                    existing.audio_stream_index,
+                    existing.video_rotation_degrees,
+                )
+                if selection == (None, None, None):
+                    legacy_payload = dict(payload)
+                    legacy_payload.pop("video_stream_index")
+                    legacy_payload.pop("audio_stream_index")
+                    legacy_payload.pop("video_rotation_degrees")
+                    if existing.probe_json != legacy_payload:
+                        raise StageDataConflict(
+                            "legacy source media differs from verified re-ingest input"
+                        )
+                    connection.execute(
+                        update(SourceMediaRow)
+                        .where(
+                            SourceMediaRow.id == existing.id,
+                            SourceMediaRow.video_stream_index.is_(None),
+                            SourceMediaRow.audio_stream_index.is_(None),
+                            SourceMediaRow.video_rotation_degrees.is_(None),
+                        )
+                        .values(
+                            video_stream_index=source.video_stream_index,
+                            audio_stream_index=source.audio_stream_index,
+                            video_rotation_degrees=source.video_rotation_degrees,
+                            width=source.video_width,
+                            height=source.video_height,
+                            probe_json=payload,
+                        )
+                    )
+                    return str(existing.id)
+                if any(value is None for value in selection):
+                    raise StageDataConflict("source stream selection is only partially persisted")
+                if SourceMediaMetadata.model_validate_json(
+                    json.dumps(existing.probe_json)
+                ) != source or selection != (
+                    source.video_stream_index,
+                    source.audio_stream_index,
+                    source.video_rotation_degrees,
                 ):
                     raise StageDataConflict("persisted source media differs from retry input")
                 return str(existing.id)
@@ -97,6 +139,9 @@ class SqlAlchemyStageStateStore:
                     duration_ms=source.duration_ms,
                     width=source.video_width,
                     height=source.video_height,
+                    video_stream_index=source.video_stream_index,
+                    audio_stream_index=source.audio_stream_index,
+                    video_rotation_degrees=source.video_rotation_degrees,
                     video_codec=source.video_codec,
                     audio_codec=source.audio_codec,
                     frame_rate=str(source.video_frame_rate),
@@ -108,12 +153,100 @@ class SqlAlchemyStageStateStore:
 
     def load_source(self, *, project_id: str) -> SourceMediaMetadata:
         with self._engine.connect() as connection:
-            payload = connection.scalar(
-                select(SourceMediaRow.probe_json).where(SourceMediaRow.project_id == project_id)
-            )
-        if not isinstance(payload, dict):
+            row = connection.execute(
+                select(
+                    SourceMediaRow.probe_json,
+                    SourceMediaRow.video_stream_index,
+                    SourceMediaRow.audio_stream_index,
+                    SourceMediaRow.video_rotation_degrees,
+                ).where(SourceMediaRow.project_id == project_id)
+            ).one_or_none()
+        if row is None or not isinstance(row.probe_json, dict):
             raise StageDataConflict("source media is not persisted")
-        return SourceMediaMetadata.model_validate_json(json.dumps(payload))
+        selection = (
+            row.video_stream_index,
+            row.audio_stream_index,
+            row.video_rotation_degrees,
+        )
+        if selection == (None, None, None):
+            raise StageDataConflict("legacy source media requires a verified ingest rerun")
+        if any(value is None for value in selection):
+            raise StageDataConflict("source stream selection is only partially persisted")
+        source = SourceMediaMetadata.model_validate_json(json.dumps(row.probe_json))
+        if selection != (
+            source.video_stream_index,
+            source.audio_stream_index,
+            source.video_rotation_degrees,
+        ):
+            raise StageDataConflict("source stream selection differs from its probe payload")
+        return source
+
+    def load_committed_assets(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        generation: int,
+        kinds: tuple[str, ...],
+    ) -> tuple[CommittedStageAsset, ...]:
+        if generation <= 0:
+            raise ValueError("asset generation must be positive")
+        if (
+            not kinds
+            or len(kinds) != len(set(kinds))
+            or any(not re.fullmatch(r"[a-z0-9_.-]{1,50}", kind) for kind in kinds)
+        ):
+            raise ValueError("committed asset kinds are invalid")
+        with self._engine.connect() as connection:
+            run = connection.execute(
+                select(PipelineRunRow.project_id, PipelineRunRow.generation).where(
+                    PipelineRunRow.id == run_id
+                )
+            ).one_or_none()
+            if (
+                run is None
+                or str(run.project_id) != project_id
+                or int(run.generation) != generation
+            ):
+                raise StageDataConflict("committed asset run scope is invalid")
+            rows = connection.execute(
+                select(
+                    AssetRow.id,
+                    AssetRow.kind,
+                    AssetRow.relative_path,
+                    AssetRow.sha256,
+                    AssetRow.size_bytes,
+                )
+                .join(TaskAttemptRow, TaskAttemptRow.id == AssetRow.producer_attempt_id)
+                .join(TaskRow, TaskRow.id == TaskAttemptRow.task_id)
+                .where(
+                    TaskRow.pipeline_run_id == run_id,
+                    AssetRow.project_id == project_id,
+                    AssetRow.generation == generation,
+                    AssetRow.status == AssetStatus.COMMITTED.value,
+                    AssetRow.kind.in_(kinds),
+                )
+                .order_by(AssetRow.kind, AssetRow.relative_path, AssetRow.id)
+            ).all()
+        assets: list[CommittedStageAsset] = []
+        for row in rows:
+            if (
+                not isinstance(row.sha256, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", row.sha256)
+                or not isinstance(row.size_bytes, int)
+                or row.size_bytes <= 0
+            ):
+                raise StageDataConflict("committed asset integrity metadata is incomplete")
+            assets.append(
+                CommittedStageAsset(
+                    asset_id=str(row.id),
+                    kind=str(row.kind),
+                    relative_path=str(row.relative_path),
+                    sha256=row.sha256,
+                    size_bytes=row.size_bytes,
+                )
+            )
+        return tuple(assets)
 
     def save_audio(
         self,

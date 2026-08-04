@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
 import uuid
 from collections.abc import Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from liveclip.domain.time import ms_to_ffmpeg, seconds_to_ms
-from liveclip.media.fingerprint import stream_sha256
 from liveclip.media.models import (
     AudioChunk,
     AudioChunkManifest,
@@ -23,8 +20,22 @@ from liveclip.media.models import (
     SourceMediaMetadata,
 )
 from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.media.secure_files import (
+    PinnedRegularFile,
+    SecureFileError,
+    SecureFileMissing,
+    ensure_directory_no_follow,
+    hash_regular_file_no_follow,
+    open_pinned_regular_file,
+    publish_regular_file_immutable_no_follow,
+    read_regular_text_no_follow,
+    write_text_atomic_no_follow,
+    write_text_immutable_no_follow,
+)
 
 _ALGORITHM_VERSION = "audio-preprocess-v1"
+_MAX_CHUNK_WINDOWS = 10_000
+_DISK_RESERVE_BYTES = 16 * 1024 * 1024
 _SILENCE_EVENT = re.compile(r"silence_(?P<event>start|end):\s*(?P<seconds>-?[0-9]+(?:\.[0-9]+)?)")
 
 
@@ -65,7 +76,13 @@ def chunk_windows(
         raise ValueError("chunk duration must be positive")
     if overlap_ms < 0 or overlap_ms >= chunk_duration_ms:
         raise ValueError("chunk overlap must be nonnegative and shorter than the chunk")
+    if overlap_ms * 2 > chunk_duration_ms:
+        raise ValueError("chunk overlap must not exceed half of the chunk duration")
     step_ms = chunk_duration_ms - overlap_ms
+    remaining_after_first = max(0, source_duration_ms - chunk_duration_ms)
+    expected_count = 1 + (remaining_after_first + step_ms - 1) // step_ms
+    if expected_count > _MAX_CHUNK_WINDOWS:
+        raise ValueError("audio preprocessing would create too many chunks")
     windows: list[ChunkWindow] = []
     start_ms = 0
     while start_ms < source_duration_ms:
@@ -123,6 +140,65 @@ def preprocess_audio(
     ffmpeg_path: str | None = None,
     cancel_requested: Callable[[], bool] | None = None,
 ) -> AudioChunkManifest:
+    """Pin the imported source while extracting one recoverable audio manifest."""
+
+    _validate_source_reference(source)
+    try:
+        with open_pinned_regular_file(source.resolved_path) as pinned:
+            _validate_pinned_source_identity(source, pinned)
+
+            def validate_source_content() -> None:
+                _check_cancel(cancel_requested)
+                try:
+                    observed = pinned.sha256(cancel_requested=cancel_requested)
+                except InterruptedError as exc:
+                    raise AudioPreprocessCancelled(
+                        "source fingerprint validation was cancelled"
+                    ) from exc
+                if observed != source.sha256:
+                    raise AudioPreprocessError("source media content changed after import")
+                pinned.validate_binding()
+
+            validate_source_content()
+            return _preprocess_audio_with_pinned_source(
+                source=source,
+                output_dir=output_dir,
+                chunk_duration_ms=chunk_duration_ms,
+                overlap_ms=overlap_ms,
+                max_chunk_bytes=max_chunk_bytes,
+                sample_rate_hz=sample_rate_hz,
+                bitrate=bitrate,
+                silence_noise_db=silence_noise_db,
+                silence_min_duration_ms=silence_min_duration_ms,
+                ffmpeg_path=ffmpeg_path,
+                cancel_requested=cancel_requested,
+                source_input_path=pinned.process_path,
+                source_pass_fds=pinned.pass_fds,
+                validate_source_content=validate_source_content,
+            )
+    except (AudioPreprocessError, AudioPreprocessCancelled):
+        raise
+    except (SecureFileError, OSError) as exc:
+        raise AudioPreprocessError("source media changed after import") from exc
+
+
+def _preprocess_audio_with_pinned_source(
+    *,
+    source: SourceMediaMetadata,
+    output_dir: Path,
+    chunk_duration_ms: int,
+    overlap_ms: int,
+    max_chunk_bytes: int,
+    sample_rate_hz: int = 16_000,
+    bitrate: str = "48k",
+    silence_noise_db: int = -35,
+    silence_min_duration_ms: int = 500,
+    ffmpeg_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
+    source_input_path: Path,
+    source_pass_fds: tuple[int, ...],
+    validate_source_content: Callable[[], None],
+) -> AudioChunkManifest:
     """Extract resumable mono AAC chunks and an atomic checkpoint manifest."""
 
     if max_chunk_bytes <= 0:
@@ -147,30 +223,36 @@ def preprocess_audio(
     )
     destination = Path(output_dir)
     try:
-        destination.mkdir(parents=True, exist_ok=True)
-        destination = destination.resolve(strict=True)
+        destination = ensure_directory_no_follow(destination)
+    except SecureFileError as exc:
+        raise AudioPreprocessError("audio output directory is not symlink-free") from exc
     except OSError as exc:
         raise AudioPreprocessTransientError("audio output directory cannot be resolved") from exc
-    except RuntimeError as exc:
-        raise AudioPreprocessError("audio output directory cannot be resolved") from exc
     if not destination.is_dir():
         raise AudioPreprocessError("audio output target must be a directory")
     manifest_path = destination / "chunk-manifest.json"
+    checkpoint_path = destination / "chunk-checkpoint.json"
 
-    existing = _read_manifest(manifest_path)
+    published = _read_manifest(manifest_path)
+    if published is not None and not published.complete:
+        raise AudioPreprocessError("published audio manifest is not complete")
+    existing = published or _read_manifest(checkpoint_path)
     if existing is None:
         _check_cancel(cancel_requested)
         silences = detect_silence(
-            source_path=source.resolved_path,
+            source_path=source_input_path,
             source_duration_ms=source.duration_ms,
+            audio_stream_index=source.audio_stream_index,
             noise_db=silence_noise_db,
             minimum_duration_ms=silence_min_duration_ms,
             ffmpeg_path=executable,
             cancel_requested=cancel_requested,
+            pass_fds=source_pass_fds,
         )
         manifest = AudioChunkManifest(
             source_sha256=source.sha256,
             source_duration_ms=source.duration_ms,
+            source_audio_stream_index=source.audio_stream_index,
             chunk_duration_ms=chunk_duration_ms,
             chunk_overlap_ms=overlap_ms,
             sample_rate_hz=sample_rate_hz,
@@ -181,7 +263,7 @@ def preprocess_audio(
             expected_chunk_count=len(windows),
             silences=silences,
         )
-        _write_manifest_atomic(manifest, manifest_path)
+        _write_manifest_atomic(manifest, checkpoint_path)
     else:
         manifest = existing
         _validate_resume_contract(
@@ -202,8 +284,19 @@ def preprocess_audio(
         destination=destination,
         windows=windows,
         source_sha256=source.sha256,
+        audio_stream_index=source.audio_stream_index,
         overlap_ms=overlap_ms,
         sample_rate_hz=sample_rate_hz,
+        bitrate=bitrate,
+    )
+    if manifest.complete and len(verified) == len(windows):
+        _check_cancel(cancel_requested)
+        _validate_source_reference(source)
+        validate_source_content()
+        return manifest
+    _ensure_audio_disk_budget(
+        destination,
+        windows=tuple(window for window in windows if window.index not in verified),
         bitrate=bitrate,
     )
     for window in windows:
@@ -213,23 +306,24 @@ def preprocess_audio(
         cache_key = audio_chunk_cache_key(
             source_sha256=source.sha256,
             window=window,
+            audio_stream_index=source.audio_stream_index,
             overlap_ms=overlap_ms,
             sample_rate_hz=sample_rate_hz,
             bitrate=bitrate,
         )
         final_path = _chunk_path(destination, window, cache_key)
-        if final_path.exists():
-            raise AudioPreprocessError("an unverified audio chunk already occupies its target")
         temporary = destination / f".{final_path.stem}.tmp-{uuid.uuid4().hex}.m4a"
         try:
             _run_audio_extract(
-                source_path=source.resolved_path,
+                source_path=source_input_path,
                 window=window,
                 temporary_path=temporary,
+                audio_stream_index=source.audio_stream_index,
                 sample_rate_hz=sample_rate_hz,
                 bitrate=bitrate,
                 ffmpeg_path=executable,
                 cancel_requested=cancel_requested,
+                pass_fds=source_pass_fds,
             )
             _check_cancel(cancel_requested)
             if not temporary.is_file() or temporary.stat().st_size <= 0:
@@ -238,7 +332,6 @@ def preprocess_audio(
             if size_bytes > max_chunk_bytes:
                 raise AudioPreprocessError("audio chunk exceeds the configured upload size limit")
             sha256 = _hash_audio_file(temporary)
-            _publish_no_clobber(temporary, final_path)
             chunk = AudioChunk(
                 index=window.index,
                 chunk_id=f"chunk_{window.index:06d}",
@@ -252,27 +345,62 @@ def preprocess_audio(
                 sha256=sha256,
                 cache_key=cache_key,
             )
+            pending = dict(verified)
+            pending[window.index] = chunk
+            manifest = _updated_manifest(manifest, pending, complete=False)
+            # Checkpoint the deterministic target and verified temporary bytes before
+            # publishing. A crash can therefore leave either a missing referenced file
+            # (safe to regenerate) or a referenced complete file (safe to adopt), never
+            # an unreferenced canonical chunk that makes retries diverge.
+            _write_manifest_atomic(manifest, checkpoint_path)
+            _publish_no_clobber(temporary, final_path)
         finally:
             temporary.unlink(missing_ok=True)
         verified[window.index] = chunk
-        manifest = _updated_manifest(manifest, verified, complete=False)
-        _write_manifest_atomic(manifest, manifest_path)
 
     _validate_source_reference(source)
+    validate_source_content()
     completed = _updated_manifest(manifest, verified, complete=True)
-    _write_manifest_atomic(completed, manifest_path)
+    _write_complete_manifest_immutable(completed, manifest_path)
+    checkpoint_path.unlink(missing_ok=True)
     return completed
+
+
+def _ensure_audio_disk_budget(
+    destination: Path,
+    *,
+    windows: tuple[ChunkWindow, ...],
+    bitrate: str,
+) -> None:
+    if not windows:
+        return
+    bitrate_kbps = int(bitrate[:-1])
+    encoded_bytes = sum(window.duration_ms for window in windows) * bitrate_kbps // 8
+    largest_chunk_bytes = max(window.duration_ms for window in windows) * bitrate_kbps // 8
+    required_bytes = (encoded_bytes * 5 + 3) // 4 + (largest_chunk_bytes * 2) + _DISK_RESERVE_BYTES
+    try:
+        free_bytes = shutil.disk_usage(destination).free
+    except OSError as exc:
+        raise AudioPreprocessTransientError("audio output disk capacity could not be read") from exc
+    if free_bytes < required_bytes:
+        raise AudioPreprocessTransientError(
+            "audio preprocessing requires more free local disk space"
+        )
 
 
 def detect_silence(
     *,
     source_path: Path,
     source_duration_ms: int,
+    audio_stream_index: int = 1,
     noise_db: int,
     minimum_duration_ms: int,
     ffmpeg_path: str,
     cancel_requested: Callable[[], bool] | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> tuple[SilenceInterval, ...]:
+    if audio_stream_index < 0:
+        raise ValueError("audio stream index must be nonnegative")
     argv = [
         ffmpeg_path,
         "-nostdin",
@@ -283,7 +411,7 @@ def detect_silence(
         "-i",
         str(source_path),
         "-map",
-        "0:a:0",
+        f"0:{audio_stream_index}",
         "-vn",
         "-af",
         f"silencedetect=n={noise_db}dB:d={ms_to_ffmpeg(minimum_duration_ms)}",
@@ -296,6 +424,7 @@ def detect_silence(
             argv,
             timeout_seconds=21_600,
             cancel_requested=cancel_requested,
+            pass_fds=pass_fds,
         )
     except ProcessCancelled as exc:
         raise AudioPreprocessCancelled("silence analysis was cancelled") from exc
@@ -310,10 +439,13 @@ def audio_chunk_cache_key(
     *,
     source_sha256: str,
     window: ChunkWindow,
+    audio_stream_index: int = 1,
     overlap_ms: int,
     sample_rate_hz: int,
     bitrate: str,
 ) -> str:
+    if audio_stream_index < 0:
+        raise ValueError("audio stream index must be nonnegative")
     payload = {
         "algorithm": _ALGORITHM_VERSION,
         "audio_codec": "aac",
@@ -322,6 +454,7 @@ def audio_chunk_cache_key(
         "channels": 1,
         "overlap_ms": overlap_ms,
         "sample_rate_hz": sample_rate_hz,
+        "source_audio_stream_index": audio_stream_index,
         "source_end_ms": window.end_ms,
         "source_sha256": source_sha256,
         "source_start_ms": window.start_ms,
@@ -335,11 +468,15 @@ def _run_audio_extract(
     source_path: Path,
     window: ChunkWindow,
     temporary_path: Path,
+    audio_stream_index: int = 1,
     sample_rate_hz: int,
     bitrate: str,
     ffmpeg_path: str,
     cancel_requested: Callable[[], bool] | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> None:
+    if audio_stream_index < 0:
+        raise ValueError("audio stream index must be nonnegative")
     argv = [
         ffmpeg_path,
         "-nostdin",
@@ -353,7 +490,7 @@ def _run_audio_extract(
         "-t",
         ms_to_ffmpeg(window.duration_ms),
         "-map",
-        "0:a:0",
+        f"0:{audio_stream_index}",
         "-vn",
         "-ac",
         "1",
@@ -374,6 +511,7 @@ def _run_audio_extract(
             argv,
             timeout_seconds=1_800,
             cancel_requested=cancel_requested,
+            pass_fds=pass_fds,
         )
     except ProcessCancelled as exc:
         raise AudioPreprocessCancelled("audio extraction was cancelled") from exc
@@ -384,29 +522,24 @@ def _run_audio_extract(
 
 
 def _read_manifest(path: Path) -> AudioChunkManifest | None:
-    if not path.exists():
-        return None
-    if path.is_symlink() or not path.is_file():
-        raise AudioPreprocessError("audio checkpoint is not a regular file")
     try:
-        return AudioChunkManifest.model_validate_json(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValidationError) as exc:
+        payload = read_regular_text_no_follow(path, max_bytes=8_000_000)
+    except SecureFileMissing:
+        return None
+    except SecureFileError as exc:
+        raise AudioPreprocessError("audio checkpoint is not a safe regular file") from exc
+    try:
+        return AudioChunkManifest.model_validate_json(payload)
+    except ValidationError as exc:
         raise AudioPreprocessError("audio checkpoint is invalid") from exc
 
 
 def _write_manifest_atomic(manifest: AudioChunkManifest, path: Path) -> None:
-    temporary = path.with_name(f".{path.name}.tmp-{uuid.uuid4().hex}")
     payload = manifest.model_dump_json(indent=2) + "\n"
     try:
-        with temporary.open("x", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    except OSError as exc:
+        write_text_atomic_no_follow(path, payload, max_bytes=8_000_000)
+    except SecureFileError as exc:
         raise AudioPreprocessTransientError("audio checkpoint could not be written") from exc
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def _validate_resume_contract(
@@ -426,6 +559,7 @@ def _validate_resume_contract(
         manifest.algorithm_version == _ALGORITHM_VERSION
         and manifest.source_sha256 == source.sha256
         and manifest.source_duration_ms == source.duration_ms
+        and manifest.source_audio_stream_index == source.audio_stream_index
         and manifest.chunk_duration_ms == chunk_duration_ms
         and manifest.chunk_overlap_ms == overlap_ms
         and manifest.sample_rate_hz == sample_rate_hz
@@ -445,6 +579,7 @@ def _verified_resume_chunks(
     destination: Path,
     windows: tuple[ChunkWindow, ...],
     source_sha256: str,
+    audio_stream_index: int,
     overlap_ms: int,
     sample_rate_hz: int,
     bitrate: str,
@@ -456,6 +591,7 @@ def _verified_resume_chunks(
         cache_key = audio_chunk_cache_key(
             source_sha256=source_sha256,
             window=window,
+            audio_stream_index=audio_stream_index,
             overlap_ms=overlap_ms,
             sample_rate_hz=sample_rate_hz,
             bitrate=bitrate,
@@ -472,12 +608,15 @@ def _verified_resume_chunks(
         )
         if not contract_matches:
             raise AudioPreprocessError("an audio checkpoint chunk has invalid metadata")
-        if not expected_path.exists():
+        try:
+            observed_sha256, size_bytes = hash_regular_file_no_follow(expected_path)
+        except SecureFileMissing:
             continue
-        if expected_path.is_symlink() or not expected_path.is_file():
-            raise AudioPreprocessError("a checkpoint audio chunk is not a regular file")
-        size_bytes = expected_path.stat().st_size
-        if size_bytes != chunk.size_bytes or _hash_audio_file(expected_path) != chunk.sha256:
+        except SecureFileError as exc:
+            raise AudioPreprocessError(
+                "a checkpoint audio chunk is not a safe regular file"
+            ) from exc
+        if size_bytes != chunk.size_bytes or observed_sha256 != chunk.sha256:
             raise AudioPreprocessError("a checkpoint audio chunk failed hash verification")
         verified[chunk.index] = chunk
     return verified
@@ -516,15 +655,11 @@ def _overlap_after(windows: tuple[ChunkWindow, ...], index: int) -> int:
 
 def _publish_no_clobber(temporary: Path, destination: Path) -> None:
     try:
-        os.link(temporary, destination)
-    except FileExistsError as exc:
-        raise AudioPreprocessError("audio chunk publication lost a no-clobber race") from exc
-    except OSError as exc:
+        publish_regular_file_immutable_no_follow(temporary, destination)
+    except SecureFileError as exc:
         raise AudioPreprocessTransientError(
             "audio chunk could not be published atomically"
         ) from exc
-    with suppress(OSError):
-        temporary.unlink()
 
 
 def _check_cancel(callback: Callable[[], bool] | None) -> None:
@@ -550,8 +685,42 @@ def _validate_source_reference(source: SourceMediaMetadata) -> None:
         raise AudioPreprocessError("source media changed after import")
 
 
+def _validate_pinned_source_identity(
+    source: SourceMediaMetadata,
+    pinned: PinnedRegularFile,
+) -> None:
+    metadata = pinned.metadata
+    observed = (
+        pinned.path,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        getattr(metadata, "st_ino", None),
+        getattr(metadata, "st_dev", None),
+    )
+    expected = (
+        source.resolved_path,
+        source.size_bytes,
+        source.mtime_ns,
+        source.inode,
+        source.device,
+    )
+    if observed != expected:
+        raise AudioPreprocessError("source media changed after import")
+
+
+def _write_complete_manifest_immutable(manifest: AudioChunkManifest, path: Path) -> None:
+    if not manifest.complete:
+        raise AudioPreprocessError("only a complete audio manifest can be published")
+    payload = manifest.model_dump_json(indent=2) + "\n"
+    try:
+        write_text_immutable_no_follow(path, payload, max_bytes=8_000_000)
+    except SecureFileError as exc:
+        raise AudioPreprocessError("complete audio manifest could not be published safely") from exc
+
+
 def _hash_audio_file(path: Path) -> str:
     try:
-        return stream_sha256(path)
-    except OSError as exc:
+        value, _size = hash_regular_file_no_follow(path)
+        return value
+    except SecureFileError as exc:
         raise AudioPreprocessTransientError("audio chunk could not be fingerprinted") from exc

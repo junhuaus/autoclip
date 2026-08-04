@@ -5,17 +5,18 @@ import math
 import shutil
 import stat
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from pydantic import ValidationError
 
 from liveclip.domain.time import seconds_to_ms
-from liveclip.media.fingerprint import stream_sha256
 from liveclip.media.models import SourceMediaMetadata
+from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.media.secure_files import SecureFileError, open_pinned_regular_file
 
 
 class MediaIngestError(RuntimeError):
@@ -24,6 +25,10 @@ class MediaIngestError(RuntimeError):
 
 class MediaIngestTransientError(MediaIngestError):
     """A local probe execution failure that can be retried unchanged."""
+
+
+class MediaIngestCancelled(MediaIngestError):
+    """Source inspection stopped before metadata or fingerprint publication."""
 
 
 def resolve_allowed_source(source_path: str | Path, allowed_roots: Iterable[Path]) -> Path:
@@ -53,12 +58,18 @@ def resolve_allowed_source(source_path: str | Path, allowed_roots: Iterable[Path
     return resolved
 
 
-def run_ffprobe(path: Path, *, ffprobe_path: str | None = None) -> dict[str, Any]:
+def run_ffprobe(
+    path: Path,
+    *,
+    ffprobe_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
+    pass_fds: tuple[int, ...] = (),
+) -> dict[str, Any]:
     executable = ffprobe_path or shutil.which("ffprobe")
     if executable is None:
         raise MediaIngestError("ffprobe is not available")
     try:
-        result = subprocess.run(
+        result = run_cancellable_process(
             [
                 executable,
                 "-v",
@@ -69,12 +80,12 @@ def run_ffprobe(path: Path, *, ffprobe_path: str | None = None) -> dict[str, Any
                 "json",
                 str(path),
             ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            shell=False,
+            timeout_seconds=120,
+            cancel_requested=cancel_requested,
+            pass_fds=pass_fds,
         )
+    except ProcessCancelled as exc:
+        raise MediaIngestCancelled("source media inspection was cancelled") from exc
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise MediaIngestTransientError("ffprobe could not inspect source media") from exc
     if result.returncode != 0:
@@ -102,8 +113,8 @@ def parse_ffprobe_metadata(
     format_payload = payload.get("format")
     if not isinstance(streams, list) or not isinstance(format_payload, dict):
         raise MediaIngestError("ffprobe metadata is missing streams or format")
-    video = next((item for item in streams if _stream_type(item) == "video"), None)
-    audio = next((item for item in streams if _stream_type(item) == "audio"), None)
+    video = _select_stream(streams, "video", exclude_attached_picture=True)
+    audio = _select_stream(streams, "audio", exclude_attached_picture=False)
     if not isinstance(video, dict) or not isinstance(audio, dict):
         raise MediaIngestError("source media must contain video and audio streams")
 
@@ -118,10 +129,13 @@ def parse_ffprobe_metadata(
             sha256=sha256,
             duration_ms=duration_ms,
             format_name=format_name,
+            video_stream_index=_stream_index(video, streams),
             video_codec=_required_text(video, "codec_name", "video codec"),
             video_width=_positive_int(video, "width", "video width"),
             video_height=_positive_int(video, "height", "video height"),
             video_frame_rate=frame_rate,
+            video_rotation_degrees=_rotation_degrees(video),
+            audio_stream_index=_stream_index(audio, streams),
             audio_codec=_required_text(audio, "codec_name", "audio codec"),
             audio_sample_rate_hz=_positive_int(audio, "sample_rate", "audio sample rate"),
             audio_channels=_positive_int(audio, "channels", "audio channel count"),
@@ -138,22 +152,37 @@ def ingest_source(
     *,
     allowed_roots: Iterable[Path],
     ffprobe_path: str | None = None,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> SourceMediaMetadata:
     """Validate, fingerprint, probe, and mutation-check a read-only source."""
 
     resolved = resolve_allowed_source(source_path, allowed_roots)
-    before = _stat_identity(resolved)
     try:
-        fingerprint = stream_sha256(resolved)
-    except OSError as exc:
-        raise MediaIngestError("source media could not be fingerprinted") from exc
-    payload = run_ffprobe(resolved, ffprobe_path=ffprobe_path)
-    after = _stat_identity(resolved)
+        with open_pinned_regular_file(resolved) as pinned:
+            before = _stat_identity_from_result(pinned.metadata)
+            try:
+                fingerprint = pinned.sha256(cancel_requested=cancel_requested)
+            except InterruptedError as exc:
+                raise MediaIngestCancelled("source media fingerprint was cancelled") from exc
+            payload = run_ffprobe(
+                pinned.process_path,
+                ffprobe_path=ffprobe_path,
+                cancel_requested=cancel_requested,
+                pass_fds=pinned.pass_fds,
+            )
+            repeated_fingerprint = pinned.sha256(cancel_requested=cancel_requested)
+            pinned.validate_binding()
+    except MediaIngestCancelled:
+        raise
+    except (SecureFileError, OSError) as exc:
+        raise MediaIngestError("source media changed while it was being imported") from exc
+    except InterruptedError as exc:
+        raise MediaIngestCancelled("source media fingerprint was cancelled") from exc
     try:
         still_resolved = resolved.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise MediaIngestError("source media changed while it was being imported") from exc
-    if before != after or still_resolved != resolved:
+    if fingerprint != repeated_fingerprint or still_resolved != resolved:
         raise MediaIngestError("source media changed while it was being imported")
     return parse_ffprobe_metadata(
         payload,
@@ -179,24 +208,91 @@ def _resolve_allowed_root(root: Path) -> Path:
     return resolved
 
 
-def _stat_identity(path: Path) -> tuple[int, int, int | None, int | None]:
-    try:
-        metadata = path.stat()
-    except OSError as exc:
-        raise MediaIngestError("source media cannot be inspected") from exc
-    return (
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        getattr(metadata, "st_ino", None),
-        getattr(metadata, "st_dev", None),
-    )
-
-
 def _stream_type(value: object) -> str | None:
     if not isinstance(value, dict):
         return None
     stream_type = value.get("codec_type")
     return stream_type if isinstance(stream_type, str) else None
+
+
+def _select_stream(
+    streams: list[object],
+    stream_type: str,
+    *,
+    exclude_attached_picture: bool,
+) -> dict[str, Any] | None:
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for position, value in enumerate(streams):
+        if not isinstance(value, dict) or _stream_type(value) != stream_type:
+            continue
+        disposition = value.get("disposition")
+        attached = isinstance(disposition, dict) and disposition.get("attached_pic") in {1, "1"}
+        if exclude_attached_picture and attached:
+            continue
+        candidates.append((position, value))
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda item: (
+            0 if _is_default_stream(item[1]) else 1,
+            _stream_index(item[1], streams, fallback=item[0]),
+        )
+    )
+    return candidates[0][1]
+
+
+def _is_default_stream(stream: dict[str, Any]) -> bool:
+    disposition = stream.get("disposition")
+    return isinstance(disposition, dict) and disposition.get("default") in {1, "1"}
+
+
+def _stream_index(
+    stream: dict[str, Any],
+    streams: list[object],
+    *,
+    fallback: int | None = None,
+) -> int:
+    raw = stream.get("index")
+    if isinstance(raw, bool):
+        raw = None
+    try:
+        parsed = int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        parsed = None
+    if parsed is not None and parsed >= 0:
+        return parsed
+    if fallback is not None:
+        return fallback
+    return streams.index(stream)
+
+
+def _rotation_degrees(video: dict[str, Any]) -> Literal[0, 90, 180, 270]:
+    values: list[object] = []
+    side_data = video.get("side_data_list")
+    if isinstance(side_data, list):
+        values.extend(item.get("rotation") for item in side_data if isinstance(item, dict))
+    tags = video.get("tags")
+    if isinstance(tags, dict):
+        values.append(tags.get("rotate"))
+    for raw in values:
+        try:
+            rotation = int(float(str(raw))) % 360
+        except (TypeError, ValueError):
+            continue
+        if rotation in {0, 90, 180, 270}:
+            return cast("Literal[0, 90, 180, 270]", rotation)
+    return 0
+
+
+def _stat_identity_from_result(
+    metadata: Any,
+) -> tuple[int, int, int | None, int | None]:
+    return (
+        int(metadata.st_size),
+        int(metadata.st_mtime_ns),
+        getattr(metadata, "st_ino", None),
+        getattr(metadata, "st_dev", None),
+    )
 
 
 def _duration_ms(format_payload: dict[str, Any], streams: list[object]) -> int:

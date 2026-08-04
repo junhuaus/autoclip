@@ -32,10 +32,13 @@ class SourceMediaMetadata(BaseModel):
     sha256: Sha256
     duration_ms: int = Field(gt=0)
     format_name: str = Field(min_length=1, max_length=128)
+    video_stream_index: int = Field(ge=0)
     video_codec: str = Field(min_length=1, max_length=64)
     video_width: int = Field(gt=0)
     video_height: int = Field(gt=0)
     video_frame_rate: float = Field(gt=0)
+    video_rotation_degrees: Literal[0, 90, 180, 270]
+    audio_stream_index: int = Field(ge=0)
     audio_codec: str = Field(min_length=1, max_length=64)
     audio_sample_rate_hz: int = Field(gt=0)
     audio_channels: int = Field(gt=0)
@@ -49,7 +52,17 @@ class SourceMediaMetadata(BaseModel):
             raise ValueError("resolved source path must be absolute")
         if self.filename != self.resolved_path.name:
             raise ValueError("source filename must match the resolved path")
+        if self.video_stream_index == self.audio_stream_index:
+            raise ValueError("selected video and audio streams must be distinct")
         return self
+
+    @property
+    def display_width(self) -> int:
+        return self.video_height if self.video_rotation_degrees in {90, 270} else self.video_width
+
+    @property
+    def display_height(self) -> int:
+        return self.video_width if self.video_rotation_degrees in {90, 270} else self.video_height
 
 
 class AudioChunk(BaseModel):
@@ -117,6 +130,7 @@ class AudioChunkManifest(BaseModel):
     algorithm_version: Literal["audio-preprocess-v1"] = "audio-preprocess-v1"
     source_sha256: Sha256
     source_duration_ms: int = Field(gt=0)
+    source_audio_stream_index: int = Field(ge=0)
     chunk_duration_ms: int = Field(gt=0)
     chunk_overlap_ms: int = Field(ge=0)
     sample_rate_hz: int = Field(gt=0)
@@ -134,6 +148,8 @@ class AudioChunkManifest(BaseModel):
     def validate_manifest(self) -> AudioChunkManifest:
         if self.chunk_overlap_ms >= self.chunk_duration_ms:
             raise ValueError("chunk overlap must be shorter than chunk duration")
+        if self.chunk_overlap_ms * 2 > self.chunk_duration_ms:
+            raise ValueError("chunk overlap must not exceed half of chunk duration")
         indexes = tuple(chunk.index for chunk in self.chunks)
         if indexes != tuple(sorted(set(indexes))):
             raise ValueError("manifest chunks must have unique ascending indexes")

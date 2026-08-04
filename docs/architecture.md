@@ -68,14 +68,30 @@ flowchart LR
   SVC -->|BEGIN IMMEDIATE| TASK[(SQLite Task + lease fence)]
   TASK --> CLAIM[Worker or foreground claim]
   CLAIM --> TMP[Task-scoped temporary output]
-  TMP --> CHECK[Hash + ffprobe + full decode + quality]
-  CHECK -->|atomic publish + DB commit| ASSET[(Committed Asset)]
+  TMP --> PIN[No-follow pinned FD + size + SHA]
+  PIN --> CHECK[Same bytes: ffprobe + full decode + quality]
+  CHECK -->|expected SHA + no-replace publish + DB fence| ASSET[(Committed Asset)]
   UI -->|poll resource ID| SVC
   ASSET --> SIGN[Short-lived path/purpose HMAC URL]
   SIGN --> RANGE[No-follow verified HTTP Range stream]
 ```
 
 Long operations return durable IDs immediately. Foreground CLI and Worker compete through the same atomic claim; neither adapter bypasses the lease, generation, revision or input-fingerprint fences. Browser media URLs expose generated asset IDs, never arbitrary source paths.
+
+## Delivery byte identity
+
+```mermaid
+flowchart LR
+  APPROVED[Approved current render + SRT] --> PIN[Pin each member FD + SHA]
+  PIN --> ZIP[Stream members into pinned ZIP FD]
+  ZIP --> VERIFY[Verify every ZIP member + manifest]
+  VERIFY --> TREE[Pin exact directory tree]
+  TREE --> RENAME[Atomic no-replace rename]
+  RENAME --> REHASH[Rebind + rehash every canonical member]
+  REHASH --> COMMIT[Asset commit with expected SHA]
+```
+
+No ZIP member is reopened by an ordinary pathname after validation. A member or archive endpoint replacement fails publication or recovery; it cannot become a successful Delivery.
 
 ## EditPlan execution boundary
 

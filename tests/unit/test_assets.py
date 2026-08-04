@@ -224,6 +224,31 @@ def test_current_lease_commit_and_committed_retry_are_idempotent(
     assert count == 1
 
 
+def test_commit_rejects_bytes_that_differ_from_validated_render_hash(
+    asset_context: AssetContext,
+) -> None:
+    lease = _claim(asset_context)
+    reservation = _reserve(asset_context, lease)
+    _write_asset(asset_context, b"replacement-after-quality-validation")
+
+    with pytest.raises(AssetReservationError, match="validated artifact"):
+        asset_context.store.commit(
+            _identity(lease),
+            reservation,
+            project_dir=asset_context.project_dir,
+            validation={"decode": "passed"},
+            expected_sha256=hashlib.sha256(b"original-validated-render").hexdigest(),
+        )
+
+    with asset_context.engine.connect() as connection:
+        row = connection.execute(
+            select(AssetRow.status, AssetRow.sha256, AssetRow.validation_json).where(
+                AssetRow.id == reservation.asset_id
+            )
+        ).one()
+    assert row == (AssetStatus.PENDING.value, None, None)
+
+
 def test_committed_asset_tampering_is_rejected_even_when_size_is_unchanged(
     asset_context: AssetContext,
 ) -> None:

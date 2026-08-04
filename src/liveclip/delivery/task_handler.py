@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
-import zipfile
 from collections.abc import Callable
+from contextlib import ExitStack
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
@@ -19,14 +21,28 @@ from liveclip.delivery.package import (
     create_delivery,
     normalize_srt,
     safe_filename_component,
-    validate_zip_members,
+    verify_pinned_zip_members,
 )
 from liveclip.media.artifacts import project_directory
-from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.secure_files import (
+    PinnedFileEvidence,
+    SecureFileError,
+    SecureFileMissing,
+    capture_pinned_file_evidence,
+    require_directory_no_follow,
+    validate_pinned_directory_files_no_follow,
+)
 
 
 class DeliveryTaskCancelled(RuntimeError):
     """The durable delivery task was cancelled before package publication."""
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedDelivery:
+    manifest: dict[str, object]
+    manifest_sha256: str
+    zip_sha256: str | None
 
 
 class DeliveryTaskHandler:
@@ -64,35 +80,38 @@ class DeliveryTaskHandler:
             if work.include_zip
             else None
         )
-        clips = tuple(
-            DeliveryClipInput(
-                clip_id=clip.clip_id,
-                edit_plan_revision=clip.edit_plan_revision,
-                render_revision=clip.edit_plan_revision,
-                title=clip.title,
-                source_start_ms=clip.source_start_ms,
-                source_end_ms=clip.source_end_ms,
-                score=clip.score,
-                review_status="approved",
-                render_status="succeeded",
-                final_video_path=_resolve_verified_asset(
-                    project_dir,
-                    clip.video_relative_path,
-                    clip.video_sha256,
-                ),
-                subtitle_srt=_resolve_verified_asset(
-                    project_dir,
-                    clip.subtitle_relative_path,
-                    clip.subtitle_sha256,
-                ).read_text(encoding="utf-8"),
+        clip_inputs: list[DeliveryClipInput] = []
+        for clip in work.clips:
+            video_path = _resolve_owned_asset_path(project_dir, clip.video_relative_path)
+            subtitle_srt = _read_verified_text_asset(
+                project_dir,
+                clip.subtitle_relative_path,
+                clip.subtitle_sha256,
             )
-            for clip in work.clips
-        )
+            clip_inputs.append(
+                DeliveryClipInput(
+                    clip_id=clip.clip_id,
+                    edit_plan_revision=clip.edit_plan_revision,
+                    render_revision=clip.edit_plan_revision,
+                    title=clip.title,
+                    source_start_ms=clip.source_start_ms,
+                    source_end_ms=clip.source_end_ms,
+                    score=clip.score,
+                    review_status="approved",
+                    render_status="succeeded",
+                    final_video_path=video_path,
+                    final_video_sha256=clip.video_sha256,
+                    subtitle_srt=subtitle_srt,
+                )
+            )
+        clips = tuple(clip_inputs)
         _check_cancel(cancel_requested)
         destination = project_dir / "deliveries" / version
-        if destination.is_dir():
-            manifest = _validate_existing_delivery(destination, work, inputs=clips)
-        else:
+        expected_manifest_sha256: str | None
+        expected_zip_sha256: str | None
+        try:
+            require_directory_no_follow(destination)
+        except SecureFileMissing:
             result = create_delivery(
                 project_dir=project_dir,
                 project_id=work.project_id,
@@ -105,9 +124,22 @@ class DeliveryTaskHandler:
                 snapshot_fingerprint=work.snapshot_fingerprint,
                 created_at=work.created_at,
             )
-            manifest = _read_manifest(result.manifest_path)
+            expected_manifest_sha256 = result.manifest_sha256
+            expected_zip_sha256 = result.zip_sha256
+        except SecureFileError as exc:
+            raise DeliveryError("existing delivery directory is unsafe") from exc
+        else:
+            expected_manifest_sha256 = manifest_reservation.sha256
+            expected_zip_sha256 = zip_reservation.sha256 if zip_reservation is not None else None
+        validated = _validate_existing_delivery(
+            destination,
+            work,
+            inputs=clips,
+            expected_manifest_sha256=expected_manifest_sha256,
+            expected_zip_sha256=expected_zip_sha256,
+        )
         _check_cancel(cancel_requested)
-        manifest_clips = _manifest_clips(manifest)
+        manifest_clips = _manifest_clips(validated.manifest)
         committed_manifest = self._assets.commit(
             lease,
             manifest_reservation,
@@ -119,6 +151,7 @@ class DeliveryTaskHandler:
                 "snapshot_fingerprint": work.snapshot_fingerprint,
                 "clip_count": len(work.clips),
             },
+            expected_sha256=validated.manifest_sha256,
         )
         committed_zip = None
         if zip_reservation is not None:
@@ -133,6 +166,7 @@ class DeliveryTaskHandler:
                     "snapshot_fingerprint": work.snapshot_fingerprint,
                     "members": len(work.clips) * 2 + 1,
                 },
+                expected_sha256=validated.zip_sha256,
             )
         return DeliveryPersistence(
             manifest_asset_id=committed_manifest.asset_id,
@@ -161,19 +195,36 @@ class DeliveryTaskHandler:
         )
 
 
-def _resolve_verified_asset(project_dir: Path, relative_path: str, sha256: str) -> Path:
+def _resolve_owned_asset_path(project_dir: Path, relative_path: str) -> Path:
     if "\\" in relative_path:
         raise DeliveryError("delivery input asset path is invalid")
     relative = PurePosixPath(relative_path)
     if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
         raise DeliveryError("delivery input asset path is invalid")
     candidate = project_dir / Path(*relative.parts)
-    if candidate.is_symlink() or not candidate.is_file():
-        raise DeliveryError("delivery input asset is missing or symbolic")
-    resolved = candidate.resolve(strict=True)
-    if project_dir not in resolved.parents or stream_sha256(resolved) != sha256:
-        raise DeliveryError("delivery input asset failed its ownership or hash check")
-    return resolved
+    if project_dir not in candidate.parents:
+        raise DeliveryError("delivery input asset escaped its project")
+    return candidate
+
+
+def _read_verified_text_asset(
+    project_dir: Path,
+    relative_path: str,
+    sha256: str,
+) -> str:
+    candidate = _resolve_owned_asset_path(project_dir, relative_path)
+    try:
+        evidence = capture_pinned_file_evidence(candidate, expected_sha256=sha256)
+        try:
+            payload = evidence.pinned.read_bytes(max_bytes=1_000_000)
+        finally:
+            evidence.pinned.close()
+    except (SecureFileError, ValueError) as exc:
+        raise DeliveryError("delivery subtitle asset is missing or unsafe") from exc
+    try:
+        return payload.decode("utf-8")
+    except UnicodeError as exc:
+        raise DeliveryError("delivery subtitle asset is not valid UTF-8") from exc
 
 
 def _validate_existing_delivery(
@@ -181,84 +232,120 @@ def _validate_existing_delivery(
     work: DeliveryWork,
     *,
     inputs: tuple[DeliveryClipInput, ...],
-) -> dict[str, object]:
-    if destination.is_symlink():
-        raise DeliveryError("existing delivery directory is symbolic")
-    manifest_path = destination / "manifest.json"
-    manifest = _read_manifest(manifest_path)
-    if (
-        manifest.get("project_id") != work.project_id
-        or manifest.get("delivery_id") != work.delivery_id
-        or manifest.get("delivery_version") != f"v{work.version:03d}"
-        or manifest.get("source_filename") != _source_basename(work.source_filename)
-        or manifest.get("source_fingerprint") != work.source_fingerprint
-        or manifest.get("snapshot_fingerprint") != work.snapshot_fingerprint
-    ):
-        raise DeliveryError("existing delivery does not match its database reservation")
-    entries = _manifest_clips(manifest)
-    if tuple(entry.clip_id for entry in entries) != tuple(clip.clip_id for clip in work.clips):
-        raise DeliveryError("existing delivery clip set differs from its reservation")
-    input_by_id = {value.clip_id: value for value in inputs}
-    for ordinal, (entry, clip) in enumerate(zip(entries, work.clips, strict=True), start=1):
-        expected_stem = f"{ordinal:02d}-{safe_filename_component(clip.title)}"
+    expected_manifest_sha256: str | None,
+    expected_zip_sha256: str | None,
+) -> _ValidatedDelivery:
+    try:
+        require_directory_no_follow(destination)
+    except SecureFileError as exc:
+        raise DeliveryError("existing delivery directory is unsafe") from exc
+    with ExitStack() as stack:
+        manifest_evidence = _capture_delivery_member(
+            destination,
+            "manifest.json",
+            expected_sha256=expected_manifest_sha256,
+            stack=stack,
+        )
+        try:
+            manifest_bytes = manifest_evidence.pinned.read_bytes(max_bytes=2_000_000)
+            raw_manifest = json.loads(manifest_bytes)
+        except (SecureFileError, UnicodeError, json.JSONDecodeError) as exc:
+            raise DeliveryError("delivery manifest is missing or invalid") from exc
+        if not isinstance(raw_manifest, dict) or raw_manifest.get("schema_version") != "1":
+            raise DeliveryError("delivery manifest schema is invalid")
+        manifest = {str(key): value for key, value in raw_manifest.items()}
         if (
-            entry.edit_plan_revision != clip.edit_plan_revision
-            or entry.title != clip.title
-            or entry.video_filename != f"clips/{expected_stem}.mp4"
-            or entry.subtitle_filename != f"subtitles/{expected_stem}.srt"
-            or entry.source_start_ms != clip.source_start_ms
-            or entry.source_end_ms != clip.source_end_ms
-            or entry.duration_ms != clip.source_end_ms - clip.source_start_ms
-            or entry.score != clip.score
-            or entry.review_status != "approved"
-            or entry.sha256 != clip.video_sha256
+            manifest.get("project_id") != work.project_id
+            or manifest.get("delivery_id") != work.delivery_id
+            or manifest.get("delivery_version") != f"v{work.version:03d}"
+            or manifest.get("source_filename") != _source_basename(work.source_filename)
+            or manifest.get("source_fingerprint") != work.source_fingerprint
+            or manifest.get("snapshot_fingerprint") != work.snapshot_fingerprint
         ):
-            raise DeliveryError("existing delivery clip metadata differs from its reservation")
-        video = _resolve_member(destination, entry.video_filename)
-        subtitle = _resolve_member(destination, entry.subtitle_filename)
-        expected_input = input_by_id[entry.clip_id]
-        if stream_sha256(video) != entry.sha256 or subtitle.read_bytes() != normalize_srt(
-            expected_input.subtitle_srt
-        ).encode("utf-8"):
-            raise DeliveryError("existing delivery video hash differs from its manifest")
-    zip_path = destination / "delivery.zip"
-    if work.include_zip:
-        if zip_path.is_symlink() or not zip_path.is_file():
-            raise DeliveryError("existing ZIP delivery is missing")
-        with zipfile.ZipFile(zip_path, mode="r") as archive:
-            names = validate_zip_members(info.filename for info in archive.infolist())
-            expected_names = (
-                *(
-                    name
-                    for entry in entries
-                    for name in (entry.video_filename, entry.subtitle_filename)
-                ),
-                "manifest.json",
+            raise DeliveryError("existing delivery does not match its database reservation")
+        entries = _manifest_clips(manifest)
+        if tuple(entry.clip_id for entry in entries) != tuple(clip.clip_id for clip in work.clips):
+            raise DeliveryError("existing delivery clip set differs from its reservation")
+
+        disk_evidence: dict[str, PinnedFileEvidence] = {}
+        archive_hashes: dict[str, str] = {}
+        input_by_id = {value.clip_id: value for value in inputs}
+        for ordinal, (entry, clip) in enumerate(
+            zip(entries, work.clips, strict=True),
+            start=1,
+        ):
+            expected_stem = f"{ordinal:02d}-{safe_filename_component(clip.title)}"
+            if (
+                entry.edit_plan_revision != clip.edit_plan_revision
+                or entry.title != clip.title
+                or entry.video_filename != f"clips/{expected_stem}.mp4"
+                or entry.subtitle_filename != f"subtitles/{expected_stem}.srt"
+                or entry.source_start_ms != clip.source_start_ms
+                or entry.source_end_ms != clip.source_end_ms
+                or entry.duration_ms != clip.source_end_ms - clip.source_start_ms
+                or entry.score != clip.score
+                or entry.review_status != "approved"
+                or entry.sha256 != clip.video_sha256
+            ):
+                raise DeliveryError("existing delivery clip metadata differs from its reservation")
+            expected_input = input_by_id[entry.clip_id]
+            subtitle_hash = hashlib.sha256(
+                normalize_srt(expected_input.subtitle_srt).encode("utf-8")
+            ).hexdigest()
+            video_evidence = _capture_delivery_member(
+                destination,
+                entry.video_filename,
+                expected_sha256=entry.sha256,
+                stack=stack,
             )
-            if names != expected_names:
-                raise DeliveryError("existing ZIP member list differs from its manifest")
-            if archive.testzip() is not None:
-                raise DeliveryError("existing ZIP delivery is corrupt")
-            if json.loads(archive.read("manifest.json")) != manifest:
-                raise DeliveryError("existing ZIP manifest differs from disk manifest")
-            for name in names:
-                if name == "manifest.json":
-                    continue
-                member = _resolve_member(destination, name)
-                if archive.read(name) != member.read_bytes():
-                    raise DeliveryError("existing ZIP member differs from the delivery directory")
-    elif zip_path.exists():
-        raise DeliveryError("non-ZIP delivery contains an unexpected archive")
-    return manifest
+            subtitle_evidence = _capture_delivery_member(
+                destination,
+                entry.subtitle_filename,
+                expected_sha256=subtitle_hash,
+                stack=stack,
+            )
+            disk_evidence[entry.video_filename] = video_evidence
+            disk_evidence[entry.subtitle_filename] = subtitle_evidence
+            archive_hashes[entry.video_filename] = entry.sha256
+            archive_hashes[entry.subtitle_filename] = subtitle_hash
 
-
-def _read_manifest(path: Path) -> dict[str, object]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > 2_000_000:
-        raise DeliveryError("delivery manifest is missing or invalid")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict) or payload.get("schema_version") != "1":
-        raise DeliveryError("delivery manifest schema is invalid")
-    return {str(key): value for key, value in payload.items()}
+        disk_evidence["manifest.json"] = manifest_evidence
+        archive_hashes["manifest.json"] = manifest_evidence.sha256
+        zip_sha256: str | None = None
+        if work.include_zip:
+            zip_evidence = _capture_delivery_member(
+                destination,
+                "delivery.zip",
+                expected_sha256=expected_zip_sha256,
+                stack=stack,
+            )
+            disk_evidence["delivery.zip"] = zip_evidence
+            zip_sha256 = zip_evidence.sha256
+            verify_pinned_zip_members(
+                zip_evidence,
+                expected_sha256=archive_hashes,
+                expected_manifest=manifest,
+                expected_sizes={
+                    name: evidence.size_bytes
+                    for name, evidence in disk_evidence.items()
+                    if name != "delivery.zip"
+                },
+            )
+        elif expected_zip_sha256 is not None:
+            raise DeliveryError("non-ZIP delivery has an unexpected committed ZIP hash")
+        try:
+            validate_pinned_directory_files_no_follow(
+                destination,
+                disk_evidence,
+                rehash=True,
+            )
+        except SecureFileError as exc:
+            raise DeliveryError("existing delivery members are not stable and exact") from exc
+        return _ValidatedDelivery(
+            manifest=manifest,
+            manifest_sha256=manifest_evidence.sha256,
+            zip_sha256=zip_sha256,
+        )
 
 
 def _manifest_clips(manifest: dict[str, object]) -> tuple[DeliveryManifestClip, ...]:
@@ -287,7 +374,11 @@ def _manifest_clips(manifest: dict[str, object]) -> tuple[DeliveryManifestClip, 
             raise DeliveryError("delivery manifest clip fields are missing") from exc
         _safe_member_name(value.video_filename)
         _safe_member_name(value.subtitle_filename)
-        if len(value.sha256) != 64 or value.source_end_ms <= value.source_start_ms:
+        if (
+            len(value.sha256) != 64
+            or any(character not in "0123456789abcdef" for character in value.sha256)
+            or value.source_end_ms <= value.source_start_ms
+        ):
             raise DeliveryError("delivery manifest clip hash is invalid")
         values.append(value)
     if len({value.clip_id for value in values}) != len(values):
@@ -295,15 +386,23 @@ def _manifest_clips(manifest: dict[str, object]) -> tuple[DeliveryManifestClip, 
     return tuple(values)
 
 
-def _resolve_member(root: Path, name: str) -> Path:
+def _capture_delivery_member(
+    root: Path,
+    name: str,
+    *,
+    expected_sha256: str | None,
+    stack: ExitStack,
+) -> PinnedFileEvidence:
     relative = _safe_member_name(name)
-    candidate = root / Path(*relative.parts)
-    if candidate.is_symlink() or not candidate.is_file():
-        raise DeliveryError("delivery member is missing or symbolic")
-    resolved = candidate.resolve(strict=True)
-    if root.resolve(strict=True) not in resolved.parents:
-        raise DeliveryError("delivery member escaped its version directory")
-    return resolved
+    try:
+        evidence = capture_pinned_file_evidence(
+            root / Path(*relative.parts),
+            expected_sha256=expected_sha256,
+        )
+    except (SecureFileError, ValueError) as exc:
+        raise DeliveryError("delivery member is missing, symbolic, or changed") from exc
+    stack.callback(evidence.pinned.close)
+    return evidence
 
 
 def _safe_member_name(name: str) -> PurePosixPath:

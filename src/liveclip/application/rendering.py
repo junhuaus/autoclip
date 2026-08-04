@@ -56,6 +56,9 @@ class RenderWork:
     source_mtime_ns: int
     source_device: int | None
     source_inode: int | None
+    source_sha256: str
+    video_stream_index: int
+    audio_stream_index: int
     font_path: Path
     revision: EditPlanRevision
     kind: str
@@ -71,6 +74,7 @@ class RenderPersistence:
     subtitle_asset_id: str
     quality_report_asset_id: str
     contact_sheet_asset_id: str
+    diagnostic_relative_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

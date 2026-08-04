@@ -5,7 +5,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from liveclip.domain.edit_plan import CaptionCue, EditPlan
+from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue, EditPlan
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 
 
@@ -24,7 +24,9 @@ class ClipPatch(BaseModel):
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=40)
-    captions: tuple[CaptionCue, ...] | None = Field(default=None, min_length=1)
+    captions: tuple[CaptionCue, ...] | None = Field(
+        default=None, min_length=1, max_length=MAX_CAPTION_CUES
+    )
 
     @model_validator(mode="after")
     def require_change(self) -> ClipPatch:

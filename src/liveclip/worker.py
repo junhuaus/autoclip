@@ -20,11 +20,18 @@ def run_worker(
         print(f"LiveClip worker started: {worker_id}", flush=True)
         while True:
             outcome = runtime.stage_runner.run_one(worker_id=worker_id)
-            if outcome == RunOneOutcome.IDLE:
+            if outcome == RunOneOutcome.BUSY:
+                handled = False
+            elif outcome == RunOneOutcome.IDLE:
                 render_outcome = runtime.render_runner.run_one(worker_id=worker_id)
-                if render_outcome.value == RunOneOutcome.IDLE.value:
+                if render_outcome.value == RunOneOutcome.BUSY.value:
+                    handled = False
+                elif render_outcome.value == RunOneOutcome.IDLE.value:
                     delivery_outcome = runtime.delivery_runner.run_one(worker_id=worker_id)
-                    handled = delivery_outcome.value != RunOneOutcome.IDLE.value
+                    handled = delivery_outcome.value not in {
+                        RunOneOutcome.IDLE.value,
+                        RunOneOutcome.BUSY.value,
+                    }
                 else:
                     handled = True
             else:

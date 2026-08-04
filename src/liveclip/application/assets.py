@@ -44,4 +44,5 @@ class AssetStore(Protocol):
         *,
         project_dir: Path,
         validation: dict[str, object],
+        expected_sha256: str | None = None,
     ) -> AssetReservation: ...

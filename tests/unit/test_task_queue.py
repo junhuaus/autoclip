@@ -383,6 +383,10 @@ def test_running_cancel_is_a_request_until_owner_acknowledges(
     lease = queue.claim(worker_id="worker-b", now=NOW)
     assert lease is not None
     assert queue.request_cancel(running_id, now=NOW + timedelta(seconds=1)) == TaskStatus.RUNNING
+    observed = queue.observe(lease, now=NOW + timedelta(milliseconds=1500))
+    assert observed is not None
+    assert observed.lease_expires_at == lease.lease_expires_at
+    assert observed.cancellation_requested is True
     heartbeat = queue.heartbeat(lease, now=NOW + timedelta(seconds=2))
     assert heartbeat is not None and heartbeat.cancellation_requested is True
     assert (
@@ -433,3 +437,70 @@ def test_expired_cancel_request_becomes_cancelled_not_requeued(
 
     assert recovered.cancelled == 1
     assert _task_status(engine, task_id) == TaskStatus.CANCELLED.value
+
+
+def test_diagnostic_path_is_fenced_to_the_owned_attempt(
+    queue_context: tuple[Engine, SQLiteTaskQueue],
+) -> None:
+    engine, queue = queue_context
+    task_id = queue.enqueue(_spec("a", max_retries=1), now=NOW).task_id
+    expired = queue.claim(worker_id="worker-a", now=NOW)
+    assert expired is not None
+    expiry = NOW + timedelta(seconds=10)
+    assert queue.recover_expired(now=expiry).requeued == 1
+    current = queue.claim(worker_id="worker-b", now=expiry)
+    assert current is not None
+
+    expired_path = (
+        f".attempts/{expired.task_id}/{expired.lease_token}/diagnostics/ffmpeg-render.json"
+    )
+    assert (
+        queue.fail(
+            expired,
+            failure_class=FailureClass.DETERMINISTIC,
+            error_code="RENDER_FAILED",
+            safe_message="The expired render failed",
+            diagnostic_relative_path=expired_path,
+            now=expiry + timedelta(seconds=1),
+        )
+        is None
+    )
+    wrong_path = f".attempts/{current.task_id}/{'f' * 64}/diagnostics/ffmpeg-render.json"
+    with pytest.raises(ValueError, match="another attempt"):
+        queue.fail(
+            current,
+            failure_class=FailureClass.DETERMINISTIC,
+            error_code="RENDER_FAILED",
+            safe_message="The current render failed",
+            diagnostic_relative_path=wrong_path,
+            now=expiry + timedelta(seconds=1),
+        )
+
+    current_path = (
+        f".attempts/{current.task_id}/{current.lease_token}/diagnostics/ffmpeg-render.json"
+    )
+    assert (
+        queue.fail(
+            current,
+            failure_class=FailureClass.DETERMINISTIC,
+            error_code="RENDER_FAILED",
+            safe_message="The current render failed",
+            diagnostic_relative_path=current_path,
+            now=expiry + timedelta(seconds=1),
+        )
+        == TaskStatus.FAILED
+    )
+    with engine.connect() as connection:
+        attempts = connection.execute(
+            select(
+                TaskAttemptRow.attempt_number,
+                TaskAttemptRow.outcome,
+                TaskAttemptRow.diagnostic_relative_path,
+            )
+            .where(TaskAttemptRow.task_id == task_id)
+            .order_by(TaskAttemptRow.attempt_number)
+        ).all()
+    assert attempts == [
+        (1, AttemptOutcome.LOST_LEASE.value, None),
+        (2, AttemptOutcome.FAILED.value, current_path),
+    ]

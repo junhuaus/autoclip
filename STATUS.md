@@ -1,72 +1,75 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-03
-Current milestone: M5 — long media, recovery, security and quality hardening
+Updated: 2026-08-04 16:55 CST
+Current milestone: M5 complete and independently reviewed; preparing checkpoint, then M6 acceptance/documentation
 Branch: `master`
-Recent relevant commit: `476ad89` (`milestone: complete LiveClip M4 OpenAI providers`)
+HEAD before M5 checkpoint: `e5c0a6a` (`docs: record M4 completion checkpoint`)
 
 ## Completed
 
-- M0–M3 are locally committed and independently reviewed. Their architecture, persistence, CLI/API/Web, review/render and immutable delivery evidence remains in the Living ExecPlan.
-- M4 implements pinned official `openai==2.52.0` adapters: timestamp-capable Chinese `whisper-1` transcription and stateless Responses strict structured editing with no tools, one repair and deterministic degradation.
-- OpenAI retries are application-owned with SDK retries disabled, bounded exponential jitter, capped Retry-After, exact attempt counts, cancellation and deterministic auth/parameter/quota classification.
-- Immutable ASR/edit caches use anchored component-by-component `openat`/`O_NOFOLLOW`, canonical result hashes and fail-closed validation before provider calls. Pipeline config v2 fingerprints every cloud-affecting setting and provider/Prompt/schema contract.
-- Secret-free `ApiUsage`, exact historical-attempt cancellation evidence, Mock/OpenAI runtime fencing and strict no-Mock cloud-smoke evidence validation are integrated.
-- Both independent M4 review passes are complete. The final OpenAI Reviewer returned `PASS` with no P0/P1/P2.
-- A post-review intermittent FFmpeg timeout was retained and diagnosed. Raster inputs are now finite frames held by fixed overlay semantics, normal filter/libx264 threads are capped at 2/4, a timeout receives one 1/1-thread retry, and bounded partial stderr survives timeout termination.
-- Scoped local M4 commit `476ad89` contains the reviewed provider/runtime/cache/config/test/documentation changes and renderer reliability fix.
+- M0–M4 are locally committed and independently reviewed. Their architecture, persistent pipeline, CLI/API/Web review flow, OpenAI adapters and Mock/cloud boundaries remain recorded in the Living ExecPlan.
+- M5 adds component-anchored no-follow file operations, immutable/no-replace publication, bounded/cancellable media subprocesses, lease monitoring, expired-attempt recovery, orphan cleanup and safe diagnostic persistence.
+- Stage recovery now requires exact committed Assets from the expected producer Task, canonical project/run/generation paths, regular no-follow endpoints, size and SHA-256. Legacy source rows retain unknown stream indices until a real matching ingest verifies them.
+- Ingest and rendering persist/select explicit video/audio streams, normalize display rotation, preserve VFR timing evidence and bind a long source once per stage rather than rehashing it for every candidate.
+- Render validation, full decode, frame extraction, publication and Asset commit are bound to the same pinned bytes and expected SHA. Caption expansion has a shared domain/renderer maximum of 64 overlays with no silent truncation.
+- Delivery streams videos/subtitles/manifest from pinned FDs into a pinned ZIP, verifies every member, publishes an exact regular-file tree with native no-replace rename, rebinds/rehashes every member after publication and commits manifest/ZIP Assets with expected SHA.
+- Two M5 reviews are complete. The first findings were repaired; a fresh re-review found one remaining ZIP/member byte-binding P1, which was repaired. The final independent verdict is `PASS` with no P0/P1/P2.
 
 ## In progress
 
-- M5 begins with read-only inventory and metadata of the user-authorized repository `input/` videos, followed by streaming/resource/recovery tests.
+- Final M5 diff/staged-scope review and local checkpoint commit. No implementation or test failure is open.
 
 ## Not completed
 
-- M5 long-media, separate-process contention, interruption/recovery, security and media-quality hardening, including user-authorized read-only videos under repository `input/`.
-- M6 real-backend browser composition, clean acceptance, final documentation audit and Product Spec-wide Verification Agent.
+- M6 browser-to-real-FastAPI/Worker composition E2E, documentation audit, final clean acceptance and Product Spec-wide independent Verification Agent.
+- Real OpenAI cloud smoke because no `OPENAI_API_KEY` is configured.
 
 ## Verified
 
-- `make lint`: PASS after renderer hardening; Ruff check/format over 140 files, mypy over 95 source files and frontend TypeScript all passed.
-- `make test`: PASS with explicit exit code 0; 328 Python tests passed in 46.61 seconds with one third-party Starlette deprecation warning, then 11 Vitest tests passed.
-- Renderer regression: 13 process/renderer unit tests passed. Three successive real `test_demo_pipeline.py` runs each produced a distinct valid `delivery.zip`; an additional isolated run passed.
-- Post-hardening `make demo`: PASS as project `demo_20260804T054112_c87bf8bc`, status `delivered`, three candidates.
-- Demo final: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/renders/final/clip_01_bdc52e84/r002/final.mp4`.
-- Demo contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/renders/final/clip_01_bdc52e84/r002/final-quality/contact-sheet.png`; actually viewed after the fix. Title/captions remain in safe areas, portrait layout/aspect are correct and no apparent black/blank/severe-crop issue exists. The report records `viewed_passed`.
-- Demo delivery ZIP: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/deliveries/v001/delivery.zip`.
-- `make doctor`: most recent run READY; macOS arm64/Python/FFmpeg/SQLite/fonts and actual libx264 fallback pass, with expected warnings for Node 26 non-LTS, raster-replaced text filters, missing allowed roots/key and sandbox VideoToolbox failure.
-- Strict cloud preflight: `not_run` and nonzero with provider, key, allowed roots and missing input named; no database/provider opened and no paid call occurred.
-- Wheel build includes both versioned Prompt Markdown files. `git diff --check` passed before the latest documentation update and will be rerun before commit.
+- `make lint` at 2026-08-04: PASS; Ruff check and format over 153 files, mypy over 97 source files, frontend TypeScript typecheck.
+- `make test` at 2026-08-04: PASS; 428 Python tests in 135.02 seconds with one third-party Starlette deprecation warning, then 11 Vitest tests.
+- Delivery-focused root gate: 44 tests plus Ruff/format/mypy/diff check PASS. Independent final re-review: 58 focused tests PASS; both prior endpoint-replacement reproductions fail closed with no `v001`, no attempt residue and no external-data inclusion.
+- Read-only long input: `input/7.28.mp4`, 2,190,937,089 bytes, SHA-256 `595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03`, 2,780.437 seconds, 1920×1200 H.264/stereo AAC. Source stat/hash was unchanged after the run.
+- Long Mock run: project `bf1bd9d6ff66424780fc1b11781069f1`, run `c9be88878366432385cdf58d190a1d34`; all six stages and attempts succeeded in 28.83 seconds, five 600-second/5-second-overlap chunks, 14 committed Assets, about 18 MB project data. Output lives only under `/private/tmp/liveclip-m5-postfix.bc3Ao9/projects`.
+- Real generated media tests cover VFR (`30/1` nominal, `750/59` average), 90°/270° display rotation, explicit video/audio selection, non-first/default audio, proxy H.264/AAC, full decode and contact sheets.
+- Fresh `make demo`: PASS, project `demo_20260804T085309_96fb7a31`, state `delivered`, three candidates and immutable v001.
+- Demo final: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T085309_96fb7a31/renders/final/clip_01_bdc52e84/r002/final.mp4`; H.264/AAC, 1080×1920, 12.000 seconds, 3,385,827 bytes, full decode PASS, SHA-256 `7286b956031c1132e7d3caaa366a074cee5ef5caa8f931eb8bd325e566b867c4`.
+- Demo contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T085309_96fb7a31/renders/final/clip_01_bdc52e84/r002/final-quality/contact-sheet.png`; actually viewed. Dynamic portrait frames, safe Chinese title/captions, no black/blank/orientation/aspect/severe-crop issue. Report records `viewed_passed` at `2026-08-04T08:54:20.932433+00:00`.
+- Demo delivery ZIP: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T085309_96fb7a31/deliveries/v001/delivery.zip`; `unzip -t` PASS. Manifest revision 2 and delivered video hash match disk; ZIP SHA-256 `efd5e3d59474e6b24e6e3f1aa07dd98d697dff9b1bd6f58ca13ed6595824ff2a`.
+- Most recent `make doctor`: READY on macOS arm64, Python 3.12.13 arm64, Node 22.11 LTS, SQLite 3.53.1 and FFmpeg 8.1.2; raster text fallback and actual libx264 encode pass. Expected warnings remain for absent OpenAI key/allowed roots and sandbox VideoToolbox OSStatus -12903.
 
 ## Not yet verified
 
-- Real OpenAI account/model entitlement, Chinese cloud quality, provider usage variants, rate limits and latency: no `OPENAI_API_KEY` is configured, so paid cloud smoke is honestly `not_run`.
-- Apple M3 throughput (current host is Apple M2), representative 2–4 hour runtime/memory/disk, VFR/rotation/multi-audio behavior and 30–90 second many-cue rendering.
-- A true separate-process SQLite claim race and browser-to-real-FastAPI/Worker composition.
+- Real OpenAI account/model entitlement, Chinese cloud output/usage/rate-limit behavior: credentials are absent, so cloud smoke is truthfully `not_run`, never Mock success.
+- Representative 2–4 hour peak RSS/runtime/disk and Apple M3 throughput. The available repository sample is 46:20 on Apple M2; runtime/disk were measured, but sandbox `/usr/bin/time -l` could not expose peak RSS because its post-child `sysctl kern.clockrate` call was denied.
+- Linux `renameat2(RENAME_NOREPLACE)` execution on this macOS host; unsupported platforms fail closed.
+- Browser-to-real-backend composition (M6). M3 Playwright uses a controlled API mock while Python integration covers the real backend chain separately.
 
 ## Current blockers
 
 - No product or implementation blocker.
-- Missing cloud credentials block only real cloud verification, not implementation or local acceptance.
+- Missing cloud credentials block only paid cloud verification.
 
 ## Worktree state
 
-- Branch `master`; HEAD `476ad89` before this documentation checkpoint.
-- M4 implementation is committed. Only this M5 transition checkpoint is uncommitted; generated databases/media/deliveries remain ignored.
-- No remote exists and nothing has been pushed. Repository `input/` user media has not yet been opened.
+- Branch `master`; HEAD `e5c0a6a` before the pending M5 checkpoint.
+- M5 has a large reviewed uncommitted diff: 62 tracked files plus new migration/services/tests/ADR. Generated data, user `input/` media, SQLite databases and deliveries are ignored and must not be staged.
+- No remote exists and nothing has been pushed.
 
 ## Recent actual commands
 
+- Focused secure Delivery gate → 44 passed in 22.73 seconds; Ruff/format/mypy/diff check PASS.
+- Independent Delivery re-review → PASS; 58 focused tests, Ruff, mypy and both isolated race reproductions PASS/fail closed.
 - `make lint` → exit 0.
-- PTY `make test` → exit 0; 328 Python + 11 Web tests.
-- Three repeated real Demo integration executions → all created delivery ZIPs without failure records.
-- `make demo` → exit 0; project `demo_20260804T054112_c87bf8bc` delivered.
+- `make test` → exit 0; 428 Python + 11 Web tests.
+- `make demo` → exit 0; project `demo_20260804T085309_96fb7a31` delivered.
+- ffprobe + complete FFmpeg null decode + `unzip -t` + manifest/hash inspection → PASS.
 - Actual contact-sheet view plus `record_visual_inspection` → `viewed_passed`.
 
 ## Next concrete task
 
-Inspect `input/` paths and ffprobe metadata read-only, select the longest suitable sample, record baseline size/duration/streams, then exercise streaming preprocessing, bounded resource use and restart recovery without modifying or committing source media.
+Run `git diff --check`, review `git diff --name-only` and ignored/staged scope, create the local M5 checkpoint, record its hash in this file and the Living ExecPlan, then begin M6 by reading the browser skill and implementing one browser-to-real-FastAPI/Worker E2E.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch` and `git log -5 --oneline`, then execute the next concrete task above. Do not call OpenAI unless the environment is explicitly configured for `make smoke-cloud`; never substitute Mock for a claimed cloud success.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch` and `git log -5 --oneline`. If no M5 checkpoint exists, perform only the staged-scope review/commit above; do not rerun the long source test unless media/pipeline code changed. Do not call OpenAI unless explicitly running `make smoke-cloud`; never substitute Mock for a claimed cloud success.

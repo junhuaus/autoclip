@@ -36,6 +36,7 @@ from liveclip.db.models import (
 from liveclip.domain.edit_plan import (
     CaptionCue,
     EditPlan,
+    caption_cues_from_transcript_segments,
     edit_plan_from_json_data,
     validate_edit_plan_bounds,
 )
@@ -50,6 +51,7 @@ from liveclip.domain.state_transitions import (
     transition_render,
     transition_task,
 )
+from liveclip.domain.transcript import TranscriptSegment
 
 
 class SqlAlchemyReviewRepository:
@@ -704,6 +706,7 @@ def _captions_for_interval(
 ) -> tuple[CaptionCue, ...]:
     rows = connection.execute(
         select(
+            TranscriptSegmentRow.id,
             TranscriptSegmentRow.source_start_ms,
             TranscriptSegmentRow.source_end_ms,
             TranscriptSegmentRow.text,
@@ -716,16 +719,20 @@ def _captions_for_interval(
         )
         .order_by(TranscriptSegmentRow.segment_index)
     )
-    cues = tuple(
-        CaptionCue(
-            start_ms=max(int(row.source_start_ms), source_start_ms) - source_start_ms,
-            end_ms=min(int(row.source_end_ms), source_end_ms) - source_start_ms,
+    segments = tuple(
+        TranscriptSegment(
+            segment_id=str(row.id),
+            start_ms=int(row.source_start_ms),
+            end_ms=int(row.source_end_ms),
             text=str(row.text),
         )
         for row in rows
-        if min(int(row.source_end_ms), source_end_ms)
-        > max(int(row.source_start_ms), source_start_ms)
     )
-    if not cues:
-        raise ReviewConflict("edited clip interval has no transcript captions")
-    return cues
+    try:
+        return caption_cues_from_transcript_segments(
+            segments,
+            source_start_ms=source_start_ms,
+            source_end_ms=source_end_ms,
+        )
+    except ValueError as exc:
+        raise ReviewConflict("edited clip interval has no transcript captions") from exc

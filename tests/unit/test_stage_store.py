@@ -4,11 +4,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 
 from liveclip.application.pipeline import LeaseIdentity, PipelineRunConfig, PipelineService
 from liveclip.application.stage_execution import StageMutationFence
-from liveclip.db.base import Base
+from liveclip.db.base import Base, new_id
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import ApiUsageRow, SourceMediaRow
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
@@ -19,10 +19,34 @@ from liveclip.media.models import SourceMediaMetadata
 from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
 
 
+def _source_metadata(source_path: Path) -> SourceMediaMetadata:
+    metadata = source_path.stat()
+    return SourceMediaMetadata(
+        resolved_path=source_path.resolve(),
+        filename=source_path.name,
+        size_bytes=metadata.st_size,
+        sha256=stream_sha256(source_path),
+        duration_ms=10_000,
+        format_name="mov,mp4,m4a,3gp,3g2,mj2",
+        video_stream_index=0,
+        video_codec="h264",
+        video_width=1280,
+        video_height=720,
+        video_frame_rate=30.0,
+        video_rotation_degrees=0,
+        audio_stream_index=1,
+        audio_codec="aac",
+        audio_sample_rate_hz=48_000,
+        audio_channels=2,
+        mtime_ns=metadata.st_mtime_ns,
+        inode=metadata.st_ino,
+        device=metadata.st_dev,
+    )
+
+
 def test_stale_lease_cannot_write_stage_domain_rows(tmp_path: Path) -> None:
     source_path = tmp_path / "source.mp4"
     source_path.write_bytes(b"source-bytes")
-    stat = source_path.stat()
     engine = create_sqlite_engine(tmp_path / "state.sqlite3")
     Base.metadata.create_all(engine)
     repository = SqlAlchemyPipelineRepository(engine)
@@ -63,30 +87,108 @@ def test_stale_lease_cannot_write_stage_domain_rows(tmp_path: Path) -> None:
             generation=work.generation,
         )
         assert queue.recover_expired(now=lease.lease_expires_at).failed == 1
-        source = SourceMediaMetadata(
-            resolved_path=source_path.resolve(),
-            filename=source_path.name,
-            size_bytes=stat.st_size,
-            sha256=stream_sha256(source_path),
-            duration_ms=10_000,
-            format_name="mov,mp4,m4a,3gp,3g2,mj2",
-            video_codec="h264",
-            video_width=1280,
-            video_height=720,
-            video_frame_rate=30.0,
-            audio_codec="aac",
-            audio_sample_rate_hz=48_000,
-            audio_channels=2,
-            mtime_ns=stat.st_mtime_ns,
-            inode=stat.st_ino,
-            device=stat.st_dev,
-        )
+        source = _source_metadata(source_path)
 
         with pytest.raises(StageDataConflict, match="lost its task lease"):
             SqlAlchemyStageStateStore(engine).save_source(fence, source=source)
 
         with engine.connect() as connection:
             assert connection.scalar(select(func.count()).select_from(SourceMediaRow)) == 0
+    finally:
+        engine.dispose(close=True)
+
+
+def test_legacy_source_selection_fails_closed_until_verified_ingest_upgrades_it(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "legacy-source.mp4"
+    source_path.write_bytes(b"legacy-source-bytes")
+    source = _source_metadata(source_path)
+    engine = create_sqlite_engine(tmp_path / "legacy-state.sqlite3")
+    Base.metadata.create_all(engine)
+    repository = SqlAlchemyPipelineRepository(engine)
+    service = PipelineService(repository)
+    queue = SQLiteTaskQueue(engine, lease_seconds=60)
+    try:
+        created = service.create_project_and_run(
+            source_path=source_path.resolve(),
+            config=PipelineRunConfig(
+                provider="mock",
+                top_n=1,
+                minimum_clip_ms=8_000,
+                maximum_clip_ms=12_000,
+                chunk_duration_ms=12_000,
+                chunk_overlap_ms=2_000,
+                max_chunk_bytes=24_000_000,
+                transcription_model="mock-asr-v1",
+                llm_model="mock-llm-v1",
+                preview_width=270,
+                preview_height=480,
+                video_encoder="libx264",
+            ),
+            max_stage_retries=0,
+        )
+        lease = queue.claim(worker_id="legacy-upgrade-worker")
+        assert lease is not None
+        identity = LeaseIdentity(
+            task_id=lease.task_id,
+            worker_id=lease.worker_id,
+            lease_token=lease.lease_token,
+        )
+        work = repository.start_or_resume_stage(identity)
+        legacy_payload = source.model_dump(mode="json")
+        legacy_payload.pop("video_stream_index")
+        legacy_payload.pop("audio_stream_index")
+        legacy_payload.pop("video_rotation_degrees")
+        with engine.begin() as connection:
+            connection.execute(
+                insert(SourceMediaRow).values(
+                    id=new_id(),
+                    project_id=created.project_id,
+                    resolved_path=str(source.resolved_path),
+                    filename=source.filename,
+                    sha256=source.sha256,
+                    size_bytes=source.size_bytes,
+                    mtime_ns=source.mtime_ns,
+                    device=source.device,
+                    inode=source.inode,
+                    duration_ms=source.duration_ms,
+                    width=source.video_width,
+                    height=source.video_height,
+                    video_codec=source.video_codec,
+                    audio_codec=source.audio_codec,
+                    frame_rate=str(source.video_frame_rate),
+                    probe_json=legacy_payload,
+                    created_at=datetime.now(UTC),
+                )
+            )
+        store = SqlAlchemyStageStateStore(engine)
+
+        with pytest.raises(StageDataConflict, match="verified ingest rerun"):
+            store.load_source(project_id=created.project_id)
+
+        source_id = store.save_source(
+            StageMutationFence(
+                lease=identity,
+                project_id=created.project_id,
+                run_id=created.run_id,
+                stage_run_id=work.stage_run_id,
+                generation=work.generation,
+            ),
+            source=source,
+        )
+
+        assert len(source_id) == 32
+        assert store.load_source(project_id=created.project_id) == source
+        with engine.connect() as connection:
+            selection = connection.execute(
+                select(
+                    SourceMediaRow.video_stream_index,
+                    SourceMediaRow.audio_stream_index,
+                    SourceMediaRow.video_rotation_degrees,
+                ).where(SourceMediaRow.project_id == created.project_id)
+            ).one()
+        assert selection == (0, 1, 0)
     finally:
         engine.dispose(close=True)
 

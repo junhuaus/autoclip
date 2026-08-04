@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M4 are committed after independent review. M5 long-media, recovery, security and quality hardening is active.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M4 are committed after independent review. M5 implementation and independent re-review are complete; its local checkpoint is being prepared before M6 acceptance begins.
 
 ## Architecture Summary
 
@@ -102,12 +102,12 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M5 — Long media, recovery, security and quality hardening
 
-- [ ] Exercise multi-chunk streaming, interruption recovery and cancellation.
-- [ ] Test traversal/symlink/source replacement/media Range/ZIP/redaction adversaries.
-- [ ] Use repository `input/` videos as read-only allowed-root sources after feature completion; measure 2–4 hour memory/disk/runtime without committing media or generated artifacts.
-- [ ] Cover VFR, rotation, multi-audio and font/layout edge cases.
-- [ ] Complete decode/contact-sheet/black-frame/safe-area validation and log bounds.
-- [ ] Review, fix and commit M5.
+- [x] 2026-08-04 Exercise multi-chunk streaming, bounded process cancellation, lease-loss recovery, heartbeat and spawned-process crash recovery.
+- [x] 2026-08-04 Test traversal/symlink/source replacement, committed-Asset tampering, media Range, ZIP endpoint/member replacement, cleanup ownership and redaction adversaries.
+- [x] 2026-08-04 Run repository `input/7.28.mp4` read-only through the six-stage Mock pipeline: 2.19 GB/46:20, five overlapping chunks, 28.83 seconds, about 18 MB project data; preserve the explicit limitation that no available fixture is 2–4 hours and peak RSS was unavailable in this sandbox.
+- [x] 2026-08-04 Cover real VFR, 90°/270° rotation, non-first/default audio selection, font identity and bounded caption/layout fanout.
+- [x] 2026-08-04 Bind exact render bytes across ffprobe/full decode/frame extraction/publication, generate and inspect contact sheets, enforce black-frame/safe-area/crop checks and bound/redact diagnostics.
+- [x] 2026-08-04 Complete two independent M5 reviews, repair all findings, receive final `PASS`, and pass `make lint`, 428 Python tests, 11 Web tests and a fresh delivered Demo. Local checkpoint commit is the next operation.
 
 ### M6 — Independent acceptance and documentation
 
@@ -190,6 +190,72 @@ All three audits returned before integration began. A subsequent bounded test-on
 - Main Agent retains every shared file and will inspect and rerun all delegated tests before accepting them.
 
 The first independent M4 review returned FAIL with four P1 and two P2 findings. The main Agent fixed strict-output repair, config/Prompt/schema drift, cancellation telemetry, symlink/cache trust, empty word timing and cloud-smoke evidence tests. The second read-only review returned `PASS` after 121 focused tests, full Python/lint evidence and diff validation; it found no residual P0/P1/P2. A final read-only follow-up by `m3_reviewer` investigated the subsequently observed FFmpeg timeout and confirmed the bounded-thread remediation direction without changing files.
+
+Active M5 file ownership (recorded before hardening edits):
+
+- Main Agent: all production code, tests, dependencies, migrations and persistent planning documents; only the main Agent may modify repository files until the audits return and a later bounded handoff is explicitly recorded.
+- `m1_media`: read-only long-media/streaming/cancellation/recovery audit, including read-only metadata of `input/7.28.mp4`; may run existing tests and write only ephemeral test output outside tracked paths.
+- `verifier_researcher`: read-only adversarial security and acceptance-matrix audit for allowed roots, source replacement, cache/ZIP/Range and redaction; no source edits.
+- `m3_reviewer`: read-only SQLite separate-process contention plus VFR/rotation/multi-audio/font/layout/process-diagnostic audit; no source edits.
+
+All three M5 audits returned their initial evidence before corrective implementation. The
+first two disjoint write handoffs completed and were integrated: bounded process output and
+component-anchored immutable artifact publication. A second bounded test-only handoff is
+active while the main Agent owns every production module, shared schema, migration and
+persistent document:
+
+- `m1_media`: may create or modify only
+  `tests/integration/test_media_stream_selection.py`; add real FFmpeg evidence that a
+  non-first default audio stream and selected video stream reach proxy/final rendering.
+  Production code, fixtures, dependencies and documents are read-only.
+- `verifier_researcher`: may create or modify only
+  `tests/integration/test_task_queue_processes.py`; add spawn-mode, independent-Engine
+  claim, heartbeat, crash-expiry and SQLite busy-recovery evidence. Production code,
+  fixtures, dependencies and documents are read-only.
+- `m3_reviewer`: read-only design review of durable, bounded, redacted FFmpeg diagnostics;
+  no repository changes.
+- Main Agent retains all production code, unit/API/security tests, shared schemas,
+  migrations, configuration, documentation and integration of all returned work.
+
+The repository input remains a read-only user asset and is excluded from Git. Its measured baseline is 2,190,937,089 bytes, 2,780.437 seconds (46:20), 1920×1200 H.264 with nominal 30 fps/variable average metadata, and 48 kHz stereo AAC. It is useful for multi-chunk and 2 GB streaming evidence but is shorter than the product's typical 2–4 hour source; final claims must retain that limitation.
+
+The independent M5 review returned `NOT PASS` with five reproducible P1 findings:
+render validation/publication byte binding, committed stage dependency hash verification,
+directory-bound Delivery publication, fail-closed legacy stream-selection migration, and
+caption-overlay fanout validation. Corrective file ownership recorded before remediation:
+
+- Main Agent: render/quality byte binding, committed Asset dependency verification,
+  Pipeline/source pin performance, diagnostic warnings, shared integration, persistent
+  documents and final validation. It will not edit the delegated files until handoff.
+- `m5_delivery`: may modify only `src/liveclip/media/secure_files.py`,
+  `src/liveclip/delivery/package.py`, `tests/unit/test_secure_files.py`, and
+  `tests/unit/test_delivery.py`; implement inode-bound no-replace directory publication
+  and safe cleanup with adversarial replacement coverage.
+- `m5_legacy_migration`: may modify only
+  `migrations/versions/a71d4f9c2e10_add_source_stream_selection.py`,
+  `src/liveclip/media/models.py`, `src/liveclip/db/models.py`, and a new isolated
+  migration test; old rows must remain explicitly unverified rather than acquire guessed
+  stream indices. Runtime upgrade integration remains main-Agent-owned.
+- `m5_caption_budget`: may modify only `src/liveclip/domain/edit_plan.py`,
+  `src/liveclip/renderer/text.py`, `src/liveclip/renderer/service.py`,
+  `tests/unit/test_edit_plan.py`, and `tests/unit/test_text_overlay.py`; make renderer
+  overlay resource constraints part of the domain/API acceptance boundary.
+
+No delegated task may modify shared status/plan files, dependencies, the migration head,
+API schemas, or another task's files. The Main Agent will review each diff and rerun the
+full gate before accepting it.
+
+The first remediation closed all five P1 findings and two adjacent P2 observations, but a
+fresh read-only re-review found one additional P1: ZIP creation and final directory
+publication still bound only ordinary member paths/root-directory identity. A second
+bounded `m5_delivery` handoff modified only secure-file, Delivery package/handler and
+their tests. It now pins every member and ZIP descriptor, streams members without
+`ZipFile.write(path)`, validates the exact tree before/after no-replace publication, and
+commits manifest/ZIP Assets with expected hashes. A separate VFR/rotation handoff added
+only `tests/integration/test_media_rotation_vfr.py`. The original re-reviewer then replayed
+both endpoint-replacement reproductions: each failed closed with `DeliveryError`, no
+canonical `v001`, no attempt residue and no external-data inclusion. Its final verdict is
+`PASS`, with no P0/P1/P2 after 58 focused tests, Ruff, mypy and diff validation.
 
 ## Concrete commands and expected observations
 
@@ -279,6 +345,12 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Final M2 review demonstrated that caller-supplied Asset scope could cross project/revision boundaries and that proxy render rows appeared only after successful I/O. Asset scope is now database-derived, cross-logical-Task adoption is forbidden, and observable RenderJobs persist through running/failure/cancel/lease-expiry states.
 - 2026-08-03: Ingest, preprocess and quality subprocess timeout paths are explicitly transient. Argument, media-contract and validation errors remain deterministic, so bounded retry does not conceal bad inputs.
 - 2026-08-03: The independent final M2 Reviewer returned `PASS` after 82 focused tests, lint, 204 full tests and whitespace validation. It retained three P2 risks for M3/M5: non-interruptible in-process fingerprint/ffprobe latency, non-generation-scoped canonical paths and lack of a true separate-process contention test.
+- 2026-08-04: Read-only `input/7.28.mp4` is 2,190,937,089 bytes, SHA-256 `595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03`, 2,780.437 seconds, 1920×1200 H.264 plus stereo AAC. A six-stage Mock run completed in 28.83 seconds with five 600-second/5-second-overlap M4A chunks, 14 committed Assets and about 18 MB generated data. The before/after source stat/hash matched. The fixture is 46:20, not a representative 2–4 hour source; `/usr/bin/time -l` could not expose peak RSS because sandbox `sysctl kern.clockrate` failed after the child had already succeeded.
+- 2026-08-04: The default Mock transcript is intentionally only 0–32 seconds, so the long run produced one 32-second candidate/proxy. This proves streaming/chunk chronology and artifact bounds, not long-timeline content quality or candidate density.
+- 2026-08-04: Generated real FFmpeg fixtures prove VFR (`r_frame_rate=30/1`, `avg_frame_rate=750/59`), 90° and 270° display rotation, explicit video/audio stream indices and successful 270×480 H.264/AAC proxy validation/full decode/contact sheets. Separate fixtures prove a non-first/default audio stream reaches rendering.
+- 2026-08-04: The first M5 review exposed five byte/state boundary defects: render validation versus publication, committed stage-Asset trust, Delivery directory replacement, guessed legacy stream indices and caption fanout drift. Fixes pin media bytes, verify typed dependency Assets, fail closed for legacy rows, share the display-cue budget and hash a long source only once per proxy stage.
+- 2026-08-04: A fresh re-review found that binding a Delivery root directory still did not bind each member or the final ZIP. ZIP creation now streams from pinned member FDs, pins/verifies the ZIP FD, and rebinds/rehashes the exact regular-file tree across no-replace publication and Asset commit. Both original replacement reproductions fail closed; final independent M5 verdict is `PASS` with no P0/P1/P2.
+- 2026-08-04: Final M5 gates passed: `make lint` over 153 formatted files/97 typed source files plus TypeScript, 428 Python tests in 135.02 seconds, 11 Vitest tests, and Demo project `demo_20260804T085309_96fb7a31`. Its 1080×1920 H.264/AAC final fully decoded; ZIP integrity and hashes passed; the contact sheet was actually viewed and recorded `viewed_passed`.
 
 ## Decision Log
 
@@ -303,26 +375,33 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Publish provider caches through an anchored `openat`/`O_NOFOLLOW` directory chain and fail closed on any present invalid record; rationale: unsafe cache bytes must be rejected before a paid request or DB success promotion.
 - 2026-08-03: Permit only append-only provider evidence through an exact historical TaskAttempt fence after cancellation/lease loss; rationale: paid call facts must survive cancellation without granting stale workers any domain mutation authority.
 - 2026-08-03: Bound FFmpeg raster rendering to finite still inputs and explicit 2/4 normal plus 1/1 retry thread profiles; rationale: one heavy task must remain locally predictable and a transient encoder stall must neither publish partial media nor lose its last progress evidence.
+- 2026-08-04: Require committed stage dependencies to match their exact producing Task, canonical no-follow endpoint, size and SHA before consumption; rationale: a database success row or pathname alone cannot authorize changed bytes.
+- 2026-08-04: Carry pinned descriptor/size/SHA evidence from render validation through immutable publication and Asset commit; rationale: ffprobe/full decode success must describe the exact bytes exposed to users.
+- 2026-08-04: Stream Delivery ZIP members only from pinned FDs and revalidate the exact member tree after atomic no-replace rename; rationale: a root directory inode does not bind independently replaceable files inside it. See ADR-007.
+- 2026-08-04: Persist unknown legacy stream selection as `NULL` and require a matching modern ingest to verify it; rationale: migration must not invent video/audio stream choices that were never observed.
+- 2026-08-04: Use one shared domain/render caption expansion budget of at most 64 overlays; rationale: accepted EditPlans must be renderable without renderer-side silent truncation or unbounded FFmpeg fanout.
 
 ## Risks and Mitigations
 
 - Raster overlay performance: Spike with multiple Chinese cues and measure before M1 closes; use one static image per cue, not per frame.
 - Sandbox VideoToolbox false-negative: always implement and test libx264 fallback; record host doctor separately.
-- Long-media resource use: streaming I/O, bounded chunks/logs, single heavy worker and M5 measurement.
+- Long-media resource use: streaming I/O, bounded chunks/logs and single heavy worker are implemented; a 2.19 GB/46:20 run used about 18 MB project storage and 28.83 seconds, while 2–4 hour peak RSS/M3 throughput remains an explicitly unverified acceptance limitation.
 - Source reference mutation: stat identity/re-hash checkpoints and deterministic failure.
 - SQLite/filesystem split-brain: immutable paths, lease/revision fencing, hashes, validation and atomic publish.
 - Model/schema drift: pinned SDK, configurable models, contract smoke, local validation and deterministic fallback.
 - Visual heuristics overclaim: quality report distinguishes automatic from actual viewed status.
-- Generation-scoped paths are now implemented and covered by second-run/import-only migration tests; M5 will extend this with long-media disk/recovery measurement.
-- Current ownership race test uses two independent runners/connections in one process: add a spawned-process contention/lease-expiry test in M5; database fencing, not the test topology, is the correctness mechanism.
-- Stream hashing and the Python-side ffprobe wrapper cannot be interrupted mid-call: bounded subprocess timeouts and late-publication fences cap correctness impact; M5 will measure cancellation latency and add polling where practical.
+- Generation-scoped paths are implemented and covered by second-run/import-only migration plus long-media artifact-scope checks.
+- Spawned-process independent-Engine claim, heartbeat, crash-expiry and busy-recovery tests now exercise the SQLite fence outside one process.
+- Pinned file hashing polls cancellation in bounded blocks; FFmpeg/ffprobe use process-group cancellation and lease monitors. A short atomic filesystem operation remains non-preemptible, but it cannot publish after a failed lease/revision/hash fence.
 
 ## Recovery Notes
 
-Current first task: inspect repository `input/` metadata read-only, choose the longest suitable allowed-root sample, record a baseline resource/disk plan, then exercise M5 streaming and recovery without modifying or committing user media.
+Current first task: create the scoped local M5 checkpoint after one final diff/staged-scope check, record its hash in this plan and `STATUS.md`, then begin M6 with the browser-to-real-FastAPI/Worker composition test. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
 M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is complete at commit `476ad89`: pinned real OpenAI adapters, strict cloud contracts, immutable caches, bounded retry/usage/cancellation evidence, no-Mock smoke validation and renderer reliability hardening passed both independent reviews, 328 Python tests, 11 Web tests and an actually viewed post-fix Demo. Real cloud entitlement remains honestly `not_run`.
+
+M5 implementation and independent review are complete pending its local checkpoint hash. Long/chunked input, cancellation/lease recovery, spawned-process SQLite contention, explicit stream selection, VFR/rotation, exact committed-Asset dependencies, pinned render validation/publication, caption resource bounds, safe diagnostics and exact immutable Delivery publication are integrated. The final reviewer returned `PASS` after replaying the two prior Delivery races. Full gates are 428 Python plus 11 Web tests, and the fresh delivered Demo's final/contact sheet/manifest/ZIP were actually inspected. The available long fixture is only 46:20 on Apple M2, so 2–4 hour peak memory and M3 throughput remain truthful limitations for M6/final reporting rather than hidden success claims.

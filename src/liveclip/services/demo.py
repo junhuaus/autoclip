@@ -257,7 +257,7 @@ def _execute_demo(
     )
     lifecycles[0] = selected
     valid_final = current_final_render(selected)
-    if valid_final is None or valid_final.path is None:
+    if valid_final is None or valid_final.path is None or valid_final.sha256 is None:
         raise DemoRunError("current approved revision has no valid final render")
 
     set_phase("delivery")
@@ -278,6 +278,7 @@ def _execute_demo(
                 review_status=selected.review_status.value,
                 render_status=valid_final.status.value,
                 final_video_path=valid_final.path,
+                final_video_sha256=valid_final.sha256,
                 subtitle_srt=captions_to_srt(selected.current.captions),
             ),
         ),

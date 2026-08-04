@@ -66,6 +66,39 @@ class SourceMediaRow(Base):
         CheckConstraint("size_bytes > 0", name="source_size_positive"),
         CheckConstraint("duration_ms > 0", name="source_duration_positive"),
         CheckConstraint("width > 0 AND height > 0", name="source_dimensions_positive"),
+        CheckConstraint(
+            """
+            (
+                video_stream_index IS NULL
+                AND audio_stream_index IS NULL
+                AND video_rotation_degrees IS NULL
+            ) OR (
+                video_stream_index IS NOT NULL
+                AND audio_stream_index IS NOT NULL
+                AND video_rotation_degrees IS NOT NULL
+            )
+            """,
+            name="source_stream_selection_complete",
+        ),
+        CheckConstraint(
+            """
+            video_stream_index IS NULL OR (
+                video_stream_index >= 0 AND audio_stream_index >= 0
+            )
+            """,
+            name="source_stream_indexes_nonnegative",
+        ),
+        CheckConstraint(
+            "video_stream_index IS NULL OR video_stream_index != audio_stream_index",
+            name="source_stream_indexes_distinct",
+        ),
+        CheckConstraint(
+            """
+            video_rotation_degrees IS NULL
+            OR video_rotation_degrees IN (0, 90, 180, 270)
+            """,
+            name="source_rotation_allowed",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
@@ -82,6 +115,9 @@ class SourceMediaRow(Base):
     duration_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
+    video_stream_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_stream_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    video_rotation_degrees: Mapped[int | None] = mapped_column(Integer, nullable=True)
     video_codec: Mapped[str] = mapped_column(String(80), nullable=False)
     audio_codec: Mapped[str] = mapped_column(String(80), nullable=False)
     frame_rate: Mapped[str] = mapped_column(String(40), nullable=False)

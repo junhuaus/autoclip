@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import threading
-from datetime import UTC, datetime
 from enum import StrEnum
 
+from liveclip.application.lease_monitor import LeaseMonitor
 from liveclip.application.pipeline import (
     LeaseIdentity,
     PipelineConfigInvalid,
@@ -17,7 +17,7 @@ from liveclip.application.stage_execution import (
     StageExecutionError,
     StageHandler,
 )
-from liveclip.application.tasks import TaskLease, TaskQueuePort
+from liveclip.application.tasks import TaskLease, TaskQueuePort, TaskQueueTransientError
 from liveclip.domain.state_transitions import (
     FailureClass,
     PipelineRunStatus,
@@ -28,6 +28,7 @@ from liveclip.domain.state_transitions import (
 
 class RunOneOutcome(StrEnum):
     IDLE = "idle"
+    BUSY = "busy"
     SUCCEEDED = "succeeded"
     RETRY_SCHEDULED = "retry_scheduled"
     FAILED = "failed"
@@ -59,11 +60,14 @@ class StageTaskRunner:
         worker_id: str,
         pipeline_run_id: str | None = None,
     ) -> RunOneOutcome:
-        lease = self._queue.claim(
-            worker_id=worker_id,
-            pipeline_run_id=pipeline_run_id,
-            task_kind=TaskKind.STAGE,
-        )
+        try:
+            lease = self._queue.claim(
+                worker_id=worker_id,
+                pipeline_run_id=pipeline_run_id,
+                task_kind=TaskKind.STAGE,
+            )
+        except TaskQueueTransientError:
+            return RunOneOutcome.BUSY
         if lease is None:
             return RunOneOutcome.IDLE
         identity = _identity(lease)
@@ -108,13 +112,16 @@ class StageTaskRunner:
                     identity,
                     output_fingerprint=work.output_fingerprint,
                     checkpoint=work.checkpoint,
+                    diagnostic_relative_path=None,
                 )
                 else RunOneOutcome.LOST_LEASE
             )
-        monitor = _HeartbeatMonitor(
-            queue=self._queue,
+        monitor = LeaseMonitor(
+            heartbeat=self._queue.heartbeat,
+            observe=getattr(self._queue, "observe", None),
             lease=lease,
-            interval_seconds=self._heartbeat_seconds,
+            heartbeat_seconds=self._heartbeat_seconds,
+            thread_name=f"liveclip-stage-lease-{lease.task_id[:8]}",
         )
         if work.cancellation_requested:
             monitor.request_cancel()
@@ -138,6 +145,7 @@ class StageTaskRunner:
                 identity,
                 output_fingerprint=result.output_fingerprint,
                 checkpoint=result.checkpoint,
+                diagnostic_relative_path=result.diagnostic_relative_path,
             )
             if completed:
                 return RunOneOutcome.SUCCEEDED
@@ -183,7 +191,7 @@ class StageTaskRunner:
             }:
                 return snapshot
             outcome = self.run_one(worker_id=worker_id, pipeline_run_id=run_id)
-            if outcome == RunOneOutcome.IDLE:
+            if outcome in {RunOneOutcome.IDLE, RunOneOutcome.BUSY}:
                 threading.Event().wait(poll_seconds)
 
     def _record_failure(
@@ -202,6 +210,7 @@ class StageTaskRunner:
             error_code=error.error_code,
             safe_message=error.safe_message,
             retry_delay_ms=delay_ms,
+            diagnostic_relative_path=error.diagnostic_relative_path,
         )
         if target == TaskStatus.QUEUED:
             return RunOneOutcome.RETRY_SCHEDULED
@@ -210,73 +219,6 @@ class StageTaskRunner:
         if target == TaskStatus.CANCELLED:
             return RunOneOutcome.CANCELLED
         return RunOneOutcome.LOST_LEASE
-
-
-class _HeartbeatMonitor:
-    def __init__(
-        self,
-        *,
-        queue: TaskQueuePort,
-        lease: TaskLease,
-        interval_seconds: int,
-    ) -> None:
-        self._queue = queue
-        self._lease = lease
-        self._interval_seconds = interval_seconds
-        self._stop = threading.Event()
-        self._cancel = threading.Event()
-        self._lost = threading.Event()
-        self._last_expiry = lease.lease_expires_at
-        self._refresh_lock = threading.Lock()
-        if lease.cancellation_requested:
-            self._cancel.set()
-        self._thread = threading.Thread(
-            target=self._run,
-            name=f"liveclip-heartbeat-{lease.task_id[:8]}",
-            daemon=True,
-        )
-
-    @property
-    def cancel_requested(self) -> bool:
-        return self._cancel.is_set()
-
-    @property
-    def lost_lease(self) -> bool:
-        return self._lost.is_set()
-
-    def should_stop(self) -> bool:
-        return self.cancel_requested or self.lost_lease
-
-    def request_cancel(self) -> None:
-        self._cancel.set()
-
-    def start(self) -> None:
-        self._thread.start()
-
-    def refresh(self) -> None:
-        with self._refresh_lock:
-            try:
-                heartbeat = self._queue.heartbeat(self._lease)
-            except Exception:
-                if datetime.now(UTC) >= self._last_expiry:
-                    self._lost.set()
-                return
-            if heartbeat is None:
-                self._lost.set()
-                return
-            self._last_expiry = heartbeat.lease_expires_at
-            if heartbeat.cancellation_requested:
-                self._cancel.set()
-
-    def stop(self) -> None:
-        self._stop.set()
-        self._thread.join(timeout=max(1.0, self._interval_seconds + 1.0))
-
-    def _run(self) -> None:
-        while not self._stop.wait(self._interval_seconds):
-            self.refresh()
-            if self.lost_lease:
-                return
 
 
 def _identity(lease: TaskLease) -> LeaseIdentity:

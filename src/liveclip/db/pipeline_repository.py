@@ -25,6 +25,7 @@ from liveclip.application.pipeline import (
     load_persisted_pipeline_config,
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
+from liveclip.application.tasks import validate_task_diagnostic_relative_path
 from liveclip.db.base import new_id
 from liveclip.db.delivery_snapshot import DeliverySetError, load_eligible_delivery_set
 from liveclip.db.engine import begin_immediate
@@ -708,9 +709,15 @@ class SqlAlchemyPipelineRepository:
         *,
         output_fingerprint: str,
         checkpoint: dict[str, object],
+        diagnostic_relative_path: str | None = None,
     ) -> bool:
         if not re.fullmatch(r"[a-f0-9]{64}", output_fingerprint):
             raise ValueError("stage output fingerprint must be a lowercase SHA-256")
+        diagnostic_relative_path = validate_task_diagnostic_relative_path(diagnostic_relative_path)
+        if diagnostic_relative_path is not None:
+            parts = diagnostic_relative_path.split("/")
+            if parts[1:3] != [lease.task_id, lease.lease_token]:
+                raise ValueError("task diagnostic path belongs to another attempt")
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
             row = connection.execute(
@@ -822,7 +829,11 @@ class SqlAlchemyPipelineRepository:
                     TaskAttemptRow.lease_token == lease.lease_token,
                     TaskAttemptRow.outcome == AttemptOutcome.RUNNING.value,
                 )
-                .values(outcome=AttemptOutcome.SUCCEEDED.value, finished_at=now)
+                .values(
+                    outcome=AttemptOutcome.SUCCEEDED.value,
+                    finished_at=now,
+                    diagnostic_relative_path=diagnostic_relative_path,
+                )
             )
             next_ordinal = int(row.ordinal) + 1
             run_config = load_persisted_pipeline_config(
@@ -947,8 +958,14 @@ class SqlAlchemyPipelineRepository:
         error_code: str,
         safe_message: str,
         retry_delay_ms: int,
+        diagnostic_relative_path: str | None = None,
     ) -> TaskStatus | None:
         _validate_failure(error_code, safe_message, retry_delay_ms)
+        diagnostic_relative_path = validate_task_diagnostic_relative_path(diagnostic_relative_path)
+        if diagnostic_relative_path is not None:
+            parts = diagnostic_relative_path.split("/")
+            if parts[1:3] != [lease.task_id, lease.lease_token]:
+                raise ValueError("task diagnostic path belongs to another attempt")
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
             row = connection.execute(
@@ -1023,6 +1040,7 @@ class SqlAlchemyPipelineRepository:
                     failure_class=failure_class.value,
                     error_code=error_code,
                     safe_error_message=safe_message,
+                    diagnostic_relative_path=diagnostic_relative_path,
                 )
             )
             stage_values: dict[str, object] = {

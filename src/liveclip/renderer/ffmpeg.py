@@ -1,21 +1,29 @@
 from __future__ import annotations
 
-import os
+import json
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from collections.abc import Callable, Sequence
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from liveclip.domain.edit_plan import Effect, Layout
 from liveclip.domain.time import ms_to_ffmpeg
 from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.media.secure_files import (
+    SecureFileError,
+    ensure_directory_no_follow,
+    publish_regular_file_immutable_no_follow,
+)
+from liveclip.observability import redact_persistent_diagnostic, redact_text
 from liveclip.renderer.quality import (
     MediaValidationCancelled,
     MediaValidationError,
+    QualityReport,
     validate_rendered_media,
 )
 from liveclip.renderer.text import TextOverlay
@@ -31,6 +39,9 @@ class RenderRequest:
     height: int
     layout: Layout
     effect: Effect
+    video_stream_index: int = 0
+    audio_stream_index: int = 1
+    source_pass_fds: tuple[int, ...] = ()
     overlays: tuple[TextOverlay, ...] = ()
     encoder: str = "auto"
 
@@ -40,16 +51,47 @@ class RenderRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class RenderAttemptDiagnostic:
+    encoder: str
+    runtime_attempt: int
+    outcome: Literal[
+        "succeeded",
+        "timeout",
+        "launch_error",
+        "process_failed",
+        "validation_failed",
+    ]
+    elapsed_ms: int
+    exit_code: int | None
+    logical_argv: tuple[str, ...]
+    stderr_tail: str
+
+
+@dataclass(frozen=True, slots=True)
 class RenderResult:
     output_path: Path
+    sha256: str
     encoder: str
     attempts: int
     argv: tuple[str, ...]
     stderr_tail: str
+    diagnostics: tuple[RenderAttemptDiagnostic, ...]
 
 
 class FFmpegRenderError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        diagnostics: tuple[RenderAttemptDiagnostic, ...] = (),
+        quality_diagnostics: tuple[dict[str, object], ...] = (),
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.diagnostics = diagnostics
+        self.quality_diagnostics = quality_diagnostics
+        self.retryable = retryable
+        self.diagnostic_relative_path: str | None = None
 
 
 class FFmpegRenderCancelled(FFmpegRenderError):
@@ -131,7 +173,7 @@ def build_filtergraph(request: RenderRequest) -> str:
     if request.layout == Layout.VERTICAL_BLUR_BACKGROUND:
         chains.extend(
             [
-                "[0:v]setpts=PTS-STARTPTS,split=2[bgsrc][fgsrc]",
+                f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,split=2[bgsrc][fgsrc]",
                 f"[bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},boxblur=20:2[bg]",
                 f"[fgsrc]scale={width}:{height}:force_original_aspect_ratio=decrease[fg]",
@@ -140,7 +182,7 @@ def build_filtergraph(request: RenderRequest) -> str:
         )
     else:
         chains.append(
-            f"[0:v]setpts=PTS-STARTPTS,scale={width}:{height}:"
+            f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,scale={width}:{height}:"
             f"force_original_aspect_ratio=increase,crop={width}:{height}[base]"
         )
     previous = "base"
@@ -172,7 +214,7 @@ def build_filtergraph(request: RenderRequest) -> str:
     else:
         chains.append(f"[{previous}]format=yuv420p[vout]")
         audio_effects = "loudnorm=I=-16:LRA=11:TP=-1.5"
-    chains.append(f"[0:a]asetpts=PTS-STARTPTS,{audio_effects}[aout]")
+    chains.append(f"[0:{request.audio_stream_index}]asetpts=PTS-STARTPTS,{audio_effects}[aout]")
     return ";".join(chains)
 
 
@@ -186,14 +228,17 @@ def render_clip(
     executable = ffmpeg_path or shutil.which("ffmpeg")
     if executable is None:
         raise FFmpegRenderError("ffmpeg is not available")
-    request.output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_directory_no_follow(request.output_path.parent)
+    except SecureFileError as exc:
+        raise FFmpegRenderError("render output directory is not symlink-free") from exc
     if request.output_path.exists():
         raise FFmpegRenderError("refusing to overwrite an existing revision artifact")
     temporary = request.output_path.with_name(
         f".{request.output_path.stem}.tmp-{uuid.uuid4().hex}.mp4"
     )
     encoders = _encoder_order(request.encoder)
-    diagnostics: list[str] = []
+    diagnostic_records: list[RenderAttemptDiagnostic] = []
     attempt = 0
     try:
         for encoder in encoders:
@@ -208,34 +253,58 @@ def render_clip(
                     ffmpeg_path=executable,
                     conservative_threads=encoder == "libx264" and runtime_attempt > 1,
                 )
+                logical_argv = _logical_argv(argv, request=request, temporary_output=temporary)
+                attempt_started = time.monotonic()
                 try:
                     result = run_ffmpeg(
                         argv,
                         timeout_seconds=_render_timeout_seconds(request),
                         cancel_requested=cancel_requested,
+                        pass_fds=request.source_pass_fds,
                     )
                 except ProcessCancelled as exc:
                     raise FFmpegRenderCancelled("FFmpeg rendering was cancelled") from exc
                 except subprocess.TimeoutExpired as exc:
-                    diagnostics.append(
-                        f"{encoder} runtime attempt {runtime_attempt}: "
-                        f"{exc.__class__.__name__}{_timeout_stderr_suffix(exc)}"
+                    diagnostic_records.append(
+                        RenderAttemptDiagnostic(
+                            encoder=encoder,
+                            runtime_attempt=runtime_attempt,
+                            outcome="timeout",
+                            elapsed_ms=_elapsed_ms(attempt_started),
+                            exit_code=None,
+                            logical_argv=logical_argv,
+                            stderr_tail=_timeout_stderr(
+                                exc,
+                                request=request,
+                                temporary_output=temporary,
+                            ),
+                        )
                     )
                     continue
-                except OSError as exc:
-                    diagnostics.append(
-                        f"{encoder} runtime attempt {runtime_attempt}: {exc.__class__.__name__}"
+                except OSError:
+                    diagnostic_records.append(
+                        RenderAttemptDiagnostic(
+                            encoder=encoder,
+                            runtime_attempt=runtime_attempt,
+                            outcome="launch_error",
+                            elapsed_ms=_elapsed_ms(attempt_started),
+                            exit_code=None,
+                            logical_argv=logical_argv,
+                            stderr_tail="",
+                        )
                     )
                     continue
-                stderr_tail = _bounded_tail(result.stderr)
-                diagnostics.append(f"{encoder}: {stderr_tail}")
+                stderr_tail = _safe_stderr_tail(
+                    result.stderr,
+                    sensitive_values=_diagnostic_sensitive_values(request, temporary),
+                )
                 if (
                     result.returncode == 0
                     and temporary.is_file()
                     and temporary.stat().st_size > 1_024
                 ):
                     try:
-                        _validate_temporary_media(
+                        prepublish_quality = _validate_temporary_media(
                             temporary,
                             request,
                             cancel_requested=cancel_requested,
@@ -243,20 +312,77 @@ def render_clip(
                     except MediaValidationCancelled as exc:
                         raise FFmpegRenderCancelled("render validation was cancelled") from exc
                     except (MediaValidationError, OSError, subprocess.TimeoutExpired) as exc:
-                        diagnostics.append(f"{encoder} validation: {exc.__class__.__name__}: {exc}")
+                        diagnostic_records.append(
+                            RenderAttemptDiagnostic(
+                                encoder=encoder,
+                                runtime_attempt=runtime_attempt,
+                                outcome="validation_failed",
+                                elapsed_ms=_elapsed_ms(attempt_started),
+                                exit_code=result.returncode,
+                                logical_argv=logical_argv,
+                                stderr_tail=_safe_stderr_tail(
+                                    f"{stderr_tail}\nvalidation: {exc.__class__.__name__}: {exc}",
+                                    sensitive_values=_diagnostic_sensitive_values(
+                                        request,
+                                        temporary,
+                                    ),
+                                ),
+                            )
+                        )
                         break
-                    _publish_no_clobber(temporary, request.output_path)
+                    diagnostic_records.append(
+                        RenderAttemptDiagnostic(
+                            encoder=encoder,
+                            runtime_attempt=runtime_attempt,
+                            outcome="succeeded",
+                            elapsed_ms=_elapsed_ms(attempt_started),
+                            exit_code=result.returncode,
+                            logical_argv=logical_argv,
+                            stderr_tail=stderr_tail,
+                        )
+                    )
+                    try:
+                        _publish_no_clobber(
+                            temporary,
+                            request.output_path,
+                            expected_sha256=prepublish_quality.media_sha256,
+                        )
+                    except FFmpegRenderError as exc:
+                        raise FFmpegRenderError(
+                            str(exc),
+                            diagnostics=tuple(diagnostic_records),
+                            retryable=exc.retryable,
+                        ) from exc
                     return RenderResult(
                         output_path=request.output_path,
+                        sha256=prepublish_quality.media_sha256,
                         encoder=encoder,
                         attempts=attempt,
                         argv=tuple(argv),
                         stderr_tail=stderr_tail,
+                        diagnostics=tuple(diagnostic_records),
                     )
+                diagnostic_records.append(
+                    RenderAttemptDiagnostic(
+                        encoder=encoder,
+                        runtime_attempt=runtime_attempt,
+                        outcome="process_failed",
+                        elapsed_ms=_elapsed_ms(attempt_started),
+                        exit_code=result.returncode,
+                        logical_argv=logical_argv,
+                        stderr_tail=stderr_tail,
+                    )
+                )
                 # A completed process with invalid output is deterministic for
                 # this encoder. Only runtime launch/timeout failures are retried.
                 break
-        raise FFmpegRenderError("FFmpeg rendering failed: " + " | ".join(diagnostics))
+        raise FFmpegRenderError(
+            f"FFmpeg rendering failed after {attempt} bounded attempt(s)",
+            diagnostics=tuple(diagnostic_records),
+            retryable=any(
+                item.outcome in {"timeout", "launch_error"} for item in diagnostic_records
+            ),
+        )
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -266,11 +392,13 @@ def run_ffmpeg(
     *,
     timeout_seconds: float = 1_800,
     cancel_requested: Callable[[], bool] | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     return run_cancellable_process(
         argv,
         timeout_seconds=timeout_seconds,
         cancel_requested=cancel_requested,
+        pass_fds=pass_fds,
     )
 
 
@@ -297,6 +425,12 @@ def _validate_request(request: RenderRequest) -> None:
         raise ValueError("render dimensions must be positive even integers")
     if request.width >= request.height:
         raise ValueError("LiveClip render output must be portrait")
+    if request.video_stream_index < 0 or request.audio_stream_index < 0:
+        raise ValueError("render stream indexes must be nonnegative")
+    if request.video_stream_index == request.audio_stream_index:
+        raise ValueError("render video and audio streams must be distinct")
+    if any(value < 0 for value in request.source_pass_fds):
+        raise ValueError("render inherited file descriptors must be nonnegative")
     for overlay in request.overlays:
         if overlay.start_ms < 0 or overlay.end_ms <= overlay.start_ms:
             raise ValueError("invalid overlay interval")
@@ -308,7 +442,24 @@ def _bounded_tail(value: str, *, maximum_lines: int = 20) -> str:
     return "\n".join(value.splitlines()[-maximum_lines:])[-4_000:]
 
 
-def _timeout_stderr_suffix(exc: subprocess.TimeoutExpired) -> str:
+def _safe_stderr_tail(
+    value: str,
+    *,
+    sensitive_values: Sequence[str] = (),
+) -> str:
+    return redact_persistent_diagnostic(
+        _bounded_tail(value),
+        sensitive_values=sensitive_values,
+        maximum_characters=4_000,
+    )
+
+
+def _timeout_stderr(
+    exc: subprocess.TimeoutExpired,
+    *,
+    request: RenderRequest,
+    temporary_output: Path,
+) -> str:
     raw_value = exc.stderr
     if isinstance(raw_value, bytes):
         value = raw_value.decode("utf-8", errors="replace")
@@ -316,8 +467,122 @@ def _timeout_stderr_suffix(exc: subprocess.TimeoutExpired) -> str:
         value = raw_value
     else:
         return ""
-    tail = _bounded_tail(value)
-    return f": {tail}" if tail else ""
+    return _safe_stderr_tail(
+        value,
+        sensitive_values=_diagnostic_sensitive_values(request, temporary_output),
+    )
+
+
+def _diagnostic_sensitive_values(
+    request: RenderRequest,
+    temporary_output: Path,
+) -> tuple[str, ...]:
+    return (
+        str(request.source_path),
+        str(temporary_output),
+        *(str(overlay.path) for overlay in request.overlays),
+    )
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1_000))
+
+
+def _logical_argv(
+    argv: Sequence[str],
+    *,
+    request: RenderRequest,
+    temporary_output: Path,
+) -> tuple[str, ...]:
+    replacements = {
+        str(request.source_path): "<source-media>",
+        str(temporary_output): "<temporary-output>",
+        **{
+            str(overlay.path): f"<overlay-{index}>"
+            for index, overlay in enumerate(request.overlays, start=1)
+        },
+    }
+    result: list[str] = []
+    remaining_characters = 16_384
+    for index, argument in enumerate(argv):
+        if len(result) >= 256 or remaining_characters <= 0:
+            result.append("<logical-argv-truncated>")
+            break
+        if index == 0:
+            value = Path(argument).name or "ffmpeg"
+        else:
+            value = replacements.get(argument, argument)
+        bounded = redact_text(value)[: min(2_048, remaining_characters)]
+        result.append(bounded)
+        remaining_characters -= len(bounded)
+    return tuple(result)
+
+
+def render_diagnostics_payload(
+    diagnostics: Sequence[RenderAttemptDiagnostic],
+) -> dict[str, object]:
+    attempts: list[dict[str, object]] = []
+    records_dropped = 0
+    for item in diagnostics:
+        record: dict[str, object] = {
+            "encoder": item.encoder,
+            "runtime_attempt": item.runtime_attempt,
+            "outcome": item.outcome,
+            "elapsed_ms": item.elapsed_ms,
+            "exit_code": item.exit_code,
+            "logical_argv": list(item.logical_argv),
+            "stderr_tail": item.stderr_tail,
+        }
+        candidate = {
+            "schema_version": "1",
+            "attempt_count": len(diagnostics),
+            "records_dropped": records_dropped,
+            "attempts": [*attempts, record],
+        }
+        if len(json.dumps(candidate, ensure_ascii=False).encode("utf-8")) > 64 * 1024:
+            records_dropped += 1
+            continue
+        attempts.append(record)
+    return {
+        "schema_version": "1",
+        "attempt_count": len(diagnostics),
+        "records_dropped": records_dropped,
+        "attempts": attempts,
+    }
+
+
+def render_execution_diagnostics_payload(
+    diagnostics: Sequence[RenderAttemptDiagnostic],
+    quality_diagnostics: Sequence[dict[str, object]] = (),
+) -> dict[str, object]:
+    payload = {
+        "schema_version": "1",
+        "encode": render_diagnostics_payload(diagnostics),
+        "quality": [],
+        "quality_records_dropped": 0,
+    }
+    retained: list[dict[str, object]] = []
+    dropped = 0
+    for record in quality_diagnostics:
+        candidate = {
+            **payload,
+            "quality": [*retained, record],
+            "quality_records_dropped": dropped,
+        }
+        if len(json.dumps(candidate, ensure_ascii=False).encode("utf-8")) > 80 * 1024:
+            dropped += 1
+            continue
+        retained.append(record)
+    payload["quality"] = retained
+    payload["quality_records_dropped"] = dropped
+    return payload
+
+
+def render_error_diagnostics_payload(error: FFmpegRenderError) -> dict[str, object]:
+    return render_execution_diagnostics_payload(
+        error.diagnostics,
+        error.quality_diagnostics,
+    )
 
 
 def _validate_temporary_media(
@@ -325,9 +590,9 @@ def _validate_temporary_media(
     request: RenderRequest,
     *,
     cancel_requested: Callable[[], bool] | None = None,
-) -> None:
+) -> QualityReport:
     with tempfile.TemporaryDirectory(prefix=".liveclip-prepublish-", dir=path.parent) as temp_dir:
-        validate_rendered_media(
+        return validate_rendered_media(
             media_path=path,
             expected_width=request.width,
             expected_height=request.height,
@@ -338,14 +603,20 @@ def _validate_temporary_media(
         )
 
 
-def _publish_no_clobber(source: Path, destination: Path) -> None:
+def _publish_no_clobber(
+    source: Path,
+    destination: Path,
+    *,
+    expected_sha256: str,
+) -> None:
     try:
-        os.link(source, destination)
-    except FileExistsError as exc:
-        raise FFmpegRenderError("render artifact publication lost a no-clobber race") from exc
-    except OSError as exc:
-        raise FFmpegRenderError("render artifact could not be published atomically") from exc
-    with suppress(OSError):
-        # The destination is already a complete hard link. The outer cleanup gets
-        # another chance to remove the private temporary name.
-        source.unlink()
+        publish_regular_file_immutable_no_follow(
+            source,
+            destination,
+            expected_sha256=expected_sha256,
+        )
+    except SecureFileError as exc:
+        raise FFmpegRenderError(
+            "render artifact failed its no-clobber race and safety check",
+            retryable=False,
+        ) from exc

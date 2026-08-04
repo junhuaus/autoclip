@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import threading
-from datetime import UTC, datetime
 from enum import StrEnum
 
 from liveclip.application.deliveries import DeliveryConflict, DeliveryRepository, DeliverySnapshot
+from liveclip.application.lease_monitor import LeaseMonitor
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.application.render_runner import RenderTaskQueue
-from liveclip.application.tasks import TaskLease
+from liveclip.application.tasks import TaskLease, TaskQueueTransientError
 from liveclip.delivery.package import DeliveryError
 from liveclip.delivery.task_handler import DeliveryTaskCancelled, DeliveryTaskHandler
 from liveclip.domain.state_transitions import DeliveryStatus, FailureClass, TaskKind, TaskStatus
@@ -15,6 +15,7 @@ from liveclip.domain.state_transitions import DeliveryStatus, FailureClass, Task
 
 class DeliveryRunOutcome(StrEnum):
     IDLE = "idle"
+    BUSY = "busy"
     SUCCEEDED = "succeeded"
     RETRY_SCHEDULED = "retry_scheduled"
     FAILED = "failed"
@@ -39,7 +40,10 @@ class DeliveryTaskRunner:
         self._heartbeat_seconds = heartbeat_seconds
 
     def run_one(self, *, worker_id: str) -> DeliveryRunOutcome:
-        lease = self._queue.claim(worker_id=worker_id, task_kind=TaskKind.DELIVERY)
+        try:
+            lease = self._queue.claim(worker_id=worker_id, task_kind=TaskKind.DELIVERY)
+        except TaskQueueTransientError:
+            return DeliveryRunOutcome.BUSY
         if lease is None:
             return DeliveryRunOutcome.IDLE
         identity = LeaseIdentity(
@@ -56,56 +60,28 @@ class DeliveryTaskRunner:
                 error_code="DELIVERY_STATE_INVALID",
                 safe_message="The delivery task is no longer valid for the current project",
             )
-        stop = threading.Event()
-        cancel = threading.Event()
-        lost = threading.Event()
-        expiry_lock = threading.Lock()
-        last_expiry = lease.lease_expires_at
-
-        def refresh() -> None:
-            nonlocal last_expiry
-            try:
-                result = self._queue.heartbeat(lease)
-            except Exception:
-                with expiry_lock:
-                    expired = datetime.now(UTC) >= last_expiry
-                if expired:
-                    lost.set()
-                return
-            if result is None:
-                lost.set()
-            else:
-                with expiry_lock:
-                    last_expiry = result.lease_expires_at
-                if result.cancellation_requested:
-                    cancel.set()
-
-        def heartbeat_loop() -> None:
-            while not stop.wait(self._heartbeat_seconds):
-                refresh()
-                if lost.is_set():
-                    return
-
-        thread = threading.Thread(
-            target=heartbeat_loop,
-            name=f"liveclip-delivery-heartbeat-{lease.task_id[:8]}",
-            daemon=True,
+        monitor = LeaseMonitor(
+            heartbeat=self._queue.heartbeat,
+            observe=getattr(self._queue, "observe", None),
+            lease=lease,
+            heartbeat_seconds=self._heartbeat_seconds,
+            thread_name=f"liveclip-delivery-lease-{lease.task_id[:8]}",
         )
-        thread.start()
+        monitor.start()
         try:
             persistence = self._handler.execute(
                 work,
                 identity,
-                cancel_requested=lambda: cancel.is_set() or lost.is_set(),
+                cancel_requested=monitor.should_stop,
             )
-            refresh()
-            if cancel.is_set():
+            monitor.refresh()
+            if monitor.cancel_requested:
                 return (
                     DeliveryRunOutcome.CANCELLED
                     if self._queue.acknowledge_cancel(lease)
                     else DeliveryRunOutcome.LOST_LEASE
                 )
-            if lost.is_set():
+            if monitor.lost_lease:
                 return DeliveryRunOutcome.LOST_LEASE
             if self._repository.complete_delivery(identity, work, persistence):
                 return DeliveryRunOutcome.SUCCEEDED
@@ -138,8 +114,7 @@ class DeliveryTaskRunner:
                 safe_message="The delivery failed with an unexpected local error",
             )
         finally:
-            stop.set()
-            thread.join(timeout=max(1.0, self._heartbeat_seconds + 1.0))
+            monitor.stop()
 
     def run_until_terminal(
         self,
@@ -155,7 +130,7 @@ class DeliveryTaskRunner:
             if snapshot.status in {DeliveryStatus.SUCCEEDED, DeliveryStatus.FAILED}:
                 return snapshot
             outcome = self.run_one(worker_id=worker_id)
-            if outcome == DeliveryRunOutcome.IDLE:
+            if outcome in {DeliveryRunOutcome.IDLE, DeliveryRunOutcome.BUSY}:
                 threading.Event().wait(poll_seconds)
 
     def _fail(

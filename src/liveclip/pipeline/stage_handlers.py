@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from pydantic import ValidationError
 
 from liveclip.application.assets import AssetReservation, AssetStore
 from liveclip.application.pipeline import LeaseIdentity, StageWork
 from liveclip.application.stage_execution import (
+    CommittedStageAsset,
+    PersistedRevision,
     PreparedRevision,
     ProxyRenderIntent,
     ProxyRenderPersistence,
@@ -23,21 +26,35 @@ from liveclip.application.stage_execution import (
 )
 from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
-from liveclip.domain.state_transitions import FailureClass, PipelineStage
+from liveclip.domain.state_transitions import AssetStatus, FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
 from liveclip.media.artifacts import (
+    ArtifactPublicationError,
     attempt_directory,
+    cleanup_attempt_worktree,
     project_directory,
     publish_file_no_clobber,
     write_json_no_clobber,
 )
-from liveclip.media.ingest import MediaIngestError, MediaIngestTransientError, ingest_source
-from liveclip.media.models import AudioChunkManifest
+from liveclip.media.ingest import (
+    MediaIngestCancelled,
+    MediaIngestError,
+    MediaIngestTransientError,
+    ingest_source,
+)
+from liveclip.media.models import AudioChunkManifest, SourceMediaMetadata
 from liveclip.media.preprocess import (
     AudioPreprocessCancelled,
     AudioPreprocessError,
     AudioPreprocessTransientError,
     preprocess_audio,
+)
+from liveclip.media.secure_files import (
+    PinnedRegularFile,
+    SecureFileError,
+    hash_regular_file_no_follow,
+    open_pinned_regular_file,
+    read_regular_file_no_follow,
 )
 from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_candidates
 from liveclip.pipeline.editing import edit_and_rank_candidates
@@ -57,7 +74,11 @@ from liveclip.providers.telemetry import (
     ProviderDeterministicError,
     ProviderTransientError,
 )
-from liveclip.renderer.ffmpeg import FFmpegRenderCancelled, FFmpegRenderError
+from liveclip.renderer.ffmpeg import (
+    FFmpegRenderCancelled,
+    FFmpegRenderError,
+    render_error_diagnostics_payload,
+)
 from liveclip.renderer.quality import (
     MediaValidationCancelled,
     MediaValidationError,
@@ -66,6 +87,8 @@ from liveclip.renderer.quality import (
 )
 from liveclip.renderer.service import render_edit_plan_revision, render_revision_overlays
 from liveclip.services.captions import captions_for_clip
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineStageHandlers:
@@ -111,8 +134,8 @@ class PipelineStageHandlers:
                 PipelineStage.PROXY_RENDER: self._proxy_render,
             }
             return handlers[work.stage](work, lease, cancel_requested)
-        except AudioPreprocessCancelled as exc:
-            raise StageCancelled("audio preprocessing was cancelled") from exc
+        except (AudioPreprocessCancelled, MediaIngestCancelled) as exc:
+            raise StageCancelled(f"{work.stage.value} was cancelled") from exc
         except (FFmpegRenderCancelled, MediaValidationCancelled) as exc:
             raise StageCancelled("proxy rendering was cancelled") from exc
         except ProviderCancelled as exc:
@@ -152,9 +175,21 @@ class PipelineStageHandlers:
             ) from exc
         except FFmpegRenderError as exc:
             raise StageExecutionError(
-                failure_class=FailureClass.TRANSIENT,
-                error_code="RENDER_TEMPORARY",
-                safe_message="The local renderer failed temporarily and may be retried",
+                failure_class=(
+                    FailureClass.TRANSIENT if exc.retryable else FailureClass.DETERMINISTIC
+                ),
+                error_code=("RENDER_TEMPORARY" if exc.retryable else "RENDER_VALIDATION_FAILED"),
+                safe_message=(
+                    "The local renderer failed temporarily and may be retried"
+                    if exc.retryable
+                    else "A proxy render failed deterministic media validation"
+                ),
+                diagnostic_relative_path=_persist_stage_ffmpeg_diagnostic(
+                    data_dir=getattr(self, "_data_dir", None),
+                    work=work,
+                    lease=lease,
+                    error=exc,
+                ),
             ) from exc
         except MediaValidationError as exc:
             raise StageExecutionError(
@@ -195,7 +230,11 @@ class PipelineStageHandlers:
             mime_type="application/json",
         )
         _check_cancel(cancel_requested)
-        source = ingest_source(work.source_path, allowed_roots=self._allowed_media_roots)
+        source = ingest_source(
+            work.source_path,
+            allowed_roots=self._allowed_media_roots,
+            cancel_requested=cancel_requested,
+        )
         write_json_no_clobber(
             project_dir / relative_path,
             source.model_dump(mode="json"),
@@ -225,7 +264,7 @@ class PipelineStageHandlers:
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
         generation_dir = _generation_directory(project_dir, work.generation)
-        source = self._state.load_source(project_id=work.project_id)
+        source = self._load_verified_source(work, project_dir=project_dir)
         manifest_relative = _generation_relative(work.generation, "audio/chunk-manifest.json")
         manifest_reservation = self._reserve(
             work,
@@ -302,9 +341,29 @@ class PipelineStageHandlers:
         project_dir = project_directory(self._data_dir, work.project_id)
         generation_dir = _generation_directory(project_dir, work.generation)
         attempt_dir = attempt_directory(project_dir, lease)
-        source = self._state.load_source(project_id=work.project_id)
+        source = self._load_verified_source(work, project_dir=project_dir)
+        manifest_relative = _generation_relative(work.generation, "audio/chunk-manifest.json")
         manifest = AudioChunkManifest.model_validate_json(
-            (generation_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="audio_manifest",
+                relative_path=manifest_relative,
+                max_bytes=8 * 1024 * 1024,
+            )
+        )
+        if (
+            not manifest.complete
+            or manifest.source_sha256 != source.sha256
+            or manifest.source_duration_ms != source.duration_ms
+            or manifest.source_audio_stream_index != source.audio_stream_index
+        ):
+            raise ValueError("audio manifest source binding differs from imported media")
+        _validate_audio_chunk_assets(
+            project_dir=project_dir,
+            manifest=manifest,
+            assets=self._committed_assets(work, kinds=("audio_chunk",)),
+            cancel_requested=cancel_requested,
         )
         reservations = (
             self._reserve(
@@ -396,6 +455,12 @@ class PipelineStageHandlers:
             provider=provider.provider_name,
             model=provider.model_name,
         )
+        cleanup_attempt_worktree(
+            project_dir,
+            task_id=lease.task_id,
+            lease_token=lease.lease_token,
+            preserve_diagnostics=False,
+        )
         return self._result(
             work.stage,
             committed,
@@ -409,12 +474,23 @@ class PipelineStageHandlers:
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
-        generation_dir = _generation_directory(project_dir, work.generation)
         transcript = TranscriptDocument.model_validate_json(
-            (generation_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="transcript_json",
+                relative_path=_generation_relative(work.generation, "transcript/transcript.json"),
+                max_bytes=64 * 1024 * 1024,
+            )
         )
         manifest = AudioChunkManifest.model_validate_json(
-            (generation_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="audio_manifest",
+                relative_path=_generation_relative(work.generation, "audio/chunk-manifest.json"),
+                max_bytes=8 * 1024 * 1024,
+            )
         )
         reservation = self._reserve(
             work,
@@ -471,9 +547,15 @@ class PipelineStageHandlers:
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
         generation_dir = _generation_directory(project_dir, work.generation)
-        source = self._state.load_source(project_id=work.project_id)
+        source = self._load_verified_source(work, project_dir=project_dir)
         transcript = TranscriptDocument.model_validate_json(
-            (generation_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="transcript_json",
+                relative_path=_generation_relative(work.generation, "transcript/transcript.json"),
+                max_bytes=64 * 1024 * 1024,
+            )
         )
         candidates = self._state.load_candidates(run_id=work.run_id)
         by_key = {item.candidate.candidate_id: item for item in candidates}
@@ -485,8 +567,25 @@ class PipelineStageHandlers:
             mime_type="application/json",
         )
         artifact_path = project_dir / reservation.relative_path
-        if artifact_path.is_file():
-            prepared = _load_prepared_revisions(artifact_path)
+        if reservation.status == AssetStatus.COMMITTED:
+            prepared = _load_prepared_revisions(
+                self._committed_asset_bytes(
+                    work,
+                    project_dir=project_dir,
+                    kind="edit_plans",
+                    relative_path=reservation.relative_path,
+                    max_bytes=32 * 1024 * 1024,
+                )
+            )
+        elif artifact_path.exists() or artifact_path.is_symlink():
+            try:
+                pending_payload = read_regular_file_no_follow(
+                    artifact_path,
+                    max_bytes=32 * 1024 * 1024,
+                )
+            except SecureFileError as exc:
+                raise ValueError("pending EditPlan artifact is symbolic or unstable") from exc
+            prepared = _load_prepared_revisions(pending_payload)
         else:
             editor = self._llm_provider(work)
             fence = _mutation_fence(work, lease)
@@ -625,12 +724,66 @@ class PipelineStageHandlers:
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
         attempt_dir = attempt_directory(project_dir, lease)
-        source = self._state.load_source(project_id=work.project_id)
+        source = self._load_verified_source(work, project_dir=project_dir)
         revisions = self._state.load_current_revisions(run_id=work.run_id)
+        prepared = _load_prepared_revisions(
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="edit_plans",
+                relative_path=_generation_relative(work.generation, "editing/edit-plans.json"),
+                max_bytes=32 * 1024 * 1024,
+            )
+        )
+        if tuple((item.candidate_id, item.revision) for item in prepared) != tuple(
+            (item.candidate_id, item.revision) for item in revisions
+        ):
+            raise ValueError("persisted revisions differ from their committed EditPlan Asset")
         if not revisions:
             raise ValueError("proxy rendering has no selected EditPlan revisions")
+        try:
+            with open_pinned_regular_file(source.resolved_path) as pinned:
+                _validate_pinned_pipeline_source(
+                    source,
+                    pinned,
+                    cancel_requested=cancel_requested,
+                )
+                result = self._proxy_render_with_source(
+                    work,
+                    lease,
+                    cancel_requested,
+                    project_dir=project_dir,
+                    attempt_dir=attempt_dir,
+                    source=source,
+                    revisions=revisions,
+                    pinned=pinned,
+                )
+                _validate_pinned_pipeline_source_binding(
+                    source,
+                    pinned,
+                    cancel_requested=cancel_requested,
+                )
+                return result
+        except InterruptedError as exc:
+            raise StageCancelled("proxy source validation was cancelled") from exc
+        except SecureFileError as exc:
+            raise ValueError("source media changed before proxy publication") from exc
+
+    def _proxy_render_with_source(
+        self,
+        work: StageWork,
+        lease: LeaseIdentity,
+        cancel_requested: Callable[[], bool],
+        *,
+        project_dir: Path,
+        attempt_dir: Path,
+        source: SourceMediaMetadata,
+        revisions: tuple[PersistedRevision, ...],
+        pinned: PinnedRegularFile,
+    ) -> StageExecutionResult:
         all_assets: list[AssetReservation] = []
         render_ids: list[str] = []
+        attempt_diagnostics: list[dict[str, object]] = []
         for item in revisions:
             _check_cancel(cancel_requested)
             spec_fingerprint = _render_spec_fingerprint(
@@ -638,6 +791,8 @@ class PipelineStageHandlers:
                 width=work.config.preview_width,
                 height=work.config.preview_height,
                 encoder=work.config.video_encoder,
+                video_stream_index=source.video_stream_index,
+                audio_stream_index=source.audio_stream_index,
             )
             render_id = self._state.start_proxy_render(
                 _mutation_fence(work, lease),
@@ -693,21 +848,46 @@ class PipelineStageHandlers:
             canonical_contact = project_dir / contact_relative
             if not canonical_video.is_file():
                 attempt_video = attempt_dir / video_relative
+                _validate_pinned_pipeline_source_binding(
+                    source,
+                    pinned,
+                    cancel_requested=cancel_requested,
+                )
                 artifact = render_edit_plan_revision(
-                    source_path=source.resolved_path,
+                    source_path=pinned.process_path,
                     revision=item.revision,
                     output_path=attempt_video,
                     width=work.config.preview_width,
                     height=work.config.preview_height,
                     encoder=work.config.video_encoder,
+                    video_stream_index=source.video_stream_index,
+                    audio_stream_index=source.audio_stream_index,
+                    source_pass_fds=pinned.pass_fds,
                     cancel_requested=cancel_requested,
                 )
-                report_payload = json.loads(
-                    artifact.quality_report_path.read_text(encoding="utf-8")
+                _validate_pinned_pipeline_source_binding(
+                    source,
+                    pinned,
+                    cancel_requested=cancel_requested,
                 )
-                publish_file_no_clobber(artifact.output_path, canonical_video)
-                publish_file_no_clobber(artifact.contact_sheet_path, canonical_contact)
-                _write_canonical_quality_report(
+                report_payload = artifact.quality.as_dict()
+                attempt_diagnostics.append(
+                    {
+                        "candidate_id": item.candidate_id,
+                        "renderer": artifact.diagnostic_payload,
+                    }
+                )
+                validated_video_sha256 = publish_file_no_clobber(
+                    artifact.output_path,
+                    canonical_video,
+                    expected_sha256=artifact.sha256,
+                )
+                validated_contact_sha256 = publish_file_no_clobber(
+                    artifact.contact_sheet_path,
+                    canonical_contact,
+                    expected_sha256=artifact.contact_sheet_sha256,
+                )
+                validated_quality_sha256 = _write_canonical_quality_report(
                     canonical_quality,
                     report_payload,
                     media_path=canonical_video,
@@ -715,6 +895,11 @@ class PipelineStageHandlers:
                 )
             else:
                 _check_cancel(cancel_requested)
+                _validate_pinned_pipeline_source_binding(
+                    source,
+                    pinned,
+                    cancel_requested=cancel_requested,
+                )
                 recovery_root = attempt_dir / base_relative / "recovery"
                 overlays = render_revision_overlays(
                     revision=item.revision,
@@ -732,8 +917,29 @@ class PipelineStageHandlers:
                     cancel_requested=cancel_requested,
                 )
                 recovery_contact = Path(quality.contact_sheet)
-                publish_file_no_clobber(recovery_contact, canonical_contact)
-                _write_canonical_quality_report(
+                try:
+                    recovery_contact_sha256, _contact_size = hash_regular_file_no_follow(
+                        recovery_contact
+                    )
+                except SecureFileError as exc:
+                    raise ValueError("proxy recovery contact sheet changed") from exc
+                validated_video_sha256 = quality.media_sha256
+                validated_contact_sha256 = publish_file_no_clobber(
+                    recovery_contact,
+                    canonical_contact,
+                    expected_sha256=recovery_contact_sha256,
+                )
+                attempt_diagnostics.append(
+                    {
+                        "candidate_id": item.candidate_id,
+                        "renderer": {
+                            "schema_version": "1",
+                            "attempt_count": 0,
+                            "recovery": "validated_existing_immutable_video",
+                        },
+                    }
+                )
+                validated_quality_sha256 = _write_canonical_quality_report(
                     canonical_quality,
                     quality.as_dict(),
                     media_path=canonical_video,
@@ -749,18 +955,21 @@ class PipelineStageHandlers:
                     "height": work.config.preview_height,
                     "full_decode": "passed",
                 },
+                expected_sha256=validated_video_sha256,
             )
             committed_quality = self._commit(
                 lease,
                 quality_reservation,
                 project_dir=project_dir,
                 validation={"schema_version": "1", "automatic_status": "passed"},
+                expected_sha256=validated_quality_sha256,
             )
             committed_contact = self._commit(
                 lease,
                 contact_reservation,
                 project_dir=project_dir,
                 validation={"schema_version": "1", "frames": 3},
+                expected_sha256=validated_contact_sha256,
             )
             render_ids.append(
                 self._state.save_proxy_render(
@@ -781,11 +990,76 @@ class PipelineStageHandlers:
                 )
             )
             all_assets.extend((committed_video, committed_quality, committed_contact))
+        diagnostic_relative_path = _write_stage_render_diagnostic(
+            project_dir=project_dir,
+            attempt_dir=attempt_dir,
+            status="succeeded",
+            renderers=attempt_diagnostics,
+        )
+        cleanup_attempt_worktree(
+            project_dir,
+            task_id=lease.task_id,
+            lease_token=lease.lease_token,
+            preserve_diagnostics=True,
+        )
         return self._result(
             work.stage,
             tuple(all_assets),
             {"proxy_count": len(render_ids), "render_ids": render_ids},
+            diagnostic_relative_path=diagnostic_relative_path,
         )
+
+    def _committed_assets(
+        self,
+        work: StageWork,
+        *,
+        kinds: tuple[str, ...],
+    ) -> tuple[CommittedStageAsset, ...]:
+        return self._state.load_committed_assets(
+            project_id=work.project_id,
+            run_id=work.run_id,
+            generation=work.generation,
+            kinds=kinds,
+        )
+
+    def _committed_asset_bytes(
+        self,
+        work: StageWork,
+        *,
+        project_dir: Path,
+        kind: str,
+        relative_path: str,
+        max_bytes: int,
+    ) -> bytes:
+        assets = self._committed_assets(work, kinds=(kind,))
+        if len(assets) != 1 or assets[0].relative_path != relative_path:
+            raise ValueError(f"committed {kind} dependency does not match its canonical path")
+        return _read_verified_committed_asset(
+            project_dir=project_dir,
+            asset=assets[0],
+            max_bytes=max_bytes,
+        )
+
+    def _load_verified_source(
+        self,
+        work: StageWork,
+        *,
+        project_dir: Path,
+    ) -> SourceMediaMetadata:
+        relative_path = _generation_relative(work.generation, "source/source-media.json")
+        source_from_asset = SourceMediaMetadata.model_validate_json(
+            self._committed_asset_bytes(
+                work,
+                project_dir=project_dir,
+                kind="source_metadata",
+                relative_path=relative_path,
+                max_bytes=1024 * 1024,
+            )
+        )
+        source = self._state.load_source(project_id=work.project_id)
+        if source != source_from_asset:
+            raise ValueError("source database state differs from its committed metadata asset")
+        return source
 
     def _reserve(
         self,
@@ -819,12 +1093,14 @@ class PipelineStageHandlers:
         *,
         project_dir: Path,
         validation: dict[str, object],
+        expected_sha256: str | None = None,
     ) -> AssetReservation:
         return self._assets.commit(
             lease,
             reservation,
             project_dir=project_dir,
             validation=validation,
+            expected_sha256=expected_sha256,
         )
 
     @staticmethod
@@ -832,6 +1108,8 @@ class PipelineStageHandlers:
         stage: PipelineStage,
         assets: tuple[AssetReservation, ...],
         checkpoint: dict[str, object],
+        *,
+        diagnostic_relative_path: str | None = None,
     ) -> StageExecutionResult:
         asset_ids = [asset.asset_id for asset in assets]
         hashes = tuple(asset.sha256 for asset in assets if asset.sha256 is not None)
@@ -840,12 +1118,138 @@ class PipelineStageHandlers:
         return StageExecutionResult(
             output_fingerprint=stage_output_fingerprint(stage, hashes),
             checkpoint={**checkpoint, "asset_ids": asset_ids},
+            diagnostic_relative_path=diagnostic_relative_path,
         )
+
+
+def _read_verified_committed_asset(
+    *,
+    project_dir: Path,
+    asset: CommittedStageAsset,
+    max_bytes: int,
+) -> bytes:
+    relative = PurePosixPath(asset.relative_path)
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        raise ValueError("committed asset path is unsafe")
+    if asset.size_bytes > max_bytes:
+        raise ValueError("committed dependency exceeds its bounded read limit")
+    path = project_dir.joinpath(*relative.parts)
+    try:
+        payload = read_regular_file_no_follow(path, max_bytes=max_bytes)
+    except SecureFileError as exc:
+        raise ValueError("committed dependency is missing, symbolic, or unstable") from exc
+    if len(payload) != asset.size_bytes or hashlib.sha256(payload).hexdigest() != asset.sha256:
+        raise ValueError("committed dependency bytes differ from their Asset SHA-256")
+    return payload
+
+
+def _validate_audio_chunk_assets(
+    *,
+    project_dir: Path,
+    manifest: AudioChunkManifest,
+    assets: tuple[CommittedStageAsset, ...],
+    cancel_requested: Callable[[], bool],
+) -> None:
+    if len(assets) != len(manifest.chunks):
+        raise ValueError("audio chunk Asset count differs from its committed manifest")
+    by_path: dict[Path, CommittedStageAsset] = {}
+    for asset in assets:
+        relative = PurePosixPath(asset.relative_path)
+        if (
+            relative.is_absolute()
+            or not relative.parts
+            or any(part in {"", ".", ".."} for part in relative.parts)
+        ):
+            raise ValueError("audio chunk Asset path is unsafe")
+        path = project_dir.joinpath(*relative.parts)
+        if path in by_path:
+            raise ValueError("audio chunk Assets contain a duplicate path")
+        by_path[path] = asset
+    consumed: set[Path] = set()
+    for chunk in manifest.chunks:
+        _check_cancel(cancel_requested)
+        bound_asset = by_path.get(chunk.path)
+        if bound_asset is None or chunk.path in consumed:
+            raise ValueError("audio manifest path is not a committed chunk Asset")
+        if chunk.size_bytes != bound_asset.size_bytes or chunk.sha256 != bound_asset.sha256:
+            raise ValueError("audio manifest metadata differs from its committed chunk Asset")
+        try:
+            observed_sha256, observed_size = hash_regular_file_no_follow(
+                chunk.path,
+                cancel_requested=cancel_requested,
+            )
+        except InterruptedError as exc:
+            raise StageCancelled("audio chunk integrity verification was cancelled") from exc
+        except SecureFileError as exc:
+            raise ValueError("audio chunk is missing, symbolic, or unstable") from exc
+        if observed_size != bound_asset.size_bytes or observed_sha256 != bound_asset.sha256:
+            raise ValueError("audio chunk bytes differ from their committed Asset SHA-256")
+        consumed.add(chunk.path)
+    if consumed != set(by_path):
+        raise ValueError("audio manifest did not consume every committed chunk Asset")
 
 
 def _check_cancel(cancel_requested: Callable[[], bool]) -> None:
     if cancel_requested():
         raise StageCancelled("stage cancellation was requested")
+
+
+def _validate_pinned_pipeline_source(
+    source: SourceMediaMetadata,
+    pinned: PinnedRegularFile,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> None:
+    _check_cancel(cancel_requested)
+    metadata = pinned.metadata
+    observed = (
+        pinned.path,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        getattr(metadata, "st_ino", None),
+        getattr(metadata, "st_dev", None),
+    )
+    expected = (
+        source.resolved_path,
+        source.size_bytes,
+        source.mtime_ns,
+        source.inode,
+        source.device,
+    )
+    if observed != expected or pinned.sha256(cancel_requested=cancel_requested) != source.sha256:
+        raise ValueError("source media changed after import")
+    pinned.validate_binding()
+
+
+def _validate_pinned_pipeline_source_binding(
+    source: SourceMediaMetadata,
+    pinned: PinnedRegularFile,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> None:
+    _check_cancel(cancel_requested)
+    metadata = pinned.metadata
+    observed = (
+        pinned.path,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        getattr(metadata, "st_ino", None),
+        getattr(metadata, "st_dev", None),
+    )
+    expected = (
+        source.resolved_path,
+        source.size_bytes,
+        source.mtime_ns,
+        source.inode,
+        source.device,
+    )
+    if observed != expected:
+        raise ValueError("source media identity changed during proxy render")
+    pinned.validate_binding()
 
 
 def _retry_policy(work: StageWork) -> OpenAIRetryPolicy:
@@ -888,8 +1292,8 @@ def _prepared_payload(value: PreparedRevision) -> dict[str, object]:
     }
 
 
-def _load_prepared_revisions(path: Path) -> tuple[PreparedRevision, ...]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def _load_prepared_revisions(serialized: bytes) -> tuple[PreparedRevision, ...]:
+    payload = json.loads(serialized)
     if not isinstance(payload, dict) or payload.get("schema_version") != "1":
         raise ValueError("edit plan artifact schema is invalid")
     raw_revisions = payload.get("revisions")
@@ -917,12 +1321,16 @@ def _render_spec_fingerprint(
     width: int,
     height: int,
     encoder: str,
+    video_stream_index: int,
+    audio_stream_index: int,
 ) -> str:
     payload = json.dumps(
         {
             "encoder": encoder,
             "height": height,
             "renderer": "ffmpeg-renderer-v1",
+            "video_stream_index": video_stream_index,
+            "audio_stream_index": audio_stream_index,
             "revision": revision.model_dump(mode="json"),
             "width": width,
         },
@@ -939,10 +1347,75 @@ def _write_canonical_quality_report(
     *,
     media_path: Path,
     contact_sheet: Path,
-) -> None:
+) -> str:
     if not isinstance(raw_payload, dict):
         raise ValueError("render quality report is not an object")
     payload = {str(key): value for key, value in raw_payload.items()}
-    payload["media_path"] = str(media_path.resolve(strict=True))
-    payload["contact_sheet"] = str(contact_sheet.resolve(strict=True))
-    write_json_no_clobber(path, payload)
+    payload["media_path"] = str(media_path.absolute())
+    payload["contact_sheet"] = str(contact_sheet.absolute())
+    return write_json_no_clobber(path, payload)
+
+
+def _persist_stage_ffmpeg_diagnostic(
+    *,
+    data_dir: Path | None,
+    work: StageWork,
+    lease: LeaseIdentity,
+    error: FFmpegRenderError,
+) -> str | None:
+    if data_dir is None or not error.diagnostics:
+        return None
+    try:
+        project_dir = project_directory(data_dir, work.project_id)
+        attempt_dir = attempt_directory(project_dir, lease)
+        return _write_stage_render_diagnostic(
+            project_dir=project_dir,
+            attempt_dir=attempt_dir,
+            status="failed",
+            renderers=[{"renderer": render_error_diagnostics_payload(error)}],
+        )
+    except (ArtifactPublicationError, ValueError) as exc:
+        logger.warning(
+            "stage render diagnostic persistence failed error_class=%s",
+            type(exc).__name__,
+        )
+        return None
+
+
+def _write_stage_render_diagnostic(
+    *,
+    project_dir: Path,
+    attempt_dir: Path,
+    status: str,
+    renderers: list[dict[str, object]],
+) -> str:
+    if status not in {"succeeded", "failed"} or not renderers:
+        raise ValueError("stage render diagnostic is incomplete")
+    diagnostic_path = attempt_dir / "diagnostics" / "ffmpeg-render.json"
+    retained: list[dict[str, object]] = []
+    dropped = 0
+    for renderer in renderers:
+        candidate = {
+            "schema_version": "1",
+            "status": status,
+            "records_dropped": dropped,
+            "renderers": [*retained, renderer],
+        }
+        if len(json.dumps(candidate, ensure_ascii=False).encode("utf-8")) > 224 * 1024:
+            dropped += 1
+            continue
+        retained.append(renderer)
+    write_json_no_clobber(
+        diagnostic_path,
+        {
+            "schema_version": "1",
+            "status": status,
+            "records_dropped": dropped,
+            "renderers": retained,
+        },
+        max_bytes=256 * 1024,
+    )
+    try:
+        return diagnostic_path.relative_to(project_dir).as_posix()
+    except ValueError as exc:
+        raise ValueError("stage render diagnostic escaped its project") from exc

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.reviewing import ClipDetail
-from liveclip.domain.edit_plan import CaptionCue
+from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
 
 
 class ApiRequestModel(BaseModel):
@@ -67,7 +67,9 @@ class ClipPatchRequest(ApiRequestModel):
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=40)
-    captions: tuple[CaptionCueRequest, ...] | None = Field(default=None, min_length=1)
+    captions: tuple[CaptionCueRequest, ...] | None = Field(
+        default=None, min_length=1, max_length=MAX_CAPTION_CUES
+    )
 
 
 class ReviewActionRequest(ApiRequestModel):
@@ -77,7 +79,9 @@ class ReviewActionRequest(ApiRequestModel):
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=40)
-    captions: tuple[CaptionCueRequest, ...] | None = Field(default=None, min_length=1)
+    captions: tuple[CaptionCueRequest, ...] | None = Field(
+        default=None, min_length=1, max_length=MAX_CAPTION_CUES
+    )
 
 
 class RenderCreateRequest(ApiRequestModel):

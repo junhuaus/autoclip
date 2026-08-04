@@ -29,7 +29,11 @@ from liveclip.domain.state_transitions import (
     TaskKind,
     TaskStatus,
 )
-from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.secure_files import (
+    SecureFileError,
+    open_pinned_regular_file,
+    require_directory_no_follow,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,71 +201,88 @@ class SqlAlchemyAssetStore:
         *,
         project_dir: Path,
         validation: dict[str, object],
+        expected_sha256: str | None = None,
     ) -> AssetReservation:
+        if expected_sha256 is not None and not re.fullmatch(r"[a-f0-9]{64}", expected_sha256):
+            raise ValueError("expected asset SHA-256 must be lowercase hexadecimal")
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
             scope = _load_lease_scope(connection, lease, now=now)
             current = _load_asset(connection, reservation.asset_id)
             _assert_owned_asset(connection, scope, current, reservation)
 
-        project_root = project_dir.resolve(strict=True)
+        try:
+            project_root = require_directory_no_follow(project_dir)
+        except SecureFileError as exc:
+            raise AssetReservationError("asset project directory is not symlink-free") from exc
         if project_root.name != current.project_id:
             raise AssetReservationError("asset project directory does not match its owner")
         asset_path = project_root / Path(*PurePosixPath(current.relative_path).parts)
-        if asset_path.is_symlink() or not asset_path.is_file():
-            raise AssetReservationError("reserved asset output is missing or symbolic")
-        resolved_asset = asset_path.resolve(strict=True)
-        if project_root not in resolved_asset.parents:
-            raise AssetReservationError("reserved asset escaped its project directory")
-        size_bytes = resolved_asset.stat().st_size
-        if size_bytes <= 0:
-            raise AssetReservationError("reserved asset is empty")
-        sha256 = stream_sha256(resolved_asset)
+        try:
+            with open_pinned_regular_file(asset_path) as pinned:
+                size_bytes = pinned.metadata.st_size
+                if size_bytes <= 0:
+                    raise AssetReservationError("reserved asset is empty")
+                sha256 = pinned.sha256()
+                if expected_sha256 is not None and sha256 != expected_sha256:
+                    raise AssetReservationError(
+                        "reserved asset bytes differ from the validated artifact"
+                    )
 
-        now = datetime.now(UTC)
-        with begin_immediate(self._engine) as connection:
-            scope = _load_lease_scope(connection, lease, now=now)
-            current = _load_asset(connection, reservation.asset_id)
-            _assert_owned_asset(connection, scope, current, reservation)
-            if current.status == AssetStatus.COMMITTED:
-                if current.sha256 != sha256 or current.size_bytes != size_bytes:
-                    raise AssetReservationError("committed asset bytes changed")
-                return AssetReservation(
-                    asset_id=current.asset_id,
-                    status=current.status,
-                    relative_path=current.relative_path,
-                    sha256=sha256,
-                    size_bytes=size_bytes,
-                )
-            if current.status != AssetStatus.PENDING:
-                raise AssetReservationError("asset reservation is not publishable")
-            if current.producer_attempt_id != scope.attempt_id:
-                raise AssetReservationError("asset commit is not owned by the current attempt")
-            committed = connection.execute(
-                update(AssetRow)
-                .where(
-                    AssetRow.id == current.asset_id,
-                    AssetRow.status == AssetStatus.PENDING.value,
-                    AssetRow.producer_attempt_id == scope.attempt_id,
-                )
-                .values(
-                    status=AssetStatus.COMMITTED.value,
-                    sha256=sha256,
-                    size_bytes=size_bytes,
-                    validation_json=validation,
-                    committed_at=now,
-                )
-                .returning(AssetRow.id)
-            ).scalar_one_or_none()
-            if committed is None:
-                raise AssetReservationError("asset commit lost its ownership fence")
-            return AssetReservation(
-                asset_id=current.asset_id,
-                status=AssetStatus.COMMITTED,
-                relative_path=current.relative_path,
-                sha256=sha256,
-                size_bytes=size_bytes,
-            )
+                now = datetime.now(UTC)
+                with begin_immediate(self._engine) as connection:
+                    scope = _load_lease_scope(connection, lease, now=now)
+                    current = _load_asset(connection, reservation.asset_id)
+                    _assert_owned_asset(connection, scope, current, reservation)
+                    if current.status == AssetStatus.COMMITTED:
+                        if current.sha256 != sha256 or current.size_bytes != size_bytes:
+                            raise AssetReservationError("committed asset bytes changed")
+                        result = AssetReservation(
+                            asset_id=current.asset_id,
+                            status=current.status,
+                            relative_path=current.relative_path,
+                            sha256=sha256,
+                            size_bytes=size_bytes,
+                        )
+                    else:
+                        if current.status != AssetStatus.PENDING:
+                            raise AssetReservationError("asset reservation is not publishable")
+                        if current.producer_attempt_id != scope.attempt_id:
+                            raise AssetReservationError(
+                                "asset commit is not owned by the current attempt"
+                            )
+                        committed = connection.execute(
+                            update(AssetRow)
+                            .where(
+                                AssetRow.id == current.asset_id,
+                                AssetRow.status == AssetStatus.PENDING.value,
+                                AssetRow.producer_attempt_id == scope.attempt_id,
+                            )
+                            .values(
+                                status=AssetStatus.COMMITTED.value,
+                                sha256=sha256,
+                                size_bytes=size_bytes,
+                                validation_json=validation,
+                                committed_at=now,
+                            )
+                            .returning(AssetRow.id)
+                        ).scalar_one_or_none()
+                        if committed is None:
+                            raise AssetReservationError("asset commit lost its ownership fence")
+                        result = AssetReservation(
+                            asset_id=current.asset_id,
+                            status=AssetStatus.COMMITTED,
+                            relative_path=current.relative_path,
+                            sha256=sha256,
+                            size_bytes=size_bytes,
+                        )
+                    pinned.validate_binding()
+                pinned.validate_binding()
+                return result
+        except SecureFileError as exc:
+            raise AssetReservationError(
+                "reserved asset output is missing, symbolic, or unstable"
+            ) from exc
 
 
 def _load_lease_scope(

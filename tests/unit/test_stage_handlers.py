@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import liveclip.pipeline.stage_handlers as stage_handler_module
 from liveclip.application.pipeline import (
     LeaseIdentity,
     PipelineRunConfig,
@@ -13,6 +14,8 @@ from liveclip.application.pipeline import (
 )
 from liveclip.application.stage_execution import StageCancelled, StageExecutionError
 from liveclip.domain.state_transitions import FailureClass, PipelineStage
+from liveclip.media.artifacts import ArtifactPublicationError
+from liveclip.media.ingest import MediaIngestCancelled
 from liveclip.media.preprocess import AudioPreprocessTransientError
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.providers.telemetry import (
@@ -21,7 +24,7 @@ from liveclip.providers.telemetry import (
     ProviderCancelled,
     ProviderConfigurationError,
 )
-from liveclip.renderer.ffmpeg import FFmpegRenderError
+from liveclip.renderer.ffmpeg import FFmpegRenderError, RenderAttemptDiagnostic
 from liveclip.renderer.quality import MediaValidationError
 
 
@@ -31,6 +34,14 @@ class FailingProxyHandlers(PipelineStageHandlers):
 
     def _proxy_render(self, *_args: object, **_kwargs: object) -> object:
         raise self._error
+
+
+class FailingIngestHandlers(PipelineStageHandlers):
+    def __init__(self) -> None:
+        pass
+
+    def _ingest(self, *_args: object, **_kwargs: object) -> object:
+        raise MediaIngestCancelled("cancelled")
 
 
 def _work() -> StageWork:
@@ -61,6 +72,10 @@ def _work() -> StageWork:
         already_succeeded=False,
         cancellation_requested=False,
     )
+
+
+def _ingest_work() -> StageWork:
+    return _work().model_copy(update={"stage": PipelineStage.INGEST})
 
 
 def _lease() -> LeaseIdentity:
@@ -95,6 +110,55 @@ def test_proxy_failures_are_classified_for_safe_retry(
 
     assert raised.value.failure_class == failure_class
     assert raised.value.error_code == error_code
+
+
+def test_ingest_cancellation_is_not_persisted_as_failure() -> None:
+    handler = FailingIngestHandlers()
+
+    with pytest.raises(StageCancelled, match="ingest was cancelled"):
+        handler.execute(_ingest_work(), _lease(), cancel_requested=lambda: False)
+
+
+def test_stage_diagnostic_write_failure_is_visible_but_path_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diagnostic = RenderAttemptDiagnostic(
+        encoder="libx264",
+        runtime_attempt=1,
+        outcome="process_failed",
+        elapsed_ms=1,
+        exit_code=1,
+        logical_argv=("ffmpeg", "[SOURCE_MEDIA]"),
+        stderr_tail="bounded failure",
+    )
+    error = FFmpegRenderError("failed", diagnostics=(diagnostic,))
+
+    def fail_write(**_kwargs: object) -> str:
+        raise ArtifactPublicationError("secret /private/tmp/source.mp4")
+
+    warnings: list[tuple[str, str]] = []
+
+    def capture_warning(message: str, value: str) -> None:
+        warnings.append((message, value))
+
+    monkeypatch.setattr(stage_handler_module, "_write_stage_render_diagnostic", fail_write)
+    monkeypatch.setattr(stage_handler_module.logger, "warning", capture_warning)
+    result = stage_handler_module._persist_stage_ffmpeg_diagnostic(
+        data_dir=tmp_path,
+        work=_work(),
+        lease=_lease(),
+        error=error,
+    )
+
+    assert result is None
+    assert warnings == [
+        (
+            "stage render diagnostic persistence failed error_class=%s",
+            "ArtifactPublicationError",
+        )
+    ]
+    assert "/private/tmp/source.mp4" not in repr(warnings)
 
 
 @pytest.mark.parametrize(

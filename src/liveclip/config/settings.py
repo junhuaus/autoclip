@@ -146,6 +146,8 @@ class Settings(BaseSettings):
     def validate_cross_field_invariants(self) -> Settings:
         if self.asr_chunk_overlap_seconds >= self.asr_chunk_seconds:
             raise ValueError("ASR_CHUNK_OVERLAP_SECONDS must be shorter than ASR_CHUNK_SECONDS")
+        if self.asr_chunk_overlap_seconds * 2 > self.asr_chunk_seconds:
+            raise ValueError("ASR_CHUNK_OVERLAP_SECONDS must not exceed half of ASR_CHUNK_SECONDS")
         if self.min_clip_seconds > self.max_clip_seconds:
             raise ValueError("MIN_CLIP_SECONDS must not exceed MAX_CLIP_SECONDS")
         if self.worker_heartbeat_seconds * 2 >= self.worker_lease_seconds:

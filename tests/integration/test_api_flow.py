@@ -228,9 +228,16 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                     "text": segment["text"],
                 }
                 for segment in transcript.json()["segments"]
-                if int(segment["end_ms"]) > new_start and int(segment["start_ms"]) < new_end
+                if int(segment["end_ms"]) > new_start
+                and int(segment["start_ms"]) < new_end
+                and min(int(segment["end_ms"]), new_end) - max(int(segment["start_ms"]), new_start)
+                >= 250
             ]
             assert edited.json()["clip"]["captions"] == expected_captions
+            assert all(
+                int(cue["end_ms"]) - int(cue["start_ms"]) >= 250
+                for cue in edited.json()["clip"]["captions"]
+            )
             reviewed = client.post(
                 f"/api/v1/clips/{clip_id}/review",
                 headers=auth,

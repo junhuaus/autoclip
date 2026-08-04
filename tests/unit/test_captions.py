@@ -31,3 +31,32 @@ def test_captions_convert_absolute_segments_to_clamped_clip_relative_time() -> N
         (2_000, 8_000),
         (8_000, 10_000),
     ]
+
+
+def test_captions_drop_tiny_boundary_tail_and_merge_real_short_segment() -> None:
+    segments = (
+        TranscriptSegment(segment_id="s1", start_ms=0, end_ms=8_000, text="边界残片"),
+        TranscriptSegment(segment_id="s2", start_ms=8_000, end_ms=8_100, text="短句"),
+        TranscriptSegment(segment_id="s3", start_ms=8_100, end_ms=12_000, text="完整句"),
+    )
+
+    cues = captions_for_clip(segments, source_start_ms=7_900, source_end_ms=12_000)
+
+    assert [(cue.start_ms, cue.end_ms, cue.text) for cue in cues] == [(100, 4_100, "短句完整句")]
+
+
+def test_caption_density_is_coalesced_without_losing_text() -> None:
+    segments = tuple(
+        TranscriptSegment(
+            segment_id=f"s{index}",
+            start_ms=index * 1_000,
+            end_ms=(index + 1) * 1_000,
+            text=str(index),
+        )
+        for index in range(10)
+    )
+
+    cues = captions_for_clip(segments, source_start_ms=0, source_end_ms=10_000)
+
+    assert len(cues) <= 7
+    assert "".join(cue.text.replace(" ", "") for cue in cues) == "0123456789"

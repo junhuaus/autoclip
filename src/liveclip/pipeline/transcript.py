@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
-import tempfile
 import unicodedata
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -564,26 +562,7 @@ def _load_cached_result(
 
 
 def _atomic_write_text(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary_path = Path(handle.name)
-            handle.write(value)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
+    write_text_immutable_no_follow(path, value, max_bytes=8 * 1024 * 1024)
 
 
 def _atomic_write_immutable_text(path: Path, value: str) -> None:

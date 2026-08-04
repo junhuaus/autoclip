@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-import unicodedata
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from liveclip.config.fonts import detect_chinese_font
+from liveclip.config.fonts import resolve_font_for_text
+from liveclip.domain.edit_plan import normalize_display_text
+from liveclip.media.secure_files import (
+    SecureFileError,
+    ensure_directory_no_follow,
+    write_bytes_immutable_no_follow,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,15 +22,6 @@ class TextOverlay:
     end_ms: int
     safe_bounds: tuple[int, int, int, int]
     kind: str
-
-
-def normalize_display_text(value: str, *, maximum_characters: int) -> str:
-    normalized = unicodedata.normalize("NFKC", value)
-    normalized = " ".join(normalized.replace("\r", " ").replace("\n", " ").split())
-    normalized = "".join(
-        character for character in normalized if unicodedata.category(character) != "Cc"
-    )
-    return normalized[:maximum_characters].strip()
 
 
 def render_title_overlay(
@@ -43,7 +40,8 @@ def render_title_overlay(
     scale = width / 540
     margin_x = round(32 * scale)
     top = round(74 * (height / 960))
-    font = ImageFont.truetype(str(font_path or detect_chinese_font()), round(34 * scale))
+    selected_font = resolve_font_for_text(clean_text, preferred=font_path)
+    font = ImageFont.truetype(str(selected_font), round(34 * scale))
     lines = _wrap_text(
         clean_text,
         font=font,
@@ -86,7 +84,8 @@ def render_caption_overlay(
     if not clean_text:
         raise ValueError("caption cannot be empty after normalization")
     scale = width / 540
-    font = ImageFont.truetype(str(font_path or detect_chinese_font()), round(32 * scale))
+    selected_font = resolve_font_for_text(clean_text, preferred=font_path)
+    font = ImageFont.truetype(str(selected_font), round(32 * scale))
     margin_x = round(28 * scale)
     padding_x = round(18 * scale)
     padding_y = round(13 * scale)
@@ -95,7 +94,7 @@ def render_caption_overlay(
         clean_text,
         font=font,
         maximum_width=width - 2 * margin_x - 2 * padding_x,
-        max_lines=2,
+        max_lines=3,
     )
     text_box = _multiline_bbox(lines, font=font, line_gap=line_gap)
     box_height = text_box[3] - text_box[1] + 2 * padding_y
@@ -129,14 +128,12 @@ def _wrap_text(
 ) -> tuple[str, ...]:
     lines: list[str] = []
     current = ""
-    truncated = False
     for character in value:
         proposal = current + character
         if current and _line_width(proposal, font) > maximum_width:
             lines.append(current.rstrip())
             if len(lines) == max_lines:
-                truncated = True
-                break
+                raise ValueError("display text exceeds the configured overlay bounds")
             current = character.lstrip()
         else:
             current = proposal
@@ -144,11 +141,6 @@ def _wrap_text(
         lines.append(current.rstrip())
     if not lines:
         lines = [value[:1]]
-    if truncated:
-        last = lines[-1]
-        while last and _line_width(last + "…", font) > maximum_width:
-            last = last[:-1]
-        lines[-1] = (last or value[:1]) + "…"
     return tuple(lines[:max_lines])
 
 
@@ -167,7 +159,19 @@ def _multiline_bbox(
 
 
 def _save_rgba(image: Image.Image, output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ensure_directory_no_follow(output_path.parent)
+    except SecureFileError as exc:
+        raise ValueError("text overlay directory is not symlink-free") from exc
     if output_path.suffix.lower() != ".png":
         raise ValueError("text overlay must be a PNG")
-    image.save(output_path, format="PNG", optimize=True)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    try:
+        write_bytes_immutable_no_follow(
+            output_path,
+            buffer.getvalue(),
+            max_bytes=16 * 1024 * 1024,
+        )
+    except SecureFileError as exc:
+        raise ValueError("text overlay could not be published safely") from exc

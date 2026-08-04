@@ -5,18 +5,32 @@ import hashlib
 import json
 import os
 import re
-import shutil
-import tempfile
+import stat
 import unicodedata
+import uuid
 import zipfile
 from collections.abc import Iterable, Sequence
-from contextlib import suppress
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.secure_files import (
+    PinnedFileEvidence,
+    SecureFileError,
+    SecureFileHashMismatch,
+    capture_pinned_file_evidence,
+    create_directory_exclusive_no_follow,
+    create_pinned_regular_file_no_follow,
+    ensure_directory_no_follow,
+    open_pinned_regular_file,
+    publish_directory_no_replace_no_follow,
+    publish_regular_file_immutable_no_follow,
+    remove_tree_no_follow,
+    write_bytes_immutable_no_follow,
+    write_text_immutable_no_follow,
+)
 
 
 class DeliveryError(RuntimeError):
@@ -36,6 +50,7 @@ class DeliveryClipInput(BaseModel):
     review_status: str = Field(pattern=r"^(pending_review|approved|rejected)$")
     render_status: str = Field(pattern=r"^(queued|running|succeeded|failed|stale)$")
     final_video_path: Path
+    final_video_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     subtitle_srt: str = Field(min_length=1, max_length=1_000_000)
 
     @model_validator(mode="after")
@@ -53,7 +68,27 @@ class DeliveryResult(BaseModel):
     directory: Path
     manifest_path: Path
     zip_path: Path | None
+    manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    zip_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    member_sha256: dict[str, str]
     clip_count: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_member_hashes(self) -> DeliveryResult:
+        if self.member_sha256.get("manifest.json") != self.manifest_sha256:
+            raise ValueError("delivery manifest hash must match its member evidence")
+        if (self.zip_path is None) != (self.zip_sha256 is None):
+            raise ValueError("delivery ZIP path and hash must be present together")
+        if (
+            self.zip_sha256 is not None
+            and self.member_sha256.get("delivery.zip") != self.zip_sha256
+        ):
+            raise ValueError("delivery ZIP hash must match its member evidence")
+        for name, sha256 in self.member_sha256.items():
+            validate_zip_members((name,))
+            if not re.fullmatch(r"[a-f0-9]{64}", sha256):
+                raise ValueError("delivery member hash must be lowercase SHA-256")
+        return self
 
 
 def create_delivery(
@@ -84,18 +119,31 @@ def create_delivery(
         raise DeliveryError("delivery requires at least one approved clip")
     _validate_eligible_clips(approved)
 
-    resolved_project = project_dir.resolve(strict=False)
-    deliveries_dir = resolved_project / "deliveries"
-    deliveries_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        resolved_project = ensure_directory_no_follow(project_dir)
+        deliveries_dir = ensure_directory_no_follow(resolved_project / "deliveries")
+    except SecureFileError as exc:
+        raise DeliveryError("delivery directory is not symlink-free") from exc
     lock_path = deliveries_dir / ".delivery.lock"
-    with lock_path.open("a+b") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+    try:
+        write_bytes_immutable_no_follow(
+            lock_path,
+            b"LiveClip delivery lock\n",
+            max_bytes=64,
+        )
+        lock_file = open_pinned_regular_file(lock_path)
+    except SecureFileError as exc:
+        raise DeliveryError("delivery lock could not be opened safely") from exc
+    with lock_file:
+        fcntl.flock(lock_file.descriptor, fcntl.LOCK_EX)
         version_number = expected_version or _next_delivery_version(deliveries_dir)
         version = f"v{version_number:03d}"
         destination = deliveries_dir / version
-        if destination.exists():
-            raise DeliveryError("delivery version already exists")
-        temporary = Path(tempfile.mkdtemp(prefix=f".{version}-attempt-", dir=deliveries_dir))
+        temporary = deliveries_dir / f".{version}-attempt-{uuid.uuid4().hex}"
+        try:
+            temporary_identity = create_directory_exclusive_no_follow(temporary)
+        except SecureFileError as exc:
+            raise DeliveryError("delivery attempt directory could not be created safely") from exc
         try:
             result = _build_delivery(
                 temporary=temporary,
@@ -110,15 +158,34 @@ def create_delivery(
                 include_zip=include_zip,
                 created_at=created_at or datetime.now(UTC),
             )
-            if destination.exists():
-                raise DeliveryError("delivery version publication lost its reservation")
-            os.rename(temporary, destination)
+            try:
+                with ExitStack() as pinned_stack:
+                    pinned_members = _capture_expected_members(
+                        root=temporary,
+                        expected_sha256=result.member_sha256,
+                        stack=pinned_stack,
+                    )
+                    publish_directory_no_replace_no_follow(
+                        temporary,
+                        destination,
+                        pinned_files=pinned_members,
+                    )
+            except SecureFileError as exc:
+                raise DeliveryError("delivery directory could not be published safely") from exc
         except Exception:
-            with suppress(OSError):
-                shutil.rmtree(temporary)
+            try:
+                remove_tree_no_follow(
+                    temporary,
+                    required_ancestor=deliveries_dir,
+                    expected_identity=temporary_identity,
+                )
+            except SecureFileError as cleanup_error:
+                raise DeliveryError(
+                    "delivery attempt could not be cleaned up safely"
+                ) from cleanup_error
             raise
         finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            fcntl.flock(lock_file.descriptor, fcntl.LOCK_UN)
     return result.model_copy(
         update={
             "directory": destination,
@@ -144,19 +211,36 @@ def _build_delivery(
 ) -> DeliveryResult:
     clips_dir = temporary / "clips"
     subtitles_dir = temporary / "subtitles"
-    clips_dir.mkdir()
-    subtitles_dir.mkdir()
+    try:
+        ensure_directory_no_follow(clips_dir)
+        ensure_directory_no_follow(subtitles_dir)
+    except SecureFileError as exc:
+        raise DeliveryError("delivery member directories are not symlink-free") from exc
     manifest_clips: list[dict[str, object]] = []
     archive_members: list[PurePosixPath] = []
+    member_sha256: dict[str, str] = {}
     for index, clip in enumerate(clips, start=1):
         stem = f"{index:02d}-{safe_filename_component(clip.title)}"
         video_relative = PurePosixPath("clips") / f"{stem}.mp4"
         subtitle_relative = PurePosixPath("subtitles") / f"{stem}.srt"
         video_target = temporary / Path(*video_relative.parts)
         subtitle_target = temporary / Path(*subtitle_relative.parts)
-        _copy_no_clobber(clip.final_video_path.resolve(strict=True), video_target)
-        subtitle_target.write_text(normalize_srt(clip.subtitle_srt), encoding="utf-8")
-        video_hash = stream_sha256(video_target)
+        video_hash = _copy_no_clobber(
+            clip.final_video_path,
+            video_target,
+            expected_sha256=clip.final_video_sha256,
+        )
+        normalized_subtitle = normalize_srt(clip.subtitle_srt)
+        subtitle_payload = normalized_subtitle.encode("utf-8")
+        subtitle_hash = hashlib.sha256(subtitle_payload).hexdigest()
+        try:
+            write_text_immutable_no_follow(
+                subtitle_target,
+                normalized_subtitle,
+                max_bytes=1_000_000,
+            )
+        except SecureFileError as exc:
+            raise DeliveryError("delivery subtitle could not be published safely") from exc
         manifest_clips.append(
             {
                 "clip_id": clip.clip_id,
@@ -173,6 +257,8 @@ def _build_delivery(
             }
         )
         archive_members.extend((video_relative, subtitle_relative))
+        member_sha256[video_relative.as_posix()] = video_hash
+        member_sha256[subtitle_relative.as_posix()] = subtitle_hash
 
     manifest: dict[str, object] = {
         "schema_version": "1",
@@ -187,26 +273,41 @@ def _build_delivery(
     if snapshot_fingerprint is not None:
         manifest["snapshot_fingerprint"] = snapshot_fingerprint
     manifest_path = temporary / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    manifest_payload = (
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    manifest_sha256 = hashlib.sha256(manifest_payload).hexdigest()
+    try:
+        write_bytes_immutable_no_follow(
+            manifest_path,
+            manifest_payload,
+            max_bytes=2_000_000,
+        )
+    except SecureFileError as exc:
+        raise DeliveryError("delivery manifest could not be published safely") from exc
     archive_members.append(PurePosixPath("manifest.json"))
+    member_sha256["manifest.json"] = manifest_sha256
     zip_path: Path | None = None
+    zip_sha256: str | None = None
     if include_zip:
         zip_path = temporary / "delivery.zip"
-        _create_and_verify_zip(
+        zip_sha256 = _create_and_verify_zip(
             root=temporary,
             output_path=zip_path,
             members=tuple(archive_members),
             manifest=manifest,
+            expected_sha256=member_sha256,
         )
+        member_sha256["delivery.zip"] = zip_sha256
     return DeliveryResult(
         delivery_id=delivery_id,
         delivery_version=version,
         directory=destination,
         manifest_path=destination / "manifest.json",
         zip_path=destination / "delivery.zip" if include_zip else None,
+        manifest_sha256=manifest_sha256,
+        zip_sha256=zip_sha256,
+        member_sha256=member_sha256,
         clip_count=len(clips),
     )
 
@@ -240,9 +341,14 @@ def safe_filename_component(value: str, *, maximum_utf8_bytes: int = 72) -> str:
 def validate_zip_members(names: Iterable[str]) -> tuple[str, ...]:
     checked: list[str] = []
     seen: set[str] = set()
+    normalized_seen: set[str] = set()
     for name in names:
-        if "\\" in name:
+        if "\\" in name or "\x00" in name:
             raise DeliveryError("ZIP member uses a backslash")
+        if any(unicodedata.category(character).startswith("C") for character in name):
+            raise DeliveryError("ZIP member contains a control character")
+        if re.match(r"^[A-Za-z]:", name):
+            raise DeliveryError("ZIP member uses a drive-qualified path")
         path = PurePosixPath(name)
         if (
             path.is_absolute()
@@ -253,9 +359,69 @@ def validate_zip_members(names: Iterable[str]) -> tuple[str, ...]:
         canonical = path.as_posix()
         if canonical != name or canonical in seen:
             raise DeliveryError("ZIP member is non-canonical or duplicated")
+        normalized = unicodedata.normalize("NFKC", canonical).casefold()
+        if normalized in normalized_seen:
+            raise DeliveryError("ZIP member has a Unicode-normalized collision")
         seen.add(canonical)
+        normalized_seen.add(normalized)
         checked.append(canonical)
     return tuple(checked)
+
+
+def validate_zip_infos(
+    infos: Iterable[zipfile.ZipInfo],
+    *,
+    maximum_members: int = 201,
+    maximum_member_bytes: int = 512 * 1024 * 1024,
+    maximum_total_bytes: int = 10 * 1024 * 1024 * 1024,
+) -> tuple[str, ...]:
+    values = tuple(infos)
+    if not values or len(values) > maximum_members:
+        raise DeliveryError("ZIP member count is outside its resource budget")
+    names = validate_zip_members(info.filename for info in values)
+    total = 0
+    for info in values:
+        unix_mode = info.external_attr >> 16
+        file_type = stat.S_IFMT(unix_mode)
+        if info.is_dir() or file_type not in {0, stat.S_IFREG}:
+            raise DeliveryError("ZIP contains a non-regular member")
+        if info.flag_bits & 0x1:
+            raise DeliveryError("ZIP contains an encrypted member")
+        if info.file_size < 0 or info.file_size > maximum_member_bytes:
+            raise DeliveryError("ZIP member exceeds its size budget")
+        total += info.file_size
+        if total > maximum_total_bytes:
+            raise DeliveryError("ZIP uncompressed size exceeds its resource budget")
+        if (
+            info.file_size > 1024 * 1024
+            and info.compress_size > 0
+            and info.file_size / info.compress_size > 1_000
+        ):
+            raise DeliveryError("ZIP member compression ratio is unsafe")
+    return names
+
+
+def read_zip_member_bounded(
+    archive: zipfile.ZipFile,
+    name: str,
+    *,
+    maximum_bytes: int,
+) -> bytes:
+    if maximum_bytes <= 0:
+        raise ValueError("ZIP read limit must be positive")
+    with archive.open(name, mode="r") as source:
+        payload = source.read(maximum_bytes + 1)
+    if len(payload) > maximum_bytes:
+        raise DeliveryError("ZIP member exceeds its bounded read limit")
+    return payload
+
+
+def hash_zip_member(archive: zipfile.ZipFile, name: str) -> str:
+    digest = hashlib.sha256()
+    with archive.open(name, mode="r") as source:
+        while block := source.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def _validate_eligible_clips(clips: Sequence[DeliveryClipInput]) -> None:
@@ -268,32 +434,40 @@ def _validate_eligible_clips(clips: Sequence[DeliveryClipInput]) -> None:
             raise DeliveryError("approved clip has a stale final render")
         if clip.render_status != "succeeded":
             raise DeliveryError("approved clip final render is not succeeded")
-        if not clip.final_video_path.is_file() or clip.final_video_path.stat().st_size == 0:
-            raise DeliveryError("approved clip final render is missing")
+        if not clip.final_video_sha256:
+            raise DeliveryError("approved clip final render hash is missing")
 
 
 def _next_delivery_version(deliveries_dir: Path) -> int:
-    existing = [
-        int(match.group(1))
-        for child in deliveries_dir.iterdir()
-        if child.is_dir() and (match := re.fullmatch(r"v(\d{3})", child.name))
-    ]
+    existing: list[int] = []
+    for child in deliveries_dir.iterdir():
+        match = re.fullmatch(r"v(\d{3})", child.name)
+        if match is None:
+            continue
+        if child.is_symlink() or not child.is_dir():
+            raise DeliveryError("delivery version entry is not a safe directory")
+        existing.append(int(match.group(1)))
     value = max(existing, default=0) + 1
     if value > 999:
         raise DeliveryError("delivery version space is exhausted")
     return value
 
 
-def _copy_no_clobber(source: Path, destination: Path) -> None:
-    if not source.is_file():
-        raise DeliveryError("delivery source video is missing")
+def _copy_no_clobber(source: Path, destination: Path, *, expected_sha256: str) -> str:
     try:
-        with source.open("rb") as reader, destination.open("xb") as writer:
-            shutil.copyfileobj(reader, writer, length=1024 * 1024)
-            writer.flush()
-            os.fsync(writer.fileno())
-    except (FileExistsError, OSError) as exc:
+        observed = publish_regular_file_immutable_no_follow(
+            source,
+            destination,
+            remove_source=False,
+            expected_sha256=expected_sha256,
+        )
+    except SecureFileHashMismatch as exc:
+        raise DeliveryError("delivery source video differs from its committed hash") from exc
+    except SecureFileError as exc:
         raise DeliveryError("delivery video could not be copied safely") from exc
+    if observed != expected_sha256:  # pragma: no cover - enforced by the secure primitive
+        raise DeliveryError("delivery source video differs from its committed hash")
+    return observed
 
 
 def normalize_srt(value: str) -> str:
@@ -315,32 +489,134 @@ def _create_and_verify_zip(
     output_path: Path,
     members: tuple[PurePosixPath, ...],
     manifest: dict[str, object],
-) -> None:
+    expected_sha256: dict[str, str],
+) -> str:
     names = validate_zip_members(member.as_posix() for member in members)
-    with zipfile.ZipFile(
-        output_path,
-        mode="x",
-        compression=zipfile.ZIP_DEFLATED,
-        compresslevel=6,
-    ) as archive:
-        for name in names:
-            archive.write(root / Path(*PurePosixPath(name).parts), arcname=name)
-    with zipfile.ZipFile(output_path, mode="r") as archive:
-        actual_names = validate_zip_members(info.filename for info in archive.infolist())
-        if actual_names != names:
-            raise DeliveryError("ZIP member list changed during creation")
-        archived_manifest = json.loads(archive.read("manifest.json"))
-        if archived_manifest != manifest:
-            raise DeliveryError("ZIP manifest differs from the verified manifest")
-        raw_clips = manifest.get("clips")
-        if not isinstance(raw_clips, list):
-            raise DeliveryError("manifest clips payload is invalid")
-        for clip in raw_clips:
-            if not isinstance(clip, dict):
-                raise DeliveryError("manifest clip entry is invalid")
-            filename = clip.get("video_filename")
-            expected_hash = clip.get("sha256")
-            if not isinstance(filename, str) or not isinstance(expected_hash, str):
-                raise DeliveryError("manifest clip hash entry is invalid")
-            if hashlib.sha256(archive.read(filename)).hexdigest() != expected_hash:
-                raise DeliveryError("ZIP clip hash does not match manifest")
+    if set(names) != set(expected_sha256):
+        raise DeliveryError("ZIP members differ from their expected hashes")
+    try:
+        with ExitStack() as stack:
+            pinned_members = _capture_expected_members(
+                root=root,
+                expected_sha256=expected_sha256,
+                stack=stack,
+            )
+            output = stack.enter_context(create_pinned_regular_file_no_follow(output_path))
+            with (
+                os.fdopen(os.dup(output.descriptor), mode="w+b") as output_stream,
+                zipfile.ZipFile(
+                    output_stream,
+                    mode="w",
+                    compression=zipfile.ZIP_DEFLATED,
+                    compresslevel=6,
+                ) as archive,
+            ):
+                for name in names:
+                    _write_pinned_zip_member(archive, name, pinned_members[name])
+            output.seal_after_write()
+            zip_sha256 = output.sha256()
+            verify_pinned_zip_members(
+                PinnedFileEvidence(
+                    pinned=output,
+                    sha256=zip_sha256,
+                    size_bytes=output.metadata.st_size,
+                ),
+                expected_sha256=expected_sha256,
+                expected_manifest=manifest,
+                expected_sizes={name: value.size_bytes for name, value in pinned_members.items()},
+            )
+            return zip_sha256
+    except SecureFileError as exc:
+        raise DeliveryError("ZIP could not be created from stable local members") from exc
+
+
+def _capture_expected_members(
+    *,
+    root: Path,
+    expected_sha256: dict[str, str],
+    stack: ExitStack,
+) -> dict[str, PinnedFileEvidence]:
+    names = validate_zip_members(expected_sha256)
+    pinned: dict[str, PinnedFileEvidence] = {}
+    for name in names:
+        relative = PurePosixPath(name)
+        path = root / Path(*relative.parts)
+        try:
+            evidence = capture_pinned_file_evidence(
+                path,
+                expected_sha256=expected_sha256[name],
+            )
+        except SecureFileError as exc:
+            raise DeliveryError("delivery member differs from its expected bytes") from exc
+        stack.callback(evidence.pinned.close)
+        pinned[name] = evidence
+    return pinned
+
+
+def _write_pinned_zip_member(
+    archive: zipfile.ZipFile,
+    name: str,
+    evidence: PinnedFileEvidence,
+) -> None:
+    info = zipfile.ZipInfo(filename=name)
+    info.create_system = 3
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = (stat.S_IFREG | 0o600) << 16
+    digest = hashlib.sha256()
+    offset = 0
+    with archive.open(info, mode="w", force_zip64=True) as writer:
+        while offset < evidence.size_bytes:
+            block = os.pread(
+                evidence.pinned.descriptor,
+                min(1024 * 1024, evidence.size_bytes - offset),
+                offset,
+            )
+            if not block:
+                break
+            writer.write(block)
+            digest.update(block)
+            offset += len(block)
+    if offset != evidence.size_bytes or digest.hexdigest() != evidence.sha256:
+        raise DeliveryError("ZIP member changed while streaming from its pinned source")
+    evidence.pinned.validate_binding()
+
+
+def verify_pinned_zip_members(
+    zip_evidence: PinnedFileEvidence,
+    *,
+    expected_sha256: dict[str, str],
+    expected_manifest: dict[str, object],
+    expected_sizes: dict[str, int] | None = None,
+) -> None:
+    """Verify every ZIP member from a held archive FD against exact hashes."""
+
+    names = validate_zip_members(expected_sha256)
+    try:
+        with (
+            os.fdopen(os.dup(zip_evidence.pinned.descriptor), mode="rb") as input_stream,
+            zipfile.ZipFile(input_stream, mode="r") as archive,
+        ):
+            infos = archive.infolist()
+            actual_names = validate_zip_infos(infos)
+            if actual_names != names:
+                raise DeliveryError("ZIP member list changed during creation")
+            info_by_name = {info.filename: info for info in infos}
+            for name in names:
+                if expected_sizes is not None and (
+                    info_by_name[name].file_size != expected_sizes[name]
+                ):
+                    raise DeliveryError("ZIP member size differs from its pinned source")
+                if hash_zip_member(archive, name) != expected_sha256[name]:
+                    raise DeliveryError("ZIP member hash differs from its pinned source")
+            archived_manifest = json.loads(
+                read_zip_member_bounded(
+                    archive,
+                    "manifest.json",
+                    maximum_bytes=2_000_000,
+                )
+            )
+            if archived_manifest != expected_manifest:
+                raise DeliveryError("ZIP manifest differs from the verified manifest")
+        zip_evidence.pinned.validate_binding()
+    except (OSError, zipfile.BadZipFile, UnicodeError, json.JSONDecodeError) as exc:
+        raise DeliveryError("ZIP is not a stable valid delivery archive") from exc

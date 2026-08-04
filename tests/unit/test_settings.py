@@ -34,6 +34,9 @@ def test_settings_reject_invalid_timing_relationships() -> None:
         Settings(asr_chunk_seconds=10, asr_chunk_overlap_seconds=10, _env_file=None)
 
     with pytest.raises(ValidationError):
+        Settings(asr_chunk_seconds=11, asr_chunk_overlap_seconds=6, _env_file=None)
+
+    with pytest.raises(ValidationError):
         Settings(worker_lease_seconds=60, worker_heartbeat_seconds=30, _env_file=None)
 
     with pytest.raises(ValidationError):

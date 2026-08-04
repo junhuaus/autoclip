@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from liveclip.db.models import (
     EditPlanRevisionRow,
     RenderJobRow,
     StageRunRow,
+    TaskAttemptRow,
     TaskRow,
 )
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
@@ -226,6 +228,37 @@ def test_proxy_stage_recovers_committed_assets_after_precheckpoint_failure(
             assert retry_count == 1
             assert connection.scalar(select(func.count()).select_from(RenderJobRow)) == 1
             assert set(connection.scalars(select(AssetRow.status))) == {AssetStatus.COMMITTED.value}
+            attempts = connection.execute(
+                select(TaskAttemptRow.outcome, TaskAttemptRow.diagnostic_relative_path)
+                .join(TaskRow, TaskRow.id == TaskAttemptRow.task_id)
+                .join(StageRunRow, StageRunRow.id == TaskRow.stage_run_id)
+                .where(
+                    StageRunRow.pipeline_run_id == created.run_id,
+                    StageRunRow.stage == PipelineStage.PROXY_RENDER.value,
+                )
+                .order_by(TaskAttemptRow.attempt_number)
+            ).all()
+            quality_paths = tuple(
+                connection.scalars(
+                    select(AssetRow.relative_path).where(
+                        AssetRow.project_id == created.project_id,
+                        AssetRow.kind == "render_quality_report",
+                    )
+                )
+            )
+        successful_diagnostics = [
+            str(path) for outcome, path in attempts if outcome == "succeeded" and path is not None
+        ]
+        assert len(successful_diagnostics) == 1
+        diagnostic_path = data_dir / created.project_id / successful_diagnostics[0]
+        diagnostic_payload = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+        assert diagnostic_payload["status"] == "succeeded"
+        assert str(tmp_path) not in json.dumps(diagnostic_payload)
+        for relative_path in quality_paths:
+            quality_payload = json.loads(
+                (data_dir / created.project_id / str(relative_path)).read_text(encoding="utf-8")
+            )
+            assert "renderer_diagnostics" not in quality_payload
     finally:
         engine.dispose(close=True)
 

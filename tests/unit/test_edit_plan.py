@@ -2,6 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from liveclip.domain.edit_plan import (
+    MAX_RENDER_OVERLAYS,
+    TITLE_OVERLAY_COUNT,
     CaptionCue,
     CaptionTemplate,
     EditPlan,
@@ -9,6 +11,8 @@ from liveclip.domain.edit_plan import (
     Layout,
     captions_to_srt,
     edit_plan_from_json_data,
+    expand_caption_cues_for_display,
+    normalize_display_text,
     validate_caption_cues,
     validate_edit_plan_bounds,
 )
@@ -117,3 +121,66 @@ def test_caption_cues_require_at_least_one_safe_cue() -> None:
 
     with pytest.raises(ValidationError, match="disallowed Unicode category"):
         CaptionCue(start_ms=0, end_ms=1_000, text="不可持久化\x00字幕")
+
+
+def test_caption_cues_reject_overlap_tiny_intervals_and_resource_fanout() -> None:
+    with pytest.raises(ValueError, match="non-overlapping"):
+        validate_caption_cues(
+            (
+                CaptionCue(start_ms=0, end_ms=2_000, text="第一句"),
+                CaptionCue(start_ms=1_500, end_ms=3_000, text="重叠句"),
+            ),
+            clip_duration_ms=5_000,
+        )
+    with pytest.raises(ValueError, match="too short"):
+        validate_caption_cues(
+            (CaptionCue(start_ms=0, end_ms=100, text="太短"),),
+            clip_duration_ms=5_000,
+        )
+    dense = tuple(
+        CaptionCue(start_ms=index * 250, end_ms=(index + 1) * 250, text=f"字幕{index}")
+        for index in range(20)
+    )
+    with pytest.raises(ValueError, match="resource budget"):
+        validate_caption_cues(dense, clip_duration_ms=5_000)
+
+
+def test_twenty_maximum_length_cues_are_rejected_before_render_fanout() -> None:
+    cues = tuple(
+        CaptionCue(
+            start_ms=index * 1_500,
+            end_ms=(index + 1) * 1_500,
+            text="字" * 120,
+        )
+        for index in range(20)
+    )
+
+    with pytest.raises(ValueError, match="render overlay resource budget"):
+        validate_caption_cues(cues, clip_duration_ms=30_000)
+
+
+def test_display_caption_budget_accepts_exact_overlay_limit_without_text_loss() -> None:
+    cues = tuple(
+        CaptionCue(
+            start_ms=index * 1_500,
+            end_ms=(index + 1) * 1_500,
+            text=(str(index % 10) + "字" * 107),
+        )
+        for index in range(21)
+    )
+
+    validate_caption_cues(cues, clip_duration_ms=31_500)
+    display_cues = expand_caption_cues_for_display(cues)
+
+    assert len(display_cues) + TITLE_OVERLAY_COUNT == MAX_RENDER_OVERLAYS
+    assert "".join(cue.text for cue in display_cues) == "".join(
+        normalize_display_text(cue.text, maximum_characters=120) for cue in cues
+    )
+    assert all(cue.end_ms - cue.start_ms >= 250 for cue in display_cues)
+
+
+def test_caption_interval_must_cover_every_display_part() -> None:
+    cue = CaptionCue(start_ms=0, end_ms=499, text="字" * 37)
+
+    with pytest.raises(ValueError, match="too dense for its display interval"):
+        validate_caption_cues((cue,), clip_duration_ms=1_500)

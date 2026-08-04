@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,14 +9,25 @@ from liveclip.application.pipeline import LeaseIdentity
 from liveclip.application.rendering import RenderPersistence, RenderWork, render_asset_paths
 from liveclip.domain.edit_plan import captions_to_srt
 from liveclip.media.artifacts import (
+    ArtifactPublicationError,
     attempt_directory,
+    cleanup_attempt_worktree,
     project_directory,
     publish_file_no_clobber,
     write_json_no_clobber,
     write_text_no_clobber,
 )
+from liveclip.media.secure_files import (
+    PinnedRegularFile,
+    SecureFileError,
+    hash_regular_file_no_follow,
+    open_pinned_regular_file,
+)
+from liveclip.renderer.ffmpeg import FFmpegRenderError, render_error_diagnostics_payload
 from liveclip.renderer.quality import validate_rendered_media
 from liveclip.renderer.service import render_edit_plan_revision, render_revision_overlays
+
+logger = logging.getLogger(__name__)
 
 
 class RenderTaskCancelled(RuntimeError):
@@ -79,24 +90,60 @@ class RenderTaskHandler:
         canonical_subtitle = project_dir / subtitle_relative
         canonical_quality = project_dir / quality_relative
         canonical_contact = project_dir / contact_relative
+        attempt_diagnostics: dict[str, object]
         if not canonical_video.is_file():
             attempt_video = attempt_dir / video_relative
-            artifact = render_edit_plan_revision(
-                source_path=work.source_path,
-                revision=work.revision,
-                output_path=attempt_video,
-                width=work.width,
-                height=work.height,
-                encoder=work.encoder,
-                font_path=work.font_path,
-                cancel_requested=cancel_requested,
-            )
-            report_payload = json.loads(artifact.quality_report_path.read_text(encoding="utf-8"))
+            try:
+                with open_pinned_regular_file(work.source_path) as pinned:
+                    _assert_pinned_source_content(
+                        work,
+                        pinned,
+                        cancel_requested=cancel_requested,
+                    )
+                    artifact = render_edit_plan_revision(
+                        source_path=pinned.process_path,
+                        revision=work.revision,
+                        output_path=attempt_video,
+                        width=work.width,
+                        height=work.height,
+                        encoder=work.encoder,
+                        video_stream_index=work.video_stream_index,
+                        audio_stream_index=work.audio_stream_index,
+                        source_pass_fds=pinned.pass_fds,
+                        font_path=work.font_path,
+                        cancel_requested=cancel_requested,
+                    )
+                    _assert_pinned_source_binding(
+                        work,
+                        pinned,
+                        cancel_requested=cancel_requested,
+                    )
+            except InterruptedError as exc:
+                raise RenderTaskCancelled("render source validation was cancelled") from exc
+            except FFmpegRenderError as exc:
+                exc.diagnostic_relative_path = _persist_failed_render_diagnostic(
+                    project_dir=project_dir,
+                    attempt_dir=attempt_dir,
+                    error=exc,
+                )
+                raise
+            except SecureFileError as exc:
+                raise ValueError("source media changed during render") from exc
+            report_payload = artifact.quality.as_dict()
+            attempt_diagnostics = artifact.diagnostic_payload
             _check_cancel(cancel_requested)
             _assert_source_identity(work)
-            publish_file_no_clobber(artifact.output_path, canonical_video)
-            publish_file_no_clobber(artifact.contact_sheet_path, canonical_contact)
-            _write_canonical_quality_report(
+            validated_video_sha256 = publish_file_no_clobber(
+                artifact.output_path,
+                canonical_video,
+                expected_sha256=artifact.sha256,
+            )
+            validated_contact_sha256 = publish_file_no_clobber(
+                artifact.contact_sheet_path,
+                canonical_contact,
+                expected_sha256=artifact.contact_sheet_sha256,
+            )
+            validated_quality_sha256 = _write_canonical_quality_report(
                 canonical_quality,
                 report_payload,
                 media_path=canonical_video,
@@ -104,6 +151,7 @@ class RenderTaskHandler:
             )
         else:
             _check_cancel(cancel_requested)
+            _assert_source_content_once(work, cancel_requested=cancel_requested)
             recovery_root = attempt_dir / base_relative / "recovery"
             overlays = render_revision_overlays(
                 revision=work.revision,
@@ -121,15 +169,34 @@ class RenderTaskHandler:
                 safe_bounds=tuple(value.safe_bounds for value in overlays),
                 cancel_requested=cancel_requested,
             )
-            publish_file_no_clobber(Path(quality.contact_sheet), canonical_contact)
-            _write_canonical_quality_report(
+            try:
+                recovery_contact_sha256, _contact_size = hash_regular_file_no_follow(
+                    Path(quality.contact_sheet)
+                )
+            except SecureFileError as exc:
+                raise ValueError("recovery contact sheet changed after validation") from exc
+            validated_video_sha256 = quality.media_sha256
+            validated_contact_sha256 = publish_file_no_clobber(
+                Path(quality.contact_sheet),
+                canonical_contact,
+                expected_sha256=recovery_contact_sha256,
+            )
+            attempt_diagnostics = {
+                "schema_version": "1",
+                "attempt_count": 0,
+                "recovery": "validated_existing_immutable_video",
+            }
+            validated_quality_sha256 = _write_canonical_quality_report(
                 canonical_quality,
                 quality.as_dict(),
                 media_path=canonical_video,
                 contact_sheet=canonical_contact,
             )
         _assert_source_identity(work)
-        write_text_no_clobber(canonical_subtitle, captions_to_srt(work.revision.captions))
+        validated_subtitle_sha256 = write_text_no_clobber(
+            canonical_subtitle,
+            captions_to_srt(work.revision.captions),
+        )
         _check_cancel(cancel_requested)
         _assert_source_identity(work)
         validations: tuple[dict[str, object], ...] = (
@@ -147,24 +214,45 @@ class RenderTaskHandler:
             {"schema_version": "1", "automatic_status": "passed"},
             {"schema_version": "1", "frames": 3},
         )
+        expected_hashes = (
+            validated_video_sha256,
+            validated_subtitle_sha256,
+            validated_quality_sha256,
+            validated_contact_sha256,
+        )
         committed = tuple(
             self._assets.commit(
                 lease,
                 reservation,
                 project_dir=project_dir,
                 validation=validation,
+                expected_sha256=expected_sha256,
             )
-            for reservation, validation in zip(
+            for reservation, validation, expected_sha256 in zip(
                 reservations,
                 validations,
+                expected_hashes,
                 strict=True,
             )
+        )
+        diagnostic_relative_path = _write_attempt_render_diagnostic(
+            project_dir=project_dir,
+            attempt_dir=attempt_dir,
+            status="succeeded",
+            renderer_diagnostics=attempt_diagnostics,
+        )
+        cleanup_attempt_worktree(
+            project_dir,
+            task_id=lease.task_id,
+            lease_token=lease.lease_token,
+            preserve_diagnostics=True,
         )
         return RenderPersistence(
             video_asset_id=committed[0].asset_id,
             subtitle_asset_id=committed[1].asset_id,
             quality_report_asset_id=committed[2].asset_id,
             contact_sheet_asset_id=committed[3].asset_id,
+            diagnostic_relative_path=diagnostic_relative_path,
         )
 
     def _reserve(
@@ -218,16 +306,139 @@ def _assert_source_identity(work: RenderWork) -> None:
         raise ValueError("source media changed while the render was executing")
 
 
+def _assert_source_content_once(
+    work: RenderWork,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> None:
+    try:
+        with open_pinned_regular_file(work.source_path) as pinned:
+            _assert_pinned_source_content(
+                work,
+                pinned,
+                cancel_requested=cancel_requested,
+            )
+    except InterruptedError as exc:
+        raise RenderTaskCancelled("render source validation was cancelled") from exc
+    except SecureFileError as exc:
+        raise ValueError("source media changed before render recovery") from exc
+
+
+def _assert_pinned_source_content(
+    work: RenderWork,
+    pinned: PinnedRegularFile,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> None:
+    _check_cancel(cancel_requested)
+    metadata = pinned.metadata
+    observed = (
+        pinned.path,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        getattr(metadata, "st_dev", None),
+        getattr(metadata, "st_ino", None),
+    )
+    expected = (
+        work.source_path,
+        work.source_size_bytes,
+        work.source_mtime_ns,
+        work.source_device,
+        work.source_inode,
+    )
+    if (
+        observed != expected
+        or pinned.sha256(cancel_requested=cancel_requested) != work.source_sha256
+    ):
+        raise ValueError("source media content changed while the render was executing")
+    pinned.validate_binding()
+
+
+def _assert_pinned_source_binding(
+    work: RenderWork,
+    pinned: PinnedRegularFile,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> None:
+    _check_cancel(cancel_requested)
+    metadata = pinned.metadata
+    observed = (
+        pinned.path,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        getattr(metadata, "st_dev", None),
+        getattr(metadata, "st_ino", None),
+    )
+    expected = (
+        work.source_path,
+        work.source_size_bytes,
+        work.source_mtime_ns,
+        work.source_device,
+        work.source_inode,
+    )
+    if observed != expected:
+        raise ValueError("source media identity changed while the render was executing")
+    pinned.validate_binding()
+
+
 def _write_canonical_quality_report(
     path: Path,
     raw_payload: object,
     *,
     media_path: Path,
     contact_sheet: Path,
-) -> None:
+) -> str:
     if not isinstance(raw_payload, dict):
         raise ValueError("render quality report is not an object")
     payload = {str(key): value for key, value in raw_payload.items()}
-    payload["media_path"] = str(media_path.resolve(strict=True))
-    payload["contact_sheet"] = str(contact_sheet.resolve(strict=True))
-    write_json_no_clobber(path, payload)
+    payload["media_path"] = str(media_path.absolute())
+    payload["contact_sheet"] = str(contact_sheet.absolute())
+    return write_json_no_clobber(path, payload)
+
+
+def _persist_failed_render_diagnostic(
+    *,
+    project_dir: Path,
+    attempt_dir: Path,
+    error: FFmpegRenderError,
+) -> str | None:
+    if not error.diagnostics:
+        return None
+    try:
+        return _write_attempt_render_diagnostic(
+            project_dir=project_dir,
+            attempt_dir=attempt_dir,
+            status="failed",
+            renderer_diagnostics=render_error_diagnostics_payload(error),
+        )
+    except (ArtifactPublicationError, ValueError) as exc:
+        logger.warning(
+            "render diagnostic persistence failed error_class=%s",
+            type(exc).__name__,
+        )
+        return None
+
+
+def _write_attempt_render_diagnostic(
+    *,
+    project_dir: Path,
+    attempt_dir: Path,
+    status: str,
+    renderer_diagnostics: dict[str, object],
+) -> str:
+    if status not in {"succeeded", "failed"}:
+        raise ValueError("render diagnostic status is invalid")
+    diagnostic_path = attempt_dir / "diagnostics" / "ffmpeg-render.json"
+    write_json_no_clobber(
+        diagnostic_path,
+        {
+            "schema_version": "1",
+            "status": status,
+            "renderer_diagnostics": renderer_diagnostics,
+        },
+        max_bytes=96 * 1024,
+    )
+    try:
+        return diagnostic_path.relative_to(project_dir).as_posix()
+    except ValueError as exc:
+        raise ValueError("render diagnostic escaped its project") from exc

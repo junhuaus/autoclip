@@ -109,6 +109,8 @@ class PipelineRunConfig(BaseModel):
             raise ValueError("minimum clip duration cannot exceed maximum")
         if self.chunk_overlap_ms >= self.chunk_duration_ms:
             raise ValueError("audio overlap must be shorter than a chunk")
+        if self.chunk_overlap_ms * 2 > self.chunk_duration_ms:
+            raise ValueError("audio overlap must not exceed half of a chunk")
         if self.preview_width >= self.preview_height:
             raise ValueError("preview render dimensions must be portrait")
         if self.preview_width % 2 or self.preview_height % 2:
@@ -234,6 +236,7 @@ class StageExecutionRepository(Protocol):
         *,
         output_fingerprint: str,
         checkpoint: dict[str, object],
+        diagnostic_relative_path: str | None = None,
     ) -> bool: ...
 
     def fail_stage(
@@ -244,6 +247,7 @@ class StageExecutionRepository(Protocol):
         error_code: str,
         safe_message: str,
         retry_delay_ms: int,
+        diagnostic_relative_path: str | None = None,
     ) -> TaskStatus | None: ...
 
     def cancel_stage(self, lease: LeaseIdentity) -> bool: ...

@@ -12,7 +12,12 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from liveclip.application.tasks import HeartbeatResult, TaskLease
+from liveclip.application.tasks import (
+    HeartbeatResult,
+    TaskLease,
+    TaskQueueTransientError,
+    validate_task_diagnostic_relative_path,
+)
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
@@ -42,7 +47,7 @@ class TaskQueueError(RuntimeError):
     pass
 
 
-class TaskQueueBusy(TaskQueueError):
+class TaskQueueBusy(TaskQueueError, TaskQueueTransientError):
     pass
 
 
@@ -355,6 +360,31 @@ class SQLiteTaskQueue:
                 cancellation_requested=row[0] is not None,
             )
 
+    def observe(
+        self,
+        lease: TaskLease,
+        *,
+        now: datetime | None = None,
+    ) -> HeartbeatResult | None:
+        """Read cancellation/fencing state without extending the lease."""
+
+        instant = _now(now)
+        try:
+            with self._engine.connect() as connection:
+                row = connection.execute(
+                    select(TaskRow.lease_expires_at, TaskRow.cancellation_requested_at).where(
+                        *_owned_unexpired_lease(lease, instant)
+                    )
+                ).one_or_none()
+        except OperationalError as exc:
+            raise _queue_operational_error(exc) from exc
+        if row is None:
+            return None
+        return HeartbeatResult(
+            lease_expires_at=row[0],
+            cancellation_requested=row[1] is not None,
+        )
+
     def complete(
         self,
         lease: TaskLease,
@@ -410,11 +440,17 @@ class SQLiteTaskQueue:
         error_code: str,
         safe_message: str,
         retry_delay_ms: int = 0,
+        diagnostic_relative_path: str | None = None,
         now: datetime | None = None,
     ) -> TaskStatus | None:
         if retry_delay_ms < 0:
             raise ValueError("retry delay must be nonnegative")
         _validate_safe_error(error_code, safe_message)
+        diagnostic_relative_path = validate_task_diagnostic_relative_path(diagnostic_relative_path)
+        if diagnostic_relative_path is not None:
+            parts = diagnostic_relative_path.split("/")
+            if parts[1:3] != [lease.task_id, lease.lease_token]:
+                raise ValueError("task diagnostic path belongs to another attempt")
         instant = _now(now)
         with begin_immediate(self._engine) as connection:
             owned = connection.execute(
@@ -493,6 +529,7 @@ class SQLiteTaskQueue:
                 failure_class=failure_class,
                 error_code=error_code,
                 safe_message=safe_message,
+                diagnostic_relative_path=diagnostic_relative_path,
             )
             return target
 
@@ -832,6 +869,7 @@ class SQLiteTaskQueue:
         failure_class: FailureClass | None = None,
         error_code: str | None = None,
         safe_message: str | None = None,
+        diagnostic_relative_path: str | None = None,
     ) -> None:
         connection.execute(
             update(TaskAttemptRow)
@@ -846,6 +884,7 @@ class SQLiteTaskQueue:
                 failure_class=failure_class.value if failure_class else None,
                 error_code=error_code,
                 safe_error_message=safe_message,
+                diagnostic_relative_path=diagnostic_relative_path,
             )
         )
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import socket
@@ -33,6 +34,7 @@ from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.delivery.task_handler import DeliveryTaskHandler
 from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
+from liveclip.observability import configure_logging
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.prompts import load_editing_prompts
 from liveclip.providers.asr.mock import MOCK_ASR_CONTRACT_VERSION
@@ -44,6 +46,9 @@ from liveclip.providers.llm.base import (
 )
 from liveclip.providers.llm.openai import OPENAI_LLM_CONTRACT_VERSION
 from liveclip.renderer.task_handler import RenderTaskHandler
+from liveclip.services.janitor import cleanup_terminal_attempt_worktrees
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class BootstrapError(RuntimeError):
@@ -75,6 +80,7 @@ class LiveClipRuntime:
         *,
         project_root: Path | None = None,
     ) -> LiveClipRuntime:
+        configure_logging(settings.log_level)
         data_dir = settings.resolved_data_dir(project_root or Path.cwd())
         data_dir.mkdir(parents=True, exist_ok=True)
         database_path = data_dir / "liveclip.sqlite3"
@@ -84,6 +90,14 @@ class LiveClipRuntime:
                 engine,
                 project_root=project_root or _installed_project_root(),
             )
+            cleanup_report = cleanup_terminal_attempt_worktrees(engine, data_dir=data_dir)
+            if cleanup_report.failed:
+                _LOGGER.warning(
+                    "attempt_janitor incomplete inspected=%s cleaned=%s failed=%s",
+                    cleanup_report.inspected,
+                    cleanup_report.cleaned,
+                    cleanup_report.failed,
+                )
             repository = SqlAlchemyPipelineRepository(engine)
             service = PipelineService(repository)
             queue = SQLiteTaskQueue(

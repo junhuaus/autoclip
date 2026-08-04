@@ -27,17 +27,20 @@ class StageExecutionError(RuntimeError):
         failure_class: FailureClass,
         error_code: str,
         safe_message: str,
+        diagnostic_relative_path: str | None = None,
     ) -> None:
         super().__init__(safe_message)
         self.failure_class = failure_class
         self.error_code = error_code
         self.safe_message = safe_message
+        self.diagnostic_relative_path = diagnostic_relative_path
 
 
 @dataclass(frozen=True, slots=True)
 class StageExecutionResult:
     output_fingerprint: str
     checkpoint: dict[str, object]
+    diagnostic_relative_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +71,15 @@ class PersistedRevision:
     candidate_id: str
     edit_plan_revision_id: str
     revision: EditPlanRevision
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedStageAsset:
+    asset_id: str
+    kind: str
+    relative_path: str
+    sha256: str
+    size_bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +116,15 @@ class StageStateStore(Protocol):
     ) -> str: ...
 
     def load_source(self, *, project_id: str) -> SourceMediaMetadata: ...
+
+    def load_committed_assets(
+        self,
+        *,
+        project_id: str,
+        run_id: str,
+        generation: int,
+        kinds: tuple[str, ...],
+    ) -> tuple[CommittedStageAsset, ...]: ...
 
     def save_audio(
         self,

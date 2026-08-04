@@ -128,7 +128,10 @@ def review_context(
                 width=1_920,
                 height=1_080,
                 video_codec="h264",
+                video_stream_index=0,
+                video_rotation_degrees=0,
                 audio_codec="aac",
+                audio_stream_index=1,
                 frame_rate="30",
                 probe_json={"schema_version": "1"},
             )

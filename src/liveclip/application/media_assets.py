@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
-from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.secure_files import SecureFileError, open_pinned_regular_file
 
 
 class MediaAssetNotFound(LookupError):
@@ -39,7 +39,7 @@ class ResolvedMediaAsset:
     mime_type: str
     sha256: str
     size_bytes: int
-    stat_identity: tuple[int, int, int | None, int | None]
+    stat_identity: tuple[int, int, int, int | None, int | None]
 
 
 class MediaAssetRepository(Protocol):
@@ -61,7 +61,10 @@ class MediaAssetService:
     def __init__(self, repository: MediaAssetRepository, *, data_dir: Path) -> None:
         self._repository = repository
         self._data_dir = data_dir.resolve(strict=True)
-        self._verified: dict[str, tuple[tuple[int, int, int | None, int | None], str]] = {}
+        self._verified: dict[
+            str,
+            tuple[tuple[int, int, int, int | None, int | None], str],
+        ] = {}
         self._cache_lock = threading.Lock()
 
     def resolve(self, asset_id: str, *, required_kind: str | None = None) -> ResolvedMediaAsset:
@@ -82,30 +85,33 @@ class MediaAssetService:
         _reject_symbolic_components(self._data_dir, (record.project_id, *relative.parts))
         try:
             resolved = candidate.resolve(strict=True)
-            metadata = resolved.stat()
-        except (OSError, RuntimeError) as exc:
+            pinned = open_pinned_regular_file(resolved)
+        except (OSError, RuntimeError, SecureFileError) as exc:
             raise MediaAssetInvalid("asset file is missing or cannot be inspected") from exc
-        if self._data_dir not in resolved.parents or not stat.S_ISREG(metadata.st_mode):
-            raise MediaAssetInvalid("asset file escaped its project directory")
-        if metadata.st_size != record.size_bytes or record.size_bytes <= 0:
-            raise MediaAssetInvalid("asset file size differs from committed metadata")
-        identity = (
-            metadata.st_size,
-            metadata.st_mtime_ns,
-            getattr(metadata, "st_dev", None),
-            getattr(metadata, "st_ino", None),
-        )
-        with self._cache_lock:
-            cached = self._verified.get(record.asset_id)
-        if cached != (identity, record.sha256):
-            try:
-                observed_sha256 = stream_sha256(resolved)
-            except OSError as exc:
-                raise MediaAssetInvalid("asset file could not be verified") from exc
-            if observed_sha256 != record.sha256:
-                raise MediaAssetInvalid("asset file hash differs from committed metadata")
+        with pinned:
+            metadata = pinned.metadata
+            if self._data_dir not in resolved.parents or not stat.S_ISREG(metadata.st_mode):
+                raise MediaAssetInvalid("asset file escaped its project directory")
+            if metadata.st_size != record.size_bytes or record.size_bytes <= 0:
+                raise MediaAssetInvalid("asset file size differs from committed metadata")
+            identity = (
+                metadata.st_size,
+                metadata.st_mtime_ns,
+                metadata.st_ctime_ns,
+                getattr(metadata, "st_dev", None),
+                getattr(metadata, "st_ino", None),
+            )
             with self._cache_lock:
-                self._verified[record.asset_id] = (identity, record.sha256)
+                cached = self._verified.get(record.asset_id)
+            if cached != (identity, record.sha256):
+                try:
+                    observed_sha256 = pinned.sha256()
+                except (OSError, SecureFileError) as exc:
+                    raise MediaAssetInvalid("asset file could not be verified") from exc
+                if observed_sha256 != record.sha256:
+                    raise MediaAssetInvalid("asset file hash differs from committed metadata")
+                with self._cache_lock:
+                    self._verified[record.asset_id] = (identity, record.sha256)
         return ResolvedMediaAsset(
             asset_id=record.asset_id,
             project_id=record.project_id,

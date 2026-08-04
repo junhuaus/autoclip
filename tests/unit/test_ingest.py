@@ -9,8 +9,9 @@ from typing import Any, BinaryIO
 import pytest
 
 import liveclip.media.ingest as ingest_module
-from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.fingerprint import FingerprintCancelled, stream_sha256
 from liveclip.media.ingest import (
+    MediaIngestCancelled,
     MediaIngestError,
     MediaIngestTransientError,
     ingest_source,
@@ -24,6 +25,7 @@ def ffprobe_payload() -> dict[str, Any]:
     return {
         "streams": [
             {
+                "index": 0,
                 "codec_type": "video",
                 "codec_name": "h264",
                 "width": 1920,
@@ -32,6 +34,7 @@ def ffprobe_payload() -> dict[str, Any]:
                 "duration": "12.345",
             },
             {
+                "index": 1,
                 "codec_type": "audio",
                 "codec_name": "aac",
                 "sample_rate": "48000",
@@ -132,6 +135,26 @@ def test_stream_sha256_reads_in_bounded_blocks(
     assert set(requested_sizes) == {4096}
 
 
+def test_stream_sha256_can_cancel_between_bounded_reads(tmp_path: Path) -> None:
+    source = tmp_path / "large.bin"
+    source.write_bytes(b"x" * 32_768)
+    checks = 0
+
+    def cancel_after_two_blocks() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks >= 3
+
+    with pytest.raises(FingerprintCancelled, match="cancelled"):
+        stream_sha256(
+            source,
+            block_size=4_096,
+            cancel_requested=cancel_after_two_blocks,
+        )
+
+    assert checks == 3
+
+
 def test_parse_ffprobe_metadata_returns_strict_json_serializable_contract(
     tmp_path: Path,
 ) -> None:
@@ -148,6 +171,7 @@ def test_parse_ffprobe_metadata_returns_strict_json_serializable_contract(
 
     assert metadata.duration_ms == 12_345
     assert metadata.video_codec == "h264"
+    assert (metadata.video_stream_index, metadata.audio_stream_index) == (0, 1)
     assert (metadata.video_width, metadata.video_height) == (1920, 1080)
     assert metadata.video_frame_rate == pytest.approx(29.97002997)
     assert (metadata.audio_codec, metadata.audio_sample_rate_hz, metadata.audio_channels) == (
@@ -156,6 +180,64 @@ def test_parse_ffprobe_metadata_returns_strict_json_serializable_contract(
         2,
     )
     assert json.loads(metadata.model_dump_json())["resolved_path"] == str(source)
+
+
+def test_parse_ffprobe_prefers_default_non_attached_streams_and_tracks_rotation(
+    tmp_path: Path,
+) -> None:
+    payload = ffprobe_payload()
+    payload["streams"] = [
+        {
+            "index": 0,
+            "codec_type": "video",
+            "codec_name": "mjpeg",
+            "width": 300,
+            "height": 300,
+            "avg_frame_rate": "1/1",
+            "disposition": {"attached_pic": 1, "default": 1},
+        },
+        {
+            "index": 2,
+            "codec_type": "video",
+            "codec_name": "h264",
+            "width": 640,
+            "height": 360,
+            "avg_frame_rate": "30/1",
+            "disposition": {"default": 1},
+            "side_data_list": [{"rotation": -90}],
+        },
+        {
+            "index": 3,
+            "codec_type": "audio",
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2,
+            "disposition": {"default": 0},
+        },
+        {
+            "index": 4,
+            "codec_type": "audio",
+            "codec_name": "aac",
+            "sample_rate": "44100",
+            "channels": 1,
+            "disposition": {"default": 1},
+        },
+    ]
+    metadata = parse_ffprobe_metadata(
+        payload,
+        resolved_path=(tmp_path / "multi.mp4").resolve(),
+        size_bytes=10,
+        sha256="c" * 64,
+        mtime_ns=1,
+        inode=2,
+        device=3,
+    )
+
+    assert metadata.video_stream_index == 2
+    assert metadata.audio_stream_index == 4
+    assert metadata.video_rotation_degrees == 270
+    assert (metadata.display_width, metadata.display_height) == (360, 640)
+    assert metadata.audio_sample_rate_hz == 44_100
 
 
 def test_parse_ffprobe_requires_audio_video_and_valid_duration(tmp_path: Path) -> None:
@@ -199,13 +281,14 @@ def test_ffprobe_invocation_is_argv_with_shell_disabled_and_redacted_error(
         observed.update(kwargs)
         return subprocess.CompletedProcess(argv, 1, "", "private command and path detail")
 
-    monkeypatch.setattr(ingest_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(ingest_module, "run_cancellable_process", fake_run)
 
     with pytest.raises(MediaIngestError) as caught:
         run_ffprobe(source, ffprobe_path="/system/ffprobe")
 
     assert isinstance(observed["argv"], list)
-    assert observed["shell"] is False
+    assert observed["timeout_seconds"] == 120
+    assert "cancel_requested" in observed
     assert source.as_posix() not in str(caught.value)
     assert "private command" not in str(caught.value)
 
@@ -216,10 +299,34 @@ def test_ffprobe_timeout_is_explicitly_transient(
     def timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(["ffprobe"], timeout=1)
 
-    monkeypatch.setattr(ingest_module.subprocess, "run", timeout)
+    monkeypatch.setattr(ingest_module, "run_cancellable_process", timeout)
 
     with pytest.raises(MediaIngestTransientError, match="could not inspect"):
         run_ffprobe(tmp_path / "source.mp4", ffprobe_path="/system/ffprobe")
+
+
+def test_ingest_cancellation_stops_before_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"streamed source")
+    probe_called = False
+
+    def unexpected_probe(*_args: object, **_kwargs: object) -> dict[str, Any]:
+        nonlocal probe_called
+        probe_called = True
+        return ffprobe_payload()
+
+    monkeypatch.setattr(ingest_module, "run_ffprobe", unexpected_probe)
+
+    with pytest.raises(MediaIngestCancelled, match="fingerprint"):
+        ingest_source(
+            source,
+            allowed_roots=[tmp_path],
+            cancel_requested=lambda: True,
+        )
+
+    assert probe_called is False
 
 
 def test_ingest_source_combines_validation_stream_hash_probe_and_mutation_guard(

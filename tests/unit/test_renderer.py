@@ -1,21 +1,29 @@
+import hashlib
+import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import liveclip.renderer.ffmpeg as renderer_module
+import liveclip.renderer.task_handler as render_task_handler
 from liveclip.domain.edit_plan import Effect, Layout
+from liveclip.media.artifacts import ArtifactPublicationError
 from liveclip.media.process import ProcessCancelled
 from liveclip.renderer.ffmpeg import (
     FFmpegRenderCancelled,
     FFmpegRenderError,
+    RenderAttemptDiagnostic,
     RenderRequest,
     _publish_no_clobber,
     _render_timeout_seconds,
     build_ffmpeg_argv,
     build_filtergraph,
     render_clip,
+    render_diagnostics_payload,
+    render_execution_diagnostics_payload,
 )
 from liveclip.renderer.quality import MediaValidationError
 from liveclip.renderer.text import TextOverlay
@@ -40,6 +48,51 @@ def make_request(tmp_path: Path) -> RenderRequest:
         effect=Effect.FADE_IN_OUT,
         overlays=(overlay,),
     )
+
+
+def fake_quality_for(path: Path) -> SimpleNamespace:
+    return SimpleNamespace(media_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+
+
+def test_failed_render_diagnostic_write_failure_is_visible_but_path_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diagnostic = RenderAttemptDiagnostic(
+        encoder="libx264",
+        runtime_attempt=1,
+        outcome="process_failed",
+        elapsed_ms=1,
+        exit_code=1,
+        logical_argv=("ffmpeg", "[SOURCE_MEDIA]"),
+        stderr_tail="bounded failure",
+    )
+    error = FFmpegRenderError("failed", diagnostics=(diagnostic,))
+
+    def fail_write(**_kwargs: object) -> str:
+        raise ArtifactPublicationError("secret /private/tmp/source.mp4")
+
+    warnings: list[tuple[str, str]] = []
+
+    def capture_warning(message: str, value: str) -> None:
+        warnings.append((message, value))
+
+    monkeypatch.setattr(render_task_handler, "_write_attempt_render_diagnostic", fail_write)
+    monkeypatch.setattr(render_task_handler.logger, "warning", capture_warning)
+    result = render_task_handler._persist_failed_render_diagnostic(
+        project_dir=tmp_path / "project",
+        attempt_dir=tmp_path / "attempt",
+        error=error,
+    )
+
+    assert result is None
+    assert warnings == [
+        (
+            "render diagnostic persistence failed error_class=%s",
+            "ArtifactPublicationError",
+        )
+    ]
+    assert "/private/tmp/source.mp4" not in repr(warnings)
 
 
 def test_ffmpeg_argv_is_an_argument_array_with_fixed_mapping(tmp_path: Path) -> None:
@@ -96,7 +149,7 @@ def test_videotoolbox_runtime_exception_falls_back_to_libx264(
     monkeypatch.setattr(
         renderer_module,
         "_validate_temporary_media",
-        lambda *_args, **_kwargs: None,
+        lambda path, *_args, **_kwargs: fake_quality_for(path),
     )
 
     result = render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
@@ -132,7 +185,7 @@ def test_libx264_runtime_timeout_is_retried_once(
     monkeypatch.setattr(
         renderer_module,
         "_validate_temporary_media",
-        lambda *_args, **_kwargs: None,
+        lambda path, *_args, **_kwargs: fake_quality_for(path),
     )
 
     result = render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
@@ -161,12 +214,54 @@ def test_libx264_timeout_diagnostics_keep_bounded_partial_stderr(
 
     monkeypatch.setattr(renderer_module, "run_ffmpeg", timeout)
 
-    with pytest.raises(FFmpegRenderError, match=r"frame=42 speed=0\.0x") as caught:
+    with pytest.raises(FFmpegRenderError, match="2 bounded attempt") as caught:
         render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
 
     assert attempts == 2
     assert len(str(caught.value)) < 8_500
+    assert len(caught.value.diagnostics) == 2
+    assert all(item.outcome == "timeout" for item in caught.value.diagnostics)
+    assert all("frame=42 speed=0.0x" in item.stderr_tail for item in caught.value.diagnostics)
+    assert all(
+        str(tmp_path) not in " ".join(item.logical_argv) for item in caught.value.diagnostics
+    )
     assert not request.output_path.exists()
+
+
+def test_ffmpeg_diagnostics_remove_absolute_relative_and_fd_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = replace(make_request(tmp_path), encoder="libx264")
+
+    def timeout(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(
+            argv,
+            timeout=1,
+            stderr=(
+                "source /opt/liveclip/input/secret name.mp4 failed\n"
+                "fd /dev/fd/17 failed\n"
+                "relative/private.mp4 failed\n"
+                "frame=42 speed=0.0x sk-super-secret-value"
+            ),
+        )
+
+    monkeypatch.setattr(renderer_module, "run_ffmpeg", timeout)
+
+    with pytest.raises(FFmpegRenderError) as caught:
+        render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
+
+    payload = "\n".join(item.stderr_tail for item in caught.value.diagnostics)
+    argv_payload = " ".join(
+        argument for item in caught.value.diagnostics for argument in item.logical_argv
+    )
+    assert "secret name.mp4" not in payload
+    assert "/opt/" not in payload
+    assert "/dev/fd" not in payload
+    assert "relative/private.mp4" not in payload
+    assert "sk-super-secret-value" not in payload
+    assert "frame=42 speed=0.0x" in payload
+    assert str(tmp_path) not in argv_payload
+    assert "/dev/fd" not in argv_payload
 
 
 def test_invalid_temporary_render_is_never_published(
@@ -231,7 +326,64 @@ def test_atomic_publication_losing_race_does_not_clobber_winner(tmp_path: Path) 
     published.write_bytes(b"winning-render")
 
     with pytest.raises(FFmpegRenderError, match="no-clobber race"):
-        _publish_no_clobber(private_temporary, published)
+        _publish_no_clobber(
+            private_temporary,
+            published,
+            expected_sha256=hashlib.sha256(b"losing-render").hexdigest(),
+        )
 
     assert published.read_bytes() == b"winning-render"
     assert private_temporary.read_bytes() == b"losing-render"
+
+
+def test_publication_failure_preserves_completed_attempt_diagnostic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = replace(make_request(tmp_path), encoder="libx264")
+
+    def fake_run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        Path(argv[-1]).write_bytes(b"validated-render" * 1_000)
+        return subprocess.CompletedProcess(argv, 0, "", "frame=10 speed=1.0x")
+
+    def lose_publication(*_args: object, **_kwargs: object) -> None:
+        raise FFmpegRenderError("publication lost", retryable=False)
+
+    monkeypatch.setattr(renderer_module, "run_ffmpeg", fake_run)
+    monkeypatch.setattr(
+        renderer_module,
+        "_validate_temporary_media",
+        lambda path, *_args, **_kwargs: fake_quality_for(path),
+    )
+    monkeypatch.setattr(renderer_module, "_publish_no_clobber", lose_publication)
+
+    with pytest.raises(FFmpegRenderError, match="publication lost") as caught:
+        render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
+
+    assert caught.value.retryable is False
+    assert len(caught.value.diagnostics) == 1
+    assert caught.value.diagnostics[0].outcome == "succeeded"
+    assert "frame=10 speed=1.0x" in caught.value.diagnostics[0].stderr_tail
+    assert not request.output_path.exists()
+
+
+def test_diagnostic_payloads_have_hard_serialized_size_limits() -> None:
+    diagnostic = RenderAttemptDiagnostic(
+        encoder="libx264",
+        runtime_attempt=1,
+        outcome="process_failed",
+        elapsed_ms=1,
+        exit_code=1,
+        logical_argv=tuple("x" * 2_048 for _ in range(256)),
+        stderr_tail="y" * 4_000,
+    )
+
+    encode = render_diagnostics_payload((diagnostic,) * 100)
+    execution = render_execution_diagnostics_payload(
+        (diagnostic,) * 100,
+        ({"stderr_tail": "z" * 200_000},) * 100,
+    )
+
+    assert len(json.dumps(encode, ensure_ascii=False).encode("utf-8")) <= 64 * 1024
+    assert len(json.dumps(execution, ensure_ascii=False).encode("utf-8")) <= 80 * 1024
+    assert int(encode["records_dropped"]) > 0
+    assert int(execution["quality_records_dropped"]) > 0
