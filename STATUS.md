@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-04 16:55 CST
-Current milestone: M5 complete and independently reviewed; preparing checkpoint, then M6 acceptance/documentation
+Current milestone: M6 — independent acceptance, real-backend browser E2E and final documentation
 Branch: `master`
-HEAD before M5 checkpoint: `e5c0a6a` (`docs: record M4 completion checkpoint`)
+Recent relevant commit: `7c145ec` (`milestone: complete LiveClip M5 hardening`)
 
 ## Completed
 
@@ -14,10 +14,11 @@ HEAD before M5 checkpoint: `e5c0a6a` (`docs: record M4 completion checkpoint`)
 - Render validation, full decode, frame extraction, publication and Asset commit are bound to the same pinned bytes and expected SHA. Caption expansion has a shared domain/renderer maximum of 64 overlays with no silent truncation.
 - Delivery streams videos/subtitles/manifest from pinned FDs into a pinned ZIP, verifies every member, publishes an exact regular-file tree with native no-replace rename, rebinds/rehashes every member after publication and commits manifest/ZIP Assets with expected SHA.
 - Two M5 reviews are complete. The first findings were repaired; a fresh re-review found one remaining ZIP/member byte-binding P1, which was repaired. The final independent verdict is `PASS` with no P0/P1/P2.
+- Scoped local M5 commit `7c145ec` contains the reviewed implementation, migration, tests, ADR and recovery documentation.
 
 ## In progress
 
-- Final M5 diff/staged-scope review and local checkpoint commit. No implementation or test failure is open.
+- M6 starts with one browser-to-real-FastAPI/Worker composition flow, followed by documentation audit and Product Spec-wide verification.
 
 ## Not completed
 
@@ -52,8 +53,8 @@ HEAD before M5 checkpoint: `e5c0a6a` (`docs: record M4 completion checkpoint`)
 
 ## Worktree state
 
-- Branch `master`; HEAD `e5c0a6a` before the pending M5 checkpoint.
-- M5 has a large reviewed uncommitted diff: 62 tracked files plus new migration/services/tests/ADR. Generated data, user `input/` media, SQLite databases and deliveries are ignored and must not be staged.
+- Branch `master`; HEAD `7c145ec` before this documentation-only checkpoint.
+- M5 implementation is committed and the worktree was clean immediately after commit. Generated data, user `input/` media, SQLite databases and deliveries remain ignored.
 - No remote exists and nothing has been pushed.
 
 ## Recent actual commands
@@ -68,8 +69,8 @@ HEAD before M5 checkpoint: `e5c0a6a` (`docs: record M4 completion checkpoint`)
 
 ## Next concrete task
 
-Run `git diff --check`, review `git diff --name-only` and ignored/staged scope, create the local M5 checkpoint, record its hash in this file and the Living ExecPlan, then begin M6 by reading the browser skill and implementing one browser-to-real-FastAPI/Worker E2E.
+Read the browser-control skill, inspect the existing Playwright mock E2E and dev-process scripts, then implement one isolated browser-to-real-FastAPI/Worker E2E without duplicating backend state logic in the frontend.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch` and `git log -5 --oneline`. If no M5 checkpoint exists, perform only the staged-scope review/commit above; do not rerun the long source test unless media/pipeline code changed. Do not call OpenAI unless explicitly running `make smoke-cloud`; never substitute Mock for a claimed cloud success.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch` and `git log -5 --oneline`, verify `7c145ec`, then execute the M6 browser-composition task above. Do not rerun the long source test unless media/pipeline code changed. Do not call OpenAI unless explicitly running `make smoke-cloud`; never substitute Mock for a claimed cloud success.

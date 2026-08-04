@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M4 are committed after independent review. M5 implementation and independent re-review are complete; its local checkpoint is being prepared before M6 acceptance begins.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M5 are locally committed after independent review. M6 independent acceptance, real-backend browser composition and final documentation are active.
 
 ## Architecture Summary
 
@@ -107,7 +107,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-04 Run repository `input/7.28.mp4` read-only through the six-stage Mock pipeline: 2.19 GB/46:20, five overlapping chunks, 28.83 seconds, about 18 MB project data; preserve the explicit limitation that no available fixture is 2–4 hours and peak RSS was unavailable in this sandbox.
 - [x] 2026-08-04 Cover real VFR, 90°/270° rotation, non-first/default audio selection, font identity and bounded caption/layout fanout.
 - [x] 2026-08-04 Bind exact render bytes across ffprobe/full decode/frame extraction/publication, generate and inspect contact sheets, enforce black-frame/safe-area/crop checks and bound/redact diagnostics.
-- [x] 2026-08-04 Complete two independent M5 reviews, repair all findings, receive final `PASS`, and pass `make lint`, 428 Python tests, 11 Web tests and a fresh delivered Demo. Local checkpoint commit is the next operation.
+- [x] 2026-08-04 Complete two independent M5 reviews, repair all findings, receive final `PASS`, pass `make lint`, 428 Python tests, 11 Web tests and a fresh delivered Demo, then create local checkpoint `7c145ec`.
 
 ### M6 — Independent acceptance and documentation
 
@@ -396,7 +396,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: create the scoped local M5 checkpoint after one final diff/staged-scope check, record its hash in this plan and `STATUS.md`, then begin M6 with the browser-to-real-FastAPI/Worker composition test. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
+Current first task: begin M6 by reading the browser-control skill, inspect the existing Playwright/mock and FastAPI/Worker development composition, then implement one isolated browser-to-real-FastAPI/Worker acceptance flow. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -404,4 +404,4 @@ Before resuming, read the five files listed in `AGENTS.md`, run `git status --sh
 
 M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is complete at commit `476ad89`: pinned real OpenAI adapters, strict cloud contracts, immutable caches, bounded retry/usage/cancellation evidence, no-Mock smoke validation and renderer reliability hardening passed both independent reviews, 328 Python tests, 11 Web tests and an actually viewed post-fix Demo. Real cloud entitlement remains honestly `not_run`.
 
-M5 implementation and independent review are complete pending its local checkpoint hash. Long/chunked input, cancellation/lease recovery, spawned-process SQLite contention, explicit stream selection, VFR/rotation, exact committed-Asset dependencies, pinned render validation/publication, caption resource bounds, safe diagnostics and exact immutable Delivery publication are integrated. The final reviewer returned `PASS` after replaying the two prior Delivery races. Full gates are 428 Python plus 11 Web tests, and the fresh delivered Demo's final/contact sheet/manifest/ZIP were actually inspected. The available long fixture is only 46:20 on Apple M2, so 2–4 hour peak memory and M3 throughput remain truthful limitations for M6/final reporting rather than hidden success claims.
+M5 is complete at commit `7c145ec`. Long/chunked input, cancellation/lease recovery, spawned-process SQLite contention, explicit stream selection, VFR/rotation, exact committed-Asset dependencies, pinned render validation/publication, caption resource bounds, safe diagnostics and exact immutable Delivery publication are integrated. The final reviewer returned `PASS` after replaying the two prior Delivery races. Full gates are 428 Python plus 11 Web tests, and the fresh delivered Demo's final/contact sheet/manifest/ZIP were actually inspected. The available long fixture is only 46:20 on Apple M2, so 2–4 hour peak memory and M3 throughput remain truthful limitations for M6/final reporting rather than hidden success claims.
