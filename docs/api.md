@@ -1,12 +1,65 @@
 # REST API contract
 
-Base path: `/api/v1`. The detailed OpenAPI document is generated from FastAPI and must remain consistent with this human contract.
+The local API base path is `/api/v1`; FastAPI publishes the matching OpenAPI document at `/openapi.json`. All times are integer milliseconds (`*_ms`) and timestamps are UTC ISO 8601. Responses expose IDs, safe filenames and generated asset URLs, never arbitrary absolute paths, ORM rows, credentials, provider headers or raw exceptions.
 
-Long-running creation routes return `202 Accepted`, the created resource ID, state, and a polling URL. `POST /jobs`, project import, runs, renders and deliveries accept `Idempotency-Key`; the same key/body returns the same resource while a different body returns 409.
+## Authentication and browser media
 
-Required resources and routes are enumerated in `docs/PRODUCT_SPEC.md`. Resource DTOs expose IDs, safe names, state/progress/error codes and asset URLs, but not arbitrary absolute local paths, credentials, provider headers, raw exceptions, or ORM internals.
+The server binds to `127.0.0.1` by default. If `LIVECLIP_API_TOKEN` is configured, protected JSON routes require `Authorization: Bearer …`; a non-loopback bind is rejected unless a token exists. CORS accepts only explicitly configured loopback HTTP origins. The Web console keeps a user-entered API token in memory only.
 
-Stable error envelope:
+An authenticated clip/delivery response may contain a relative, short-lived HMAC URL. The signature binds `GET`, the canonical path, resource purpose/ID and expiry. It lets HTML5 `<video>` seek or a download link work without putting the long-lived Bearer token in a URL. Signed URLs expire within `LIVECLIP_MEDIA_URL_TTL_SECONDS`; the API is started with access logging disabled, and the Vite development proxy redacts query strings before error logging, so signatures are not recorded.
+
+## Routes
+
+```text
+GET    /health
+
+POST   /jobs
+GET    /jobs/{run_id}
+
+GET    /projects
+POST   /projects/import
+GET    /projects/{project_id}
+POST   /projects/{project_id}/runs
+GET    /runs/{run_id}
+POST   /runs/{run_id}/cancel
+POST   /runs/{run_id}/retry
+
+GET    /projects/{project_id}/transcript
+GET    /projects/{project_id}/clips
+GET    /clips/{clip_id}
+PATCH  /clips/{clip_id}
+POST   /clips/{clip_id}/review
+POST   /clips/{clip_id}/render
+GET    /renders/{render_id}
+
+POST   /projects/{project_id}/deliveries
+GET    /projects/{project_id}/deliveries
+GET    /deliveries/{delivery_id}
+GET    /deliveries/{delivery_id}/download
+
+GET    /media/{asset_id}
+```
+
+`POST /jobs` creates a project and a full run from an allowed absolute source path. `POST /projects/import` creates an ingest-only run; its other five visible stages become `skipped`, after which `/projects/{id}/runs` can start a full generation. Example job body:
+
+```json
+{
+  "input_path": "/absolute/allowed/live.mp4",
+  "top_n": 15,
+  "minimum_clip_seconds": 30,
+  "maximum_clip_seconds": 90
+}
+```
+
+Clip changes use optimistic `expected_revision`. `PATCH /clips/{id}` creates a pending human revision. A boundary change with no `captions` field rebuilds cue-relative milliseconds from the absolute transcript; clients should send `captions` only when the user actually edited them. Every revision must retain at least one cue. `POST /clips/{id}/review` accepts `approved` or `rejected`; when the same body includes title, boundary or caption changes, the new revision and decision commit atomically. A render body is `{"expected_revision":2,"kind":"final"}`. A delivery body is `{"include_zip":true}`.
+
+Revision and review-decision changes atomically fail active Delivery snapshots with `DELIVERY_SNAPSHOT_STALE`; a new delivery request creates the next immutable version. Already succeeded versions are never overwritten or invalidated.
+
+Long-running creation routes return `202 Accepted`, `Location`, `Retry-After: 1`, a resource/task ID and polling URL. `POST /jobs`, imports, runs, renders and deliveries accept `Idempotency-Key`. The same key plus canonical body returns the same resource and its current status; reuse with a different body returns 409. Only the key SHA-256 is persisted.
+
+## Errors
+
+Every handled failure uses this stable envelope, including request validation and Range errors:
 
 ```json
 {
@@ -22,6 +75,12 @@ Stable error envelope:
 }
 ```
 
-`GET /media/{asset_id}` serves only generated allowlisted Assets below the configured data root. It supports one byte range with 206 and `Content-Range`, returns 416 for invalid/unsatisfiable ranges, advertises `Accept-Ranges: bytes`, and applies the same optional Bearer authentication. SourceMedia is not automatically an Asset.
+Expected classes are 401 authentication, 404 unknown resource, 409 state/idempotency/asset-integrity conflict, 416 unsatisfiable Range and 422 request/domain validation. `X-Request-ID` carries the correlation ID. Validation details contain only field locations and error types—never submitted values.
 
-The server binds to `127.0.0.1` by default. CORS origins are an explicit list. When `LIVECLIP_API_TOKEN` is configured, clients use `Authorization: Bearer …`; the value is never logged or returned.
+## Generated asset serving
+
+`GET /media/{asset_id}` serves only committed allowlisted generated kinds: review/final videos, contact sheets and clip SRTs; delivery ZIP is resolved from the owning successful Delivery download route. SourceMedia and audio chunks are never public assets.
+
+The resolver validates the database project-relative path under the configured data root, every symbolic component, regular-file type, size and SHA-256. The streamer reopens with no-follow semantics and rechecks device/inode/size/mtime before and after bounded reads, closing the validation/open race.
+
+One `bytes` Range is supported (`start-end`, `start-`, or `-suffix`). A valid partial request returns 206 with `Content-Range`; malformed, multiple or unsatisfiable ranges return 416 with `Content-Range: bytes */SIZE`. Both full and partial responses advertise `Accept-Ranges: bytes`, exact `Content-Length`, ETag and `nosniff`.

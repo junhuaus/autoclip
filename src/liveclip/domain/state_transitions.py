@@ -247,11 +247,6 @@ class ProjectStateFacts:
         approved_count = self.review_statuses.count(ReviewStatus.APPROVED)
         if self.approved_current_final_count > approved_count:
             raise ValueError("current final render count cannot exceed approved clip count")
-        if (
-            self.latest_delivery_matches_current
-            and self.delivery_status != DeliveryStatus.SUCCEEDED
-        ):
-            raise ValueError("a current delivery snapshot must be succeeded")
 
 
 def derive_project_status(facts: ProjectStateFacts) -> ProjectStatus:
@@ -266,10 +261,10 @@ def derive_project_status(facts: ProjectStateFacts) -> ProjectStatus:
         or facts.delivery_status in {DeliveryStatus.QUEUED, DeliveryStatus.CREATING}
     ):
         return ProjectStatus.PROCESSING
-    if facts.has_unrecovered_failure:
-        return ProjectStatus.FAILED
     if facts.latest_delivery_matches_current:
         return ProjectStatus.DELIVERED
+    if facts.has_unrecovered_failure:
+        return ProjectStatus.FAILED
     if not facts.has_completed_pipeline:
         return ProjectStatus.IMPORTED
     approved_count = facts.review_statuses.count(ReviewStatus.APPROVED)

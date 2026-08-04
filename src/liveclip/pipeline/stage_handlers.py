@@ -145,7 +145,7 @@ class PipelineStageHandlers:
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
-        relative_path = "source/source-media.json"
+        relative_path = _generation_relative(work.generation, "source/source-media.json")
         reservation = self._reserve(
             work,
             lease,
@@ -183,8 +183,9 @@ class PipelineStageHandlers:
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
+        generation_dir = _generation_directory(project_dir, work.generation)
         source = self._state.load_source(project_id=work.project_id)
-        manifest_relative = "audio/chunk-manifest.json"
+        manifest_relative = _generation_relative(work.generation, "audio/chunk-manifest.json")
         manifest_reservation = self._reserve(
             work,
             lease,
@@ -194,7 +195,7 @@ class PipelineStageHandlers:
         )
         manifest = preprocess_audio(
             source=source,
-            output_dir=project_dir / "audio",
+            output_dir=generation_dir / "audio",
             chunk_duration_ms=work.config.chunk_duration_ms,
             overlap_ms=work.config.chunk_overlap_ms,
             max_chunk_bytes=work.config.max_chunk_bytes,
@@ -264,23 +265,24 @@ class PipelineStageHandlers:
                 safe_message="OpenAI providers are not enabled in this milestone",
             )
         project_dir = project_directory(self._data_dir, work.project_id)
+        generation_dir = _generation_directory(project_dir, work.generation)
         source = self._state.load_source(project_id=work.project_id)
         manifest = AudioChunkManifest.model_validate_json(
-            (project_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
+            (generation_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
         )
         reservations = (
             self._reserve(
                 work,
                 lease,
                 kind="transcript_json",
-                relative_path="transcript/transcript.json",
+                relative_path=_generation_relative(work.generation, "transcript/transcript.json"),
                 mime_type="application/json",
             ),
             self._reserve(
                 work,
                 lease,
                 kind="transcript_srt",
-                relative_path="transcript/transcript.srt",
+                relative_path=_generation_relative(work.generation, "transcript/transcript.srt"),
                 mime_type="application/x-subrip",
             ),
         )
@@ -290,7 +292,7 @@ class PipelineStageHandlers:
             provider,
             manifest.chunks,
             source_duration_ms=source.duration_ms,
-            output_dir=project_dir / "transcript",
+            output_dir=generation_dir / "transcript",
             language="zh",
             vocabulary_prompt="LiveClip、直播、高光、切片",
         )
@@ -334,17 +336,18 @@ class PipelineStageHandlers:
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
+        generation_dir = _generation_directory(project_dir, work.generation)
         transcript = TranscriptDocument.model_validate_json(
-            (project_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
+            (generation_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
         )
         manifest = AudioChunkManifest.model_validate_json(
-            (project_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
+            (generation_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
         )
         reservation = self._reserve(
             work,
             lease,
             kind="rough_candidates",
-            relative_path="candidates/rough-candidates.json",
+            relative_path=_generation_relative(work.generation, "candidates/rough-candidates.json"),
             mime_type="application/json",
         )
         _check_cancel(cancel_requested)
@@ -400,9 +403,10 @@ class PipelineStageHandlers:
                 safe_message="OpenAI providers are not enabled in this milestone",
             )
         project_dir = project_directory(self._data_dir, work.project_id)
+        generation_dir = _generation_directory(project_dir, work.generation)
         source = self._state.load_source(project_id=work.project_id)
         transcript = TranscriptDocument.model_validate_json(
-            (project_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
+            (generation_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
         )
         candidates = self._state.load_candidates(run_id=work.run_id)
         selected_domain = fallback_select(
@@ -415,7 +419,7 @@ class PipelineStageHandlers:
             work,
             lease,
             kind="edit_plans",
-            relative_path="editing/edit-plans.json",
+            relative_path=_generation_relative(work.generation, "editing/edit-plans.json"),
             mime_type="application/json",
         )
         artifact_path = project_dir / reservation.relative_path
@@ -512,7 +516,10 @@ class PipelineStageHandlers:
                     spec_fingerprint=spec_fingerprint,
                 ),
             )
-            base_relative = f"renders/proxies/{item.candidate_id}/r001"
+            base_relative = _generation_relative(
+                work.generation,
+                f"renders/proxies/{item.candidate_id}/r{item.revision.revision:03d}",
+            )
             video_relative = f"{base_relative}/review.mp4"
             quality_relative = f"{base_relative}/review-quality/quality-report.json"
             contact_relative = f"{base_relative}/review-quality/contact-sheet.png"
@@ -704,6 +711,20 @@ class PipelineStageHandlers:
 def _check_cancel(cancel_requested: Callable[[], bool]) -> None:
     if cancel_requested():
         raise StageCancelled("stage cancellation was requested")
+
+
+def _generation_relative(generation: int, relative_path: str) -> str:
+    if generation <= 0:
+        raise ValueError("pipeline generation must be positive")
+    if relative_path.startswith("/") or ".." in Path(relative_path).parts:
+        raise ValueError("generation artifact path must be safe and relative")
+    return f"runs/g{generation:03d}/{relative_path}"
+
+
+def _generation_directory(project_dir: Path, generation: int) -> Path:
+    if generation <= 0:
+        raise ValueError("pipeline generation must be positive")
+    return project_dir / "runs" / f"g{generation:03d}"
 
 
 def _mutation_fence(work: StageWork, lease: LeaseIdentity) -> StageMutationFence:

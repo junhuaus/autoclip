@@ -363,6 +363,8 @@ def _validate_requested_scope(
     if scope.expected_revision is not None and edit_plan_revision != scope.expected_revision:
         raise AssetReservationError("asset revision does not match its leased task")
     if scope.expected_revision_epoch is not None:
+        if scope.revision_epoch != scope.expected_revision_epoch:
+            raise AssetReservationError("asset task revision epoch is no longer current")
         if revision_epoch != scope.expected_revision_epoch:
             raise AssetReservationError("asset revision epoch does not match its leased task")
     elif revision_epoch is not None and revision_epoch != scope.revision_epoch:

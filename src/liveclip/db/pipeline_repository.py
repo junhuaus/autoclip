@@ -9,9 +9,13 @@ from pathlib import Path
 from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.engine import Connection, Engine
 
+from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import (
     CreatedPipeline,
+    DeterministicRetryRejected,
     LeaseIdentity,
+    PipelineConflict,
+    PipelineResourceNotFound,
     PipelineRunConfig,
     ProjectSnapshot,
     RunSnapshot,
@@ -21,7 +25,9 @@ from liveclip.application.pipeline import (
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.db.base import new_id
+from liveclip.db.delivery_snapshot import DeliverySetError, load_eligible_delivery_set
 from liveclip.db.engine import begin_immediate
+from liveclip.db.idempotency import load_idempotent_resource, record_idempotent_resource
 from liveclip.db.models import (
     AssetRow,
     AudioChunkRow,
@@ -61,18 +67,6 @@ from liveclip.domain.state_transitions import (
 )
 
 
-class PipelineResourceNotFound(LookupError):
-    pass
-
-
-class PipelineConflict(RuntimeError):
-    pass
-
-
-class DeterministicRetryRejected(PipelineConflict):
-    pass
-
-
 class StageFenceLost(PipelineConflict, StageLeaseLost):
     pass
 
@@ -87,13 +81,22 @@ class SqlAlchemyPipelineRepository:
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline:
         now = datetime.now(UTC)
         project_id = new_id()
         run_id = new_id()
-        stage_ids = {stage: new_id() for stage in PIPELINE_STAGE_ORDER}
-        task_ids = {stage: new_id() for stage in PIPELINE_STAGE_ORDER}
         with begin_immediate(self._engine) as connection:
+            replay_run_id = load_idempotent_resource(
+                connection, idempotency, resource_type="pipeline_run"
+            )
+            if replay_run_id is not None:
+                replay_project_id = connection.scalar(
+                    select(PipelineRunRow.project_id).where(PipelineRunRow.id == replay_run_id)
+                )
+                if replay_project_id is None:
+                    raise PipelineConflict("idempotent pipeline resource no longer exists")
+                return CreatedPipeline(project_id=str(replay_project_id), run_id=replay_run_id)
             connection.execute(
                 insert(ProjectRow).values(
                     id=project_id,
@@ -106,67 +109,133 @@ class SqlAlchemyPipelineRepository:
                     updated_at=now,
                 )
             )
+            _insert_pipeline_run(
+                connection,
+                project_id=project_id,
+                run_id=run_id,
+                generation=1,
+                source_path=source_path,
+                config=config,
+                max_stage_retries=max_stage_retries,
+                now=now,
+            )
+            record_idempotent_resource(
+                connection,
+                idempotency,
+                resource_type="pipeline_run",
+                resource_id=run_id,
+            )
+        return CreatedPipeline(project_id=project_id, run_id=run_id)
+
+    def create_run(
+        self,
+        *,
+        project_id: str,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
+    ) -> CreatedPipeline:
+        now = datetime.now(UTC)
+        run_id = new_id()
+        with begin_immediate(self._engine) as connection:
+            replay_run_id = load_idempotent_resource(
+                connection, idempotency, resource_type="pipeline_run"
+            )
+            if replay_run_id is not None:
+                replay_project_id = connection.scalar(
+                    select(PipelineRunRow.project_id).where(PipelineRunRow.id == replay_run_id)
+                )
+                if replay_project_id is None or str(replay_project_id) != project_id:
+                    raise PipelineConflict("idempotent pipeline resource no longer matches project")
+                return CreatedPipeline(project_id=project_id, run_id=replay_run_id)
+            project = connection.execute(
+                select(
+                    ProjectRow.source_request_path,
+                    ProjectRow.current_pipeline_run_id,
+                    ProjectRow.current_generation,
+                    ProjectRow.revision_epoch,
+                ).where(ProjectRow.id == project_id)
+            ).one_or_none()
+            if project is None:
+                raise PipelineResourceNotFound("project does not exist")
+            current_run_id = project.current_pipeline_run_id
+            if current_run_id is not None:
+                current_status = connection.scalar(
+                    select(PipelineRunRow.status).where(PipelineRunRow.id == current_run_id)
+                )
+                if current_status in {
+                    PipelineRunStatus.QUEUED.value,
+                    PipelineRunStatus.RUNNING.value,
+                }:
+                    raise PipelineConflict("project already has an active pipeline run")
+                active_work = connection.scalar(
+                    select(func.count())
+                    .select_from(TaskRow)
+                    .where(
+                        TaskRow.pipeline_run_id == current_run_id,
+                        TaskRow.status.in_([TaskStatus.QUEUED.value, TaskStatus.RUNNING.value]),
+                    )
+                )
+                if active_work:
+                    raise PipelineConflict("project still has active render or delivery work")
+                for current in (
+                    RenderStatus.QUEUED,
+                    RenderStatus.RUNNING,
+                    RenderStatus.SUCCEEDED,
+                    RenderStatus.FAILED,
+                ):
+                    transition_render(current, RenderStatus.STALE)
+                connection.execute(
+                    update(RenderJobRow)
+                    .where(
+                        RenderJobRow.candidate_clip_id.in_(
+                            select(CandidateClipRow.id).where(
+                                CandidateClipRow.pipeline_run_id == current_run_id
+                            )
+                        ),
+                        RenderJobRow.status != RenderStatus.STALE.value,
+                    )
+                    .values(status=RenderStatus.STALE.value, updated_at=now)
+                )
+            generation = int(project.current_generation) + 1
+            revision_epoch = int(project.revision_epoch) + 1
             connection.execute(
-                insert(PipelineRunRow).values(
-                    id=run_id,
-                    project_id=project_id,
-                    generation=1,
-                    status=PipelineRunStatus.QUEUED.value,
-                    config_json=config.model_dump(mode="json"),
-                    config_fingerprint=config.fingerprint,
-                    progress=0,
-                    manual_retry_count=0,
-                    created_at=now,
+                update(ProjectRow)
+                .where(ProjectRow.id == project_id)
+                .values(
+                    current_generation=generation,
+                    current_pipeline_run_id=run_id,
+                    revision_epoch=revision_epoch,
                     updated_at=now,
                 )
             )
-            for ordinal, stage in enumerate(PIPELINE_STAGE_ORDER):
-                stage_id = stage_ids[stage]
-                stage_fingerprint = (
-                    _ingest_input_fingerprint(config.fingerprint, source_path)
-                    if stage == PipelineStage.INGEST
-                    else None
-                )
-                connection.execute(
-                    insert(StageRunRow).values(
-                        id=stage_id,
-                        pipeline_run_id=run_id,
-                        stage=stage.value,
-                        ordinal=ordinal,
-                        status=StageRunStatus.QUEUED.value,
-                        input_fingerprint=stage_fingerprint,
-                        progress=0,
-                        retry_count=0,
-                        max_retries=max_stage_retries,
-                        created_at=now,
-                        updated_at=now,
-                    )
-                )
-                if stage == PipelineStage.INGEST:
-                    connection.execute(
-                        insert(TaskRow).values(
-                            id=task_ids[stage],
-                            kind=TaskKind.STAGE.value,
-                            target_id=stage_id,
-                            operation_key=f"run:{run_id}:stage:{stage.value}",
-                            input_fingerprint=stage_fingerprint,
-                            resource_class=ResourceClass.HEAVY.value,
-                            pipeline_run_id=run_id,
-                            stage_run_id=stage_id,
-                            depends_on_task_id=None,
-                            status=TaskStatus.QUEUED.value,
-                            priority=1_000,
-                            not_before=now,
-                            expected_generation=1,
-                            attempt_count=0,
-                            retry_count=0,
-                            manual_retry_count=0,
-                            max_retries=max_stage_retries,
-                            created_at=now,
-                            updated_at=now,
-                        )
-                    )
+            _insert_pipeline_run(
+                connection,
+                project_id=project_id,
+                run_id=run_id,
+                generation=generation,
+                source_path=Path(str(project.source_request_path)),
+                config=config,
+                max_stage_retries=max_stage_retries,
+                now=now,
+            )
+            record_idempotent_resource(
+                connection,
+                idempotency,
+                resource_type="pipeline_run",
+                resource_id=run_id,
+            )
         return CreatedPipeline(project_id=project_id, run_id=run_id)
+
+    def list_projects(self) -> tuple[ProjectSnapshot, ...]:
+        with self._engine.connect() as connection:
+            project_ids = tuple(
+                str(value)
+                for value in connection.scalars(
+                    select(ProjectRow.id).order_by(ProjectRow.created_at.desc(), ProjectRow.id)
+                )
+            )
+        return tuple(self.get_project(project_id) for project_id in project_ids)
 
     def get_run(self, run_id: str) -> RunSnapshot:
         with self._engine.connect() as connection:
@@ -240,12 +309,15 @@ class SqlAlchemyPipelineRepository:
             if project is None or project["current_pipeline_run_id"] is None:
                 raise PipelineResourceNotFound("project does not exist")
             run_id = str(project["current_pipeline_run_id"])
-            run_status_value = connection.scalar(
-                select(PipelineRunRow.status).where(PipelineRunRow.id == run_id)
-            )
-            if run_status_value is None:
+            run_facts = connection.execute(
+                select(PipelineRunRow.status, PipelineRunRow.config_json).where(
+                    PipelineRunRow.id == run_id
+                )
+            ).one_or_none()
+            if run_facts is None:
                 raise PipelineResourceNotFound("project current run does not exist")
-            run_status = PipelineRunStatus(str(run_status_value))
+            run_status = PipelineRunStatus(str(run_facts.status))
+            run_config = PipelineRunConfig.model_validate(run_facts.config_json)
             review_statuses, render_statuses, approved_final_count = _current_clip_facts(
                 connection, project_id, run_id
             )
@@ -253,6 +325,8 @@ class SqlAlchemyPipelineRepository:
                 select(
                     DeliveryRow.status,
                     DeliveryRow.expected_revision_epoch,
+                    DeliveryRow.expected_generation,
+                    DeliveryRow.snapshot_fingerprint,
                 )
                 .where(DeliveryRow.project_id == project_id)
                 .order_by(DeliveryRow.version.desc())
@@ -261,27 +335,63 @@ class SqlAlchemyPipelineRepository:
             delivery_status = (
                 DeliveryStatus(str(latest_delivery[0])) if latest_delivery is not None else None
             )
-            latest_delivery_current = bool(
+            try:
+                current_delivery_fingerprint = load_eligible_delivery_set(
+                    connection, project_id
+                ).fingerprint
+            except DeliverySetError:
+                current_delivery_fingerprint = None
+            latest_attempt_matches_current = bool(
                 latest_delivery is not None
-                and delivery_status == DeliveryStatus.SUCCEEDED
+                and current_delivery_fingerprint is not None
                 and int(latest_delivery[1]) == int(project["revision_epoch"])
+                and int(latest_delivery[2]) == int(project["current_generation"])
+                and str(latest_delivery[3]) == current_delivery_fingerprint
+            )
+            latest_delivery_current = False
+            if current_delivery_fingerprint is not None:
+                succeeded_deliveries = connection.execute(
+                    select(
+                        DeliveryRow.expected_revision_epoch,
+                        DeliveryRow.expected_generation,
+                        DeliveryRow.snapshot_fingerprint,
+                    ).where(
+                        DeliveryRow.project_id == project_id,
+                        DeliveryRow.status == DeliveryStatus.SUCCEEDED.value,
+                    )
+                )
+                latest_delivery_current = any(
+                    int(value.expected_revision_epoch) == int(project["revision_epoch"])
+                    and int(value.expected_generation) == int(project["current_generation"])
+                    and str(value.snapshot_fingerprint) == current_delivery_fingerprint
+                    for value in succeeded_deliveries
+                )
+            persisted_source_filename = connection.scalar(
+                select(SourceMediaRow.filename).where(SourceMediaRow.project_id == project_id)
             )
             source_filename = (
-                connection.scalar(
-                    select(SourceMediaRow.filename).where(SourceMediaRow.project_id == project_id)
-                )
-                or Path(str(project["source_request_path"])).name
+                persisted_source_filename or Path(str(project["source_request_path"])).name
             )
         project_status = derive_project_status(
             ProjectStateFacts(
                 source_imported=True,
-                has_completed_pipeline=run_status == PipelineRunStatus.COMPLETED,
+                has_completed_pipeline=(
+                    run_status == PipelineRunStatus.COMPLETED and run_config.run_scope == "full"
+                ),
                 pipeline_status=run_status,
                 render_statuses=render_statuses,
                 delivery_status=delivery_status,
                 review_statuses=review_statuses,
                 approved_current_final_count=approved_final_count,
-                has_unrecovered_failure=run_status == PipelineRunStatus.FAILED,
+                has_unrecovered_failure=(
+                    run_status == PipelineRunStatus.FAILED
+                    or RenderStatus.FAILED in render_statuses
+                    or (
+                        delivery_status == DeliveryStatus.FAILED
+                        and latest_attempt_matches_current
+                        and not latest_delivery_current
+                    )
+                ),
                 latest_delivery_matches_current=latest_delivery_current,
             )
         )
@@ -604,6 +714,7 @@ class SqlAlchemyPipelineRepository:
                     StageRunRow.output_fingerprint,
                     PipelineRunRow.project_id,
                     PipelineRunRow.config_fingerprint,
+                    PipelineRunRow.config_json,
                     ProjectRow.current_generation,
                 )
                 .join(StageRunRow, StageRunRow.id == TaskRow.stage_run_id)
@@ -704,7 +815,28 @@ class SqlAlchemyPipelineRepository:
                 .values(outcome=AttemptOutcome.SUCCEEDED.value, finished_at=now)
             )
             next_ordinal = int(row.ordinal) + 1
-            if next_ordinal < len(PIPELINE_STAGE_ORDER):
+            run_config = PipelineRunConfig.model_validate(row.config_json)
+            import_complete = (
+                run_config.run_scope == "import"
+                and PipelineStage(str(row.stage)) == PipelineStage.INGEST
+            )
+            if import_complete:
+                transition_stage_run(StageRunStatus.QUEUED, StageRunStatus.SKIPPED)
+                connection.execute(
+                    update(StageRunRow)
+                    .where(
+                        StageRunRow.pipeline_run_id == row.pipeline_run_id,
+                        StageRunRow.ordinal > int(row.ordinal),
+                        StageRunRow.status == StageRunStatus.QUEUED.value,
+                    )
+                    .values(
+                        status=StageRunStatus.SKIPPED.value,
+                        progress=100,
+                        finished_at=now,
+                        updated_at=now,
+                    )
+                )
+            elif next_ordinal < len(PIPELINE_STAGE_ORDER):
                 next_stage = PIPELINE_STAGE_ORDER[next_ordinal]
                 next_stage_id = connection.scalar(
                     select(StageRunRow.id).where(
@@ -1090,11 +1222,86 @@ def _current_clip_facts(
             )
         ).all()
         renders.extend(RenderStatus(str(row[0])) for row in current_renders)
-        if review_status == ReviewStatus.APPROVED and any(
-            row[0] == RenderStatus.SUCCEEDED.value and row[1] == "final" for row in current_renders
-        ):
-            approved_final_count += 1
+    if ReviewStatus.APPROVED in reviews:
+        try:
+            approved_final_count = len(load_eligible_delivery_set(connection, project_id).clips)
+        except DeliverySetError:
+            approved_final_count = 0
     return tuple(reviews), tuple(renders), approved_final_count
+
+
+def _insert_pipeline_run(
+    connection: Connection,
+    *,
+    project_id: str,
+    run_id: str,
+    generation: int,
+    source_path: Path,
+    config: PipelineRunConfig,
+    max_stage_retries: int,
+    now: datetime,
+) -> None:
+    connection.execute(
+        insert(PipelineRunRow).values(
+            id=run_id,
+            project_id=project_id,
+            generation=generation,
+            status=PipelineRunStatus.QUEUED.value,
+            config_json=config.model_dump(mode="json"),
+            config_fingerprint=config.fingerprint,
+            progress=0,
+            manual_retry_count=0,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    for ordinal, stage in enumerate(PIPELINE_STAGE_ORDER):
+        stage_id = new_id()
+        stage_fingerprint = (
+            _ingest_input_fingerprint(config.fingerprint, source_path)
+            if stage == PipelineStage.INGEST
+            else None
+        )
+        connection.execute(
+            insert(StageRunRow).values(
+                id=stage_id,
+                pipeline_run_id=run_id,
+                stage=stage.value,
+                ordinal=ordinal,
+                status=StageRunStatus.QUEUED.value,
+                input_fingerprint=stage_fingerprint,
+                progress=0,
+                retry_count=0,
+                max_retries=max_stage_retries,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        if stage != PipelineStage.INGEST:
+            continue
+        connection.execute(
+            insert(TaskRow).values(
+                id=new_id(),
+                kind=TaskKind.STAGE.value,
+                target_id=stage_id,
+                operation_key=f"run:{run_id}:stage:{stage.value}",
+                input_fingerprint=stage_fingerprint,
+                resource_class=ResourceClass.HEAVY.value,
+                pipeline_run_id=run_id,
+                stage_run_id=stage_id,
+                depends_on_task_id=None,
+                status=TaskStatus.QUEUED.value,
+                priority=1_000,
+                not_before=now,
+                expected_generation=generation,
+                attempt_count=0,
+                retry_count=0,
+                manual_retry_count=0,
+                max_retries=max_stage_retries,
+                created_at=now,
+                updated_at=now,
+            )
+        )
 
 
 def _ingest_input_fingerprint(config_fingerprint: str, source_path: Path) -> str:

@@ -60,6 +60,23 @@ stateDiagram-v2
 
 PipelineRun, StageRun, review, Render and Delivery each have separate state machines; the diagram is user flow, not a single status enum.
 
+## Durable command and media access
+
+```mermaid
+flowchart LR
+  UI[Web / CLI / REST] --> SVC[Shared application service]
+  SVC -->|BEGIN IMMEDIATE| TASK[(SQLite Task + lease fence)]
+  TASK --> CLAIM[Worker or foreground claim]
+  CLAIM --> TMP[Task-scoped temporary output]
+  TMP --> CHECK[Hash + ffprobe + full decode + quality]
+  CHECK -->|atomic publish + DB commit| ASSET[(Committed Asset)]
+  UI -->|poll resource ID| SVC
+  ASSET --> SIGN[Short-lived path/purpose HMAC URL]
+  SIGN --> RANGE[No-follow verified HTTP Range stream]
+```
+
+Long operations return durable IDs immediately. Foreground CLI and Worker compete through the same atomic claim; neither adapter bypasses the lease, generation, revision or input-fingerprint fences. Browser media URLs expose generated asset IDs, never arbitrary source paths.
+
 ## EditPlan execution boundary
 
 ```mermaid

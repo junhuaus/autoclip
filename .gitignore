@@ -18,6 +18,7 @@ htmlcov/
 coverage.xml
 
 node_modules/
+*.tsbuildinfo
 apps/web/dist/
 apps/web/playwright-report/
 apps/web/test-results/

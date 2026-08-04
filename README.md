@@ -2,7 +2,7 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It will turn a local 2–4 hour video into reviewable 9:16 clips, let a user adjust and approve exact revisions, and create immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: M0–M2 are implemented and independently reviewed. The persistent SQLite pipeline, foreground CLI and Worker have fenced ownership, recoverable tasks and real proxy media. M3 REST/review/delivery services and Web work are now active; cloud providers remain M4. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: M0–M2 are locally committed. M3 REST/review/delivery services, complete CLI commands and the React review console pass local API, component and Chrome E2E acceptance; the independent M3 review returned PASS and its local checkpoint is being recorded. Real cloud providers remain M4. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -34,15 +34,19 @@ liveclip rerender CLIP_ID --wait
 liveclip deliver PROJECT_ID --zip
 ```
 
-`doctor`, `run --wait`, `status`, `clips`, and `worker` are implemented. Review/rerender/deliver arrive with their shared M3 services. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
+All commands above are implemented. `review` creates an immutable human revision when title/boundary/subtitle fields change, `rerender` queues or foreground-executes the current revision, and `deliver` creates a new immutable delivery version. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
 
-## Planned local Web workflow
+## Local Web workflow
 
 ```bash
 make dev
 ```
 
-This will start FastAPI, Worker and Vite, print local addresses and stop all child processes on Ctrl+C. The review console will create/import projects, show progress/transcript/candidates, play Range-enabled proxies, edit revisions/captions, approve/reject/rerender and download versioned delivery ZIPs.
+This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. An optional Bearer token is held only in page memory.
+
+## REST API
+
+The OpenAPI document is available at `http://127.0.0.1:8765/openapi.json`; health is `GET /api/v1/health`. Long operations return HTTP 202 with `Location`, `Retry-After`, a durable resource ID and polling URL. Creating endpoints support `Idempotency-Key`; generated media is addressed by asset ID and supports one HTTP byte range. See [API contract](docs/api.md).
 
 ## Demo and cloud smoke
 
@@ -67,10 +71,10 @@ Default project data will live under `data/projects`; Demo-owned data lives unde
 
 ## Recovery and troubleshooting
 
-Use `liveclip status`, run retry commands for failed durable stages, and consult structured local logs. Resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
+Use `liveclip status`, the API run retry endpoint, or the Web retry action for failed durable work. Expired leases are recovered by the same queue; stale revision renders cannot enter a Delivery. Consult structured local logs, then resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
 
 Known development-host differences are tracked in Solution: current PATH Python and Node are unsuitable defaults, FFmpeg lacks subtitles/drawtext but supports the deterministic raster-overlay path, and VideoToolbox is unavailable inside the Codex sandbox while succeeding on the host. `libx264` is the automatic fallback.
 
 ## Current limitations
 
-The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing and foreground/Worker lease competition are verified on generated local media. API/Web review, review/rerender/delivery CLI, real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain unverified or unimplemented. Cross-process lease contention and generation-scoped canonical artifact paths are explicit later hardening items. See STATUS for exact evidence.
+The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing, API/Web review, revision/rerender/delivery CLI and foreground/Worker lease competition are verified on generated local media. Real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain M4/M5 work. The repository `input/` long videos are reserved for read-only M5 and final acceptance runs. See STATUS for exact evidence.

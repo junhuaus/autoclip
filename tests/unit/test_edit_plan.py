@@ -8,6 +8,7 @@ from liveclip.domain.edit_plan import (
     Effect,
     Layout,
     captions_to_srt,
+    edit_plan_from_json_data,
     validate_caption_cues,
     validate_edit_plan_bounds,
 )
@@ -32,6 +33,15 @@ def make_plan(**changes: object) -> EditPlan:
     }
     payload.update(changes)
     return EditPlan.model_validate(payload)
+
+
+def test_strict_edit_plan_restores_from_json_compatible_data() -> None:
+    plan = make_plan(risk_flags=("mock_generated",))
+    restored = edit_plan_from_json_data(plan.model_dump(mode="json"))
+
+    assert restored == plan
+    assert restored.layout is Layout.VERTICAL_BLUR_BACKGROUND
+    assert restored.risk_flags == ("mock_generated",)
 
 
 def test_edit_plan_schema_is_closed_and_whitelisted() -> None:
@@ -99,3 +109,11 @@ def test_caption_cues_are_relative_and_render_valid_srt() -> None:
     srt = captions_to_srt(cues)
     assert "00:00:00,000 --> 00:00:02,400" in srt
     assert "第一句" in srt
+
+
+def test_caption_cues_require_at_least_one_safe_cue() -> None:
+    with pytest.raises(ValueError, match="at least one"):
+        validate_caption_cues((), clip_duration_ms=5_000)
+
+    with pytest.raises(ValidationError, match="disallowed Unicode category"):
+        CaptionCue(start_ms=0, end_ms=1_000, text="不可持久化\x00字幕")

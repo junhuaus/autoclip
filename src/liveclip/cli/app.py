@@ -8,6 +8,9 @@ import typer
 from pydantic import ValidationError
 
 from liveclip import __version__
+from liveclip.application.deliveries import DeliveryRequest
+from liveclip.application.media_assets import MediaAssetInvalid, MediaAssetNotFound
+from liveclip.application.reviewing import ClipPatch, RenderRequest, ReviewCommand
 from liveclip.bootstrap import (
     BootstrapError,
     LiveClipRuntime,
@@ -16,7 +19,14 @@ from liveclip.bootstrap import (
 )
 from liveclip.cli.doctor import DoctorReport, run_doctor
 from liveclip.config import get_settings
-from liveclip.domain.state_transitions import PipelineRunStatus
+from liveclip.domain.edit_plan import CaptionCue
+from liveclip.domain.state_transitions import (
+    DeliveryStatus,
+    PipelineRunStatus,
+    RenderStatus,
+    ReviewStatus,
+)
+from liveclip.domain.time import seconds_to_ms
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
 from liveclip.worker import run_worker
@@ -157,7 +167,200 @@ def clips(project_id: str) -> None:
                     f"{clip.source_start_ms / 1000:.3f}-{clip.source_end_ms / 1000:.3f}s | "
                     f"{clip.score:.1f} | {clip.title}"
                 )
+                typer.echo(f"  Reason: {clip.reason}")
+                typer.echo(
+                    "  Risk flags: " + (", ".join(clip.risk_flags) if clip.risk_flags else "none")
+                )
+                proxy_status = clip.proxy_status.value if clip.proxy_status else "not_rendered"
+                typer.echo(f"  Proxy status: {proxy_status}")
+                if clip.proxy_asset_id is not None:
+                    try:
+                        proxy = runtime.media_asset_service.resolve(
+                            clip.proxy_asset_id,
+                            required_kind="review_proxy",
+                        )
+                    except (MediaAssetInvalid, MediaAssetNotFound):
+                        typer.echo("  Proxy path: unavailable (asset verification failed)")
+                    else:
+                        typer.echo(f"  Proxy path: {proxy.path}")
     except (BootstrapError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def review(
+    clip_id: str,
+    approve: Annotated[bool, typer.Option("--approve", help="Approve the current revision.")] = (
+        False
+    ),
+    reject: Annotated[bool, typer.Option("--reject", help="Reject the current revision.")] = False,
+    reason: Annotated[str | None, typer.Option("--reason", help="Required rejection reason.")] = (
+        None
+    ),
+    start: Annotated[
+        float | None,
+        typer.Option("--start", min=0, help="New absolute source start in seconds."),
+    ] = None,
+    end: Annotated[
+        float | None,
+        typer.Option("--end", min=0, help="New absolute source end in seconds."),
+    ] = None,
+    title: Annotated[str | None, typer.Option("--title", help="New Chinese clip title.")] = None,
+    subtitle_text: Annotated[
+        str | None,
+        typer.Option(
+            "--subtitle-text",
+            help="Replace captions with one cue spanning the revised clip.",
+        ),
+    ] = None,
+) -> None:
+    """Atomically edit and approve or reject a clip revision."""
+
+    if approve == reject:
+        typer.echo("Choose exactly one of --approve or --reject", err=True)
+        raise typer.Exit(code=2)
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            current = runtime.review_service.get_clip(clip_id)
+            new_start_ms = seconds_to_ms(start) if start is not None else None
+            new_end_ms = seconds_to_ms(end) if end is not None else None
+            captions = None
+            if subtitle_text is not None:
+                effective_start = (
+                    new_start_ms if new_start_ms is not None else current.plan.source_start_ms
+                )
+                effective_end = new_end_ms if new_end_ms is not None else current.plan.source_end_ms
+                captions = (
+                    CaptionCue(
+                        start_ms=0,
+                        end_ms=effective_end - effective_start,
+                        text=subtitle_text,
+                    ),
+                )
+            command = ReviewCommand(
+                expected_revision=current.current_revision,
+                status=ReviewStatus.APPROVED if approve else ReviewStatus.REJECTED,
+                reason=reason,
+            )
+            has_patch = any(
+                value is not None for value in (new_start_ms, new_end_ms, title, subtitle_text)
+            )
+            if has_patch:
+                result = runtime.review_service.revise_and_review(
+                    clip_id,
+                    ClipPatch(
+                        expected_revision=current.current_revision,
+                        source_start_ms=new_start_ms,
+                        source_end_ms=new_end_ms,
+                        title=title,
+                        captions=captions,
+                    ),
+                    command,
+                )
+            else:
+                result = runtime.review_service.review_clip(clip_id, command)
+            typer.echo(f"Clip ID: {result.clip_id}")
+            typer.echo(f"EditPlan revision: {result.current_revision}")
+            typer.echo(f"Review status: {result.review.status.value}")
+            typer.echo(
+                f"Source range: {result.plan.source_start_ms / 1000:.3f}-"
+                f"{result.plan.source_end_ms / 1000:.3f}s"
+            )
+            typer.echo(f"Title: {result.plan.title}")
+    except typer.Exit:
+        raise
+    except (BootstrapError, ValidationError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def rerender(
+    clip_id: str,
+    wait: Annotated[
+        bool,
+        typer.Option("--wait/--no-wait", help="Render in this foreground process."),
+    ] = True,
+) -> None:
+    """Queue the approved current revision for a final portrait render."""
+
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            current = runtime.review_service.get_clip(clip_id)
+            queued = runtime.render_service.enqueue(
+                clip_id,
+                RenderRequest(
+                    expected_revision=current.current_revision,
+                    kind="final",
+                ),
+            )
+            typer.echo(f"Render ID: {queued.render_id}")
+            typer.echo(f"Task ID: {queued.task_id}")
+            if not wait:
+                typer.echo(f"Render status: {queued.status.value}")
+                return
+            completed = runtime.render_runner.run_until_terminal(
+                queued.render_id,
+                worker_id=local_worker_id("foreground-render"),
+            )
+            typer.echo(f"Render status: {completed.status.value}")
+            if completed.status != RenderStatus.SUCCEEDED:
+                raise typer.Exit(code=1)
+    except typer.Exit:
+        raise
+    except (BootstrapError, ValidationError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def deliver(
+    project_id: str,
+    include_zip: Annotated[
+        bool,
+        typer.Option("--zip/--no-zip", help="Include the immutable delivery ZIP."),
+    ] = True,
+    wait: Annotated[
+        bool,
+        typer.Option("--wait/--no-wait", help="Package in this foreground process."),
+    ] = True,
+) -> None:
+    """Create a new immutable delivery version for all eligible clips."""
+
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            queued = runtime.delivery_service.enqueue(
+                project_id,
+                DeliveryRequest(include_zip=include_zip),
+            )
+            typer.echo(f"Delivery ID: {queued.delivery_id}")
+            typer.echo(f"Delivery version: {queued.delivery_version}")
+            typer.echo(f"Task ID: {queued.task_id}")
+            if not wait:
+                typer.echo(f"Delivery status: {queued.status.value}")
+                return
+            completed = runtime.delivery_runner.run_until_terminal(
+                queued.delivery_id,
+                worker_id=local_worker_id("foreground-delivery"),
+            )
+            typer.echo(f"Delivery status: {completed.status.value}")
+            if completed.status != DeliveryStatus.SUCCEEDED:
+                raise typer.Exit(code=1)
+            directory = runtime.data_dir / project_id / "deliveries" / completed.delivery_version
+            typer.echo(f"Delivery directory: {directory.resolve(strict=True)}")
+            if completed.zip_asset_id is not None:
+                archive = runtime.media_asset_service.resolve(
+                    completed.zip_asset_id,
+                    required_kind="delivery_zip",
+                )
+                typer.echo(f"Delivery ZIP: {archive.path}")
+    except typer.Exit:
+        raise
+    except (BootstrapError, ValidationError, ValueError, RuntimeError, LookupError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
         raise typer.Exit(code=1) from exc
 

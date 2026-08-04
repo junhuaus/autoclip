@@ -64,12 +64,21 @@ def create_delivery(
     source_fingerprint: str,
     clips: Sequence[DeliveryClipInput],
     include_zip: bool,
+    expected_version: int | None = None,
+    delivery_id: str | None = None,
+    snapshot_fingerprint: str | None = None,
     created_at: datetime | None = None,
 ) -> DeliveryResult:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", project_id):
         raise DeliveryError("project ID is invalid")
     if not re.fullmatch(r"[a-fA-F0-9]{64}", source_fingerprint):
         raise DeliveryError("source fingerprint must be SHA-256")
+    if expected_version is not None and not 1 <= expected_version <= 999:
+        raise DeliveryError("delivery version must be between 1 and 999")
+    if delivery_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", delivery_id):
+        raise DeliveryError("delivery ID is invalid")
+    if snapshot_fingerprint is not None and not re.fullmatch(r"[a-f0-9]{64}", snapshot_fingerprint):
+        raise DeliveryError("delivery snapshot fingerprint is invalid")
     approved = tuple(clip for clip in clips if clip.review_status == "approved")
     if not approved:
         raise DeliveryError("delivery requires at least one approved clip")
@@ -81,7 +90,7 @@ def create_delivery(
     lock_path = deliveries_dir / ".delivery.lock"
     with lock_path.open("a+b") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        version_number = _next_delivery_version(deliveries_dir)
+        version_number = expected_version or _next_delivery_version(deliveries_dir)
         version = f"v{version_number:03d}"
         destination = deliveries_dir / version
         if destination.exists():
@@ -91,10 +100,12 @@ def create_delivery(
             result = _build_delivery(
                 temporary=temporary,
                 destination=destination,
+                delivery_id=delivery_id or f"{project_id}_{version}",
                 project_id=project_id,
                 version=version,
                 source_filename=source_filename,
                 source_fingerprint=source_fingerprint.lower(),
+                snapshot_fingerprint=snapshot_fingerprint,
                 clips=approved,
                 include_zip=include_zip,
                 created_at=created_at or datetime.now(UTC),
@@ -121,10 +132,12 @@ def _build_delivery(
     *,
     temporary: Path,
     destination: Path,
+    delivery_id: str,
     project_id: str,
     version: str,
     source_filename: str,
     source_fingerprint: str,
+    snapshot_fingerprint: str | None,
     clips: Sequence[DeliveryClipInput],
     include_zip: bool,
     created_at: datetime,
@@ -142,7 +155,7 @@ def _build_delivery(
         video_target = temporary / Path(*video_relative.parts)
         subtitle_target = temporary / Path(*subtitle_relative.parts)
         _copy_no_clobber(clip.final_video_path.resolve(strict=True), video_target)
-        subtitle_target.write_text(_normalize_srt(clip.subtitle_srt), encoding="utf-8")
+        subtitle_target.write_text(normalize_srt(clip.subtitle_srt), encoding="utf-8")
         video_hash = stream_sha256(video_target)
         manifest_clips.append(
             {
@@ -161,7 +174,6 @@ def _build_delivery(
         )
         archive_members.extend((video_relative, subtitle_relative))
 
-    delivery_id = f"{project_id}_{version}"
     manifest: dict[str, object] = {
         "schema_version": "1",
         "project_id": project_id,
@@ -172,6 +184,8 @@ def _build_delivery(
         "source_fingerprint": source_fingerprint,
         "clips": manifest_clips,
     }
+    if snapshot_fingerprint is not None:
+        manifest["snapshot_fingerprint"] = snapshot_fingerprint
     manifest_path = temporary / "manifest.json"
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -274,16 +288,15 @@ def _copy_no_clobber(source: Path, destination: Path) -> None:
     if not source.is_file():
         raise DeliveryError("delivery source video is missing")
     try:
-        os.link(source, destination)
-    except OSError:
-        try:
-            with source.open("rb") as reader, destination.open("xb") as writer:
-                shutil.copyfileobj(reader, writer, length=1024 * 1024)
-        except (FileExistsError, OSError) as exc:
-            raise DeliveryError("delivery video could not be copied safely") from exc
+        with source.open("rb") as reader, destination.open("xb") as writer:
+            shutil.copyfileobj(reader, writer, length=1024 * 1024)
+            writer.flush()
+            os.fsync(writer.fileno())
+    except (FileExistsError, OSError) as exc:
+        raise DeliveryError("delivery video could not be copied safely") from exc
 
 
-def _normalize_srt(value: str) -> str:
+def normalize_srt(value: str) -> str:
     normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
     if "\x00" in normalized or "-->" not in normalized:
         raise DeliveryError("subtitle content is not a valid bounded SRT payload")

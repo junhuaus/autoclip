@@ -8,12 +8,12 @@ from pathlib import Path
 from threading import Barrier
 
 import pytest
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
-from liveclip.db.models import PipelineRunRow, ProjectRow, TaskAttemptRow, TaskRow
+from liveclip.db.models import DeliveryRow, PipelineRunRow, ProjectRow, TaskAttemptRow, TaskRow
 from liveclip.db.task_queue import (
     CompletionResult,
     SQLiteTaskQueue,
@@ -23,6 +23,7 @@ from liveclip.db.task_queue import (
 )
 from liveclip.domain.state_transitions import (
     AttemptOutcome,
+    DeliveryStatus,
     FailureClass,
     PipelineRunStatus,
     ResourceClass,
@@ -303,6 +304,71 @@ def test_transient_failure_requeues_with_backoff_but_deterministic_failure_does_
         == TaskStatus.FAILED
     )
     assert _task_status(engine, deterministic_id) == TaskStatus.FAILED.value
+
+
+def test_transient_delivery_failure_keeps_resource_retryable(
+    queue_context: tuple[Engine, SQLiteTaskQueue],
+) -> None:
+    engine, queue = queue_context
+    delivery_id = "d" * 32
+    task = queue.enqueue(
+        replace(
+            _spec("d", max_retries=1),
+            kind=TaskKind.DELIVERY,
+            target_id=delivery_id,
+            operation_key=f"delivery:{delivery_id}",
+            expected_revision=None,
+        ),
+        now=NOW,
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            insert(DeliveryRow).values(
+                id=delivery_id,
+                project_id=PROJECT_ID,
+                task_id=task.task_id,
+                version=1,
+                status=DeliveryStatus.QUEUED.value,
+                expected_revision_epoch=0,
+                expected_generation=1,
+                snapshot_fingerprint="d" * 64,
+                directory_relative_path="deliveries/v001",
+                include_zip=True,
+                created_at=NOW,
+            )
+        )
+    lease = queue.claim(worker_id="delivery-a", now=NOW, task_kind=TaskKind.DELIVERY)
+    assert lease is not None
+    with engine.begin() as connection:
+        connection.execute(
+            update(DeliveryRow)
+            .where(DeliveryRow.id == delivery_id)
+            .values(status=DeliveryStatus.CREATING.value)
+        )
+
+    result = queue.fail(
+        lease,
+        failure_class=FailureClass.TRANSIENT,
+        error_code="DELIVERY_IO_TEMPORARY",
+        safe_message="temporary output failure",
+        retry_delay_ms=0,
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert result == TaskStatus.QUEUED
+    with engine.connect() as connection:
+        delivery = connection.execute(
+            select(DeliveryRow.status, DeliveryRow.completed_at).where(
+                DeliveryRow.id == delivery_id
+            )
+        ).one()
+    assert delivery == (DeliveryStatus.QUEUED.value, None)
+    retry = queue.claim(
+        worker_id="delivery-b",
+        now=NOW + timedelta(seconds=1),
+        task_kind=TaskKind.DELIVERY,
+    )
+    assert retry is not None and retry.task_id == task.task_id
 
 
 def test_running_cancel_is_a_request_until_owner_acknowledges(

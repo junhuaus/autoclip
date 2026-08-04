@@ -174,9 +174,14 @@ def test_project_state_facts_reject_impossible_delivery_counts() -> None:
             review_statuses=(ReviewStatus.APPROVED,),
             approved_current_final_count=2,
         )
-    with pytest.raises(ValueError, match="must be succeeded"):
-        ProjectStateFacts(
-            source_imported=True,
-            delivery_status=DeliveryStatus.FAILED,
-            latest_delivery_matches_current=True,
-        )
+
+
+def test_current_successful_delivery_survives_a_newer_failed_attempt() -> None:
+    facts = ProjectStateFacts(
+        source_imported=True,
+        has_completed_pipeline=True,
+        delivery_status=DeliveryStatus.FAILED,
+        latest_delivery_matches_current=True,
+    )
+
+    assert derive_project_status(facts) == ProjectStatus.DELIVERED

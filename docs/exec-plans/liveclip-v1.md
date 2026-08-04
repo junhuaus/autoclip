@@ -78,12 +78,14 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M3 — REST API, Web review and versioned delivery
 
-- [ ] Implement all required `/api/v1` routes, DTOs, 202/idempotency/error/auth/CORS.
-- [ ] Implement generated-asset HTTP Range service.
-- [ ] Implement React/Vite review console and complete UI states.
-- [ ] Implement revision subtitle editing, decisions, stale/rerender and delivery versions.
-- [ ] Add API, component and Playwright core E2E tests.
-- [ ] Review, fix and commit M3.
+- [x] 2026-08-03 Freeze initial M3 ownership: main Agent owns shared schema/migration/services/API integration; three existing Agents perform disjoint read-only backend, REST-security and Web planning audits before implementation delegation.
+- [x] 2026-08-03 Implement all required `/api/v1` routes, strict DTOs, truthful 202 replay status, atomic idempotency, stable errors, Bearer auth and loopback CORS.
+- [x] 2026-08-03 Implement allowlisted generated-asset serving with scoped Delivery ZIPs, short-lived path/purpose-bound HMAC URLs, single Range and reopen-time file identity fences.
+- [x] 2026-08-03 Implement React/Vite review console and complete UI states.
+- [x] 2026-08-03 Implement atomic title/boundary/caption revisions, decisions, epoch-driven stale/rerender, immutable delivery versions and matching CLI commands.
+- [x] 2026-08-03 Add API, component and Playwright core E2E tests; rerun the real Chrome flow after review fixes.
+- [x] 2026-08-03 Complete independent M3 review and fix every P0/P1; Reviewer returned PASS after lint, 233 Python tests, 11 Web tests, 30 focused regressions and whitespace validation.
+- [ ] Create the scoped local M3 milestone commit and record its hash.
 
 ### M4 — Real OpenAI providers
 
@@ -99,7 +101,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 - [ ] Exercise multi-chunk streaming, interruption recovery and cancellation.
 - [ ] Test traversal/symlink/source replacement/media Range/ZIP/redaction adversaries.
-- [ ] Measure 2–4 hour memory/disk/runtime where representative input is available.
+- [ ] Use repository `input/` videos as read-only allowed-root sources after feature completion; measure 2–4 hour memory/disk/runtime without committing media or generated artifacts.
 - [ ] Cover VFR, rotation, multi-audio and font/layout edge cases.
 - [ ] Complete decode/contact-sheet/black-frame/safe-area validation and log bounds.
 - [ ] Review, fix and commit M5.
@@ -108,6 +110,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 - [ ] Complete README, API/EditPlan/architecture/operations/troubleshooting documentation.
 - [ ] Run frontend tests and browser E2E.
+- [ ] Add one browser-to-real-FastAPI/Worker combination E2E; M3 Playwright mocks API while Python integration independently covers the real backend chain.
 - [ ] Run `make doctor`, `make lint`, `make test`, `make demo` from a clean setup.
 - [ ] Run cloud smoke when credentials exist; otherwise document precise unverified state.
 - [ ] Run independent read-only Verification Agent against every Product Spec item.
@@ -156,6 +159,17 @@ M2 integrated shape:
 6. Asset scope is derived inside the reservation/commit transaction from TaskAttempt → Task → PipelineRun → Project. Caller-provided project/generation/revision values are assertions, not authority; only the same logical Task may recover its failed/lost pending reservation.
 7. Typed stage checkpoint validation proves both committed artifacts and required domain rows before stage success. Stage/Task/Run/Project updates share an active lease and generation fence under `BEGIN IMMEDIATE`.
 8. Proxy RenderJobs are durable before media I/O and transition through the centralized state model. Failure, cancellation and lease expiry persist a safe error code; success requires every associated Asset to be committed.
+
+Active M3 file ownership (recorded before implementation):
+
+- Main Agent: ORM/public DTO schemas, Alembic head, dependencies/locks, shared review/render/delivery services and repositories, Task dispatcher, API integration/auth/idempotency/media boundary, CLI, cross-module tests and all persistent planning documents.
+- `m1_content`: read-only audit of existing review/delivery/domain persistence and proposed transaction algorithms; no file changes.
+- `verifier_researcher`: read-only required-route, HTTP/security and API acceptance matrix with primary-source verification where needed; no file changes.
+- `m1_media`: initially read-only Web inventory/UI/test plan. Any later Web write delegation will be confined to `apps/web/src`, `apps/web/tests` and `apps/web/e2e` after the main Agent freezes API DTOs and package dependencies; it may not edit package/lock files or shared backend/docs.
+
+The Web write handoff was activated on 2026-08-03 after the main Agent froze `src/liveclip/api/app.py`, `schemas.py`, Vite/TypeScript/Playwright configuration and exact package lock. `m1_media` owns only `apps/web/src`, `apps/web/tests` and `apps/web/e2e` until it returns its test evidence. Main continues to own dependency/configuration files and all Python/API integration.
+
+No M3 Agent may edit another owner's files. The main Agent will record any later write handoff before it begins and will integrate/validate the returned tree before claiming a UI path.
 
 ## Concrete commands and expected observations
 
@@ -208,6 +222,15 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: FFmpeg help for an unknown filter can still exit zero. Doctor must parse the actual filter list.
 - 2026-08-03: FFmpeg lacks both common text filters but has overlay; this led to the safer raster-overlay design.
 - 2026-08-03: VideoToolbox fails only inside the Codex sandbox and succeeds on host; capability claims need real context.
+- 2026-08-03: Current Vite 8 requires Node 22.12 but the installed native LTS is 22.11. ADR-006 pins supported Vite 6.4.3/Vitest 3.2.7; npm audit reports zero vulnerabilities.
+- 2026-08-03: HTML5 video cannot attach a Bearer header. API DTOs therefore issue short-lived HMAC URLs bound to GET, canonical path, resource purpose/ID and expiry; Vite/uvicorn access logs must not record their query strings.
+- 2026-08-03: M3 final pre-review gate is green at 233 Python tests and 11 Web tests; the API integration drives Mock pipeline, atomic review, final render, versioned ZIP and Range media, and the host Playwright Chrome flow passes in 5.5 seconds.
+- 2026-08-03: The Codex in-app browser runtime reported no available browser, so no in-app visual claim is made. The repository Playwright suite did launch real host Chrome and passed the user-visible create/review/edit/rerender/delivery/download flow.
+- 2026-08-03: Independent review exposed that Delivery eligibility changes on both EditPlan revision and review decision. Both paths now fail active snapshots and cancel/request-cancel their durable tasks in the same SQLite transaction; succeeded immutable deliveries remain untouched.
+- 2026-08-03: Relative captions cannot be reused blindly after an absolute source-boundary change. The Web sends a differential PATCH and omits unchanged captions, causing the backend to rebuild cue-relative milliseconds from absolute transcript segments.
+- 2026-08-03: Node 26 exposes an undefined experimental Web Storage global without a backing file. Web tests install an isolated in-memory Storage implementation; production remains targeted at Node LTS and the UI keeps the optional Bearer token only in React memory.
+- 2026-08-03: The independent M3 Reviewer returned `PASS` with no remaining P0/P1 after independently running lint, 233 Python tests, 11 Web tests, 30 focused regressions and diff validation. It retained one product-test P2: Playwright mocks the API, so M6 will add browser-to-real-backend composition even though the real backend chain already has API integration coverage.
+- 2026-08-03: The user authorized read-only long-video testing from repository `input/` after implementation. M5/final acceptance will record runtime, peak resources, disk growth, recovery and quality; source media and outputs remain ignored.
 - 2026-08-03: Current general ASR recommendation lacks required timestamps; v1 defaults to the older timestamp-capable model rather than fabricate alignment.
 - 2026-08-03: First viewed overlay contact sheet revealed a false truncation ellipsis caused by trimming a wrap-boundary space. The wrap algorithm now tracks actual truncation; a regression test and second viewed render pass.
 - 2026-08-03: Initial M0 review found six concrete gaps. Publication now validates container/codecs/decode/frames/edges/safe bounds before exposure, uses an atomic hard-link no-clobber operation, and falls back on VideoToolbox runtime exceptions. Font detection no longer points from renderer into CLI, and EditPlan tests cover generic paths, shell commands and FFmpeg option fragments.
@@ -241,6 +264,9 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Treat caller Asset scope only as a checked assertion and derive authority from the active TaskAttempt graph; rationale: API/service bugs must not widen a lease into another project, generation, candidate or revision.
 - 2026-08-03: Persist proxy RenderJob intent and running state before FFmpeg I/O; rationale: failure, cancellation and crash recovery must remain user-observable and retryable.
 - 2026-08-03: Use explicit transient exception types for bounded process timeouts; rationale: retry behavior must not depend on fragile message matching or generic runtime exceptions.
+- 2026-08-03: Bind generated media access to committed Asset IDs and short-lived method/path/purpose HMAC URLs; rationale: HTML5 Range seek cannot attach Bearer headers, while local paths must never become a generic file interface.
+- 2026-08-03: Treat Delivery input as an immutable approved-render snapshot and fail active snapshots atomically on revision or decision change; rationale: an offline Worker must not leave stale work appearing current.
+- 2026-08-03: Send Web clip edits as field-level deltas; rationale: unchanged relative captions must be regenerated from absolute transcript time when source boundaries move.
 
 ## Risks and Mitigations
 
@@ -251,16 +277,16 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - SQLite/filesystem split-brain: immutable paths, lease/revision fencing, hashes, validation and atomic publish.
 - Model/schema drift: pinned SDK, configurable models, contract smoke, local validation and deterministic fallback.
 - Visual heuristics overclaim: quality report distinguishes automatic from actual viewed status.
-- Canonical stage paths currently omit PipelineRun generation: M3 will make run/generation part of persistent pipeline artifact names before supporting a second run on one Project; immutable collision remains fail-closed meanwhile.
+- Generation-scoped paths are now implemented and covered by second-run/import-only migration tests; M5 will extend this with long-media disk/recovery measurement.
 - Current ownership race test uses two independent runners/connections in one process: add a spawned-process contention/lease-expiry test in M5; database fencing, not the test topology, is the correctness mechanism.
 - Stream hashing and the Python-side ffprobe wrapper cannot be interrupted mid-call: bounded subprocess timeouts and late-publication fences cap correctness impact; M5 will measure cancellation latency and add polling where practical.
 
 ## Recovery Notes
 
-Current first task: implement M3 shared review/revision/rerender/delivery services, including generation-scoped persistent artifact paths, then expose them through REST routes and CLI.
+Current first task: review and stage the exact M3 diff, create the scoped local milestone commit, record its hash, then begin M4 official OpenAI documentation verification.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 implementation is active.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 implementation, local gates and independent review are complete with PASS; only the scoped milestone commit remains before M4.

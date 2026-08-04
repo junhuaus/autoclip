@@ -1,0 +1,161 @@
+import type {
+  ClipDetailResponse,
+  ClipSummaryResponse,
+  DeliveryDetailResponse,
+  ProjectSnapshot,
+  RunSnapshot,
+  TranscriptSnapshot,
+} from "../src/types";
+
+export const project: ProjectSnapshot = {
+  project_id: "project-1",
+  name: "直播测试项目",
+  source_filename: "live.mp4",
+  status: "pending_review",
+  current_run_id: "run-1",
+  generation: 1,
+};
+
+export const completedRun: RunSnapshot = {
+  run_id: "run-1",
+  project_id: "project-1",
+  status: "completed",
+  progress: 100,
+  cancellation_requested: false,
+  error_code: null,
+  safe_error_message: null,
+  stages: [
+    "ingest",
+    "preprocess",
+    "transcribe",
+    "candidates",
+    "edit",
+    "proxy_render",
+  ].map((stage) => ({
+    stage,
+    status: "succeeded" as const,
+    progress: 100,
+    retry_count: 0,
+    error_code: null,
+    safe_error_message: null,
+  })),
+};
+
+export const transcript: TranscriptSnapshot = {
+  project_id: "project-1",
+  run_id: "run-1",
+  language: "zh",
+  provider: "mock",
+  model: "mock-asr-v1",
+  word_timing_status: "unavailable",
+  segments: [
+    {
+      segment_id: "segment-1",
+      index: 0,
+      start_ms: 1_000,
+      end_ms: 5_000,
+      text: "这是第一段中文直播转写。",
+    },
+  ],
+};
+
+export const clipSummary: ClipSummaryResponse = {
+  clip: {
+    clip_id: "clip-1",
+    candidate_key: "candidate-1",
+    edit_plan_revision: 1,
+    source_start_ms: 1_000,
+    source_end_ms: 11_000,
+    score: 88,
+    title: "原始高光标题",
+    reason: "表达完整且开头有吸引力",
+    risk_flags: ["需人工确认"],
+    review_status: "pending_review",
+    proxy_status: "succeeded",
+    proxy_asset_id: "asset-proxy-1",
+  },
+  proxy_media_url: "/api/v1/media/asset-proxy-1?expires=9999999999&signature=signed",
+};
+
+export const clipDetail: ClipDetailResponse = {
+  clip: {
+    clip_id: "clip-1",
+    project_id: "project-1",
+    run_id: "run-1",
+    generation: 1,
+    revision_epoch: 0,
+    candidate_key: "candidate-1",
+    allowed_start_ms: 0,
+    allowed_end_ms: 15_000,
+    transcript_text: "这是第一段中文直播转写，内容完整。",
+    context_before: "前文上下文。",
+    context_after: "后文上下文。",
+    rule_score: 82,
+    reasons: ["句子闭合", "停顿边界清晰"],
+    rank: 1,
+    current_revision: 1,
+    plan: {
+      schema_version: "1",
+      candidate_id: "clip-1",
+      source_start_ms: 1_000,
+      source_end_ms: 11_000,
+      score: 88,
+      title: "原始高光标题",
+      hook: "开头提出关键问题",
+      reason: "表达完整且开头有吸引力",
+      layout: "vertical_blur_background",
+      caption_template: "clean_zh_v1",
+      effect: "none",
+      risk_flags: ["需人工确认"],
+      prompt_version: "editing_v1",
+      model: "mock-llm-v1",
+      degraded: false,
+    },
+    captions: [{ start_ms: 0, end_ms: 4_000, text: "第一条字幕" }],
+    revision_created_at: "2026-08-04T00:00:00Z",
+    review: { status: "pending_review", reason: null, decided_at: null },
+    renders: [
+      {
+        render_id: "proxy-render-1",
+        task_id: "task-proxy-1",
+        kind: "proxy",
+        status: "succeeded",
+        edit_plan_revision: 1,
+        width: 540,
+        height: 960,
+        video_asset_id: "asset-proxy-1",
+        subtitle_asset_id: "subtitle-proxy-1",
+        quality_report_asset_id: "quality-proxy-1",
+        contact_sheet_asset_id: "contact-proxy-1",
+        error_code: null,
+        safe_error_message: null,
+        created_at: "2026-08-04T00:00:00Z",
+        updated_at: "2026-08-04T00:00:01Z",
+      },
+    ],
+    allowed_actions: ["edit", "approve", "reject", "render_proxy"],
+  },
+  asset_urls: {
+    "asset-proxy-1": "/api/v1/media/asset-proxy-1?expires=9999999999&signature=signed",
+    "subtitle-proxy-1": "/api/v1/media/subtitle-proxy-1?expires=9999999999&signature=signed",
+    "contact-proxy-1": "/api/v1/media/contact-proxy-1?expires=9999999999&signature=signed",
+  },
+};
+
+export const succeededDelivery: DeliveryDetailResponse = {
+  delivery: {
+    delivery_id: "delivery-1",
+    project_id: "project-1",
+    task_id: "task-delivery-1",
+    version: 1,
+    delivery_version: "v001",
+    status: "succeeded",
+    clip_count: 1,
+    manifest_asset_id: "manifest-1",
+    zip_asset_id: "zip-1",
+    include_zip: true,
+    error_code: null,
+    safe_error_message: null,
+  },
+  download_url: "/api/v1/deliveries/delivery-1/download?expires=9999999999&signature=signed",
+};

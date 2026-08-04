@@ -30,6 +30,7 @@ def render_edit_plan_revision(
     width: int,
     height: int,
     encoder: str,
+    font_path: Path | None = None,
     cancel_requested: Callable[[], bool] | None = None,
 ) -> RenderedArtifact:
     render_root = output_path.parent
@@ -41,6 +42,7 @@ def render_edit_plan_revision(
         output_dir=overlay_dir,
         width=width,
         height=height,
+        font_path=font_path,
     )
     result: RenderResult = render_clip(
         RenderRequest(
@@ -84,6 +86,7 @@ def render_revision_overlays(
     output_dir: Path,
     width: int,
     height: int,
+    font_path: Path | None = None,
 ) -> tuple[TextOverlay, ...]:
     overlays: list[TextOverlay] = [
         render_title_overlay(
@@ -93,6 +96,7 @@ def render_revision_overlays(
             text=revision.plan.title,
             start_ms=0,
             end_ms=revision.plan.duration_ms,
+            font_path=font_path,
         )
     ]
     for index, cue in enumerate(revision.captions, start=1):
@@ -104,6 +108,7 @@ def render_revision_overlays(
                 text=cue.text,
                 start_ms=cue.start_ms,
                 end_ms=cue.end_ms,
+                font_path=font_path,
             )
         )
     return tuple(overlays)

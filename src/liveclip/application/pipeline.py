@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from liveclip.application.idempotency import IdempotencyContext
 from liveclip.domain.state_transitions import (
     FailureClass,
     PipelineRunStatus,
@@ -20,10 +21,23 @@ class StageLeaseLost(RuntimeError):
     """The caller no longer owns the durable stage task fence."""
 
 
+class PipelineResourceNotFound(LookupError):
+    """The requested project or pipeline run does not exist."""
+
+
+class PipelineConflict(RuntimeError):
+    """The requested pipeline mutation conflicts with persisted state."""
+
+
+class DeterministicRetryRejected(PipelineConflict):
+    """An unchanged deterministic pipeline failure cannot be retried."""
+
+
 class PipelineRunConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     schema_version: str = Field(default="1", pattern=r"^1$")
+    run_scope: Literal["full", "import"] = "full"
     provider: str = Field(pattern=r"^(mock|openai)$")
     top_n: int = Field(ge=1, le=100)
     minimum_clip_ms: int = Field(ge=1_000, le=600_000)
@@ -155,11 +169,23 @@ class PipelineRepository(Protocol):
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline: ...
 
     def get_run(self, run_id: str) -> RunSnapshot: ...
 
     def get_project(self, project_id: str) -> ProjectSnapshot: ...
+
+    def list_projects(self) -> tuple[ProjectSnapshot, ...]: ...
+
+    def create_run(
+        self,
+        *,
+        project_id: str,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
+    ) -> CreatedPipeline: ...
 
     def request_run_cancel(self, run_id: str) -> RunSnapshot: ...
 
@@ -176,6 +202,7 @@ class PipelineService:
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline:
         if not source_path.is_absolute() or ".." in source_path.parts:
             raise ValueError("source path must be absolute and cannot contain '..'")
@@ -185,6 +212,25 @@ class PipelineService:
             source_path=source_path,
             config=config,
             max_stage_retries=max_stage_retries,
+            idempotency=idempotency,
+        )
+
+    def import_project(
+        self,
+        *,
+        source_path: Path,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
+    ) -> CreatedPipeline:
+        payload = config.model_dump(mode="python")
+        payload["run_scope"] = "import"
+        import_config = PipelineRunConfig.model_validate(payload)
+        return self.create_project_and_run(
+            source_path=source_path,
+            config=import_config,
+            max_stage_retries=max_stage_retries,
+            idempotency=idempotency,
         )
 
     def get_run(self, run_id: str) -> RunSnapshot:
@@ -192,6 +238,26 @@ class PipelineService:
 
     def get_project(self, project_id: str) -> ProjectSnapshot:
         return self._repository.get_project(project_id)
+
+    def list_projects(self) -> tuple[ProjectSnapshot, ...]:
+        return self._repository.list_projects()
+
+    def create_run(
+        self,
+        *,
+        project_id: str,
+        config: PipelineRunConfig,
+        max_stage_retries: int,
+        idempotency: IdempotencyContext | None = None,
+    ) -> CreatedPipeline:
+        if max_stage_retries < 0:
+            raise ValueError("max stage retries must be nonnegative")
+        return self._repository.create_run(
+            project_id=project_id,
+            config=config,
+            max_stage_retries=max_stage_retries,
+            idempotency=idempotency,
+        )
 
     def cancel(self, run_id: str) -> RunSnapshot:
         return self._repository.request_run_cancel(run_id)

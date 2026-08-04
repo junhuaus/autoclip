@@ -1,0 +1,241 @@
+import type {
+  AcceptedPipelineResponse,
+  AcceptedTaskResponse,
+  ApiErrorDetail,
+  ApiErrorEnvelope,
+  ClipDetailResponse,
+  ClipPatchRequest,
+  ClipSummaryResponse,
+  DeliveryDetailResponse,
+  JobCreateRequest,
+  ProjectSnapshot,
+  QueuedRender,
+  RenderKind,
+  ReviewActionRequest,
+  RunSnapshot,
+  TranscriptSnapshot,
+} from "./types";
+
+export class LiveClipApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly retryable: boolean;
+  readonly correlationId: string | null;
+  readonly details: ApiErrorDetail["details"];
+
+  constructor(
+    message: string,
+    options: {
+      status?: number;
+      code?: string;
+      retryable?: boolean;
+      correlationId?: string | null;
+      details?: ApiErrorDetail["details"];
+    } = {},
+  ) {
+    super(message);
+    this.name = "LiveClipApiError";
+    this.status = options.status ?? 0;
+    this.code = options.code ?? "NETWORK_ERROR";
+    this.retryable = options.retryable ?? false;
+    this.correlationId = options.correlationId ?? null;
+    this.details = options.details ?? [];
+  }
+}
+
+const SIGNED_URL_REFRESH_SAFETY_MS = 15_000;
+const MIN_SIGNED_URL_REFRESH_MS = 5_000;
+const MAX_SIGNED_URL_REFRESH_MS = 30 * 60_000;
+
+export function signedUrlRefreshInterval(
+  urls: ReadonlyArray<string | null | undefined>,
+  nowMs = Date.now(),
+): number | false {
+  const expiries = urls.flatMap((value) => {
+    if (!value) return [];
+    try {
+      const raw = new URL(value, "http://127.0.0.1").searchParams.get("expires");
+      const expiresSeconds = raw === null ? Number.NaN : Number(raw);
+      return Number.isSafeInteger(expiresSeconds) && expiresSeconds > 0
+        ? [expiresSeconds * 1_000]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  if (expiries.length === 0) return false;
+  const delay = Math.min(...expiries) - nowMs - SIGNED_URL_REFRESH_SAFETY_MS;
+  return Math.max(
+    MIN_SIGNED_URL_REFRESH_MS,
+    Math.min(MAX_SIGNED_URL_REFRESH_MS, delay),
+  );
+}
+
+function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
+  if (typeof value !== "object" || value === null || !("error" in value)) {
+    return false;
+  }
+  const error = (value as { error?: unknown }).error;
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  );
+}
+
+function idempotencyKey(scope: string): string {
+  const random =
+    typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `liveclip-web-${scope}-${random}`.slice(0, 200);
+}
+
+export class LiveClipApiClient {
+  private readonly token: string;
+  private readonly baseUrl: string;
+
+  constructor(token = "", baseUrl = "/api/v1") {
+    this.token = token.trim();
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (init.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    if (this.token) {
+      headers.set("Authorization", `Bearer ${this.token}`);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    } catch {
+      throw new LiveClipApiError("无法连接本机 LiveClip API", {
+        code: "NETWORK_ERROR",
+        retryable: true,
+      });
+    }
+
+    if (!response.ok) {
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        // Never surface an untrusted raw response body.
+      }
+      if (isErrorEnvelope(payload)) {
+        throw new LiveClipApiError(payload.error.message, {
+          status: response.status,
+          code: payload.error.code,
+          retryable: payload.error.retryable,
+          correlationId: payload.error.correlation_id,
+          details: payload.error.details,
+        });
+      }
+      throw new LiveClipApiError("LiveClip API 请求失败", {
+        status: response.status,
+        code: "HTTP_ERROR",
+        correlationId: response.headers.get("X-Request-ID"),
+      });
+    }
+
+    return (await response.json()) as T;
+  }
+
+  listProjects(): Promise<ProjectSnapshot[]> {
+    return this.request("/projects");
+  }
+
+  getProject(projectId: string): Promise<ProjectSnapshot> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {
+    return this.request("/jobs", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey("job") },
+      body: JSON.stringify(body),
+    });
+  }
+
+  getRun(runId: string): Promise<RunSnapshot> {
+    return this.request(`/runs/${encodeURIComponent(runId)}`);
+  }
+
+  cancelRun(runId: string): Promise<RunSnapshot> {
+    return this.request(`/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+  }
+
+  retryRun(runId: string): Promise<RunSnapshot> {
+    return this.request(`/runs/${encodeURIComponent(runId)}/retry`, { method: "POST" });
+  }
+
+  getTranscript(projectId: string): Promise<TranscriptSnapshot> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/transcript`);
+  }
+
+  listClips(projectId: string): Promise<ClipSummaryResponse[]> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/clips`);
+  }
+
+  getClip(clipId: string): Promise<ClipDetailResponse> {
+    return this.request(`/clips/${encodeURIComponent(clipId)}`);
+  }
+
+  patchClip(clipId: string, body: ClipPatchRequest): Promise<ClipDetailResponse> {
+    return this.request(`/clips/${encodeURIComponent(clipId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  reviewClip(clipId: string, body: ReviewActionRequest): Promise<ClipDetailResponse> {
+    return this.request(`/clips/${encodeURIComponent(clipId)}/review`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  createRender(
+    clipId: string,
+    expectedRevision: number,
+    kind: RenderKind,
+  ): Promise<AcceptedTaskResponse> {
+    return this.request(`/clips/${encodeURIComponent(clipId)}/render`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey(`${kind}-render`) },
+      body: JSON.stringify({ expected_revision: expectedRevision, kind }),
+    });
+  }
+
+  getRender(renderId: string): Promise<QueuedRender> {
+    return this.request(`/renders/${encodeURIComponent(renderId)}`);
+  }
+
+  listDeliveries(projectId: string): Promise<DeliveryDetailResponse[]> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/deliveries`);
+  }
+
+  createDelivery(projectId: string, includeZip = true): Promise<AcceptedTaskResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/deliveries`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey("delivery") },
+      body: JSON.stringify({ include_zip: includeZip }),
+    });
+  }
+
+  getDelivery(deliveryId: string): Promise<DeliveryDetailResponse> {
+    return this.request(`/deliveries/${encodeURIComponent(deliveryId)}`);
+  }
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof LiveClipApiError ? error.message : "LiveClip 操作失败";
+}

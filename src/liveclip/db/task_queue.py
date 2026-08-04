@@ -15,9 +15,17 @@ from sqlalchemy.sql.elements import ColumnElement
 from liveclip.application.tasks import HeartbeatResult, TaskLease
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
-from liveclip.db.models import PipelineRunRow, RenderJobRow, StageRunRow, TaskAttemptRow, TaskRow
+from liveclip.db.models import (
+    DeliveryRow,
+    PipelineRunRow,
+    RenderJobRow,
+    StageRunRow,
+    TaskAttemptRow,
+    TaskRow,
+)
 from liveclip.domain.state_transitions import (
     AttemptOutcome,
+    DeliveryStatus,
     FailureClass,
     PipelineRunStatus,
     RenderStatus,
@@ -25,6 +33,7 @@ from liveclip.domain.state_transitions import (
     StageRunStatus,
     TaskKind,
     TaskStatus,
+    transition_delivery,
     transition_render,
 )
 
@@ -419,9 +428,10 @@ class SQLiteTaskQueue:
                 return None
             retry_count, max_retries = int(owned[0]), int(owned[1])
             if owned[2] is not None:
-                _fail_task_renders(
+                _fail_task_dependents(
                     connection,
                     task_id=lease.task_id,
+                    target=TaskStatus.CANCELLED,
                     error_code="RENDER_CANCELLED",
                     safe_message="The render stopped because its task was cancelled",
                     instant=instant,
@@ -448,9 +458,10 @@ class SQLiteTaskQueue:
                 return TaskStatus.CANCELLED
             retryable = failure_class == FailureClass.TRANSIENT and retry_count < max_retries
             target = TaskStatus.QUEUED if retryable else TaskStatus.FAILED
-            _fail_task_renders(
+            _fail_task_dependents(
                 connection,
                 task_id=lease.task_id,
+                target=target,
                 error_code=error_code,
                 safe_message=safe_message,
                 instant=instant,
@@ -494,9 +505,10 @@ class SQLiteTaskQueue:
                 raise TaskQueueError("task does not exist")
             current = TaskStatus(str(status))
             if current == TaskStatus.QUEUED:
-                _fail_task_renders(
+                _fail_task_dependents(
                     connection,
                     task_id=task_id,
+                    target=TaskStatus.CANCELLED,
                     error_code="RENDER_CANCELLED",
                     safe_message="The render stopped because its task was cancelled",
                     instant=instant,
@@ -547,9 +559,10 @@ class SQLiteTaskQueue:
             ).scalar_one_or_none()
             if cancelled is None:
                 return False
-            _fail_task_renders(
+            _fail_task_dependents(
                 connection,
                 task_id=lease.task_id,
+                target=TaskStatus.CANCELLED,
                 error_code="RENDER_CANCELLED",
                 safe_message="The render stopped because its task was cancelled",
                 instant=instant,
@@ -618,9 +631,10 @@ class SQLiteTaskQueue:
             else:
                 target = TaskStatus.FAILED
                 failed += 1
-            _fail_task_renders(
+            _fail_task_dependents(
                 connection,
                 task_id=str(task_id),
+                target=target,
                 error_code=(
                     "RENDER_CANCELLED" if target == TaskStatus.CANCELLED else "LEASE_EXPIRED"
                 ),
@@ -846,16 +860,47 @@ def _owned_unexpired_lease(lease: TaskLease, instant: datetime) -> tuple[ColumnE
     )
 
 
-def _fail_task_renders(
+def _fail_task_dependents(
     connection: Connection,
     *,
     task_id: str,
+    target: TaskStatus,
     error_code: str,
     safe_message: str,
     instant: datetime,
 ) -> None:
-    transition_render(RenderStatus.QUEUED, RenderStatus.FAILED)
-    transition_render(RenderStatus.RUNNING, RenderStatus.FAILED)
+    _fail_task_renders(
+        connection,
+        task_id=task_id,
+        target=target,
+        error_code=error_code,
+        safe_message=safe_message,
+        instant=instant,
+    )
+    _fail_task_deliveries(
+        connection,
+        task_id=task_id,
+        target=target,
+        error_code=error_code,
+        safe_message=safe_message,
+        instant=instant,
+    )
+
+
+def _fail_task_renders(
+    connection: Connection,
+    *,
+    task_id: str,
+    target: TaskStatus,
+    error_code: str,
+    safe_message: str,
+    instant: datetime,
+) -> None:
+    target_status = RenderStatus.QUEUED if target == TaskStatus.QUEUED else RenderStatus.FAILED
+    for current in (RenderStatus.QUEUED, RenderStatus.RUNNING):
+        transition_render(current, RenderStatus.FAILED)
+        if target_status == RenderStatus.QUEUED:
+            transition_render(RenderStatus.FAILED, RenderStatus.QUEUED)
     connection.execute(
         update(RenderJobRow)
         .where(
@@ -863,10 +908,39 @@ def _fail_task_renders(
             RenderJobRow.status.in_([RenderStatus.QUEUED.value, RenderStatus.RUNNING.value]),
         )
         .values(
-            status=RenderStatus.FAILED.value,
+            status=target_status.value,
             error_code=error_code,
             safe_error_message=safe_message,
             updated_at=instant,
+        )
+    )
+
+
+def _fail_task_deliveries(
+    connection: Connection,
+    *,
+    task_id: str,
+    target: TaskStatus,
+    error_code: str,
+    safe_message: str,
+    instant: datetime,
+) -> None:
+    target_status = DeliveryStatus.QUEUED if target == TaskStatus.QUEUED else DeliveryStatus.FAILED
+    for current in (DeliveryStatus.QUEUED, DeliveryStatus.CREATING):
+        transition_delivery(current, DeliveryStatus.FAILED)
+        if target_status == DeliveryStatus.QUEUED:
+            transition_delivery(DeliveryStatus.FAILED, DeliveryStatus.QUEUED)
+    connection.execute(
+        update(DeliveryRow)
+        .where(
+            DeliveryRow.task_id == task_id,
+            DeliveryRow.status.in_([DeliveryStatus.QUEUED.value, DeliveryStatus.CREATING.value]),
+        )
+        .values(
+            status=target_status.value,
+            error_code=error_code,
+            safe_error_message=safe_message,
+            completed_at=None if target_status == DeliveryStatus.QUEUED else instant,
         )
     )
 

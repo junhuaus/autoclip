@@ -12,16 +12,28 @@ from alembic.config import Config
 from sqlalchemy.engine import Engine
 
 from liveclip.application.clips import ClipQueryService
+from liveclip.application.deliveries import DeliveryService
+from liveclip.application.delivery_runner import DeliveryTaskRunner
+from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
+from liveclip.application.render_runner import RenderTaskRunner
+from liveclip.application.rendering import RenderProfile, RenderService
+from liveclip.application.reviewing import ReviewService
 from liveclip.application.stage_runner import StageTaskRunner
 from liveclip.config import Settings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
+from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.engine import create_sqlite_engine
+from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
+from liveclip.db.render_repository import SqlAlchemyRenderRepository
+from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
+from liveclip.delivery.task_handler import DeliveryTaskHandler
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
+from liveclip.renderer.task_handler import RenderTaskHandler
 
 
 class BootstrapError(RuntimeError):
@@ -39,6 +51,12 @@ class LiveClipRuntime:
     task_queue: SQLiteTaskQueue
     stage_runner: StageTaskRunner
     clip_query_service: ClipQueryService
+    review_service: ReviewService
+    render_service: RenderService
+    render_runner: RenderTaskRunner
+    delivery_service: DeliveryService
+    delivery_runner: DeliveryTaskRunner
+    media_asset_service: MediaAssetService
 
     @classmethod
     def open(
@@ -62,10 +80,11 @@ class LiveClipRuntime:
                 engine,
                 lease_seconds=settings.worker_lease_seconds,
             )
+            asset_store = SqlAlchemyAssetStore(engine)
             handlers = PipelineStageHandlers(
                 data_dir=data_dir,
                 allowed_media_roots=tuple(settings.allowed_media_roots),
-                assets=SqlAlchemyAssetStore(engine),
+                assets=asset_store,
                 state=SqlAlchemyStageStateStore(engine),
             )
             runner = StageTaskRunner(
@@ -76,6 +95,40 @@ class LiveClipRuntime:
                 heartbeat_seconds=settings.worker_heartbeat_seconds,
             )
             clip_query_service = ClipQueryService(SqlAlchemyClipQueryRepository(engine))
+            review_service = ReviewService(SqlAlchemyReviewRepository(engine))
+            render_repository = SqlAlchemyRenderRepository(engine)
+            render_service = RenderService(
+                render_repository,
+                RenderProfile(
+                    preview_width=settings.preview_render_width,
+                    preview_height=settings.preview_render_height,
+                    final_width=settings.final_render_width,
+                    final_height=settings.final_render_height,
+                    encoder=settings.video_encoder,
+                    max_retries=settings.max_stage_retries,
+                ),
+            )
+            render_runner = RenderTaskRunner(
+                queue=queue,
+                repository=render_repository,
+                handler=RenderTaskHandler(data_dir=data_dir, assets=asset_store),
+                heartbeat_seconds=settings.worker_heartbeat_seconds,
+            )
+            delivery_repository = SqlAlchemyDeliveryRepository(engine)
+            delivery_service = DeliveryService(
+                delivery_repository,
+                max_retries=settings.max_stage_retries,
+            )
+            delivery_runner = DeliveryTaskRunner(
+                queue=queue,
+                repository=delivery_repository,
+                handler=DeliveryTaskHandler(data_dir=data_dir, assets=asset_store),
+                heartbeat_seconds=settings.worker_heartbeat_seconds,
+            )
+            media_asset_service = MediaAssetService(
+                SqlAlchemyMediaAssetRepository(engine),
+                data_dir=data_dir,
+            )
             return cls(
                 settings=settings,
                 data_dir=data_dir,
@@ -86,6 +139,12 @@ class LiveClipRuntime:
                 task_queue=queue,
                 stage_runner=runner,
                 clip_query_service=clip_query_service,
+                review_service=review_service,
+                render_service=render_service,
+                render_runner=render_runner,
+                delivery_service=delivery_service,
+                delivery_runner=delivery_runner,
+                media_asset_service=media_asset_service,
             )
         except Exception:
             engine.dispose(close=True)

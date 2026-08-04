@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated
 
@@ -99,6 +101,17 @@ class EditPlan(BaseModel):
         return self.source_end_ms - self.source_start_ms
 
 
+def edit_plan_from_json_data(value: Mapping[str, object] | str | bytes) -> EditPlan:
+    """Restore a strict EditPlan through Pydantic's JSON validation mode."""
+
+    payload = (
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(value, Mapping)
+        else value
+    )
+    return EditPlan.model_validate_json(payload)
+
+
 def reject_executable_text(value: str) -> None:
     if len(value.encode("utf-8")) > 1_024:
         raise ValueError("text exceeds the safe UTF-8 byte limit")
@@ -130,6 +143,8 @@ def validate_edit_plan_bounds(
 
 
 def validate_caption_cues(cues: tuple[CaptionCue, ...], *, clip_duration_ms: int) -> None:
+    if not cues:
+        raise ValueError("at least one caption cue is required")
     previous_start = -1
     for cue in cues:
         if cue.start_ms < previous_start:

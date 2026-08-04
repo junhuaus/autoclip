@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
 from liveclip.application.clips import ClipSummary
+from liveclip.application.pipeline import PipelineResourceNotFound
 from liveclip.db.models import (
     CandidateClipRow,
     EditPlanRevisionRow,
@@ -11,7 +12,6 @@ from liveclip.db.models import (
     RenderJobRow,
     ReviewDecisionRow,
 )
-from liveclip.db.pipeline_repository import PipelineResourceNotFound
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 
 
@@ -73,6 +73,16 @@ class SqlAlchemyClipQueryRepository:
                     .order_by(RenderJobRow.created_at.desc(), RenderJobRow.id.desc())
                     .limit(1)
                 ).one_or_none()
+                if render is None:
+                    render = connection.execute(
+                        select(RenderJobRow.status, RenderJobRow.asset_id)
+                        .where(
+                            RenderJobRow.candidate_clip_id == row["id"],
+                            RenderJobRow.kind == "proxy",
+                        )
+                        .order_by(RenderJobRow.created_at.desc(), RenderJobRow.id.desc())
+                        .limit(1)
+                    ).one_or_none()
                 summaries.append(
                     ClipSummary(
                         clip_id=str(row["id"]),
@@ -90,7 +100,11 @@ class SqlAlchemyClipQueryRepository:
                             else ReviewStatus.PENDING_REVIEW
                         ),
                         proxy_status=(RenderStatus(str(render[0])) if render else None),
-                        proxy_asset_id=(str(render[1]) if render and render[1] else None),
+                        proxy_asset_id=(
+                            str(render[1])
+                            if render and render[0] == RenderStatus.SUCCEEDED.value and render[1]
+                            else None
+                        ),
                     )
                 )
             return tuple(summaries)

@@ -127,7 +127,7 @@ Allowed roots are strict existing directories resolved at configuration load. An
 
 We save resolved path, size, mtime nanoseconds, inode/device where available, streamed SHA-256 and ffprobe metadata. Expensive stages recheck stat identity, and publication-sensitive points can rehash when stat changed. A changed source fails deterministically as `SOURCE_CHANGED`. The source is passed read-only to ffprobe/FFmpeg; LiveClip never opens it for write.
 
-Generated Asset serving re-resolves the database project-relative path beneath the configured data root, rejects symlinks/outside paths and only serves explicitly allowed media kinds. Single-byte-range responses support 206/416, `Content-Range`, `Accept-Ranges`, auth, and bounded streaming.
+Generated Asset serving re-resolves the database project-relative path beneath the configured data root, rejects symlinks/outside paths and only serves explicitly allowed media kinds. Single-byte-range responses support 206/416, `Content-Range`, `Accept-Ranges`, auth, and bounded streaming. A short-lived HMAC URL binds GET, canonical path, purpose/asset ID and expiry so HTML5 video can seek without placing the long-lived Bearer token in query parameters; streaming reopens no-follow and rechecks file identity around the read.
 
 ## Audio and ASR decision
 
@@ -166,7 +166,9 @@ The layout graph creates a fill-cropped blurred background plus aspect-fit foreg
 
 ## Render invalidation and review consistency
 
-A visual change transaction inserts a new immutable EditPlanRevision and caption snapshot, increments the Project revision epoch, points CandidateClip to it, makes the effective review pending, and marks queued/running/succeeded/failed RenderJobs for older revisions stale. A worker that finishes an old render fails revision/lease fencing before publication.
+A visual change transaction inserts a new immutable EditPlanRevision and caption snapshot, increments the Project revision epoch, points CandidateClip to it, makes the effective review pending, and marks queued/running/succeeded/failed RenderJobs for older revisions stale. Boundary-only Web edits omit unchanged relative captions so the repository regenerates them from absolute TranscriptSegment time. A worker that finishes an old render fails revision/lease fencing before publication.
+
+Any current-revision or review-decision change also fails queued/creating Delivery snapshots and cancels or requests cancellation of their durable Tasks in the same SQLite transaction. Successful Delivery versions remain immutable and downloadable. This keeps stale work observable even when the Worker is offline and prevents a late task from publishing an obsolete approved-clip set.
 
 Approval and rejection are append-only decisions on an exact revision. Delivery eligibility requires the current revision, its current approval, and a succeeded validated final RenderJob with the same revision and render-spec hash. Editing after approval never inherits approval.
 
@@ -190,7 +192,7 @@ Pydantic Settings reads environment variables and optional local `.env`; `.env` 
 
 ## Observability
 
-Structured JSON logs include timestamp, level, event, correlation/project/run/stage/task/clip IDs, attempt, duration and stable error code. A centralized processor redacts authorization, API keys, bearer tokens, cookies, common secret fields and matching secret substrings. FFmpeg logs store a sanitized logical argv using asset IDs/relative paths plus a bounded stderr tail in a diagnostic file. ApiUsage captures provider metrics but no prompts containing transcript text unless an explicit local debug mode is later designed.
+Structured JSON logs include timestamp, level, event, correlation/project/run/stage/task/clip IDs, attempt, duration and stable error code. A centralized processor redacts authorization, API keys, bearer tokens, cookies, common secret fields and matching secret substrings. Uvicorn request access logging is disabled and the Vite proxy removes query strings before its offline error logger runs, because short-lived media signatures are credentials. FFmpeg logs store a sanitized logical argv using asset IDs/relative paths plus a bounded stderr tail in a diagnostic file. ApiUsage captures provider metrics but no prompts containing transcript text unless an explicit local debug mode is later designed.
 
 ## Testing strategy
 
@@ -216,6 +218,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Current development hardware is Apple M2, not M3; M3 throughput remains unmeasured.
 - A project-local native arm64 Python 3.12 must be installed because PATH Python is 3.9 and the existing 3.12 is x86_64.
 - Default PATH Node 26 is not LTS; Node 22 LTS exists at `/usr/local/bin` and setup/doctor must choose/report it.
+- Current Vite 8 requires Node 22.12 while the native LTS installation is 22.11. ADR-006 pins the latest compatible Vite 6/Vitest 3 toolchain without reducing UI capability.
 - Raster overlay speed and Chinese glyph fallback need the M1 Spike and real contact-sheet inspection.
 - VideoToolbox is inaccessible inside the current sandbox but proved available in a host process; ordinary-terminal final verification remains distinct.
 - No real API key is configured, so cloud request/usage/model entitlement behavior remains unverified until smoke testing.
@@ -230,3 +233,4 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-003: deterministic Pillow text rasterization plus FFmpeg overlay.
 - ADR-004: timestamp-capable ASR default and strict Responses integration.
 - ADR-005: WAL-safe SQLite runtime, explicit transaction control and FULL durability.
+- ADR-006: Node 22.11-compatible locked Web toolchain until the local LTS runtime is upgraded.

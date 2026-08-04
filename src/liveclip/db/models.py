@@ -582,7 +582,11 @@ class RenderJobRow(Base):
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     spec_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    spec_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    subtitle_asset_id: Mapped[str | None] = mapped_column(
         ForeignKey("assets.id", ondelete="SET NULL"), unique=True
     )
     quality_report_asset_id: Mapped[str | None] = mapped_column(
@@ -604,6 +608,7 @@ class DeliveryRow(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "version", name="project_delivery_version"),
         CheckConstraint("version > 0", name="delivery_version_positive"),
+        CheckConstraint("expected_generation > 0", name="delivery_generation_positive"),
         CheckConstraint(f"status IN ({_enum_sql(DeliveryStatus)})", name="delivery_status_allowed"),
     )
 
@@ -628,6 +633,7 @@ class DeliveryRow(Base):
         ForeignKey("assets.id", ondelete="SET NULL"), unique=True
     )
     include_zip: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    expected_generation: Mapped[int] = mapped_column(Integer, nullable=False)
     error_code: Mapped[str | None] = mapped_column(String(80))
     safe_error_message: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)

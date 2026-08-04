@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     api_token: SecretStr | None = None
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8765, ge=1, le=65535)
+    media_url_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
     cors_origins_raw: str = Field(
         default="http://127.0.0.1:5173,http://localhost:5173",
         validation_alias="LIVECLIP_CORS_ORIGINS",

@@ -20,9 +20,18 @@ def run_worker(
         print(f"LiveClip worker started: {worker_id}", flush=True)
         while True:
             outcome = runtime.stage_runner.run_one(worker_id=worker_id)
+            if outcome == RunOneOutcome.IDLE:
+                render_outcome = runtime.render_runner.run_one(worker_id=worker_id)
+                if render_outcome.value == RunOneOutcome.IDLE.value:
+                    delivery_outcome = runtime.delivery_runner.run_one(worker_id=worker_id)
+                    handled = delivery_outcome.value != RunOneOutcome.IDLE.value
+                else:
+                    handled = True
+            else:
+                handled = True
             if once:
                 return 0
-            if outcome == RunOneOutcome.IDLE:
+            if not handled:
                 threading.Event().wait(poll_seconds)
 
 
