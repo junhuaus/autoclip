@@ -205,7 +205,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Unit tests own pure domain, security paths, fingerprints, timestamp conversion/merge, candidates, EditPlan/schema, prompt boundary, subtitles, argv, fallback, states, leases, stale rules, delivery/ZIP and redaction.
 - Integration tests use actual generated H.264/AAC media and FFmpeg/ffprobe, a temp data root and SQLite database, Mock providers, interruption/failure injection, and full artifact validation.
 - API tests use a real application composition with temp resources and verify 202/idempotency/error/auth/Range/user-visible flows.
-- Web unit/component tests cover all critical states and actions; Playwright performs one local review/delivery flow.
+- Web unit/component tests cover all critical states and actions. One Playwright flow uses a controlled API double for UI-state determinism; a second isolated flow starts real FastAPI, a leased Worker, SQLite, Vite and FFmpeg with Mock AI, then proves Range, revision stale, final render, ZIP and `delivered` through both UI and persisted evidence.
 - `make demo` is a deterministic real-media acceptance, not a unit-test alias.
 - `make smoke-cloud` is opt-in, calls both real providers, and cannot construct Mock providers.
 - Milestones receive an independent read-only review; M6 receives a Product Spec verification matrix.
@@ -225,7 +225,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - A project-local native arm64 Python 3.12 must be installed because PATH Python is 3.9 and the existing 3.12 is x86_64.
 - Default PATH Node 26 is not LTS; Node 22 LTS exists at `/usr/local/bin` and setup/doctor must choose/report it.
 - Current Vite 8 requires Node 22.12 while the native LTS installation is 22.11. ADR-006 pins the latest compatible Vite 6/Vitest 3 toolchain without reducing UI capability.
-- Raster overlay speed and Chinese glyph fallback need the M1 Spike and real contact-sheet inspection.
+- Raster overlays and Chinese glyph fallback passed real M1/M5 rendering, full-decode and viewed contact-sheet inspection; overlay/input/thread budgets are enforced. Representative 2–4 hour/M3 throughput remains unmeasured.
 - VideoToolbox is inaccessible inside the current sandbox but proved available in a host process; ordinary-terminal final verification remains distinct.
 - No real API key is configured, so cloud request/usage/model entitlement behavior remains unverified until smoke testing.
 - Official audio guide and API reference differ on `flac`/`ogg`; v1 emits common `m4a`/`mp3` and does not depend on those formats.

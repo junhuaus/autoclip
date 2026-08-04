@@ -111,14 +111,14 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M6 — Independent acceptance and documentation
 
-- [ ] Complete README, API/EditPlan/architecture/operations/troubleshooting documentation.
-- [ ] Run frontend tests and browser E2E.
-- [ ] Add one browser-to-real-FastAPI/Worker combination E2E; M3 Playwright mocks API while Python integration independently covers the real backend chain.
-- [ ] Run `make doctor`, `make lint`, `make test`, `make demo` from a clean setup.
-- [ ] Run cloud smoke when credentials exist; otherwise document precise unverified state.
-- [ ] Run independent read-only Verification Agent against every Product Spec item.
-- [ ] Fix verified gaps, rerun affected checks and record final artifact paths/results.
-- [ ] Create final local commit/checkpoint and report truthful Git state.
+- [x] 2026-08-04 Complete README, API/EditPlan/architecture/operations/troubleshooting documentation and a tracked drift-checked EditPlan v1 JSON Schema; documentation re-review returns PASS.
+- [x] 2026-08-04 Run frontend type checks and both Chrome E2E paths; inspect the real-flow success screenshot.
+- [x] 2026-08-04 Add an isolated browser-to-real-FastAPI/leased-Worker/SQLite/FFmpeg E2E and prove six stages, signed Range, revision stale, current final and v001 ZIP/delivered through UI plus persisted evidence.
+- [x] 2026-08-04 Run repeatable `make setup`, `make doctor`, `make lint`, `make test` and a fresh `make demo`; all required local gates pass.
+- [x] 2026-08-04 Run strict cloud-smoke preflight: `not_run` with provider/key/allowed-root prerequisites named; no DB/client/Mock false success.
+- [x] 2026-08-04 Run independent read-only Verification Agent against every Product Spec item; final verdict `PASS`, zero P0/P1/P2.
+- [x] 2026-08-04 Resolve all earlier review findings, rerun affected/full checks and record final artifact paths/results; no final-verifier gap remains.
+- [x] 2026-08-04 Create scoped local implementation checkpoint `60283ba` and the following final documentation checkpoint; report truthful Git state.
 
 ## Work breakdown and file ownership
 
@@ -257,6 +257,14 @@ both endpoint-replacement reproductions: each failed closed with `DeliveryError`
 canonical `v001`, no attempt residue and no external-data inclusion. Its final verdict is
 `PASS`, with no P0/P1/P2 after 58 focused tests, Ruff, mypy and diff validation.
 
+Active M6 file ownership (recorded before acceptance changes):
+
+- Main Agent: real composition fixture/process orchestration, Playwright config/spec integration, Make targets, all product/runtime code, shared dependencies and every persistent planning/documentation file.
+- `m5_vfr_rotation`: read-only audit of the existing Web/Playwright/API/Worker composition and a proposed isolated real-backend browser flow; no repository edits.
+- No other write Agent is active. Any later documentation or test handoff will receive disjoint explicit files. The final Product Spec Verification Agent is read-only and starts only after all gates pass.
+
+The first M6 code review found one P1 and one P2: shell-background Workers could inherit ignored SIGINT and leave an independent FFmpeg process group, while E2E cleanup learned directory identity only at deletion time. The Main Agent owns the repair; `m5_rereviewer` performs the read-only re-review and `m5_delivery` independently rechecks documentation/Product Spec closure. Neither reviewer may edit files.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -351,6 +359,13 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-04: The first M5 review exposed five byte/state boundary defects: render validation versus publication, committed stage-Asset trust, Delivery directory replacement, guessed legacy stream indices and caption fanout drift. Fixes pin media bytes, verify typed dependency Assets, fail closed for legacy rows, share the display-cue budget and hash a long source only once per proxy stage.
 - 2026-08-04: A fresh re-review found that binding a Delivery root directory still did not bind each member or the final ZIP. ZIP creation now streams from pinned member FDs, pins/verifies the ZIP FD, and rebinds/rehashes the exact regular-file tree across no-replace publication and Asset commit. Both original replacement reproductions fail closed; final independent M5 verdict is `PASS` with no P0/P1/P2.
 - 2026-08-04: Final M5 gates passed: `make lint` over 153 formatted files/97 typed source files plus TypeScript, 428 Python tests in 135.02 seconds, 11 Vitest tests, and Demo project `demo_20260804T085309_96fb7a31`. Its 1080×1920 H.264/AAC final fully decoded; ZIP integrity and hashes passed; the contact sheet was actually viewed and recorded `viewed_passed`.
+- 2026-08-04: M6's real Chrome test starts isolated FastAPI, Worker, SQLite, Vite and FFmpeg with Mock AI. The post-fix run passed in 18.4 seconds: project `6bc5aab3f1174ce2abdcd2539eb74b37`, run `376d68a406a6471ca65a16c48ede130f`, six succeeded stages, eight succeeded Tasks/attempts with unique leases, stale proxy r1, succeeded final r2 and succeeded v001 ZIP. Its full-page delivered screenshot was actually viewed; temporary roots, both listeners and matching service/media processes were absent after cleanup.
+- 2026-08-04: A real-E2E review reproduced Bash background SIGINT inheritance as `SIG_IGN`. Worker entry now explicitly installs SIGINT/SIGTERM handlers that raise through active media work, allowing `run_cancellable_process` to terminate the owned process group. A real child/grandchild regression passes. `make dev` and the E2E harness use bounded graceful cleanup before KILL.
+- 2026-08-04: E2E temporary-root allocation now returns original device/inode from the allocating process. Fixture creation, config verification, persisted-evidence verification and cleanup all require that identity; a replaced endpoint is retained and makes cleanup/test fail instead of being deleted.
+- 2026-08-04: The Codex in-app/MCP Browser adapter still exposed zero browser instances even after the user confirmed a local MCP Chrome was running. No MCP-control claim is made. The checked Playwright suite directly launched installed host Chrome and produced inspectable evidence.
+- 2026-08-04: Final M6 gates after both review repairs: repeatable `make setup` PASS; Doctor READY with four expected warnings; lint covers 157 formatted files/99 typed source files plus Schema/TypeScript; `make test` passes 433 Python, 11 Vitest, one controlled Mock Chrome E2E and one real-backend Chrome E2E. Cloud smoke exits `not_run` because provider/key/allowed root are absent.
+- 2026-08-04: Fresh Demo `demo_20260804T134521_1efe11b0` reached `delivered` with three candidates and v001. Final is 1080×1920 H.264/AAC, 12.000 seconds, 3,385,827 bytes, SHA-256 `7286b956031c1132e7d3caaa366a074cee5ef5caa8f931eb8bd325e566b867c4`; full decode, ZIP test and manifest/member hash checks pass. The contact sheet was actually viewed and report records `viewed_passed` at `2026-08-04T13:46:13.971417+00:00`.
+- 2026-08-04: The final independent Product Spec-wide Verification Agent returned `PASS` with zero P0/P1/P2. Its matrix covered Doctor, import, preprocessing, ASR, candidates/editing, EditPlan, rendering/quality, persistence/leases, CLI/API/Web, revision stale, immutable Delivery, security, cloud boundaries and every required command. It retained only the already disclosed external verification limits: no cloud credential, no representative 2–4 hour M3 run, sandbox VideoToolbox result, unavailable MCP attachment and no Linux execution.
 
 ## Decision Log
 
@@ -380,6 +395,9 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-04: Stream Delivery ZIP members only from pinned FDs and revalidate the exact member tree after atomic no-replace rename; rationale: a root directory inode does not bind independently replaceable files inside it. See ADR-007.
 - 2026-08-04: Persist unknown legacy stream selection as `NULL` and require a matching modern ingest to verify it; rationale: migration must not invent video/audio stream choices that were never observed.
 - 2026-08-04: Use one shared domain/render caption expansion budget of at most 64 overlays; rationale: accepted EditPlans must be renderable without renderer-side silent truncation or unbounded FFmpeg fanout.
+- 2026-08-04: Make the checked host Chrome path an explicit test-only setup contract with an overridable executable path; rationale: `make test` must fail early and actionably rather than discover an undeclared browser prerequisite after Python/Web tests.
+- 2026-08-04: Export EditPlan v1 to a tracked JSON Schema and drift-check it in lint/tests; rationale: an in-memory schema assertion does not satisfy the product's exported-contract requirement.
+- 2026-08-04: Fence temporary E2E cleanup with the device/inode captured at allocation and explicitly reinstall Worker signal handlers; rationale: cleanup and process ownership must survive endpoint replacement and non-job-control Bash signal inheritance.
 
 ## Risks and Mitigations
 
@@ -396,7 +414,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: begin M6 by reading the browser-control skill, inspect the existing Playwright/mock and FastAPI/Worker development composition, then implement one isolated browser-to-real-FastAPI/Worker acceptance flow. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
+No implementation task remains. On any future resumption, first verify the clean Git checkpoint and current external prerequisites. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -405,3 +423,5 @@ Before resuming, read the five files listed in `AGENTS.md`, run `git status --sh
 M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is complete at commit `476ad89`: pinned real OpenAI adapters, strict cloud contracts, immutable caches, bounded retry/usage/cancellation evidence, no-Mock smoke validation and renderer reliability hardening passed both independent reviews, 328 Python tests, 11 Web tests and an actually viewed post-fix Demo. Real cloud entitlement remains honestly `not_run`.
 
 M5 is complete at commit `7c145ec`. Long/chunked input, cancellation/lease recovery, spawned-process SQLite contention, explicit stream selection, VFR/rotation, exact committed-Asset dependencies, pinned render validation/publication, caption resource bounds, safe diagnostics and exact immutable Delivery publication are integrated. The final reviewer returned `PASS` after replaying the two prior Delivery races. Full gates are 428 Python plus 11 Web tests, and the fresh delivered Demo's final/contact sheet/manifest/ZIP were actually inspected. The available long fixture is only 46:20 on Apple M2, so 2–4 hour peak memory and M3 throughput remain truthful limitations for M6/final reporting rather than hidden success claims.
+
+M6 is complete at implementation checkpoint `60283ba` plus the following documentation checkpoint. The browser-to-real-backend gap is closed with repeated host-Chrome runs and persisted lease/render/Delivery proof. Documentation/schema export, both focused re-reviews and the final Product Spec-wide verifier are PASS; setup, Doctor, lint, 433 Python/11 Web/two browser flows and a freshly viewed delivered Demo pass. The LiveClip v1 baseline is `delivered`; only the explicitly disclosed external cloud/hardware measurements remain unverified.

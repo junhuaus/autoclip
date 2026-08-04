@@ -1,8 +1,8 @@
 # LiveClip
 
-LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It will turn a local 2–4 hour video into reviewable 9:16 clips, let a user adjust and approve exact revisions, and create immutable MP4/SRT/manifest/ZIP deliveries.
+LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It turns a local 2–4 hour video into reviewable 9:16 clips, lets a user adjust and approve exact revisions, and creates immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: M0–M3 are locally committed after independent review. REST/review/delivery services, complete CLI commands and the React review console pass local API, component and Chrome E2E acceptance. Real cloud providers are the active M4 work. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: the LiveClip v1 baseline is `delivered`. M0–M6 passed independent review, including a real Chrome → Vite → FastAPI → leased Worker → FFmpeg → Delivery acceptance flow. Real OpenAI adapters are implemented and contract-tested; paid cloud smoke remains truthfully `not_run` because this machine has no configured credential. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -12,11 +12,24 @@ Typer CLI, FastAPI and a single Worker call the same application services and pu
 
 Primary target: Apple Silicon M3, macOS, Python 3.12 (compatible with 3.11+), Node LTS, FFmpeg and ffprobe. Docker, an external database, an external queue and local model weights are not required.
 
+On an Apple Silicon Mac with Homebrew, the reproducible baseline is:
+
+```bash
+brew install uv node@22 ffmpeg git
+brew install --cask google-chrome  # required only by make test/e2e
+uname -m                           # must print arm64
+make setup NODE_LTS_BIN="$(brew --prefix node@22)/bin"
+NODE_LTS_BIN="$(brew --prefix node@22)/bin" make doctor
+```
+
+`uv` installs the project-local native Python 3.12; `make setup` is repeatable and installs locked Python/Web dependencies. Chrome is required only for the checked browser test suite; ordinary CLI/API/Web use is not tied to it. `make test` and `make e2e` verify the standard macOS Chrome path before expensive work. For a nonstandard installation, set `LIVECLIP_CHROME_EXECUTABLE` to an executable absolute path. If Node LTS is already `/usr/local/bin/node`, the `NODE_LTS_BIN` override is unnecessary.
+
 ```bash
 make setup
 make doctor
 make lint
 make test
+make e2e
 make demo
 ```
 
@@ -29,7 +42,10 @@ liveclip doctor
 liveclip run --input /absolute/path/live.mp4 --top-n 15 --wait
 liveclip status PROJECT_ID
 liveclip clips PROJECT_ID
+liveclip review CLIP_ID --approve
 liveclip review CLIP_ID --start 125.5 --end 183.2 --title 修改后的标题 --approve
+liveclip review CLIP_ID --subtitle-text "修订后的整段字幕" --approve
+liveclip review CLIP_ID --reject --reason "内容不完整"
 liveclip rerender CLIP_ID --wait
 liveclip deliver PROJECT_ID --zip
 ```
@@ -43,6 +59,10 @@ make dev
 ```
 
 This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. An optional Bearer token is held only in page memory.
+
+In the page: enter the optional local API token, enter an allowed absolute media path and clip settings, create and start the project, wait for all six stages, inspect transcript/candidates, open a candidate editor, change title/bounds/caption cues, approve or reject it, render the current final revision, then create and download a new Delivery ZIP. Error, cancelled and retryable states expose their retry action; a stale video is never presented as the current revision.
+
+`make e2e` runs both the controlled-API UI test and an isolated real composition. The real test uses Mock AI but starts actual FastAPI, a SQLite-leased Worker, Vite and FFmpeg under a temporary data root. It verifies HTTP 202 polling, six stages, signed Range 206, revision invalidation, approval, final render, v001 ZIP download and computed `delivered` state. Default isolated ports are 18765/15174 and may be overridden with `LIVECLIP_E2E_API_PORT`/`LIVECLIP_E2E_WEB_PORT`; ignored screenshots/traces live under `apps/web/test-results`.
 
 ## REST API
 
@@ -82,8 +102,15 @@ Default project data will live under `data/projects`; Demo-owned data lives unde
 
 Use `liveclip status`, the API run retry endpoint, or the Web retry action for failed durable work. Expired leases are recovered by the same queue; stale revision renders cannot enter a Delivery. Consult structured local logs, then resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
 
+- `SOURCE_NOT_ALLOWED` or import refusal: make the real source path a descendant of one `LIVECLIP_ALLOWED_MEDIA_ROOTS` entry; symlink escapes and `..` are intentionally rejected.
+- Port already in use: set `LIVECLIP_API_PORT` and/or `LIVECLIP_WEB_PORT` before `make dev`; Vite receives the API target automatically. For a non-5173 Web port, also set `LIVECLIP_CORS_ORIGINS=http://127.0.0.1:PORT`. E2E ports have their own variables above.
+- Browser test preflight fails: install Google Chrome in `/Applications` or set `LIVECLIP_CHROME_EXECUTABLE`; the test never attaches to an unrelated browser session.
+- Cloud smoke says `not_run`: set provider, allowed root, key and both model variables locally. It stops before DB/client creation when configuration is absent and never substitutes Mock.
+- A transient timeout/429/5xx is eligible for bounded task/provider retry. Authentication, invalid media, unsafe paths, bad parameters and integrity failures are deterministic; correct the input/configuration, then explicitly retry or start a new run.
+- VideoToolbox failure is nonblocking: Doctor records the real encode attempt and rendering automatically uses `libx264`.
+
 Known development-host differences are tracked in Solution: current PATH Python and Node are unsuitable defaults, FFmpeg lacks subtitles/drawtext but supports the deterministic raster-overlay path, and VideoToolbox is unavailable inside the Codex sandbox while succeeding on the host. `libx264` is the automatic fallback.
 
 ## Current limitations
 
-The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing, API/Web review, revision/rerender/delivery CLI and foreground/Worker lease competition are verified on generated local media. Real OpenAI adapters are contract-tested against the locked official SDK, but an actual paid cloud call is not yet verified because no credential is configured. Full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain M5 work. The repository `input/` long videos are reserved for read-only M5 and final acceptance runs. See STATUS for exact evidence.
+The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Generated-media, API, CLI, Web, lease/recovery, VFR/rotation, revision, render and Delivery paths are verified. A read-only 2.19 GB, 46:20 repository input completed the six-stage streaming Mock pipeline in 28.83 seconds without changing its source hash. It is not representative of a 2–4 hour livestream. Actual paid OpenAI account/model behavior, representative 2–4 hour peak memory/runtime/disk, Apple M3 throughput, broader codec/device diversity and the Linux `renameat2` branch remain unverified; the current development host is Apple M2. See STATUS for exact evidence.

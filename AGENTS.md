@@ -10,7 +10,7 @@ Before complex work, read in order:
 4. `docs/exec-plans/liveclip-v1.md`
 5. `STATUS.md`
 
-Primary commands are `make setup`, `make doctor`, `make lint`, `make test`, `make demo`, and `make dev`. Use Python 3.11+ (3.12 is the project default), a Node LTS release, and project-local dependencies.
+Important directories are `src/liveclip` (shared product code), `apps/api`, `apps/worker`, `apps/web`, `tests`, `docs`, and local ignored data below `data`. Primary commands are `make setup`, `make doctor`, `make dev`, `make lint`, `make test`, `make e2e`, `make demo`, `make smoke-cloud INPUT=/absolute/path/short.mp4`, and `make clean-demo`. Use Python 3.11+ (3.12 is the project default), a Node LTS release, and project-local dependencies.
 
 Dependency direction is strict: CLI/API/Worker/Web → application services → domain and pipeline ports → infrastructure adapters. Entry points must not duplicate business rules. Domain code must not import FastAPI, Typer, SQLAlchemy, OpenAI, or subprocess.
 

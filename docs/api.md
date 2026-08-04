@@ -51,6 +51,49 @@ GET    /media/{asset_id}
 }
 ```
 
+The accepted response is immediately pollable:
+
+```json
+{
+  "schema_version": "1",
+  "project_id": "…",
+  "run_id": "…",
+  "status": "queued",
+  "status_url": "/api/v1/runs/…"
+}
+```
+
+`GET /runs/{run_id}` returns the run status, aggregate progress, cancellation flag, safe error fields, and all six ordered stages. Every stage has an independent status, progress, retry count and safe error fields; for example:
+
+```json
+{
+  "run_id": "…",
+  "project_id": "…",
+  "status": "running",
+  "progress": 33,
+  "cancellation_requested": false,
+  "error_code": null,
+  "safe_error_message": null,
+  "stages": [
+    {"stage":"ingest","status":"succeeded","progress":100,"retry_count":0,"error_code":null,"safe_error_message":null},
+    {"stage":"preprocess","status":"running","progress":100,"retry_count":0,"error_code":null,"safe_error_message":null}
+  ]
+}
+```
+
+Resource states are deliberately separate:
+
+```text
+PipelineRun: queued | running | completed | failed | cancelled
+StageRun:    queued | running | succeeded | failed | skipped | cancelled
+Project:     imported | processing | pending_review | ready_for_delivery | delivered | failed
+ClipReview:  pending_review | approved | rejected
+Render:      queued | running | succeeded | failed | stale
+Delivery:    queued | creating | succeeded | failed
+```
+
+`GET /clips/{id}` returns the current plan/revision, review/render states and an `asset_urls` map containing only signed generated-media URLs. `GET /renders/{id}` exposes its current revision, kind and status. `GET /deliveries/{id}` wraps the Delivery snapshot and an optional signed `download_url`; it includes version, clip count, manifest/ZIP asset IDs and safe errors. Transcript, clip-list and delivery-list endpoints expose their respective artifacts without exposing the source absolute path.
+
 Clip changes use optimistic `expected_revision`. `PATCH /clips/{id}` creates a pending human revision. A boundary change with no `captions` field rebuilds cue-relative milliseconds from the absolute transcript; clients should send `captions` only when the user actually edited them. Every revision must retain at least one cue. `POST /clips/{id}/review` accepts `approved` or `rejected`; when the same body includes title, boundary or caption changes, the new revision and decision commit atomically. A render body is `{"expected_revision":2,"kind":"final"}`. A delivery body is `{"include_zip":true}`.
 
 Revision and review-decision changes atomically fail active Delivery snapshots with `DELIVERY_SNAPSHOT_STALE`; a new delivery request creates the next immutable version. Already succeeded versions are never overwritten or invalidated.
