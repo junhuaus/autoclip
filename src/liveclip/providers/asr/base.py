@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.domain.transcript import WordTimingStatus
+from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
 
 
 @runtime_checkable
@@ -77,7 +79,12 @@ class ASRChunkResult(BaseModel):
     model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")
     word_timing_status: WordTimingStatus
     segments: tuple[LocalASRSegment, ...]
-    request_id: str | None = Field(default=None, max_length=200)
+    request_id: str | None = Field(
+        default=None,
+        max_length=160,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+    call_record: ProviderCallRecord | None = None
 
     @model_validator(mode="after")
     def validate_local_timeline(self) -> ASRChunkResult:
@@ -96,6 +103,17 @@ class ASRChunkResult(BaseModel):
             segment.words is not None for segment in self.segments
         ):
             raise ValueError("word timings cannot be supplied when marked unavailable")
+        if self.word_timing_status == WordTimingStatus.AVAILABLE and any(
+            segment.words is None for segment in self.segments
+        ):
+            raise ValueError("available word timing requires a word tuple on every segment")
+        if self.call_record is not None:
+            if self.call_record.subject_id != self.chunk_id:
+                raise ValueError("ASR call subject must match its chunk")
+            if self.call_record.request_id != self.request_id:
+                raise ValueError("ASR request IDs must agree")
+            if self.call_record.status != ProviderCallStatus.SUCCEEDED:
+                raise ValueError("successful ASR results require a successful call record")
         return self
 
 
@@ -108,12 +126,16 @@ class ASRProvider(Protocol):
     @property
     def model_name(self) -> str: ...
 
+    @property
+    def contract_version(self) -> str: ...
+
     def transcribe(
         self,
         chunk: AudioChunkLike,
         *,
         language: str = "zh",
         vocabulary_prompt: str | None = None,
+        cancel_requested: Callable[[], bool] = lambda: False,
     ) -> ASRChunkResult: ...
 
 

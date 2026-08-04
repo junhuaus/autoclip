@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 
 import pytest
 
@@ -159,6 +161,92 @@ def test_successful_chunk_cache_and_transcript_artifacts_are_reused(tmp_path: Pa
     assert len(tuple((output_dir / "asr-cache").glob("chunk-*.json"))) == 1
 
 
+class _CountingMockASR:
+    provider_name = "mock"
+    model_name = "mock-asr-v1"
+    contract_version = "mock-asr-contract-v1"
+
+    def __init__(self, script: tuple[MockScriptSegment, ...]) -> None:
+        self.calls = 0
+        self._delegate = MockASRProvider(script)
+
+    def transcribe(self, chunk: StubChunk, **kwargs: object) -> ASRChunkResult:
+        self.calls += 1
+        return self._delegate.transcribe(chunk, **kwargs)  # type: ignore[arg-type]
+
+
+def test_tampered_asr_cache_fails_before_provider_call(tmp_path: Path) -> None:
+    chunk = StubChunk("chunk_001", 0, 4_000, tmp_path / "one.m4a")
+    script = (
+        MockScriptSegment(script_id="s1", source_start_ms=0, source_end_ms=4_000, text="原文。"),
+    )
+    output_dir = tmp_path / "transcript"
+    transcribe_chunks(
+        MockASRProvider(script),
+        (chunk,),
+        source_duration_ms=4_000,
+        output_dir=output_dir,
+    )
+    cache_path = next((output_dir / "asr-cache").glob("chunk-*.json"))
+    payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    payload["result"]["segments"][0]["text"] = "被篡改。"
+    cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    provider = _CountingMockASR(script)
+
+    with pytest.raises(ValueError, match="immutable input identity"):
+        transcribe_chunks(
+            provider,
+            (chunk,),
+            source_duration_ms=4_000,
+            output_dir=output_dir,
+        )
+
+    assert provider.calls == 0
+
+
+def test_asr_cache_rejects_final_and_ancestor_symlinks_before_provider_call(
+    tmp_path: Path,
+) -> None:
+    chunk = StubChunk("chunk_001", 0, 4_000, tmp_path / "one.m4a")
+    script = (
+        MockScriptSegment(script_id="s1", source_start_ms=0, source_end_ms=4_000, text="原文。"),
+    )
+    output_dir = tmp_path / "first"
+    transcribe_chunks(
+        MockASRProvider(script),
+        (chunk,),
+        source_duration_ms=4_000,
+        output_dir=output_dir,
+    )
+    cache_path = next((output_dir / "asr-cache").glob("chunk-*.json"))
+    outside = tmp_path / "outside-cache.json"
+    outside.write_bytes(cache_path.read_bytes())
+    cache_path.unlink()
+    cache_path.symlink_to(outside)
+    provider = _CountingMockASR(script)
+
+    with pytest.raises(ValueError, match="trusted record"):
+        transcribe_chunks(
+            provider,
+            (chunk,),
+            source_duration_ms=4_000,
+            output_dir=output_dir,
+        )
+    assert provider.calls == 0
+
+    linked_output = tmp_path / "linked"
+    linked_output.symlink_to(output_dir, target_is_directory=True)
+    provider = _CountingMockASR(script)
+    with pytest.raises(ValueError, match="trusted record"):
+        transcribe_chunks(
+            provider,
+            (chunk,),
+            source_duration_ms=4_000,
+            output_dir=linked_output,
+        )
+    assert provider.calls == 0
+
+
 def test_audio_chunk_path_supports_path_and_rejects_missing(tmp_path: Path) -> None:
     chunk = StubChunk("chunk_001", 0, 1_000, tmp_path / "one.m4a")
     assert audio_path_for_chunk(chunk) == tmp_path / "one.m4a"
@@ -171,3 +259,50 @@ def test_audio_chunk_path_supports_path_and_rejects_missing(tmp_path: Path) -> N
 
     with pytest.raises(TypeError, match="path or audio_path"):
         audio_path_for_chunk(MissingPath())
+
+
+def test_concurrent_transcription_stops_before_submitting_after_failed_batch(
+    tmp_path: Path,
+) -> None:
+    chunks = tuple(
+        StubChunk(
+            f"chunk_{index:03d}",
+            index * 1_000,
+            (index + 1) * 1_000,
+            tmp_path / f"{index}.m4a",
+        )
+        for index in range(4)
+    )
+
+    class BatchFailingProvider:
+        provider_name = "mock"
+        model_name = "mock-asr-v1"
+        contract_version = "batch-failure-v1"
+
+        def __init__(self) -> None:
+            self.called: list[str] = []
+            self.lock = Lock()
+
+        def transcribe(self, chunk: StubChunk, **_kwargs: object) -> ASRChunkResult:
+            with self.lock:
+                self.called.append(chunk.chunk_id)
+            if chunk.chunk_id == "chunk_000":
+                raise ValueError("deterministic first-batch failure")
+            return _result(
+                chunk,
+                (f"segment_{chunk.chunk_id}", 0, 1_000, f"{chunk.chunk_id}。"),
+            )
+
+    provider = BatchFailingProvider()
+
+    with pytest.raises(ValueError, match="first-batch failure"):
+        transcribe_chunks(
+            provider,
+            chunks,
+            source_duration_ms=4_000,
+            output_dir=tmp_path / "failed",
+            concurrency=2,
+        )
+
+    assert set(provider.called).issubset({"chunk_000", "chunk_001"})
+    assert "chunk_000" in provider.called

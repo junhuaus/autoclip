@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,6 +12,9 @@ from liveclip.providers.asr.base import (
     AudioChunkLike,
     LocalASRSegment,
 )
+from liveclip.providers.telemetry import ProviderCancelled
+
+MOCK_ASR_CONTRACT_VERSION = "mock-asr-contract-v1"
 
 
 class MockScriptSegment(BaseModel):
@@ -105,14 +108,21 @@ class MockASRProvider:
     def model_name(self) -> str:
         return self._model_name
 
+    @property
+    def contract_version(self) -> str:
+        return MOCK_ASR_CONTRACT_VERSION
+
     def transcribe(
         self,
         chunk: AudioChunkLike,
         *,
         language: str = "zh",
         vocabulary_prompt: str | None = None,
+        cancel_requested: Callable[[], bool] = lambda: False,
     ) -> ASRChunkResult:
         del vocabulary_prompt  # Mock content is fixed; transcript text never controls behavior.
+        if cancel_requested():
+            raise ProviderCancelled()
         if chunk.source_start_ms < 0 or chunk.source_end_ms <= chunk.source_start_ms:
             raise ValueError("audio chunk has an invalid absolute interval")
 

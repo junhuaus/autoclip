@@ -57,7 +57,16 @@ make demo
 make clean-demo  # removes only validated generated content below data/demo
 ```
 
-`make smoke-cloud INPUT=/absolute/path/short.mp4` remains planned for M4. It will be opt-in, require real OpenAI configuration and never fall back to Mock; it is not yet an implemented cloud-success path.
+The opt-in cloud smoke runs the real timestamp ASR and strict Responses path and fails if either provider is absent, a selected plan is degraded, or any Mock evidence appears:
+
+```bash
+LIVECLIP_AI_PROVIDER=openai \
+LIVECLIP_ALLOWED_MEDIA_ROOTS=/absolute/path/to/media \
+OPENAI_API_KEY=... \
+make smoke-cloud INPUT=/absolute/path/to/media/short.mp4
+```
+
+Missing configuration exits with `not_run` before opening the database or a cloud client. The key is read only from the local environment and is never printed.
 
 ## Data and privacy
 
@@ -77,4 +86,4 @@ Known development-host differences are tracked in Solution: current PATH Python 
 
 ## Current limitations
 
-The M1 Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing, API/Web review, revision/rerender/delivery CLI and foreground/Worker lease competition are verified on generated local media. Real OpenAI calls, full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain M4/M5 work. The repository `input/` long videos are reserved for read-only M5 and final acceptance runs. See STATUS for exact evidence.
+The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Persistent Mock processing, API/Web review, revision/rerender/delivery CLI and foreground/Worker lease competition are verified on generated local media. Real OpenAI adapters are contract-tested against the locked official SDK, but an actual paid cloud call is not yet verified because no credential is configured. Full 30–90 second raster performance, Apple M3 performance and representative 2–4 hour processing remain M5 work. The repository `input/` long videos are reserved for read-only M5 and final acceptance runs. See STATUS for exact evidence.

@@ -19,6 +19,7 @@ from liveclip.application.stage_execution import (
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
+    ApiUsageRow,
     AssetRow,
     AudioChunkRow,
     CandidateClipRow,
@@ -49,6 +50,7 @@ from liveclip.domain.state_transitions import (
 )
 from liveclip.domain.transcript import TranscriptDocument
 from liveclip.media.models import AudioChunkManifest, SourceMediaMetadata
+from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
 
 
 class StageDataConflict(RuntimeError):
@@ -170,10 +172,86 @@ class SqlAlchemyStageStateStore:
                         size_bytes=chunk.size_bytes,
                         sha256=chunk.sha256,
                         cache_key=chunk.cache_key,
-                        provider_status="succeeded",
+                        provider_status="pending",
                         created_at=now,
                     )
                 )
+
+    def record_asr_chunk_outcome(
+        self,
+        fence: StageMutationFence,
+        *,
+        cache_key: str,
+        status: ProviderCallStatus,
+        call_record: ProviderCallRecord | None,
+        cache_hit: bool,
+    ) -> None:
+        with begin_immediate(self._engine) as connection:
+            _assert_mutation_fence(connection, fence)
+            chunk = connection.execute(
+                select(AudioChunkRow.id, AudioChunkRow.provider_status).where(
+                    AudioChunkRow.pipeline_run_id == fence.run_id,
+                    AudioChunkRow.cache_key == cache_key,
+                )
+            ).one_or_none()
+            if chunk is None:
+                raise StageDataConflict("ASR outcome references an unknown audio chunk")
+            if call_record is not None and call_record.status != status:
+                raise StageDataConflict("ASR outcome status differs from its provider evidence")
+            if (
+                chunk.provider_status == ProviderCallStatus.SUCCEEDED.value
+                and status != ProviderCallStatus.SUCCEEDED
+            ):
+                raise StageDataConflict("a successful ASR chunk cannot be downgraded")
+            provider_status = (
+                ProviderCallStatus.SUCCEEDED.value
+                if status == ProviderCallStatus.SUCCEEDED
+                else status.value
+            )
+            connection.execute(
+                update(AudioChunkRow)
+                .where(AudioChunkRow.id == chunk.id)
+                .values(provider_status=provider_status)
+            )
+            if call_record is not None:
+                _record_provider_call(
+                    connection,
+                    fence,
+                    call_record,
+                    cache_hit=cache_hit,
+                )
+
+    def record_provider_calls(
+        self,
+        fence: StageMutationFence,
+        records: Sequence[ProviderCallRecord],
+        *,
+        cache_hit: bool,
+    ) -> None:
+        if not records:
+            return
+        with begin_immediate(self._engine) as connection:
+            _assert_mutation_fence(connection, fence)
+            for record in records:
+                _record_provider_call(connection, fence, record, cache_hit=cache_hit)
+
+    def record_provider_call_after_cancel(
+        self,
+        fence: StageMutationFence,
+        record: ProviderCallRecord,
+    ) -> bool:
+        """Persist call evidence while the cancelling worker still owns its lease.
+
+        Ordinary domain writes stop as soon as cancellation is requested. This narrow
+        fence intentionally permits only immutable provider-call records; stale
+        workers and expired leases still cannot write.
+        """
+
+        with begin_immediate(self._engine) as connection:
+            if not _owns_provider_evidence_fence(connection, fence, record):
+                return False
+            _record_provider_call(connection, fence, record, cache_hit=False)
+            return True
 
     def save_transcript(
         self,
@@ -307,9 +385,11 @@ class SqlAlchemyStageStateStore:
         with begin_immediate(self._engine) as connection:
             _assert_mutation_fence(connection, fence)
             candidate_rows = connection.execute(
-                select(CandidateClipRow.id, CandidateClipRow.pipeline_run_id).where(
-                    CandidateClipRow.id.in_([item.candidate_id for item in prepared])
-                )
+                select(
+                    CandidateClipRow.id,
+                    CandidateClipRow.pipeline_run_id,
+                    CandidateClipRow.candidate_key,
+                ).where(CandidateClipRow.id.in_([item.candidate_id for item in prepared]))
             ).all()
             if len(candidate_rows) != len(prepared):
                 raise StageDataConflict("editing references an unknown candidate")
@@ -319,6 +399,7 @@ class SqlAlchemyStageStateStore:
             run_id = next(iter(run_ids))
             if run_id != fence.run_id:
                 raise StageDataConflict("editing candidates do not belong to the fenced run")
+            candidate_keys = {str(row.id): str(row.candidate_key) for row in candidate_rows}
             connection.execute(
                 update(CandidateClipRow)
                 .where(CandidateClipRow.pipeline_run_id == run_id)
@@ -329,6 +410,10 @@ class SqlAlchemyStageStateStore:
                 revision = item.revision
                 if revision.clip_id != item.candidate_id or revision.revision != 1:
                     raise StageDataConflict("initial EditPlan revision identity is invalid")
+                if revision.plan.candidate_id != candidate_keys[item.candidate_id]:
+                    raise StageDataConflict(
+                        "EditPlan candidate identity differs from rough candidate"
+                    )
                 existing_id = connection.scalar(
                     select(EditPlanRevisionRow.id).where(
                         EditPlanRevisionRow.candidate_clip_id == item.candidate_id,
@@ -686,6 +771,67 @@ class SqlAlchemyStageStateStore:
         )
 
 
+def _record_provider_call(
+    connection: Connection,
+    fence: StageMutationFence,
+    record: ProviderCallRecord,
+    *,
+    cache_hit: bool,
+) -> None:
+    """Insert immutable secret-free call evidence, or verify an idempotent replay."""
+
+    # ``cache_hit`` explains why the same call can be observed again. It is not
+    # persisted because that would mutate the immutable facts of the original call.
+    _ = cache_hit
+    values = {
+        "id": record.call_id,
+        "project_id": fence.project_id,
+        "pipeline_run_id": fence.run_id,
+        "stage_run_id": fence.stage_run_id,
+        "provider": record.provider,
+        "operation": record.operation,
+        "model": record.model,
+        "request_id": record.request_id,
+        "request_count": record.request_count,
+        "retry_count": record.retry_count,
+        "latency_ms": record.latency_ms,
+        "audio_seconds": record.audio_seconds,
+        "usage_json": record.durable_metadata(),
+        "estimated_cost": record.estimated_cost,
+        "status": record.status.value,
+        "called_at": record.called_at,
+    }
+    existing = (
+        connection.execute(
+            select(
+                ApiUsageRow.id,
+                ApiUsageRow.project_id,
+                ApiUsageRow.pipeline_run_id,
+                ApiUsageRow.stage_run_id,
+                ApiUsageRow.provider,
+                ApiUsageRow.operation,
+                ApiUsageRow.model,
+                ApiUsageRow.request_id,
+                ApiUsageRow.request_count,
+                ApiUsageRow.retry_count,
+                ApiUsageRow.latency_ms,
+                ApiUsageRow.audio_seconds,
+                ApiUsageRow.usage_json,
+                ApiUsageRow.estimated_cost,
+                ApiUsageRow.status,
+                ApiUsageRow.called_at,
+            ).where(ApiUsageRow.id == record.call_id)
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if existing is None:
+        connection.execute(insert(ApiUsageRow).values(**values))
+        return
+    if any(existing[key] != value for key, value in values.items()):
+        raise StageDataConflict("provider call ID maps to conflicting persisted evidence")
+
+
 def _assert_mutation_fence(connection: Connection, fence: StageMutationFence) -> None:
     now = datetime.now(UTC)
     owner = connection.scalar(
@@ -718,6 +864,37 @@ def _assert_mutation_fence(connection: Connection, fence: StageMutationFence) ->
     )
     if owner is None:
         raise StageDataConflict("stage mutation lost its task lease or project generation fence")
+
+
+def _owns_provider_evidence_fence(
+    connection: Connection,
+    fence: StageMutationFence,
+    record: ProviderCallRecord,
+) -> bool:
+    """Bind append-only evidence to an exact historical task-attempt lease."""
+
+    owner = connection.scalar(
+        select(TaskRow.id)
+        .join(TaskAttemptRow, TaskAttemptRow.task_id == TaskRow.id)
+        .join(StageRunRow, StageRunRow.id == TaskRow.stage_run_id)
+        .join(PipelineRunRow, PipelineRunRow.id == TaskRow.pipeline_run_id)
+        .join(ProjectRow, ProjectRow.id == PipelineRunRow.project_id)
+        .where(
+            TaskRow.id == fence.lease.task_id,
+            TaskRow.pipeline_run_id == fence.run_id,
+            TaskRow.stage_run_id == fence.stage_run_id,
+            TaskRow.expected_generation == fence.generation,
+            TaskAttemptRow.lease_token == fence.lease.lease_token,
+            TaskAttemptRow.worker_id == fence.lease.worker_id,
+            TaskAttemptRow.started_at <= record.called_at,
+            (TaskAttemptRow.finished_at.is_(None))
+            | (TaskAttemptRow.finished_at >= record.called_at),
+            PipelineRunRow.id == fence.run_id,
+            PipelineRunRow.generation == fence.generation,
+            ProjectRow.id == fence.project_id,
+        )
+    )
+    return owner is not None
 
 
 def _validate_proxy_intent(

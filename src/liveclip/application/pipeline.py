@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -33,10 +36,14 @@ class DeterministicRetryRejected(PipelineConflict):
     """An unchanged deterministic pipeline failure cannot be retried."""
 
 
+class PipelineConfigInvalid(PipelineConflict):
+    """A persisted pipeline snapshot is legacy, incomplete, or fingerprint-invalid."""
+
+
 class PipelineRunConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    schema_version: str = Field(default="1", pattern=r"^1$")
+    schema_version: Literal["2"] = "2"
     run_scope: Literal["full", "import"] = "full"
     provider: str = Field(pattern=r"^(mock|openai)$")
     top_n: int = Field(ge=1, le=100)
@@ -50,6 +57,51 @@ class PipelineRunConfig(BaseModel):
     preview_width: int = Field(ge=180, le=2_160)
     preview_height: int = Field(ge=320, le=3_840)
     video_encoder: str = Field(pattern=r"^(auto|h264_videotoolbox|libx264)$")
+    asr_concurrency: int = Field(default=1, ge=1, le=8)
+    asr_vocabulary_prompt: str = Field(
+        default="LiveClip、直播、高光、切片",
+        max_length=1_000,
+    )
+    openai_request_timeout_seconds: float = Field(default=120.0, ge=5, le=600)
+    openai_max_request_retries: int = Field(default=2, ge=0, le=8)
+    openai_retry_base_seconds: float = Field(default=1.0, gt=0, le=60)
+    openai_retry_max_seconds: float = Field(default=30.0, gt=0, le=300)
+    llm_input_price_per_million: Decimal | None = Field(default=None, ge=0)
+    llm_output_price_per_million: Decimal | None = Field(default=None, ge=0)
+    asr_contract_version: str = Field(
+        default="mock-asr-contract-v1",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+    llm_contract_version: str = Field(
+        default="mock-llm-contract-v1",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+    editing_prompt_version: str = Field(
+        default="editing_v1",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    editing_prompt_sha256: str = Field(
+        default="75a507f34c3e2bebb0f8c9b4668f5c4a6c57a8544aa8cc869d2e7284d6ad9c68",
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    editorial_schema_version: str = Field(
+        default="editorial-suggestion-v1",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+    edit_plan_schema_version: str = Field(
+        default="edit-plan-v1",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
 
     @model_validator(mode="after")
     def validate_ranges(self) -> PipelineRunConfig:
@@ -61,12 +113,47 @@ class PipelineRunConfig(BaseModel):
             raise ValueError("preview render dimensions must be portrait")
         if self.preview_width % 2 or self.preview_height % 2:
             raise ValueError("preview render dimensions must be even")
+        if self.openai_retry_base_seconds > self.openai_retry_max_seconds:
+            raise ValueError("OpenAI retry base delay cannot exceed its maximum")
+        if (self.llm_input_price_per_million is None) != (
+            self.llm_output_price_per_million is None
+        ):
+            raise ValueError("both optional OpenAI LLM prices must be configured together")
         return self
 
     @property
     def fingerprint(self) -> str:
-        payload = self.model_dump_json(exclude_none=False)
+        payload = json.dumps(
+            self.model_dump(mode="json", exclude_none=False),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def load_persisted_pipeline_config(
+    payload: Mapping[str, object] | object,
+    stored_fingerprint: str,
+) -> PipelineRunConfig:
+    """Load one immutable v2 snapshot and prove its database fingerprint."""
+
+    if not isinstance(payload, Mapping) or payload.get("schema_version") != "2":
+        raise PipelineConfigInvalid("legacy pipeline config cannot be resumed safely")
+    required_fields = frozenset(PipelineRunConfig.model_fields)
+    if set(payload) != required_fields:
+        raise PipelineConfigInvalid("pipeline config snapshot is incomplete or has unknown fields")
+    try:
+        # Pydantic's strict JSON contract intentionally accepts JSON strings for
+        # Decimal, matching the exact representation emitted by ``mode='json'``.
+        config = PipelineRunConfig.model_validate_json(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        )
+    except Exception as exc:
+        raise PipelineConfigInvalid("pipeline config snapshot is invalid") from exc
+    if config.fingerprint != stored_fingerprint:
+        raise PipelineConfigInvalid("pipeline config fingerprint does not match its snapshot")
+    return config
 
 
 class CreatedPipeline(BaseModel):

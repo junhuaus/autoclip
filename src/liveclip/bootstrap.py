@@ -32,7 +32,17 @@ from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.delivery.task_handler import DeliveryTaskHandler
+from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
+from liveclip.prompts import load_editing_prompts
+from liveclip.providers.asr.mock import MOCK_ASR_CONTRACT_VERSION
+from liveclip.providers.asr.openai import OPENAI_ASR_CONTRACT_VERSION
+from liveclip.providers.llm.base import (
+    EDITORIAL_SUGGESTION_SCHEMA_VERSION,
+    MOCK_LLM_CONTRACT_VERSION,
+    mock_prompt_sha256,
+)
+from liveclip.providers.llm.openai import OPENAI_LLM_CONTRACT_VERSION
 from liveclip.renderer.task_handler import RenderTaskHandler
 
 
@@ -86,6 +96,12 @@ class LiveClipRuntime:
                 allowed_media_roots=tuple(settings.allowed_media_roots),
                 assets=asset_store,
                 state=SqlAlchemyStageStateStore(engine),
+                openai_api_key=(
+                    settings.openai_api_key.get_secret_value()
+                    if settings.ai_provider == "openai" and settings.openai_api_key is not None
+                    else None
+                ),
+                runtime_provider=settings.ai_provider,
             )
             runner = StageTaskRunner(
                 queue=queue,
@@ -181,6 +197,17 @@ def pipeline_config_from_settings(
     provider = settings.ai_provider
     transcription_model = "mock-asr-v1" if provider == "mock" else settings.transcription_model
     llm_model = "mock-llm-v1" if provider == "mock" else settings.llm_model
+    if provider == "mock":
+        asr_contract_version = MOCK_ASR_CONTRACT_VERSION
+        llm_contract_version = MOCK_LLM_CONTRACT_VERSION
+        editing_prompt_version = "editing_v1"
+        editing_prompt_sha256 = mock_prompt_sha256(editing_prompt_version)
+    else:
+        prompts = load_editing_prompts()
+        asr_contract_version = OPENAI_ASR_CONTRACT_VERSION
+        llm_contract_version = OPENAI_LLM_CONTRACT_VERSION
+        editing_prompt_version = prompts.version
+        editing_prompt_sha256 = prompts.sha256
     return PipelineRunConfig(
         provider=provider,
         top_n=top_n if top_n is not None else settings.default_top_n,
@@ -200,6 +227,20 @@ def pipeline_config_from_settings(
         preview_width=settings.preview_render_width,
         preview_height=settings.preview_render_height,
         video_encoder=settings.video_encoder,
+        asr_concurrency=settings.asr_concurrency,
+        asr_vocabulary_prompt=settings.asr_vocabulary_prompt,
+        openai_request_timeout_seconds=settings.openai_request_timeout_seconds,
+        openai_max_request_retries=settings.openai_max_request_retries,
+        openai_retry_base_seconds=settings.openai_retry_base_seconds,
+        openai_retry_max_seconds=settings.openai_retry_max_seconds,
+        llm_input_price_per_million=settings.llm_input_price_per_million,
+        llm_output_price_per_million=settings.llm_output_price_per_million,
+        asr_contract_version=asr_contract_version,
+        llm_contract_version=llm_contract_version,
+        editing_prompt_version=editing_prompt_version,
+        editing_prompt_sha256=editing_prompt_sha256,
+        editorial_schema_version=EDITORIAL_SUGGESTION_SCHEMA_VERSION,
+        edit_plan_schema_version=EDIT_PLAN_SCHEMA_VERSION,
     )
 
 

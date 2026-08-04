@@ -58,6 +58,35 @@ class Settings(BaseSettings):
         validation_alias="ASR_MAX_CHUNK_BYTES",
     )
     asr_concurrency: int = Field(default=1, ge=1, le=8, validation_alias="ASR_CONCURRENCY")
+    asr_vocabulary_prompt: str = Field(
+        default="LiveClip、直播、高光、切片",
+        max_length=1_000,
+        validation_alias="ASR_VOCABULARY_PROMPT",
+    )
+    openai_request_timeout_seconds: float = Field(
+        default=120.0,
+        ge=5,
+        le=600,
+        validation_alias="OPENAI_REQUEST_TIMEOUT_SECONDS",
+    )
+    openai_max_request_retries: int = Field(
+        default=2,
+        ge=0,
+        le=8,
+        validation_alias="OPENAI_MAX_REQUEST_RETRIES",
+    )
+    openai_retry_base_seconds: float = Field(
+        default=1.0,
+        gt=0,
+        le=60,
+        validation_alias="OPENAI_RETRY_BASE_SECONDS",
+    )
+    openai_retry_max_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=300,
+        validation_alias="OPENAI_RETRY_MAX_SECONDS",
+    )
 
     default_top_n: int = Field(default=15, ge=1, le=100, validation_alias="DEFAULT_TOP_N")
     min_clip_seconds: int = Field(default=30, ge=1, le=600, validation_alias="MIN_CLIP_SECONDS")
@@ -87,10 +116,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
 
     llm_input_price_per_million: Decimal | None = Field(
-        default=None, validation_alias="OPENAI_LLM_INPUT_PRICE_PER_MILLION"
+        default=None,
+        ge=0,
+        validation_alias="OPENAI_LLM_INPUT_PRICE_PER_MILLION",
     )
     llm_output_price_per_million: Decimal | None = Field(
-        default=None, validation_alias="OPENAI_LLM_OUTPUT_PRICE_PER_MILLION"
+        default=None,
+        ge=0,
+        validation_alias="OPENAI_LLM_OUTPUT_PRICE_PER_MILLION",
     )
 
     @field_validator("ai_provider")
@@ -117,6 +150,12 @@ class Settings(BaseSettings):
             raise ValueError("MIN_CLIP_SECONDS must not exceed MAX_CLIP_SECONDS")
         if self.worker_heartbeat_seconds * 2 >= self.worker_lease_seconds:
             raise ValueError("WORKER_LEASE_SECONDS must exceed twice WORKER_HEARTBEAT_SECONDS")
+        if self.openai_retry_base_seconds > self.openai_retry_max_seconds:
+            raise ValueError("OPENAI_RETRY_BASE_SECONDS must not exceed its maximum")
+        if (self.llm_input_price_per_million is None) != (
+            self.llm_output_price_per_million is None
+        ):
+            raise ValueError("both optional OpenAI LLM price variables must be configured together")
         return self
 
     @property

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,62 @@ def _committed_stage_asset(
             )
         )
     return asset_id, sha256
+
+
+@pytest.mark.parametrize("mutation", ["legacy", "missing-field", "fingerprint-mismatch"])
+def test_stage_resume_rejects_legacy_or_tampered_config_snapshot_before_handler(
+    pipeline_context: tuple[Engine, PipelineService], mutation: str
+) -> None:
+    engine, service = pipeline_context
+    _, run_id = _create(service)
+    with engine.begin() as connection:
+        row = connection.execute(
+            select(PipelineRunRow.config_json).where(PipelineRunRow.id == run_id)
+        ).one()
+        payload = dict(row.config_json)
+        if mutation == "legacy":
+            payload["schema_version"] = "1"
+        elif mutation == "missing-field":
+            del payload["editing_prompt_sha256"]
+        else:
+            payload["top_n"] = int(payload["top_n"]) + 1
+        connection.execute(
+            update(PipelineRunRow).where(PipelineRunRow.id == run_id).values(config_json=payload)
+        )
+    queue = SQLiteTaskQueue(engine, lease_seconds=60)
+    lease = queue.claim(worker_id="config-audit", pipeline_run_id=run_id)
+    assert lease is not None
+
+    with pytest.raises(PipelineConflict, match=r"legacy|incomplete|fingerprint"):
+        SqlAlchemyPipelineRepository(engine).start_or_resume_stage(_identity(lease))
+
+    # Claiming establishes the running lease before repository integrity loading;
+    # the caller must classify this deterministic config failure and close the task.
+
+
+def test_configured_price_snapshot_round_trips_before_stage_start(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    config = _config().model_copy(
+        update={
+            "llm_input_price_per_million": Decimal("1.25"),
+            "llm_output_price_per_million": Decimal("5.50"),
+        }
+    )
+    created = service.create_project_and_run(
+        source_path=Path("/allowed/priced-source.mp4"),
+        config=config,
+        max_stage_retries=0,
+    )
+    queue = SQLiteTaskQueue(engine, lease_seconds=60)
+    lease = queue.claim(worker_id="price-roundtrip", pipeline_run_id=created.run_id)
+    assert lease is not None
+
+    work = SqlAlchemyPipelineRepository(engine).start_or_resume_stage(_identity(lease))
+
+    assert work.config == config
+    assert work.config.llm_input_price_per_million == Decimal("1.25")
 
 
 def test_create_project_run_stages_and_dependency_tasks_atomically(

@@ -1,71 +1,71 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M4 — real OpenAI providers
+Current milestone: M4 — final gates passed; scoped commit pending
 Branch: `master`
-Recent relevant commit: `f707e90` (`milestone: complete LiveClip M3 review workflow`)
+Recent relevant commit: `60c7922` (`docs: record M3 completion checkpoint`)
 
 ## Completed
 
-- M0 Discovery/Solution/foundation, M1 real Mock vertical slice and M2 persistent Pipeline/queue are locally committed and independently reviewed. See the Living ExecPlan for historical evidence and commit IDs.
-- M3 adds generation-scoped pipeline artifacts, import-only and later full generations, strict review DTOs, atomic EditPlan/caption revisions, review history and revision-epoch Render invalidation.
-- Durable Render and Delivery tasks use the same SQLite lease/heartbeat/recovery queue as Pipeline stages and foreground CLI. Final delivery requires an approved current revision and its current successful final Render.
-- Immutable Delivery `vNNN` directories contain copied MP4/SRT, manifest hashes and optional ZIP. Active Delivery snapshots fail atomically when an EditPlan revision or review decision changes; succeeded versions remain immutable.
-- FastAPI implements every required `/api/v1` route plus Render polling and Delivery version listing. Creating routes return truthful 202 resources with `Location`/`Retry-After` and atomic hashed `Idempotency-Key` behavior.
-- API security includes loopback defaults, optional Bearer auth, allowlisted CORS, stable error envelopes (including framework 404/405 and rejected preflight), correlation IDs, redaction and no arbitrary local-path response.
-- Generated media is resolved by committed Asset ID. Signed URLs bind method/path/purpose/expiry; HTML5 media supports single HTTP Range with reopen identity fencing. Delivery ZIP is scoped to its owning successful Delivery.
-- CLI implements `run --wait`, `status`, `clips`, atomic `review`, `rerender --wait` and versioned `deliver`. `clips` includes score/title/reason/risks plus verified proxy status and local path.
-- React/Vite implements project creation/list, Pipeline states/retry/cancel, transcript, signed video, differential boundary/title/caption edits, approve/reject, stale history, rerender polling, approved counts and Delivery versions/download.
-- Boundary-only Web edits omit unchanged relative captions; the backend rebuilds cue times from absolute TranscriptSegments. Empty or unsafe captions are rejected at API/application/domain boundaries.
-- `make dev` serializes migration preparation before starting FastAPI, Worker and Vite, reports local URLs, and cleans all child processes on Ctrl+C.
-- M3 independent review findings fixed so far: stable framework errors/CORS, signed-URL refresh, retry after failed Delivery, no-ZIP Delivery, Vite query redaction, fresh-DB migration serialization, stale Delivery invalidation, nonempty captions, CLI candidate evidence, differential boundary edits and review-decision invalidation.
-- Created scoped local M3 commit `f707e90` after Reviewer PASS, full gates and staged whitespace/scope review.
+- M0–M3 are locally committed and independently reviewed. Their architecture, persistence, CLI/API/Web, review/render and immutable delivery evidence remains in the Living ExecPlan.
+- M4 implements pinned official `openai==2.52.0` adapters: timestamp-capable Chinese `whisper-1` transcription and stateless Responses strict structured editing with no tools, one repair and deterministic degradation.
+- OpenAI retries are application-owned with SDK retries disabled, bounded exponential jitter, capped Retry-After, exact attempt counts, cancellation and deterministic auth/parameter/quota classification.
+- Immutable ASR/edit caches use anchored component-by-component `openat`/`O_NOFOLLOW`, canonical result hashes and fail-closed validation before provider calls. Pipeline config v2 fingerprints every cloud-affecting setting and provider/Prompt/schema contract.
+- Secret-free `ApiUsage`, exact historical-attempt cancellation evidence, Mock/OpenAI runtime fencing and strict no-Mock cloud-smoke evidence validation are integrated.
+- Both independent M4 review passes are complete. The final OpenAI Reviewer returned `PASS` with no P0/P1/P2.
+- A post-review intermittent FFmpeg timeout was retained and diagnosed. Raster inputs are now finite frames held by fixed overlay semantics, normal filter/libx264 threads are capped at 2/4, a timeout receives one 1/1-thread retry, and bounded partial stderr survives timeout termination.
 
 ## In progress
 
-- M4 starts with mandatory current official OpenAI Audio/Responses/Structured Outputs and Python SDK contract verification before provider code.
-- Existing Mock providers and deterministic fallback remain the standard test path; no real call will silently fall back to Mock.
+- Final scoped diff/stage review and local M4 milestone commit.
 
 ## Not completed
 
-- M4 real OpenAI ASR/Responses providers, bounded retry/cache/usage persistence, versioned prompt and strict cloud smoke.
-- M5 long-media/recovery/security/quality hardening, including the user-authorized read-only videos under repository `input/`.
-- M6 clean acceptance, complete docs and final Product Spec Verification Agent.
+- M5 long-media, separate-process contention, interruption/recovery, security and media-quality hardening, including user-authorized read-only videos under repository `input/`.
+- M6 real-backend browser composition, clean acceptance, final documentation audit and Product Spec-wide Verification Agent.
 
 ## Verified
 
-- `make lint`: PASS; Ruff checks/format cover 126 files, mypy passes 87 source files, TypeScript project build passes.
-- `make test`: PASS; 233 Python tests in 60.90s and 11 Vitest component/API tests in 1.61s; standard tests made no cloud call.
-- `npm run build --prefix apps/web`: PASS; Vite 6.4.3 production build transformed 80 modules.
-- `npm run e2e --prefix apps/web`: PASS on host Chrome; one create → Pipeline → transcript/video → edit boundary/title/caption → stale → approve → final render → Delivery → signed ZIP flow passed in 5.5s.
-- Fresh empty database dev preflight applied both Alembic revisions once before API/Worker fan-out; health and Vite returned HTTP 200; Ctrl+C left ports 8765/5173 closed.
-- Vite API-offline probe used a sentinel signed query; logs contained only the path and did not contain the signature.
-- API integration runs a real generated Mock media chain through Range proxy, atomic review, final FFmpeg render, immutable ZIP download and safe errors.
-- In-app Browser bootstrap completed but `agent.browsers.list()` returned no available browser. No in-app-browser visual claim is made; repository Playwright host Chrome evidence is recorded separately.
-- `git diff --check`: PASS after current M3 changes.
+- `make lint`: PASS after renderer hardening; Ruff check/format over 140 files, mypy over 95 source files and frontend TypeScript all passed.
+- `make test`: PASS with explicit exit code 0; 328 Python tests passed in 46.61 seconds with one third-party Starlette deprecation warning, then 11 Vitest tests passed.
+- Renderer regression: 13 process/renderer unit tests passed. Three successive real `test_demo_pipeline.py` runs each produced a distinct valid `delivery.zip`; an additional isolated run passed.
+- Post-hardening `make demo`: PASS as project `demo_20260804T054112_c87bf8bc`, status `delivered`, three candidates.
+- Demo final: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/renders/final/clip_01_bdc52e84/r002/final.mp4`.
+- Demo contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/renders/final/clip_01_bdc52e84/r002/final-quality/contact-sheet.png`; actually viewed after the fix. Title/captions remain in safe areas, portrait layout/aspect are correct and no apparent black/blank/severe-crop issue exists. The report records `viewed_passed`.
+- Demo delivery ZIP: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/demo/projects/demo_20260804T054112_c87bf8bc/deliveries/v001/delivery.zip`.
+- `make doctor`: most recent run READY; macOS arm64/Python/FFmpeg/SQLite/fonts and actual libx264 fallback pass, with expected warnings for Node 26 non-LTS, raster-replaced text filters, missing allowed roots/key and sandbox VideoToolbox failure.
+- Strict cloud preflight: `not_run` and nonzero with provider, key, allowed roots and missing input named; no database/provider opened and no paid call occurred.
+- Wheel build includes both versioned Prompt Markdown files. `git diff --check` passed before the latest documentation update and will be rerun before commit.
 
 ## Not yet verified
 
-- Real OpenAI calls; no `OPENAI_API_KEY` is configured, and cloud success has not been claimed.
-- Apple M3 throughput (development host is Apple M2), representative 2–4 hour input runtime/memory/disk and full 30–90 second many-cue raster performance.
-- A true separate-process SQLite claim race; current tests use independent runners/connections in one process. M5 owns this hardening item.
-- Final clean-state `make doctor`, `make demo` and Product Spec-wide Verification run; these remain M6 acceptance even though earlier milestone runs passed.
+- Real OpenAI account/model entitlement, Chinese cloud quality, provider usage variants, rate limits and latency: no `OPENAI_API_KEY` is configured, so paid cloud smoke is honestly `not_run`.
+- Apple M3 throughput (current host is Apple M2), representative 2–4 hour runtime/memory/disk, VFR/rotation/multi-audio behavior and 30–90 second many-cue rendering.
+- A true separate-process SQLite claim race and browser-to-real-FastAPI/Worker composition.
 
 ## Current blockers
 
 - No product or implementation blocker.
-- Missing cloud credentials block only the optional real cloud smoke, not M4 implementation or local acceptance.
+- Missing cloud credentials block only real cloud verification, not implementation or local acceptance.
 
 ## Worktree state
 
-- Branch `master`; HEAD `f707e90` before this documentation checkpoint.
-- M3 implementation is committed. This checkpoint updates only persistent recovery documentation. Generated `node_modules`, `dist`, Playwright results, databases and media are ignored.
-- No remote exists and nothing has been pushed. User media under `input/` has not been touched.
+- Branch `master`; HEAD `60c7922` before the M4 milestone commit.
+- M4 provider/runtime/cache/config/tests/docs plus the renderer reliability fix are intentionally uncommitted pending final scoped review. Generated databases/media/deliveries remain ignored.
+- No remote exists and nothing has been pushed. Repository `input/` user media has not yet been opened.
+
+## Recent actual commands
+
+- `make lint` → exit 0.
+- PTY `make test` → exit 0; 328 Python + 11 Web tests.
+- Three repeated real Demo integration executions → all created delivery ZIPs without failure records.
+- `make demo` → exit 0; project `demo_20260804T054112_c87bf8bc` delivered.
+- Actual contact-sheet view plus `record_visual_inspection` → `viewed_passed`.
 
 ## Next concrete task
 
-Apply the `openai-docs` skill and revalidate current official OpenAI Audio/Responses/Structured Outputs SDK behavior. Update the two research files with dated official evidence before implementing providers.
+Run `git diff --check`, inspect the complete M4 diff and staged scope, create the scoped local M4 commit, record its hash, then inspect `input/` metadata read-only and begin M5 long-media/recovery validation.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Then run `git status --short --branch` and `git log -5 --oneline`. Do not repeat completed M3 gates without evidence that files changed; continue from the next concrete task above. Apply the `openai-docs` skill before any M4 provider implementation.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch` and `git log -5 --oneline`, then execute the next concrete task above. Do not call OpenAI unless the environment is explicitly configured for `make smoke-cloud`; never substitute Mock for a claimed cloud success.

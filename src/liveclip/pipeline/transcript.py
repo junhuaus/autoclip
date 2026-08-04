@@ -5,7 +5,8 @@ import hashlib
 import os
 import tempfile
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -18,7 +19,19 @@ from liveclip.domain.transcript import (
     TranscriptWord,
     WordTimingStatus,
 )
+from liveclip.media.secure_files import (
+    SecureFileError,
+    SecureFileMissing,
+    read_regular_text_no_follow,
+    write_text_immutable_no_follow,
+)
 from liveclip.providers.asr.base import ASRChunkResult, ASRProvider, AudioChunkLike
+from liveclip.providers.telemetry import (
+    ProviderCallRecord,
+    ProviderCallStatus,
+    ProviderCancelled,
+    ProviderRequestError,
+)
 
 
 class _ChunkCacheRecord(BaseModel):
@@ -29,7 +42,9 @@ class _ChunkCacheRecord(BaseModel):
     source_start_ms: int = Field(ge=0)
     source_end_ms: int = Field(gt=0)
     chunk_cache_identity: str = Field(min_length=1, max_length=256)
+    provider_contract_version: str = Field(min_length=1, max_length=80)
     vocabulary_prompt_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    result_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     result: ASRChunkResult
 
 
@@ -40,6 +55,18 @@ class _AbsoluteDraft:
     text: str
     source_chunk_ids: tuple[str, ...]
     words: tuple[TranscriptWord, ...] | None
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptionRunResult:
+    document: TranscriptDocument
+    call_records: tuple[ProviderCallRecord, ...]
+
+
+ChunkOutcomeCallback = Callable[
+    [AudioChunkLike, ProviderCallRecord | None, ProviderCallStatus, bool],
+    None,
+]
 
 
 def normalize_transcript_text(value: str) -> str:
@@ -172,8 +199,43 @@ def transcribe_chunks(
     cache_dir: Path | None = None,
     language: str = "zh",
     vocabulary_prompt: str | None = None,
+    concurrency: int = 1,
+    cancel_requested: Callable[[], bool] = lambda: False,
+    on_chunk_outcome: ChunkOutcomeCallback | None = None,
 ) -> TranscriptDocument:
     """Resume cached successful chunks, merge them, and atomically emit artifacts."""
+
+    return transcribe_chunks_detailed(
+        provider,
+        chunks,
+        source_duration_ms=source_duration_ms,
+        output_dir=output_dir,
+        cache_dir=cache_dir,
+        language=language,
+        vocabulary_prompt=vocabulary_prompt,
+        concurrency=concurrency,
+        cancel_requested=cancel_requested,
+        on_chunk_outcome=on_chunk_outcome,
+    ).document
+
+
+def transcribe_chunks_detailed(
+    provider: ASRProvider,
+    chunks: Sequence[AudioChunkLike],
+    *,
+    source_duration_ms: int,
+    output_dir: Path,
+    cache_dir: Path | None = None,
+    language: str = "zh",
+    vocabulary_prompt: str | None = None,
+    concurrency: int = 1,
+    cancel_requested: Callable[[], bool] = lambda: False,
+    on_chunk_outcome: ChunkOutcomeCallback | None = None,
+) -> TranscriptionRunResult:
+    """Run/cache per-chunk ASR with deterministic ordering and durable call evidence."""
+
+    if not 1 <= concurrency <= 8:
+        raise ValueError("ASR concurrency must be between one and eight")
 
     destination = Path(output_dir)
     cache_root = Path(cache_dir) if cache_dir is not None else destination / "asr-cache"
@@ -187,39 +249,126 @@ def transcribe_chunks(
             ),
         )
     )
-    results: list[ASRChunkResult] = []
+    results_by_chunk: dict[str, ASRChunkResult] = {}
+    calls_by_id: dict[str, ProviderCallRecord] = {}
+    missing: list[tuple[AudioChunkLike, Path, str]] = []
     vocabulary_prompt_sha256 = hashlib.sha256((vocabulary_prompt or "").encode()).hexdigest()
+    contract_version = _provider_contract_version(provider)
     for chunk in ordered_chunks:
+        if cancel_requested():
+            raise ProviderCancelled()
         chunk_cache_identity = _chunk_cache_identity(chunk)
-        cache_path = cache_root / _chunk_cache_filename(chunk.chunk_id, chunk_cache_identity)
+        cache_path = cache_root / _chunk_cache_filename(
+            chunk.chunk_id,
+            chunk_cache_identity,
+            provider_name=provider.provider_name,
+            model_name=provider.model_name,
+            contract_version=contract_version,
+            language=language,
+            vocabulary_prompt_sha256=vocabulary_prompt_sha256,
+        )
         cached = _load_cached_result(
             cache_path,
             chunk,
             chunk_cache_identity=chunk_cache_identity,
             provider_name=provider.provider_name,
             model_name=provider.model_name,
+            provider_contract_version=contract_version,
             language=language,
             vocabulary_prompt_sha256=vocabulary_prompt_sha256,
         )
-        if cached is None:
-            result = provider.transcribe(
-                chunk,
-                language=language,
-                vocabulary_prompt=vocabulary_prompt,
-            )
-            _validate_chunk_result_pair(chunk, result, source_duration_ms=source_duration_ms)
-            record = _ChunkCacheRecord(
-                chunk_id=chunk.chunk_id,
-                source_start_ms=chunk.source_start_ms,
-                source_end_ms=chunk.source_end_ms,
-                chunk_cache_identity=chunk_cache_identity,
-                vocabulary_prompt_sha256=vocabulary_prompt_sha256,
-                result=result,
-            )
-            _atomic_write_text(cache_path, record.model_dump_json(indent=2) + "\n")
+        if cached is not None:
+            results_by_chunk[chunk.chunk_id] = cached
+            if cached.call_record is not None:
+                calls_by_id[cached.call_record.call_id] = cached.call_record
+            if on_chunk_outcome is not None:
+                on_chunk_outcome(
+                    chunk,
+                    cached.call_record,
+                    ProviderCallStatus.SUCCEEDED,
+                    True,
+                )
+            continue
+        missing.append((chunk, cache_path, chunk_cache_identity))
+
+    if missing:
+        failures: list[Exception] = []
+        if concurrency == 1:
+            for item in missing:
+                try:
+                    result = _transcribe_and_cache(
+                        provider,
+                        item,
+                        source_duration_ms=source_duration_ms,
+                        language=language,
+                        vocabulary_prompt=vocabulary_prompt,
+                        vocabulary_prompt_sha256=vocabulary_prompt_sha256,
+                        provider_contract_version=contract_version,
+                        cancel_requested=cancel_requested,
+                    )
+                except Exception as exc:
+                    _report_chunk_failure(item[0], exc, on_chunk_outcome=on_chunk_outcome)
+                    raise
+                _accept_chunk_success(
+                    item[0],
+                    result,
+                    results_by_chunk=results_by_chunk,
+                    calls_by_id=calls_by_id,
+                    on_chunk_outcome=on_chunk_outcome,
+                )
         else:
-            result = cached
-        results.append(result)
+            with ThreadPoolExecutor(
+                max_workers=concurrency,
+                thread_name_prefix="liveclip-asr",
+            ) as pool:
+                # Submit at most one bounded batch. A failed batch therefore cannot
+                # leave the rest of a multi-hour recording queued for paid calls.
+                for batch_start in range(0, len(missing), concurrency):
+                    if failures or cancel_requested():
+                        break
+                    batch = missing[batch_start : batch_start + concurrency]
+                    futures: dict[
+                        Future[ASRChunkResult],
+                        tuple[AudioChunkLike, Path, str],
+                    ] = {
+                        pool.submit(
+                            _transcribe_and_cache,
+                            provider,
+                            item,
+                            source_duration_ms=source_duration_ms,
+                            language=language,
+                            vocabulary_prompt=vocabulary_prompt,
+                            vocabulary_prompt_sha256=vocabulary_prompt_sha256,
+                            provider_contract_version=contract_version,
+                            cancel_requested=cancel_requested,
+                        ): item
+                        for item in batch
+                    }
+                    for future in as_completed(futures):
+                        item = futures[future]
+                        try:
+                            result = future.result()
+                        except Exception as exc:
+                            _report_chunk_failure(
+                                item[0],
+                                exc,
+                                on_chunk_outcome=on_chunk_outcome,
+                            )
+                            failures.append(exc)
+                        else:
+                            _accept_chunk_success(
+                                item[0],
+                                result,
+                                results_by_chunk=results_by_chunk,
+                                calls_by_id=calls_by_id,
+                                on_chunk_outcome=on_chunk_outcome,
+                            )
+            if failures:
+                raise failures[0]
+            if cancel_requested():
+                raise ProviderCancelled()
+
+    results = [results_by_chunk[chunk.chunk_id] for chunk in ordered_chunks]
 
     document = merge_chunk_results(
         ordered_chunks,
@@ -227,7 +376,87 @@ def transcribe_chunks(
         source_duration_ms=source_duration_ms,
     )
     write_transcript_artifacts(document, destination)
-    return document
+    return TranscriptionRunResult(
+        document=document,
+        call_records=tuple(calls_by_id.values()),
+    )
+
+
+def _transcribe_and_cache(
+    provider: ASRProvider,
+    item: tuple[AudioChunkLike, Path, str],
+    *,
+    source_duration_ms: int,
+    language: str,
+    vocabulary_prompt: str | None,
+    vocabulary_prompt_sha256: str,
+    provider_contract_version: str,
+    cancel_requested: Callable[[], bool],
+) -> ASRChunkResult:
+    chunk, cache_path, chunk_cache_identity = item
+    result = provider.transcribe(
+        chunk,
+        language=language,
+        vocabulary_prompt=vocabulary_prompt,
+        cancel_requested=cancel_requested,
+    )
+    _validate_chunk_result_pair(chunk, result, source_duration_ms=source_duration_ms)
+    record = _ChunkCacheRecord(
+        chunk_id=chunk.chunk_id,
+        source_start_ms=chunk.source_start_ms,
+        source_end_ms=chunk.source_end_ms,
+        chunk_cache_identity=chunk_cache_identity,
+        provider_contract_version=provider_contract_version,
+        vocabulary_prompt_sha256=vocabulary_prompt_sha256,
+        result_sha256=_result_sha256(result),
+        result=result,
+    )
+    _atomic_write_immutable_text(cache_path, record.model_dump_json(indent=2) + "\n")
+    return result
+
+
+def _accept_chunk_success(
+    chunk: AudioChunkLike,
+    result: ASRChunkResult,
+    *,
+    results_by_chunk: dict[str, ASRChunkResult],
+    calls_by_id: dict[str, ProviderCallRecord],
+    on_chunk_outcome: ChunkOutcomeCallback | None,
+) -> None:
+    results_by_chunk[chunk.chunk_id] = result
+    if result.call_record is not None:
+        calls_by_id[result.call_record.call_id] = result.call_record
+    if on_chunk_outcome is not None:
+        on_chunk_outcome(
+            chunk,
+            result.call_record,
+            ProviderCallStatus.SUCCEEDED,
+            False,
+        )
+
+
+def _report_chunk_failure(
+    chunk: AudioChunkLike,
+    error: Exception,
+    *,
+    on_chunk_outcome: ChunkOutcomeCallback | None,
+) -> None:
+    if on_chunk_outcome is None:
+        return
+    if isinstance(error, ProviderCancelled):
+        if error.call_record is not None:
+            on_chunk_outcome(
+                chunk,
+                error.call_record,
+                ProviderCallStatus.CANCELLED,
+                False,
+            )
+        return
+    call_record: ProviderCallRecord | None = None
+    if isinstance(error, ProviderRequestError):
+        call_record = error.call_record
+    status = call_record.status if call_record is not None else ProviderCallStatus.FAILED
+    on_chunk_outcome(chunk, call_record, status, False)
 
 
 def write_transcript_artifacts(document: TranscriptDocument, output_dir: Path) -> None:
@@ -266,8 +495,28 @@ def _validate_chunk_result_pair(
         raise ValueError("ASR result duration does not match requested chunk")
 
 
-def _chunk_cache_filename(chunk_id: str, cache_identity: str) -> str:
-    digest = hashlib.sha256(f"{chunk_id}\0{cache_identity}".encode()).hexdigest()
+def _chunk_cache_filename(
+    chunk_id: str,
+    cache_identity: str,
+    *,
+    provider_name: str,
+    model_name: str,
+    contract_version: str,
+    language: str,
+    vocabulary_prompt_sha256: str,
+) -> str:
+    identity = "\0".join(
+        (
+            chunk_id,
+            cache_identity,
+            provider_name,
+            model_name,
+            contract_version,
+            language,
+            vocabulary_prompt_sha256,
+        )
+    )
+    digest = hashlib.sha256(identity.encode()).hexdigest()
     return f"chunk-{digest}.json"
 
 
@@ -286,24 +535,31 @@ def _load_cached_result(
     chunk_cache_identity: str,
     provider_name: str,
     model_name: str,
+    provider_contract_version: str,
     language: str,
     vocabulary_prompt_sha256: str,
 ) -> ASRChunkResult | None:
     try:
-        record = _ChunkCacheRecord.model_validate_json(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValidationError):
+        record = _ChunkCacheRecord.model_validate_json(
+            read_regular_text_no_follow(path, max_bytes=8 * 1024 * 1024)
+        )
+    except SecureFileMissing:
         return None
+    except (SecureFileError, ValidationError) as exc:
+        raise ValueError("ASR cache exists but is not a trusted record") from exc
     if (
         record.chunk_id != chunk.chunk_id
         or record.source_start_ms != chunk.source_start_ms
         or record.source_end_ms != chunk.source_end_ms
         or record.chunk_cache_identity != chunk_cache_identity
+        or record.provider_contract_version != provider_contract_version
         or record.vocabulary_prompt_sha256 != vocabulary_prompt_sha256
         or record.result.provider != provider_name
         or record.result.model != model_name
         or record.result.language != language
+        or record.result_sha256 != _result_sha256(record.result)
     ):
-        return None
+        raise ValueError("ASR cache record does not match its immutable input identity")
     return record.result
 
 
@@ -328,6 +584,21 @@ def _atomic_write_text(path: Path, value: str) -> None:
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
+
+
+def _atomic_write_immutable_text(path: Path, value: str) -> None:
+    write_text_immutable_no_follow(path, value, max_bytes=8 * 1024 * 1024)
+
+
+def _provider_contract_version(provider: ASRProvider) -> str:
+    value = getattr(provider, "contract_version", None)
+    if isinstance(value, str) and value:
+        return value
+    return f"{provider.provider_name}-asr-contract-v1"
+
+
+def _result_sha256(result: ASRChunkResult) -> str:
+    return hashlib.sha256(result.model_dump_json().encode("utf-8")).hexdigest()
 
 
 def _find_exact_duplicate(

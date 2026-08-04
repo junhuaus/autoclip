@@ -168,7 +168,7 @@ def _execute_demo(
             source_duration_ms=source.duration_ms,
             minimum_duration_ms=candidate_config.minimum_duration_ms,
             maximum_duration_ms=candidate_config.maximum_duration_ms,
-        )
+        ).plan
         captions = captions_for_clip(
             transcript.segments,
             source_start_ms=plan.source_start_ms,

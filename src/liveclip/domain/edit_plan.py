@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 from liveclip.domain.time import ms_to_srt
 
+EDIT_PLAN_SCHEMA_VERSION = "edit-plan-v1"
+
 
 class Layout(StrEnum):
     VERTICAL_BLUR_BACKGROUND = "vertical_blur_background"
@@ -82,7 +84,11 @@ class EditPlan(BaseModel):
     caption_template: CaptionTemplate
     effect: Effect
     risk_flags: tuple[
-        Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)], ...
+        Annotated[
+            str,
+            StringConstraints(strip_whitespace=True, min_length=1, max_length=32),
+        ],
+        ...,
     ] = Field(default_factory=tuple, max_length=8)
     prompt_version: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")

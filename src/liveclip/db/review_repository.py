@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import insert, select, update
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
-from liveclip.application.pipeline import PipelineRunConfig
+from liveclip.application.pipeline import load_persisted_pipeline_config
 from liveclip.application.reviewing import (
     ClipDetail,
     ClipPatch,
@@ -104,7 +104,10 @@ class SqlAlchemyReviewRepository:
                 }
             )
             plan = EditPlan.model_validate(plan_payload)
-            config = PipelineRunConfig.model_validate(context["config_json"])
+            config = load_persisted_pipeline_config(
+                context["config_json"],
+                str(context["config_fingerprint"]),
+            )
             validate_edit_plan_bounds(
                 plan,
                 source_duration_ms=int(context["source_duration_ms"]),
@@ -424,6 +427,7 @@ def _load_current_context(connection: Connection, clip_id: str) -> RowMapping:
                 EditPlanRevisionRow.id.label("revision_id"),
                 EditPlanRevisionRow.plan_json,
                 PipelineRunRow.config_json,
+                PipelineRunRow.config_fingerprint,
                 ProjectRow.current_pipeline_run_id,
                 ProjectRow.current_generation.label("generation"),
                 SourceMediaRow.duration_ms.label("source_duration_ms"),

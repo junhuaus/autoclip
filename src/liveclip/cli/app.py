@@ -27,6 +27,7 @@ from liveclip.domain.state_transitions import (
     ReviewStatus,
 )
 from liveclip.domain.time import seconds_to_ms
+from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
 from liveclip.worker import run_worker
@@ -403,6 +404,31 @@ def demo() -> None:
     typer.echo(f"Quality report: {result.quality_report.resolve()}")
     typer.echo(f"Delivery directory: {result.delivery_dir.resolve()}")
     typer.echo(f"Delivery ZIP: {result.delivery_zip.resolve()}")
+
+
+@app.command("smoke-cloud")
+def smoke_cloud(
+    input_path: Annotated[Path, typer.Option("--input", help="Absolute short test video.")],
+) -> None:
+    """Run strict real OpenAI ASR and Responses checks; never fall back to Mock."""
+
+    try:
+        result = run_cloud_smoke(
+            settings=get_settings(),
+            input_path=input_path,
+            project_root=Path.cwd(),
+        )
+    except (CloudSmokeError, BootstrapError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("Cloud smoke: succeeded")
+    typer.echo(f"Project ID: {result.project_id}")
+    typer.echo(f"Pipeline run ID: {result.run_id}")
+    typer.echo(f"OpenAI ASR model: {result.asr_model}")
+    typer.echo(f"OpenAI LLM model: {result.llm_model}")
+    typer.echo(f"ASR request IDs: {', '.join(result.asr_request_ids)}")
+    typer.echo(f"LLM request IDs: {', '.join(result.llm_request_ids)}")
+    typer.echo(f"Selected non-degraded clips: {result.selected_clip_count}")
 
 
 @app.command()

@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M3 are committed after independent review, and the current implementation focus is M4 real OpenAI providers.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M3 are committed after independent review. M4 implementation, both independent reviews and final local gates are complete; only its scoped local commit/checkpoint remains before M5.
 
 ## Architecture Summary
 
@@ -89,13 +89,16 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 
 ### M4 — Real OpenAI providers
 
-- [ ] Lock and contract-test official SDK.
-- [ ] Implement timestamp-capable OpenAI ASR, usage, retries, cache and resume.
-- [ ] Implement Responses strict parsing, refusal/incomplete, one repair and degradation.
-- [ ] Version prompt and persist prompt/model/request/usage metadata.
-- [ ] Implement strict no-Mock `make smoke-cloud` preflight and execution.
-- [ ] Run cloud smoke only if configuration exists; otherwise record not-run.
-- [ ] Review, fix and commit M4.
+- [x] 2026-08-03 Lock `openai==2.52.0` and contract-test its Audio and Responses request/response shapes without network calls.
+- [x] 2026-08-03 Implement timestamp-capable OpenAI ASR, usage, bounded retries, hardened per-chunk cache and crash resume.
+- [x] 2026-08-03 Implement Responses strict parsing, refusal/incomplete, exactly one repair, all-candidate scoring and deterministic degradation.
+- [x] 2026-08-03 Version Prompt/provider/schema contracts in strict Pipeline config v2 and persist request/usage/cancellation evidence.
+- [x] 2026-08-03 Implement strict no-Mock `make smoke-cloud` preflight, execution and pure false-success evidence validation.
+- [x] 2026-08-03 Run cloud smoke preflight: `not_run` with every missing prerequisite; no key is configured and no paid request was attempted.
+- [x] 2026-08-03 Complete two independent review passes, fix every P1/P2, and receive final `PASS` with 121 focused tests and no residual finding.
+- [x] 2026-08-03 Diagnose the post-review intermittent FFmpeg timeout, bound raster/filter/encoder resources, preserve timeout evidence and pass three repeated real Demo integration runs.
+- [x] 2026-08-03 Pass final M4 gates: `make lint`, 328 Python tests, 11 Web tests, post-fix `make demo`, full decode and actual contact-sheet inspection.
+- [ ] Create the scoped local M4 commit and record its hash.
 
 ### M5 — Long media, recovery, security and quality hardening
 
@@ -171,6 +174,23 @@ The Web write handoff was activated on 2026-08-03 after the main Agent froze `sr
 
 No M3 Agent may edit another owner's files. The main Agent will record any later write handoff before it begins and will integrate/validate the returned tree before claiming a UI path.
 
+Active M4 file ownership (recorded before provider implementation):
+
+- Main Agent: all provider code, common telemetry schema, Pipeline integration, usage persistence, CLI cloud smoke, prompt files, integration tests, research notes and persistent planning documents.
+- `verifier_researcher`: read-only official OpenAI Audio/Responses verification and acceptance evidence; no file changes or paid calls.
+- `m1_media`: read-only ASR/cache/persistence/recovery audit; no file changes or network calls.
+- `m3_reviewer`: read-only Responses/prompt/cloud-smoke implementation audit; no file changes or network calls.
+
+The three audits are independent and must return before the main Agent begins large provider edits. Shared schema, migration head, dependencies and prompt contracts remain main-Agent-owned.
+
+All three audits returned before integration began. A subsequent bounded test-only handoff is active while the main Agent integrates runtime code:
+
+- `verifier_researcher`: may add only `tests/unit/test_openai_retry.py` and `tests/unit/test_openai_asr.py`; no production, fixture, dependency or documentation edits and no network/paid calls.
+- `m1_media`: may add only `tests/unit/test_openai_llm.py`; no production, fixture, dependency or documentation edits and no network/paid calls.
+- Main Agent retains every shared file and will inspect and rerun all delegated tests before accepting them.
+
+The first independent M4 review returned FAIL with four P1 and two P2 findings. The main Agent fixed strict-output repair, config/Prompt/schema drift, cancellation telemetry, symlink/cache trust, empty word timing and cloud-smoke evidence tests. The second read-only review returned `PASS` after 121 focused tests, full Python/lint evidence and diff validation; it found no residual P0/P1/P2. A final read-only follow-up by `m3_reviewer` investigated the subsequently observed FFmpeg timeout and confirmed the bounded-thread remediation direction without changing files.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -232,6 +252,17 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: The independent M3 Reviewer returned `PASS` with no remaining P0/P1 after independently running lint, 233 Python tests, 11 Web tests, 30 focused regressions and diff validation. It retained one product-test P2: Playwright mocks the API, so M6 will add browser-to-real-backend composition even though the real backend chain already has API integration coverage.
 - 2026-08-03: The user authorized read-only long-video testing from repository `input/` after implementation. M5/final acceptance will record runtime, peak resources, disk growth, recovery and quality; source media and outputs remain ignored.
 - 2026-08-03: Current general ASR recommendation lacks required timestamps; v1 defaults to the older timestamp-capable model rather than fabricate alignment.
+- 2026-08-03: The official file-transcription guide still caps uploads at 25 MB and explicitly limits `timestamp_granularities[]` to `whisper-1`; current `gpt-transcribe` remains the general recommendation when alignment is not required.
+- 2026-08-03: `uv.lock` pins official `openai==2.52.0`. Local introspection confirms `audio.transcriptions.create`, `responses.parse(text_format=...)`, public object `_request_id`, failure `request_id`, refusal content, incomplete reasons and token/audio usage types without making a cloud call.
+- 2026-08-03: M4 uses `whisper-1` as a capability-driven timestamp default despite the newer general transcription recommendation. Empty word arrays are `unavailable`; unaligned provider words are rejected rather than silently discarded.
+- 2026-08-03: The first M4 review found SDK Pydantic errors bypassing repair, unbound Prompt/provider/schema drift, cancelled-call evidence loss and cache symlink/tamper trust. Fixes include strict Pipeline config v2 fingerprint loading, multi-call cancellation evidence bound to the historical attempt, and an anchored component-by-component `openat`/`O_NOFOLLOW` immutable cache.
+- 2026-08-03: Cache corruption and final/ancestor symlink tests prove zero provider calls. Cache-before-database ordering is intentional: an immutable successful response can survive a callback crash and replay its original call ID under the current DB fence.
+- 2026-08-03: The application disables official SDK retries and owns request counts, bounded exponential jitter and Retry-After. A retry is counted only when the next request can actually be attempted, so cancellation during backoff preserves `retry_count < request_count`.
+- 2026-08-03: Mock runtime mode now discards any residual OpenAI key and rejects a persisted OpenAI run before handler execution; cloud smoke independently rejects missing request IDs, degraded/wrong-model plans, failed evidence and any non-OpenAI evidence.
+- 2026-08-03: A post-review full run exposed a second intermittent 120-second libx264 timeout while rendering the second 540×960 proxy. The retained fixture proved overlay creation completed and no MP4 was published. Exact-input reruns completed in 2–3 seconds, while FFmpeg verbose evidence showed default libx264 expanding to 12 encoder threads plus filter/input workers, so this was resource-sensitive rather than deterministic bad media.
+- 2026-08-03: Raster PNG inputs are now finite one-frame sources held by explicit framesync semantics; filter/libx264 workers are capped at 2/4, a runtime timeout gets one 1/1-thread retry, and the process runner preserves bounded partial stderr. Thirteen focused process/renderer tests, three repeated real Demo integration chains, `make lint`, 328 Python tests and 11 Web tests pass.
+- 2026-08-03: Post-hardening `make demo` delivered project `demo_20260804T054112_c87bf8bc`. Its 1080×1920 H.264/AAC final fully decoded; the three-frame contact sheet was actually viewed with safe Chinese title/captions, correct portrait layout and no black/blank/severe-crop issue, and the quality report records `viewed_passed`.
+- 2026-08-03: The current session could not hot-load the newly configured OpenAI Developer Docs MCP. The main Agent followed the skill fallback using only official OpenAI domains plus the locked official SDK; a later session can use the configured MCP directly.
 - 2026-08-03: First viewed overlay contact sheet revealed a false truncation ellipsis caused by trimming a wrap-boundary space. The wrap algorithm now tracks actual truncation; a regression test and second viewed render pass.
 - 2026-08-03: Initial M0 review found six concrete gaps. Publication now validates container/codecs/decode/frames/edges/safe bounds before exposure, uses an atomic hard-link no-clobber operation, and falls back on VideoToolbox runtime exceptions. Font detection no longer points from renderer into CLI, and EditPlan tests cover generic paths, shell commands and FFmpeg option fragments.
 - 2026-08-03: The post-review render `/private/tmp/liveclip-m0-overlay-reviewed.Ot6m6j/vertical-overlay.mp4` passed MP4/H.264/AAC, exact 540×960/4.000s, full decode, automatic quality and actual contact-sheet inspection. Its SHA-256 is `4713a270416b9def76a023211fd5b40e9a72538739e33f9b1000b6e7d8e19e56`.
@@ -267,6 +298,11 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 - 2026-08-03: Bind generated media access to committed Asset IDs and short-lived method/path/purpose HMAC URLs; rationale: HTML5 Range seek cannot attach Bearer headers, while local paths must never become a generic file interface.
 - 2026-08-03: Treat Delivery input as an immutable approved-render snapshot and fail active snapshots atomically on revision or decision change; rationale: an offline Worker must not leave stale work appearing current.
 - 2026-08-03: Send Web clip edits as field-level deltas; rationale: unchanged relative captions must be regenerated from absolute transcript time when source boundaries move.
+- 2026-08-03: Freeze all cloud-affecting settings and provider/Prompt/schema versions in a closed canonical Pipeline config v2; rationale: queued or resumed work must never execute new semantics under an old fingerprint.
+- 2026-08-03: Own OpenAI retries in the application with SDK retries disabled; rationale: request/retry/latency evidence and cancellation behavior must be exact and testable.
+- 2026-08-03: Publish provider caches through an anchored `openat`/`O_NOFOLLOW` directory chain and fail closed on any present invalid record; rationale: unsafe cache bytes must be rejected before a paid request or DB success promotion.
+- 2026-08-03: Permit only append-only provider evidence through an exact historical TaskAttempt fence after cancellation/lease loss; rationale: paid call facts must survive cancellation without granting stale workers any domain mutation authority.
+- 2026-08-03: Bound FFmpeg raster rendering to finite still inputs and explicit 2/4 normal plus 1/1 retry thread profiles; rationale: one heavy task must remain locally predictable and a transient encoder stall must neither publish partial media nor lose its last progress evidence.
 
 ## Risks and Mitigations
 
@@ -283,10 +319,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: apply the `openai-docs` skill, revalidate current official Audio/Responses/Structured Outputs SDK contracts, update research facts, then implement the M4 provider ports without changing the local privacy boundary.
+Current first task: review/stage the scoped M4 diff, create its local commit, record the hash, then move to M5 read-only long-media/recovery hardening.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is now active.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 code, both independent reviews and local acceptance are complete at 328 Python plus 11 Web tests; real cloud entitlement remains honestly `not_run`, and only the scoped local commit/checkpoint is pending.

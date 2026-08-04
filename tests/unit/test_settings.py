@@ -36,6 +36,20 @@ def test_settings_reject_invalid_timing_relationships() -> None:
     with pytest.raises(ValidationError):
         Settings(worker_lease_seconds=60, worker_heartbeat_seconds=30, _env_file=None)
 
+    with pytest.raises(ValidationError):
+        Settings(
+            llm_input_price_per_million="1.25",
+            llm_output_price_per_million=None,
+            _env_file=None,
+        )
+
+    with pytest.raises(ValidationError):
+        Settings(
+            llm_input_price_per_million="-1",
+            llm_output_price_per_million="2",
+            _env_file=None,
+        )
+
 
 def test_settings_read_exact_unprefixed_product_environment_names(
     monkeypatch: pytest.MonkeyPatch,

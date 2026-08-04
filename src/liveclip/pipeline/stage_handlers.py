@@ -21,6 +21,7 @@ from liveclip.application.stage_execution import (
     StageStateStore,
     stage_output_fingerprint,
 )
+from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.domain.state_transitions import FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
@@ -38,14 +39,24 @@ from liveclip.media.preprocess import (
     AudioPreprocessTransientError,
     preprocess_audio,
 )
-from liveclip.pipeline.candidates import (
-    CandidateGenerationConfig,
-    fallback_select,
-    generate_candidates,
-)
-from liveclip.pipeline.transcript import transcribe_chunks
+from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_candidates
+from liveclip.pipeline.editing import edit_and_rank_candidates
+from liveclip.pipeline.transcript import transcribe_chunks_detailed
+from liveclip.providers.asr.base import AudioChunkLike
 from liveclip.providers.asr.mock import MockASRProvider
+from liveclip.providers.asr.openai import OpenAIASRProvider
+from liveclip.providers.llm.base import EDITORIAL_SUGGESTION_SCHEMA_VERSION
 from liveclip.providers.llm.mock import MockLLMProvider
+from liveclip.providers.llm.openai import OpenAILLMProvider
+from liveclip.providers.openai_retry import OpenAIRetryPolicy
+from liveclip.providers.telemetry import (
+    ProviderCallRecord,
+    ProviderCallStatus,
+    ProviderCancelled,
+    ProviderConfigurationError,
+    ProviderDeterministicError,
+    ProviderTransientError,
+)
 from liveclip.renderer.ffmpeg import FFmpegRenderCancelled, FFmpegRenderError
 from liveclip.renderer.quality import (
     MediaValidationCancelled,
@@ -65,11 +76,15 @@ class PipelineStageHandlers:
         allowed_media_roots: tuple[Path, ...],
         assets: AssetStore,
         state: StageStateStore,
+        openai_api_key: str | None = None,
+        runtime_provider: str | None = None,
     ) -> None:
         self._data_dir = data_dir
         self._allowed_media_roots = allowed_media_roots
         self._assets = assets
         self._state = state
+        self._openai_api_key = openai_api_key or None
+        self._runtime_provider = runtime_provider
 
     def execute(
         self,
@@ -80,6 +95,13 @@ class PipelineStageHandlers:
     ) -> StageExecutionResult:
         _check_cancel(cancel_requested)
         try:
+            if (
+                getattr(self, "_runtime_provider", None) is not None
+                and work.config.provider != self._runtime_provider
+            ):
+                raise ProviderConfigurationError(
+                    "persisted AI provider does not match the active runtime mode"
+                )
             handlers = {
                 PipelineStage.INGEST: self._ingest,
                 PipelineStage.PREPROCESS: self._preprocess,
@@ -93,6 +115,25 @@ class PipelineStageHandlers:
             raise StageCancelled("audio preprocessing was cancelled") from exc
         except (FFmpegRenderCancelled, MediaValidationCancelled) as exc:
             raise StageCancelled("proxy rendering was cancelled") from exc
+        except ProviderCancelled as exc:
+            for record in exc.call_records:
+                self._state.record_provider_call_after_cancel(
+                    _mutation_fence(work, lease),
+                    record,
+                )
+            raise StageCancelled("cloud provider work was cancelled") from exc
+        except ProviderTransientError as exc:
+            raise StageExecutionError(
+                failure_class=FailureClass.TRANSIENT,
+                error_code=f"{work.stage.value.upper()}_PROVIDER_TEMPORARY",
+                safe_message=f"The {work.stage.value} cloud request failed temporarily",
+            ) from exc
+        except (ProviderDeterministicError, ProviderConfigurationError) as exc:
+            raise StageExecutionError(
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code=f"{work.stage.value.upper()}_PROVIDER_INVALID",
+                safe_message=f"The {work.stage.value} cloud provider configuration is invalid",
+            ) from exc
         except (
             AudioPreprocessTransientError,
             MediaIngestTransientError,
@@ -258,14 +299,9 @@ class PipelineStageHandlers:
         lease: LeaseIdentity,
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
-        if work.config.provider != "mock":
-            raise StageExecutionError(
-                failure_class=FailureClass.DETERMINISTIC,
-                error_code="OPENAI_PROVIDER_NOT_AVAILABLE",
-                safe_message="OpenAI providers are not enabled in this milestone",
-            )
         project_dir = project_directory(self._data_dir, work.project_id)
         generation_dir = _generation_directory(project_dir, work.generation)
+        attempt_dir = attempt_directory(project_dir, lease)
         source = self._state.load_source(project_id=work.project_id)
         manifest = AudioChunkManifest.model_validate_json(
             (generation_dir / "audio" / "chunk-manifest.json").read_text(encoding="utf-8")
@@ -287,14 +323,51 @@ class PipelineStageHandlers:
             ),
         )
         _check_cancel(cancel_requested)
-        provider = MockASRProvider(model_name=work.config.transcription_model)
-        transcript = transcribe_chunks(
+        provider = self._asr_provider(work)
+        fence = _mutation_fence(work, lease)
+
+        def record_outcome(
+            chunk: AudioChunkLike,
+            call_record: ProviderCallRecord | None,
+            status: ProviderCallStatus,
+            cache_hit: bool,
+        ) -> None:
+            cache_key = getattr(chunk, "cache_key", None)
+            if not isinstance(cache_key, str):
+                raise ValueError("audio chunk outcome lacks its cache key")
+            if status == ProviderCallStatus.CANCELLED:
+                if call_record is not None:
+                    self._state.record_provider_call_after_cancel(fence, call_record)
+                return
+            self._state.record_asr_chunk_outcome(
+                fence,
+                cache_key=cache_key,
+                status=status,
+                call_record=call_record,
+                cache_hit=cache_hit,
+            )
+
+        transcript_run = transcribe_chunks_detailed(
             provider,
             manifest.chunks,
             source_duration_ms=source.duration_ms,
-            output_dir=generation_dir / "transcript",
+            output_dir=attempt_dir / "transcript",
+            cache_dir=generation_dir / "transcript" / "asr-cache",
             language="zh",
-            vocabulary_prompt="LiveClip、直播、高光、切片",
+            vocabulary_prompt=work.config.asr_vocabulary_prompt,
+            concurrency=work.config.asr_concurrency,
+            cancel_requested=cancel_requested,
+            on_chunk_outcome=record_outcome,
+        )
+        transcript = transcript_run.document
+        _check_cancel(cancel_requested)
+        publish_file_no_clobber(
+            attempt_dir / "transcript" / "transcript.json",
+            generation_dir / "transcript" / "transcript.json",
+        )
+        publish_file_no_clobber(
+            attempt_dir / "transcript" / "transcript.srt",
+            generation_dir / "transcript" / "transcript.srt",
         )
         committed = (
             self._commit(
@@ -396,12 +469,6 @@ class PipelineStageHandlers:
         lease: LeaseIdentity,
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
-        if work.config.provider != "mock":
-            raise StageExecutionError(
-                failure_class=FailureClass.DETERMINISTIC,
-                error_code="OPENAI_PROVIDER_NOT_AVAILABLE",
-                safe_message="OpenAI providers are not enabled in this milestone",
-            )
         project_dir = project_directory(self._data_dir, work.project_id)
         generation_dir = _generation_directory(project_dir, work.generation)
         source = self._state.load_source(project_id=work.project_id)
@@ -409,12 +476,7 @@ class PipelineStageHandlers:
             (generation_dir / "transcript" / "transcript.json").read_text(encoding="utf-8")
         )
         candidates = self._state.load_candidates(run_id=work.run_id)
-        selected_domain = fallback_select(
-            tuple(item.candidate for item in candidates),
-            top_n=work.config.top_n,
-        )
         by_key = {item.candidate.candidate_id: item for item in candidates}
-        selected = tuple(by_key[item.candidate_id] for item in selected_domain)
         reservation = self._reserve(
             work,
             lease,
@@ -426,17 +488,29 @@ class PipelineStageHandlers:
         if artifact_path.is_file():
             prepared = _load_prepared_revisions(artifact_path)
         else:
-            editor = MockLLMProvider(model_name=work.config.llm_model)
+            editor = self._llm_provider(work)
+            fence = _mutation_fence(work, lease)
+            editing = edit_and_rank_candidates(
+                editor,
+                tuple(item.candidate for item in candidates),
+                source_duration_ms=source.duration_ms,
+                minimum_duration_ms=work.config.minimum_clip_ms,
+                maximum_duration_ms=work.config.maximum_clip_ms,
+                top_n=work.config.top_n,
+                cache_dir=generation_dir / "editing" / "cache",
+                cancel_requested=cancel_requested,
+                on_call_records=lambda records, cache_hit: self._state.record_provider_calls(
+                    fence,
+                    records,
+                    cache_hit=cache_hit,
+                ),
+            )
             prepared_values: list[PreparedRevision] = []
             created_at = datetime.now(UTC)
-            for rank, item in enumerate(selected, start=1):
+            for rank, edited in enumerate(editing.selected, start=1):
                 _check_cancel(cancel_requested)
-                plan = editor.edit_candidate(
-                    item.candidate,
-                    source_duration_ms=source.duration_ms,
-                    minimum_duration_ms=work.config.minimum_clip_ms,
-                    maximum_duration_ms=work.config.maximum_clip_ms,
-                )
+                item = by_key[edited.candidate.candidate_id]
+                plan = edited.result.plan
                 captions = captions_for_clip(
                     transcript.segments,
                     source_start_ms=plan.source_start_ms,
@@ -449,7 +523,9 @@ class PipelineStageHandlers:
                         revision=EditPlanRevision(
                             clip_id=item.candidate_id,
                             revision=1,
-                            origin=RevisionOrigin.AI,
+                            origin=(
+                                RevisionOrigin.DETERMINISTIC if plan.degraded else RevisionOrigin.AI
+                            ),
                             plan=plan,
                             captions=captions,
                             created_at=created_at,
@@ -464,8 +540,15 @@ class PipelineStageHandlers:
                     "revisions": [_prepared_payload(value) for value in prepared],
                 },
             )
-        if {item.candidate_id for item in prepared} != {item.candidate_id for item in selected}:
-            raise ValueError("persisted edit selection differs from current candidates")
+        prepared_ids = [item.candidate_id for item in prepared]
+        expected_count = min(work.config.top_n, len(candidates))
+        if (
+            len(prepared_ids) != expected_count
+            or len(set(prepared_ids)) != len(prepared_ids)
+            or not set(prepared_ids).issubset({item.candidate_id for item in candidates})
+            or sorted(item.rank for item in prepared) != list(range(1, expected_count + 1))
+        ):
+            raise ValueError("persisted edit selection differs from current rough candidate set")
         committed = self._commit(
             lease,
             reservation,
@@ -481,6 +564,58 @@ class PipelineStageHandlers:
                 "selected_count": len(revisions),
             },
         )
+
+    def _asr_provider(self, work: StageWork) -> MockASRProvider | OpenAIASRProvider:
+        if work.config.provider == "mock":
+            provider: MockASRProvider | OpenAIASRProvider = MockASRProvider(
+                model_name=work.config.transcription_model
+            )
+        else:
+            provider = OpenAIASRProvider(
+                api_key=self._openai_api_key,
+                model_name=work.config.transcription_model,
+                timeout_seconds=work.config.openai_request_timeout_seconds,
+                retry_policy=_retry_policy(work),
+            )
+        if provider.contract_version != work.config.asr_contract_version:
+            raise ProviderConfigurationError(
+                "persisted ASR contract no longer matches the installed provider"
+            )
+        return provider
+
+    def _llm_provider(self, work: StageWork) -> MockLLMProvider | OpenAILLMProvider:
+        if work.config.provider == "mock":
+            provider: MockLLMProvider | OpenAILLMProvider = MockLLMProvider(
+                model_name=work.config.llm_model
+            )
+        else:
+            provider = OpenAILLMProvider(
+                api_key=self._openai_api_key,
+                model_name=work.config.llm_model,
+                timeout_seconds=work.config.openai_request_timeout_seconds,
+                retry_policy=_retry_policy(work),
+                input_price_per_million=work.config.llm_input_price_per_million,
+                output_price_per_million=work.config.llm_output_price_per_million,
+            )
+        expected = (
+            provider.contract_version,
+            provider.prompt_version,
+            provider.prompt_sha256,
+            EDITORIAL_SUGGESTION_SCHEMA_VERSION,
+            EDIT_PLAN_SCHEMA_VERSION,
+        )
+        persisted = (
+            work.config.llm_contract_version,
+            work.config.editing_prompt_version,
+            work.config.editing_prompt_sha256,
+            work.config.editorial_schema_version,
+            work.config.edit_plan_schema_version,
+        )
+        if expected != persisted:
+            raise ProviderConfigurationError(
+                "persisted editing contract no longer matches the installed provider"
+            )
+        return provider
 
     def _proxy_render(
         self,
@@ -711,6 +846,14 @@ class PipelineStageHandlers:
 def _check_cancel(cancel_requested: Callable[[], bool]) -> None:
     if cancel_requested():
         raise StageCancelled("stage cancellation was requested")
+
+
+def _retry_policy(work: StageWork) -> OpenAIRetryPolicy:
+    return OpenAIRetryPolicy(
+        max_retries=work.config.openai_max_request_retries,
+        base_delay_seconds=work.config.openai_retry_base_seconds,
+        max_delay_seconds=work.config.openai_retry_max_seconds,
+    )
 
 
 def _generation_relative(generation: int, relative_path: str) -> str:

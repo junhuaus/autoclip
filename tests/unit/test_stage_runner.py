@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select, update
 from sqlalchemy.engine import Engine
 
 from liveclip.application.pipeline import (
@@ -20,6 +21,7 @@ from liveclip.application.stage_execution import (
 from liveclip.application.stage_runner import RunOneOutcome, StageTaskRunner
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
+from liveclip.db.models import PipelineRunRow, TaskRow
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.domain.state_transitions import PipelineRunStatus
@@ -44,6 +46,15 @@ class CancellationHandler:
         if self._unexpected:
             raise RuntimeError("unexpected handler error after cancellation")
         raise StageCancelled("cancelled by test")
+
+
+class NeverCalledHandler:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def execute(self, *_args: object, **_kwargs: object) -> StageExecutionResult:
+        self.calls += 1
+        raise AssertionError("invalid persisted config must fail before handler execution")
 
 
 def _config() -> PipelineRunConfig:
@@ -150,3 +161,56 @@ def test_unexpected_handler_error_after_cancel_still_acknowledges_cancellation(
     snapshot = service.get_run(created.run_id)
     assert snapshot.status == PipelineRunStatus.CANCELLED
     assert all(stage.status.value == "cancelled" for stage in snapshot.stages)
+
+
+def test_invalid_config_snapshot_is_deterministic_and_never_reaches_handler(
+    tmp_path: Path,
+) -> None:
+    engine = create_sqlite_engine(tmp_path / "invalid-config.sqlite3")
+    Base.metadata.create_all(engine)
+    repository = SqlAlchemyPipelineRepository(engine)
+    service = PipelineService(repository)
+    handler = NeverCalledHandler()
+    runner = StageTaskRunner(
+        queue=SQLiteTaskQueue(engine, lease_seconds=30),
+        repository=repository,
+        pipeline_service=service,
+        handler=handler,
+        heartbeat_seconds=1,
+    )
+    try:
+        created = service.create_project_and_run(
+            source_path=Path("/allowed/invalid-config.mp4"),
+            config=_config(),
+            max_stage_retries=3,
+        )
+        with engine.begin() as connection:
+            payload = dict(
+                connection.scalar(
+                    select(PipelineRunRow.config_json).where(PipelineRunRow.id == created.run_id)
+                )
+            )
+            payload["editing_prompt_sha256"] = "f" * 64
+            connection.execute(
+                update(PipelineRunRow)
+                .where(PipelineRunRow.id == created.run_id)
+                .values(config_json=payload)
+            )
+
+        outcome = runner.run_one(
+            worker_id="config-audit",
+            pipeline_run_id=created.run_id,
+        )
+
+        assert outcome == RunOneOutcome.FAILED
+        assert handler.calls == 0
+        with engine.connect() as connection:
+            task = connection.execute(
+                select(TaskRow.failure_class, TaskRow.error_code).where(
+                    TaskRow.pipeline_run_id == created.run_id
+                )
+            ).one()
+        assert task.failure_class == "deterministic"
+        assert task.error_code == "STAGE_CONFIG_INVALID"
+    finally:
+        engine.dispose(close=True)

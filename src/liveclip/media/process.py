@@ -39,6 +39,8 @@ def run_cancellable_process(
         start_new_session=True,
     )
     started = time.monotonic()
+    partial_stdout: str | bytes | None = None
+    partial_stderr: str | bytes | None = None
     try:
         while True:
             if process.poll() is not None:
@@ -53,10 +55,19 @@ def run_cancellable_process(
                 raise ProcessCancelled("subprocess cancellation was requested")
             remaining = timeout_seconds - (time.monotonic() - started)
             if remaining <= 0:
-                raise subprocess.TimeoutExpired(arguments, timeout_seconds)
+                raise subprocess.TimeoutExpired(
+                    arguments,
+                    timeout_seconds,
+                    output=partial_stdout,
+                    stderr=partial_stderr,
+                )
             try:
                 stdout, stderr = process.communicate(timeout=min(poll_seconds, remaining))
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as exc:
+                if exc.output is not None:
+                    partial_stdout = exc.output
+                if exc.stderr is not None:
+                    partial_stderr = exc.stderr
                 continue
             return subprocess.CompletedProcess(
                 arguments,

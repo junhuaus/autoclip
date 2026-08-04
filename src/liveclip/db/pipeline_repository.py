@@ -22,6 +22,7 @@ from liveclip.application.pipeline import (
     StageLeaseLost,
     StageSnapshot,
     StageWork,
+    load_persisted_pipeline_config,
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.db.base import new_id
@@ -310,14 +311,19 @@ class SqlAlchemyPipelineRepository:
                 raise PipelineResourceNotFound("project does not exist")
             run_id = str(project["current_pipeline_run_id"])
             run_facts = connection.execute(
-                select(PipelineRunRow.status, PipelineRunRow.config_json).where(
-                    PipelineRunRow.id == run_id
-                )
+                select(
+                    PipelineRunRow.status,
+                    PipelineRunRow.config_json,
+                    PipelineRunRow.config_fingerprint,
+                ).where(PipelineRunRow.id == run_id)
             ).one_or_none()
             if run_facts is None:
                 raise PipelineResourceNotFound("project current run does not exist")
             run_status = PipelineRunStatus(str(run_facts.status))
-            run_config = PipelineRunConfig.model_validate(run_facts.config_json)
+            run_config = load_persisted_pipeline_config(
+                run_facts.config_json,
+                str(run_facts.config_fingerprint),
+            )
             review_statuses, render_statuses, approved_final_count = _current_clip_facts(
                 connection, project_id, run_id
             )
@@ -615,6 +621,7 @@ class SqlAlchemyPipelineRepository:
                         PipelineRunRow.id.label("run_id"),
                         PipelineRunRow.status.label("run_status"),
                         PipelineRunRow.config_json,
+                        PipelineRunRow.config_fingerprint,
                         PipelineRunRow.cancellation_requested_at.label("run_cancel"),
                         ProjectRow.id.label("project_id"),
                         ProjectRow.source_request_path,
@@ -681,7 +688,10 @@ class SqlAlchemyPipelineRepository:
                 project_id=str(row["project_id"]),
                 stage=PipelineStage(str(row["stage"])),
                 source_path=Path(str(row["source_request_path"])),
-                config=PipelineRunConfig.model_validate(row["config_json"]),
+                config=load_persisted_pipeline_config(
+                    row["config_json"],
+                    str(row["config_fingerprint"]),
+                ),
                 input_fingerprint=str(row["input_fingerprint"]),
                 generation=int(row["current_generation"]),
                 revision_epoch=int(row["revision_epoch"]),
@@ -815,7 +825,10 @@ class SqlAlchemyPipelineRepository:
                 .values(outcome=AttemptOutcome.SUCCEEDED.value, finished_at=now)
             )
             next_ordinal = int(row.ordinal) + 1
-            run_config = PipelineRunConfig.model_validate(row.config_json)
+            run_config = load_persisted_pipeline_config(
+                row.config_json,
+                str(row.config_fingerprint),
+            )
             import_complete = (
                 run_config.run_scope == "import"
                 and PipelineStage(str(row.stage)) == PipelineStage.INGEST
@@ -1441,6 +1454,21 @@ def _validate_stage_checkpoint(
         )
         if actual_segments != segment_count:
             raise PipelineConflict("transcribe checkpoint segment count is inconsistent")
+        audio_chunk_count = connection.scalar(
+            select(func.count())
+            .select_from(AudioChunkRow)
+            .where(AudioChunkRow.pipeline_run_id == pipeline_run_id)
+        )
+        succeeded_chunk_count = connection.scalar(
+            select(func.count())
+            .select_from(AudioChunkRow)
+            .where(
+                AudioChunkRow.pipeline_run_id == pipeline_run_id,
+                AudioChunkRow.provider_status == "succeeded",
+            )
+        )
+        if not audio_chunk_count or succeeded_chunk_count != audio_chunk_count:
+            raise PipelineConflict("transcribe checkpoint has incomplete audio chunk outcomes")
         return
 
     if stage == PipelineStage.CANDIDATES:

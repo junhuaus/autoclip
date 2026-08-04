@@ -6,6 +6,7 @@ from enum import StrEnum
 
 from liveclip.application.pipeline import (
     LeaseIdentity,
+    PipelineConfigInvalid,
     PipelineService,
     RunSnapshot,
     StageExecutionRepository,
@@ -70,6 +71,16 @@ class StageTaskRunner:
             work = self._repository.start_or_resume_stage(identity)
         except StageLeaseLost:
             return RunOneOutcome.LOST_LEASE
+        except PipelineConfigInvalid:
+            return self._record_failure(
+                lease,
+                identity,
+                StageExecutionError(
+                    failure_class=FailureClass.DETERMINISTIC,
+                    error_code="STAGE_CONFIG_INVALID",
+                    safe_message="The persisted pipeline configuration failed integrity checks",
+                ),
+            )
         except Exception:
             return self._record_failure(
                 lease,

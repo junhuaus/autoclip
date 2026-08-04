@@ -62,6 +62,7 @@ def build_ffmpeg_argv(
     encoder: str,
     temporary_output: Path,
     ffmpeg_path: str = "ffmpeg",
+    conservative_threads: bool = False,
 ) -> list[str]:
     _validate_request(request)
     if encoder not in {"h264_videotoolbox", "libx264"}:
@@ -69,16 +70,21 @@ def build_ffmpeg_argv(
     argv = [
         ffmpeg_path,
         "-y",
+        "-nostdin",
         "-hide_banner",
         "-loglevel",
         "warning",
+        "-filter_complex_threads",
+        "1" if conservative_threads else "2",
         "-ss",
         ms_to_ffmpeg(request.source_start_ms),
         "-i",
         str(request.source_path),
     ]
     for overlay in request.overlays:
-        argv.extend(["-loop", "1", "-i", str(overlay.path)])
+        # A PNG is a one-frame secondary input. The overlay filter holds that
+        # frame explicitly, avoiding several unbounded image2 producers.
+        argv.extend(["-i", str(overlay.path)])
     argv.extend(
         [
             "-t",
@@ -97,7 +103,8 @@ def build_ffmpeg_argv(
         bitrate = "2500k" if request.width <= 540 else "6500k"
         argv.extend(["-allow_sw", "0", "-b:v", bitrate])
     else:
-        argv.extend(["-preset", "veryfast", "-crf", "21"])
+        video_threads = "1" if conservative_threads else "4"
+        argv.extend(["-preset", "veryfast", "-crf", "21", "-threads:v", video_threads])
     argv.extend(
         [
             "-pix_fmt",
@@ -144,6 +151,7 @@ def build_filtergraph(request: RenderRequest) -> str:
         output_label = f"composite{index}"
         chains.append(
             f"[{previous}][overlay{index}]overlay=0:0:"
+            "eof_action=repeat:repeatlast=1:"
             f"enable='between(t,{ms_to_ffmpeg(relative_start)},{ms_to_ffmpeg(relative_end)})'"
             f"[{output_label}]"
         )
@@ -186,45 +194,68 @@ def render_clip(
     )
     encoders = _encoder_order(request.encoder)
     diagnostics: list[str] = []
+    attempt = 0
     try:
-        for attempt, encoder in enumerate(encoders, start=1):
-            temporary.unlink(missing_ok=True)
-            argv = build_ffmpeg_argv(
-                request, encoder=encoder, temporary_output=temporary, ffmpeg_path=executable
-            )
-            try:
-                result = run_ffmpeg(
-                    argv,
-                    timeout_seconds=_render_timeout_seconds(request),
-                    cancel_requested=cancel_requested,
+        for encoder in encoders:
+            runtime_attempts = 2 if encoder == "libx264" else 1
+            for runtime_attempt in range(1, runtime_attempts + 1):
+                attempt += 1
+                temporary.unlink(missing_ok=True)
+                argv = build_ffmpeg_argv(
+                    request,
+                    encoder=encoder,
+                    temporary_output=temporary,
+                    ffmpeg_path=executable,
+                    conservative_threads=encoder == "libx264" and runtime_attempt > 1,
                 )
-            except ProcessCancelled as exc:
-                raise FFmpegRenderCancelled("FFmpeg rendering was cancelled") from exc
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                diagnostics.append(f"{encoder} runtime: {exc.__class__.__name__}")
-                continue
-            stderr_tail = _bounded_tail(result.stderr)
-            diagnostics.append(f"{encoder}: {stderr_tail}")
-            if result.returncode == 0 and temporary.is_file() and temporary.stat().st_size > 1_024:
                 try:
-                    _validate_temporary_media(
-                        temporary,
-                        request,
+                    result = run_ffmpeg(
+                        argv,
+                        timeout_seconds=_render_timeout_seconds(request),
                         cancel_requested=cancel_requested,
                     )
-                except MediaValidationCancelled as exc:
-                    raise FFmpegRenderCancelled("render validation was cancelled") from exc
-                except (MediaValidationError, OSError, subprocess.TimeoutExpired) as exc:
-                    diagnostics.append(f"{encoder} validation: {exc.__class__.__name__}: {exc}")
+                except ProcessCancelled as exc:
+                    raise FFmpegRenderCancelled("FFmpeg rendering was cancelled") from exc
+                except subprocess.TimeoutExpired as exc:
+                    diagnostics.append(
+                        f"{encoder} runtime attempt {runtime_attempt}: "
+                        f"{exc.__class__.__name__}{_timeout_stderr_suffix(exc)}"
+                    )
                     continue
-                _publish_no_clobber(temporary, request.output_path)
-                return RenderResult(
-                    output_path=request.output_path,
-                    encoder=encoder,
-                    attempts=attempt,
-                    argv=tuple(argv),
-                    stderr_tail=stderr_tail,
-                )
+                except OSError as exc:
+                    diagnostics.append(
+                        f"{encoder} runtime attempt {runtime_attempt}: {exc.__class__.__name__}"
+                    )
+                    continue
+                stderr_tail = _bounded_tail(result.stderr)
+                diagnostics.append(f"{encoder}: {stderr_tail}")
+                if (
+                    result.returncode == 0
+                    and temporary.is_file()
+                    and temporary.stat().st_size > 1_024
+                ):
+                    try:
+                        _validate_temporary_media(
+                            temporary,
+                            request,
+                            cancel_requested=cancel_requested,
+                        )
+                    except MediaValidationCancelled as exc:
+                        raise FFmpegRenderCancelled("render validation was cancelled") from exc
+                    except (MediaValidationError, OSError, subprocess.TimeoutExpired) as exc:
+                        diagnostics.append(f"{encoder} validation: {exc.__class__.__name__}: {exc}")
+                        break
+                    _publish_no_clobber(temporary, request.output_path)
+                    return RenderResult(
+                        output_path=request.output_path,
+                        encoder=encoder,
+                        attempts=attempt,
+                        argv=tuple(argv),
+                        stderr_tail=stderr_tail,
+                    )
+                # A completed process with invalid output is deterministic for
+                # this encoder. Only runtime launch/timeout failures are retried.
+                break
         raise FFmpegRenderError("FFmpeg rendering failed: " + " | ".join(diagnostics))
     finally:
         temporary.unlink(missing_ok=True)
@@ -275,6 +306,18 @@ def _validate_request(request: RenderRequest) -> None:
 
 def _bounded_tail(value: str, *, maximum_lines: int = 20) -> str:
     return "\n".join(value.splitlines()[-maximum_lines:])[-4_000:]
+
+
+def _timeout_stderr_suffix(exc: subprocess.TimeoutExpired) -> str:
+    raw_value = exc.stderr
+    if isinstance(raw_value, bytes):
+        value = raw_value.decode("utf-8", errors="replace")
+    elif isinstance(raw_value, str):
+        value = raw_value
+    else:
+        return ""
+    tail = _bounded_tail(value)
+    return f": {tail}" if tail else ""
 
 
 def _validate_temporary_media(

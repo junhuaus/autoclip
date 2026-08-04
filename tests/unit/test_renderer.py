@@ -55,6 +55,9 @@ def test_ffmpeg_argv_is_an_argument_array_with_fixed_mapping(tmp_path: Path) -> 
     assert "libx264" in argv
     assert request.source_path.as_posix() in argv
     assert request.overlays[0].path.as_posix() in argv
+    assert "-loop" not in argv
+    assert argv[argv.index("-filter_complex_threads") + 1] == "2"
+    assert argv[argv.index("-threads:v") + 1] == "4"
     assert not any("LiveClip title" in argument for argument in argv)
 
 
@@ -64,6 +67,7 @@ def test_filtergraph_contains_only_numeric_windows_and_fixed_templates(tmp_path:
     assert "between(t,0.000,3.000)" in graph
     assert "boxblur" in graph
     assert "loudnorm" in graph
+    assert "eof_action=repeat:repeatlast=1" in graph
 
 
 def test_renderer_refuses_to_overwrite_existing_revision_artifact(tmp_path: Path) -> None:
@@ -101,6 +105,68 @@ def test_videotoolbox_runtime_exception_falls_back_to_libx264(
     assert result.attempts == 2
     assert attempted_encoders == ["h264_videotoolbox", "libx264"]
     assert request.output_path.read_bytes().startswith(b"validated-render")
+
+
+def test_libx264_runtime_timeout_is_retried_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = replace(make_request(tmp_path), encoder="libx264")
+    attempted_encoders: list[str] = []
+    attempted_thread_profiles: list[tuple[str, str]] = []
+
+    def fake_run(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        encoder = argv[argv.index("-c:v") + 1]
+        attempted_encoders.append(encoder)
+        attempted_thread_profiles.append(
+            (
+                argv[argv.index("-filter_complex_threads") + 1],
+                argv[argv.index("-threads:v") + 1],
+            )
+        )
+        if len(attempted_encoders) == 1:
+            raise subprocess.TimeoutExpired(argv, timeout=1)
+        Path(argv[-1]).write_bytes(b"validated-render" * 1_000)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(renderer_module, "run_ffmpeg", fake_run)
+    monkeypatch.setattr(
+        renderer_module,
+        "_validate_temporary_media",
+        lambda *_args, **_kwargs: None,
+    )
+
+    result = render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
+
+    assert result.encoder == "libx264"
+    assert result.attempts == 2
+    assert attempted_encoders == ["libx264", "libx264"]
+    assert attempted_thread_profiles == [("2", "4"), ("1", "1")]
+    assert request.output_path.read_bytes().startswith(b"validated-render")
+
+
+def test_libx264_timeout_diagnostics_keep_bounded_partial_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = replace(make_request(tmp_path), encoder="libx264")
+    attempts = 0
+
+    def timeout(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        nonlocal attempts
+        attempts += 1
+        raise subprocess.TimeoutExpired(
+            argv,
+            timeout=1,
+            stderr=("ignored\n" * 30) + "frame=42 speed=0.0x",
+        )
+
+    monkeypatch.setattr(renderer_module, "run_ffmpeg", timeout)
+
+    with pytest.raises(FFmpegRenderError, match=r"frame=42 speed=0\.0x") as caught:
+        render_clip(request, ffmpeg_path="/deterministic/fake-ffmpeg")
+
+    assert attempts == 2
+    assert len(str(caught.value)) < 8_500
+    assert not request.output_path.exists()
 
 
 def test_invalid_temporary_render_is_never_published(

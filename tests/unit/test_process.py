@@ -66,3 +66,28 @@ def test_process_runner_terminates_a_running_child_on_cancel(tmp_path: Path) -> 
 
     assert time.monotonic() - started < 3
     assert not marker.exists()
+
+
+def test_process_timeout_preserves_partial_stderr() -> None:
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys,time;"
+                    "sys.stderr.write('progress-marker\\n');"
+                    "sys.stderr.flush();"
+                    "time.sleep(30)"
+                ),
+            ],
+            timeout_seconds=0.2,
+            poll_seconds=0.05,
+        )
+
+    stderr = caught.value.stderr
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8")
+    assert stderr is not None and "progress-marker" in stderr
+    assert time.monotonic() - started < 3

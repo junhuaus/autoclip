@@ -13,6 +13,7 @@ from liveclip.domain.review import EditPlanRevision
 from liveclip.domain.state_transitions import FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
 from liveclip.media.models import AudioChunkManifest, SourceMediaMetadata
+from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
 
 
 class StageCancelled(RuntimeError):
@@ -111,6 +112,30 @@ class StageStateStore(Protocol):
         manifest: AudioChunkManifest,
         chunk_asset_ids: Mapping[int, str],
     ) -> None: ...
+
+    def record_asr_chunk_outcome(
+        self,
+        fence: StageMutationFence,
+        *,
+        cache_key: str,
+        status: ProviderCallStatus,
+        call_record: ProviderCallRecord | None,
+        cache_hit: bool,
+    ) -> None: ...
+
+    def record_provider_calls(
+        self,
+        fence: StageMutationFence,
+        records: Sequence[ProviderCallRecord],
+        *,
+        cache_hit: bool,
+    ) -> None: ...
+
+    def record_provider_call_after_cancel(
+        self,
+        fence: StageMutationFence,
+        record: ProviderCallRecord,
+    ) -> bool: ...
 
     def save_transcript(
         self,
