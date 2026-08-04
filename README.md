@@ -2,7 +2,7 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It will turn a local 2–4 hour video into reviewable 9:16 clips, let a user adjust and approve exact revisions, and create immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: M0–M2 are locally committed. M3 REST/review/delivery services, complete CLI commands and the React review console pass local API, component and Chrome E2E acceptance; the independent M3 review returned PASS and its local checkpoint is being recorded. Real cloud providers remain M4. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: M0–M3 are locally committed after independent review. REST/review/delivery services, complete CLI commands and the React review console pass local API, component and Chrome E2E acceptance. Real cloud providers are the active M4 work. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 

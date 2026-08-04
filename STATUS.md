@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M3 — REST API, Web review and versioned delivery (Reviewer PASS; checkpoint pending)
+Current milestone: M4 — real OpenAI providers
 Branch: `master`
-Recent relevant commit: `589269c` (`docs: record M2 checkpoint`); M3 is intentionally uncommitted until Reviewer PASS
+Recent relevant commit: `f707e90` (`milestone: complete LiveClip M3 review workflow`)
 
 ## Completed
 
@@ -19,11 +19,12 @@ Recent relevant commit: `589269c` (`docs: record M2 checkpoint`); M3 is intentio
 - Boundary-only Web edits omit unchanged relative captions; the backend rebuilds cue times from absolute TranscriptSegments. Empty or unsafe captions are rejected at API/application/domain boundaries.
 - `make dev` serializes migration preparation before starting FastAPI, Worker and Vite, reports local URLs, and cleans all child processes on Ctrl+C.
 - M3 independent review findings fixed so far: stable framework errors/CORS, signed-URL refresh, retry after failed Delivery, no-ZIP Delivery, Vite query redaction, fresh-DB migration serialization, stale Delivery invalidation, nonempty captions, CLI candidate evidence, differential boundary edits and review-decision invalidation.
+- Created scoped local M3 commit `f707e90` after Reviewer PASS, full gates and staged whitespace/scope review.
 
 ## In progress
 
-- Independent read-only M3 Reviewer returned `PASS` with no remaining P0/P1. It independently ran lint, 233 Python tests, 11 Web tests, 30 focused regressions and diff validation.
-- Main Agent is reviewing/staging the exact integrated diff and creating the scoped local M3 commit.
+- M4 starts with mandatory current official OpenAI Audio/Responses/Structured Outputs and Python SDK contract verification before provider code.
+- Existing Mock providers and deterministic fallback remain the standard test path; no real call will silently fall back to Mock.
 
 ## Not completed
 
@@ -52,19 +53,19 @@ Recent relevant commit: `589269c` (`docs: record M2 checkpoint`); M3 is intentio
 
 ## Current blockers
 
-- No product or implementation blocker. M3 is ready for its scoped local commit.
+- No product or implementation blocker.
 - Missing cloud credentials block only the optional real cloud smoke, not M4 implementation or local acceptance.
 
 ## Worktree state
 
-- Branch `master`; HEAD `589269c`.
-- Worktree contains only the integrated M3 code, migration, Web app/tests, docs and configuration changes. Generated `node_modules`, `dist`, Playwright results, databases and media are ignored.
+- Branch `master`; HEAD `f707e90` before this documentation checkpoint.
+- M3 implementation is committed. This checkpoint updates only persistent recovery documentation. Generated `node_modules`, `dist`, Playwright results, databases and media are ignored.
 - No remote exists and nothing has been pushed. User media under `input/` has not been touched.
 
 ## Next concrete task
 
-Review/stage the exact M3 diff and create the local milestone commit. Then record its hash in ExecPlan/STATUS and start M4 with the `openai-docs` skill.
+Apply the `openai-docs` skill and revalidate current official OpenAI Audio/Responses/Structured Outputs SDK behavior. Update the two research files with dated official evidence before implementing providers.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Then run `git status --short --branch` and `git log -5 --oneline`. Do not repeat completed M3 gates without evidence that files changed; continue from the next concrete task above. After the M3 checkpoint, start M4 by applying the `openai-docs` skill and revalidating official OpenAI docs before provider code.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Then run `git status --short --branch` and `git log -5 --oneline`. Do not repeat completed M3 gates without evidence that files changed; continue from the next concrete task above. Apply the `openai-docs` skill before any M4 provider implementation.
