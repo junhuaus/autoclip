@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M3 are committed after independent review. M4 implementation, both independent reviews and final local gates are complete; only its scoped local commit/checkpoint remains before M5.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M4 are committed after independent review. M5 long-media, recovery, security and quality hardening is active.
 
 ## Architecture Summary
 
@@ -98,7 +98,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-03 Complete two independent review passes, fix every P1/P2, and receive final `PASS` with 121 focused tests and no residual finding.
 - [x] 2026-08-03 Diagnose the post-review intermittent FFmpeg timeout, bound raster/filter/encoder resources, preserve timeout evidence and pass three repeated real Demo integration runs.
 - [x] 2026-08-03 Pass final M4 gates: `make lint`, 328 Python tests, 11 Web tests, post-fix `make demo`, full decode and actual contact-sheet inspection.
-- [ ] Create the scoped local M4 commit and record its hash.
+- [x] 2026-08-03 Create scoped local M4 commit `476ad89` after staged scope and whitespace checks.
 
 ### M5 — Long media, recovery, security and quality hardening
 
@@ -319,10 +319,10 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-Current first task: review/stage the scoped M4 diff, create its local commit, record the hash, then move to M5 read-only long-media/recovery hardening.
+Current first task: inspect repository `input/` metadata read-only, choose the longest suitable allowed-root sample, record a baseline resource/disk plan, then exercise M5 streaming and recovery without modifying or committing user media.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
 
-M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 code, both independent reviews and local acceptance are complete at 328 Python plus 11 Web tests; real cloud entitlement remains honestly `not_run`, and only the scoped local commit/checkpoint is pending.
+M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is complete at commit `476ad89`: pinned real OpenAI adapters, strict cloud contracts, immutable caches, bounded retry/usage/cancellation evidence, no-Mock smoke validation and renderer reliability hardening passed both independent reviews, 328 Python tests, 11 Web tests and an actually viewed post-fix Demo. Real cloud entitlement remains honestly `not_run`.

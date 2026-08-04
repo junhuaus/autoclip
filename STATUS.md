@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-03
-Current milestone: M4 — final gates passed; scoped commit pending
+Current milestone: M5 — long media, recovery, security and quality hardening
 Branch: `master`
-Recent relevant commit: `60c7922` (`docs: record M3 completion checkpoint`)
+Recent relevant commit: `476ad89` (`milestone: complete LiveClip M4 OpenAI providers`)
 
 ## Completed
 
@@ -14,10 +14,11 @@ Recent relevant commit: `60c7922` (`docs: record M3 completion checkpoint`)
 - Secret-free `ApiUsage`, exact historical-attempt cancellation evidence, Mock/OpenAI runtime fencing and strict no-Mock cloud-smoke evidence validation are integrated.
 - Both independent M4 review passes are complete. The final OpenAI Reviewer returned `PASS` with no P0/P1/P2.
 - A post-review intermittent FFmpeg timeout was retained and diagnosed. Raster inputs are now finite frames held by fixed overlay semantics, normal filter/libx264 threads are capped at 2/4, a timeout receives one 1/1-thread retry, and bounded partial stderr survives timeout termination.
+- Scoped local M4 commit `476ad89` contains the reviewed provider/runtime/cache/config/test/documentation changes and renderer reliability fix.
 
 ## In progress
 
-- Final scoped diff/stage review and local M4 milestone commit.
+- M5 begins with read-only inventory and metadata of the user-authorized repository `input/` videos, followed by streaming/resource/recovery tests.
 
 ## Not completed
 
@@ -50,8 +51,8 @@ Recent relevant commit: `60c7922` (`docs: record M3 completion checkpoint`)
 
 ## Worktree state
 
-- Branch `master`; HEAD `60c7922` before the M4 milestone commit.
-- M4 provider/runtime/cache/config/tests/docs plus the renderer reliability fix are intentionally uncommitted pending final scoped review. Generated databases/media/deliveries remain ignored.
+- Branch `master`; HEAD `476ad89` before this documentation checkpoint.
+- M4 implementation is committed. Only this M5 transition checkpoint is uncommitted; generated databases/media/deliveries remain ignored.
 - No remote exists and nothing has been pushed. Repository `input/` user media has not yet been opened.
 
 ## Recent actual commands
@@ -64,7 +65,7 @@ Recent relevant commit: `60c7922` (`docs: record M3 completion checkpoint`)
 
 ## Next concrete task
 
-Run `git diff --check`, inspect the complete M4 diff and staged scope, create the scoped local M4 commit, record its hash, then inspect `input/` metadata read-only and begin M5 long-media/recovery validation.
+Inspect `input/` paths and ffprobe metadata read-only, select the longest suitable sample, record baseline size/duration/streams, then exercise streaming preprocessing, bounded resource use and restart recovery without modifying or committing source media.
 
 ## Resume instructions
 
