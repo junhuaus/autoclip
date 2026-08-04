@@ -137,7 +137,7 @@ class EditPlan(BaseModel):
             StringConstraints(strip_whitespace=True, min_length=1, max_length=32),
         ],
         ...,
-    ] = Field(default_factory=tuple, max_length=8)
+    ] = Field(max_length=8)
     prompt_version: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")
     degraded: bool

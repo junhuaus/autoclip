@@ -10,7 +10,7 @@ VENV_BIN := $(PROJECT_ROOT)/.venv/bin
 NODE_LTS_BIN ?= /usr/local/bin
 UV_ENV := UV_CACHE_DIR=$(UV_CACHE_DIR_LOCAL) UV_PYTHON_INSTALL_DIR=$(UV_PYTHON_DIR_LOCAL)
 
-.PHONY: setup doctor dev lint test demo smoke-cloud clean-demo
+.PHONY: setup doctor dev lint test e2e schema demo smoke-cloud clean-demo
 
 setup:
 	@command -v $(UV) >/dev/null || { echo "uv is required: https://docs.astral.sh/uv/"; exit 1; }
@@ -31,11 +31,21 @@ lint:
 	@"$(VENV_BIN)/ruff" check src tests scripts
 	@"$(VENV_BIN)/ruff" format --check src tests scripts
 	@"$(VENV_BIN)/mypy" src/liveclip scripts
+	@"$(VENV_BIN)/python" scripts/export_edit_plan_schema.py --check
 	@if [ -f apps/web/package-lock.json ]; then PATH="$(NODE_LTS_BIN):$$PATH" npm run typecheck --prefix apps/web; fi
 
 test:
+	@if [ -f apps/web/package-lock.json ]; then ./scripts/check_test_browser.sh; fi
 	@"$(VENV_BIN)/pytest"
 	@if [ -f apps/web/package-lock.json ]; then PATH="$(NODE_LTS_BIN):$$PATH" npm run test:run --prefix apps/web; fi
+	@if [ -f apps/web/package-lock.json ]; then PATH="$(NODE_LTS_BIN):$$PATH" npm run e2e --prefix apps/web; fi
+
+e2e:
+	@./scripts/check_test_browser.sh
+	@PATH="$(NODE_LTS_BIN):$$PATH" npm run e2e --prefix apps/web
+
+schema:
+	@"$(VENV_BIN)/python" scripts/export_edit_plan_schema.py --write
 
 demo:
 	@"$(VENV_BIN)/liveclip" demo

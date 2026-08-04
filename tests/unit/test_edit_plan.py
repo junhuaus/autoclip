@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -51,6 +54,7 @@ def test_strict_edit_plan_restores_from_json_compatible_data() -> None:
 def test_edit_plan_schema_is_closed_and_whitelisted() -> None:
     schema = EditPlan.model_json_schema()
     assert schema["additionalProperties"] is False
+    assert "risk_flags" in schema["required"]
     assert set(schema["$defs"]["Layout"]["enum"]) == {
         "vertical_blur_background",
         "center_crop",
@@ -58,6 +62,16 @@ def test_edit_plan_schema_is_closed_and_whitelisted() -> None:
 
     with pytest.raises(ValidationError):
         make_plan(layout="model_chosen_filter", command="ffmpeg -i source")
+    missing_risks = make_plan().model_dump()
+    del missing_risks["risk_flags"]
+    with pytest.raises(ValidationError):
+        EditPlan.model_validate(missing_risks)
+
+
+def test_exported_edit_plan_schema_matches_the_domain_model() -> None:
+    schema_path = Path(__file__).parents[2] / "docs" / "schemas" / "edit-plan-v1.schema.json"
+
+    assert json.loads(schema_path.read_text(encoding="utf-8")) == EditPlan.model_json_schema()
 
 
 def test_edit_plan_rejects_executable_content() -> None:

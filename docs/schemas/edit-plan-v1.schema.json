@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "CaptionTemplate": {
+      "enum": [
+        "clean_zh_v1"
+      ],
+      "title": "CaptionTemplate",
+      "type": "string"
+    },
+    "Effect": {
+      "enum": [
+        "none",
+        "fade_in_out"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "Layout": {
+      "enum": [
+        "vertical_blur_background",
+        "center_crop"
+      ],
+      "title": "Layout",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "caption_template": {
+      "$ref": "#/$defs/CaptionTemplate"
+    },
+    "degraded": {
+      "title": "Degraded",
+      "type": "boolean"
+    },
+    "effect": {
+      "$ref": "#/$defs/Effect"
+    },
+    "hook": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Hook",
+      "type": "string"
+    },
+    "layout": {
+      "$ref": "#/$defs/Layout"
+    },
+    "model": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Model",
+      "type": "string"
+    },
+    "prompt_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 240,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "risk_flags": {
+      "items": {
+        "maxLength": 32,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Risk Flags",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "1",
+      "pattern": "^1$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "score": {
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Score",
+      "type": "number"
+    },
+    "source_end_ms": {
+      "exclusiveMinimum": 0,
+      "title": "Source End Ms",
+      "type": "integer"
+    },
+    "source_start_ms": {
+      "minimum": 0,
+      "title": "Source Start Ms",
+      "type": "integer"
+    },
+    "title": {
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "source_start_ms",
+    "source_end_ms",
+    "score",
+    "title",
+    "hook",
+    "reason",
+    "layout",
+    "caption_template",
+    "effect",
+    "risk_flags",
+    "prompt_version",
+    "model",
+    "degraded"
+  ],
+  "title": "EditPlan",
+  "type": "object"
+}
