@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-05 20:05 CST
+Updated: 2026-08-05 20:18 CST
 Current milestone: M7 local implementation complete; external OpenRouter cloud acceptance is `not_run`
 Branch: `master`
 Latest implementation commit: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
@@ -29,6 +29,8 @@ The prior 2.19 GB `input/7.28.mp4` run used Mock ASR and Mock LLM. It proves rea
 - `make test`: PASS after the final generation-ID boundary fix; 498 Python tests in 134.75 seconds, 13 Vitest tests, one controlled Mock Chrome E2E and one real API + leased Worker + SQLite + FFmpeg Chrome E2E.
 - Real hardened `make smoke-codex`: PASS with provider `codex_cli`, model `gpt-5.6-terra`, thread `019fd196-1428-7b10-a814-422f64f4f030`, input 8,899/output 105 tokens and a non-degraded validated plan. This proves the editor only, not ASR.
 - `make smoke-openrouter INPUT="/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/7.28.mp4"`: correctly stopped `not_run` before paid work because no new safe Key exists; no Mock fallback.
+- Prepared a bounded real-ASR smoke fixture at `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4`: source interval 300–390 seconds, 90.033 seconds, H.264 960×600 plus AAC audio, 4,906,445 bytes, SHA-256 `f603658f7eba804ab2201366c02811de786f9868a17f2c6c7339313e263a0a13`. FFmpeg fully decoded both streams to a null sink with exit 0; source stat identity was unchanged.
+- The exact short-fixture `make smoke-openrouter` command was executed and exited 2 with `not_run`: `OPENROUTER_API_KEY (new, non-exposed key)` and `OPENROUTER_ASR_NOT_CONFIGURED`. It stopped before upload or billing and did not substitute Mock.
 - Fresh `make demo`: project `demo_20260805T120045_8bc01ec3`, three candidates, status `delivered`, immutable v001 ZIP. Final is 1080×1920 H.264/AAC, 12.000 seconds; ffprobe/full decode/automatic quality/ZIP integrity pass.
 - The fresh final contact sheet was actually viewed: Chinese title/captions stay in the portrait safe area; no black/blank frame, wrong orientation or severe crop. Its quality report records `viewed_passed`.
 - Latest service health returns `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false` and `OPENROUTER_ASR_NOT_CONFIGURED`; Web returns HTTP 200 at `http://127.0.0.1:5173/`.
@@ -51,12 +53,13 @@ There is no safe OpenRouter Key in `.env` or `.env.local`. `OPENROUTER_SETUP.md`
 - M7 implementation is committed locally at `0a0b08a`; no remote exists and nothing is pushed.
 - `.env` is ignored, mode 600, selects `openrouter-codex`, allows repository `input/`, and contains an empty OpenRouter Key.
 - User `input/`, generated data, databases, deliveries and browser evidence remain ignored. No source video was changed.
+- The generated 90-second fixture under ignored `input/.liveclip-smoke/` is ready for the first paid smoke and does not affect Git.
 - `OPENROUTER_SETUP.md` remains an untracked user file and must not be staged.
 - Local API, Worker and Web are intended to remain running after the final restart.
 
 ## Next concrete task
 
-After the user revokes the exposed Key and creates a new limited Key, place it locally in ignored `.env.local`, restart `make dev`, run Doctor, then use a short allowed Chinese sample with `make smoke-openrouter`. Only after that succeeds should `input/7.28.mp4` be processed with `liveclip run --input ... --wait`.
+After the user revokes the exposed Key and creates a new limited Key, place it locally in ignored `.env.local`, restart `make dev`, run Doctor, then execute `make smoke-openrouter INPUT="/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4"`. Inspect persisted OpenRouter generation/usage, Chinese transcript segments and non-Mock Codex evidence. Only after that succeeds should `input/7.28.mp4` be processed with `liveclip run --input ... --wait`.
 
 ## Resume instructions
 

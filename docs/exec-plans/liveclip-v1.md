@@ -136,6 +136,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-05 Run full lint/test/Demo gates plus controlled and real-backend host-Chrome checks. The browser plugin exposed no attached instance, so Provider startup state was verified through health HTTP plus component tests rather than claiming an MCP visual inspection.
 - [x] 2026-08-05 Pass the independent M7 re-review with zero P0/P1/P2 after repairing generation provenance/validation, documented vocabulary transport, strict usage validation and oversized/truncated Codex JSONL fail-closed handling.
 - [x] 2026-08-05 Create scoped local M7 implementation checkpoint `0a0b08a`; update this plan and STATUS without staging the user-owned setup file.
+- [x] 2026-08-05 Prepare and fully decode a bounded 90-second real-ASR fixture from source seconds 300–390 at `input/.liveclip-smoke/7.28-300s-90s.mp4`; record its SHA-256, prove the source stat identity did not change, and run the exact smoke preflight. It stopped `not_run` before upload/billing because no regenerated Key exists, with no Mock substitution.
 - [ ] After a newly regenerated Key is configured locally, run `make smoke-openrouter` on a short sample and then the authorized 46:20 `input/7.28.mp4`; never use the previously exposed Key. This external verification may remain `not_run`, but cannot be called successful.
 
 ## Work breakdown and file ownership
@@ -334,7 +335,7 @@ Expected on this host: one real `codex_cli` editorial result with a nonempty Cod
 make smoke-openrouter INPUT=/absolute/path/to/short.mp4
 ```
 
-Expected now: `not_run` naming the missing regenerated `OPENROUTER_API_KEY`; no paid request and no Mock fallback. Once a new local Key is configured, success requires OpenRouter generation IDs, Codex thread/token evidence and non-degraded selected plans before any long-input run.
+Expected now: `not_run` naming the missing regenerated `OPENROUTER_API_KEY`; no paid request and no Mock fallback. The prepared first input is `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4` (90.033 seconds, both streams fully decoded, SHA-256 `f603658f7eba804ab2201366c02811de786f9868a17f2c6c7339313e263a0a13`). Once a new local Key is configured, success requires OpenRouter generation IDs, Codex thread/token evidence and non-degraded selected plans before any long-input run.
 
 ## Validation criteria
 
@@ -346,6 +347,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Surprises and Discoveries
 
+- 2026-08-05: A bounded 90-second fixture was generated from `input/7.28.mp4` seconds 300–390 for the first paid ASR smoke. It is 4,906,445 bytes with H.264 video/AAC audio, fully decodes without errors, and the original source stat identity remained unchanged. Preparing the fixture does not prove ASR; the cloud call remains `not_run` until a new safe Key exists.
 - 2026-08-05: `OPENROUTER_SETUP.md` correctly warns that the original Key was exposed and contains no usable secret. Local Settings confirms `OPENROUTER_API_KEY` is absent, so no paid ASR call is authorized or possible yet.
 - 2026-08-05: Current OpenRouter primary docs confirm `/api/v1/audio/transcriptions`, JSON `input_audio`, M4A/AAC support, `verbose_json` segment/word timestamps, `X-Generation-Id`, actual `usage.cost`, no SRT/VTT and a 60-second upstream timeout. They also state multipart `prompt` is ignored and document `provider.options.groq.prompt`; LiveClip therefore uses JSON, one bounded 24 MB chunk at a time, and treats Groq vocabulary influence as best effort rather than a smoke guarantee.
 - 2026-08-05: The installed OpenAI SDK 2.52.0 parses OpenRouter's minimal verbose response but is permissive about missing fields. The Adapter now requires an exact non-truncated generation header, validates finite nonnegative root duration/usage seconds/cost plus segment/word values, and records a 200-but-malformed body as deterministic INVALID without retry or Mock fallback.
@@ -468,7 +470,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M7 implementation and local acceptance are complete; the independent final re-review is PASS with zero P0/P1/P2. The only local recovery action is to inspect the scoped checkpoint and current service health. Do not repeat the 2.19 GB long-media run with Mock and call it AI validation. A truthful full-content run remains blocked until the exposed OpenRouter Key is revoked and a newly generated Key is configured locally.
+M7 implementation and local acceptance are complete; the independent final re-review is PASS with zero P0/P1/P2. A decoded 90-second first-smoke fixture is ready at `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4`. The next recovery action is to verify a newly regenerated local Key, restart services, run Doctor and execute `make smoke-openrouter` against that fixture. Do not repeat the 2.19 GB long-media run with Mock and call it AI validation. A truthful full-content run remains blocked until the exposed OpenRouter Key is revoked and a newly generated Key is configured locally.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
