@@ -3,7 +3,8 @@
 Updated: 2026-08-05 20:05 CST
 Current milestone: M7 local implementation complete; external OpenRouter cloud acceptance is `not_run`
 Branch: `master`
-Baseline commits: `60283ba` (M6 implementation), `65b327e` (delivered documentation)
+Latest implementation commit: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
+Earlier baseline commits: `60283ba` (M6 implementation), `65b327e` (delivered documentation)
 
 ## Current outcome
 
@@ -47,7 +48,7 @@ There is no safe OpenRouter Key in `.env` or `.env.local`. `OPENROUTER_SETUP.md`
 
 ## Worktree and service state
 
-- M7 changes are ready for a scoped local checkpoint; no remote exists and nothing is pushed.
+- M7 implementation is committed locally at `0a0b08a`; no remote exists and nothing is pushed.
 - `.env` is ignored, mode 600, selects `openrouter-codex`, allows repository `input/`, and contains an empty OpenRouter Key.
 - User `input/`, generated data, databases, deliveries and browser evidence remain ignored. No source video was changed.
 - `OPENROUTER_SETUP.md` remains an untracked user file and must not be staged.
