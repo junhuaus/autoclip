@@ -18,6 +18,7 @@ def test_recursive_redaction_removes_credentials_signed_urls_and_local_paths() -
         "Authorization": "Bearer super-secret-token",
         "nested": [
             "OPENAI_API_KEY=sk-test_1234567890",
+            "OPENROUTER_API_KEY=sk-or-v1-test_1234567890",
             "http://127.0.0.1/media?expires=1&signature=abcdef",
             "/Users/example/private/video.mp4",
         ],
@@ -28,6 +29,7 @@ def test_recursive_redaction_removes_credentials_signed_urls_and_local_paths() -
     for secret in (
         "super-secret-token",
         "sk-test_1234567890",
+        "sk-or-v1-test_1234567890",
         "abcdef",
         "must-not-appear",
         "/Users/example/private/video.mp4",

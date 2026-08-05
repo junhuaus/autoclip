@@ -16,6 +16,11 @@ from typing import Literal
 from liveclip.config import Settings
 from liveclip.config.fonts import available_chinese_fonts
 from liveclip.db.engine import assert_supported_sqlite_runtime
+from liveclip.providers.llm.codex import (
+    assert_codex_cli_ready,
+    resolve_codex_executable,
+)
+from liveclip.providers.telemetry import ProviderConfigurationError
 
 CheckStatus = Literal["pass", "warning", "fail"]
 
@@ -76,6 +81,8 @@ def run_doctor(settings: Settings) -> DoctorReport:
             _data_dir_check(settings.resolved_data_dir()),
             _allowed_roots_check(settings),
             _openai_check(settings),
+            _openrouter_check(settings),
+            _codex_check(settings),
             _video_encoder_check(ffmpeg_path, ffprobe_path),
         ]
     )
@@ -291,19 +298,95 @@ def _allowed_roots_check(settings: Settings) -> DoctorCheck:
 
 
 def _openai_check(settings: Settings) -> DoctorCheck:
-    configured = bool(settings.openai_api_key and settings.openai_api_key.get_secret_value())
+    configured = bool(
+        settings.openai_api_key and settings.openai_api_key.get_secret_value().strip()
+    )
     if not configured:
+        selected = settings.ai_provider in {"openai", "openai-codex"}
         return DoctorCheck(
             "openai",
-            "warning",
-            "OpenAI cloud capability is not configured; Mock Demo remains available",
-            {"configured": False},
+            "warning" if selected else "pass",
+            (
+                "OpenAI ASR is not configured; selected real audio transcription is unavailable"
+                if selected
+                else "OpenAI cloud provider is not selected"
+            ),
+            {
+                "configured": False,
+                "asr_requires_openai": selected,
+            },
         )
     return DoctorCheck(
         "openai",
         "pass",
         "OpenAI cloud configuration is present (secret not displayed)",
         {"configured": True},
+    )
+
+
+def _openrouter_check(settings: Settings) -> DoctorCheck:
+    selected = settings.ai_provider == "openrouter-codex"
+    configured = bool(
+        settings.openrouter_api_key and settings.openrouter_api_key.get_secret_value().strip()
+    )
+    if not configured:
+        return DoctorCheck(
+            "openrouter",
+            "warning" if selected else "pass",
+            (
+                "OpenRouter ASR is not configured; whisper-large-v3 transcription is unavailable"
+                if selected
+                else "OpenRouter ASR provider is not selected"
+            ),
+            {
+                "configured": False,
+                "selected": selected,
+                "base_url": settings.openrouter_base_url,
+                "model": settings.openrouter_asr_model,
+            },
+        )
+    return DoctorCheck(
+        "openrouter",
+        "pass",
+        "OpenRouter ASR configuration is present (secret not displayed)",
+        {
+            "configured": True,
+            "selected": selected,
+            "base_url": settings.openrouter_base_url,
+            "model": settings.openrouter_asr_model,
+        },
+    )
+
+
+def _codex_check(settings: Settings) -> DoctorCheck:
+    selected = settings.ai_provider in {"mock-codex", "openai-codex", "openrouter-codex"}
+    if not selected:
+        return DoctorCheck(
+            "codex_cli",
+            "pass",
+            "Codex CLI editing provider is not selected",
+            {"selected": False},
+        )
+    try:
+        executable = resolve_codex_executable(settings.codex_executable)
+        contract = assert_codex_cli_ready(settings.codex_executable)
+    except (OSError, subprocess.TimeoutExpired, ProviderConfigurationError) as exc:
+        return DoctorCheck(
+            "codex_cli",
+            "fail",
+            "Selected Codex CLI editing provider is unavailable",
+            {"selected": True, "error": exc.__class__.__name__},
+        )
+    return DoctorCheck(
+        "codex_cli",
+        "pass",
+        "Codex CLI login is ready for structured editing",
+        {
+            "selected": True,
+            "authenticated": True,
+            "contract": contract,
+            "path": executable,
+        },
     )
 
 

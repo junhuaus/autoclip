@@ -17,6 +17,7 @@ Only suggest source times inside the supplied allowed adjustment window. Do not 
 - the selected interval begins and ends on a complete expression when evidence permits;
 - the interval stays within the allowed window and configured duration;
 - score and reason reflect only supplied evidence;
+- score uses the 0–100 scale, never a 0–1 fraction;
 - title and hook are concise Chinese;
 - risks are short content-risk labels, not actions;
 - output satisfies the strict schema exactly.

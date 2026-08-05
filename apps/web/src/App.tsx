@@ -19,6 +19,13 @@ export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const api = useMemo(() => new LiveClipApiClient(activeToken), [activeToken]);
 
+  const healthQuery = useQuery({
+    queryKey: ["health", authVersion],
+    queryFn: () => api.health(),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
   const projectsQuery = useQuery({
     queryKey: ["projects", authVersion],
     queryFn: () => api.listProjects(),
@@ -52,6 +59,10 @@ export function App() {
     if (maximum !== undefined) request.maximum_clip_seconds = maximum;
     createMutation.mutate(request);
   };
+
+  const providers = healthQuery.data?.providers;
+  const processingReady = providers?.processing_ready === true;
+  const usesMockAsr = providers?.asr_provider === "mock";
 
   return (
     <div className="app-shell">
@@ -94,6 +105,80 @@ export function App() {
             </p>
           </section>
 
+          <section
+            className={`panel provider-panel ${processingReady ? "provider-ready" : "provider-blocked"}`}
+            aria-labelledby="provider-title"
+          >
+            <div className="section-heading compact">
+              <div>
+                <p className="eyebrow">Content intelligence</p>
+                <h2 id="provider-title">当前 AI 处理链路</h2>
+              </div>
+              {providers ? (
+                <span className={`provider-state ${processingReady ? "ready" : "blocked"}`}>
+                  {processingReady ? "已就绪" : "未就绪"}
+                </span>
+              ) : null}
+            </div>
+            {healthQuery.isPending ? <LoadingState>正在检查 ASR 和编辑 Provider…</LoadingState> : null}
+            {healthQuery.isError ? (
+              <ErrorState error={healthQuery.error} onRetry={() => void healthQuery.refetch()} />
+            ) : null}
+            {providers ? (
+              <div className="provider-details">
+                <p>
+                  <strong>ASR：</strong>
+                  {providers.asr_provider === "openrouter"
+                    ? "OpenRouter Whisper Large V3 中文语音转写"
+                    : providers.asr_provider === "openai"
+                      ? "OpenAI 中文语音转写"
+                      : "Mock 测试转写"}
+                  <span aria-label={providers.asr_ready ? "ASR 已就绪" : "ASR 未就绪"}>
+                    {providers.asr_ready ? " · 本机预检通过" : " · 未配置"}
+                  </span>
+                </p>
+                <p>
+                  <strong>AI 编辑：</strong>
+                  {providers.llm_provider === "codex_cli"
+                    ? "本机 Codex CLI（云端推理，使用已保存的 ChatGPT 登录）"
+                    : providers.llm_provider === "openai"
+                      ? "OpenAI Responses API"
+                      : "Mock 测试编辑"}
+                  <span aria-label={providers.llm_ready ? "AI 编辑已就绪" : "AI 编辑未就绪"}>
+                    {providers.llm_ready ? " · 本机预检通过" : " · 未配置"}
+                  </span>
+                </p>
+                <p className="provider-note">
+                  “预检通过”只确认本机配置或登录状态；实际云端权限、额度和模型可用性以 Smoke Test
+                  或真实任务结果为准。
+                </p>
+                {usesMockAsr ? (
+                  <p className="provider-warning" role="status">
+                    当前使用 Mock ASR，候选文字不来自视频真实语音；此模式只用于 Demo 和自动测试。
+                  </p>
+                ) : null}
+                {providers.blocking_issues.includes("OPENAI_ASR_NOT_CONFIGURED") ? (
+                  <p className="provider-warning" role="alert">
+                    OpenAI ASR 尚未配置。Codex 不能直接听视频；请在本机 .env 配置 OPENAI_API_KEY，
+                    然后重启 make dev。
+                  </p>
+                ) : null}
+                {providers.blocking_issues.includes("OPENROUTER_ASR_NOT_CONFIGURED") ? (
+                  <p className="provider-warning" role="alert">
+                    OpenRouter ASR 尚未配置。请撤销曾暴露的旧 Key，并仅在本机 .env.local 配置新
+                    OPENROUTER_API_KEY，然后重启 make dev；Codex 本身不能听视频。
+                  </p>
+                ) : null}
+                {providers.blocking_issues.includes("CODEX_CLI_NOT_READY") ? (
+                  <p className="provider-warning" role="alert">
+                    本机 Codex CLI 未安装或未登录。请先运行 codex login，再运行 liveclip doctor，
+                    然后重启 make dev。
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+
           <section className="panel create-panel" aria-labelledby="create-title">
             <div className="section-heading">
               <div>
@@ -126,9 +211,16 @@ export function App() {
                   <input name="maximum_clip_seconds" type="number" min="1" max="1800" step="1" defaultValue="90" />
                 </label>
               </div>
-              <button type="submit" className="button button-primary" disabled={createMutation.isPending}>
+              <button
+                type="submit"
+                className="button button-primary"
+                disabled={createMutation.isPending || !processingReady}
+              >
                 {createMutation.isPending ? "正在创建…" : "创建项目并启动处理"}
               </button>
+              {!processingReady ? (
+                <p className="hint">处理 Provider 就绪后才可启动；先查看上方状态或运行 liveclip doctor。</p>
+              ) : null}
               {createMutation.isError ? (
                 <p className="form-error" role="alert">{errorMessage(createMutation.error)}</p>
               ) : null}

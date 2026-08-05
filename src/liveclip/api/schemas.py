@@ -114,6 +114,19 @@ class AcceptedTaskResponse(BaseModel):
     status_url: str
 
 
+class ProviderHealthResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: Literal["mock", "openai", "mock-codex", "openai-codex", "openrouter-codex"]
+    asr_provider: Literal["mock", "openai", "openrouter"]
+    llm_provider: Literal["mock", "openai", "codex_cli"]
+    asr_ready: bool
+    llm_ready: bool
+    processing_ready: bool
+    blocking_issues: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
 class HealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -121,6 +134,7 @@ class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     version: str
     database: Literal["ok"] = "ok"
+    providers: ProviderHealthResponse
 
 
 class ClipSummaryResponse(BaseModel):

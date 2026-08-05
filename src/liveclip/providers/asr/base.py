@@ -76,7 +76,7 @@ class ASRChunkResult(BaseModel):
     chunk_duration_ms: int = Field(gt=0)
     language: str = Field(default="zh", min_length=2, max_length=16)
     provider: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$")
-    model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")
+    model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_./:-]+$")
     word_timing_status: WordTimingStatus
     segments: tuple[LocalASRSegment, ...]
     request_id: str | None = Field(

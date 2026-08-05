@@ -18,6 +18,10 @@ from liveclip.media.artifacts import ArtifactPublicationError
 from liveclip.media.ingest import MediaIngestCancelled
 from liveclip.media.preprocess import AudioPreprocessTransientError
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
+from liveclip.providers.asr.openrouter import (
+    OPENROUTER_ASR_CONTRACT_VERSION,
+    OpenRouterASRProvider,
+)
 from liveclip.providers.telemetry import (
     ProviderCallRecord,
     ProviderCallStatus,
@@ -214,6 +218,31 @@ def test_provider_validation_binds_contract_versions() -> None:
     assert baseline.config.fingerprint != prompt_changed.fingerprint
     with pytest.raises(ProviderConfigurationError, match="persisted editing contract"):
         handlers._llm_provider(baseline.model_copy(update={"config": prompt_changed}))
+
+
+def test_openrouter_mode_dispatches_only_the_openrouter_asr_adapter() -> None:
+    baseline = _work()
+    config = baseline.config.model_copy(
+        update={
+            "provider": "openrouter-codex",
+            "transcription_model": "openai/whisper-large-v3",
+            "asr_contract_version": OPENROUTER_ASR_CONTRACT_VERSION,
+        }
+    )
+    handlers = PipelineStageHandlers(
+        data_dir=Path("/tmp/liveclip-openrouter-contract-test"),
+        allowed_media_roots=(),
+        assets=object(),  # type: ignore[arg-type]
+        state=object(),  # type: ignore[arg-type]
+        openrouter_api_key="unit-test-router-key",
+    )
+
+    provider = handlers._asr_provider(baseline.model_copy(update={"config": config}))
+    try:
+        assert isinstance(provider, OpenRouterASRProvider)
+        assert provider.provider_name == "openrouter"
+    finally:
+        provider._client.close()
 
 
 def test_mock_runtime_rejects_persisted_openai_work_before_any_handler() -> None:

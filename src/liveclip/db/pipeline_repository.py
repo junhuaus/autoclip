@@ -77,6 +77,32 @@ class SqlAlchemyPipelineRepository:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
+    def replay_pipeline(
+        self,
+        idempotency: IdempotencyContext | None,
+        *,
+        expected_project_id: str | None = None,
+    ) -> CreatedPipeline | None:
+        if idempotency is None:
+            return None
+        with self._engine.connect() as connection:
+            replay_run_id = load_idempotent_resource(
+                connection,
+                idempotency,
+                resource_type="pipeline_run",
+            )
+            if replay_run_id is None:
+                return None
+            replay_project_id = connection.scalar(
+                select(PipelineRunRow.project_id).where(PipelineRunRow.id == replay_run_id)
+            )
+        if replay_project_id is None:
+            raise PipelineConflict("idempotent pipeline resource no longer exists")
+        project_id = str(replay_project_id)
+        if expected_project_id is not None and project_id != expected_project_id:
+            raise PipelineConflict("idempotent pipeline resource no longer matches project")
+        return CreatedPipeline(project_id=project_id, run_id=replay_run_id)
+
     def create_project_and_run(
         self,
         *,

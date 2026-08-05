@@ -2,11 +2,13 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It turns a local 2–4 hour video into reviewable 9:16 clips, lets a user adjust and approve exact revisions, and creates immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: the LiveClip v1 baseline is `delivered`. M0–M6 passed independent review, including a real Chrome → Vite → FastAPI → leased Worker → FFmpeg → Delivery acceptance flow. Real OpenAI adapters are implemented and contract-tested; paid cloud smoke remains truthfully `not_run` because this machine has no configured credential. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: the LiveClip v1 baseline is `delivered`; M7 adds the user's requested real chain: OpenRouter `openai/whisper-large-v3` ASR followed by the local Codex CLI editor. A real hardened Codex call has passed through saved ChatGPT login. The OpenRouter adapter is implemented and tested offline, but a real-video cloud run remains `not_run` because the old Key was exposed and no regenerated local Key is configured. The authoritative snapshot is [STATUS.md](STATUS.md).
 
 ## Architecture
 
-Typer CLI, FastAPI and a single Worker call the same application services and pure domain rules. SQLite stores both domain state and a fenced durable task queue. FFmpeg performs deterministic local media work. OpenAI receives prepared audio chunks for transcription and bounded transcript data for editorial scoring; source video frames and all generated assets remain local. See [Solution](docs/SOLUTION.md) and [architecture diagrams](docs/architecture.md).
+Typer CLI, FastAPI and a single Worker call the same application services and pure domain rules. SQLite stores both domain state and a fenced durable task queue. FFmpeg performs deterministic local media work. In the default real mode, OpenRouter receives prepared audio chunks for Whisper transcription and the locally installed Codex CLI receives bounded transcript data for editorial scoring. The direct OpenAI ASR/Responses path remains available. Source video frames and all generated assets remain local. See [Solution](docs/SOLUTION.md) and [architecture diagrams](docs/architecture.md).
+
+ASR (“automatic speech recognition”) is the stage that turns Chinese speech into timestamped text. Codex CLI is the editor after ASR: it reads that text, scores content, suggests safe boundaries and writes titles. Codex cannot directly listen to the video, so a Codex login does not replace `OPENROUTER_API_KEY` for real ASR.
 
 ## Development environment
 
@@ -33,7 +35,20 @@ make e2e
 make demo
 ```
 
-`make setup` uses uv to provision a project-local native Python and installs frontend dependencies when the Web lockfile exists. Copy `.env.example` to an ignored `.env` and set absolute allowed media roots before importing real files. Never place a real key in `.env.example` or commit `.env`.
+`make setup` uses uv to provision a project-local native Python and installs frontend dependencies when the Web lockfile exists. For the normal Codex-backed real chain, authenticate Codex once, then configure ASR locally:
+
+```bash
+codex login
+cp .env.example .env.local
+chmod 600 .env.local
+# Edit only the ignored local .env.local:
+# LIVECLIP_AI_PROVIDER=openrouter-codex
+# LIVECLIP_ALLOWED_MEDIA_ROOTS=/absolute/path/to/media
+# OPENROUTER_API_KEY=<your newly regenerated local key>
+make doctor
+```
+
+Never put a real key in `.env.example`, Git or a Codex conversation. Revoke the Key that was previously exposed before using LiveClip. `openrouter-codex` means OpenRouter Whisper Large V3 ASR plus the installed Codex CLI editor. The Codex process reuses saved ChatGPT authentication; inference is still cloud-based and no local model weights are installed. See [OpenRouter setup](docs/integrations/openrouter.md).
 
 ## CLI workflow
 
@@ -58,7 +73,7 @@ All commands above are implemented. `review` creates an immutable human revision
 make dev
 ```
 
-This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. An optional Bearer token is held only in page memory.
+This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. Its home page names the ASR and editorial providers separately, warns when either is Mock, and disables full processing when a required real provider is missing. A “preflight passed” label confirms local configuration/login only; it does not claim remote quota or model availability. An optional Bearer token is held only in page memory.
 
 In the page: enter the optional local API token, enter an allowed absolute media path and clip settings, create and start the project, wait for all six stages, inspect transcript/candidates, open a candidate editor, change title/bounds/caption cues, approve or reject it, render the current final revision, then create and download a new Delivery ZIP. Error, cancelled and retryable states expose their retry action; a stale video is never presented as the current revision.
 
@@ -77,7 +92,22 @@ make demo
 make clean-demo  # removes only validated generated content below data/demo
 ```
 
-The opt-in cloud smoke runs the real timestamp ASR and strict Responses path and fails if either provider is absent, a selected plan is degraded, or any Mock evidence appears:
+The Codex-only smoke makes one real, tool-disabled structured editorial call through the saved CLI login. It proves the editor connection, not ASR or video-content understanding:
+
+```bash
+make smoke-codex
+```
+
+The default full real smoke proves OpenRouter Whisper ASR and Codex editing together. It requires a short Chinese video inside an allowed root and a newly regenerated local Key:
+
+```bash
+make smoke-openrouter INPUT=/absolute/path/to/media/short.mp4
+```
+
+Success requires OpenRouter generation IDs, Codex thread IDs and positive token usage, non-degraded selected EditPlans, and zero Mock evidence.
+Configured ASR vocabulary is sent through OpenRouter's documented Groq provider option. It is best effort because another matched upstream does not receive the Groq-specific option; smoke success proves the real chain, not that a particular term was recognized.
+
+The full cloud smoke runs real timestamp ASR and the pure Responses editorial path and fails if either provider is absent, a selected plan is degraded, or any Mock evidence appears:
 
 ```bash
 LIVECLIP_AI_PROVIDER=openai \
@@ -86,15 +116,18 @@ OPENAI_API_KEY=... \
 make smoke-cloud INPUT=/absolute/path/to/media/short.mp4
 ```
 
-Missing configuration exits with `not_run` before opening the database or a cloud client. The key is read only from the local environment and is never printed.
+Missing configuration exits with `not_run` before cloud work. Keys are read only from the local environment and are never printed.
+
+For normal real video processing with the Codex editor, keep `LIVECLIP_AI_PROVIDER=openrouter-codex`, configure the OpenRouter ASR prerequisites locally, run `make doctor`, then use `liveclip run ... --wait` or the Web page. No path silently falls back to Mock. `openai-codex` remains an explicit alternative for an OpenAI Platform ASR key.
 
 ## Data and privacy
 
 - Source video is a read-only path reference below `LIVECLIP_ALLOWED_MEDIA_ROOTS` and is not copied by default.
 - Video frames, SQLite, transcripts, intermediate/generated videos and deliveries stay under the local data directory.
-- Prepared audio chunks are uploaded to the configured ASR provider.
-- Only bounded candidate transcript/context and metadata are sent to the LLM provider.
+- Prepared audio chunks are uploaded to the configured ASR provider. In `openrouter-codex`, they pass through OpenRouter to its selected upstream Whisper host.
+- Only bounded candidate transcript/context and metadata are sent to the LLM provider. Codex receives them through stdin, never argv, and runs with executable tools disabled.
 - The API key is read from local environment only and is excluded from database, logs, UI, errors and Git.
+- Saved Codex authentication stays in the Codex credential store and is not copied into LiveClip data.
 
 Default project data will live under `data/projects`; Demo-owned data lives under `data/demo`. Both are ignored except placeholder directories.
 
@@ -105,7 +138,11 @@ Use `liveclip status`, the API run retry endpoint, or the Web retry action for f
 - `SOURCE_NOT_ALLOWED` or import refusal: make the real source path a descendant of one `LIVECLIP_ALLOWED_MEDIA_ROOTS` entry; symlink escapes and `..` are intentionally rejected.
 - Port already in use: set `LIVECLIP_API_PORT` and/or `LIVECLIP_WEB_PORT` before `make dev`; Vite receives the API target automatically. For a non-5173 Web port, also set `LIVECLIP_CORS_ORIGINS=http://127.0.0.1:PORT`. E2E ports have their own variables above.
 - Browser test preflight fails: install Google Chrome in `/Applications` or set `LIVECLIP_CHROME_EXECUTABLE`; the test never attaches to an unrelated browser session.
-- Cloud smoke says `not_run`: set provider, allowed root, key and both model variables locally. It stops before DB/client creation when configuration is absent and never substitutes Mock.
+- OpenRouter smoke says `not_run`: set `openrouter-codex`, an allowed root and a newly regenerated Key in `.env.local`; it never substitutes Mock.
+- Web shows `OPENROUTER_ASR_NOT_CONFIGURED`: revoke the exposed old Key and configure a new Key only in ignored `.env.local`; a successful `codex login` alone cannot transcribe audio.
+- Web shows `OPENAI_ASR_NOT_CONFIGURED`: the explicit `openai-codex`/`openai` mode needs an OpenAI Platform key.
+- Web shows `CODEX_CLI_NOT_READY`: run `codex login` and `liveclip doctor`. LiveClip never asks you to paste that credential into the page.
+- Provider status did not change after editing `.env` or logging in: restart `make dev`; health intentionally uses one startup preflight rather than launching Codex on every unauthenticated poll.
 - A transient timeout/429/5xx is eligible for bounded task/provider retry. Authentication, invalid media, unsafe paths, bad parameters and integrity failures are deterministic; correct the input/configuration, then explicitly retry or start a new run.
 - VideoToolbox failure is nonblocking: Doctor records the real encode attempt and rendering automatically uses `libx264`.
 
@@ -113,4 +150,4 @@ Known development-host differences are tracked in Solution: current PATH Python 
 
 ## Current limitations
 
-The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Generated-media, API, CLI, Web, lease/recovery, VFR/rotation, revision, render and Delivery paths are verified. A read-only 2.19 GB, 46:20 repository input completed the six-stage streaming Mock pipeline in 28.83 seconds without changing its source hash. It is not representative of a 2–4 hour livestream. Actual paid OpenAI account/model behavior, representative 2–4 hour peak memory/runtime/disk, Apple M3 throughput, broader codec/device diversity and the Linux `renameat2` branch remain unverified; the current development host is Apple M2. See STATUS for exact evidence.
+The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Generated-media, API, CLI, Web, lease/recovery, VFR/rotation, revision, render and Delivery paths are verified. A read-only 2.19 GB, 46:20 repository input completed the six-stage streaming Mock pipeline in 28.83 seconds without changing its source hash. That run proves large-file/chunk mechanics only: its transcript was Mock and it did not test content understanding. A hardened real Codex structured editorial smoke passed. The full `OpenRouter ASR → Codex` run on `input/7.28.mp4` remains unverified until a newly regenerated local OpenRouter Key is configured; the exposed old Key will not be used. Representative 2–4 hour peak memory/runtime/disk, Apple M3 throughput, broader codec/device diversity and the Linux `renameat2` branch also remain unverified; the current development host is Apple M2. See STATUS for exact evidence.

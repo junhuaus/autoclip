@@ -21,6 +21,119 @@ from liveclip.services.demo_media import create_demo_source
 pytestmark = pytest.mark.integration
 
 
+def test_api_reports_and_blocks_unconfigured_real_processing_providers(
+    tmp_path: Path,
+) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    import_source = media_root / "deferred-ingest.mp4"
+    import_source.write_bytes(b"not probed until the leased ingest task runs")
+    settings = Settings(
+        data_dir=tmp_path / "projects",
+        allowed_media_roots_raw=str(media_root),
+        ai_provider="openai-codex",
+        openai_api_key=None,
+        codex_executable="/definitely/missing/codex",
+        _env_file=None,
+    )
+    runtime = LiveClipRuntime.open(settings, project_root=project_root)
+    app = create_app(settings, runtime=runtime, project_root=project_root)
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            health = client.get("/api/v1/health")
+            assert health.status_code == 200
+            assert health.json()["providers"]["processing_ready"] is False
+            assert health.json()["providers"]["blocking_issues"] == [
+                "OPENAI_ASR_NOT_CONFIGURED",
+                "CODEX_CLI_NOT_READY",
+            ]
+
+            rejected = client.post(
+                "/api/v1/jobs",
+                json={"input_path": "/not/an/allowed/source.mp4"},
+            )
+            assert rejected.status_code == 503
+            assert rejected.json()["error"]["code"] == "PROVIDER_NOT_READY"
+            assert "OPENAI_API_KEY" not in rejected.text
+
+            imported = client.post(
+                "/api/v1/projects/import",
+                json={"input_path": str(import_source)},
+            )
+            assert imported.status_code == 202
+            assert imported.json()["status"] == "queued"
+            assert len(client.get("/api/v1/projects").json()) == 1
+    finally:
+        runtime.close()
+
+
+def test_idempotency_replay_survives_provider_becoming_unavailable(tmp_path: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    source = media_root / "idempotent-source.mp4"
+    source.write_bytes(b"leased ingest has not started")
+    data_dir = tmp_path / "projects"
+    body = {"input_path": str(source), "top_n": 2}
+    headers = {"Idempotency-Key": "provider-readiness-replay-001"}
+
+    ready_settings = Settings(
+        data_dir=data_dir,
+        allowed_media_roots_raw=str(media_root),
+        ai_provider="mock",
+        _env_file=None,
+    )
+    ready_runtime = LiveClipRuntime.open(ready_settings, project_root=project_root)
+    try:
+        with TestClient(
+            create_app(ready_settings, runtime=ready_runtime, project_root=project_root),
+            raise_server_exceptions=False,
+        ) as client:
+            created = client.post("/api/v1/jobs", headers=headers, json=body)
+            assert created.status_code == 202
+            original = created.json()
+    finally:
+        ready_runtime.close()
+
+    unavailable_settings = Settings(
+        data_dir=data_dir,
+        allowed_media_roots_raw=str(media_root),
+        ai_provider="openrouter-codex",
+        openrouter_api_key=None,
+        codex_executable="/definitely/missing/codex",
+        _env_file=None,
+    )
+    unavailable_runtime = LiveClipRuntime.open(unavailable_settings, project_root=project_root)
+    try:
+        with TestClient(
+            create_app(
+                unavailable_settings,
+                runtime=unavailable_runtime,
+                project_root=project_root,
+            ),
+            raise_server_exceptions=False,
+        ) as client:
+            replay = client.post("/api/v1/jobs", headers=headers, json=body)
+            assert replay.status_code == 202
+            assert replay.json()["project_id"] == original["project_id"]
+            assert replay.json()["run_id"] == original["run_id"]
+
+            conflict = client.post(
+                "/api/v1/jobs",
+                headers=headers,
+                json={**body, "top_n": 3},
+            )
+            assert conflict.status_code == 409
+            assert conflict.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+            new_request = client.post("/api/v1/jobs", json=body)
+            assert new_request.status_code == 503
+            assert new_request.json()["error"]["code"] == "PROVIDER_NOT_READY"
+    finally:
+        unavailable_runtime.close()
+
+
 def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -58,6 +171,16 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             health = client.get("/api/v1/health")
             assert health.status_code == 200
             assert health.json()["database"] == "ok"
+            assert health.json()["providers"] == {
+                "mode": "mock",
+                "asr_provider": "mock",
+                "llm_provider": "mock",
+                "asr_ready": True,
+                "llm_ready": True,
+                "processing_ready": True,
+                "blocking_issues": [],
+                "warnings": ["MOCK_ASR_SELECTED", "MOCK_LLM_SELECTED"],
+            }
 
             unauthorized = client.get("/api/v1/projects")
             assert unauthorized.status_code == 401

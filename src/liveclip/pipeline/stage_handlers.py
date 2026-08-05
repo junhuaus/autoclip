@@ -62,7 +62,9 @@ from liveclip.pipeline.transcript import transcribe_chunks_detailed
 from liveclip.providers.asr.base import AudioChunkLike
 from liveclip.providers.asr.mock import MockASRProvider
 from liveclip.providers.asr.openai import OpenAIASRProvider
+from liveclip.providers.asr.openrouter import OpenRouterASRProvider
 from liveclip.providers.llm.base import EDITORIAL_SUGGESTION_SCHEMA_VERSION
+from liveclip.providers.llm.codex import CodexCLILLMProvider
 from liveclip.providers.llm.mock import MockLLMProvider
 from liveclip.providers.llm.openai import OpenAILLMProvider
 from liveclip.providers.openai_retry import OpenAIRetryPolicy
@@ -100,6 +102,9 @@ class PipelineStageHandlers:
         assets: AssetStore,
         state: StageStateStore,
         openai_api_key: str | None = None,
+        openrouter_api_key: str | None = None,
+        openrouter_base_url: str = "https://openrouter.ai/api/v1",
+        codex_executable: str = "codex",
         runtime_provider: str | None = None,
     ) -> None:
         self._data_dir = data_dir
@@ -107,6 +112,9 @@ class PipelineStageHandlers:
         self._assets = assets
         self._state = state
         self._openai_api_key = openai_api_key or None
+        self._openrouter_api_key = openrouter_api_key or None
+        self._openrouter_base_url = openrouter_base_url
+        self._codex_executable = codex_executable
         self._runtime_provider = runtime_provider
 
     def execute(
@@ -664,10 +672,20 @@ class PipelineStageHandlers:
             },
         )
 
-    def _asr_provider(self, work: StageWork) -> MockASRProvider | OpenAIASRProvider:
-        if work.config.provider == "mock":
-            provider: MockASRProvider | OpenAIASRProvider = MockASRProvider(
+    def _asr_provider(
+        self, work: StageWork
+    ) -> MockASRProvider | OpenAIASRProvider | OpenRouterASRProvider:
+        if work.config.provider in {"mock", "mock-codex"}:
+            provider: MockASRProvider | OpenAIASRProvider | OpenRouterASRProvider = MockASRProvider(
                 model_name=work.config.transcription_model
+            )
+        elif work.config.provider == "openrouter-codex":
+            provider = OpenRouterASRProvider(
+                api_key=self._openrouter_api_key,
+                model_name=work.config.transcription_model,
+                base_url=self._openrouter_base_url,
+                timeout_seconds=work.config.openai_request_timeout_seconds,
+                retry_policy=_retry_policy(work),
             )
         else:
             provider = OpenAIASRProvider(
@@ -682,10 +700,19 @@ class PipelineStageHandlers:
             )
         return provider
 
-    def _llm_provider(self, work: StageWork) -> MockLLMProvider | OpenAILLMProvider:
+    def _llm_provider(
+        self, work: StageWork
+    ) -> MockLLMProvider | OpenAILLMProvider | CodexCLILLMProvider:
         if work.config.provider == "mock":
-            provider: MockLLMProvider | OpenAILLMProvider = MockLLMProvider(
+            provider: MockLLMProvider | OpenAILLMProvider | CodexCLILLMProvider = MockLLMProvider(
                 model_name=work.config.llm_model
+            )
+        elif work.config.provider in {"mock-codex", "openai-codex", "openrouter-codex"}:
+            provider = CodexCLILLMProvider(
+                model_name=work.config.llm_model,
+                codex_executable=self._codex_executable,
+                timeout_seconds=work.config.openai_request_timeout_seconds,
+                contract_version=work.config.llm_contract_version,
             )
         else:
             provider = OpenAILLMProvider(

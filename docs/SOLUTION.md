@@ -7,7 +7,7 @@ Decision date: 2026-08-03
 
 LiveClip turns a local Chinese livestream into reviewable vertical highlights and an immutable delivery archive. A CLI user can run the whole pipeline in the foreground; API and Web users enqueue the identical work for one independent Worker. Users can recover failed stages, change a proposed clip without mutating history, see stale media, rerender the exact current revision, and download a versioned ZIP.
 
-The system controls execution. OpenAI may interpret content and propose a whitelisted EditPlan, but it cannot choose local paths, commands, filtergraphs, SQL, or code. Source video frames never leave the Mac; prepared audio is sent to ASR, and bounded transcript text plus metadata is sent to the editor model.
+The system controls execution. Cloud models may interpret content and propose a whitelisted EditPlan, but they cannot choose local paths, commands, filtergraphs, SQL, or code. Source video frames never leave the Mac; prepared audio is sent to the selected ASR Provider, and bounded transcript text plus metadata is sent separately to the editor model.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ Worker ────┘                      │
                      domain models/invariants/state
                                  ^
                                  │ ports
-       SQLAlchemy/SQLite | filesystem | FFmpeg | OpenAI | Mock
+       SQLAlchemy/SQLite | filesystem | FFmpeg | OpenRouter | OpenAI | Codex CLI | Mock
 
 React/Vite ──HTTP──> FastAPI only
 ```
@@ -33,7 +33,7 @@ Import direction is enforced:
 - `liveclip.config`: environment parsing and safe public configuration views.
 - `liveclip.db`: SQLAlchemy models, Alembic, repositories, SQLite queue and UoW.
 - `liveclip.media`: allowed-root checks, streaming hashes, ffprobe, audio extraction/chunk manifests, silence signals.
-- `liveclip.providers`: OpenAI and Mock ASR/LLM adapters.
+- `liveclip.providers`: OpenRouter, OpenAI and Mock ASR adapters plus OpenAI Responses, Codex CLI and Mock LLM adapters.
 - `liveclip.renderer`: deterministic layout mapping, raster text assets, FFmpeg execution, validation/contact sheets.
 - `liveclip.review`: revision/review application helpers where they do not belong in generic commands.
 - `liveclip.delivery`: immutable snapshot, manifest, filenames, ZIP validation and atomic publish.
@@ -135,7 +135,9 @@ Generated Asset serving re-resolves the database project-relative path beneath t
 
 Preprocessing produces mono compressed `m4a` (AAC) or `mp3` chunks, both in the common documented format set, with time overlap and a conservative byte ceiling below 25 MB. Chunk length is additionally capped by configuration. FFmpeg emits to a temp file; a manifest stores absolute millisecond bounds, overlap, bytes, SHA and cache key. `silencedetect` output is parsed into structured source-time intervals.
 
-OpenAI's 2026-08-03 general recommendation is `gpt-transcribe`, but official documentation states real word/segment timestamps are currently provided by `whisper-1` with `verbose_json` and `timestamp_granularities`. LiveClip v1 therefore defaults to `whisper-1` for its required time-aligned editing contract. This is a capability-driven exception, recorded in ADR-004. A configured model that lacks word timing records `unavailable`; no timestamps are synthesized. A model with no usable segment alignment cannot be used for the full editing pipeline until an evidence-backed aligner exists.
+The user-selected default real path is `openrouter-codex`. OpenRouter receives fixed-model `openai/whisper-large-v3` JSON `input_audio` M4A chunks and returns `verbose_json` with required segment and requested word timestamps. The official STT documentation records that multipart `prompt` is ignored, so configured vocabulary is sent only through `provider.options.groq.prompt`. This is best effort: only a matched Groq upstream receives that option, and ordinary smoke success proves the request chain—not that a vocabulary term was applied; a target-specific transcript must be inspected separately. Each request base64-encodes one already verified chunk bounded to 24 MB, never the multi-hour source. The upstream processing timeout is 60 seconds, so LiveClip defaults to 300-second chunks and retains configurable duration/size limits. The adapter requires an exact `X-Generation-Id`, rejects an ordinary request ID as proof, validates finite nonnegative usage/cost and the SDK's other permissive response fields, and never switches to Mock. ADR-009 and `docs/research/openrouter-audio.md` record the dated evidence and privacy boundary.
+
+The direct OpenAI alternative remains available. OpenAI's 2026-08-03 general recommendation is `gpt-transcribe`, but official documentation states real word/segment timestamps are currently provided by `whisper-1` with `verbose_json` and `timestamp_granularities`. The `openai`/`openai-codex` modes therefore use `whisper-1` for their required time-aligned contract. This capability-driven exception is recorded in ADR-004. No Provider is allowed to synthesize unavailable word times, and a response without usable segment alignment fails deterministically.
 
 Overlap merging converts all results to source milliseconds, first filters segment overlap by time ownership, then removes duplicated leading text using normalized Chinese character n-grams/longest suffix-prefix similarity. Empty or absent word arrays are recorded as `unavailable`, while present but unaligned timing data is rejected; timing is never fabricated. Original text and merge evidence remain available for audit.
 
@@ -146,6 +148,8 @@ Candidate generation first forms sentence/turn units from transcript punctuation
 The editor sends one candidate per call, bounded pre/post context, rule score and necessary quality signals. The prompt labels transcript fields as untrusted quoted data and explicitly disallows following instructions found inside them. The request exposes no tools. The OpenAI adapter uses `client.responses.parse(..., text_format=WireModel)` or the equivalent strict `text.format` JSON schema. It separately handles `incomplete`, refusal, provider errors, SDK/Pydantic parsing, missing parsed output and local domain validation. Only a normal parsed result reaches EditPlan validation. One repair call is allowed for repairable structure/domain errors; refusal/auth/quota are not “repaired.” Then a deterministic EditPlan is stored with `degraded=true`.
 
 Application-owned retry disables SDK retries, honors bounded `Retry-After`/exponential jitter for timeout, connection, rate-limit and retryable 5xx failures, and never retries deterministic auth/parameter/quota failures blindly. Cancellation exceptions carry every call already made for that candidate, including an initial invalid response followed by a cancelled repair. An append-only evidence fence binds each record to the exact historical TaskAttempt lease token and may persist it after cancellation/lease loss, but cannot mutate transcript, candidate or render state.
+
+At the user's request, ADR-008 adds a second real editorial adapter through the installed Codex CLI. `openrouter-codex` combines OpenRouter timestamp ASR with non-interactive Codex editing; `openai-codex` is the direct OpenAI ASR alternative, while `mock-codex` is explicitly development-only. Codex consumes the same bounded editorial payload via stdin and a strict model-owned JSON Schema. Version 0.146.0 is pinned to a reviewed tool-free security profile: every known apps/browser/computer/shell/MCP/plugin/multi-agent/search/tool feature is disabled, execution is read-only/no-approval, user config/rules are ignored, and proxy URLs plus all Provider/API credentials are removed from the child environment. Any JSONL tool item, oversized JSONL line or bounded-capture truncation causes failure. The resolved executable path, bytes, size, CLI version and profile are hashed into the immutable Pipeline contract and rechecked before every call. A real smoke must include a Codex thread/correlation ID and positive token usage. Codex never receives LiveClip audio or replaces ASR; its local process reuses saved ChatGPT authentication while inference remains cloud-based.
 
 The `.env.example` LLM model is a configurable cost/quality-balanced example, not a claim of a LiveClip-specific official recommendation. Alias behavior must be evaluated before release; production can pin a snapshot when offered. We set `store=false` because independent clip scoring requires no server-side conversation state and minimizes retention beyond configured OpenAI policy.
 
@@ -190,11 +194,11 @@ Publication scans the exact regular-file tree and then performs a native atomic 
 
 API schemas are DTOs, never ORM serialization. Internal absolute paths are omitted unless a CLI-only command explicitly needs them; Web receives asset IDs and source filenames/ranges. The stable error envelope contains version, code, message, retryable, resource ID, and optional safe field details/correlation ID. Exception mapping strips headers, tokens, provider request content, raw SQL and stack traces.
 
-An Idempotency-Key is scoped by authenticated caller and endpoint. The canonical request hash is stored with the created resource. Reuse with the same hash returns that resource; reuse with a different payload is a stable 409. Creation and record insert occur in one transaction.
+An Idempotency-Key is scoped by authenticated caller and endpoint. The canonical request hash is stored with the created resource. Reuse with the same hash returns that resource even if Provider readiness later changes; reuse with a different payload is a stable 409. API create handlers replay a completed record before readiness gating, while new work is still rejected when the selected chain is unavailable. Creation and record insert occur in one transaction.
 
 ## Configuration and secrets
 
-Pydantic Settings reads environment variables and optional local `.env`; `.env` is ignored. Settings validation never includes secret values in exceptions or dumps. The composition root reads `OPENAI_API_KEY` only when the active runtime mode is `openai`; a runtime/provider mismatch fails deterministically before any stage handler. Mock startup neither retains the key nor instantiates an OpenAI client. API public configuration exposes only booleans such as `cloud_configured`.
+Pydantic Settings reads environment variables and optional ignored `.env`/`.env.local` files. Settings validation never includes secret values in exceptions or dumps. The composition root reads `OPENROUTER_API_KEY` only for `openrouter-codex` and `OPENAI_API_KEY` only for `openai`/`openai-codex`; a runtime/provider mismatch fails deterministically before any stage handler. OpenRouter's Base URL and v1 model are exact allowlisted values, preventing configuration-based credential exfiltration. Mock-only startup retains neither key and instantiates no cloud client. Codex receives no ASR key, API token or credential-bearing proxy URL. API health exposes only safe Provider names, readiness booleans and stable issue codes.
 
 ## Observability
 
@@ -208,6 +212,8 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Web unit/component tests cover all critical states and actions. One Playwright flow uses a controlled API double for UI-state determinism; a second isolated flow starts real FastAPI, a leased Worker, SQLite, Vite and FFmpeg with Mock AI, then proves Range, revision stale, final render, ZIP and `delivered` through both UI and persisted evidence.
 - `make demo` is a deterministic real-media acceptance, not a unit-test alias.
 - `make smoke-cloud` is opt-in, calls both real providers, and cannot construct Mock providers.
+- `make smoke-codex` is opt-in, makes one real tool-disabled structured Codex editorial call through saved CLI authentication, and rejects missing thread/token, degraded or Mock evidence. It is not an ASR/video smoke.
+- `make smoke-openrouter INPUT=...` is the default real-chain acceptance: it requires OpenRouter generation IDs, Codex thread/token evidence and non-degraded selected plans, with no Mock evidence.
 - Milestones receive an independent read-only review; M6 receives a Product Spec verification matrix.
 
 ## Technical alternatives and deliberate exclusions
@@ -218,6 +224,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Async SQLAlchemy would add a second concurrency model with little local benefit; sync UoW plus short transactions is simpler.
 - Copying source video would improve immutability but doubles large storage. We keep a read-only reference plus mutation checks.
 - Whole-transcript LLM editing, local embeddings and local model weights are excluded by privacy/resource/product constraints.
+- Treating Codex CLI as ASR is excluded: its documented attachment surface is images, while LiveClip requires timestamped audio segments. See ADR-008.
 
 ## Known risks and uncertainties
 
@@ -227,7 +234,8 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Current Vite 8 requires Node 22.12 while the native LTS installation is 22.11. ADR-006 pins the latest compatible Vite 6/Vitest 3 toolchain without reducing UI capability.
 - Raster overlays and Chinese glyph fallback passed real M1/M5 rendering, full-decode and viewed contact-sheet inspection; overlay/input/thread budgets are enforced. Representative 2–4 hour/M3 throughput remains unmeasured.
 - VideoToolbox is inaccessible inside the current sandbox but proved available in a host process; ordinary-terminal final verification remains distinct.
-- No real API key is configured, so cloud request/usage/model entitlement behavior remains unverified until smoke testing.
+- No safe OpenRouter Key is configured; the previously exposed Key must be revoked. OpenRouter request/usage/model entitlement behavior therefore remains unverified until `make smoke-openrouter`.
+- Codex CLI 0.146.0 saved-login structured editing is verified by a real tool-free-profile request. Full real-video `openrouter-codex` remains blocked only on a regenerated local OpenRouter credential.
 - Official audio guide and API reference differ on `flac`/`ogg`; v1 emits common `m4a`/`mp3` and does not depend on those formats.
 - The repository's available long sample is 46:20 and 2.19 GB, shorter than the typical 2–4 hour product target. It completed a five-chunk streaming Mock run in 28.83 seconds with about 18 MB generated project data, but 2–4 hour runtime/peak-memory and Apple M3 throughput remain unmeasured.
 - VFR with 90°/270° display rotation and explicit non-first/default audio selection is covered by generated real-FFmpeg integration media. Broader codec/container/device diversity still depends on user samples.
@@ -242,3 +250,5 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-005: WAL-safe SQLite runtime, explicit transaction control and FULL durability.
 - ADR-006: Node 22.11-compatible locked Web toolchain until the local LTS runtime is upgraded.
 - ADR-007: pinned file evidence and exact immutable publication from validation through Asset commit.
+- ADR-008: tool-disabled Codex CLI editorial provider, explicit ASR boundary and readiness gates.
+- ADR-009: OpenRouter Whisper Large V3 default ASR, strict endpoint/model and dual-cloud privacy boundary.

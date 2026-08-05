@@ -5,7 +5,7 @@ import signal
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from typing import BinaryIO, Literal
 
@@ -106,6 +106,8 @@ def run_cancellable_process(
     cancel_requested: Callable[[], bool] | None = None,
     poll_seconds: float = 0.25,
     pass_fds: Sequence[int] = (),
+    stdin_stream: BinaryIO | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run an argv-only child with bounded output, timeout, and cancellation."""
 
@@ -127,7 +129,7 @@ def run_cancellable_process(
 
     process = subprocess.Popen(
         arguments,
-        stdin=subprocess.DEVNULL,
+        stdin=stdin_stream if stdin_stream is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         bufsize=0,
@@ -135,6 +137,7 @@ def run_cancellable_process(
         shell=False,
         start_new_session=True,
         pass_fds=inherited_fds,
+        env=dict(env) if env is not None else None,
     )
     stdout_pipe = getattr(process, "stdout", None)
     stderr_pipe = getattr(process, "stderr", None)

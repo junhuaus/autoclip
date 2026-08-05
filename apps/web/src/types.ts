@@ -21,6 +21,25 @@ export type RenderStatus = "queued" | "running" | "succeeded" | "failed" | "stal
 export type DeliveryStatus = "queued" | "creating" | "succeeded" | "failed";
 export type RenderKind = "proxy" | "final";
 
+export interface ProviderHealth {
+  mode: "mock" | "openai" | "mock-codex" | "openai-codex" | "openrouter-codex";
+  asr_provider: "mock" | "openai" | "openrouter";
+  llm_provider: "mock" | "openai" | "codex_cli";
+  asr_ready: boolean;
+  llm_ready: boolean;
+  processing_ready: boolean;
+  blocking_issues: string[];
+  warnings: string[];
+}
+
+export interface HealthResponse {
+  schema_version: "1";
+  status: "ok";
+  version: string;
+  database: "ok";
+  providers: ProviderHealth;
+}
+
 export interface StageSnapshot {
   stage: string;
   status: StageRunStatus;

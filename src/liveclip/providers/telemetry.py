@@ -28,12 +28,12 @@ class ProviderCallRecord(BaseModel):
     subject_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")
     provider: str = Field(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_.:-]+$")
     operation: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.:-]+$")
-    model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_.:-]+$")
+    model: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_./:-]+$")
     response_model: str | None = Field(
         default=None,
         min_length=1,
         max_length=100,
-        pattern=r"^[A-Za-z0-9_.:-]+$",
+        pattern=r"^[A-Za-z0-9_./:-]+$",
     )
     request_id: str | None = Field(
         default=None,

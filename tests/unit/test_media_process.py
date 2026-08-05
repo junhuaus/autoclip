@@ -112,3 +112,35 @@ def test_process_runner_uses_literal_argv_and_disables_shell(
     assert observed["shell"] is False
     assert observed["start_new_session"] is True
     assert observed["stdin"] == subprocess.DEVNULL
+
+
+def test_process_runner_accepts_explicit_stdin_and_bounded_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_popen = subprocess.Popen
+    observed: dict[str, Any] = {}
+
+    def recording_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[bytes]:
+        observed.update(kwargs)
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr(process_module.subprocess, "Popen", recording_popen)
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text("untrusted transcript", encoding="utf-8")
+    with prompt_path.open("rb") as prompt_stream:
+        result = run_cancellable_process(
+            [
+                sys.executable,
+                "-c",
+                "import os,sys;print(sys.stdin.read());print(os.environ.get('SAFE_VALUE'))",
+            ],
+            timeout_seconds=10,
+            stdin_stream=prompt_stream,
+            env={"SAFE_VALUE": "bounded"},
+        )
+
+    assert result.stdout.splitlines() == ["untrusted transcript", "bounded"]
+    assert observed["stdin"] is not subprocess.DEVNULL
+    assert observed["env"] == {"SAFE_VALUE": "bounded"}
+    assert observed["shell"] is False

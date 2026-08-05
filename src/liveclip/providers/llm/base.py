@@ -42,7 +42,7 @@ class EditorialSuggestionWire(BaseModel):
             StringConstraints(strip_whitespace=True, min_length=1, max_length=32),
         ],
         ...,
-    ] = Field(default_factory=tuple, max_length=8)
+    ] = Field(max_length=8)
 
 
 class LLMDisposition(StrEnum):

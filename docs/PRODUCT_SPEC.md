@@ -4,9 +4,13 @@ Status: authoritative product contract
 Captured: 2026-08-03
 Target completion state: `delivered`
 
+Amendment, 2026-08-04: at the user's explicit request, the installed Codex CLI is an additional real editorial LLM adapter and the normal combined mode is OpenAI ASR plus Codex editing. Codex runs locally as a CLI but uses OpenAI cloud inference through saved ChatGPT authentication; it is not a local model and cannot replace timestamped ASR. This amendment adds capability and does not remove the official-SDK Responses adapter.
+
+Amendment, 2026-08-05: the user explicitly selected OpenRouter `openai/whisper-large-v3` as the default real ASR paired with Codex. `openrouter-codex` therefore becomes the normal combined mode; direct OpenAI ASR/Responses and `openai-codex` remain supported alternatives. Only preprocessed audio chunks cross the OpenRouter boundary and may be routed to its upstream ASR host. The Key previously exposed in chat is invalid for acceptance and must be revoked; only a newly generated Key stored in ignored local environment is permitted.
+
 ## Product outcome
 
-LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video. LiveClip deterministically imports and analyzes it, uses OpenAI only for cloud ASR and editorial understanding, produces 10–20 configurable highlight candidates (default duration 30–90 seconds), supports human review and revision, re-encodes approved vertical clips, and creates an immutable versioned delivery package.
+LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video. LiveClip deterministically imports and analyzes it, uses configured cloud ASR plus OpenAI/Codex editorial understanding, produces 10–20 configurable highlight candidates (default duration 30–90 seconds), supports human review and revision, re-encodes approved vertical clips, and creates an immutable versioned delivery package.
 
 The complete flow is:
 
@@ -87,7 +91,7 @@ The React/TypeScript/Vite UI supports project creation from a local path, run co
 
 - Apple Silicon macOS; primary performance target M3.
 - Python 3.12 and compatibility with 3.11+.
-- Node.js LTS, FFmpeg, ffprobe, local filesystem, SQLite, OpenAI cloud API.
+- Node.js LTS, FFmpeg, ffprobe, local filesystem, SQLite, OpenRouter and OpenAI cloud APIs.
 - No local AI weights, Docker, external database, or external queue prerequisite.
 - Modular monolith plus one independent Worker.
 - FastAPI, React/TypeScript/Vite, Typer, SQLAlchemy 2, Alembic, Pydantic v2, official OpenAI Python SDK, pytest, Ruff, and structured logs.
@@ -98,7 +102,7 @@ Material compatibility changes require evidence, an alternative, and an ADR in `
 
 ### Doctor
 
-`make doctor` and `liveclip doctor` inspect OS/CPU, Python, Node/npm/Git, FFmpeg/ffprobe, exact `subtitles`, `drawtext`, `loudnorm`, and `silencedetect` filters, Chinese fonts, SQLite WAL/FK/RETURNING behavior, writable data directories, allowed media roots, and presence (never value) of OpenAI configuration. They must attempt a real tiny `h264_videotoolbox` encode. Failure reports an automatic `libx264` fallback without blocking Mock functionality.
+`make doctor` and `liveclip doctor` inspect OS/CPU, Python, Node/npm/Git, FFmpeg/ffprobe, exact `subtitles`, `drawtext`, `loudnorm`, and `silencedetect` filters, Chinese fonts, SQLite WAL/FK/RETURNING behavior, writable data directories, allowed media roots, and presence (never value) of OpenRouter/OpenAI configuration. They must attempt a real tiny `h264_videotoolbox` encode. Failure reports an automatic `libx264` fallback without blocking Mock functionality.
 
 ### Ingest and local file boundary
 
@@ -114,12 +118,12 @@ Material compatibility changes require evidence, an alternative, and an ADR in `
 ### Audio preprocessing and ASR
 
 - Extract compressed mono speech audio with FFmpeg and stream file operations.
-- Split by configurable duration with configurable overlap and a conservative size below the current OpenAI upload limit.
+- Split by configurable duration with configurable overlap and a conservative size below the selected Provider upload limit.
 - Persist a chunk manifest with absolute source offsets, duration, bytes, hash, and cache key.
 - Persist `silencedetect` signals and resume from verified successful chunks.
 - Cancellation stops subprocesses safely; partial files never count as success.
-- Provide `ASRProvider` with OpenAI and Mock implementations.
-- Preserve Chinese text; support configured domain vocabulary hints.
+- Provide `ASRProvider` with OpenRouter, OpenAI and Mock implementations.
+- Preserve Chinese text; support configured domain vocabulary hints through each Provider's documented parameter. For OpenRouter, use JSON `provider.options.groq.prompt`; never claim its ignored multipart `prompt` was applied.
 - Save real segment times and, only when supported, real word times. Unsupported word timing is explicitly `unavailable`.
 - Convert local chunk times to the canonical source timebase and deduplicate overlap using time and text evidence.
 - Retry timeouts, genuine 429 rate limits, and retryable 5xx with bounded exponential backoff and jitter. Do not blindly retry authentication, quota, invalid model, or deterministic parameter errors.
@@ -133,7 +137,7 @@ Current official API findings and URLs are recorded in `docs/research/openai-aud
 
 Deterministic candidate generation must work without an LLM. It uses punctuation/sentence closure, pauses, speech density, volume/silence signals, topical continuity, context, duration constraints, hook signals, and expression closure. It first produces approximately 30–50 rough candidates for normal long input, records boundaries/text/context/rule score/reasons, then deduplicates by time overlap, text n-grams, and Jaccard similarity. A rule-ranked fallback selects top-N when cloud editing fails.
 
-`LLMProvider` has OpenAI and Mock implementations. The OpenAI implementation uses the current Responses API and strict structured output, sends only one bounded candidate plus small context and quality signals, enables no tools, and treats transcript content as untrusted data rather than instructions. It returns value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted layout/caption/effect selections. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
+`LLMProvider` has OpenAI Responses, Codex CLI and Mock implementations. Both real implementations use strict structured output, send only one bounded candidate plus small context and quality signals, enable no tools, and treat transcript content as untrusted data rather than instructions. Codex uses controlled non-interactive execution and saved local authentication; it receives text only after ASR. They return value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted layout/caption/effect selections. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
 
 Current Responses API findings are recorded in `docs/research/openai-responses.md`.
 
@@ -184,7 +188,7 @@ SQLite uses WAL, foreign keys, busy timeout, Alembic migrations, short explicit 
 - Source video and all image/video/database/generated artifacts remain local.
 - ASR uploads only prepared audio chunks.
 - LLM receives only candidate transcript/context and necessary metadata.
-- The API key comes only from local environment and never enters DB, logs, UI, errors, Git, or conversation requirements.
+- The ASR/API key comes only from local environment and never enters DB, logs, UI, errors, Git, or conversation requirements. Codex CLI authentication stays in the CLI credential store and is never copied into LiveClip state.
 - Authorization headers/tokens/credentials are redacted.
 - Allowed-root enforcement governs input reads; output paths are system-owned.
 - Model output is untrusted and cannot control execution.
@@ -200,6 +204,8 @@ make lint
 make test
 make demo
 make smoke-cloud INPUT=/absolute/path/short.mp4
+make smoke-codex
+make smoke-openrouter INPUT=/absolute/path/short.mp4
 make clean-demo
 ```
 

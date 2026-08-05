@@ -42,6 +42,27 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
+    if (path === "/api/v1/health" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          status: "ok",
+          version: "0.1.0-e2e",
+          database: "ok",
+          providers: {
+            mode: "mock",
+            asr_provider: "mock",
+            llm_provider: "mock",
+            asr_ready: true,
+            llm_ready: true,
+            processing_ready: true,
+            blocking_issues: [],
+            warnings: ["MOCK_ASR_SELECTED", "MOCK_LLM_SELECTED"],
+          },
+        },
+      });
+      return;
+    }
     if (path === "/api/v1/deliveries/delivery-1/download") {
       await route.fulfill({
         status: 200,
@@ -225,6 +246,9 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
 
   await page.goto("/");
   await expect(page.getByText("还没有项目")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "当前 AI 处理链路" })).toBeVisible();
+  await expect(page.getByText(/当前使用 Mock ASR/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
   await page.getByLabel("本地视频绝对路径").fill("/Users/demo/Videos/live.mp4");
   await page.getByRole("button", { name: "创建项目并启动处理" }).click();
 

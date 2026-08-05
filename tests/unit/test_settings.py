@@ -3,7 +3,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import liveclip.bootstrap as bootstrap_module
+from liveclip.bootstrap import pipeline_config_from_settings
 from liveclip.config.settings import Settings
+from liveclip.providers.asr.mock import MOCK_ASR_CONTRACT_VERSION
+from liveclip.providers.asr.openai import OPENAI_ASR_CONTRACT_VERSION
+from liveclip.providers.asr.openrouter import OPENROUTER_ASR_CONTRACT_VERSION
+from liveclip.providers.llm.base import MOCK_LLM_CONTRACT_VERSION
+from liveclip.providers.llm.codex import CODEX_LLM_UNPROBED_CONTRACT
 
 
 def test_settings_parse_path_separated_allowed_roots() -> None:
@@ -15,18 +22,123 @@ def test_settings_parse_path_separated_allowed_roots() -> None:
     assert settings.allowed_media_roots == (Path("/tmp/media-a"), Path("/tmp/media-b"))
 
 
+def test_real_runtime_defaults_to_openrouter_asr_and_codex_editing() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.ai_provider == "openrouter-codex"
+    assert settings.codex_executable == "codex"
+
+
+@pytest.mark.parametrize(
+    "provider", ("mock", "openai", "mock-codex", "openai-codex", "openrouter-codex")
+)
+def test_settings_accept_explicit_provider_modes(provider: str) -> None:
+    assert Settings(ai_provider=provider, _env_file=None).ai_provider == provider
+
+
+def test_settings_rejects_unknown_provider_mode() -> None:
+    with pytest.raises(ValidationError, match="LIVECLIP_AI_PROVIDER"):
+        Settings(ai_provider="silent-fake", _env_file=None)
+
+
+@pytest.mark.parametrize(
+    ("mode", "asr_model", "asr_contract"),
+    (
+        ("mock-codex", "mock-asr-v1", MOCK_ASR_CONTRACT_VERSION),
+        ("openai-codex", "whisper-1", OPENAI_ASR_CONTRACT_VERSION),
+        (
+            "openrouter-codex",
+            "openai/whisper-large-v3",
+            OPENROUTER_ASR_CONTRACT_VERSION,
+        ),
+    ),
+)
+def test_codex_editing_modes_keep_asr_selection_explicit_and_fingerprinted(
+    mode: str,
+    asr_model: str,
+    asr_contract: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = "codex-cli-editorial-v2.0.146.0." + "a" * 64
+    monkeypatch.setattr(
+        bootstrap_module,
+        "codex_cli_contract_version",
+        lambda _executable: contract,
+    )
+    settings = Settings(
+        ai_provider=mode,
+        llm_input_price_per_million="1",
+        llm_output_price_per_million="2",
+        _env_file=None,
+    )
+
+    config = pipeline_config_from_settings(settings)
+
+    assert config.provider == mode
+    assert config.transcription_model == asr_model
+    assert config.asr_contract_version == asr_contract
+    assert config.llm_model == "gpt-5.6-terra"
+    assert config.llm_contract_version == contract
+    assert config.llm_input_price_per_million is None
+    assert config.llm_output_price_per_million is None
+
+
+def test_mock_mode_remains_explicit_for_tests_and_demo() -> None:
+    config = pipeline_config_from_settings(Settings(ai_provider="mock", _env_file=None))
+
+    assert config.provider == "mock"
+    assert config.transcription_model == "mock-asr-v1"
+    assert config.llm_model == "mock-llm-v1"
+    assert config.asr_contract_version == MOCK_ASR_CONTRACT_VERSION
+    assert config.llm_contract_version == MOCK_LLM_CONTRACT_VERSION
+
+
+def test_import_only_config_does_not_require_executing_codex_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def must_not_probe(_executable: str) -> str:
+        raise AssertionError("import-only configuration must not execute Codex")
+
+    monkeypatch.setattr(bootstrap_module, "codex_cli_contract_version", must_not_probe)
+
+    config = pipeline_config_from_settings(
+        Settings(ai_provider="openai-codex", _env_file=None),
+        run_scope="import",
+    )
+
+    assert config.run_scope == "import"
+    assert config.provider == "openai-codex"
+    assert config.llm_contract_version == CODEX_LLM_UNPROBED_CONTRACT
+
+
 def test_public_summary_never_contains_secret_values() -> None:
     settings = Settings(
         api_token="local-token-value",
         openai_api_key="cloud-key-value",
+        openrouter_api_key="router-key-value",
         _env_file=None,
     )
 
     serialized = repr(settings.public_summary())
     assert "local-token-value" not in serialized
     assert "cloud-key-value" not in serialized
+    assert "router-key-value" not in serialized
     assert settings.public_summary()["api_token_configured"] is True
     assert settings.public_summary()["openai_configured"] is True
+    assert settings.public_summary()["openrouter_configured"] is True
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "http://openrouter.ai/api/v1",
+        "https://openrouter.ai.evil.invalid/api/v1",
+        "https://user:pass@openrouter.ai/api/v1",
+    ),
+)
+def test_settings_rejects_unsafe_openrouter_base_url(base_url: str) -> None:
+    with pytest.raises(ValidationError, match="OPENROUTER_BASE_URL"):
+        Settings(openrouter_base_url=base_url, _env_file=None)
 
 
 def test_settings_reject_invalid_timing_relationships() -> None:

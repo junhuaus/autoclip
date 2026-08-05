@@ -7,6 +7,7 @@ import type {
   ClipPatchRequest,
   ClipSummaryResponse,
   DeliveryDetailResponse,
+  HealthResponse,
   JobCreateRequest,
   ProjectSnapshot,
   QueuedRender,
@@ -101,6 +102,10 @@ export class LiveClipApiClient {
   constructor(token = "", baseUrl = "/api/v1") {
     this.token = token.trim();
     this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  health(): Promise<HealthResponse> {
+    return this.request("/health");
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

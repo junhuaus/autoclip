@@ -4,7 +4,7 @@ This plan follows `.agent/PLANS.md`. It is the durable implementation and recove
 
 ## Purpose / Big Picture
 
-A user on Apple Silicon macOS can import a local Chinese livestream by absolute path, process it through a recoverable local pipeline with OpenAI or deterministic Mock providers, review and revise accurate vertical highlight clips from CLI/Web, and create an immutable verified ZIP delivery. Completion is observable through real playable media, database state, HTTP/UI flows and reproducible commands—not interface stubs.
+A user on Apple Silicon macOS can import a local Chinese livestream by absolute path, process it through a recoverable local pipeline with OpenRouter/OpenAI or deterministic Mock providers, review and revise accurate vertical highlight clips from CLI/Web, and create an immutable verified ZIP delivery. Completion is observable through real playable media, database state, HTTP/UI flows and reproducible commands—not interface stubs.
 
 ## Context and Orientation
 
@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M5 are locally committed after independent review. M6 independent acceptance, real-backend browser composition and final documentation are active.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 is a corrective user-requested milestone: add the installed Codex CLI as a real editorial provider, add OpenRouter Whisper Large V3 as the selected real ASR, expose the ASR/LLM split, and remove any ambiguity between a Mock mechanics test and real-video content understanding.
 
 ## Architecture Summary
 
@@ -119,6 +119,24 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-04 Run independent read-only Verification Agent against every Product Spec item; final verdict `PASS`, zero P0/P1/P2.
 - [x] 2026-08-04 Resolve all earlier review findings, rerun affected/full checks and record final artifact paths/results; no final-verifier gap remains.
 - [x] 2026-08-04 Create scoped local implementation checkpoint `60283ba` and the following final documentation checkpoint; report truthful Git state.
+
+### M7 — Codex editorial provider and truthful real-content readiness
+
+- [x] 2026-08-04 Correct the earlier long-input claim: it used Mock ASR/LLM and proves streaming mechanics, not content understanding.
+- [x] 2026-08-04 Verify current official Codex non-interactive/auth/schema/sandbox contracts and the absence of a documented audio-input contract.
+- [x] 2026-08-04 Implement a tool-disabled, stdin-only, strict-schema, cancellable Codex CLI LLM adapter with bounded evidence, one repair and deterministic degradation.
+- [x] 2026-08-04 Add explicit `openai-codex` and `mock-codex` modes; make `openai-codex` the normal default while retaining pure OpenAI and explicit Mock modes.
+- [x] 2026-08-04 Run a real saved-ChatGPT-login `make smoke-codex`; record request/usage/structured EditPlan evidence without Mock fallback.
+- [x] 2026-08-04 Add safe Provider readiness to Doctor/API/CLI/Web, block full-run creation when real ASR/LLM prerequisites are missing, and visibly label Mock ASR.
+- [x] 2026-08-04 Pass the initial focused gate: 25 Python tests, 12 Web tests, Ruff, mypy and TypeScript.
+- [x] 2026-08-05 Read the user-supplied OpenRouter setup, preserve the exposed-Key warning, and verify current official STT/model/error/app-attribution documentation.
+- [x] 2026-08-05 Add `openrouter-codex` as the new user-selected default: strict official endpoint/model, Whisper Large V3 JSON `input_audio` timestamp ASR, documented Groq vocabulary option, generation/usage evidence, readiness, Doctor/API/Web/CLI and `make smoke-openrouter`.
+- [x] 2026-08-05 Repair the first M7 review findings: exhaustive version-pinned Codex tool disabling and tool-event rejection, executable/profile byte fingerprint, repair-cancellation evidence, mandatory smoke thread/token evidence, proxy credential removal, and readiness-safe idempotency replay. Git history proves `run_scope` already existed when Pipeline schema v2 was introduced, so no fictitious v2 migration is added.
+- [x] 2026-08-05 Pass 74 focused Python regressions, full mypy, Web TypeScript and 13 Vitest tests; run a post-hardening real Codex smoke with thread `019fd196-1428-7b10-a814-422f64f4f030`, input 8,899/output 105 tokens and a non-degraded validated plan.
+- [x] 2026-08-05 Run full lint/test/Demo gates plus controlled and real-backend host-Chrome checks. The browser plugin exposed no attached instance, so Provider startup state was verified through health HTTP plus component tests rather than claiming an MCP visual inspection.
+- [x] 2026-08-05 Pass the independent M7 re-review with zero P0/P1/P2 after repairing generation provenance/validation, documented vocabulary transport, strict usage validation and oversized/truncated Codex JSONL fail-closed handling.
+- [ ] Create the scoped local M7 checkpoint and update this plan/STATUS with its commit hash.
+- [ ] After a newly regenerated Key is configured locally, run `make smoke-openrouter` on a short sample and then the authorized 46:20 `input/7.28.mp4`; never use the previously exposed Key. This external verification may remain `not_run`, but cannot be called successful.
 
 ## Work breakdown and file ownership
 
@@ -265,6 +283,12 @@ Active M6 file ownership (recorded before acceptance changes):
 
 The first M6 code review found one P1 and one P2: shell-background Workers could inherit ignored SIGINT and leave an independent FFmpeg process group, while E2E cleanup learned directory identity only at deletion time. The Main Agent owns the repair; `m5_rereviewer` performs the read-only re-review and `m5_delivery` independently rechecks documentation/Product Spec closure. Neither reviewer may edit files.
 
+Active M7 file ownership:
+
+- Main Agent: all Codex Provider/process/config/API/CLI/Web integration, public schemas, tests, ADR/research, Solution, ExecPlan, STATUS and final Git checkpoint.
+- Final M7 Reviewer: read-only after the full gate; it must focus on command/tool escape, secret exposure, provider/config fingerprints, false-success claims, ASR/Codex separation and API/Web readiness behavior.
+- No parallel writer may edit the M7 worktree or shared state files.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -279,7 +303,7 @@ Expected: project-local `.python` contains a native arm64 Python 3.12; `.venv/bi
 make doctor
 ```
 
-Expected on the discovery host: overall Mock-ready result; Python/Node/SQLite/data checks pass; `subtitles`/`drawtext` are reported absent with raster fallback; a real VideoToolbox attempt may fail in sandbox and must report verified libx264 fallback; OpenAI is unconfigured without revealing any value. M2 versus target-M3 performance is a documented limitation, not a doctor capability failure.
+Expected on the discovery host: Python/Node/SQLite/data checks pass; `subtitles`/`drawtext` are reported absent with raster fallback; a real VideoToolbox attempt may fail in sandbox and must report verified libx264 fallback. The selected Codex CLI/login is checked without exposing credentials. Missing OpenRouter ASR remains an explicit warning and makes full processing not ready even though Demo remains runnable. M2 versus target-M3 performance is a documented limitation, not a doctor capability failure.
 
 ```bash
 make lint
@@ -300,6 +324,18 @@ make smoke-cloud INPUT=/absolute/path/to/short.mp4
 
 Expected now: nonzero, with missing variable names and `not_run`, because no OpenAI key/model environment is configured. With configuration it must prove both real provider calls and never instantiate Mock.
 
+```bash
+make smoke-codex
+```
+
+Expected on this host: one real `codex_cli` editorial result with a nonempty Codex thread/correlation ID and positive token usage, strict bounds/title/score, and no degraded or Mock evidence. This validates the text editor only; it must never be recorded as ASR or real-video proof.
+
+```bash
+make smoke-openrouter INPUT=/absolute/path/to/short.mp4
+```
+
+Expected now: `not_run` naming the missing regenerated `OPENROUTER_API_KEY`; no paid request and no Mock fallback. Once a new local Key is configured, success requires OpenRouter generation IDs, Codex thread/token evidence and non-degraded selected plans before any long-input run.
+
 ## Validation criteria
 
 Each milestone validates observable outputs described in its checklist. Media success requires ffprobe, full decode and hashes; UI success requires rendered browser behavior; queue success requires competing workers and expired-token evidence; cloud success requires persisted real provider/request metadata. Interface-only or mocked subprocess assertions do not satisfy end-to-end criteria.
@@ -309,6 +345,16 @@ Each milestone validates observable outputs described in its checklist. Media su
 Setup and Demo generation use isolated/generated targets. A stage re-run compares input fingerprints and validated output manifests. Tasks use fenced leases and bounded retries. Temp files have attempt identities and never count as success. Immutable revisions/deliveries are never overwritten. Failed cloud smoke preserves accurate failure status and cannot downgrade. Recovery starts from the first unsucceeded current-generation stage after validating prior checkpoints.
 
 ## Surprises and Discoveries
+
+- 2026-08-05: `OPENROUTER_SETUP.md` correctly warns that the original Key was exposed and contains no usable secret. Local Settings confirms `OPENROUTER_API_KEY` is absent, so no paid ASR call is authorized or possible yet.
+- 2026-08-05: Current OpenRouter primary docs confirm `/api/v1/audio/transcriptions`, JSON `input_audio`, M4A/AAC support, `verbose_json` segment/word timestamps, `X-Generation-Id`, actual `usage.cost`, no SRT/VTT and a 60-second upstream timeout. They also state multipart `prompt` is ignored and document `provider.options.groq.prompt`; LiveClip therefore uses JSON, one bounded 24 MB chunk at a time, and treats Groq vocabulary influence as best effort rather than a smoke guarantee.
+- 2026-08-05: The installed OpenAI SDK 2.52.0 parses OpenRouter's minimal verbose response but is permissive about missing fields. The Adapter now requires an exact non-truncated generation header, validates finite nonnegative root duration/usage seconds/cost plus segment/word values, and records a 200-but-malformed body as deterministic INVALID without retry or Mock fallback.
+- 2026-08-05: The first M7 reviewer proved Codex 0.146.0 still enabled apps/browser/computer/plugins under the earlier partial flags. The corrected profile pins that exact CLI version, disables every known tool surface, rejects any JSONL tool item, removes credential-bearing proxy variables, fingerprints executable bytes/profile, and rechecks before each call. A real smoke passed this hardened profile.
+- 2026-08-05: Provider readiness must not precede completed Idempotency-Key replay. API create paths now replay the canonical resource first, return conflict for changed payload, and gate only genuinely new work; an integration restart test proves the behavior.
+- 2026-08-04: The installed Codex CLI 0.146.0 is already authenticated through ChatGPT. A real tool-disabled strict-schema smoke succeeded with request `019fcf6a-a03e-7520-a3b4-fff735271737`, 11,371 input/101 output tokens and a validated Chinese editorial result.
+- 2026-08-04: The first real Codex schema call reached OpenAI but failed strict validation because every object property must also be in `required`. The adapter now gives Codex only the model-owned editorial fields and keeps candidate/model/prompt/degraded identity system-owned.
+- 2026-08-04: Official `codex exec` documentation exposes image attachments but no audio-transcription input. The installed CLI therefore solves the editorial LLM requirement but cannot replace timestamped ASR; `openai-codex` deliberately requires both independent prerequisites.
+- 2026-08-04: macOS exposes the default temporary path through `/var`, which is a symlink. Secure no-follow publication correctly rejected it; resolving the system temp root to `/private/var` preserves the no-follow invariant without weakening validation.
 
 - 2026-08-03: Repository was completely empty; there are no user changes or compatibility constraints.
 - 2026-08-03: Installed Python 3.12 is x86_64 despite arm64 host; project-local native Python is required.
@@ -369,6 +415,14 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Decision Log
 
+- 2026-08-05: Adopt ADR-009 `openrouter-codex` as the default real chain at the user's explicit direction; rationale: Whisper Large V3 supplies the timestamped Chinese ASR that Codex cannot provide, while retaining direct OpenAI alternatives.
+- 2026-08-05: Permit only exact `https://openrouter.ai/api/v1` and `openai/whisper-large-v3` in the v1 Adapter; rationale: configurable arbitrary endpoints could exfiltrate the ASR credential, while model drift could invalidate the timestamp/cache contract.
+- 2026-08-05: Refuse the previously exposed OpenRouter Key and require a regenerated local `.env.local` credential; rationale: cloud success based on a compromised secret is neither safe nor acceptable evidence.
+- 2026-08-05: Pin Codex 0.146.0 to an exhaustive reviewed tool-free profile and hash its executable identity into Pipeline config; rationale: read-only sandbox and partial feature flags did not close browser/apps/plugin side effects.
+- 2026-08-04: Add ADR-008 `openai-codex` as the normal mode and keep ASR separate; rationale: honor the user's local-Codex editorial request without falsely claiming Codex can hear video or running local model weights.
+- 2026-08-04: Execute Codex with no model tools, read-only/no-approval, isolated config/rules, stdin payload, strict schema and a secret-stripped child environment; rationale: transcript/model output remains untrusted data and cannot gain an execution channel.
+- 2026-08-04: Block full run creation and disable the Web start action when either selected real provider is not ready, while visibly warning on explicit Mock modes; rationale: a queued job must not look like real AI processing when ASR is absent.
+
 - 2026-08-03: Choose modular monolith/ports and adapters; rationale: three entry points need one business implementation.
 - 2026-08-03: Choose integer milliseconds; rationale: exact revision, SQLite, JSON, SRT and FFmpeg conversions.
 - 2026-08-03: Choose fenced SQLite Task leases plus immutable atomic artifacts; rationale: CLI/Worker crash/race safety.
@@ -414,7 +468,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-No implementation task remains. On any future resumption, first verify the clean Git checkpoint and current external prerequisites. Do not repeat the 2.19 GB long-media run unless code affecting ingest/preprocess/stage execution changes.
+M7 implementation and local acceptance are complete; the independent final re-review is PASS with zero P0/P1/P2. The only local recovery action is to inspect the scoped checkpoint and current service health. Do not repeat the 2.19 GB long-media run with Mock and call it AI validation. A truthful full-content run remains blocked until the exposed OpenRouter Key is revoked and a newly generated Key is configured locally.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -425,3 +479,5 @@ M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two boun
 M5 is complete at commit `7c145ec`. Long/chunked input, cancellation/lease recovery, spawned-process SQLite contention, explicit stream selection, VFR/rotation, exact committed-Asset dependencies, pinned render validation/publication, caption resource bounds, safe diagnostics and exact immutable Delivery publication are integrated. The final reviewer returned `PASS` after replaying the two prior Delivery races. Full gates are 428 Python plus 11 Web tests, and the fresh delivered Demo's final/contact sheet/manifest/ZIP were actually inspected. The available long fixture is only 46:20 on Apple M2, so 2–4 hour peak memory and M3 throughput remain truthful limitations for M6/final reporting rather than hidden success claims.
 
 M6 is complete at implementation checkpoint `60283ba` plus the following documentation checkpoint. The browser-to-real-backend gap is closed with repeated host-Chrome runs and persisted lease/render/Delivery proof. Documentation/schema export, both focused re-reviews and the final Product Spec-wide verifier are PASS; setup, Doctor, lint, 433 Python/11 Web/two browser flows and a freshly viewed delivered Demo pass. The LiveClip v1 baseline is `delivered`; only the explicitly disclosed external cloud/hardware measurements remain unverified.
+
+M7 local implementation is complete pending its scoped checkpoint. The default real chain is strict OpenRouter Whisper Large V3 JSON ASR followed by the version-pinned hardened Codex CLI editor. Final local gates pass at 498 Python tests, 13 Web tests and both host-Chrome flows; Demo `demo_20260805T120045_8bc01ec3` reached `delivered`, its 1080×1920 final fully decoded, its ZIP passed integrity, and its contact sheet was actually viewed and recorded. The independent M7 Reviewer returned PASS with zero P0/P1/P2. Real OpenRouter cloud and the authorized 46:20 content run remain truthfully `not_run` because no regenerated safe Key exists.

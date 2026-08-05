@@ -45,7 +45,7 @@ class PipelineRunConfig(BaseModel):
 
     schema_version: Literal["2"] = "2"
     run_scope: Literal["full", "import"] = "full"
-    provider: str = Field(pattern=r"^(mock|openai)$")
+    provider: str = Field(pattern=r"^(mock|openai|mock-codex|openai-codex|openrouter-codex)$")
     top_n: int = Field(ge=1, le=100)
     minimum_clip_ms: int = Field(ge=1_000, le=600_000)
     maximum_clip_ms: int = Field(ge=1_000, le=1_800_000)
@@ -77,7 +77,7 @@ class PipelineRunConfig(BaseModel):
     llm_contract_version: str = Field(
         default="mock-llm-contract-v1",
         min_length=1,
-        max_length=80,
+        max_length=120,
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
     editing_prompt_version: str = Field(
@@ -254,6 +254,13 @@ class StageExecutionRepository(Protocol):
 
 
 class PipelineRepository(Protocol):
+    def replay_pipeline(
+        self,
+        idempotency: IdempotencyContext | None,
+        *,
+        expected_project_id: str | None = None,
+    ) -> CreatedPipeline | None: ...
+
     def create_project_and_run(
         self,
         *,
@@ -304,6 +311,19 @@ class PipelineService:
             config=config,
             max_stage_retries=max_stage_retries,
             idempotency=idempotency,
+        )
+
+    def replay_pipeline(
+        self,
+        idempotency: IdempotencyContext | None,
+        *,
+        expected_project_id: str | None = None,
+    ) -> CreatedPipeline | None:
+        """Replay a completed create before provider readiness is evaluated."""
+
+        return self._repository.replay_pipeline(
+            idempotency,
+            expected_project_id=expected_project_id,
         )
 
     def import_project(

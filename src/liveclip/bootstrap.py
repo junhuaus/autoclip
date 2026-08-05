@@ -7,6 +7,7 @@ import socket
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from alembic import command
 from alembic.config import Config
@@ -39,10 +40,15 @@ from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.prompts import load_editing_prompts
 from liveclip.providers.asr.mock import MOCK_ASR_CONTRACT_VERSION
 from liveclip.providers.asr.openai import OPENAI_ASR_CONTRACT_VERSION
+from liveclip.providers.asr.openrouter import OPENROUTER_ASR_CONTRACT_VERSION
 from liveclip.providers.llm.base import (
     EDITORIAL_SUGGESTION_SCHEMA_VERSION,
     MOCK_LLM_CONTRACT_VERSION,
     mock_prompt_sha256,
+)
+from liveclip.providers.llm.codex import (
+    CODEX_LLM_UNPROBED_CONTRACT,
+    codex_cli_contract_version,
 )
 from liveclip.providers.llm.openai import OPENAI_LLM_CONTRACT_VERSION
 from liveclip.renderer.task_handler import RenderTaskHandler
@@ -111,10 +117,19 @@ class LiveClipRuntime:
                 assets=asset_store,
                 state=SqlAlchemyStageStateStore(engine),
                 openai_api_key=(
-                    settings.openai_api_key.get_secret_value()
-                    if settings.ai_provider == "openai" and settings.openai_api_key is not None
+                    settings.openai_api_key.get_secret_value().strip()
+                    if settings.ai_provider in {"openai", "openai-codex"}
+                    and settings.openai_api_key is not None
                     else None
                 ),
+                openrouter_api_key=(
+                    settings.openrouter_api_key.get_secret_value().strip()
+                    if settings.ai_provider == "openrouter-codex"
+                    and settings.openrouter_api_key is not None
+                    else None
+                ),
+                openrouter_base_url=settings.openrouter_base_url,
+                codex_executable=settings.codex_executable,
                 runtime_provider=settings.ai_provider,
             )
             runner = StageTaskRunner(
@@ -204,25 +219,50 @@ def upgrade_database(engine: Engine, *, project_root: Path | None = None) -> Non
 def pipeline_config_from_settings(
     settings: Settings,
     *,
+    run_scope: Literal["full", "import"] = "full",
     top_n: int | None = None,
     minimum_clip_seconds: int | None = None,
     maximum_clip_seconds: int | None = None,
 ) -> PipelineRunConfig:
     provider = settings.ai_provider
-    transcription_model = "mock-asr-v1" if provider == "mock" else settings.transcription_model
-    llm_model = "mock-llm-v1" if provider == "mock" else settings.llm_model
-    if provider == "mock":
-        asr_contract_version = MOCK_ASR_CONTRACT_VERSION
+    mock_asr = provider in {"mock", "mock-codex"}
+    openrouter_asr = provider == "openrouter-codex"
+    codex_llm = provider in {"mock-codex", "openai-codex", "openrouter-codex"}
+    mock_llm = provider == "mock"
+    transcription_model = (
+        "mock-asr-v1"
+        if mock_asr
+        else settings.openrouter_asr_model
+        if openrouter_asr
+        else settings.transcription_model
+    )
+    llm_model = "mock-llm-v1" if mock_llm else settings.llm_model
+    asr_contract_version = (
+        MOCK_ASR_CONTRACT_VERSION
+        if mock_asr
+        else OPENROUTER_ASR_CONTRACT_VERSION
+        if openrouter_asr
+        else OPENAI_ASR_CONTRACT_VERSION
+    )
+    if mock_llm:
         llm_contract_version = MOCK_LLM_CONTRACT_VERSION
         editing_prompt_version = "editing_v1"
         editing_prompt_sha256 = mock_prompt_sha256(editing_prompt_version)
     else:
         prompts = load_editing_prompts()
-        asr_contract_version = OPENAI_ASR_CONTRACT_VERSION
-        llm_contract_version = OPENAI_LLM_CONTRACT_VERSION
+        llm_contract_version = (
+            (
+                CODEX_LLM_UNPROBED_CONTRACT
+                if run_scope == "import"
+                else codex_cli_contract_version(settings.codex_executable)
+            )
+            if codex_llm
+            else OPENAI_LLM_CONTRACT_VERSION
+        )
         editing_prompt_version = prompts.version
         editing_prompt_sha256 = prompts.sha256
     return PipelineRunConfig(
+        run_scope=run_scope,
         provider=provider,
         top_n=top_n if top_n is not None else settings.default_top_n,
         minimum_clip_ms=(
@@ -247,8 +287,12 @@ def pipeline_config_from_settings(
         openai_max_request_retries=settings.openai_max_request_retries,
         openai_retry_base_seconds=settings.openai_retry_base_seconds,
         openai_retry_max_seconds=settings.openai_retry_max_seconds,
-        llm_input_price_per_million=settings.llm_input_price_per_million,
-        llm_output_price_per_million=settings.llm_output_price_per_million,
+        llm_input_price_per_million=(
+            settings.llm_input_price_per_million if provider == "openai" else None
+        ),
+        llm_output_price_per_million=(
+            settings.llm_output_price_per_million if provider == "openai" else None
+        ),
         asr_contract_version=asr_contract_version,
         llm_contract_version=llm_contract_version,
         editing_prompt_version=editing_prompt_version,

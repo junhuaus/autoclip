@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -228,7 +229,12 @@ def _sleep_with_cancellation(
 
 def _request_id_from_error(error: openai.OpenAIError) -> str | None:
     value = getattr(error, "request_id", None)
-    return str(value)[:160] if value else None
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if not value and headers is not None:
+        value = headers.get("x-generation-id") or headers.get("x-request-id")
+    normalized = str(value)[:160] if value else ""
+    return normalized if re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", normalized) else None
 
 
 def _elapsed_ms(started: float, monotonic: Callable[[], float]) -> int:

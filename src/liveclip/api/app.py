@@ -5,7 +5,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +31,7 @@ from liveclip.api.schemas import (
     DeliveryDetailResponse,
     HealthResponse,
     JobCreateRequest,
+    ProviderHealthResponse,
     RenderCreateRequest,
     ReviewActionRequest,
     RunCreateRequest,
@@ -66,6 +67,11 @@ from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
 from liveclip.domain.state_transitions import ReviewStatus
 from liveclip.media.ingest import MediaIngestError, resolve_allowed_source
+from liveclip.providers.readiness import (
+    ProviderNotReady,
+    assess_provider_readiness,
+    ensure_processing_ready,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +84,7 @@ def create_app(
 ) -> FastAPI:
     configured = settings or get_settings()
     security = ApiSecurity(configured)
+    provider_readiness = assess_provider_readiness(configured)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -101,7 +108,10 @@ def create_app(
             416: {"model": ApiErrorEnvelope, "description": "Range not satisfiable"},
             422: {"model": ApiErrorEnvelope, "description": "Request validation failed"},
             500: {"model": ApiErrorEnvelope, "description": "Safe internal error"},
-            503: {"model": ApiErrorEnvelope, "description": "Local storage temporarily busy"},
+            503: {
+                "model": ApiErrorEnvelope,
+                "description": "Provider or local storage temporarily unavailable",
+            },
         },
     )
     app.state.settings = configured
@@ -163,7 +173,19 @@ def create_app(
         active = _runtime(request)
         with active.engine.connect() as connection:
             connection.execute(text("SELECT 1")).scalar_one()
-        return HealthResponse(version=__version__)
+        return HealthResponse(
+            version=__version__,
+            providers=ProviderHealthResponse(
+                mode=provider_readiness.mode,
+                asr_provider=provider_readiness.asr_provider,
+                llm_provider=provider_readiness.llm_provider,
+                asr_ready=provider_readiness.asr_ready,
+                llm_ready=provider_readiness.llm_ready,
+                processing_ready=provider_readiness.processing_ready,
+                blocking_issues=provider_readiness.blocking_issues,
+                warnings=provider_readiness.warnings,
+            ),
+        )
 
     @protected.post(
         "/jobs",
@@ -177,19 +199,23 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
-        source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
-        config = _pipeline_config(configured, body)
-        created = active.pipeline_service.create_project_and_run(
-            source_path=source_path,
-            config=config,
-            max_stage_retries=configured.max_stage_retries,
-            idempotency=_idempotency(
-                security,
-                idempotency_key,
-                operation="POST:/api/v1/jobs",
-                payload=body.model_dump(mode="json"),
-            ),
+        idempotency = _idempotency(
+            security,
+            idempotency_key,
+            operation="POST:/api/v1/jobs",
+            payload=body.model_dump(mode="json"),
         )
+        created = active.pipeline_service.replay_pipeline(idempotency)
+        if created is None:
+            ensure_processing_ready(provider_readiness)
+            source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
+            config = _pipeline_config(configured, body)
+            created = active.pipeline_service.create_project_and_run(
+                source_path=source_path,
+                config=config,
+                max_stage_retries=configured.max_stage_retries,
+                idempotency=idempotency,
+            )
         location = f"/api/v1/jobs/{created.run_id}"
         response.headers["Location"] = location
         response.headers["Retry-After"] = "1"
@@ -223,7 +249,7 @@ def create_app(
         source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
         created = active.pipeline_service.import_project(
             source_path=source_path,
-            config=_pipeline_config(configured, body),
+            config=_pipeline_config(configured, body, run_scope="import"),
             max_stage_retries=configured.max_stage_retries,
             idempotency=_idempotency(
                 security,
@@ -259,17 +285,24 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
-        created = active.pipeline_service.create_run(
-            project_id=project_id,
-            config=_pipeline_config(configured, body),
-            max_stage_retries=configured.max_stage_retries,
-            idempotency=_idempotency(
-                security,
-                idempotency_key,
-                operation="POST:/api/v1/projects/:project_id/runs",
-                payload={"project_id": project_id, **body.model_dump(mode="json")},
-            ),
+        idempotency = _idempotency(
+            security,
+            idempotency_key,
+            operation="POST:/api/v1/projects/:project_id/runs",
+            payload={"project_id": project_id, **body.model_dump(mode="json")},
         )
+        created = active.pipeline_service.replay_pipeline(
+            idempotency,
+            expected_project_id=project_id,
+        )
+        if created is None:
+            ensure_processing_ready(provider_readiness)
+            created = active.pipeline_service.create_run(
+                project_id=project_id,
+                config=_pipeline_config(configured, body),
+                max_stage_retries=configured.max_stage_retries,
+                idempotency=idempotency,
+            )
         location = f"/api/v1/runs/{created.run_id}"
         response.headers["Location"] = location
         response.headers["Retry-After"] = "1"
@@ -513,9 +546,12 @@ def _runtime(request: Request) -> LiveClipRuntime:
 def _pipeline_config(
     settings: Settings,
     body: JobCreateRequest | RunCreateRequest,
+    *,
+    run_scope: Literal["full", "import"] = "full",
 ) -> PipelineRunConfig:
     return pipeline_config_from_settings(
         settings,
+        run_scope=run_scope,
         top_n=body.top_n,
         minimum_clip_seconds=body.minimum_clip_seconds,
         maximum_clip_seconds=body.maximum_clip_seconds,
@@ -760,6 +796,21 @@ def _install_exception_handlers(app: FastAPI) -> None:
             status_code=422,
             code="INVALID_SOURCE_MEDIA",
             message=str(exc),
+        )
+
+    @app.exception_handler(ProviderNotReady)
+    async def provider_not_ready_handler(
+        request: Request,
+        _exc: ProviderNotReady,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=503,
+            code="PROVIDER_NOT_READY",
+            message=(
+                "Required ASR/LLM providers are not ready; inspect /api/v1/health "
+                "and run liveclip doctor"
+            ),
         )
 
     @app.exception_handler(ValidationError)

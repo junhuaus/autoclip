@@ -27,9 +27,12 @@ from liveclip.domain.state_transitions import (
     ReviewStatus,
 )
 from liveclip.domain.time import seconds_to_ms
+from liveclip.providers.readiness import require_processing_ready
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
+from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
+from liveclip.services.openrouter_smoke import OpenRouterSmokeError, run_openrouter_smoke
 from liveclip.worker import run_worker
 
 app = typer.Typer(
@@ -89,6 +92,7 @@ def run_pipeline(
         raise typer.Exit(code=2)
     settings = get_settings()
     try:
+        require_processing_ready(settings)
         config = pipeline_config_from_settings(
             settings,
             top_n=top_n,
@@ -429,6 +433,50 @@ def smoke_cloud(
     typer.echo(f"ASR request IDs: {', '.join(result.asr_request_ids)}")
     typer.echo(f"LLM request IDs: {', '.join(result.llm_request_ids)}")
     typer.echo(f"Selected non-degraded clips: {result.selected_clip_count}")
+
+
+@app.command("smoke-codex")
+def smoke_codex() -> None:
+    """Run one real tool-disabled Codex editorial call using saved CLI login."""
+
+    try:
+        result = run_codex_smoke(get_settings())
+    except (CodexSmokeError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("Codex smoke: succeeded")
+    typer.echo(f"Provider: {result.provider}")
+    typer.echo(f"Model: {result.model}")
+    typer.echo(f"Codex thread ID: {result.thread_id}")
+    typer.echo(f"Usage: input={result.input_tokens} output={result.output_tokens}")
+    typer.echo(f"Score: {result.score}")
+    typer.echo(f"Title: {result.title}")
+    typer.echo(f"Boundary: {result.source_start_ms}-{result.source_end_ms} ms")
+
+
+@app.command("smoke-openrouter")
+def smoke_openrouter(
+    input_path: Annotated[Path, typer.Option("--input", exists=False, dir_okay=False)],
+) -> None:
+    """Prove real OpenRouter Whisper ASR followed by real local Codex editing."""
+
+    try:
+        result = run_openrouter_smoke(
+            settings=get_settings(),
+            input_path=input_path,
+            project_root=Path.cwd(),
+        )
+    except (OpenRouterSmokeError, BootstrapError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("OpenRouter + Codex smoke: succeeded")
+    typer.echo(f"Project ID: {result.project_id}")
+    typer.echo(f"Run ID: {result.run_id}")
+    typer.echo(f"ASR model: {result.asr_model}")
+    typer.echo(f"Codex model: {result.llm_model}")
+    typer.echo(f"ASR generation IDs: {', '.join(result.asr_generation_ids)}")
+    typer.echo(f"Codex thread IDs: {', '.join(result.codex_thread_ids)}")
+    typer.echo(f"Selected clips: {result.selected_clip_count}")
 
 
 @app.command()

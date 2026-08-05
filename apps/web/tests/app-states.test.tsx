@@ -21,6 +21,8 @@ describe("project list states", () => {
     expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
     expect(await screen.findByText("还没有项目")).toBeInTheDocument();
     expect(screen.getByText("从上方输入本地视频路径开始。")).toBeInTheDocument();
+    expect(screen.getByText(/当前使用 Mock ASR/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
   });
 
   it("renders only the stable safe API error and retry affordance", async () => {
@@ -75,5 +77,69 @@ describe("project list states", () => {
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
     expect(window.location.href).not.toContain("temporary-browser-token");
+  });
+
+  it("shows the real provider split and blocks processing without OpenAI ASR", async () => {
+    server.use(
+      http.get("/api/v1/health", () =>
+        HttpResponse.json({
+          schema_version: "1",
+          status: "ok",
+          version: "0.1.0-test",
+          database: "ok",
+          providers: {
+            mode: "openai-codex",
+            asr_provider: "openai",
+            llm_provider: "codex_cli",
+            asr_ready: false,
+            llm_ready: true,
+            processing_ready: false,
+            blocking_issues: ["OPENAI_ASR_NOT_CONFIGURED"],
+            warnings: [],
+          },
+        }),
+      ),
+      http.get("/api/v1/projects", () => HttpResponse.json([])),
+    );
+
+    renderWithClient(<App />);
+
+    expect(await screen.findByText(/OpenAI ASR 尚未配置/)).toBeInTheDocument();
+    expect(screen.getByText(/本机 Codex CLI/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeDisabled();
+    expect(screen.getByText(/Codex 不能直接听视频/)).toBeInTheDocument();
+    expect(screen.getByText(/实际云端权限、额度和模型可用性/)).toBeInTheDocument();
+  });
+
+  it("shows OpenRouter Whisper separately and requires a local regenerated key", async () => {
+    server.use(
+      http.get("/api/v1/health", () =>
+        HttpResponse.json({
+          schema_version: "1",
+          status: "ok",
+          version: "0.1.0-test",
+          database: "ok",
+          providers: {
+            mode: "openrouter-codex",
+            asr_provider: "openrouter",
+            llm_provider: "codex_cli",
+            asr_ready: false,
+            llm_ready: true,
+            processing_ready: false,
+            blocking_issues: ["OPENROUTER_ASR_NOT_CONFIGURED"],
+            warnings: [],
+          },
+        }),
+      ),
+      http.get("/api/v1/projects", () => HttpResponse.json([])),
+    );
+
+    renderWithClient(<App />);
+
+    expect(
+      await screen.findByText(/OpenRouter Whisper Large V3 中文语音转写/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/撤销曾暴露的旧 Key/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeDisabled();
   });
 });

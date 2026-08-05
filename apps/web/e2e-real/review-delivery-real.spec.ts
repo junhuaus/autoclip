@@ -46,6 +46,9 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await page.getByLabel("本机 API Bearer token（可选）").fill(token);
   await page.getByRole("button", { name: "应用" }).click();
   await expect(page.getByText("还没有项目")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "当前 AI 处理链路" })).toBeVisible();
+  await expect(page.getByText(/当前使用 Mock ASR/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
 
   await page.getByLabel("本地视频绝对路径").fill(inputPath);
   await page.getByLabel("候选数量").fill("1");

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
         env_prefix="LIVECLIP_",
         extra="ignore",
@@ -38,15 +38,33 @@ class Settings(BaseSettings):
         validation_alias="LIVECLIP_CORS_ORIGINS",
     )
 
-    ai_provider: str = "mock"
+    ai_provider: str = "openrouter-codex"
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     transcription_model: str = Field(
         default="whisper-1", validation_alias="OPENAI_TRANSCRIPTION_MODEL"
     )
     llm_model: str = Field(default="gpt-5.6-terra", validation_alias="OPENAI_LLM_MODEL")
+    openrouter_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="OPENROUTER_API_KEY",
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        validation_alias="OPENROUTER_BASE_URL",
+    )
+    openrouter_asr_model: str = Field(
+        default="openai/whisper-large-v3",
+        validation_alias="OPENROUTER_ASR_MODEL",
+    )
+    codex_executable: str = Field(
+        default="codex",
+        min_length=1,
+        max_length=4_096,
+        validation_alias="LIVECLIP_CODEX_EXECUTABLE",
+    )
 
     asr_chunk_seconds: int = Field(
-        default=600, ge=10, le=3600, validation_alias="ASR_CHUNK_SECONDS"
+        default=300, ge=10, le=3600, validation_alias="ASR_CHUNK_SECONDS"
     )
     asr_chunk_overlap_seconds: int = Field(
         default=5, ge=0, le=60, validation_alias="ASR_CHUNK_OVERLAP_SECONDS"
@@ -130,8 +148,33 @@ class Settings(BaseSettings):
     @classmethod
     def validate_provider(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if normalized not in {"mock", "openai"}:
-            raise ValueError("LIVECLIP_AI_PROVIDER must be 'mock' or 'openai'")
+        if normalized not in {
+            "mock",
+            "openai",
+            "mock-codex",
+            "openai-codex",
+            "openrouter-codex",
+        }:
+            raise ValueError(
+                "LIVECLIP_AI_PROVIDER must be mock, openai, mock-codex, "
+                "openai-codex, or openrouter-codex"
+            )
+        return normalized
+
+    @field_validator("openrouter_base_url")
+    @classmethod
+    def validate_openrouter_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if normalized != "https://openrouter.ai/api/v1":
+            raise ValueError("OPENROUTER_BASE_URL must be https://openrouter.ai/api/v1")
+        return normalized
+
+    @field_validator("openrouter_asr_model")
+    @classmethod
+    def validate_openrouter_asr_model(cls, value: str) -> str:
+        normalized = value.strip()
+        if normalized != "openai/whisper-large-v3":
+            raise ValueError("OPENROUTER_ASR_MODEL must be openai/whisper-large-v3")
         return normalized
 
     @field_validator("video_encoder")
@@ -182,10 +225,18 @@ class Settings(BaseSettings):
             "api_port": self.api_port,
             "api_token_configured": bool(self.api_token and self.api_token.get_secret_value()),
             "ai_provider": self.ai_provider,
+            "codex_provider_selected": self.ai_provider.endswith("-codex"),
             "openai_configured": bool(
-                self.openai_api_key and self.openai_api_key.get_secret_value()
+                self.openai_api_key and self.openai_api_key.get_secret_value().strip()
             ),
-            "transcription_model": self.transcription_model,
+            "openrouter_configured": bool(
+                self.openrouter_api_key and self.openrouter_api_key.get_secret_value().strip()
+            ),
+            "transcription_model": (
+                self.openrouter_asr_model
+                if self.ai_provider == "openrouter-codex"
+                else self.transcription_model
+            ),
             "llm_model": self.llm_model,
         }
 

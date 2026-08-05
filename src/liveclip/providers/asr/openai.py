@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import math
 import os
+import re
 import stat
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, BinaryIO
 
@@ -40,10 +44,18 @@ from liveclip.providers.telemetry import (
 _MAX_OPENAI_AUDIO_BYTES = 25_000_000
 _TIMELINE_TOLERANCE_MS = 250
 OPENAI_ASR_CONTRACT_VERSION = "openai-asr-whisper-timestamps-v1"
+_OPENAI_RAW_RESPONSE_HEADER = "X-Stainless-Raw-Response"
 
 
-class OpenAIASRProvider:
-    """Timestamp-capable OpenAI transcription adapter for generated audio chunks."""
+@dataclass(frozen=True, slots=True)
+class _TranscriptionEnvelope:
+    response: object
+    request_id: str | None
+    requires_parse: bool = False
+
+
+class _TimestampASRProvider:
+    """Shared, validated timestamp-ASR implementation for OpenAI-compatible APIs."""
 
     def __init__(
         self,
@@ -56,27 +68,49 @@ class OpenAIASRProvider:
         monotonic: Callable[[], float] | None = None,
         sleep: Callable[[float], None] | None = None,
         jitter: Callable[[], float] | None = None,
+        provider_name: str,
+        contract_version: str,
+        required_model: str,
+        credential_name: str,
+        failure_prefix: str,
+        base_url: str | None = None,
+        default_headers: dict[str, str] | None = None,
+        request_id_header: str | None = None,
+        json_audio_input: bool = False,
+        vocabulary_provider_slug: str | None = None,
     ) -> None:
-        if model_name != "whisper-1":
+        if model_name != required_model:
             raise ProviderConfigurationError(
-                "configured OpenAI transcription model lacks the required timestamp contract"
+                "configured transcription model lacks the required timestamp contract"
             )
-        if client is None and not api_key:
-            raise ProviderConfigurationError("OPENAI_API_KEY is not configured")
+        if client is None and not (api_key and api_key.strip()):
+            raise ProviderConfigurationError(f"{credential_name} is not configured")
         self._model_name = model_name
+        self._provider_name = provider_name
+        self._contract_version = contract_version
+        self._failure_prefix = failure_prefix
+        self._request_id_header = request_id_header
+        self._request_headers = default_headers
+        self._json_audio_input = json_audio_input
+        self._vocabulary_provider_slug = vocabulary_provider_slug
         self._retry_policy = retry_policy or OpenAIRetryPolicy()
-        self._client: Any = client or OpenAI(
-            api_key=api_key,
-            max_retries=0,
-            timeout=timeout_seconds,
-        )
+        client_kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "max_retries": 0,
+            "timeout": timeout_seconds,
+        }
+        if base_url is not None:
+            client_kwargs["base_url"] = base_url
+        if default_headers is not None:
+            client_kwargs["default_headers"] = default_headers
+        self._client: Any = client or OpenAI(**client_kwargs)
         self._monotonic = monotonic
         self._sleep = sleep
         self._jitter = jitter
 
     @property
     def provider_name(self) -> str:
-        return "openai"
+        return self._provider_name
 
     @property
     def model_name(self) -> str:
@@ -84,7 +118,7 @@ class OpenAIASRProvider:
 
     @property
     def contract_version(self) -> str:
-        return OPENAI_ASR_CONTRACT_VERSION
+        return self._contract_version
 
     def transcribe(
         self,
@@ -110,19 +144,69 @@ class OpenAIASRProvider:
         )
         duration_ms = chunk.source_end_ms - chunk.source_start_ms
         with _validated_audio_handle(chunk) as handle:
-            kwargs: dict[str, Any] = {
+            request_fields: dict[str, Any] = {
                 "model": self.model_name,
-                "file": (audio_path_for_chunk(chunk).name, handle, "audio/mp4"),
                 "language": language,
                 "response_format": "verbose_json",
                 "timestamp_granularities": ["segment", "word"],
             }
-            if vocabulary_prompt:
-                kwargs["prompt"] = vocabulary_prompt
+            if self._json_audio_input:
+                request_fields["input_audio"] = {
+                    # Each verified chunk is capped at 25 MB. Encoding one bounded
+                    # chunk never reads the multi-hour source into memory.
+                    "data": base64.b64encode(handle.read()).decode("ascii"),
+                    "format": "m4a",
+                }
+                if vocabulary_prompt and self._vocabulary_provider_slug:
+                    request_fields["provider"] = {
+                        "options": {
+                            self._vocabulary_provider_slug: {
+                                "prompt": vocabulary_prompt,
+                            }
+                        }
+                    }
+            else:
+                request_fields["file"] = (
+                    audio_path_for_chunk(chunk).name,
+                    handle,
+                    "audio/mp4",
+                )
+                if vocabulary_prompt:
+                    request_fields["prompt"] = vocabulary_prompt
+                if self._request_headers is not None:
+                    request_fields["extra_headers"] = self._request_headers
 
             def request() -> object:
                 handle.seek(0)
-                return self._client.audio.transcriptions.create(**kwargs)
+                if self._request_id_header is None:
+                    response = self._client.audio.transcriptions.create(**request_fields)
+                    return _TranscriptionEnvelope(
+                        response=response,
+                        request_id=_request_id(response),
+                    )
+                if self._json_audio_input:
+                    headers = {
+                        _OPENAI_RAW_RESPONSE_HEADER: "raw",
+                        **(self._request_headers or {}),
+                    }
+                    raw_response = self._client.post(
+                        "/audio/transcriptions",
+                        cast_to=TranscriptionVerbose,
+                        body=request_fields,
+                        options={"headers": headers},
+                    )
+                else:
+                    raw_response = self._client.audio.transcriptions.with_raw_response.create(
+                        **request_fields
+                    )
+                header_value = raw_response.headers.get(self._request_id_header)
+                return _TranscriptionEnvelope(
+                    response=raw_response,
+                    # OpenRouter's generation ID has distinct provenance from an
+                    # ordinary x-request-id and must never fall back to it.
+                    request_id=_safe_request_id(header_value),
+                    requires_parse=True,
+                )
 
             retry_kwargs: dict[str, Any] = {}
             if self._monotonic is not None:
@@ -150,7 +234,8 @@ class OpenAIASRProvider:
                         retry_count=exc.retry_count,
                         latency_ms=exc.latency_ms,
                         status=ProviderCallStatus.CANCELLED,
-                        failure_code="OPENAI_CANCELLED",
+                        provider=self.provider_name,
+                        failure_code=f"{self._failure_prefix}_CANCELLED",
                     )
                     if exc.request_count > 0
                     else None
@@ -167,46 +252,131 @@ class OpenAIASRProvider:
                     retry_count=exc.retry_count,
                     latency_ms=exc.latency_ms,
                     status=ProviderCallStatus.FAILED,
-                    failure_code=exc.failure_code,
+                    provider=self.provider_name,
+                    failure_code=_provider_failure_code(
+                        exc.failure_code,
+                        prefix=self._failure_prefix,
+                    ),
                     request_id=exc.request_id,
                 )
                 error_type = ProviderTransientError if exc.transient else ProviderDeterministicError
                 raise error_type(record) from exc
 
-        response = execution.value
-        request_id = _request_id(response)
-        usage = _usage_payload(response)
-        audio_seconds = _audio_seconds(usage, duration_ms=duration_ms)
-        record = _call_record(
-            call_id=call_id,
-            operation_key=operation_key,
-            chunk=chunk,
-            model=self.model_name,
-            called_at=called_at,
-            request_count=execution.request_count,
-            retry_count=execution.retry_count,
-            latency_ms=execution.latency_ms,
-            status=ProviderCallStatus.SUCCEEDED,
-            request_id=request_id,
-            usage_json=usage,
-            audio_seconds=audio_seconds,
-        )
+        envelope = execution.value
+        if not isinstance(envelope, _TranscriptionEnvelope):
+            raise ProviderConfigurationError("transcription adapter returned an invalid envelope")
+        response = envelope.response
+        request_id = envelope.request_id
+        if envelope.requires_parse:
+            try:
+                parser = getattr(response, "parse", None)
+                if not callable(parser):
+                    raise TypeError("raw transcription response cannot be parsed")
+                response = parser()
+            except Exception as exc:
+                invalid = _call_record(
+                    call_id=call_id,
+                    operation_key=operation_key,
+                    chunk=chunk,
+                    model=self.model_name,
+                    called_at=called_at,
+                    request_count=execution.request_count,
+                    retry_count=execution.retry_count,
+                    latency_ms=execution.latency_ms,
+                    status=ProviderCallStatus.INVALID,
+                    provider=self.provider_name,
+                    failure_code=f"{self._failure_prefix}_ASR_RESPONSE_INVALID",
+                    request_id=request_id,
+                )
+                raise ProviderDeterministicError(invalid) from exc
+            if self._request_id_header is None:
+                request_id = request_id or _request_id(response)
+        success_record: ProviderCallRecord | None = None
         try:
+            if self._request_id_header is not None and request_id is None:
+                raise ValueError("transcription response omitted its required generation ID")
+            usage = _usage_payload(response, provider=self.provider_name)
+            audio_seconds = _audio_seconds(usage, duration_ms=duration_ms)
+            success_record = _call_record(
+                call_id=call_id,
+                operation_key=operation_key,
+                chunk=chunk,
+                model=self.model_name,
+                called_at=called_at,
+                request_count=execution.request_count,
+                retry_count=execution.retry_count,
+                latency_ms=execution.latency_ms,
+                status=ProviderCallStatus.SUCCEEDED,
+                provider=self.provider_name,
+                request_id=request_id,
+                usage_json=usage,
+                audio_seconds=audio_seconds,
+            )
             return _map_verbose_response(
                 response,
                 chunk=chunk,
                 language=language,
                 request_id=request_id,
-                call_record=record,
+                call_record=success_record,
+                provider=self.provider_name,
             )
-        except (TypeError, ValueError) as exc:
-            invalid = record.model_copy(
-                update={
-                    "status": ProviderCallStatus.INVALID,
-                    "failure_code": "OPENAI_ASR_RESPONSE_INVALID",
-                }
+        except (AttributeError, TypeError, ValueError) as exc:
+            invalid = (
+                success_record.model_copy(
+                    update={
+                        "status": ProviderCallStatus.INVALID,
+                        "failure_code": f"{self._failure_prefix}_ASR_RESPONSE_INVALID",
+                    }
+                )
+                if success_record is not None
+                else _call_record(
+                    call_id=call_id,
+                    operation_key=operation_key,
+                    chunk=chunk,
+                    model=self.model_name,
+                    called_at=called_at,
+                    request_count=execution.request_count,
+                    retry_count=execution.retry_count,
+                    latency_ms=execution.latency_ms,
+                    status=ProviderCallStatus.INVALID,
+                    provider=self.provider_name,
+                    failure_code=f"{self._failure_prefix}_ASR_RESPONSE_INVALID",
+                    request_id=request_id,
+                )
             )
             raise ProviderDeterministicError(invalid) from exc
+
+
+class OpenAIASRProvider(_TimestampASRProvider):
+    """Timestamp-capable OpenAI transcription adapter for generated audio chunks."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        model_name: str = "whisper-1",
+        timeout_seconds: float = 120.0,
+        retry_policy: OpenAIRetryPolicy | None = None,
+        client: Any | None = None,
+        monotonic: Callable[[], float] | None = None,
+        sleep: Callable[[float], None] | None = None,
+        jitter: Callable[[], float] | None = None,
+    ) -> None:
+        super().__init__(
+            api_key=api_key,
+            model_name=model_name,
+            timeout_seconds=timeout_seconds,
+            retry_policy=retry_policy,
+            client=client,
+            monotonic=monotonic,
+            sleep=sleep,
+            jitter=jitter,
+            provider_name="openai",
+            contract_version=OPENAI_ASR_CONTRACT_VERSION,
+            required_model="whisper-1",
+            credential_name="OPENAI_API_KEY",
+            failure_prefix="OPENAI",
+        )
 
 
 @contextmanager
@@ -259,9 +429,14 @@ def _map_verbose_response(
     language: str,
     request_id: str | None,
     call_record: ProviderCallRecord,
+    provider: str,
 ) -> ASRChunkResult:
     if not isinstance(response, TranscriptionVerbose):
         raise TypeError("timestamp transcription did not return verbose JSON")
+    if not isinstance(response.text, str) or not isinstance(response.language, str):
+        raise TypeError("timestamp transcription root fields are invalid")
+    if _finite_seconds(response.duration) < 0:
+        raise ValueError("timestamp transcription duration must be nonnegative")
     if response.segments is None:
         raise ValueError("timestamp transcription omitted segments")
     if response.text.strip() and not response.segments:
@@ -272,12 +447,14 @@ def _map_verbose_response(
     if response.words:
         parsed_words: list[LocalASRWord] = []
         for word in response.words:
+            if not isinstance(word.word, str):
+                raise TypeError("provider word text is invalid")
             text = word.word.strip()
             if not text:
                 continue
             start_ms, end_ms = _bounded_interval(
-                word.start,
-                word.end,
+                _finite_seconds(word.start),
+                _finite_seconds(word.end),
                 duration_ms=chunk_duration_ms,
             )
             parsed_words.append(LocalASRWord(start_ms=start_ms, end_ms=end_ms, text=text))
@@ -288,12 +465,14 @@ def _map_verbose_response(
     segments: list[LocalASRSegment] = []
     assigned_word_indexes: set[int] = set()
     for index, segment in enumerate(response.segments, start=1):
+        if not isinstance(segment.text, str):
+            raise TypeError("provider segment text is invalid")
         text = segment.text.strip()
         if not text:
             continue
         start_ms, end_ms = _bounded_interval(
-            segment.start,
-            segment.end,
+            _finite_seconds(segment.start),
+            _finite_seconds(segment.end),
             duration_ms=chunk_duration_ms,
         )
         segment_words: tuple[LocalASRWord, ...] | None = None
@@ -309,7 +488,7 @@ def _map_verbose_response(
             segment_words = tuple(raw_words[index] for index in current_word_indexes)
         segments.append(
             LocalASRSegment(
-                segment_id=f"openai_{index:06d}",
+                segment_id=f"{provider}_{index:06d}",
                 start_ms=start_ms,
                 end_ms=end_ms,
                 text=text,
@@ -324,7 +503,7 @@ def _map_verbose_response(
         chunk_id=chunk.chunk_id,
         chunk_duration_ms=chunk_duration_ms,
         language=language,
-        provider="openai",
+        provider=provider,
         model=call_record.model,
         word_timing_status=(
             WordTimingStatus.AVAILABLE if raw_words is not None else WordTimingStatus.UNAVAILABLE
@@ -345,6 +524,21 @@ def _bounded_interval(start: float, end: float, *, duration_ms: int) -> tuple[in
     if end_ms <= start_ms:
         raise ValueError("provider timestamp interval is empty")
     return start_ms, end_ms
+
+
+def _finite_seconds(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError("provider timestamp must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError("provider timestamp must be finite")
+    return normalized
+
+
+def _provider_failure_code(code: str, *, prefix: str) -> str:
+    if prefix == "OPENAI" or not code.startswith("OPENAI_"):
+        return code
+    return f"{prefix}_{code.removeprefix('OPENAI_')}"
 
 
 def _operation_key(
@@ -380,6 +574,7 @@ def _call_record(
     retry_count: int,
     latency_ms: int,
     status: ProviderCallStatus,
+    provider: str,
     failure_code: str | None = None,
     request_id: str | None = None,
     usage_json: dict[str, Any] | None = None,
@@ -389,7 +584,7 @@ def _call_record(
         call_id=call_id,
         operation_key=operation_key,
         subject_id=chunk.chunk_id,
-        provider="openai",
+        provider=provider,
         operation="audio.transcriptions",
         model=model,
         request_id=request_id,
@@ -406,10 +601,16 @@ def _call_record(
 
 def _request_id(response: object) -> str | None:
     value = getattr(response, "_request_id", None)
-    return str(value)[:160] if value else None
+    return _safe_request_id(value)
 
 
-def _usage_payload(response: object) -> dict[str, Any] | None:
+def _safe_request_id(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value if re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", value) else None
+
+
+def _usage_payload(response: object, *, provider: str) -> dict[str, Any] | None:
     usage = getattr(response, "usage", None)
     if usage is None:
         return None
@@ -422,6 +623,15 @@ def _usage_payload(response: object) -> dict[str, Any] | None:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     if len(encoded.encode()) > 16_384:
         return None
+    if provider == "openrouter":
+        for field in ("seconds", "cost"):
+            if field not in payload:
+                continue
+            value = payload[field]
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise TypeError(f"OpenRouter usage.{field} must be numeric")
+            if not math.isfinite(float(value)) or value < 0:
+                raise ValueError(f"OpenRouter usage.{field} must be finite and nonnegative")
     return payload
 
 

@@ -193,8 +193,60 @@ textarea {
 }
 
 .create-panel,
+.provider-panel,
 .projects-panel {
   grid-column: 2;
+}
+
+.provider-panel {
+  border-color: rgba(88, 224, 193, 0.25);
+}
+
+.provider-panel.provider-blocked {
+  border-color: rgba(242, 202, 107, 0.36);
+}
+
+.provider-details {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.provider-details p {
+  margin: 0;
+  color: #c9d8d9;
+  line-height: 1.55;
+}
+
+.provider-details .provider-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.provider-state {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.provider-state.ready {
+  border-color: rgba(113, 221, 164, 0.35);
+  color: var(--success);
+  background: rgba(51, 157, 99, 0.16);
+}
+
+.provider-state.blocked {
+  border-color: rgba(242, 202, 107, 0.36);
+  color: var(--warning);
+  background: rgba(177, 132, 28, 0.13);
+}
+
+.provider-details .provider-warning {
+  border-left: 3px solid var(--warning);
+  padding: 0.55rem 0.7rem;
+  color: #f1d998;
+  background: rgba(177, 132, 28, 0.09);
 }
 
 .projects-panel {

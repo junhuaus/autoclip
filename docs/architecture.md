@@ -14,8 +14,8 @@ flowchart TB
   APP --> PORTS[Provider / repository / renderer ports]
   DB[SQLAlchemy + SQLite] -.implements.-> PORTS
   MEDIA[Filesystem + FFmpeg media] -.implements.-> PORTS
-  ASR[Mock / OpenAI ASR] -.implements.-> PORTS
-  LLM[Mock / OpenAI LLM] -.implements.-> PORTS
+  ASR[Mock / OpenAI / OpenRouter ASR] -.implements.-> PORTS
+  LLM[Mock / OpenAI Responses / Codex CLI LLM] -.implements.-> PORTS
   RENDER[FFmpeg renderer] -.implements.-> PORTS
   DELIVERY[Delivery adapter] -.implements.-> PORTS
 ```
@@ -26,17 +26,18 @@ flowchart TB
 flowchart LR
   SOURCE[(Local source video)] --> PRE[Local audio preprocessing]
   PRE --> CHUNKS[Local compressed chunks]
-  CHUNKS -->|audio only| OASR[OpenAI transcription]
+  CHUNKS -->|audio only| ROUTER[OpenRouter]
+  ROUTER -->|routed audio| OASR[Whisper Large V3 host]
   OASR --> TRANSCRIPT[(Local transcript)]
   TRANSCRIPT --> CAND[Local deterministic candidates]
-  CAND -->|bounded text + metadata| OLLM[OpenAI Responses]
-  OLLM --> VALIDATE[Local strict validation]
+  CAND -->|bounded text + metadata| EDITOR[OpenAI Responses or local Codex CLI process]
+  EDITOR -->|cloud inference; no tools| VALIDATE[Local strict validation]
   VALIDATE --> RENDER[Local deterministic renderer]
   SOURCE --> RENDER
   RENDER --> LOCAL[(Local proxies/finals/deliveries)]
 ```
 
-Video frames, files, database, proxies, finals and deliveries stay local. OpenAI receives prepared audio for ASR and bounded transcript data for editing.
+Video frames, files, database, proxies, finals and deliveries stay local. In the default chain, prepared audio passes through OpenRouter to its selected Whisper host. Bounded transcript data then goes separately to the local Codex CLI process, whose inference remains cloud-based through saved ChatGPT authentication. Codex never receives source video/audio and is not ASR. Direct OpenAI ASR/Responses modes remain explicit alternatives.
 
 ## Pipeline and review
 
