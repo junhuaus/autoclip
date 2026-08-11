@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-11 12:06 CST
-Current milestone: M8 independently verified PASS; Git publication in progress
-Branch: `master` (must become `main` before push)
-Latest local commit: `6afded7` (`docs: prepare OpenRouter ASR smoke fixture`)
+Current milestone: M8 complete, independently verified and published
+Branch: `main` tracking `origin/main`
+Latest implementation commit: `2bbdd4f` (`milestone: complete real-provider clean-proxy acceptance`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
@@ -70,7 +70,6 @@ Generation 2 (`5ed80fea40ea48eca37fa10e8c4f1a06`) proves recovery and the real e
 
 ## Not yet verified in M8
 
-- Final staged-scope/secret check, local commit, branch rename to `main`, remote add and push.
 - Representative 2–4 hour Apple M3 peak memory/runtime/disk. The actual available source is 46:20 and the host is Apple M2.
 - Whether the Groq-specific vocabulary hint improves a chosen target term; ordinary real success proves transport, not terminology accuracy.
 - A paid real cross-generation run under the new dual-hash cache identity. It is deliberately not repeated because historical g1/g2 manifests were post-verified byte-identical and same/different-byte behavior is covered locally.
@@ -81,12 +80,12 @@ Generation 2 (`5ed80fea40ea48eca37fa10e8c4f1a06`) proves recovery and the real e
 - `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
 - Source video remains a read-only reference and was not modified.
 - Local API/Worker/Web are currently stopped after test isolation. The Browser plugin still exposes no attached controllable browser; checked host-Chrome E2E passed independently.
-- The worktree contains intentional M8 source/test/doc changes plus three new migration files, the renderer contract module and focused tests. No remote is configured yet.
+- The 53-file M8 implementation scope passed cached whitespace and secret-format scans with zero forbidden paths or key-pattern hits. Commit `2bbdd4f` is pushed to `git@github.com:junhuaus/AGI-Live-Clip.git` on `main`; ignored local secrets/input/generated data were not committed.
 
 ## Next concrete task
 
-Inspect the complete diff/staged scope, exclude `OPENROUTER_SETUP.md` and all ignored secrets/input/generated data, commit locally, rename the branch to `main`, add the exact user-specified SSH remote and push without force. Restart `make dev` afterward so the review Web remains available.
+Run `make dev`, open `http://127.0.0.1:5173`, review the 15 real `7.28` candidates, revise title/bounds/captions as needed, approve selected clips, render finals and create the next immutable Delivery.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify the database project/run facts above, and continue with the first command in “Next concrete task.” Preserve `OPENROUTER_SETUP.md` and all ignored user/generated data. Do not repeat the paid 46:20 ASR run or misattribute generation-1 deterministic editing as Codex success.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify the database project/run facts above, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data. Do not repeat the paid 46:20 ASR run or misattribute generation-1 deterministic editing as Codex success. New engineering work starts after the completed M8 checkpoint rather than reopening verified tasks without evidence.
