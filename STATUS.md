@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-11 13:00 CST
+Updated: 2026-08-11 13:08 CST
 Current milestone: M8 complete, independently verified and published; user-requested generation-3 rerun and old-generation cleanup complete
 Branch: `main` tracking `origin/main`
 Latest implementation commit: `2bbdd4f` (`milestone: complete real-provider clean-proxy acceptance`)
@@ -44,6 +44,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - All 15 clean 540×960 review proxies succeeded. All 15 reports record automatic checks and full decode as passed; maximum duration error is 32 ms. The top H.264/AAC proxy is 58.567 seconds and 18,686,049 bytes.
 - The top generation-3 contact sheet was actually viewed: the portrait foreground and blurred-background layout are coherent, source-native livestream UI remains, and there is no LiveClip-generated title/caption, blank frame or wrong orientation. The immutable report remains truthfully `visual_inspection_status=pending` because it was committed before this external viewing.
 - Before cleanup, SQLite was checkpointed and copied to `data/projects/migration-backups/liveclip-pre-g1-g2-prune-20260811.sqlite3` (SHA-256 `95fc7e26786dd30319b606ef07f29c2ad9b2bf23d2fc739f6d3abd6f2be7310f`). Generations 1 and 2 had no reviews or deliveries. One transaction deleted their 2 PipelineRuns and 168 Asset rows with cascades; integrity and foreign-key checks passed. Their 393 MiB of files are recoverably isolated at `data/projects/.trash/f91cb996f7534a6682aa5e5f01374b7b-g001-g002-20260811T125244/` and are not visible to LiveClip. The source file is unchanged by size, mtime, inode and persisted SHA-256.
+- After the user reported stale entries in the project list, 10 development/Smoke/failed projects were audited: none had reviews or deliveries. Backup `data/projects/migration-backups/liveclip-pre-old-project-prune-20260811.sqlite3` (SHA-256 `cbcee9b26c4c5e1be53c6ba16d11c595ea0f6f843c44bc6fd73899db9d1ccf00`) preserves the pre-cleanup state. One transaction removed 10 projects, 10 runs and 108 Assets; their 96 MiB of files are isolated at `data/projects/.trash/old-test-projects-20260811T130500/`. Post-restart `/api/v1/projects` returns exactly the single current `7.28` project.
 
 ## Implemented in the current worktree
 
@@ -68,7 +69,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Cross-generation transcript/stage/proxy set: 34 passed.
 - Latest caption/edit/stage set: 36 passed; latest pipeline/caption set: 26 passed.
 - Targeted Ruff formatting/checks and mypy on changed core modules pass.
-- Fresh real long rerun: generation 3 completed all six stages, 33 OpenRouter calls, 41 Codex calls and 15 validated proxies. API health is `ok`, Web is HTTP 200 and media Range is HTTP 206 after old-generation cleanup.
+- Fresh real long rerun: generation 3 completed all six stages, 33 OpenRouter calls, 41 Codex calls and 15 validated proxies. API health is `ok`, Web is HTTP 200, media Range is HTTP 206 and the project-list API returns exactly one project after both cleanup passes.
 - Final host `make doctor`: READY with one expected text-filter warning; OpenRouter and Codex are ready, and an actual `h264_videotoolbox` H.264/AAC encode succeeded. A separate restricted-sandbox run truthfully exercised the successful `libx264` fallback.
 - `make lint`: PASS after review repairs; Ruff and 169-file format gate, mypy over 105 source files, EditPlan Schema drift and TypeScript all pass.
 - First full `make test`: 514/515 Python exposed a punctuation-preservation regression. After all independent-review repairs, the final complete gate is 527/527 Python, 13/13 Web, one Mock browser E2E and one real API/Worker/SQLite/FFmpeg browser E2E.
