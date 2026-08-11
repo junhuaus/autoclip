@@ -106,7 +106,7 @@ No ZIP member is reopened by an ordinary pathname after validation. A member or 
 flowchart LR
   TEXT[Untrusted transcript] --> MODEL[LLM: no tools]
   MODEL --> WIRE[Strict wire schema]
-  WIRE --> DOMAIN[Domain invariants + whitelist]
+  WIRE --> DOMAIN[Domain invariants + fixed center crop]
   DOMAIN --> MODE{System-owned render mode}
   MODE -->|review: none| MAP[Local layout/effect mapping]
   MODE -->|final: title_and_captions| PNG[Pillow text rasterization]
@@ -115,7 +115,7 @@ flowchart LR
   ARGV --> EXEC[subprocess shell=False]
 ```
 
-No path, command, filtergraph, SQL, code or script is accepted from the model.
+No path, command, layout, filtergraph, SQL, code or script is accepted from the model. The renderer uses one source-video layer and cannot construct a blurred background or duplicated foreground.
 
 Review proxies always use the `none` text mode and expose editorial fields separately. Final renders use `title_and_captions` only for the approved current revision. The text mode participates in the render fingerprint.
 

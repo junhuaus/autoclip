@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
 from liveclip.application.pipeline import PipelineRunConfig
-from liveclip.application.rendering import RenderProfile, RenderService
+from liveclip.application.rendering import RenderConflict, RenderProfile, RenderService
 from liveclip.application.reviewing import (
     ClipPatch,
     RenderRequest,
@@ -82,7 +82,7 @@ def review_context(
         title="初始高光标题",
         hook="这是一个完整开场",
         reason="表达完整且适合切片",
-        layout=Layout.VERTICAL_BLUR_BACKGROUND,
+        layout=Layout.CENTER_CROP,
         caption_template=CaptionTemplate.CLEAN_ZH_V1,
         effect=Effect.NONE,
         risk_flags=(),
@@ -251,6 +251,7 @@ def test_revise_and_approve_commits_one_revision_decision_and_cancels_old_render
 
     assert result.current_revision == 2
     assert result.plan.title == "人工确认后的标题"
+    assert result.plan.layout is Layout.CENTER_CROP
     assert result.review.status == ReviewStatus.APPROVED
     assert {render.status for render in result.renders} == {RenderStatus.STALE}
     with engine.connect() as connection:
@@ -294,6 +295,64 @@ def test_revise_and_approve_commits_one_revision_decision_and_cancels_old_render
         assert task.status == TaskStatus.CANCELLED.value
         assert task.cancellation_requested_at is not None
         assert task.completed_at is not None
+
+
+def test_legacy_blur_revision_cannot_be_approved_or_rendered_until_revised(
+    review_context: tuple[Engine, ReviewService, str, str, str],
+) -> None:
+    engine, service, clip_id, revision_id, _ = review_context
+    with engine.begin() as connection:
+        payload = dict(
+            connection.scalar(
+                select(EditPlanRevisionRow.plan_json).where(EditPlanRevisionRow.id == revision_id)
+            )
+        )
+        payload["layout"] = Layout.VERTICAL_BLUR_BACKGROUND.value
+        connection.execute(
+            update(EditPlanRevisionRow)
+            .where(EditPlanRevisionRow.id == revision_id)
+            .values(
+                layout=Layout.VERTICAL_BLUR_BACKGROUND.value,
+                plan_json=payload,
+            )
+        )
+
+    legacy = service.get_clip(clip_id)
+    assert legacy.plan.layout is Layout.VERTICAL_BLUR_BACKGROUND
+    assert "approve" not in legacy.allowed_actions
+    assert "render_proxy" not in legacy.allowed_actions
+
+    with pytest.raises(ReviewConflict, match="center-crop layout"):
+        service.review_clip(
+            clip_id,
+            ReviewCommand(expected_revision=1, status=ReviewStatus.APPROVED),
+        )
+    with pytest.raises(RenderConflict, match="center-crop layout"):
+        RenderService(
+            SqlAlchemyRenderRepository(engine),
+            RenderProfile(
+                preview_width=270,
+                preview_height=480,
+                final_width=1_080,
+                final_height=1_920,
+                encoder="libx264",
+                max_retries=1,
+            ),
+        ).enqueue(
+            clip_id,
+            RenderRequest(expected_revision=1, kind="proxy"),
+        )
+
+    migrated = service.revise_clip(
+        clip_id,
+        ClipPatch(expected_revision=1, title="迁移为单层原视频画面"),
+    )
+    assert migrated.current_revision == 2
+    assert migrated.plan.layout is Layout.CENTER_CROP
+    assert "approve" in migrated.allowed_actions
+    assert "render_proxy" in migrated.allowed_actions
+    with engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(ReviewDecisionRow)) == 0
 
 
 def test_stale_expected_revision_rolls_back_without_partial_revision_or_decision(
@@ -368,7 +427,7 @@ def test_revision_epoch_cancels_other_clip_inflight_render(
         title="第二个候选标题",
         hook="第二个完整开场",
         reason="第二个候选用于跨片段围栏测试",
-        layout=Layout.VERTICAL_BLUR_BACKGROUND,
+        layout=Layout.CENTER_CROP,
         caption_template=CaptionTemplate.CLEAN_ZH_V1,
         effect=Effect.NONE,
         risk_flags=(),

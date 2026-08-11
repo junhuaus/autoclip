@@ -581,6 +581,7 @@ def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
         source_start_ms=body.source_start_ms,
         source_end_ms=body.source_end_ms,
         title=body.title,
+        layout=body.layout,
         captions=(
             tuple(caption.to_domain() for caption in body.captions)
             if body.captions is not None
@@ -592,7 +593,13 @@ def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
 def _review_contains_patch(body: ReviewActionRequest) -> bool:
     return any(
         value is not None
-        for value in (body.source_start_ms, body.source_end_ms, body.title, body.captions)
+        for value in (
+            body.source_start_ms,
+            body.source_end_ms,
+            body.title,
+            body.layout,
+            body.captions,
+        )
     )
 
 
@@ -602,6 +609,7 @@ def _review_patch(body: ReviewActionRequest) -> ClipPatch:
         source_start_ms=body.source_start_ms,
         source_end_ms=body.source_end_ms,
         title=body.title,
+        layout=body.layout,
         captions=(
             tuple(caption.to_domain() for caption in body.captions)
             if body.captions is not None

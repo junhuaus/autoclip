@@ -14,11 +14,11 @@ Minimum content:
   "title": "简洁中文标题",
   "hook": "开场钩子说明",
   "reason": "推荐理由",
-  "layout": "vertical_blur_background",
+  "layout": "center_crop",
   "caption_template": "clean_zh_v1",
   "effect": "none",
   "risk_flags": [],
-  "prompt_version": "editing_v1",
+  "prompt_version": "editing_v2",
   "model": "configured-model",
   "degraded": false
 }
@@ -26,11 +26,11 @@ Minimum content:
 
 Allowed v1 values:
 
-- layout: `vertical_blur_background`, `center_crop`
+- active layout: `center_crop` only
 - caption template: `clean_zh_v1`
 - effect: `none`, `fade_in_out`
 
-Pydantic uses strict types and `extra='forbid'`. Start is nonnegative; end is greater than start and within source duration; duration is within configured limits; an AI adjustment stays inside the candidate context window. Score is 0–100. Title, Hook and reason are limited to 40, 80 and 240 characters. Candidate and Prompt identifiers are at most 64 characters, model is at most 100, and there are at most 8 risk flags of 32 characters each. No generic extension map exists. Unknown fields and any path, command, code, script, SQL, URL intended for execution, or filter string are rejected.
+Pydantic uses strict types and `extra='forbid'`. Start is nonnegative; end is greater than start and within source duration; duration is within configured limits; an AI adjustment stays inside the candidate context window. Score is 0–100. Title, Hook and reason are limited to 40, 80 and 240 characters. Candidate and Prompt identifiers are at most 64 characters, model is at most 100, and there are at most 8 risk flags of 32 characters each. No generic extension map exists. Unknown fields and any path, command, code, script, SQL, URL intended for execution, or filter string are rejected. The Provider wire schema has no layout field; the system supplies `center_crop`. `vertical_blur_background` remains in the legacy persisted enum solely to read old audit rows, but active bounds validation and the renderer reject it.
 
 Captions are structured relative cues attached to the same revision:
 

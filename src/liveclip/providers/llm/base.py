@@ -18,8 +18,8 @@ from liveclip.domain.edit_plan import (
 )
 from liveclip.providers.telemetry import ProviderCallRecord
 
-EDITORIAL_SUGGESTION_SCHEMA_VERSION = "editorial-suggestion-v1"
-MOCK_LLM_CONTRACT_VERSION = "mock-llm-contract-v1"
+EDITORIAL_SUGGESTION_SCHEMA_VERSION = "editorial-suggestion-v2.no-layout"
+MOCK_LLM_CONTRACT_VERSION = "mock-llm-contract-v2.no-blur"
 
 
 class EditorialSuggestionWire(BaseModel):
@@ -33,7 +33,6 @@ class EditorialSuggestionWire(BaseModel):
     title: str = Field(min_length=1, max_length=40)
     hook: str = Field(min_length=1, max_length=80)
     reason: str = Field(min_length=1, max_length=240)
-    layout: Layout
     caption_template: CaptionTemplate
     effect: Effect
     risk_flags: tuple[
@@ -115,7 +114,7 @@ def deterministic_edit_plan(
             if degraded
             else "规则候选边界完整、表达紧凑，适合作为本地演示高光。"
         ),
-        layout=Layout.VERTICAL_BLUR_BACKGROUND,
+        layout=Layout.CENTER_CROP,
         caption_template=CaptionTemplate.CLEAN_ZH_V1,
         effect=Effect.FADE_IN_OUT,
         risk_flags=risk_flags,

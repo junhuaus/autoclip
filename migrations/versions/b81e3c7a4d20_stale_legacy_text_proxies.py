@@ -26,7 +26,10 @@ down_revision: str | Sequence[str] | None = "e7b14c2d9a60"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_CLEAN_PIPELINE_CONTRACT = "edit-plan-v1.caption-v2.clean-proxy-v1"
+_CLEAN_PIPELINE_CONTRACTS = {
+    "edit-plan-v1.caption-v2.clean-proxy-v1",
+    "edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1",
+}
 
 
 def upgrade() -> None:
@@ -127,14 +130,16 @@ def downgrade() -> None:
 def _is_clean_proxy(spec_value: object, config_value: object) -> bool:
     spec = _json_mapping(spec_value)
     if spec is not None:
-        return (
-            spec.get("schema_version") == "3"
-            and spec.get("renderer") == "ffmpeg-renderer-v2"
-            and spec.get("text_mode") == "none"
+        return spec.get("text_mode") == "none" and (
+            (spec.get("schema_version") == "3" and spec.get("renderer") == "ffmpeg-renderer-v2")
+            or (
+                spec.get("schema_version") == "4"
+                and spec.get("renderer") == "ffmpeg-renderer-v3.no-blur"
+            )
         )
     config = _json_mapping(config_value)
     return config is not None and (
-        config.get("edit_plan_schema_version") == _CLEAN_PIPELINE_CONTRACT
+        config.get("edit_plan_schema_version") in _CLEAN_PIPELINE_CONTRACTS
     )
 
 

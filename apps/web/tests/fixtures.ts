@@ -103,7 +103,7 @@ export const clipDetail: ClipDetailResponse = {
       title: "原始高光标题",
       hook: "开头提出关键问题",
       reason: "表达完整且开头有吸引力",
-      layout: "vertical_blur_background",
+      layout: "center_crop",
       caption_template: "clean_zh_v1",
       effect: "none",
       risk_flags: ["需人工确认"],

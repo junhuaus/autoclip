@@ -75,7 +75,7 @@ class PipelineRunConfig(BaseModel):
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
     llm_contract_version: str = Field(
-        default="mock-llm-contract-v1",
+        default="mock-llm-contract-v2.no-blur",
         min_length=1,
         max_length=120,
         pattern=r"^[A-Za-z0-9_.:-]+$",
@@ -91,13 +91,13 @@ class PipelineRunConfig(BaseModel):
         pattern=r"^[a-f0-9]{64}$",
     )
     editorial_schema_version: str = Field(
-        default="editorial-suggestion-v1",
+        default="editorial-suggestion-v2.no-layout",
         min_length=1,
         max_length=80,
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
     edit_plan_schema_version: str = Field(
-        default="edit-plan-v1.caption-v2.clean-proxy-v1",
+        default="edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1",
         min_length=1,
         max_length=80,
         pattern=r"^[A-Za-z0-9_.:-]+$",

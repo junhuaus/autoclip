@@ -16,7 +16,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from liveclip.domain.candidate import CandidateClip
-from liveclip.domain.edit_plan import EditPlan, validate_edit_plan_bounds
+from liveclip.domain.edit_plan import EditPlan, Layout, validate_edit_plan_bounds
 from liveclip.media.process import ProcessCancelled, run_cancellable_process
 from liveclip.media.secure_files import (
     SecureFileError,
@@ -695,7 +695,7 @@ class CodexCLILLMProvider:
             title=suggestion.title,
             hook=suggestion.hook,
             reason=suggestion.reason,
-            layout=suggestion.layout,
+            layout=Layout.CENTER_CROP,
             caption_template=suggestion.caption_template,
             effect=suggestion.effect,
             risk_flags=suggestion.risk_flags,

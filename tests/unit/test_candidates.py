@@ -151,7 +151,7 @@ def test_mock_llm_treats_prompt_injection_as_data_only() -> None:
         .plan
     )
 
-    assert plan.layout == Layout.VERTICAL_BLUR_BACKGROUND
+    assert plan.layout == Layout.CENTER_CROP
     assert plan.caption_template == CaptionTemplate.CLEAN_ZH_V1
     assert plan.effect == Effect.FADE_IN_OUT
     assert plan.degraded is False

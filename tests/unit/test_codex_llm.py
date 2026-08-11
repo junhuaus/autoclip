@@ -10,7 +10,7 @@ import pytest
 
 import liveclip.providers.llm.codex as codex_module
 from liveclip.domain.candidate import CandidateClip
-from liveclip.domain.edit_plan import CaptionTemplate, Effect, Layout
+from liveclip.domain.edit_plan import CaptionTemplate, Effect
 from liveclip.media.process import ProcessCancelled
 from liveclip.providers.llm.base import LLMDisposition
 from liveclip.providers.llm.codex import CODEX_DISABLED_FEATURES, CodexCLILLMProvider
@@ -49,7 +49,6 @@ def _suggestion(**changes: object) -> dict[str, object]:
         "title": "开头三秒留住观众",
         "hook": "先说清楚为什么值得继续看。",
         "reason": "观点完整，开头价值明确，并有闭合例子。",
-        "layout": Layout.CENTER_CROP.value,
         "caption_template": CaptionTemplate.CLEAN_ZH_V1.value,
         "effect": Effect.FADE_IN_OUT.value,
         "risk_flags": [],

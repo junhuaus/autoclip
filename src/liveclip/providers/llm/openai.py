@@ -15,7 +15,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from liveclip.domain.candidate import CandidateClip
-from liveclip.domain.edit_plan import EditPlan, validate_edit_plan_bounds
+from liveclip.domain.edit_plan import EditPlan, Layout, validate_edit_plan_bounds
 from liveclip.prompts import EditingPromptBundle, load_editing_prompts
 from liveclip.providers.llm.base import (
     EditorialSuggestionWire,
@@ -37,7 +37,7 @@ from liveclip.providers.telemetry import (
 )
 
 _SAFE_MODEL = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
-OPENAI_LLM_CONTRACT_VERSION = "openai-responses-editorial-v1"
+OPENAI_LLM_CONTRACT_VERSION = "openai-responses-editorial-v2.no-layout"
 _REPAIRABLE_STRUCTURE_CODES = frozenset(
     {
         "OPENAI_STRUCTURED_OUTPUT_INVALID",
@@ -480,7 +480,7 @@ class OpenAILLMProvider:
             title=suggestion.title,
             hook=suggestion.hook,
             reason=suggestion.reason,
-            layout=suggestion.layout,
+            layout=Layout.CENTER_CROP,
             caption_template=suggestion.caption_template,
             effect=suggestion.effect,
             risk_flags=suggestion.risk_flags,

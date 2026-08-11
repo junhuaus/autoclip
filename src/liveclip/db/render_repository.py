@@ -38,7 +38,7 @@ from liveclip.db.models import (
     TaskAttemptRow,
     TaskRow,
 )
-from liveclip.domain.edit_plan import CaptionCue, edit_plan_from_json_data
+from liveclip.domain.edit_plan import CaptionCue, Layout, edit_plan_from_json_data
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.domain.state_transitions import (
     AssetStatus,
@@ -85,6 +85,11 @@ class SqlAlchemyRenderRepository:
                 raise RenderConflict("clip revision changed; reload before rendering")
             if row.run_status != PipelineRunStatus.COMPLETED.value:
                 raise RenderConflict("clip pipeline is not complete")
+            plan = edit_plan_from_json_data(row.plan_json)
+            if plan.layout is not Layout.CENTER_CROP:
+                raise RenderConflict(
+                    "clip must be revised to the required center-crop layout before rendering"
+                )
             review_status = _latest_review_status(connection, str(row.revision_id))
             if request.kind == "final" and review_status != ReviewStatus.APPROVED:
                 raise RenderConflict("final render requires approval of the current revision")

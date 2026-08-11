@@ -15,7 +15,9 @@ from liveclip.domain.time import ms_to_srt
 from liveclip.domain.transcript import TranscriptSegment
 
 EDIT_PLAN_SCHEMA_VERSION = "edit-plan-v1"
-EDIT_PLAN_PIPELINE_CONTRACT_VERSION = f"{EDIT_PLAN_SCHEMA_VERSION}.caption-v2.clean-proxy-v1"
+EDIT_PLAN_PIPELINE_CONTRACT_VERSION = (
+    f"{EDIT_PLAN_SCHEMA_VERSION}.caption-v2.clean-proxy-v2.no-blur-v1"
+)
 MAX_CAPTION_CUES = 32
 MIN_CAPTION_CUE_MS = 250
 MAX_CAPTION_TEXT_CHARACTERS = 120
@@ -25,6 +27,8 @@ TITLE_OVERLAY_COUNT = 1
 
 
 class Layout(StrEnum):
+    # Retained only so historical persisted EditPlans remain readable. The
+    # active validation and renderer contracts reject this value.
     VERTICAL_BLUR_BACKGROUND = "vertical_blur_background"
     CENTER_CROP = "center_crop"
 
@@ -194,6 +198,8 @@ def validate_edit_plan_bounds(
     allowed_start_ms: int,
     allowed_end_ms: int,
 ) -> None:
+    if plan.layout is not Layout.CENTER_CROP:
+        raise ValueError("blurred-background layouts are no longer supported")
     if plan.source_end_ms > source_duration_ms:
         raise ValueError("EditPlan exceeds source duration")
     if not minimum_duration_ms <= plan.duration_ms <= maximum_duration_ms:

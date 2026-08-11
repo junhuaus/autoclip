@@ -12,7 +12,7 @@ from openai.lib._pydantic import to_strict_json_schema
 from pydantic import ValidationError
 
 from liveclip.domain.candidate import CandidateClip
-from liveclip.domain.edit_plan import CaptionTemplate, Effect, Layout
+from liveclip.domain.edit_plan import CaptionTemplate, Effect
 from liveclip.prompts import EditingPromptBundle, load_editing_prompts
 from liveclip.providers.llm.base import (
     EditorialSuggestionWire,
@@ -79,7 +79,6 @@ def _suggestion(**changes: object) -> EditorialSuggestionWire:
         "title": "三个直播表达方法",
         "hook": "先给价值，再讲完整过程。",
         "reason": "边界完整，信息密度高，开头直接给出收益。",
-        "layout": Layout.VERTICAL_BLUR_BACKGROUND,
         "caption_template": CaptionTemplate.CLEAN_ZH_V1,
         "effect": Effect.FADE_IN_OUT,
         "risk_flags": ("需核对专有名词",),
@@ -217,7 +216,6 @@ def test_wire_schema_is_closed_required_and_excludes_system_owned_fields() -> No
         "title",
         "hook",
         "reason",
-        "layout",
         "caption_template",
         "effect",
         "risk_flags",
@@ -527,7 +525,8 @@ def test_packaged_prompts_load_with_stable_combined_hash_and_security_boundary()
 
     expected = hashlib.sha256(f"{first.initial}\0{first.repair}".encode()).hexdigest()
     assert second is first
-    assert first.version == "editing_v1"
+    assert first.version == "editing_v2"
+    assert "Do not output a layout field" in first.initial
     assert first.sha256 == expected
     assert re.fullmatch(r"[a-f0-9]{64}", first.sha256)
     assert "untrusted data" in first.initial

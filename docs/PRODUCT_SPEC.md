@@ -139,7 +139,7 @@ Current official API findings and URLs are recorded in `docs/research/openai-aud
 
 Deterministic candidate generation must work without an LLM. It uses punctuation/sentence closure, pauses, speech density, volume/silence signals, topical continuity, context, duration constraints, hook signals, and expression closure. It first produces approximately 30–50 rough candidates for normal long input, records boundaries/text/context/rule score/reasons, then deduplicates by time overlap, text n-grams, and Jaccard similarity. A rule-ranked fallback selects top-N when cloud editing fails.
 
-`LLMProvider` has OpenAI Responses, Codex CLI and Mock implementations. Both real implementations use strict structured output, send only one bounded candidate plus small context and quality signals, enable no tools, and treat transcript content as untrusted data rather than instructions. Codex uses controlled non-interactive execution and saved local authentication; it receives text only after ASR. They return value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted layout/caption/effect selections. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
+`LLMProvider` has OpenAI Responses, Codex CLI and Mock implementations. Both real implementations use strict structured output, send only one bounded candidate plus small context and quality signals, enable no tools, and treat transcript content as untrusted data rather than instructions. Codex uses controlled non-interactive execution and saved local authentication; it receives text only after ASR. They return value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted caption/effect selections. Layout is system-owned and absent from the model wire schema. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
 
 Current Responses API findings are recorded in `docs/research/openai-responses.md`.
 
@@ -147,7 +147,7 @@ Current Responses API findings are recorded in `docs/research/openai-responses.m
 
 EditPlan is a strict Pydantic v2 model with exported JSON Schema. Its minimum fields are candidate ID, source start/end, score, title, hook, reason, layout, caption template, effect, risk flags, prompt version, model, and degraded flag. Allowed v1 enums are:
 
-- layout: `vertical_blur_background`, `center_crop`
+- layout: `center_crop` for every active plan. The historical `vertical_blur_background` value remains readable only so old audit rows do not become corrupt; active validation and rendering reject it.
 - caption template: `clean_zh_v1`
 - effect: `none`, `fade_in_out`
 
@@ -155,7 +155,7 @@ Times are nonnegative, ordered, within source and configured clip limits, and mo
 
 ### Rendering and quality
 
-`Renderer` has a deterministic FFmpeg implementation. Default review proxy is 540×960; final is 1080×1920. It supports 9:16 blurred background and center crop, preserves foreground aspect ratio, supports basic fades and loudness normalization, and outputs H.264/AAC MP4. Review proxies contain only the selected source video/audio in the chosen layout—no LiveClip-generated title or caption overlay. Their title, Hook, reason, risks and editable caption cues remain separate metadata. Final renders may burn the approved title and Chinese captions. All cuts re-encode; captions use clip-relative time.
+`Renderer` has a deterministic FFmpeg implementation. Default review proxy is 540×960; final is 1080×1920. Every render uses one source-video layer with deterministic center crop; blurred-background fill, duplicated/shrunken foreground composition and model-selected layout are prohibited. It supports basic fades and loudness normalization and outputs H.264/AAC MP4. Review proxies contain only the selected source video/audio—no LiveClip-generated title or caption overlay. Their title, Hook, reason, risks and editable caption cues remain separate metadata. Final renders may burn the approved title and Chinese captions over that same single-layer video. All cuts re-encode; captions use clip-relative time.
 
 FFmpeg is invoked as argv with `shell=False`. Paths are system generated. No model output becomes executable syntax. Logs redact sensitive/local details. A validated temp artifact is atomically published. VideoToolbox failure automatically retries with libx264. Paths are revision-specific and never overwrite a different successful revision. Any title, caption, or boundary revision marks older renders stale.
 

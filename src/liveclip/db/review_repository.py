@@ -37,6 +37,7 @@ from liveclip.db.models import (
 from liveclip.domain.edit_plan import (
     CaptionCue,
     EditPlan,
+    Layout,
     caption_cues_from_transcript_segments,
     edit_plan_from_json_data,
     validate_edit_plan_bounds,
@@ -105,6 +106,9 @@ class SqlAlchemyReviewRepository:
                         else current_plan.source_end_ms
                     ),
                     "title": patch.title if patch.title is not None else current_plan.title,
+                    "layout": (
+                        Layout(patch.layout) if patch.layout is not None else Layout.CENTER_CROP
+                    ),
                 }
             )
             plan = EditPlan.model_validate(plan_payload)
@@ -314,6 +318,14 @@ class SqlAlchemyReviewRepository:
             context = _load_current_context(connection, clip_id)
             if command.expected_revision != int(context["current_revision"]):
                 raise ReviewConflict("clip revision changed; reload before reviewing")
+            current_plan = edit_plan_from_json_data(context["plan_json"])
+            if (
+                command.status == ReviewStatus.APPROVED
+                and current_plan.layout is not Layout.CENTER_CROP
+            ):
+                raise ReviewConflict(
+                    "clip must be revised to the required center-crop layout before approval"
+                )
             decision_changed = _record_review_decision(
                 connection,
                 clip_id=clip_id,
@@ -670,21 +682,30 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
         )
     )
     current_revision = int(row["current_revision"])
+    current_plan = edit_plan_from_json_data(row["plan_json"])
+    has_active_layout = current_plan.layout is Layout.CENTER_CROP
     current_active = any(
         render.edit_plan_revision == current_revision
         and render.status in {RenderStatus.QUEUED, RenderStatus.RUNNING}
         for render in renders
     )
-    actions = ["edit", "approve", "reject"]
-    if not current_active:
+    actions = ["edit"]
+    if has_active_layout:
+        actions.append("approve")
+    actions.append("reject")
+    if has_active_layout and not current_active:
         actions.append("render_proxy")
         if review.status == ReviewStatus.APPROVED:
             actions.append("render_final")
-    if review.status == ReviewStatus.APPROVED and any(
-        render.kind == "final"
-        and render.edit_plan_revision == current_revision
-        and render.status == RenderStatus.SUCCEEDED
-        for render in renders
+    if (
+        has_active_layout
+        and review.status == ReviewStatus.APPROVED
+        and any(
+            render.kind == "final"
+            and render.edit_plan_revision == current_revision
+            and render.status == RenderStatus.SUCCEEDED
+            for render in renders
+        )
     ):
         actions.append("deliver")
     return ClipDetail(
@@ -703,7 +724,7 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
         reasons=tuple(str(value) for value in row["reasons_json"]),
         rank=int(row["rank"]) if row["rank"] is not None else None,
         current_revision=current_revision,
-        plan=edit_plan_from_json_data(row["plan_json"]),
+        plan=current_plan,
         captions=_load_captions(connection, revision_id),
         revision_created_at=row["revision_created_at"],
         review=review,

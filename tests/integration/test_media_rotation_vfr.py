@@ -216,7 +216,7 @@ def _revision(rotation_degrees: int) -> EditPlanRevision:
             title="可变帧率方向验证",
             hook="帧间隔变化且画面方向正确",
             reason="真实媒体兼容性验证",
-            layout=Layout.VERTICAL_BLUR_BACKGROUND,
+            layout=Layout.CENTER_CROP,
             caption_template=CaptionTemplate.CLEAN_ZH_V1,
             effect=Effect.NONE,
             risk_flags=(),

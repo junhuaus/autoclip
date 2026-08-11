@@ -44,7 +44,7 @@ def make_request(tmp_path: Path) -> RenderRequest:
         source_end_ms=4_000,
         width=540,
         height=960,
-        layout=Layout.VERTICAL_BLUR_BACKGROUND,
+        layout=Layout.CENTER_CROP,
         effect=Effect.FADE_IN_OUT,
         overlays=(overlay,),
     )
@@ -118,9 +118,17 @@ def test_filtergraph_contains_only_numeric_windows_and_fixed_templates(tmp_path:
     graph = build_filtergraph(make_request(tmp_path))
     assert "vertical_blur_background" not in graph
     assert "between(t,0.000,3.000)" in graph
-    assert "boxblur" in graph
+    assert "boxblur" not in graph
+    assert "split=2" not in graph
     assert "loudnorm" in graph
     assert "eof_action=repeat:repeatlast=1" in graph
+
+
+def test_renderer_rejects_legacy_blurred_background_layout(tmp_path: Path) -> None:
+    request = replace(make_request(tmp_path), layout=Layout.VERTICAL_BLUR_BACKGROUND)
+
+    with pytest.raises(ValueError, match="blurred-background layouts are prohibited"):
+        build_filtergraph(request)
 
 
 def test_clean_clip_argv_has_no_text_overlay_inputs(tmp_path: Path) -> None:

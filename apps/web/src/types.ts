@@ -116,7 +116,7 @@ export interface EditPlan {
   title: string;
   hook: string;
   reason: string;
-  layout: "vertical_blur_background" | "center_crop";
+  layout: "center_crop";
   caption_template: "clean_zh_v1";
   effect: "none" | "fade_in_out";
   risk_flags: string[];
@@ -203,6 +203,7 @@ export interface ClipPatchRequest {
   source_start_ms?: number;
   source_end_ms?: number;
   title?: string;
+  layout?: "center_crop";
   captions?: CaptionCue[];
 }
 

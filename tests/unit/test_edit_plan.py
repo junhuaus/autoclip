@@ -30,7 +30,7 @@ def make_plan(**changes: object) -> EditPlan:
         "title": "一个完整的中文标题",
         "hook": "开场直接提出关键问题",
         "reason": "表达完整且信息密度高",
-        "layout": Layout.VERTICAL_BLUR_BACKGROUND,
+        "layout": Layout.CENTER_CROP,
         "caption_template": CaptionTemplate.CLEAN_ZH_V1,
         "effect": Effect.NONE,
         "risk_flags": (),
@@ -47,7 +47,7 @@ def test_strict_edit_plan_restores_from_json_compatible_data() -> None:
     restored = edit_plan_from_json_data(plan.model_dump(mode="json"))
 
     assert restored == plan
-    assert restored.layout is Layout.VERTICAL_BLUR_BACKGROUND
+    assert restored.layout is Layout.CENTER_CROP
     assert restored.risk_flags == ("mock_generated",)
 
 
@@ -112,6 +112,20 @@ def test_edit_plan_context_and_duration_bounds() -> None:
             plan,
             source_duration_ms=60_000,
             minimum_duration_ms=40_000,
+            maximum_duration_ms=90_000,
+            allowed_start_ms=0,
+            allowed_end_ms=40_000,
+        )
+
+
+def test_legacy_blurred_layout_is_readable_but_not_active() -> None:
+    legacy = make_plan(layout=Layout.VERTICAL_BLUR_BACKGROUND)
+
+    with pytest.raises(ValueError, match="no longer supported"):
+        validate_edit_plan_bounds(
+            legacy,
+            source_duration_ms=60_000,
+            minimum_duration_ms=30_000,
             maximum_duration_ms=90_000,
             allowed_start_ms=0,
             allowed_end_ms=40_000,

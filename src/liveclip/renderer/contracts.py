@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-RENDER_SPEC_SCHEMA_VERSION = "3"
-FFMPEG_RENDERER_CONTRACT_VERSION = "ffmpeg-renderer-v2"
-CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = "edit-plan-v1.caption-v2.clean-proxy-v1"
+RENDER_SPEC_SCHEMA_VERSION = "4"
+FFMPEG_RENDERER_CONTRACT_VERSION = "ffmpeg-renderer-v3.no-blur"
+CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = "edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1"
 
 
 def text_mode_for_render_kind(kind: str) -> str:

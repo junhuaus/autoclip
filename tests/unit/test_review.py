@@ -1,6 +1,10 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
+from liveclip.application.reviewing import ClipPatch
 from liveclip.domain.edit_plan import CaptionCue, CaptionTemplate, EditPlan, Effect, Layout
 from liveclip.domain.review import (
     EditPlanRevision,
@@ -25,7 +29,7 @@ def make_plan(*, title: str = "初始标题") -> EditPlan:
         title=title,
         hook="开场直接给出结论",
         reason="表达完整且信息密度高",
-        layout=Layout.VERTICAL_BLUR_BACKGROUND,
+        layout=Layout.CENTER_CROP,
         caption_template=CaptionTemplate.CLEAN_ZH_V1,
         effect=Effect.NONE,
         risk_flags=(),
@@ -85,3 +89,11 @@ def test_new_revision_invalidates_approval_and_stales_old_render(tmp_path: Path)
     assert revised.renders[1].status == RenderStatus.STALE
     assert revised.revisions[1].parent_revision == 1
     assert revised.revisions[1].origin == RevisionOrigin.HUMAN
+
+
+def test_clip_patch_allows_only_the_single_layer_layout() -> None:
+    patch = ClipPatch(expected_revision=1, layout="center_crop")
+
+    assert patch.layout == "center_crop"
+    with pytest.raises(ValidationError):
+        ClipPatch.model_validate({"expected_revision": 1, "layout": "vertical_blur_background"})

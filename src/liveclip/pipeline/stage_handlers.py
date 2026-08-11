@@ -77,6 +77,7 @@ from liveclip.providers.telemetry import (
     ProviderDeterministicError,
     ProviderTransientError,
 )
+from liveclip.renderer.contracts import FFMPEG_RENDERER_CONTRACT_VERSION
 from liveclip.renderer.ffmpeg import (
     FFmpegRenderCancelled,
     FFmpegRenderError,
@@ -1426,7 +1427,7 @@ def _render_spec_fingerprint(
         {
             "encoder": encoder,
             "height": height,
-            "renderer": "ffmpeg-renderer-v2",
+            "renderer": FFMPEG_RENDERER_CONTRACT_VERSION,
             "text_mode": RenderTextMode.NONE.value,
             "video_stream_index": video_stream_index,
             "audio_stream_index": audio_stream_index,

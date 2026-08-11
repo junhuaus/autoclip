@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -24,6 +24,7 @@ class ClipPatch(BaseModel):
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
     title: str | None = Field(default=None, min_length=1, max_length=40)
+    layout: Literal["center_crop"] | None = None
     captions: tuple[CaptionCue, ...] | None = Field(
         default=None, min_length=1, max_length=MAX_CAPTION_CUES
     )
@@ -32,9 +33,15 @@ class ClipPatch(BaseModel):
     def require_change(self) -> ClipPatch:
         if all(
             value is None
-            for value in (self.source_start_ms, self.source_end_ms, self.title, self.captions)
+            for value in (
+                self.source_start_ms,
+                self.source_end_ms,
+                self.title,
+                self.layout,
+                self.captions,
+            )
         ):
-            raise ValueError("clip patch must include a title, boundary, or caption change")
+            raise ValueError("clip patch must include a title, boundary, layout, or caption change")
         if (
             self.source_start_ms is not None
             and self.source_end_ms is not None

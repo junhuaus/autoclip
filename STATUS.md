@@ -1,14 +1,14 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-11 13:08 CST
-Current milestone: M8 complete, independently verified and published; user-requested generation-3 rerun and old-generation cleanup complete
+Updated: 2026-08-11 13:44 CST
+Current milestone: M9 no-blur rendering implementation and real rerender complete; independent review in progress
 Branch: `main` tracking `origin/main`
 Latest implementation commit: `2bbdd4f` (`milestone: complete real-provider clean-proxy acceptance`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
 
-The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Review proxies are now clean 540×960 video clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text.
+The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text.
 
 The local API/Worker/Web are running. Open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7` is `completed` at 100% with 15 candidates. Generations 1 and 2 no longer appear in the active database or project run directory.
 
@@ -16,9 +16,9 @@ Top clip:
 
 - Clip ID: `73ab6116e49d4d9d837d469274aa47d5`
 - Title: `KTV唱歌前的快速热身法`
-- Video: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r001/review.mp4`
-- Contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r001/review-quality/contact-sheet.png`
-- Media asset: `a7b6fa9867bf4cb6b01734e6fc8b3b69`; a 1,024-byte Range request returned HTTP 206 with the correct MP4 Content-Range and ETag.
+- Video: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r002/s-baa64c00a3180462/t-215fc4b619474c48/review.mp4`
+- Contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r002/s-baa64c00a3180462/t-215fc4b619474c48/quality/contact-sheet.png`
+- Media asset: `8fae25df095446c696651440bd42be03`; a 1,024-byte Range request returned HTTP 206 with the correct MP4 Content-Range and ETag.
 
 ## Real-provider evidence
 
@@ -45,6 +45,17 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - The top generation-3 contact sheet was actually viewed: the portrait foreground and blurred-background layout are coherent, source-native livestream UI remains, and there is no LiveClip-generated title/caption, blank frame or wrong orientation. The immutable report remains truthfully `visual_inspection_status=pending` because it was committed before this external viewing.
 - Before cleanup, SQLite was checkpointed and copied to `data/projects/migration-backups/liveclip-pre-g1-g2-prune-20260811.sqlite3` (SHA-256 `95fc7e26786dd30319b606ef07f29c2ad9b2bf23d2fc739f6d3abd6f2be7310f`). Generations 1 and 2 had no reviews or deliveries. One transaction deleted their 2 PipelineRuns and 168 Asset rows with cascades; integrity and foreign-key checks passed. Their 393 MiB of files are recoverably isolated at `data/projects/.trash/f91cb996f7534a6682aa5e5f01374b7b-g001-g002-20260811T125244/` and are not visible to LiveClip. The source file is unchanged by size, mtime, inode and persisted SHA-256.
 - After the user reported stale entries in the project list, 10 development/Smoke/failed projects were audited: none had reviews or deliveries. Backup `data/projects/migration-backups/liveclip-pre-old-project-prune-20260811.sqlite3` (SHA-256 `cbcee9b26c4c5e1be53c6ba16d11c595ea0f6f843c44bc6fd73899db9d1ccf00`) preserves the pre-cleanup state. One transaction removed 10 projects, 10 runs and 108 Assets; their 96 MiB of files are isolated at `data/projects/.trash/old-test-projects-20260811T130500/`. Post-restart `/api/v1/projects` returns exactly the single current `7.28` project.
+
+## M9 no-blur evidence
+
+- The real data confirmed the issue: 10/15 current plans selected `vertical_blur_background`; five selected `center_crop`.
+- Layout is removed from `EditorialSuggestionWire` and `editing_v2`; OpenAI/Codex can no longer choose composition. Deterministic fallback fixes layout to `center_crop`.
+- FFmpeg has one scale-to-fill/center-crop video branch. `boxblur` and the background/foreground split were removed; a historical blur request raises before argv construction.
+- Renderer contract is `ffmpeg-renderer-v3.no-blur`, manual spec schema is 4, and Pipeline clean-proxy contract is `clean-proxy-v2.no-blur-v1`. Migration `c91f4e2a7b63` staled all 15 prior proxies.
+- The pre-migration DB backup is `data/projects/migration-backups/liveclip-pre-no-blur-c91f4e2a7b63.sqlite3`, SHA-256 `905d073bd9005d2441dfb022bc02ad6f8ee92473173c17010a19cd7aa171d7aa`.
+- Ten affected candidates now have immutable revision 2; the five already-direct candidates remain revision 1. All 15 current plans are `center_crop`, and all 15 new Schema-4 proxy renders succeeded.
+- All 15 quality reports pass automatic checks and complete decode at 540×960; maximum duration error is 32 ms. The top proxy is H.264/AAC, 58.567 seconds and 19,449,931 bytes.
+- A former-blur contact sheet and a former-center contact sheet were both actually viewed. They consistently show a single direct source crop with no blurred canvas, duplicated/shrunken foreground, blank frame, wrong orientation or LiveClip-generated text.
 
 ## Implemented in the current worktree
 
@@ -76,6 +87,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Fresh `make demo`: `demo_20260811T032338_6f7414aa`, three candidates, `delivered`, immutable v001 ZIP. Proxy and final contact sheets were actually viewed; both reports record `viewed_passed`. Final is H.264/AAC 1080×1920, 12.000 seconds, 9,216,424 bytes, SHA-256 `0d9a4255b5d3dd0a5d0367652b5023355a6c509c6c432e9536561777e224adfe`; ZIP integrity passes.
 - Fresh `make smoke-openrouter`: project `a8d1035f78c24b28b392308bdde33d05`, run `0b523cdc396148b5af6d36cc5559edfe`; two OpenRouter requests + one Codex request, zero retries, 95.104 audio seconds, USD 0.0023776 Provider cost, non-degraded title `高音别硬喊：强混声与假声区别`, no Mock evidence.
 - Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
+- M9 gates: `make lint` PASS; `make test` PASS with 530 Python, 13 Web, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. Independent M9 no-blur review is in progress.
 
 ## Not yet verified in M8
 

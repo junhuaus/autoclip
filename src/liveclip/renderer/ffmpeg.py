@@ -170,21 +170,10 @@ def build_filtergraph(request: RenderRequest) -> str:
     width = request.width
     height = request.height
     chains: list[str] = []
-    if request.layout == Layout.VERTICAL_BLUR_BACKGROUND:
-        chains.extend(
-            [
-                f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,split=2[bgsrc][fgsrc]",
-                f"[bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},boxblur=20:2[bg]",
-                f"[fgsrc]scale={width}:{height}:force_original_aspect_ratio=decrease[fg]",
-                "[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1[base]",
-            ]
-        )
-    else:
-        chains.append(
-            f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,scale={width}:{height}:"
-            f"force_original_aspect_ratio=increase,crop={width}:{height}[base]"
-        )
+    chains.append(
+        f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,scale={width}:{height}:"
+        f"force_original_aspect_ratio=increase,crop={width}:{height}[base]"
+    )
     previous = "base"
     for index, overlay in enumerate(request.overlays, start=1):
         relative_start = max(0, overlay.start_ms)
@@ -425,6 +414,8 @@ def _validate_request(request: RenderRequest) -> None:
         raise ValueError("render dimensions must be positive even integers")
     if request.width >= request.height:
         raise ValueError("LiveClip render output must be portrait")
+    if request.layout is not Layout.CENTER_CROP:
+        raise ValueError("blurred-background layouts are prohibited")
     if request.video_stream_index < 0 or request.audio_stream_index < 0:
         raise ValueError("render stream indexes must be nonnegative")
     if request.video_stream_index == request.audio_stream_index:

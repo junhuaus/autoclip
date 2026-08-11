@@ -177,7 +177,7 @@ def _revision() -> EditPlanRevision:
             title="Selected stream",
             hook="Default streams are selected",
             reason="Integration verification",
-            layout=Layout.VERTICAL_BLUR_BACKGROUND,
+            layout=Layout.CENTER_CROP,
             caption_template=CaptionTemplate.CLEAN_ZH_V1,
             effect=Effect.NONE,
             risk_flags=(),

@@ -198,7 +198,7 @@ def test_head_removes_legacy_render_task_unique_constraint(
 
 
 @pytest.mark.integration
-def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
+def test_head_stales_proxies_that_predate_no_blur_contract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_root = Path(__file__).resolve().parents[2]
@@ -217,6 +217,12 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
     queued_task = "7" * 32
     running_clip = "e" * 32
     running_task = "f" * 32
+    blur_final_clip = "g" * 32
+    center_final_clip = "h" * 32
+    current_proxy_clip = "i" * 32
+    blur_final_revision = "j" * 32
+    center_final_revision = "k" * 32
+    current_proxy_revision = "m" * 32
     connection = sqlite3.connect(database_path)
     try:
         for run_id, project_id, contract in (
@@ -246,6 +252,9 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
             (manual_clip, dirty_run, "8" * 32, "manual"),
             (queued_clip, dirty_run, "8" * 32, "queued"),
             (running_clip, dirty_run, "8" * 32, "running"),
+            (blur_final_clip, dirty_run, "8" * 32, "blur-final"),
+            (center_final_clip, dirty_run, "8" * 32, "center-final"),
+            (current_proxy_clip, dirty_run, "8" * 32, "current-proxy"),
         ):
             connection.execute(
                 """
@@ -259,6 +268,40 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
                           '[]', '[]', 1, 1, ?)
                 """,
                 (clip_id, project_id, run_id, key, instant),
+            )
+        for revision_id, clip_id, layout in (
+            (blur_final_revision, blur_final_clip, "vertical_blur_background"),
+            (center_final_revision, center_final_clip, "center_crop"),
+            (current_proxy_revision, current_proxy_clip, "center_crop"),
+        ):
+            plan = {
+                "candidate_id": clip_id,
+                "source_start_ms": 0,
+                "source_end_ms": 1_000,
+                "score": 50,
+                "title": "fixture",
+                "hook": "fixture",
+                "reason": "fixture",
+                "layout": layout,
+                "caption_template": "clean_zh_v1",
+                "effect": "none",
+                "risk_flags": [],
+                "prompt_version": "editing_v1",
+                "model": "fixture",
+                "degraded": True,
+            }
+            connection.execute(
+                """
+                INSERT INTO edit_plan_revisions (
+                    id, candidate_clip_id, revision, parent_revision, origin,
+                    source_start_ms, source_end_ms, score, title, hook, reason,
+                    layout, caption_template, effect, risk_flags_json,
+                    prompt_version, model, degraded, plan_json, created_at
+                ) VALUES (?, ?, 1, NULL, 'deterministic', 0, 1000, 50,
+                          'fixture', 'fixture', 'fixture', ?, 'clean_zh_v1', 'none',
+                          '[]', 'editing_v1', 'fixture', 1, ?, ?)
+                """,
+                (revision_id, clip_id, layout, json.dumps(plan), instant),
             )
         connection.execute(
             """
@@ -305,6 +348,13 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
                 "text_mode": "none",
             }
         )
+        current_manual_spec = json.dumps(
+            {
+                "schema_version": "4",
+                "renderer": "ffmpeg-renderer-v3.no-blur",
+                "text_mode": "none",
+            }
+        )
         for render_id, clip_id, task_id, status, spec_json in (
             ("a" * 32, dirty_clip, None, "succeeded", None),
             ("b" * 32, clean_clip, None, "succeeded", None),
@@ -332,6 +382,36 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
                     instant,
                 ),
             )
+        for render_id, clip_id, revision_id, kind, spec_json in (
+            ("n" * 32, blur_final_clip, blur_final_revision, "final", None),
+            ("o" * 32, center_final_clip, center_final_revision, "final", None),
+            (
+                "p" * 32,
+                current_proxy_clip,
+                current_proxy_revision,
+                "proxy",
+                current_manual_spec,
+            ),
+        ):
+            connection.execute(
+                """
+                INSERT INTO render_jobs (
+                    id, candidate_clip_id, edit_plan_revision_id, task_id,
+                    kind, status, edit_plan_revision, revision_epoch,
+                    width, height, spec_fingerprint, spec_json, created_at, updated_at
+                ) VALUES (?, ?, ?, NULL, ?, 'succeeded', 1, 0, 540, 960, ?, ?, ?, ?)
+                """,
+                (
+                    render_id,
+                    clip_id,
+                    revision_id,
+                    kind,
+                    render_id[0] * 64,
+                    spec_json,
+                    instant,
+                    instant,
+                ),
+            )
         connection.commit()
     finally:
         connection.close()
@@ -343,10 +423,13 @@ def test_head_stales_legacy_text_proxies_and_preserves_proven_clean_rows(
         statuses = dict(connection.execute("SELECT id, status FROM render_jobs"))
         assert statuses == {
             "a" * 32: "stale",
-            "b" * 32: "succeeded",
-            "c" * 32: "succeeded",
+            "b" * 32: "stale",
+            "c" * 32: "stale",
             "d" * 32: "stale",
             "0" * 32: "stale",
+            "n" * 32: "stale",
+            "o" * 32: "succeeded",
+            "p" * 32: "succeeded",
         }
         assert connection.execute(
             "SELECT status, error_code FROM tasks WHERE id = ?", (queued_task,)
