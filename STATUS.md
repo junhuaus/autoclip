@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-11 13:44 CST
-Current milestone: M9 no-blur rendering implementation and real rerender complete; independent review in progress
+Updated: 2026-08-11 14:05 CST
+Current milestone: M9 no-blur rendering complete, independently verified and published
 Branch: `main` tracking `origin/main`
-Latest implementation commit: `2bbdd4f` (`milestone: complete real-provider clean-proxy acceptance`)
+Latest implementation commit: `c14c910` (`milestone: prohibit blurred-background rendering`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
@@ -35,14 +35,14 @@ Historical generation 2 (`5ed80fea40ea48eca37fa10e8c4f1a06`) proved recovery and
 - Host Worker completed 39/39 Codex candidate calls, 0 failures. All 15 selected EditPlans have `degraded=false` and distinct Chinese titles/reasons.
 - A dense 532 ms partial caption tail initially caused `EDIT_OUTPUT_INVALID`. The exact cause was fixed, 36 focused caption/edit/stage tests passed, and the same stage was manually retried from the 39 immutable Codex caches without another model call.
 - 15/15 clean review proxies succeeded. The top proxy is H.264/AAC 540×960, 83.233 seconds versus 83.216 expected, 26,784,712 bytes; ffprobe, complete decode, black/edge/crop heuristics and automatic quality all passed.
-- The top contact sheet was actually viewed: foreground/source-native livestream UI and blurred portrait background look coherent; no LiveClip title/caption overlay, black/blank frame or wrong orientation is visible. The committed automated report still records visual status pending; this observation is recorded here and in the ExecPlan without rewriting its committed Asset bytes.
+- The historical pre-M9 top contact sheet was actually viewed and exposed the blurred portrait composition later rejected by the user. That proxy is no longer active and cannot be adopted under the no-blur contract.
 
 Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-requested rerun under the final dual-hash cache contract:
 
 - All six stages succeeded. OpenRouter completed 33/33 fresh calls with 0 retries, 2,942.016 overlap-inclusive audio seconds, 117.0 seconds summed request latency and USD 0.0735504 Provider-reported cost. It produced 248 absolute-time transcript segments covering 0.284–2,780.256 seconds.
 - Codex completed 41/41 calls with 0 failures/retries, 374,878 input tokens, 222,208 cached input tokens and 13,974 output tokens. Candidate generation produced 41 rough candidates; all 15 selected current EditPlans have `degraded=false`.
 - All 15 clean 540×960 review proxies succeeded. All 15 reports record automatic checks and full decode as passed; maximum duration error is 32 ms. The top H.264/AAC proxy is 58.567 seconds and 18,686,049 bytes.
-- The top generation-3 contact sheet was actually viewed: the portrait foreground and blurred-background layout are coherent, source-native livestream UI remains, and there is no LiveClip-generated title/caption, blank frame or wrong orientation. The immutable report remains truthfully `visual_inspection_status=pending` because it was committed before this external viewing.
+- The historical pre-M9 generation-3 contact sheet exposed the inconsistent blurred-background composition. Migration `c91f4e2a7b63` marked that proxy stale; the current replacement is the single-layer proxy recorded below.
 - Before cleanup, SQLite was checkpointed and copied to `data/projects/migration-backups/liveclip-pre-g1-g2-prune-20260811.sqlite3` (SHA-256 `95fc7e26786dd30319b606ef07f29c2ad9b2bf23d2fc739f6d3abd6f2be7310f`). Generations 1 and 2 had no reviews or deliveries. One transaction deleted their 2 PipelineRuns and 168 Asset rows with cascades; integrity and foreign-key checks passed. Their 393 MiB of files are recoverably isolated at `data/projects/.trash/f91cb996f7534a6682aa5e5f01374b7b-g001-g002-20260811T125244/` and are not visible to LiveClip. The source file is unchanged by size, mtime, inode and persisted SHA-256.
 - After the user reported stale entries in the project list, 10 development/Smoke/failed projects were audited: none had reviews or deliveries. Backup `data/projects/migration-backups/liveclip-pre-old-project-prune-20260811.sqlite3` (SHA-256 `cbcee9b26c4c5e1be53c6ba16d11c595ea0f6f843c44bc6fd73899db9d1ccf00`) preserves the pre-cleanup state. One transaction removed 10 projects, 10 runs and 108 Assets; their 96 MiB of files are isolated at `data/projects/.trash/old-test-projects-20260811T130500/`. Post-restart `/api/v1/projects` returns exactly the single current `7.28` project.
 
@@ -56,6 +56,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Ten affected candidates now have immutable revision 2; the five already-direct candidates remain revision 1. All 15 current plans are `center_crop`, and all 15 new Schema-4 proxy renders succeeded.
 - All 15 quality reports pass automatic checks and complete decode at 540×960; maximum duration error is 32 ms. The top proxy is H.264/AAC, 58.567 seconds and 19,449,931 bytes.
 - A former-blur contact sheet and a former-center contact sheet were both actually viewed. They consistently show a single direct source crop with no blurred canvas, duplicated/shrunken foreground, blank frame, wrong orientation or LiveClip-generated text.
+- Legacy blur revisions remain readable for audit but cannot be approved, exposed as render actions or enqueued. Any human edit creates an immutable `center_crop` revision before approval/rendering can continue.
 
 ## Implemented in the current worktree
 
@@ -68,7 +69,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Added CLI Hook and clip-relative caption metadata output for both candidate listing and review results.
 - Added caption splitting/dense-boundary behavior and a versioned EditPlan pipeline contract.
 - Added bounded payload-free local validation diagnostics and same-run implementation-repair retry for `UNEXPECTED_STAGE_ERROR`/`EDIT_OUTPUT_INVALID`.
-- Added Alembic migrations `d2c59b8e4f31` (legacy Asset scope repair), `e7b14c2d9a60` (remove obsolete unique RenderJob task constraint) and `b81e3c7a4d20` (stale legacy text-bearing proxies). Current database is at `b81e3c7a4d20`; after the user-requested old-generation cleanup, integrity/FK checks pass and only generation 3 plus its 15 succeeded clean proxies remain active for `7.28`.
+- Added Alembic migrations `d2c59b8e4f31` (legacy Asset scope repair), `e7b14c2d9a60` (remove obsolete unique RenderJob task constraint), `b81e3c7a4d20` (stale legacy text-bearing proxies) and `c91f4e2a7b63` (stale all pre-no-blur/removed-layout renders). Current database is at `c91f4e2a7b63`; integrity/FK checks pass and only generation 3 plus its 15 succeeded no-blur proxies remain active for `7.28`.
 - Pre-migration backups remain under `data/projects/migration-backups/`; `liveclip-pre-b81e3c7a4d20.sqlite3` SHA-256 is `952d53edb1aa5b8773ed5895c5bd7372e84dc389acaeb755abf65f6b5793f4ee`.
 - Product Spec, Solution, README, architecture, API/EditPlan notes, OpenRouter research/integration guide, ADR-010 and the Living ExecPlan are being updated to the real evidence.
 
@@ -87,7 +88,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Fresh `make demo`: `demo_20260811T032338_6f7414aa`, three candidates, `delivered`, immutable v001 ZIP. Proxy and final contact sheets were actually viewed; both reports record `viewed_passed`. Final is H.264/AAC 1080×1920, 12.000 seconds, 9,216,424 bytes, SHA-256 `0d9a4255b5d3dd0a5d0367652b5023355a6c509c6c432e9536561777e224adfe`; ZIP integrity passes.
 - Fresh `make smoke-openrouter`: project `a8d1035f78c24b28b392308bdde33d05`, run `0b523cdc396148b5af6d36cc5559edfe`; two OpenRouter requests + one Codex request, zero retries, 95.104 audio seconds, USD 0.0023776 Provider cost, non-degraded title `高音别硬喊：强混声与假声区别`, no Mock evidence.
 - Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
-- M9 gates: `make lint` PASS; `make test` PASS with 530 Python, 13 Web, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. Independent M9 no-blur review is in progress.
+- M9 gates: `make lint` PASS; final-tree `make test` PASS with 531 Python, 13 Web, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. After the review-only migration coverage repair, 30 targeted tests pass. Independent M9 re-review is `PASS`, P0=0/P1=0/P2=0; the reviewer also viewed all 15 current contact sheets.
 
 ## Not yet verified in M8
 
@@ -101,7 +102,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
 - Source video remains a read-only reference and was not modified.
 - Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The Browser plugin still exposes no attached controllable browser in this session; HTTP/API/Range behavior was checked directly, and the previously checked host-Chrome E2E remains the browser evidence for the unchanged code.
-- The 53-file M8 implementation scope passed cached whitespace and secret-format scans with zero forbidden paths or key-pattern hits. Commit `2bbdd4f` is pushed to `git@github.com:junhuaus/AGI-Live-Clip.git` on `main`; ignored local secrets/input/generated data were not committed.
+- The 40-file M9 implementation scope passed cached whitespace and secret-format scans with zero forbidden paths or key-pattern hits. Commit `c14c910` is pushed to `git@github.com:junhuaus/AGI-Live-Clip.git` on `main`; ignored local secrets/input/generated data were not committed.
 
 ## Next concrete task
 
@@ -109,4 +110,4 @@ Run `make dev`, open `http://127.0.0.1:5173`, review the 15 real `7.28` candidat
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including the explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M8 checkpoint rather than reopening verified tasks without evidence.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including the explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M9 checkpoint rather than reopening verified tasks without evidence.
