@@ -24,6 +24,8 @@ from liveclip.api.schemas import (
     ApiErrorDetail,
     ApiErrorEnvelope,
     ApiErrorItem,
+    BatchReviewRequest,
+    BatchReviewResponse,
     ClipDetailResponse,
     ClipPatchRequest,
     ClipSummaryResponse,
@@ -394,6 +396,35 @@ def create_app(
         else:
             detail = active.review_service.review_clip(clip_id, command)
         return _clip_response(security, detail)
+
+    @protected.post(
+        "/projects/{project_id}/reviews/batch",
+        response_model=BatchReviewResponse,
+    )
+    def review_clips_batch(
+        project_id: str,
+        body: BatchReviewRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> BatchReviewResponse:
+        canonical_items = sorted(
+            (item.model_dump(mode="json") for item in body.items),
+            key=lambda item: str(item["clip_id"]),
+        )
+        details = _runtime(request).review_service.review_clips_batch(
+            project_id,
+            body.to_command(),
+            idempotency=_idempotency(
+                security,
+                idempotency_key,
+                operation="POST:/api/v1/projects/:project_id/reviews/batch",
+                payload={"project_id": project_id, "items": canonical_items},
+            ),
+        )
+        return BatchReviewResponse(
+            project_id=project_id,
+            clips=tuple(_clip_response(security, detail) for detail in details),
+        )
 
     @protected.post(
         "/clips/{clip_id}/render",

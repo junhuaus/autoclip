@@ -29,6 +29,7 @@ GET    /projects/{project_id}/clips
 GET    /clips/{clip_id}
 PATCH  /clips/{clip_id}
 POST   /clips/{clip_id}/review
+POST   /projects/{project_id}/reviews/batch
 POST   /clips/{clip_id}/render
 GET    /renders/{render_id}
 
@@ -96,13 +97,15 @@ Render:      queued | running | succeeded | failed | stale
 Delivery:    queued | creating | succeeded | failed
 ```
 
-`GET /clips/{id}` returns the current plan/revision, separate title/Hook/reason/risk/caption metadata, review/render states and an `asset_urls` map containing only signed generated-media URLs. A proxy URL always references the clean no-LiveClip-text review video; final media may contain the approved overlays. `GET /renders/{id}` exposes its current revision, kind and status. `GET /deliveries/{id}` wraps the Delivery snapshot and an optional signed `download_url`; it includes version, clip count, manifest/ZIP asset IDs and safe errors. Transcript, clip-list and delivery-list endpoints expose their respective artifacts without exposing the source absolute path.
+`GET /clips/{id}` returns the current plan/revision, separate title/Hook/reason/risk/caption metadata, grounded keyword ranges, review/render states and an `asset_urls` map containing only signed generated-media URLs. The clip-list response also includes bounded current-revision captions, keywords and allowed actions so the review board does not need an N+1 detail fan-out. A keyword includes clip-relative and source-absolute integer milliseconds plus `word` or `segment` precision; `segment` is an honest persisted ASR range, not an invented word time or proportional subtitle-display interval. A proxy URL always references the clean no-LiveClip-text review video; final media may contain the approved overlays. `GET /renders/{id}` exposes its current revision, kind and status. `GET /deliveries/{id}` wraps the Delivery snapshot and an optional signed `download_url`; it includes version, clip count, manifest/ZIP asset IDs and safe errors. Transcript, clip-list and delivery-list endpoints expose their respective artifacts without exposing the source absolute path.
 
 Clip changes use optimistic `expected_revision`. `PATCH /clips/{id}` creates a pending human revision. A boundary change with no `captions` field rebuilds cue-relative milliseconds from the absolute transcript; clients should send `captions` only when the user actually edited them. The optional migration field `layout` accepts only `center_crop`, allowing a historical blur-layout revision to be replaced without changing its editorial text. Every revision must retain at least one cue. `POST /clips/{id}/review` accepts `approved` or `rejected`; when the same body includes title, boundary, layout or caption changes, the new revision and decision commit atomically. A render body is `{"expected_revision":2,"kind":"final"}`. A delivery body is `{"include_zip":true}`.
 
+`POST /projects/{project_id}/reviews/batch` accepts 1–100 unique items shaped as `{"clip_id":"...","expected_revision":2,"status":"approved"}` or a rejected item with its required `reason`. The repository validates that every clip is selected in the current Project generation, every revision matches and every decision is permitted before writing any row. One conflict rolls back the whole batch. The endpoint accepts `Idempotency-Key`; replay of the canonical same batch does not repeat effects, while reuse with a different batch returns 409.
+
 Revision and review-decision changes atomically fail active Delivery snapshots with `DELIVERY_SNAPSHOT_STALE`; a new delivery request creates the next immutable version. Already succeeded versions are never overwritten or invalidated.
 
-Long-running creation routes return `202 Accepted`, `Location`, `Retry-After: 1`, a resource/task ID and polling URL. `POST /jobs`, imports, runs, renders and deliveries accept `Idempotency-Key`. The same key plus canonical body returns the same resource and its current status; reuse with a different body returns 409. Only the key SHA-256 is persisted.
+Long-running creation routes return `202 Accepted`, `Location`, `Retry-After: 1`, a resource/task ID and polling URL. `POST /jobs`, imports, runs, renders, deliveries and batch review accept `Idempotency-Key`. The same key plus canonical body returns the same resource/current snapshots; reuse with a different body returns 409. Only the key SHA-256 is persisted.
 
 ## Errors
 

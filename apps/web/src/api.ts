@@ -3,6 +3,8 @@ import type {
   AcceptedTaskResponse,
   ApiErrorDetail,
   ApiErrorEnvelope,
+  BatchReviewRequest,
+  BatchReviewResponse,
   ClipDetailResponse,
   ClipPatchRequest,
   ClipSummaryResponse,
@@ -87,7 +89,7 @@ function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   );
 }
 
-function idempotencyKey(scope: string): string {
+export function createIdempotencyKey(scope: string): string {
   const random =
     typeof globalThis.crypto?.randomUUID === "function"
       ? globalThis.crypto.randomUUID()
@@ -165,7 +167,7 @@ export class LiveClipApiClient {
   createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {
     return this.request("/jobs", {
       method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey("job") },
+      headers: { "Idempotency-Key": createIdempotencyKey("job") },
       body: JSON.stringify(body),
     });
   }
@@ -208,6 +210,18 @@ export class LiveClipApiClient {
     });
   }
 
+  reviewClipsBatch(
+    projectId: string,
+    body: BatchReviewRequest,
+    requestKey = createIdempotencyKey("batch-review"),
+  ): Promise<BatchReviewResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/reviews/batch`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
+    });
+  }
+
   createRender(
     clipId: string,
     expectedRevision: number,
@@ -215,7 +229,7 @@ export class LiveClipApiClient {
   ): Promise<AcceptedTaskResponse> {
     return this.request(`/clips/${encodeURIComponent(clipId)}/render`, {
       method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey(`${kind}-render`) },
+      headers: { "Idempotency-Key": createIdempotencyKey(`${kind}-render`) },
       body: JSON.stringify({ expected_revision: expectedRevision, kind }),
     });
   }
@@ -231,7 +245,7 @@ export class LiveClipApiClient {
   createDelivery(projectId: string, includeZip = true): Promise<AcceptedTaskResponse> {
     return this.request(`/projects/${encodeURIComponent(projectId)}/deliveries`, {
       method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey("delivery") },
+      headers: { "Idempotency-Key": createIdempotencyKey("delivery") },
       body: JSON.stringify({ include_zip: includeZip }),
     });
   }

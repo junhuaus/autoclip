@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
@@ -7,13 +9,20 @@ from liveclip.application.clips import ClipSummary
 from liveclip.application.pipeline import PipelineResourceNotFound
 from liveclip.db.models import (
     CandidateClipRow,
+    CaptionCueRow,
     EditPlanRevisionRow,
     PipelineRunRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
+    TranscriptRow,
+    TranscriptSegmentRow,
+    TranscriptWordRow,
 )
+from liveclip.domain.edit_plan import CaptionCue, edit_plan_from_json_data
+from liveclip.domain.keywords import derive_keyword_occurrences
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
+from liveclip.domain.transcript import TranscriptSegment, TranscriptWord
 from liveclip.renderer.contracts import is_clean_review_proxy
 
 
@@ -41,6 +50,7 @@ class SqlAlchemyClipQueryRepository:
                     EditPlanRevisionRow.title,
                     EditPlanRevisionRow.reason,
                     EditPlanRevisionRow.risk_flags_json,
+                    EditPlanRevisionRow.plan_json,
                     PipelineRunRow.config_json,
                 )
                 .join(
@@ -56,8 +66,74 @@ class SqlAlchemyClipQueryRepository:
                 )
                 .order_by(CandidateClipRow.rank, CandidateClipRow.id)
             ).mappings()
+            segment_rows = tuple(
+                connection.execute(
+                    select(
+                        TranscriptSegmentRow.id,
+                        TranscriptSegmentRow.source_start_ms,
+                        TranscriptSegmentRow.source_end_ms,
+                        TranscriptSegmentRow.text,
+                    )
+                    .join(TranscriptRow, TranscriptRow.id == TranscriptSegmentRow.transcript_id)
+                    .where(TranscriptRow.pipeline_run_id == current_run_id)
+                    .order_by(TranscriptSegmentRow.segment_index)
+                )
+            )
+            words_by_segment: defaultdict[str, list[TranscriptWord]] = defaultdict(list)
+            for word_row in connection.execute(
+                select(
+                    TranscriptWordRow.segment_id,
+                    TranscriptWordRow.source_start_ms,
+                    TranscriptWordRow.source_end_ms,
+                    TranscriptWordRow.text,
+                )
+                .join(
+                    TranscriptSegmentRow,
+                    TranscriptSegmentRow.id == TranscriptWordRow.segment_id,
+                )
+                .join(TranscriptRow, TranscriptRow.id == TranscriptSegmentRow.transcript_id)
+                .where(TranscriptRow.pipeline_run_id == current_run_id)
+                .order_by(
+                    TranscriptWordRow.segment_id,
+                    TranscriptWordRow.word_index,
+                )
+            ):
+                words_by_segment[str(word_row.segment_id)].append(
+                    TranscriptWord(
+                        start_ms=int(word_row.source_start_ms),
+                        end_ms=int(word_row.source_end_ms),
+                        text=str(word_row.text),
+                    )
+                )
+            segments = tuple(
+                TranscriptSegment(
+                    segment_id=str(row.id),
+                    start_ms=int(row.source_start_ms),
+                    end_ms=int(row.source_end_ms),
+                    text=str(row.text),
+                    words=(
+                        tuple(words_by_segment[str(row.id)])
+                        if words_by_segment[str(row.id)]
+                        else None
+                    ),
+                )
+                for row in segment_rows
+            )
             summaries: list[ClipSummary] = []
             for row in rows:
+                captions = tuple(
+                    CaptionCue(
+                        start_ms=int(cue.start_ms),
+                        end_ms=int(cue.end_ms),
+                        text=str(cue.text),
+                    )
+                    for cue in connection.execute(
+                        select(CaptionCueRow.start_ms, CaptionCueRow.end_ms, CaptionCueRow.text)
+                        .where(CaptionCueRow.edit_plan_revision_id == row["revision_id"])
+                        .order_by(CaptionCueRow.cue_index)
+                    )
+                )
+                plan = edit_plan_from_json_data(row["plan_json"])
                 decision = connection.scalar(
                     select(ReviewDecisionRow.status)
                     .where(ReviewDecisionRow.edit_plan_revision_id == row["revision_id"])
@@ -116,6 +192,16 @@ class SqlAlchemyClipQueryRepository:
                         title=str(row["title"]),
                         reason=str(row["reason"]),
                         risk_flags=tuple(str(value) for value in row["risk_flags_json"]),
+                        captions=captions,
+                        keywords=derive_keyword_occurrences(
+                            captions,
+                            source_start_ms=int(row["source_start_ms"]),
+                            source_end_ms=int(row["source_end_ms"]),
+                            title=str(row["title"]),
+                            hook=plan.hook,
+                            reason=str(row["reason"]),
+                            segments=segments,
+                        ),
                         review_status=(
                             ReviewStatus(str(decision))
                             if decision is not None
@@ -129,6 +215,11 @@ class SqlAlchemyClipQueryRepository:
                             and proxy_is_clean
                             and render[1]
                             else None
+                        ),
+                        allowed_actions=(
+                            ("edit", "approve", "reject")
+                            if plan.layout.value == "center_crop"
+                            else ("edit", "reject")
                         ),
                     )
                 )

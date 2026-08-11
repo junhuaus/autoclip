@@ -6,8 +6,10 @@ from typing import Any
 from sqlalchemy import insert, select, update
 from sqlalchemy.engine import Connection, Engine, Row, RowMapping
 
+from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import load_persisted_pipeline_config
 from liveclip.application.reviewing import (
+    BatchReviewCommand,
     ClipDetail,
     ClipPatch,
     RenderSnapshot,
@@ -20,6 +22,7 @@ from liveclip.application.reviewing import (
 )
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
+from liveclip.db.idempotency import load_idempotent_resource, record_idempotent_resource
 from liveclip.db.models import (
     CandidateClipRow,
     CaptionCueRow,
@@ -33,6 +36,7 @@ from liveclip.db.models import (
     TaskRow,
     TranscriptRow,
     TranscriptSegmentRow,
+    TranscriptWordRow,
 )
 from liveclip.domain.edit_plan import (
     CaptionCue,
@@ -42,6 +46,7 @@ from liveclip.domain.edit_plan import (
     edit_plan_from_json_data,
     validate_edit_plan_bounds,
 )
+from liveclip.domain.keywords import derive_keyword_occurrences
 from liveclip.domain.state_transitions import (
     DeliveryStatus,
     FailureClass,
@@ -53,7 +58,7 @@ from liveclip.domain.state_transitions import (
     transition_render,
     transition_task,
 )
-from liveclip.domain.transcript import TranscriptSegment
+from liveclip.domain.transcript import TranscriptSegment, TranscriptWord
 from liveclip.renderer.contracts import is_clean_review_proxy
 
 
@@ -342,6 +347,76 @@ class SqlAlchemyReviewRepository:
                 )
             result = _get_clip(connection, clip_id)
         return result
+
+    def review_clips_batch(
+        self,
+        project_id: str,
+        command: BatchReviewCommand,
+        *,
+        idempotency: IdempotencyContext | None = None,
+    ) -> tuple[ClipDetail, ...]:
+        now = datetime.now(UTC)
+        with begin_immediate(self._engine) as connection:
+            replayed_project_id = load_idempotent_resource(
+                connection,
+                idempotency,
+                resource_type="review_batch",
+            )
+            if replayed_project_id is not None:
+                if replayed_project_id != project_id:
+                    raise ReviewConflict("batch review replay does not match this project")
+                return tuple(_get_clip(connection, item.clip_id) for item in command.items)
+
+            contexts: list[tuple[RowMapping, ReviewCommand]] = []
+            for item in command.items:
+                context = _load_current_context(connection, item.clip_id)
+                if str(context["project_id"]) != project_id:
+                    raise ReviewConflict("batch review clip does not belong to this project")
+                item_command = item.command()
+                if item_command.expected_revision != int(context["current_revision"]):
+                    raise ReviewConflict("clip revision changed; reload before batch reviewing")
+                current_plan = edit_plan_from_json_data(context["plan_json"])
+                if (
+                    item_command.status == ReviewStatus.APPROVED
+                    and current_plan.layout is not Layout.CENTER_CROP
+                ):
+                    raise ReviewConflict(
+                        "clip must be revised to the required center-crop layout before approval"
+                    )
+                contexts.append((context, item_command))
+
+            decision_changed = False
+            for item, (context, item_command) in zip(
+                command.items,
+                contexts,
+                strict=True,
+            ):
+                decision_changed = (
+                    _record_review_decision(
+                        connection,
+                        clip_id=item.clip_id,
+                        revision_id=str(context["revision_id"]),
+                        command=item_command,
+                        decided_at=now,
+                    )
+                    or decision_changed
+                )
+            first_context = contexts[0][0]
+            if decision_changed:
+                _invalidate_active_deliveries(
+                    connection,
+                    project_id=project_id,
+                    generation=int(first_context["generation"]),
+                    instant=now,
+                )
+            record_idempotent_resource(
+                connection,
+                idempotency,
+                resource_type="review_batch",
+                resource_id=project_id,
+                response_status_code=200,
+            )
+            return tuple(_get_clip(connection, item.clip_id) for item in command.items)
 
     def get_transcript(self, project_id: str) -> TranscriptSnapshot:
         with self._engine.connect() as connection:
@@ -708,6 +783,21 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
         )
     ):
         actions.append("deliver")
+    captions = _load_captions(connection, revision_id)
+    keywords = derive_keyword_occurrences(
+        captions,
+        source_start_ms=current_plan.source_start_ms,
+        source_end_ms=current_plan.source_end_ms,
+        title=current_plan.title,
+        hook=current_plan.hook,
+        reason=current_plan.reason,
+        segments=_load_transcript_segments(
+            connection,
+            run_id=str(row["run_id"]),
+            source_start_ms=current_plan.source_start_ms,
+            source_end_ms=current_plan.source_end_ms,
+        ),
+    )
     return ClipDetail(
         clip_id=clip_id,
         project_id=str(row["project_id"]),
@@ -725,7 +815,8 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
         rank=int(row["rank"]) if row["rank"] is not None else None,
         current_revision=current_revision,
         plan=current_plan,
-        captions=_load_captions(connection, revision_id),
+        captions=captions,
+        keywords=keywords,
         revision_created_at=row["revision_created_at"],
         review=review,
         renders=renders,
@@ -741,6 +832,60 @@ def _load_captions(connection: Connection, revision_id: str) -> tuple[CaptionCue
             .where(CaptionCueRow.edit_plan_revision_id == revision_id)
             .order_by(CaptionCueRow.cue_index)
         )
+    )
+
+
+def _load_transcript_segments(
+    connection: Connection,
+    *,
+    run_id: str,
+    source_start_ms: int,
+    source_end_ms: int,
+) -> tuple[TranscriptSegment, ...]:
+    rows = tuple(
+        connection.execute(
+            select(
+                TranscriptSegmentRow.id,
+                TranscriptSegmentRow.source_start_ms,
+                TranscriptSegmentRow.source_end_ms,
+                TranscriptSegmentRow.text,
+            )
+            .join(TranscriptRow, TranscriptRow.id == TranscriptSegmentRow.transcript_id)
+            .where(
+                TranscriptRow.pipeline_run_id == run_id,
+                TranscriptSegmentRow.source_end_ms > source_start_ms,
+                TranscriptSegmentRow.source_start_ms < source_end_ms,
+            )
+            .order_by(TranscriptSegmentRow.segment_index)
+        )
+    )
+    return tuple(
+        TranscriptSegment(
+            segment_id=str(row.id),
+            start_ms=int(row.source_start_ms),
+            end_ms=int(row.source_end_ms),
+            text=str(row.text),
+            words=(
+                tuple(
+                    TranscriptWord(
+                        start_ms=int(word.source_start_ms),
+                        end_ms=int(word.source_end_ms),
+                        text=str(word.text),
+                    )
+                    for word in connection.execute(
+                        select(
+                            TranscriptWordRow.source_start_ms,
+                            TranscriptWordRow.source_end_ms,
+                            TranscriptWordRow.text,
+                        )
+                        .where(TranscriptWordRow.segment_id == row.id)
+                        .order_by(TranscriptWordRow.word_index)
+                    )
+                )
+                or None
+            ),
+        )
+        for row in rows
     )
 
 

@@ -627,8 +627,46 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
 
 .clip-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
   gap: 1rem;
+}
+
+.batch-review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(8, 28, 29, 0.72);
+}
+
+.batch-review-bar > label:first-child,
+.clip-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.batch-reason {
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(100%, 16rem);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.batch-reason input {
+  min-height: 2.45rem;
+}
+
+.batch-review-bar p {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .clip-card {
@@ -646,9 +684,96 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
 .video-placeholder {
   display: block;
   width: 100%;
-  aspect-ratio: 9 / 12;
+  aspect-ratio: 9 / 16;
   background: #030708;
   object-fit: contain;
+}
+
+.clip-timed-metadata {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(4, 14, 16, 0.72);
+}
+
+.clip-timed-metadata h4 {
+  margin: 0 0 0.55rem;
+  color: #d9e9e8;
+  font-size: 0.88rem;
+}
+
+.clip-captions ol {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.clip-captions button {
+  display: grid;
+  grid-template-columns: 7.4rem minmax(0, 1fr);
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #c8d8d7;
+  background: rgba(105, 140, 138, 0.08);
+  text-align: left;
+  cursor: pointer;
+}
+
+.clip-captions button:hover,
+.clip-captions button:focus-visible,
+.clip-keywords button:hover,
+.clip-keywords button:focus-visible {
+  border-color: rgba(88, 224, 193, 0.45);
+  background: rgba(88, 224, 193, 0.1);
+}
+
+.clip-captions time,
+.clip-keywords time {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+}
+
+.clip-captions span {
+  line-height: 1.45;
+}
+
+.clip-keywords ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clip-keywords button {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 3.25rem;
+  padding: 0.42rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #d8e8e6;
+  background: rgba(105, 140, 138, 0.1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.clip-keywords button > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.clip-timed-metadata button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .video-placeholder {

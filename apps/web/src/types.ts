@@ -107,6 +107,15 @@ export interface CaptionCue {
   text: string;
 }
 
+export interface KeywordOccurrence {
+  text: string;
+  clip_start_ms: number;
+  clip_end_ms: number;
+  source_start_ms: number;
+  source_end_ms: number;
+  timing_precision: "word" | "segment";
+}
+
 export interface EditPlan {
   schema_version: string;
   candidate_id: string;
@@ -135,9 +144,12 @@ export interface ClipSummary {
   title: string;
   reason: string;
   risk_flags: string[];
+  captions: CaptionCue[];
+  keywords: KeywordOccurrence[];
   review_status: ReviewStatus;
   proxy_status: RenderStatus | null;
   proxy_asset_id: string | null;
+  allowed_actions: string[];
 }
 
 export interface ClipSummaryResponse {
@@ -187,6 +199,7 @@ export interface ClipDetail {
   current_revision: number;
   plan: EditPlan;
   captions: CaptionCue[];
+  keywords: KeywordOccurrence[];
   revision_created_at: string;
   review: ReviewSnapshot;
   renders: RenderSnapshot[];
@@ -210,6 +223,23 @@ export interface ClipPatchRequest {
 export interface ReviewActionRequest extends ClipPatchRequest {
   status: "approved" | "rejected";
   reason?: string;
+}
+
+export interface BatchReviewItemRequest {
+  clip_id: string;
+  expected_revision: number;
+  status: "approved" | "rejected";
+  reason?: string;
+}
+
+export interface BatchReviewRequest {
+  items: BatchReviewItemRequest[];
+}
+
+export interface BatchReviewResponse {
+  schema_version: "1";
+  project_id: string;
+  clips: ClipDetailResponse[];
 }
 
 export interface AcceptedTaskResponse {

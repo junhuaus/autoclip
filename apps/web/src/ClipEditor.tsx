@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LiveClipApiClient, errorMessage, signedUrlRefreshInterval } from "./api";
@@ -16,6 +16,8 @@ interface ClipEditorProps {
   clipId: string;
   onClose: () => void;
   onChanged: () => void;
+  onDirtyChange?: (clipId: string, dirty: boolean) => void;
+  externalBusy?: boolean;
 }
 
 interface CaptionDraft {
@@ -98,12 +100,21 @@ function currentVideo(
   return url ? { render, url } : null;
 }
 
-export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps) {
+export function ClipEditor({
+  api,
+  clipId,
+  onClose,
+  onChanged,
+  onDirtyChange = () => undefined,
+  externalBusy = false,
+}: ClipEditorProps) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
   const [activeRenderId, setActiveRenderId] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const pendingSeekMs = useRef<number | null>(null);
 
   const clipQuery = useQuery({
     queryKey: ["clip", clipId],
@@ -119,6 +130,23 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
     }
   }, [clipQuery.data]);
 
+  const editorDirty = Boolean(
+    draft &&
+      clipQuery.data &&
+      JSON.stringify(draft) !== JSON.stringify(draftFromResponse(clipQuery.data)),
+  );
+
+  useEffect(() => {
+    onDirtyChange(clipId, editorDirty);
+  }, [clipId, editorDirty, onDirtyChange]);
+
+  useEffect(
+    () => () => {
+      onDirtyChange(clipId, false);
+    },
+    [clipId, onDirtyChange],
+  );
+
   const refreshRelated = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["clip", clipId] }),
@@ -127,6 +155,19 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
       queryClient.invalidateQueries({ queryKey: ["deliveries"] }),
     ]);
     onChanged();
+  };
+
+  const seekTo = (startMs: number) => {
+    const element = videoRef.current;
+    if (!element || !video) return;
+    if (element.readyState < 1) {
+      pendingSeekMs.current = startMs;
+      return;
+    }
+    const requestedSeconds = startMs / 1_000;
+    element.currentTime = Number.isFinite(element.duration)
+      ? Math.min(Math.max(0, requestedSeconds), element.duration)
+      : Math.max(0, requestedSeconds);
   };
 
   const saveMutation = useMutation({
@@ -200,11 +241,15 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
   const response = clipQuery.data;
   const clip = response.clip;
   const originalDraft = draftFromResponse(response);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(originalDraft);
+  const dirty = editorDirty;
   const allowed = new Set(clip.allowed_actions);
   const staleRenders = clip.renders.filter((render) => render.status === "stale");
   const video = currentVideo(response);
-  const busy = saveMutation.isPending || reviewMutation.isPending || renderMutation.isPending;
+  const busy =
+    externalBusy ||
+    saveMutation.isPending ||
+    reviewMutation.isPending ||
+    renderMutation.isPending;
   const renderPolling =
     activeRenderQuery.data?.status === "queued" || activeRenderQuery.data?.status === "running";
 
@@ -286,7 +331,18 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
         <div>
           {video ? (
             <figure className="video-frame">
-              <video controls preload="metadata" src={video.url}>
+              <video
+                ref={videoRef}
+                controls
+                preload="metadata"
+                src={video.url}
+                onLoadedMetadata={() => {
+                  if (pendingSeekMs.current === null) return;
+                  const startMs = pendingSeekMs.current;
+                  pendingSeekMs.current = null;
+                  seekTo(startMs);
+                }}
+              >
                 浏览器不支持 HTML5 视频播放。
               </video>
               <figcaption>
@@ -300,6 +356,55 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
               {allowed.has("render_proxy") ? "可先生成审核代理。" : "等待渲染完成或刷新详情。"}
             </EmptyState>
           )}
+
+          <div className="clip-timed-metadata editor-timed-metadata">
+            <section className="clip-captions" aria-labelledby={`editor-captions-${clip.clip_id}`}>
+              <h4 id={`editor-captions-${clip.clip_id}`}>字幕</h4>
+              <ol aria-label="当前切片详情字幕">
+                {clip.captions.map((cue, index) => (
+                  <li key={`${cue.start_ms}-${cue.end_ms}-${index}`}>
+                    <button
+                      type="button"
+                      disabled={!video}
+                      onClick={() => seekTo(cue.start_ms)}
+                      aria-label={`定位到详情字幕 ${formatMs(cue.start_ms)}：${cue.text}`}
+                    >
+                      <time>{formatMs(cue.start_ms)}–{formatMs(cue.end_ms)}</time>
+                      <span>{cue.text}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+            <section className="clip-keywords" aria-labelledby={`editor-keywords-${clip.clip_id}`}>
+              <h4 id={`editor-keywords-${clip.clip_id}`}>关键词</h4>
+              {clip.keywords.length > 0 ? (
+                <ul aria-label="当前切片详情关键词">
+                  {clip.keywords.map((keyword, index) => (
+                    <li key={`${keyword.text}-${keyword.clip_start_ms}-${index}`}>
+                      <button
+                        type="button"
+                        disabled={!video}
+                        onClick={() => seekTo(keyword.clip_start_ms)}
+                        aria-label={`定位到详情关键词 ${keyword.text}，${formatMs(keyword.clip_start_ms)}`}
+                      >
+                        <strong>{keyword.text}</strong>
+                        <time>{formatMs(keyword.clip_start_ms)}–{formatMs(keyword.clip_end_ms)}</time>
+                        <span>
+                          {keyword.timing_precision === "word" ? "词级时间" : "转写段时间窗"}
+                        </span>
+                        <span>
+                          源 {formatMs(keyword.source_start_ms)}–{formatMs(keyword.source_end_ms)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="hint">暂无可信时间关键词</p>
+              )}
+            </section>
+          </div>
 
           <div className="transcript-card">
             <h3>高光描述（独立元数据）</h3>
@@ -339,6 +444,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
               value={draft.title}
               maxLength={40}
               required
+              disabled={busy}
               onChange={(event) => setDraft({ ...draft, title: event.currentTarget.value })}
             />
           </label>
@@ -350,6 +456,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                 step="1"
                 min="0"
                 required
+                disabled={busy}
                 value={draft.sourceStartMs}
                 onChange={(event) => setDraft({ ...draft, sourceStartMs: event.currentTarget.value })}
               />
@@ -361,6 +468,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                 step="1"
                 min="1"
                 required
+                disabled={busy}
                 value={draft.sourceEndMs}
                 onChange={(event) => setDraft({ ...draft, sourceEndMs: event.currentTarget.value })}
               />
@@ -389,6 +497,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                       step="1"
                       min="0"
                       required
+                      disabled={busy}
                       value={cue.startMs}
                       onChange={(event) => updateCaption(index, { startMs: event.currentTarget.value })}
                     />
@@ -400,6 +509,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                       step="1"
                       min="1"
                       required
+                      disabled={busy}
                       value={cue.endMs}
                       onChange={(event) => updateCaption(index, { endMs: event.currentTarget.value })}
                     />
@@ -411,6 +521,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                     rows={2}
                     maxLength={120}
                     required
+                    disabled={busy}
                     value={cue.text}
                     onChange={(event) => updateCaption(index, { text: event.currentTarget.value })}
                   />
@@ -459,6 +570,7 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
             <textarea
               rows={2}
               maxLength={1_000}
+              disabled={busy}
               value={rejectionReason}
               onChange={(event) => setRejectionReason(event.currentTarget.value)}
               placeholder="说明内容不完整等原因"

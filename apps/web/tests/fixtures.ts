@@ -70,9 +70,21 @@ export const clipSummary: ClipSummaryResponse = {
     title: "原始高光标题",
     reason: "表达完整且开头有吸引力",
     risk_flags: ["需人工确认"],
+    captions: [{ start_ms: 0, end_ms: 4_000, text: "第一条字幕" }],
+    keywords: [
+      {
+        text: "中文直播",
+        clip_start_ms: 0,
+        clip_end_ms: 4_000,
+        source_start_ms: 1_000,
+        source_end_ms: 5_000,
+        timing_precision: "segment",
+      },
+    ],
     review_status: "pending_review",
     proxy_status: "succeeded",
     proxy_asset_id: "asset-proxy-1",
+    allowed_actions: ["edit", "approve", "reject"],
   },
   proxy_media_url: "/api/v1/media/asset-proxy-1?expires=9999999999&signature=signed",
 };
@@ -112,6 +124,16 @@ export const clipDetail: ClipDetailResponse = {
       degraded: false,
     },
     captions: [{ start_ms: 0, end_ms: 4_000, text: "第一条字幕" }],
+    keywords: [
+      {
+        text: "中文直播",
+        clip_start_ms: 0,
+        clip_end_ms: 4_000,
+        source_start_ms: 1_000,
+        source_end_ms: 5_000,
+        timing_precision: "segment",
+      },
+    ],
     revision_created_at: "2026-08-04T00:00:00Z",
     review: { status: "pending_review", reason: null, decided_at: null },
     renders: [

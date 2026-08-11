@@ -9,9 +9,12 @@ from pydantic import ValidationError
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
+from liveclip.application.idempotency import build_idempotency_context
 from liveclip.application.pipeline import PipelineRunConfig
 from liveclip.application.rendering import RenderConflict, RenderProfile, RenderService
 from liveclip.application.reviewing import (
+    BatchReviewCommand,
+    BatchReviewItem,
     ClipPatch,
     RenderRequest,
     ReviewCommand,
@@ -386,6 +389,142 @@ def test_stale_expected_revision_rolls_back_without_partial_revision_or_decision
             .where(EditPlanRevisionRow.revision == CandidateClipRow.current_revision)
         ).scalar_one()
         assert current == "第一次有效修改"
+
+
+def test_batch_review_is_atomic_revision_fenced_and_idempotent(
+    review_context: tuple[Engine, ReviewService, str, str, str],
+) -> None:
+    engine, service, clip_id, _, _ = review_context
+    project_id = "project0000000000000000000000001"
+    run_id = "run00000000000000000000000000001"
+    second_clip_id = "clip0000000000000000000000000002"
+    second_revision_id = "revision00000000000000000000002"
+    second_plan = EditPlan(
+        candidate_id=second_clip_id,
+        source_start_ms=8_000,
+        source_end_ms=16_000,
+        score=82,
+        title="第二个批量审核候选",
+        hook="第二个完整开场",
+        reason="用于验证批量审核整体事务",
+        layout=Layout.CENTER_CROP,
+        caption_template=CaptionTemplate.CLEAN_ZH_V1,
+        effect=Effect.NONE,
+        risk_flags=(),
+        prompt_version="editing_v1",
+        model="mock-llm-v1",
+        degraded=True,
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            insert(CandidateClipRow).values(
+                id=second_clip_id,
+                project_id=project_id,
+                pipeline_run_id=run_id,
+                candidate_key="candidate-2",
+                source_start_ms=8_000,
+                source_end_ms=16_000,
+                allowed_start_ms=5_000,
+                allowed_end_ms=19_000,
+                transcript_text="第二个候选的完整中文转写。",
+                context_before="前文",
+                context_after="后文",
+                rule_score=82,
+                reasons_json=["表达完整"],
+                segment_ids_json=[],
+                current_revision=1,
+                rank=2,
+                selected_for_review=True,
+            )
+        )
+        connection.execute(
+            insert(EditPlanRevisionRow).values(
+                id=second_revision_id,
+                candidate_clip_id=second_clip_id,
+                revision=1,
+                parent_revision=None,
+                origin="deterministic",
+                source_start_ms=second_plan.source_start_ms,
+                source_end_ms=second_plan.source_end_ms,
+                score=second_plan.score,
+                title=second_plan.title,
+                hook=second_plan.hook,
+                reason=second_plan.reason,
+                layout=second_plan.layout.value,
+                caption_template=second_plan.caption_template.value,
+                effect=second_plan.effect.value,
+                risk_flags_json=[],
+                prompt_version=second_plan.prompt_version,
+                model=second_plan.model,
+                degraded=second_plan.degraded,
+                plan_json=second_plan.model_dump(mode="json"),
+            )
+        )
+        connection.execute(
+            insert(CaptionCueRow).values(
+                id="caption0000000000000000000000002",
+                edit_plan_revision_id=second_revision_id,
+                cue_index=0,
+                start_ms=0,
+                end_ms=8_000,
+                text="第二个候选的完整中文转写。",
+            )
+        )
+
+    stale_batch = BatchReviewCommand(
+        items=(
+            BatchReviewItem(
+                clip_id=clip_id,
+                expected_revision=1,
+                status=ReviewStatus.APPROVED,
+            ),
+            BatchReviewItem(
+                clip_id=second_clip_id,
+                expected_revision=2,
+                status=ReviewStatus.REJECTED,
+                reason="待补充上下文",
+            ),
+        )
+    )
+    with pytest.raises(ReviewConflict, match="revision changed"):
+        service.review_clips_batch(project_id, stale_batch)
+    with engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(ReviewDecisionRow)) == 0
+
+    valid_batch = BatchReviewCommand(
+        items=(
+            BatchReviewItem(
+                clip_id=clip_id,
+                expected_revision=1,
+                status=ReviewStatus.APPROVED,
+            ),
+            BatchReviewItem(
+                clip_id=second_clip_id,
+                expected_revision=1,
+                status=ReviewStatus.REJECTED,
+                reason="待补充上下文",
+            ),
+        )
+    )
+    idempotency = build_idempotency_context(
+        raw_key="batch-review-atomic-001",
+        caller_scope="test",
+        operation_scope="POST:/api/v1/projects/:project_id/reviews/batch",
+        request_payload=valid_batch.model_dump(mode="json"),
+    )
+    first = service.review_clips_batch(project_id, valid_batch, idempotency=idempotency)
+    replay = service.review_clips_batch(project_id, valid_batch, idempotency=idempotency)
+
+    assert [detail.review.status for detail in first] == [
+        ReviewStatus.APPROVED,
+        ReviewStatus.REJECTED,
+    ]
+    assert [detail.review.status for detail in replay] == [
+        ReviewStatus.APPROVED,
+        ReviewStatus.REJECTED,
+    ]
+    with engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(ReviewDecisionRow)) == 2
 
 
 def test_malicious_title_is_revalidated_and_all_mutations_roll_back(

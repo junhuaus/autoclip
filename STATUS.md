@@ -1,14 +1,14 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-11 14:05 CST
-Current milestone: M9 no-blur rendering complete, independently verified and published
+Updated: 2026-08-11 16:16 CST
+Current milestone: M10 multi-candidate review metadata and controls complete; Git checkpoint pending
 Branch: `main` tracking `origin/main`
 Latest implementation commit: `c14c910` (`milestone: prohibit blurred-background rendering`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
 
-The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text.
+The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board reviews the existing candidates—there are no A/B variants—and now places clickable subtitles and truthful ASR-grounded keyword ranges directly below every video, with atomic multi-candidate approve/reject controls.
 
 The local API/Worker/Web are running. Open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7` is `completed` at 100% with 15 candidates. Generations 1 and 2 no longer appear in the active database or project run directory.
 
@@ -58,6 +58,17 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - A former-blur contact sheet and a former-center contact sheet were both actually viewed. They consistently show a single direct source crop with no blurred canvas, duplicated/shrunken foreground, blank frame, wrong orientation or LiveClip-generated text.
 - Legacy blur revisions remain readable for audit but cannot be approved, exposed as render actions or enqueued. Any human edit creates an immutable `center_crop` revision before approval/rendering can continue.
 
+## M10 grounded multi-candidate review evidence
+
+- Scope is intentionally the 15 existing candidates. No A/B scheme, variant/group entity or duplicate render was introduced.
+- The current transcript remains run `634c68f9d0b24c99b16ddac8d14ddfd7`: 248 persisted segments, zero persisted words and `word_timing_status=unavailable`. M10 did not call ASR or the editorial model. Read-only Provider evidence remained `74 api_usage rows / SUM(request_count)=74` across metadata requests.
+- The live clip list returns 15 clean videos, 90 current-revision caption cues and 34 keyword occurrences. All 34 use explicit `segment` precision; an independent cross-check proved each normalized phrase occurs in its exact persisted TranscriptSegment, each returned source interval equals that segment, and every segment is fully contained by the current clip.
+- Batch review accepts 1–100 unique clips and validates Project generation, current revision and active layout before any write. Decisions, Delivery invalidation and the Idempotency-Key record share one `BEGIN IMMEDIATE`; one conflict rolls back the entire batch. A real two-item request with one deliberately wrong revision returned 409 and persisted zero decisions.
+- Web retries preserve the exact failed body/key and first reconcile server state. Dirty drafts, changed revisions or missing clips disable an old retry. Dirty candidates are removed from selection, editor writes are locked while a batch is in flight, and successful detail snapshots update open-editor caches.
+- Host Chrome opened `http://127.0.0.1:5173` on the actual `7.28` Project and observed 15 videos, 15 subtitle sections, 15 keyword sections, 34 keyword buttons and no A/B text. DOM order is `video → subtitles/keywords → card body`. Clicking `热身` moved only the first video from 0 to 55.144 seconds; batch selection enabled approval; an unsaved title draft disabled that clip's batch selection.
+- Actual viewed board/card screenshots are `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/validation/m10/review-board.png` and `.../first-card.png`. The fixed Web page header crossed the element screenshot but is not burned into media. Extracted same-time source/proxy frames under that directory prove the proxy is a direct center crop with no blur or LiveClip-generated text.
+- Independent M10 review returned `PASS`, P0=0/P1=0/P2=0 after closing word-provenance and four batch/draft/cache retry races.
+
 ## Implemented in the current worktree
 
 - Hardened OpenAI/OpenRouter ASR response compatibility while preserving strict segment timing and explicit unavailable word timing.
@@ -70,6 +81,8 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Added caption splitting/dense-boundary behavior and a versioned EditPlan pipeline contract.
 - Added bounded payload-free local validation diagnostics and same-run implementation-repair retry for `UNEXPECTED_STAGE_ERROR`/`EDIT_OUTPUT_INVALID`.
 - Added Alembic migrations `d2c59b8e4f31` (legacy Asset scope repair), `e7b14c2d9a60` (remove obsolete unique RenderJob task constraint), `b81e3c7a4d20` (stale legacy text-bearing proxies) and `c91f4e2a7b63` (stale all pre-no-blur/removed-layout renders). Current database is at `c91f4e2a7b63`; integrity/FK checks pass and only generation 3 plus its 15 succeeded no-blur proxies remain active for `7.28`.
+- Added deterministic read-only keyword occurrences, current-revision captions/keywords on clip list/detail DTOs, and one atomic revision-fenced batch review service/REST endpoint.
+- Added per-card subtitle/keyword seek, batch selection/approve/reject, exact idempotent retry, dirty-draft fencing and list/detail cache reconciliation to the Web review board.
 - Pre-migration backups remain under `data/projects/migration-backups/`; `liveclip-pre-b81e3c7a4d20.sqlite3` SHA-256 is `952d53edb1aa5b8773ed5895c5bd7372e84dc389acaeb755abf65f6b5793f4ee`.
 - Product Spec, Solution, README, architecture, API/EditPlan notes, OpenRouter research/integration guide, ADR-010 and the Living ExecPlan are being updated to the real evidence.
 
@@ -89,6 +102,10 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Fresh `make smoke-openrouter`: project `a8d1035f78c24b28b392308bdde33d05`, run `0b523cdc396148b5af6d36cc5559edfe`; two OpenRouter requests + one Codex request, zero retries, 95.104 audio seconds, USD 0.0023776 Provider cost, non-degraded title `高音别硬喊：强混声与假声区别`, no Mock evidence.
 - Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
 - M9 gates: `make lint` PASS; final-tree `make test` PASS with 531 Python, 13 Web, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. After the review-only migration coverage repair, 30 targeted tests pass. Independent M9 re-review is `PASS`, P0=0/P1=0/P2=0; the reviewer also viewed all 15 current contact sheets.
+- M10 final `make doctor`: READY with two expected warnings. Host VideoToolbox failed this invocation and the required actual `libx264` fallback encode succeeded; OpenRouter and Codex readiness passed without displaying secrets.
+- M10 final `make lint`: PASS; Ruff, 173-file format gate, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
+- M10 final host-permission `make test`: PASS with 540 Python tests, 19 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. A preceding restricted launch failed before assertions with macOS Chrome `SIGABRT/EPERM`; no assertion was suppressed, and the exact complete host run exited 0.
+- Real Chrome/CDP acceptance on the unchanged `7.28` data passed all DOM/count/seek/selection/dirty checks and the viewed media comparison described above.
 
 ## Not yet verified in M8
 
@@ -101,13 +118,13 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - The local OpenRouter credential is present only in ignored environment and was accepted by the real service. Its value has never been printed or persisted by this work.
 - `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
 - Source video remains a read-only reference and was not modified.
-- Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The Browser plugin still exposes no attached controllable browser in this session; HTTP/API/Range behavior was checked directly, and the previously checked host-Chrome E2E remains the browser evidence for the unchanged code.
-- The 40-file M9 implementation scope passed cached whitespace and secret-format scans with zero forbidden paths or key-pattern hits. Commit `c14c910` is pushed to `git@github.com:junhuaus/AGI-Live-Clip.git` on `main`; ignored local secrets/input/generated data were not committed.
+- Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The user's existing Chrome debugging session at port 9222 opened and exercised the actual review board; no browser extension was installed or required.
+- The current 24-file M10 source/docs/test scope passes whitespace and secret-format scans with zero forbidden paths or real credential values. The latest published implementation remains `c14c910` until the pending scoped checkpoint; ignored local secrets/input/generated data and validation screenshots will not be committed.
 
 ## Next concrete task
 
-Run `make dev`, open `http://127.0.0.1:5173`, review the 15 real `7.28` candidates, revise title/bounds/captions as needed, approve selected clips, render finals and create the next immutable Delivery.
+Create the scoped M10 Git checkpoint and push `main`; afterward the next product action is human review of the 15 current `7.28` candidates, final render of approved revisions and a new immutable Delivery—not another ASR run.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including the explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M9 checkpoint rather than reopening verified tasks without evidence.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M10 checkpoint rather than reopening verified tasks without evidence.

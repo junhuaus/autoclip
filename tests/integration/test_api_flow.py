@@ -289,6 +289,16 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert len(clips.json()) == 1
             clip_summary = clips.json()[0]
             clip_id = str(clip_summary["clip"]["clip_id"])
+            assert clip_summary["clip"]["captions"]
+            assert clip_summary["clip"]["keywords"]
+            for keyword in clip_summary["clip"]["keywords"]:
+                assert keyword["timing_precision"] in {"word", "segment"}
+                assert keyword["source_start_ms"] == (
+                    clip_summary["clip"]["source_start_ms"] + keyword["clip_start_ms"]
+                )
+                assert keyword["source_end_ms"] == (
+                    clip_summary["clip"]["source_start_ms"] + keyword["clip_end_ms"]
+                )
             proxy_url = str(clip_summary["proxy_media_url"])
             assert token not in proxy_url
             proxy_range = client.get(proxy_url, headers={"Range": "bytes=0-99"})
@@ -426,6 +436,38 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert reviewed.json()["clip"]["current_revision"] == 3
             assert reviewed.json()["clip"]["review"]["status"] == "approved"
             assert {item["status"] for item in reviewed.json()["clip"]["renders"]} == {"stale"}
+            batch_review = client.post(
+                f"/api/v1/projects/{project_id}/reviews/batch",
+                headers={**auth, "Idempotency-Key": "api-batch-review-001"},
+                json={
+                    "items": [
+                        {
+                            "clip_id": clip_id,
+                            "expected_revision": 3,
+                            "status": "approved",
+                        }
+                    ]
+                },
+            )
+            assert batch_review.status_code == 200
+            assert batch_review.json()["clips"][0]["clip"]["review"]["status"] == "approved"
+            assert (
+                client.post(
+                    f"/api/v1/projects/{project_id}/reviews/batch",
+                    headers={**auth, "Idempotency-Key": "api-batch-review-001"},
+                    json={
+                        "items": [
+                            {
+                                "clip_id": clip_id,
+                                "expected_revision": 3,
+                                "status": "rejected",
+                                "reason": "同一幂等键不能改变请求",
+                            }
+                        ]
+                    },
+                ).status_code
+                == 409
+            )
             stale_patch = client.patch(
                 f"/api/v1/clips/{clip_id}",
                 headers=auth,

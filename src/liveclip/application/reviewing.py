@@ -5,7 +5,9 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from liveclip.application.idempotency import IdempotencyContext
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue, EditPlan
+from liveclip.domain.keywords import KeywordOccurrence
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 
 
@@ -69,6 +71,44 @@ class ReviewCommand(BaseModel):
         return self
 
 
+class BatchReviewItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    clip_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    expected_revision: int = Field(ge=1)
+    status: ReviewStatus
+    reason: str | None = Field(default=None, max_length=1_000)
+
+    @model_validator(mode="after")
+    def validate_decision(self) -> BatchReviewItem:
+        ReviewCommand(
+            expected_revision=self.expected_revision,
+            status=self.status,
+            reason=self.reason,
+        )
+        return self
+
+    def command(self) -> ReviewCommand:
+        return ReviewCommand(
+            expected_revision=self.expected_revision,
+            status=self.status,
+            reason=self.reason,
+        )
+
+
+class BatchReviewCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    items: tuple[BatchReviewItem, ...] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def require_unique_clips(self) -> BatchReviewCommand:
+        clip_ids = tuple(item.clip_id for item in self.items)
+        if len(set(clip_ids)) != len(clip_ids):
+            raise ValueError("batch review clip IDs must be unique")
+        return self
+
+
 class RenderSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -117,6 +157,7 @@ class ClipDetail(BaseModel):
     current_revision: int = Field(ge=1)
     plan: EditPlan
     captions: tuple[CaptionCue, ...]
+    keywords: tuple[KeywordOccurrence, ...]
     revision_created_at: datetime
     review: ReviewSnapshot
     renders: tuple[RenderSnapshot, ...]
@@ -166,6 +207,14 @@ class ReviewRepository(Protocol):
 
     def review_clip(self, clip_id: str, command: ReviewCommand) -> ClipDetail: ...
 
+    def review_clips_batch(
+        self,
+        project_id: str,
+        command: BatchReviewCommand,
+        *,
+        idempotency: IdempotencyContext | None = None,
+    ) -> tuple[ClipDetail, ...]: ...
+
     def get_transcript(self, project_id: str) -> TranscriptSnapshot: ...
 
 
@@ -193,6 +242,19 @@ class ReviewService:
 
     def review_clip(self, clip_id: str, command: ReviewCommand) -> ClipDetail:
         return self._repository.review_clip(clip_id, command)
+
+    def review_clips_batch(
+        self,
+        project_id: str,
+        command: BatchReviewCommand,
+        *,
+        idempotency: IdempotencyContext | None = None,
+    ) -> tuple[ClipDetail, ...]:
+        return self._repository.review_clips_batch(
+            project_id,
+            command,
+            idempotency=idempotency,
+        )
 
     def get_transcript(self, project_id: str) -> TranscriptSnapshot:
         return self._repository.get_transcript(project_id)

@@ -4,6 +4,8 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from liveclip.domain.edit_plan import CaptionCue
+from liveclip.domain.keywords import KeywordOccurrence
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
 
 
@@ -19,9 +21,12 @@ class ClipSummary(BaseModel):
     title: str
     reason: str
     risk_flags: tuple[str, ...]
+    captions: tuple[CaptionCue, ...]
+    keywords: tuple[KeywordOccurrence, ...]
     review_status: ReviewStatus
     proxy_status: RenderStatus | None
     proxy_asset_id: str | None
+    allowed_actions: tuple[str, ...]
 
 
 class ClipQueryRepository(Protocol):

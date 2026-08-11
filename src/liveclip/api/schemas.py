@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
-from liveclip.application.reviewing import ClipDetail
+from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
+from liveclip.domain.state_transitions import ReviewStatus
 
 
 class ApiRequestModel(BaseModel):
@@ -86,6 +87,30 @@ class ReviewActionRequest(ApiRequestModel):
     )
 
 
+class BatchReviewItemRequest(ApiRequestModel):
+    clip_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    expected_revision: int = Field(ge=1)
+    status: Literal["approved", "rejected"]
+    reason: str | None = Field(default=None, max_length=1_000)
+
+
+class BatchReviewRequest(ApiRequestModel):
+    items: tuple[BatchReviewItemRequest, ...] = Field(min_length=1, max_length=100)
+
+    def to_command(self) -> BatchReviewCommand:
+        return BatchReviewCommand(
+            items=tuple(
+                BatchReviewItem(
+                    clip_id=item.clip_id,
+                    expected_revision=item.expected_revision,
+                    status=ReviewStatus(item.status),
+                    reason=item.reason,
+                )
+                for item in self.items
+            )
+        )
+
+
 class RenderCreateRequest(ApiRequestModel):
     expected_revision: int = Field(ge=1)
     kind: Literal["proxy", "final"] = "final"
@@ -151,6 +176,14 @@ class ClipDetailResponse(BaseModel):
 
     clip: ClipDetail
     asset_urls: dict[str, str]
+
+
+class BatchReviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    project_id: str
+    clips: tuple[ClipDetailResponse, ...]
 
 
 class DeliveryDetailResponse(BaseModel):
