@@ -43,6 +43,8 @@ make smoke-openrouter INPUT="/absolute/path/to/short.mp4"
 - 入选 EditPlan 不是 `degraded`；
 - 全链路没有 Mock Provider。
 
+2026-08-05 的实测链路已经在仓库 46:20 只读输入上满足这些证据要求：33/33 个 OpenRouter 分块成功，随后 39/39 个 Codex 候选调用成功，15 个入选计划均非降级。审核代理采用干净视频模式；标题、Hook、原因、风险和字幕作为独立元数据显示。
+
 `ASR_VOCABULARY_PROMPT` 会通过 OpenRouter 官方记录的 JSON
 `provider.options.groq.prompt` 发送；LiveClip 不使用 OpenRouter 明确会忽略的
 multipart 顶层 `prompt`。只有匹配到 Groq 上游时该 Provider 专属选项会被转发，

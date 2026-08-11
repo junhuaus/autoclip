@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 is a corrective user-requested milestone: add the installed Codex CLI as a real editorial provider, add OpenRouter Whisper Large V3 as the selected real ASR, expose the ASR/LLM split, and remove any ambiguity between a Mock mechanics test and real-video content understanding.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication.
 
 ## Architecture Summary
 
@@ -138,6 +138,21 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-05 Create scoped local M7 implementation checkpoint `0a0b08a`; update this plan and STATUS without staging the user-owned setup file.
 - [x] 2026-08-05 Prepare and fully decode a bounded 90-second real-ASR fixture from source seconds 300–390 at `input/.liveclip-smoke/7.28-300s-90s.mp4`; record its SHA-256, prove the source stat identity did not change, and run the exact smoke preflight. It stopped `not_run` before upload/billing because no regenerated Key exists, with no Mock substitution.
 - [ ] After a newly regenerated Key is configured locally, run `make smoke-openrouter` on a short sample and then the authorized 46:20 `input/7.28.mp4`; never use the previously exposed Key. This external verification may remain `not_run`, but cannot be called successful.
+
+### M8 — Real long-video acceptance and clean review proxies
+
+- [x] 2026-08-05 Run a 90-second slice through real OpenRouter ASR and the hardened Codex editor; persist generation/usage/thread evidence and one non-degraded EditPlan.
+- [x] 2026-08-05 Process all 2,780.437 seconds of `input/7.28.mp4` read-only through OpenRouter: 33/33 chunks, 233 merged segments, 2,942.016 overlap-inclusive seconds and USD 0.0735504 Provider-reported cost.
+- [x] 2026-08-05 Preserve valid segment transcripts when optional upstream word timing is missing, malformed, sentence-mirrored or unaligned; record words as unavailable instead of fabricating them.
+- [x] 2026-08-05 Add and apply two narrow legacy-database migrations: repair missing Asset scope columns and remove the obsolete unique constraint on `render_jobs.task_id`; retain pre-migration backups and pass integrity/FK checks.
+- [x] 2026-08-05 Implement `none` and `title_and_captions` renderer modes. Pipeline/manual review proxies are clean; final renders retain approved text. Update Web metadata presentation and regression tests.
+- [x] 2026-08-05 Add same-Project cross-generation ASR cache reuse. Generation 2 restored 33/33 chunks under the then-current key-first identity without a new OpenRouter usage row; a later canonical manifest comparison confirmed all 33 preprocessing keys and byte SHA values were equal. The reviewed v2 identity now binds both fields and fails closed on partial identity; its new filename contract is regression-tested but was not re-proven through another paid long run.
+- [x] 2026-08-05 Run generation 2 under the host Worker so nested Codex can initialize: 39/39 calls succeeded, 15/15 selected EditPlans are non-degraded and 15/15 clean proxies passed automatic validation/full decode.
+- [x] 2026-08-05 Repair the one observed dense partial-caption boundary case, add regression tests and manually retry the same edit stage from immutable Codex caches without another model call.
+- [x] 2026-08-05 Inspect the top real contact sheet: portrait composition and blurred background are present, there is no LiveClip title/caption overlay, and no black/blank/wrong-orientation defect is visible. HTTP Range returns 206 for the proxy.
+- [x] 2026-08-11 Run final `make doctor`, `make lint`, `make test`, `make demo` and configured real-provider smoke. Doctor is READY; post-review lint passes over 169 files/105 typed modules; post-review `make test` passes 527 Python + 13 Web + two browser flows; fresh Demo is delivered and both proxy/final contact sheets were viewed/recorded; 90-second OpenRouter→Codex smoke succeeds without Mock/degradation.
+- [x] 2026-08-11 Run an independent read-only M8/Product-Spec verification and fix every evidenced finding. The final verdict is `PASS`, P0=0/P1=0/P2=0, after optional-word truthfulness, dual-hash cache identity, legacy-proxy fencing and CLI metadata repairs; its focused gate passed 138 tests.
+- [ ] Update STATUS/this plan, create the scoped local commit, rename to `main`, add the user-specified GitHub remote and push without staging secrets/input/generated data.
 
 ## Work breakdown and file ownership
 
@@ -290,6 +305,12 @@ Active M7 file ownership:
 - Final M7 Reviewer: read-only after the full gate; it must focus on command/tool escape, secret exposure, provider/config fingerprints, false-success claims, ASR/Codex separation and API/Web readiness behavior.
 - No parallel writer may edit the M7 worktree or shared state files.
 
+Active M8 file ownership:
+
+- Main Agent: all production code, migrations, tests, public documentation, ExecPlan/STATUS, final integration and Git operations.
+- Final M8 Reviewer: read-only after full gates; focus on real-provider evidence, optional timestamp handling, cross-generation cache provenance, migration safety, clean-proxy/final-overlay separation, recovery and secret/Git scope.
+- No parallel writer edits the shared worktree or persistent state documents.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -304,7 +325,7 @@ Expected: project-local `.python` contains a native arm64 Python 3.12; `.venv/bi
 make doctor
 ```
 
-Expected on the discovery host: Python/Node/SQLite/data checks pass; `subtitles`/`drawtext` are reported absent with raster fallback; a real VideoToolbox attempt may fail in sandbox and must report verified libx264 fallback. The selected Codex CLI/login is checked without exposing credentials. Missing OpenRouter ASR remains an explicit warning and makes full processing not ready even though Demo remains runnable. M2 versus target-M3 performance is a documented limitation, not a doctor capability failure.
+Expected on the discovery host: Python/Node/SQLite/data checks pass; `subtitles`/`drawtext` are reported absent with raster fallback; a real VideoToolbox attempt may fail in sandbox and must report verified libx264 fallback. The selected Codex CLI/login and presence—not value—of local OpenRouter configuration are checked. Current configuration reports both Providers ready. M2 versus target-M3 performance is a documented limitation, not a doctor capability failure.
 
 ```bash
 make lint
@@ -335,7 +356,7 @@ Expected on this host: one real `codex_cli` editorial result with a nonempty Cod
 make smoke-openrouter INPUT=/absolute/path/to/short.mp4
 ```
 
-Expected now: `not_run` naming the missing regenerated `OPENROUTER_API_KEY`; no paid request and no Mock fallback. The prepared first input is `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4` (90.033 seconds, both streams fully decoded, SHA-256 `f603658f7eba804ab2201366c02811de786f9868a17f2c6c7339313e263a0a13`). Once a new local Key is configured, success requires OpenRouter generation IDs, Codex thread/token evidence and non-degraded selected plans before any long-input run.
+Expected now: success using the ignored local credential and `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4` (90.033 seconds, both streams fully decoded, SHA-256 `f603658f7eba804ab2201366c02811de786f9868a17f2c6c7339313e263a0a13`). Success requires OpenRouter generation IDs, Codex thread/token evidence, non-degraded selected plans and no Mock evidence. Missing/rejected configuration must still stop without fallback.
 
 ## Validation criteria
 
@@ -346,6 +367,17 @@ Each milestone validates observable outputs described in its checklist. Media su
 Setup and Demo generation use isolated/generated targets. A stage re-run compares input fingerprints and validated output manifests. Tasks use fenced leases and bounded retries. Temp files have attempt identities and never count as success. Immutable revisions/deliveries are never overwritten. Failed cloud smoke preserves accurate failure status and cannot downgrade. Recovery starts from the first unsucceeded current-generation stage after validating prior checkpoints.
 
 ## Surprises and Discoveries
+
+- 2026-08-05: The real OpenRouter response contained valid timestamped segments but optional word data sometimes mirrored a whole sentence or could not be aligned. Rejecting the entire response discarded usable ASR. The Adapter now degrades only optional word timing to `unavailable`; segment timing remains strict and 233 real segments were persisted with zero invented words.
+- 2026-08-05: The historical database predated Asset scope and allowed only one RenderJob per Task through an obsolete unique `task_id` constraint. Backups were taken before each narrow migration; Alembic reached `e7b14c2d9a60`, SQLite integrity/FK checks passed, and the real pipeline subsequently persisted all 15 proxy RenderJobs.
+- 2026-08-05: Generation 1 completed all paid ASR calls but its Codex child could not initialize an in-process app server inside the restricted Codex sandbox, so it truthfully degraded. The same Project's generation 2 reused all 33 historical caches under the then-current key-first identity and ran Codex under the host Worker: 39 successes, zero failures, 15 selected plans, zero degraded. Post-run manifest comparison confirmed both preprocessing key and byte SHA matched for every chunk; the later dual-hash v2 enforcement is tested but was not the code used during that paid run.
+- 2026-08-05: One selected clip ended 532 ms into a 129-character Provider sentence without word timing. Assigning the whole sentence to that overlap was false and exceeded caption density. The domain now omits only such uncertain dense boundary tails while retaining strict failure for a complete dense in-clip segment.
+- 2026-08-05: A viewed real contact sheet shows a clean 540×960 blurred-background proxy with source-native livestream UI but no LiveClip-generated title/caption. Automatic report fields confirm H.264/AAC, 83.233 seconds versus 83.216 expected, full decode and all heuristics passed.
+- 2026-08-11: The first final `make test` caught one user-visible regression: caption splitting applied NFKC storage normalization and changed Chinese `，` to `,` after a boundary edit. Storage now uses NFC and preserves source punctuation while the renderer still uses a normalized display copy. The original API flow plus a new unit regression pass, followed by the complete 516-test Python gate.
+- 2026-08-11: Fresh Demo `demo_20260811T032338_6f7414aa` reached `delivered`. The clean 540×960 proxy and text-bearing 1080×1920 final contact sheets were both actually viewed and their reports record `viewed_passed`; ZIP integrity and manifest/final SHA checks pass.
+- 2026-08-11: Fresh real smoke `0b523cdc396148b5af6d36cc5559edfe` succeeded with two OpenRouter generation IDs, one Codex thread, zero retries, 95.104 overlap-inclusive ASR seconds, USD 0.0023776 Provider cost and non-degraded title `高音别硬喊：强混声与假声区别`.
+- 2026-08-11: Final M8 review reproduced short/offset sentence mirrors, incomplete word arrays and same preprocessing key with different audio bytes. Optional words now become available only when every segment's normalized text is completely represented; real cache identity binds both key and content SHA. The focused reviewer gate passed 138 cases, and the complete post-fix gate passed 527 Python tests.
+- 2026-08-11: Review also found an old succeeded text-bearing proxy that the new Web would have called clean. Migration `b81e3c7a4d20` plus query-time fencing stale ambiguous legacy proxies and cancel active legacy work. The actual DB upgrade changed dirty render `709244f4fac84980ae81e1713bf2a79e` to stale while preserving all 15 current clean long-run proxies and two other clean proxies; integrity/FK checks pass.
 
 - 2026-08-05: A bounded 90-second fixture was generated from `input/7.28.mp4` seconds 300–390 for the first paid ASR smoke. It is 4,906,445 bytes with H.264 video/AAC audio, fully decodes without errors, and the original source stat identity remained unchanged. Preparing the fixture does not prove ASR; the cloud call remains `not_run` until a new safe Key exists.
 - 2026-08-05: `OPENROUTER_SETUP.md` correctly warns that the original Key was exposed and contains no usable secret. Local Settings confirms `OPENROUTER_API_KEY` is absent, so no paid ASR call is authorized or possible yet.
@@ -417,6 +449,12 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Decision Log
 
+- 2026-08-05: Adopt ADR-010 clean review proxies with separate editorial metadata and reserve text overlays for final renders; rationale: the user must judge the underlying slice before approving generated presentation text.
+- 2026-08-05: Permit verified ASR cache reuse only across generations of the same Project and record no new call evidence on a cache hit; rationale: retries/config generations should not repay identical chunks, while historical Provider provenance must not be copied or misattributed.
+- 2026-08-11: Bind real ASR cache identity to both the preprocessing key and published audio-byte SHA-256; rationale: a deterministic configuration key cannot alone prove encoder output bytes are identical, and partial identity must fail closed.
+- 2026-08-05: Treat malformed optional word timing as unavailable when segment timing remains valid; rationale: word data is optional and must neither erase usable transcription nor become fabricated timing.
+- 2026-08-05: Allow explicit same-run manual retry for `EDIT_OUTPUT_INVALID` after an installed code repair, alongside `UNEXPECTED_STAGE_ERROR`; rationale: immutable Provider caches and lease fences make implementation-repair recovery safe, while ordinary deterministic input/config failures remain rejected.
+
 - 2026-08-05: Adopt ADR-009 `openrouter-codex` as the default real chain at the user's explicit direction; rationale: Whisper Large V3 supplies the timestamped Chinese ASR that Codex cannot provide, while retaining direct OpenAI alternatives.
 - 2026-08-05: Permit only exact `https://openrouter.ai/api/v1` and `openai/whisper-large-v3` in the v1 Adapter; rationale: configurable arbitrary endpoints could exfiltrate the ASR credential, while model drift could invalidate the timestamp/cache contract.
 - 2026-08-05: Refuse the previously exposed OpenRouter Key and require a regenerated local `.env.local` credential; rationale: cloud success based on a compromised secret is neither safe nor acceptable evidence.
@@ -470,7 +508,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M7 implementation and local acceptance are complete; the independent final re-review is PASS with zero P0/P1/P2. A decoded 90-second first-smoke fixture is ready at `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4`. The next recovery action is to verify a newly regenerated local Key, restart services, run Doctor and execute `make smoke-openrouter` against that fixture. Do not repeat the 2.19 GB long-media run with Mock and call it AI validation. A truthful full-content run remains blocked until the exposed OpenRouter Key is revoked and a newly generated Key is configured locally.
+M8 real-input processing is complete through `pending_review`. Project `f91cb996f7534a6682aa5e5f01374b7b`, generation-2 run `5ed80fea40ea48eca37fa10e8c4f1a06`, has 15 non-degraded Codex descriptions and 15 succeeded clean proxies. Final host Doctor, lint, 527-Python/full-Web/browser test, Demo and real-smoke gates pass. The independent M8 verifier returned `PASS` with zero P0/P1/P2 after all findings were fixed. The next recovery action is the exact staged-scope/secret check and Git publication. Do not rerun the paid 46:20 ASR merely to prove the new dual-hash key; its current behavior is regression-tested and the historical manifests were post-verified byte-identical.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -483,3 +521,5 @@ M5 is complete at commit `7c145ec`. Long/chunked input, cancellation/lease recov
 M6 is complete at implementation checkpoint `60283ba` plus the following documentation checkpoint. The browser-to-real-backend gap is closed with repeated host-Chrome runs and persisted lease/render/Delivery proof. Documentation/schema export, both focused re-reviews and the final Product Spec-wide verifier are PASS; setup, Doctor, lint, 433 Python/11 Web/two browser flows and a freshly viewed delivered Demo pass. The LiveClip v1 baseline is `delivered`; only the explicitly disclosed external cloud/hardware measurements remain unverified.
 
 M7 local implementation is complete at checkpoint `0a0b08a`. The default real chain is strict OpenRouter Whisper Large V3 JSON ASR followed by the version-pinned hardened Codex CLI editor. Final local gates pass at 498 Python tests, 13 Web tests and both host-Chrome flows; Demo `demo_20260805T120045_8bc01ec3` reached `delivered`, its 1080×1920 final fully decoded, its ZIP passed integrity, and its contact sheet was actually viewed and recorded. The independent M7 Reviewer returned PASS with zero P0/P1/P2. Real OpenRouter cloud and the authorized 46:20 content run remain truthfully `not_run` because no regenerated safe Key exists.
+
+M8 implementation and independent verification are complete; only Git publication remains. The real 46:20 chain reaches `pending_review` with 33/33 OpenRouter chunks, 39/39 host Codex edits, 15/15 non-degraded selected plans and 15/15 clean validated proxies. Legacy schema/proxy, caption-boundary/punctuation, optional-word, cross-generation cache identity and CLI metadata gaps were reproduced and fixed with coverage. Final host Doctor/lint/527 Python/13 Web/two browser/Demo/real-smoke gates pass, and the final read-only verdict is `PASS` with P0=0/P1=0/P2=0.

@@ -13,7 +13,7 @@ from liveclip.domain.edit_plan import CaptionCue, CaptionTemplate, EditPlan, Eff
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.media.ingest import ingest_source, run_ffprobe
 from liveclip.renderer.quality import full_decode, probe_media
-from liveclip.renderer.service import render_edit_plan_revision
+from liveclip.renderer.service import RenderTextMode, render_edit_plan_revision
 
 _MEAN_VOLUME_PATTERN = re.compile(r"mean_volume:\s+(-?inf|-?\d+(?:\.\d+)?) dB")
 
@@ -58,6 +58,7 @@ def test_ingest_and_render_use_selected_non_first_media_streams(tmp_path: Path) 
         width=270,
         height=480,
         encoder="libx264",
+        text_mode=RenderTextMode.TITLE_AND_CAPTIONS,
         video_stream_index=source.video_stream_index,
         audio_stream_index=source.audio_stream_index,
     )

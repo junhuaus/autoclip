@@ -13,7 +13,7 @@ LiveClip 的 OpenRouter ASR 契约固定为：
 - 响应：`verbose_json`
 - 时间戳：`segment` 与 `word`
 - 音频：FFmpeg 生成的 M4A/AAC 单声道分块
-- 单块：默认不超过 300 秒且不超过 24,000,000 bytes
+- 单块：默认不超过 90 秒且不超过 24,000,000 bytes
 - 领域词汇：JSON `provider.options.groq.prompt`；不使用会被忽略的 multipart 顶层 `prompt`
 - 追踪：成功必须保存精确来自响应头的 `X-Generation-Id`
 
@@ -42,10 +42,15 @@ OpenRouter 的当前 STT 文档列出 WAV、MP3、FLAC、M4A、OGG、WebM 与 AA
 
 `429`、`502`、`503`、`524`、`529` 属于可重试范围，遵守有界 `Retry-After`。连接错误与超时也可有限重试。`401`、`402`、`403` 和确定性参数错误不会盲目重试。每次逻辑调用记录请求次数、重试次数、延迟、音频秒数、generation ID 和安全 usage。
 
-## 未验证项
+## 2026-08-05 实际调用证据
 
-仓库没有可安全使用的 OpenRouter Key。用户提供的设置文件明确说明旧 Key 曾在聊天中暴露，因此截至本次核对：
+一个仅存于忽略目录的本地 Key 已被 OpenRouter 接受；其值未进入数据库、日志、文档或 Git。仓库只读源 `input/7.28.mp4`（2,190,937,089 bytes，2,780.437 秒）完成了真实调用：
 
-- Adapter 的 JSON/base64、领域词汇 provider options、时间戳、精确 generation ID、usage/cost、重试与异常路径已通过离线 SDK transport 测试。
-- 真实 `OpenRouter ASR → Codex` smoke 尚未运行。
-- 必须先撤销旧 Key，并将新 Key 只写入被 Git 忽略的 `.env.local`。
+- 33/33 个 90 秒、5 秒重叠的 M4A 分块成功，33 次请求、0 次重试；每次都有通过严格校验的 `X-Generation-Id`。
+- 重叠计费音频合计 2,942.016 秒，Provider 返回的实际 cost 合计 USD 0.0735504；代码没有硬编码价格。
+- 合并后保存 233 个绝对时间句段，覆盖 0.284–2,780.256 秒。
+- 观察到的可选 word 数组是句段镜像或不能可靠对齐，因此 `word_timing_status=unavailable`，数据库保存 0 个伪造词时间；有效 segment 转写被保留。
+- 随后的同项目第二代运行按当时的 key-first 身份从 33 个缓存恢复，产生 0 条新的 OpenRouter usage 记录；原调用证据仍属于第一代。运行后对两代 manifest 的 33 组 `chunk_id`、绝对区间、`cache_key` 和音频字节 SHA-256 做了 canonical 比较，全部相同。审查后现行 v2 身份改为同时绑定 `cache_key` 与字节 SHA-256，并以同键不同 SHA 不复用的测试证明；没有为证明新键而重复付费跑长视频。
+- 第二代由宿主 Worker 完成 39/39 次 Codex 候选编辑，选出 15 个非降级 EditPlan 并生成 15 个干净审核代理视频。
+
+这些证据验证了当前样本的真实请求/响应/usage/恢复链路。Groq 词汇提示对特定术语的改善、其他上游实现差异、典型 2–4 小时媒体和 Apple M3 性能仍需单独验证。

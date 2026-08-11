@@ -333,6 +333,54 @@ def test_deterministic_failed_run_requires_a_new_generation(
         service.retry(run_id)
 
 
+@pytest.mark.parametrize("error_code", ["UNEXPECTED_STAGE_ERROR", "EDIT_OUTPUT_INVALID"])
+def test_local_implementation_failure_can_be_manually_retried_after_repair(
+    pipeline_context: tuple[Engine, PipelineService],
+    error_code: str,
+) -> None:
+    engine, service = pipeline_context
+    _, run_id = _create(service)
+    with engine.begin() as connection:
+        first_stage = connection.scalar(
+            select(StageRunRow.id)
+            .where(StageRunRow.pipeline_run_id == run_id)
+            .order_by(StageRunRow.ordinal)
+            .limit(1)
+        )
+        assert first_stage is not None
+        failure_values = {
+            "failure_class": FailureClass.DETERMINISTIC.value,
+            "error_code": error_code,
+        }
+        connection.execute(
+            update(PipelineRunRow)
+            .where(PipelineRunRow.id == run_id)
+            .values(status=PipelineRunStatus.FAILED.value, **failure_values)
+        )
+        connection.execute(
+            update(StageRunRow)
+            .where(StageRunRow.id == first_stage)
+            .values(status=StageRunStatus.FAILED.value, **failure_values)
+        )
+        connection.execute(
+            update(TaskRow)
+            .where(TaskRow.stage_run_id == first_stage)
+            .values(status=TaskStatus.FAILED.value, retry_count=3, **failure_values)
+        )
+
+    snapshot = service.retry(run_id)
+
+    assert snapshot.status == PipelineRunStatus.QUEUED
+    assert snapshot.stages[0].status == StageRunStatus.QUEUED
+    with engine.connect() as connection:
+        task = connection.execute(
+            select(TaskRow.status, TaskRow.retry_count, TaskRow.manual_retry_count).where(
+                TaskRow.stage_run_id == first_stage
+            )
+        ).one()
+    assert task == (TaskStatus.QUEUED.value, 0, 1)
+
+
 def test_completed_pipeline_without_decisions_is_pending_review(
     pipeline_context: tuple[Engine, PipelineService],
 ) -> None:

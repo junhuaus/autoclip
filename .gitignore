@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+OPENROUTER_SETUP.md
 .venv/
 .python/
 .cache/

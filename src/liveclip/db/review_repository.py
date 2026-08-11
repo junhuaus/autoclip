@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import insert, select, update
-from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.engine import Connection, Engine, Row, RowMapping
 
 from liveclip.application.pipeline import load_persisted_pipeline_config
 from liveclip.application.reviewing import (
@@ -52,6 +53,7 @@ from liveclip.domain.state_transitions import (
     transition_task,
 )
 from liveclip.domain.transcript import TranscriptSegment
+from liveclip.renderer.contracts import is_clean_review_proxy
 
 
 class SqlAlchemyReviewRepository:
@@ -561,6 +563,7 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
                 EditPlanRevisionRow.created_at.label("revision_created_at"),
                 ProjectRow.current_generation.label("generation"),
                 ProjectRow.revision_epoch,
+                PipelineRunRow.config_json,
             )
             .join(
                 EditPlanRevisionRow,
@@ -568,6 +571,7 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
                 & (EditPlanRevisionRow.revision == CandidateClipRow.current_revision),
             )
             .join(ProjectRow, ProjectRow.id == CandidateClipRow.project_id)
+            .join(PipelineRunRow, PipelineRunRow.id == CandidateClipRow.pipeline_run_id)
             .where(
                 CandidateClipRow.id == clip_id,
                 CandidateClipRow.selected_for_review.is_(True),
@@ -599,34 +603,56 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
             decided_at=decision.decided_at,
         )
     )
-    renders = tuple(
-        RenderSnapshot(
+
+    def render_snapshot(item: Row[Any]) -> RenderSnapshot:
+        status = RenderStatus(str(item.status))
+        incompatible_proxy = str(item.kind) == "proxy" and not is_clean_review_proxy(
+            spec=item.spec_json,
+            pipeline_config=row["config_json"],
+        )
+        if incompatible_proxy and status == RenderStatus.SUCCEEDED:
+            status = RenderStatus.STALE
+        return RenderSnapshot(
             render_id=str(item.id),
             task_id=str(item.task_id) if item.task_id else None,
             kind=str(item.kind),
-            status=RenderStatus(str(item.status)),
+            status=status,
             edit_plan_revision=int(item.edit_plan_revision),
             width=int(item.width),
             height=int(item.height),
-            video_asset_id=str(item.asset_id) if item.asset_id else None,
-            subtitle_asset_id=(str(item.subtitle_asset_id) if item.subtitle_asset_id else None),
+            video_asset_id=(
+                str(item.asset_id) if item.asset_id and not incompatible_proxy else None
+            ),
+            subtitle_asset_id=(
+                str(item.subtitle_asset_id)
+                if item.subtitle_asset_id and not incompatible_proxy
+                else None
+            ),
             quality_report_asset_id=(
-                str(item.quality_report_asset_id) if item.quality_report_asset_id else None
+                str(item.quality_report_asset_id)
+                if item.quality_report_asset_id and not incompatible_proxy
+                else None
             ),
             contact_sheet_asset_id=(
-                str(item.contact_sheet_asset_id) if item.contact_sheet_asset_id else None
+                str(item.contact_sheet_asset_id)
+                if item.contact_sheet_asset_id and not incompatible_proxy
+                else None
             ),
             error_code=str(item.error_code) if item.error_code else None,
             safe_error_message=(str(item.safe_error_message) if item.safe_error_message else None),
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
+
+    renders = tuple(
+        render_snapshot(item)
         for item in connection.execute(
             select(
                 RenderJobRow.id,
                 RenderJobRow.task_id,
                 RenderJobRow.kind,
                 RenderJobRow.status,
+                RenderJobRow.spec_json,
                 RenderJobRow.edit_plan_revision,
                 RenderJobRow.width,
                 RenderJobRow.height,

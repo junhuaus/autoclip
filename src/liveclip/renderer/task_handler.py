@@ -25,7 +25,11 @@ from liveclip.media.secure_files import (
 )
 from liveclip.renderer.ffmpeg import FFmpegRenderError, render_error_diagnostics_payload
 from liveclip.renderer.quality import validate_rendered_media
-from liveclip.renderer.service import render_edit_plan_revision, render_revision_overlays
+from liveclip.renderer.service import (
+    RenderTextMode,
+    render_edit_plan_revision,
+    render_revision_overlays_for_mode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +94,9 @@ class RenderTaskHandler:
         canonical_subtitle = project_dir / subtitle_relative
         canonical_quality = project_dir / quality_relative
         canonical_contact = project_dir / contact_relative
+        text_mode = (
+            RenderTextMode.NONE if work.kind == "proxy" else RenderTextMode.TITLE_AND_CAPTIONS
+        )
         attempt_diagnostics: dict[str, object]
         if not canonical_video.is_file():
             attempt_video = attempt_dir / video_relative
@@ -107,6 +114,7 @@ class RenderTaskHandler:
                         width=work.width,
                         height=work.height,
                         encoder=work.encoder,
+                        text_mode=text_mode,
                         video_stream_index=work.video_stream_index,
                         audio_stream_index=work.audio_stream_index,
                         source_pass_fds=pinned.pass_fds,
@@ -153,12 +161,13 @@ class RenderTaskHandler:
             _check_cancel(cancel_requested)
             _assert_source_content_once(work, cancel_requested=cancel_requested)
             recovery_root = attempt_dir / base_relative / "recovery"
-            overlays = render_revision_overlays(
+            overlays = render_revision_overlays_for_mode(
                 revision=work.revision,
                 output_dir=recovery_root / "overlays",
                 width=work.width,
                 height=work.height,
                 font_path=work.font_path,
+                text_mode=text_mode,
             )
             quality = validate_rendered_media(
                 media_path=canonical_video,

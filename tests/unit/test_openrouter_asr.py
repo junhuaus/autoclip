@@ -12,6 +12,7 @@ import httpx
 import pytest
 from openai import OpenAI
 
+from liveclip.domain.transcript import WordTimingStatus
 from liveclip.media.models import AudioChunk
 from liveclip.providers.asr.openrouter import (
     OPENROUTER_ASR_CONTRACT_VERSION,
@@ -130,6 +131,183 @@ def test_openrouter_timestamp_request_maps_generation_id_and_cost(tmp_path: Path
         "seconds": 2.0,
         "type": "duration",
     }
+
+
+def test_openrouter_sentence_sized_word_downgrades_optional_word_timing(
+    tmp_path: Path,
+) -> None:
+    sentence_sized_word = "这是上游按整句返回而不是按词返回的中文时间戳" * 5
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                words=[
+                    {
+                        "word": sentence_sized_word,
+                        "start": 0.1,
+                        "end": 1.9,
+                    }
+                ]
+            ),
+            headers={"X-Generation-Id": "gen_sentence_word_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "sentence-word.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好世界"
+    assert result.segments[0].words is None
+    assert result.request_id == "gen_sentence_word_001"
+
+
+def test_openrouter_segment_mirrors_in_words_are_not_claimed_as_word_timing(
+    tmp_path: Path,
+) -> None:
+    first = "这个上游字段其实是一整句而不是一个词"
+    second = "第二句也被错误地放进了可选词级数组"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                duration=2.0,
+                segments=[
+                    {"id": 0, "start": 0.0, "end": 1.0, "text": first},
+                    {"id": 1, "start": 1.0, "end": 2.0, "text": second},
+                ],
+                words=[
+                    {"word": first, "start": 0.0, "end": 1.0},
+                    {"word": second, "start": 1.0, "end": 2.0},
+                ],
+            ),
+            headers={"X-Generation-Id": "gen_segment_words_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "segment-words.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert [segment.text for segment in result.segments] == [first, second]
+    assert all(segment.words is None for segment in result.segments)
+
+
+def test_openrouter_short_segment_mirrors_are_not_claimed_as_word_timing(
+    tmp_path: Path,
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                duration=2.0,
+                segments=[
+                    {"id": 0, "start": 0.0, "end": 1.0, "text": "你好"},
+                    {"id": 1, "start": 1.0, "end": 2.0, "text": "世界"},
+                ],
+                words=[
+                    {"word": "你好", "start": 0.0, "end": 1.0},
+                    {"word": "世界", "start": 1.0, "end": 2.0},
+                ],
+            ),
+            headers={"X-Generation-Id": "gen_short_segment_words_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "short-segment-words.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert [segment.text for segment in result.segments] == ["你好", "世界"]
+    assert all(segment.words is None for segment in result.segments)
+
+
+def test_openrouter_interval_offset_segment_mirror_is_not_word_timing(
+    tmp_path: Path,
+) -> None:
+    sentence = "这仍然是完整句子"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                duration=2.0,
+                segments=[{"id": 0, "start": 0.0, "end": 2.0, "text": sentence}],
+                words=[{"word": sentence, "start": 0.1, "end": 1.9}],
+            ),
+            headers={"X-Generation-Id": "gen_offset_segment_word_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "offset-segment-word.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == sentence
+    assert result.segments[0].words is None
+
+
+def test_openrouter_unaligned_optional_words_do_not_erase_valid_segments(
+    tmp_path: Path,
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                words=[{"word": "你好", "start": 0.0, "end": 2.1}],
+            ),
+            headers={"X-Generation-Id": "gen_unaligned_word_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "unaligned-word.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好世界"
+    assert result.segments[0].words is None
+
+
+def test_openrouter_partial_optional_words_do_not_claim_complete_word_timing(
+    tmp_path: Path,
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(words=[{"word": "你", "start": 0.1, "end": 0.5}]),
+            headers={"X-Generation-Id": "gen_partial_word_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "partial-word.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好世界"
+    assert result.segments[0].words is None
+
+
+@pytest.mark.parametrize(
+    "word",
+    (
+        {"word": "你好", "start": 0.5, "end": 0.5},
+        {"word": None, "start": 0.1, "end": 0.5},
+    ),
+)
+def test_openrouter_invalid_optional_word_keeps_valid_segments(
+    tmp_path: Path,
+    word: dict[str, object],
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(words=[word]),
+            headers={"X-Generation-Id": "gen_invalid_word_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "invalid-word.m4a"))
+
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好世界"
+    assert result.segments[0].words is None
+    assert result.request_id == "gen_invalid_word_001"
 
 
 def test_openrouter_never_treats_x_request_id_as_generation_id(tmp_path: Path) -> None:
@@ -289,7 +467,6 @@ def test_openrouter_200_invalid_json_is_durable_invalid_not_retried(tmp_path: Pa
         _payload(duration=None),
         _payload(duration=-1.0),
         _payload(segments=[{"id": 0, "start": None, "end": 1.0, "text": "坏时间"}]),
-        _payload(words=[{"word": None, "start": 0.1, "end": 0.5}]),
         _payload(
             usage={
                 "type": "duration",
@@ -324,3 +501,24 @@ def test_openrouter_rejects_sdk_permissive_malformed_verbose_json(
         provider.transcribe(_chunk(tmp_path / "shape.m4a"))
 
     assert raised.value.call_record.failure_code == "OPENROUTER_ASR_RESPONSE_INVALID"
+
+
+def test_invalid_segment_records_only_bounded_shape_metadata(tmp_path: Path) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(segments=[{"id": 0, "start": None, "end": 1.0, "text": "坏时间"}]),
+            headers={"X-Generation-Id": "gen_shape_safe_001"},
+        )
+
+    with (
+        _provider(handler) as provider,
+        pytest.raises(ProviderDeterministicError) as raised,
+    ):
+        provider.transcribe(_chunk(tmp_path / "shape-safe.m4a"))
+
+    validation_shape = (raised.value.call_record.usage_json or {})["validation_shape"]
+    assert isinstance(validation_shape, dict)
+    assert validation_shape["response_type"] == "TranscriptionVerbose"
+    assert "你好世界" not in repr(validation_shape)
+    assert "坏时间" not in repr(validation_shape)

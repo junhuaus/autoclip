@@ -178,6 +178,7 @@ export function ClipCard({ item, onOpen }: { item: ClipSummaryResponse; onOpen: 
           <StatusBadge status={clip.review_status} />
         </div>
         <h3>{clip.title}</h3>
+        <p className="hint">干净切片 · 标题与描述独立展示</p>
         <p className="clip-time">{formatMs(clip.source_start_ms)}–{formatMs(clip.source_end_ms)}</p>
         <p>{clip.reason}</p>
         <div className="badge-row">

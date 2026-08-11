@@ -328,6 +328,24 @@ def test_empty_word_timestamp_array_is_unavailable_not_available(tmp_path: Path)
     assert result.segments[0].words is None
 
 
+def test_partial_word_timestamp_text_is_unavailable_not_available(tmp_path: Path) -> None:
+    audio_path = tmp_path / "chunk-partial-words.m4a"
+    content = _write_audio(audio_path)
+    chunk = _chunk(audio_path, content=content)
+    reply = _HTTPReply(
+        200,
+        _verbose_payload(words=[{"word": "你", "start": 0.125, "end": 0.9}]),
+        headers={"x-request-id": "req_partial_words"},
+    )
+
+    with _sdk_provider([reply]) as (provider, _captured, _sdk):
+        result = provider.transcribe(chunk)
+
+    assert result.word_timing_status == WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好世界"
+    assert result.segments[0].words is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -372,7 +390,7 @@ def test_absent_or_out_of_bounds_segment_alignment_is_rejected(
     assert record.request_id == "req_invalid_alignment"
 
 
-def test_words_not_aligned_to_any_segment_are_rejected(tmp_path: Path) -> None:
+def test_words_not_aligned_to_any_segment_are_marked_unavailable(tmp_path: Path) -> None:
     audio_path = tmp_path / "chunk-invalid-words.m4a"
     content = _write_audio(audio_path)
     chunk = _chunk(audio_path, content=content)
@@ -397,14 +415,12 @@ def test_words_not_aligned_to_any_segment_are_rejected(tmp_path: Path) -> None:
         headers={"x-request-id": "req_invalid_words"},
     )
 
-    with (
-        _sdk_provider([reply]) as (provider, _captured, _sdk),
-        pytest.raises(ProviderDeterministicError) as caught,
-    ):
-        provider.transcribe(chunk)
+    with _sdk_provider([reply]) as (provider, _captured, _sdk):
+        result = provider.transcribe(chunk)
 
-    assert caught.value.call_record.status == ProviderCallStatus.INVALID
-    assert caught.value.call_record.failure_code == "OPENAI_ASR_RESPONSE_INVALID"
+    assert result.word_timing_status is WordTimingStatus.UNAVAILABLE
+    assert result.segments[0].text == "你好"
+    assert result.segments[0].words is None
 
 
 def test_symlink_audio_is_rejected_before_any_cloud_request(tmp_path: Path) -> None:

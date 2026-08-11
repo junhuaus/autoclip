@@ -84,6 +84,9 @@ it("edits title, boundaries and cue text, exposes stale media, then approves the
 
   await user.click(await screen.findByRole("button", { name: "审核和编辑" }));
   const editor = await screen.findByRole("region", { name: /原始高光标题/ });
+  expect(within(editor).getByText("高光描述（独立元数据）")).toBeInTheDocument();
+  expect(within(editor).getByText(/开头提出关键问题/)).toBeInTheDocument();
+  expect(within(editor).getByText(/干净审核切片/)).toBeInTheDocument();
   expect(within(editor).getByText("每个 revision 至少保留 1 条字幕 cue。")).toBeVisible();
   expect(within(editor).getByRole("button", { name: "删除此 cue" })).toBeDisabled();
   const titleInput = within(editor).getByLabelText("标题");

@@ -7,8 +7,10 @@ import math
 import os
 import re
 import stat
+import traceback
+import unicodedata
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -43,7 +45,7 @@ from liveclip.providers.telemetry import (
 
 _MAX_OPENAI_AUDIO_BYTES = 25_000_000
 _TIMELINE_TOLERANCE_MS = 250
-OPENAI_ASR_CONTRACT_VERSION = "openai-asr-whisper-timestamps-v1"
+OPENAI_ASR_CONTRACT_VERSION = "openai-asr-whisper-timestamps-v4"
 _OPENAI_RAW_RESPONSE_HEADER = "X-Stainless-Raw-Response"
 
 
@@ -326,6 +328,10 @@ class _TimestampASRProvider:
                     update={
                         "status": ProviderCallStatus.INVALID,
                         "failure_code": f"{self._failure_prefix}_ASR_RESPONSE_INVALID",
+                        "usage_json": {
+                            **(success_record.usage_json or {}),
+                            "validation_shape": _response_validation_shape(response, exc),
+                        },
                     }
                 )
                 if success_record is not None
@@ -443,27 +449,12 @@ def _map_verbose_response(
         raise ValueError("nonempty transcription omitted segment alignment")
 
     chunk_duration_ms = chunk.source_end_ms - chunk.source_start_ms
-    raw_words: list[LocalASRWord] | None = None
-    if response.words:
-        parsed_words: list[LocalASRWord] = []
-        for word in response.words:
-            if not isinstance(word.word, str):
-                raise TypeError("provider word text is invalid")
-            text = word.word.strip()
-            if not text:
-                continue
-            start_ms, end_ms = _bounded_interval(
-                _finite_seconds(word.start),
-                _finite_seconds(word.end),
-                duration_ms=chunk_duration_ms,
-            )
-            parsed_words.append(LocalASRWord(start_ms=start_ms, end_ms=end_ms, text=text))
-        if parsed_words:
-            parsed_words.sort(key=lambda item: (item.start_ms, item.end_ms, item.text))
-            raw_words = parsed_words
+    raw_words = _optional_word_timings(
+        response.words,
+        chunk_duration_ms=chunk_duration_ms,
+    )
 
     segments: list[LocalASRSegment] = []
-    assigned_word_indexes: set[int] = set()
     for index, segment in enumerate(response.segments, start=1):
         if not isinstance(segment.text, str):
             raise TypeError("provider segment text is invalid")
@@ -475,29 +466,21 @@ def _map_verbose_response(
             _finite_seconds(segment.end),
             duration_ms=chunk_duration_ms,
         )
-        segment_words: tuple[LocalASRWord, ...] | None = None
-        if raw_words is not None:
-            current_word_indexes = tuple(
-                word_index
-                for word_index, word in enumerate(raw_words)
-                if word.start_ms >= start_ms and word.end_ms <= end_ms
-            )
-            if assigned_word_indexes.intersection(current_word_indexes):
-                raise ValueError("provider word timing belongs to overlapping segments")
-            assigned_word_indexes.update(current_word_indexes)
-            segment_words = tuple(raw_words[index] for index in current_word_indexes)
         segments.append(
             LocalASRSegment(
                 segment_id=f"{provider}_{index:06d}",
                 start_ms=start_ms,
                 end_ms=end_ms,
                 text=text,
-                words=segment_words,
             )
         )
 
-    if raw_words is not None and assigned_word_indexes != set(range(len(raw_words))):
-        raise ValueError("provider word timing is not aligned to a segment")
+    assigned_words = _assign_optional_words(raw_words, segments)
+    if assigned_words is not None:
+        segments = [
+            segment.model_copy(update={"words": assigned_words[index]})
+            for index, segment in enumerate(segments)
+        ]
 
     return ASRChunkResult(
         chunk_id=chunk.chunk_id,
@@ -506,12 +489,159 @@ def _map_verbose_response(
         provider=provider,
         model=call_record.model,
         word_timing_status=(
-            WordTimingStatus.AVAILABLE if raw_words is not None else WordTimingStatus.UNAVAILABLE
+            WordTimingStatus.AVAILABLE
+            if assigned_words is not None
+            else WordTimingStatus.UNAVAILABLE
         ),
         segments=tuple(segments),
         request_id=request_id,
         call_record=call_record,
     )
+
+
+def _optional_word_timings(
+    words: object,
+    *,
+    chunk_duration_ms: int,
+) -> list[LocalASRWord] | None:
+    """Validate optional words as a unit; invalid words never erase valid segments."""
+
+    if not words or not isinstance(words, Iterable):
+        return None
+    parsed: list[LocalASRWord] = []
+    try:
+        for word in words:
+            if not isinstance(word.word, str):
+                return None
+            text = word.word.strip()
+            if not text:
+                continue
+            # Some OpenRouter backends return a sentence-sized Chinese token in
+            # the optional ``words`` array. It is not honest word granularity.
+            if len(text) > 100:
+                return None
+            start_ms, end_ms = _bounded_interval(
+                _finite_seconds(word.start),
+                _finite_seconds(word.end),
+                duration_ms=chunk_duration_ms,
+            )
+            parsed.append(LocalASRWord(start_ms=start_ms, end_ms=end_ms, text=text))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if not parsed:
+        return None
+    parsed.sort(key=lambda item: (item.start_ms, item.end_ms, item.text))
+    return parsed
+
+
+def _assign_optional_words(
+    words: list[LocalASRWord] | None,
+    segments: list[LocalASRSegment],
+) -> tuple[tuple[LocalASRWord, ...], ...] | None:
+    """Accept optional word timing only when it is complete and truly word-level."""
+
+    if words is None or not segments:
+        return None
+    if len(words) == len(segments) and all(
+        word.text.strip() == segment.text.strip()
+        for word, segment in zip(words, segments, strict=True)
+    ):
+        # Some OpenRouter backends mirror each segment into ``words``. Those are
+        # sentence-level intervals, not word timestamps, so report unavailable.
+        # Conservatively apply this even to short segments: a genuine one-word
+        # segment loses no transcript/timing truth when the redundant optional
+        # word claim is omitted.
+        return None
+
+    buckets: list[list[LocalASRWord]] = [[] for _ in segments]
+    for word in words:
+        matching = [
+            index
+            for index, segment in enumerate(segments)
+            if word.start_ms >= segment.start_ms and word.end_ms <= segment.end_ms
+        ]
+        if len(matching) != 1:
+            return None
+        buckets[matching[0]].append(word)
+    if any(not bucket for bucket in buckets):
+        return None
+    if any(
+        _alignment_text("".join(word.text for word in bucket)) != _alignment_text(segment.text)
+        for bucket, segment in zip(buckets, segments, strict=True)
+    ):
+        # A partial word list is not a trustworthy word-level representation of
+        # the segment. Preserve the strict segment transcript while declining
+        # the optional timing claim for the entire chunk.
+        return None
+    return tuple(tuple(bucket) for bucket in buckets)
+
+
+def _alignment_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return "".join(
+        character
+        for character in normalized
+        if unicodedata.category(character).startswith(("L", "N"))
+    )
+
+
+def _response_validation_shape(response: object, error: BaseException) -> dict[str, object]:
+    """Describe only bounded response structure; never retain transcript text."""
+
+    frames = traceback.extract_tb(error.__traceback__)
+    error_site = f"{frames[-1].name}:{frames[-1].lineno}" if frames else "unavailable"
+    return {
+        "error_class": type(error).__name__,
+        "error_site": error_site[:120],
+        "response_type": type(response).__name__[:80],
+        "root_text_chars": _safe_text_length(getattr(response, "text", None)),
+        "segments": _timed_items_shape(getattr(response, "segments", None), text_field="text"),
+        "words": _timed_items_shape(getattr(response, "words", None), text_field="word"),
+    }
+
+
+def _timed_items_shape(items: object, *, text_field: str) -> dict[str, int | None]:
+    if not isinstance(items, list | tuple):
+        return {
+            "count": None,
+            "inspected": 0,
+            "invalid_interval_count": 0,
+            "invalid_text_count": 0,
+            "maximum_text_chars": None,
+        }
+    inspected_items = items[:512]
+    lengths: list[int] = []
+    invalid_intervals = 0
+    invalid_texts = 0
+    for item in inspected_items:
+        text = getattr(item, text_field, None)
+        if isinstance(text, str):
+            lengths.append(len(text))
+        else:
+            invalid_texts += 1
+        start = getattr(item, "start", None)
+        end = getattr(item, "end", None)
+        if (
+            isinstance(start, bool)
+            or isinstance(end, bool)
+            or not isinstance(start, int | float)
+            or not isinstance(end, int | float)
+            or not math.isfinite(float(start))
+            or not math.isfinite(float(end))
+            or float(end) <= float(start)
+        ):
+            invalid_intervals += 1
+    return {
+        "count": len(items),
+        "inspected": len(inspected_items),
+        "invalid_interval_count": invalid_intervals,
+        "invalid_text_count": invalid_texts,
+        "maximum_text_chars": max(lengths) if lengths else None,
+    }
+
+
+def _safe_text_length(value: object) -> int | None:
+    return len(value) if isinstance(value, str) else None
 
 
 def _bounded_interval(start: float, end: float, *, duration_ms: int) -> tuple[int, int]:

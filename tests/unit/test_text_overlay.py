@@ -19,7 +19,11 @@ from liveclip.domain.edit_plan import (
     validate_caption_cues,
 )
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
-from liveclip.renderer.service import display_caption_cues
+from liveclip.renderer.service import (
+    RenderTextMode,
+    display_caption_cues,
+    render_revision_overlays_for_mode,
+)
 from liveclip.renderer.text import (
     TextOverlay,
     _wrap_text,
@@ -133,6 +137,52 @@ def test_renderer_expansion_matches_domain_at_overlay_limit(
     assert len(renderer_cues) + TITLE_OVERLAY_COUNT == MAX_RENDER_OVERLAYS
     assert len(overlays) == MAX_RENDER_OVERLAYS
     assert rendered_caption_text == [cue.text for cue in domain_cues]
+
+
+def test_clean_review_mode_materializes_no_title_or_caption_assets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    revision = EditPlanRevision(
+        clip_id="clip_clean_review",
+        revision=1,
+        origin=RevisionOrigin.AI,
+        plan=EditPlan(
+            candidate_id="candidate_clean_review",
+            source_start_ms=0,
+            source_end_ms=4_000,
+            score=88,
+            title="这段标题只作为审核元数据",
+            hook="三秒内提出明确问题",
+            reason="观点完整且适合独立传播",
+            layout=Layout.VERTICAL_BLUR_BACKGROUND,
+            caption_template=CaptionTemplate.CLEAN_ZH_V1,
+            effect=Effect.NONE,
+            risk_flags=(),
+            prompt_version="editing_v1",
+            model="mock-llm-v1",
+            degraded=False,
+        ),
+        captions=(CaptionCue(start_ms=0, end_ms=4_000, text="字幕同样保持为独立数据"),),
+        created_at=datetime.now(UTC),
+    )
+
+    def forbidden_overlay(**_kwargs: object) -> TextOverlay:
+        raise AssertionError("clean review video must not rasterize editorial text")
+
+    monkeypatch.setattr(renderer_service, "render_title_overlay", forbidden_overlay)
+    monkeypatch.setattr(renderer_service, "render_caption_overlay", forbidden_overlay)
+    output_dir = tmp_path / "clean-overlays"
+
+    overlays = render_revision_overlays_for_mode(
+        revision=revision,
+        output_dir=output_dir,
+        width=540,
+        height=960,
+        text_mode=RenderTextMode.NONE,
+    )
+
+    assert overlays == ()
+    assert not output_dir.exists()
 
 
 def test_wrap_text_rejects_overflow_instead_of_adding_ellipsis() -> None:

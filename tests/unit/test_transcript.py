@@ -8,7 +8,11 @@ from threading import Lock
 import pytest
 
 from liveclip.domain.transcript import WordTimingStatus
-from liveclip.pipeline.transcript import merge_chunk_results, transcribe_chunks
+from liveclip.pipeline.transcript import (
+    merge_chunk_results,
+    transcribe_chunks,
+    transcribe_chunks_detailed,
+)
 from liveclip.providers.asr.base import ASRChunkResult, LocalASRSegment, audio_path_for_chunk
 from liveclip.providers.asr.mock import MockASRProvider, MockScriptSegment
 
@@ -19,6 +23,8 @@ class StubChunk:
     source_start_ms: int
     source_end_ms: int
     path: Path
+    cache_key: str | None = None
+    sha256: str | None = None
 
 
 def _result(
@@ -173,6 +179,131 @@ class _CountingMockASR:
     def transcribe(self, chunk: StubChunk, **kwargs: object) -> ASRChunkResult:
         self.calls += 1
         return self._delegate.transcribe(chunk, **kwargs)  # type: ignore[arg-type]
+
+
+def test_verified_asr_cache_can_be_reused_by_a_later_project_generation(
+    tmp_path: Path,
+) -> None:
+    chunk = StubChunk(
+        "chunk_001",
+        0,
+        4_000,
+        tmp_path / "one.m4a",
+        cache_key="a" * 64,
+        sha256="b" * 64,
+    )
+    script = (
+        MockScriptSegment(
+            script_id="s1",
+            source_start_ms=0,
+            source_end_ms=4_000,
+            text="跨代缓存避免重复调用。",
+        ),
+    )
+    first_dir = tmp_path / "g001" / "transcript"
+    expected = transcribe_chunks(
+        MockASRProvider(script),
+        (chunk,),
+        source_duration_ms=4_000,
+        output_dir=first_dir,
+    )
+    provider = _CountingMockASR(script)
+    cache_events: list[bool] = []
+
+    actual = transcribe_chunks_detailed(
+        provider,
+        (chunk,),
+        source_duration_ms=4_000,
+        output_dir=tmp_path / "g002" / "attempt",
+        cache_dir=tmp_path / "g002" / "transcript" / "asr-cache",
+        fallback_cache_dirs=(first_dir / "asr-cache",),
+        on_chunk_outcome=lambda _chunk, _record, _status, cache_hit: cache_events.append(cache_hit),
+    ).document
+
+    assert actual == expected
+    assert provider.calls == 0
+    assert cache_events == [True]
+
+
+def test_cross_generation_cache_rejects_same_key_with_different_audio_sha(
+    tmp_path: Path,
+) -> None:
+    first_chunk = StubChunk(
+        "chunk_001",
+        0,
+        4_000,
+        tmp_path / "first.m4a",
+        cache_key="a" * 64,
+        sha256="b" * 64,
+    )
+    changed_chunk = StubChunk(
+        "chunk_001",
+        0,
+        4_000,
+        tmp_path / "changed.m4a",
+        cache_key="a" * 64,
+        sha256="c" * 64,
+    )
+    script = (
+        MockScriptSegment(
+            script_id="s1",
+            source_start_ms=0,
+            source_end_ms=4_000,
+            text="内容哈希不同必须重新调用。",
+        ),
+    )
+    first_dir = tmp_path / "g001" / "transcript"
+    transcribe_chunks(
+        MockASRProvider(script),
+        (first_chunk,),
+        source_duration_ms=4_000,
+        output_dir=first_dir,
+    )
+    provider = _CountingMockASR(script)
+    cache_events: list[bool] = []
+
+    transcribe_chunks_detailed(
+        provider,
+        (changed_chunk,),
+        source_duration_ms=4_000,
+        output_dir=tmp_path / "g002" / "attempt",
+        cache_dir=tmp_path / "g002" / "transcript" / "asr-cache",
+        fallback_cache_dirs=(first_dir / "asr-cache",),
+        on_chunk_outcome=lambda _chunk, _record, _status, cache_hit: cache_events.append(cache_hit),
+    )
+
+    assert provider.calls == 1
+    assert cache_events == [False]
+
+
+@pytest.mark.parametrize(
+    ("cache_key", "sha256"),
+    (("a" * 64, None), (None, "b" * 64), ("not-a-sha", "b" * 64)),
+)
+def test_partial_or_invalid_real_chunk_cache_identity_fails_closed(
+    tmp_path: Path,
+    cache_key: str | None,
+    sha256: str | None,
+) -> None:
+    chunk = StubChunk(
+        "chunk_001",
+        0,
+        4_000,
+        tmp_path / "one.m4a",
+        cache_key=cache_key,
+        sha256=sha256,
+    )
+    provider = _CountingMockASR(())
+
+    with pytest.raises(ValueError, match="requires both cache_key and content sha256"):
+        transcribe_chunks(
+            provider,
+            (chunk,),
+            source_duration_ms=4_000,
+            output_dir=tmp_path / "transcript",
+        )
+
+    assert provider.calls == 0
 
 
 def test_tampered_asr_cache_fails_before_provider_call(tmp_path: Path) -> None:

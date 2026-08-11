@@ -8,6 +8,8 @@ Amendment, 2026-08-04: at the user's explicit request, the installed Codex CLI i
 
 Amendment, 2026-08-05: the user explicitly selected OpenRouter `openai/whisper-large-v3` as the default real ASR paired with Codex. `openrouter-codex` therefore becomes the normal combined mode; direct OpenAI ASR/Responses and `openai-codex` remain supported alternatives. Only preprocessed audio chunks cross the OpenRouter boundary and may be routed to its upstream ASR host. The Key previously exposed in chat is invalid for acceptance and must be revoked; only a newly generated Key stored in ignored local environment is permitted.
 
+Amendment, 2026-08-05: the user explicitly requires review proxies to be clean video clips without LiveClip-generated title or caption overlays. Editorial title, Hook, reason, risk flags and editable caption cues are separate metadata shown by CLI/API/Web. Only the post-review final render may burn the approved current revision's title and captions. This changes proxy presentation, not revision fencing, quality validation or final delivery requirements.
+
 ## Product outcome
 
 LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video. LiveClip deterministically imports and analyzes it, uses configured cloud ASR plus OpenAI/Codex editorial understanding, produces 10–20 configurable highlight candidates (default duration 30–90 seconds), supports human review and revision, re-encodes approved vertical clips, and creates an immutable versioned delivery package.
@@ -153,11 +155,11 @@ Times are nonnegative, ordered, within source and configured clip limits, and mo
 
 ### Rendering and quality
 
-`Renderer` has a deterministic FFmpeg implementation. Default review proxy is 540×960; final is 1080×1920. It supports 9:16 blurred background and center crop, preserves foreground aspect ratio, burns Chinese captions and a simple title bar, supports basic fades and loudness normalization, and outputs H.264/AAC MP4. All cuts re-encode; captions use clip-relative time.
+`Renderer` has a deterministic FFmpeg implementation. Default review proxy is 540×960; final is 1080×1920. It supports 9:16 blurred background and center crop, preserves foreground aspect ratio, supports basic fades and loudness normalization, and outputs H.264/AAC MP4. Review proxies contain only the selected source video/audio in the chosen layout—no LiveClip-generated title or caption overlay. Their title, Hook, reason, risks and editable caption cues remain separate metadata. Final renders may burn the approved title and Chinese captions. All cuts re-encode; captions use clip-relative time.
 
 FFmpeg is invoked as argv with `shell=False`. Paths are system generated. No model output becomes executable syntax. Logs redact sensitive/local details. A validated temp artifact is atomically published. VideoToolbox failure automatically retries with libx264. Paths are revision-specific and never overwrite a different successful revision. Any title, caption, or boundary revision marks older renders stale.
 
-Every proxy and final render receives ffprobe stream/container validation, audio+video presence checks, resolution/orientation checks, duration tolerance, size floor, full decode to null, representative beginning/middle/end frames, a contact sheet, safe-area checks, and heuristics for black/blank/wrong-aspect/severe-crop problems. When an image viewer is available, Demo contact sheets are actually viewed and the observation is recorded; otherwise the report explicitly says manual visual inspection is pending.
+Every proxy and final render receives ffprobe stream/container validation, audio+video presence checks, resolution/orientation checks, duration tolerance, size floor, full decode to null, representative beginning/middle/end frames, a contact sheet, and heuristics for black/blank/wrong-aspect/severe-crop problems. Renderer-owned safe-area checks apply to final overlays; a clean proxy records them as not applicable. When an image viewer is available, Demo contact sheets are actually viewed and the observation is recorded; otherwise the report explicitly says manual visual inspection is pending.
 
 ### Review and delivery
 
@@ -217,7 +219,7 @@ Without an API key, `make demo` must generate copyright-free media and actually 
 
 ```text
 test video → audio processing/chunks → Mock ASR → >=3 candidates
-→ valid EditPlans → review proxies → Demo-only approval
+→ valid EditPlans + clean review proxies + separate editorial metadata → Demo-only approval
 → human-style title/boundary revision → old render stale
 → current final 9:16 render + relative SRT
 → manifest + delivery.zip → ffprobe + full decode + contact sheet

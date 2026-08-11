@@ -34,7 +34,7 @@ from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.delivery.task_handler import DeliveryTaskHandler
-from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
+from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION
 from liveclip.observability import configure_logging
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.prompts import load_editing_prompts
@@ -298,7 +298,7 @@ def pipeline_config_from_settings(
         editing_prompt_version=editing_prompt_version,
         editing_prompt_sha256=editing_prompt_sha256,
         editorial_schema_version=EDITORIAL_SUGGESTION_SCHEMA_VERSION,
-        edit_plan_schema_version=EDIT_PLAN_SCHEMA_VERSION,
+        edit_plan_schema_version=EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
     )
 
 

@@ -14,7 +14,7 @@ from liveclip.domain.edit_plan import CaptionCue, CaptionTemplate, EditPlan, Eff
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.media.ingest import ingest_source, run_ffprobe
 from liveclip.renderer.quality import full_decode, probe_media
-from liveclip.renderer.service import render_edit_plan_revision
+from liveclip.renderer.service import RenderTextMode, render_edit_plan_revision
 
 
 @pytest.mark.integration
@@ -76,6 +76,7 @@ def test_vfr_display_matrix_ingest_and_proxy_render(
         width=270,
         height=480,
         encoder="libx264",
+        text_mode=RenderTextMode.TITLE_AND_CAPTIONS,
         video_stream_index=source.video_stream_index,
         audio_stream_index=source.audio_stream_index,
     )

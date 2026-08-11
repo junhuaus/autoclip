@@ -290,7 +290,9 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
                 浏览器不支持 HTML5 视频播放。
               </video>
               <figcaption>
-                当前 revision {video.render.edit_plan_revision} · {video.render.kind === "final" ? "最终视频" : "审核代理"}
+                当前 revision {video.render.edit_plan_revision} · {video.render.kind === "final"
+                  ? "最终视频（标题与字幕已烧录）"
+                  : "干净审核切片（未烧录标题或字幕）"}
               </figcaption>
             </figure>
           ) : (
@@ -298,6 +300,19 @@ export function ClipEditor({ api, clipId, onClose, onChanged }: ClipEditorProps)
               {allowed.has("render_proxy") ? "可先生成审核代理。" : "等待渲染完成或刷新详情。"}
             </EmptyState>
           )}
+
+          <div className="transcript-card">
+            <h3>高光描述（独立元数据）</h3>
+            <p><strong>标题：</strong>{clip.plan.title}</p>
+            <p><strong>Hook：</strong>{clip.plan.hook}</p>
+            <p><strong>推荐理由：</strong>{clip.plan.reason}</p>
+            <p className="hint">标题、描述和字幕不会写入审核切片画面；审核修改后再生成最终视频。</p>
+            {clip.plan.risk_flags.length > 0 ? (
+              <ul className="risk-list" aria-label="当前方案风险标签">
+                {clip.plan.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="transcript-card">
             <h3>候选转写</h3>

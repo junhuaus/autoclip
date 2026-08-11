@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -24,7 +25,7 @@ from liveclip.application.stage_execution import (
     StageStateStore,
     stage_output_fingerprint,
 )
-from liveclip.domain.edit_plan import EDIT_PLAN_SCHEMA_VERSION
+from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.domain.state_transitions import AssetStatus, FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
@@ -87,7 +88,11 @@ from liveclip.renderer.quality import (
     MediaValidationTransientError,
     validate_rendered_media,
 )
-from liveclip.renderer.service import render_edit_plan_revision, render_revision_overlays
+from liveclip.renderer.service import (
+    RenderTextMode,
+    render_edit_plan_revision,
+    render_revision_overlays_for_mode,
+)
 from liveclip.services.captions import captions_for_clip
 
 logger = logging.getLogger(__name__)
@@ -216,10 +221,23 @@ class PipelineStageHandlers:
                 safe_message="A local artifact operation failed temporarily",
             ) from exc
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            diagnostic_relative_path = _persist_stage_validation_diagnostic(
+                data_dir=getattr(self, "_data_dir", None),
+                work=work,
+                lease=lease,
+                error=exc,
+            )
+            logger.warning(
+                "stage local output rejected stage=%s error_class=%s error_site=%s",
+                work.stage.value,
+                type(exc).__name__,
+                _safe_exception_site(exc),
+            )
             raise StageExecutionError(
                 failure_class=FailureClass.DETERMINISTIC,
                 error_code=f"{work.stage.value.upper()}_OUTPUT_INVALID",
                 safe_message=f"The {work.stage.value} stage produced invalid local data",
+                diagnostic_relative_path=diagnostic_relative_path,
             ) from exc
 
     def _ingest(
@@ -410,7 +428,9 @@ class PipelineStageHandlers:
                 fence,
                 cache_key=cache_key,
                 status=status,
-                call_record=call_record,
+                # A cache hit performs no provider request in this run. Keep the
+                # immutable call evidence on the run that actually made it.
+                call_record=None if cache_hit else call_record,
                 cache_hit=cache_hit,
             )
 
@@ -420,6 +440,10 @@ class PipelineStageHandlers:
             source_duration_ms=source.duration_ms,
             output_dir=attempt_dir / "transcript",
             cache_dir=generation_dir / "transcript" / "asr-cache",
+            fallback_cache_dirs=tuple(
+                project_dir / _generation_relative(generation, "transcript/asr-cache")
+                for generation in range(1, work.generation)
+            ),
             language="zh",
             vocabulary_prompt=work.config.asr_vocabulary_prompt,
             concurrency=work.config.asr_concurrency,
@@ -728,7 +752,7 @@ class PipelineStageHandlers:
             provider.prompt_version,
             provider.prompt_sha256,
             EDITORIAL_SUGGESTION_SCHEMA_VERSION,
-            EDIT_PLAN_SCHEMA_VERSION,
+            EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
         )
         persisted = (
             work.config.llm_contract_version,
@@ -887,6 +911,7 @@ class PipelineStageHandlers:
                     width=work.config.preview_width,
                     height=work.config.preview_height,
                     encoder=work.config.video_encoder,
+                    text_mode=RenderTextMode.NONE,
                     video_stream_index=source.video_stream_index,
                     audio_stream_index=source.audio_stream_index,
                     source_pass_fds=pinned.pass_fds,
@@ -928,11 +953,12 @@ class PipelineStageHandlers:
                     cancel_requested=cancel_requested,
                 )
                 recovery_root = attempt_dir / base_relative / "recovery"
-                overlays = render_revision_overlays(
+                overlays = render_revision_overlays_for_mode(
                     revision=item.revision,
                     output_dir=recovery_root / "overlays",
                     width=work.config.preview_width,
                     height=work.config.preview_height,
+                    text_mode=RenderTextMode.NONE,
                 )
                 quality = validate_rendered_media(
                     media_path=canonical_video,
@@ -1225,6 +1251,51 @@ def _check_cancel(cancel_requested: Callable[[], bool]) -> None:
         raise StageCancelled("stage cancellation was requested")
 
 
+def _safe_exception_site(error: BaseException) -> str:
+    """Return code-location evidence without logging model or media payloads."""
+
+    frames = traceback.extract_tb(error.__traceback__)
+    if not frames:
+        return "unavailable"
+    frame = frames[-1]
+    return f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"[:200]
+
+
+def _persist_stage_validation_diagnostic(
+    *,
+    data_dir: Path | None,
+    work: StageWork,
+    lease: LeaseIdentity,
+    error: BaseException,
+) -> str | None:
+    """Persist payload-free debugging evidence for deterministic local rejection."""
+
+    if data_dir is None:
+        return None
+    try:
+        project_dir = project_directory(data_dir, work.project_id)
+        diagnostic_path = (
+            attempt_directory(project_dir, lease) / "diagnostics" / "stage-validation.json"
+        )
+        write_json_no_clobber(
+            diagnostic_path,
+            {
+                "schema_version": "1",
+                "stage": work.stage.value,
+                "error_class": type(error).__name__,
+                "error_site": _safe_exception_site(error),
+            },
+            max_bytes=16 * 1024,
+        )
+        return diagnostic_path.relative_to(project_dir).as_posix()
+    except (ArtifactPublicationError, OSError, ValueError) as persistence_error:
+        logger.warning(
+            "stage validation diagnostic persistence failed error_class=%s",
+            type(persistence_error).__name__,
+        )
+        return None
+
+
 def _validate_pinned_pipeline_source(
     source: SourceMediaMetadata,
     pinned: PinnedRegularFile,
@@ -1355,7 +1426,8 @@ def _render_spec_fingerprint(
         {
             "encoder": encoder,
             "height": height,
-            "renderer": "ffmpeg-renderer-v1",
+            "renderer": "ffmpeg-renderer-v2",
+            "text_mode": RenderTextMode.NONE.value,
             "video_stream_index": video_stream_index,
             "audio_stream_index": audio_stream_index,
             "revision": revision.model_dump(mode="json"),

@@ -32,7 +32,7 @@ from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_fal
 from liveclip.pipeline.transcript import transcribe_chunks
 from liveclip.providers.asr.mock import MockASRProvider
 from liveclip.providers.llm.mock import MockLLMProvider
-from liveclip.renderer.service import render_edit_plan_revision
+from liveclip.renderer.service import RenderTextMode, render_edit_plan_revision
 from liveclip.services.captions import captions_for_clip
 from liveclip.services.demo_media import create_demo_source
 
@@ -194,6 +194,7 @@ def _execute_demo(
             width=settings.preview_render_width,
             height=settings.preview_render_height,
             encoder=settings.video_encoder,
+            text_mode=RenderTextMode.NONE,
         )
         lifecycles[index] = add_render(
             lifecycle,
@@ -243,6 +244,7 @@ def _execute_demo(
         width=settings.final_render_width,
         height=settings.final_render_height,
         encoder=settings.video_encoder,
+        text_mode=RenderTextMode.TITLE_AND_CAPTIONS,
     )
     selected = add_render(
         selected,

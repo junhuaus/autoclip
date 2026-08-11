@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from liveclip.domain.edit_plan import (
@@ -52,6 +53,13 @@ class RenderedArtifact:
     quality: QualityReport
 
 
+class RenderTextMode(StrEnum):
+    """Declare whether editorial metadata becomes pixels in this render."""
+
+    NONE = "none"
+    TITLE_AND_CAPTIONS = "title_and_captions"
+
+
 def render_edit_plan_revision(
     *,
     source_path: Path,
@@ -60,33 +68,25 @@ def render_edit_plan_revision(
     width: int,
     height: int,
     encoder: str,
+    text_mode: RenderTextMode,
     video_stream_index: int = 0,
     audio_stream_index: int = 1,
     source_pass_fds: tuple[int, ...] = (),
     font_path: Path | None = None,
     cancel_requested: Callable[[], bool] | None = None,
 ) -> RenderedArtifact:
-    validate_caption_cues(revision.captions, clip_duration_ms=revision.plan.duration_ms)
-    display_cues = display_caption_cues(revision.captions)
     try:
         render_root = ensure_directory_no_follow(output_path.parent)
     except SecureFileError as exc:
         raise ValueError("render output directory is not symlink-free") from exc
-    overlay_dir = render_root / f"{output_path.stem}-overlays"
     quality_dir = render_root / f"{output_path.stem}-quality"
-    if overlay_dir.exists() or overlay_dir.is_symlink():
-        raise ValueError("render overlay attempt directory already exists")
-    try:
-        ensure_directory_no_follow(overlay_dir)
-    except SecureFileError as exc:
-        raise ValueError("render overlay directory is not symlink-free") from exc
-    overlays = render_revision_overlays(
+    overlays = render_revision_overlays_for_mode(
         revision=revision,
-        output_dir=overlay_dir,
+        output_dir=render_root / f"{output_path.stem}-overlays",
         width=width,
         height=height,
         font_path=font_path,
-        display_cues=display_cues,
+        text_mode=text_mode,
     )
     result: RenderResult = render_clip(
         RenderRequest(
@@ -160,6 +160,36 @@ def render_edit_plan_revision(
             tuple(item.as_dict() for item in quality_diagnostics),
         ),
         quality=quality,
+    )
+
+
+def render_revision_overlays_for_mode(
+    *,
+    revision: EditPlanRevision,
+    output_dir: Path,
+    width: int,
+    height: int,
+    text_mode: RenderTextMode,
+    font_path: Path | None = None,
+) -> tuple[TextOverlay, ...]:
+    """Materialize only the trusted overlays selected by the render profile."""
+
+    if text_mode is RenderTextMode.NONE:
+        return ()
+    if text_mode is not RenderTextMode.TITLE_AND_CAPTIONS:
+        raise ValueError("render text mode is not supported")
+    if output_dir.exists() or output_dir.is_symlink():
+        raise ValueError("render overlay attempt directory already exists")
+    try:
+        ensure_directory_no_follow(output_dir)
+    except SecureFileError as exc:
+        raise ValueError("render overlay directory is not symlink-free") from exc
+    return render_revision_overlays(
+        revision=revision,
+        output_dir=output_dir,
+        width=width,
+        height=height,
+        font_path=font_path,
     )
 
 

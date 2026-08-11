@@ -53,6 +53,12 @@ from liveclip.domain.state_transitions import (
     transition_task,
 )
 from liveclip.media.fingerprint import stream_sha256
+from liveclip.renderer.contracts import (
+    FFMPEG_RENDERER_CONTRACT_VERSION,
+    RENDER_SPEC_SCHEMA_VERSION,
+    has_current_manual_render_contract,
+    text_mode_for_render_kind,
+)
 
 
 class SqlAlchemyRenderRepository:
@@ -89,15 +95,17 @@ class SqlAlchemyRenderRepository:
             )
             captions = _load_captions(connection, str(row.revision_id))
             font_path = detect_chinese_font().resolve(strict=True)
+            text_mode = text_mode_for_render_kind(request.kind)
             spec = {
-                "schema_version": "2",
+                "schema_version": RENDER_SPEC_SCHEMA_VERSION,
                 "kind": request.kind,
                 "width": width,
                 "height": height,
                 "encoder": profile.encoder,
-                "renderer": "ffmpeg-renderer-v1",
+                "renderer": FFMPEG_RENDERER_CONTRACT_VERSION,
                 "ffmpeg_argv_schema": "liveclip-ffmpeg-argv-v1",
                 "overlay_renderer": "pillow-overlay-v1",
+                "text_mode": text_mode,
                 "revision_epoch": int(row.revision_epoch),
                 "source_sha256": str(row.source_sha256),
                 "source_streams": {
@@ -339,6 +347,8 @@ class SqlAlchemyRenderRepository:
             encoder = spec.get("encoder")
             if not isinstance(encoder, str):
                 raise RenderConflict("render encoder specification is invalid")
+            if not has_current_manual_render_contract(str(row.kind), spec):
+                raise RenderConflict("render text specification is invalid")
             source_path = Path(str(row.resolved_path))
             if not _source_matches_persisted_identity(source_path, row, spec):
                 raise RenderConflict("source media changed after it was imported")

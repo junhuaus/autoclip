@@ -73,6 +73,11 @@ class StageFenceLost(PipelineConflict, StageLeaseLost):
     pass
 
 
+_MANUALLY_RETRYABLE_DETERMINISTIC_CODES = frozenset(
+    {"UNEXPECTED_STAGE_ERROR", "EDIT_OUTPUT_INVALID"}
+)
+
+
 class SqlAlchemyPipelineRepository:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -556,16 +561,21 @@ class SqlAlchemyPipelineRepository:
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
             run = connection.execute(
-                select(PipelineRunRow.status, PipelineRunRow.failure_class).where(
-                    PipelineRunRow.id == run_id
-                )
+                select(
+                    PipelineRunRow.status,
+                    PipelineRunRow.failure_class,
+                    PipelineRunRow.error_code,
+                ).where(PipelineRunRow.id == run_id)
             ).one_or_none()
             if run is None:
                 raise PipelineResourceNotFound("pipeline run does not exist")
             current = PipelineRunStatus(str(run[0]))
             if current != PipelineRunStatus.FAILED:
                 raise PipelineConflict("only a failed pipeline run can be retried")
-            if run[1] == FailureClass.DETERMINISTIC.value:
+            if (
+                run[1] == FailureClass.DETERMINISTIC.value
+                and run[2] not in _MANUALLY_RETRYABLE_DETERMINISTIC_CODES
+            ):
                 raise DeterministicRetryRejected(
                     "deterministic failure requires changed input or configuration and a new run"
                 )

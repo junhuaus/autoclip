@@ -299,6 +299,58 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert invalid_range.status_code == 416
             assert invalid_range.json()["error"]["code"] == "RANGE_NOT_SATISFIABLE"
 
+            database = sqlite3.connect(runtime.database_path)
+            try:
+                proxy_row = database.execute(
+                    """
+                    SELECT id, spec_json
+                    FROM render_jobs
+                    WHERE candidate_clip_id = ? AND kind = 'proxy'
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                    """,
+                    (clip_id,),
+                ).fetchone()
+                assert proxy_row is not None
+                proxy_render_id, clean_spec_json = proxy_row
+                database.execute(
+                    "UPDATE render_jobs SET spec_json = ? WHERE id = ?",
+                    (
+                        json.dumps(
+                            {
+                                "schema_version": "2",
+                                "renderer": "ffmpeg-renderer-v1",
+                            }
+                        ),
+                        proxy_render_id,
+                    ),
+                )
+                database.commit()
+
+                legacy_summary = client.get(
+                    f"/api/v1/projects/{project_id}/clips", headers=auth
+                ).json()[0]
+                assert legacy_summary["clip"]["proxy_status"] == "stale"
+                assert legacy_summary["proxy_media_url"] is None
+                legacy_detail = client.get(f"/api/v1/clips/{clip_id}", headers=auth).json()
+                legacy_render = next(
+                    item
+                    for item in legacy_detail["clip"]["renders"]
+                    if item["render_id"] == proxy_render_id
+                )
+                assert legacy_render["status"] == "stale"
+                assert legacy_render["video_asset_id"] is None
+                assert legacy_render["contact_sheet_asset_id"] is None
+                assert legacy_detail["asset_urls"] == {}
+
+                database.execute(
+                    "UPDATE render_jobs SET spec_json = ? WHERE id = ?",
+                    (clean_spec_json, proxy_render_id),
+                )
+                database.commit()
+            finally:
+                database.close()
+
             clip = client.get(f"/api/v1/clips/{clip_id}", headers=auth)
             assert clip.status_code == 200
             assert clip.json()["clip"]["current_revision"] == 1

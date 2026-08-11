@@ -123,6 +123,21 @@ def test_filtergraph_contains_only_numeric_windows_and_fixed_templates(tmp_path:
     assert "eof_action=repeat:repeatlast=1" in graph
 
 
+def test_clean_clip_argv_has_no_text_overlay_inputs(tmp_path: Path) -> None:
+    request = replace(make_request(tmp_path), overlays=())
+
+    argv = build_ffmpeg_argv(
+        request,
+        encoder="libx264",
+        temporary_output=tmp_path / "clean.mp4",
+    )
+    graph = build_filtergraph(request)
+
+    assert argv.count("-i") == 1
+    assert str(tmp_path / "safe-generated.png") not in argv
+    assert "[1:v]" not in graph
+
+
 def test_renderer_refuses_to_overwrite_existing_revision_artifact(tmp_path: Path) -> None:
     request = make_request(tmp_path)
     request.output_path.write_bytes(b"existing successful artifact")

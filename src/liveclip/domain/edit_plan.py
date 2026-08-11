@@ -15,6 +15,7 @@ from liveclip.domain.time import ms_to_srt
 from liveclip.domain.transcript import TranscriptSegment
 
 EDIT_PLAN_SCHEMA_VERSION = "edit-plan-v1"
+EDIT_PLAN_PIPELINE_CONTRACT_VERSION = f"{EDIT_PLAN_SCHEMA_VERSION}.caption-v2.clean-proxy-v1"
 MAX_CAPTION_CUES = 32
 MIN_CAPTION_CUE_MS = 250
 MAX_CAPTION_TEXT_CHARACTERS = 120
@@ -115,6 +116,10 @@ class _CaptionInterval:
     start_ms: int
     end_ms: int
     text: str
+
+
+class _CaptionDensityError(ValueError):
+    """Caption text cannot be represented safely in its attributed interval."""
 
 
 class EditPlan(BaseModel):
@@ -263,13 +268,27 @@ def caption_cues_from_transcript_segments(
             relative_start = max(relative_start, intervals[-1].end_ms)
         if relative_end <= relative_start:
             continue
-        intervals.append(
-            _CaptionInterval(
+        try:
+            split_intervals = _split_caption_interval(
                 start_ms=relative_start,
                 end_ms=relative_end,
                 text=segment.text,
             )
-        )
+        except _CaptionDensityError:
+            # Without word timing, a provider-sized sentence that only grazes a
+            # clip boundary cannot be assigned accurately to that tiny overlap.
+            # Omitting the uncertain boundary tail is safer than displaying the
+            # whole sentence at the wrong time or failing an otherwise valid clip.
+            if was_boundary_clipped:
+                continue
+            raise
+        if was_boundary_clipped and any(
+            item.end_ms - item.start_ms
+            < len(split_display_caption_text(item.text)) * MIN_CAPTION_CUE_MS
+            for item in split_intervals
+        ):
+            continue
+        intervals.extend(split_intervals)
     if not intervals:
         raise ValueError("clip has no usable transcript segments for captions")
 
@@ -291,6 +310,69 @@ def caption_cues_from_transcript_segments(
     )
     validate_caption_cues(cues, clip_duration_ms=clip_duration_ms)
     return cues
+
+
+def _split_caption_interval(
+    *,
+    start_ms: int,
+    end_ms: int,
+    text: str,
+) -> tuple[_CaptionInterval, ...]:
+    """Split a provider-sized segment without dropping or inventing caption text."""
+
+    canonical = unicodedata.normalize("NFC", text)
+    canonical = " ".join(canonical.replace("\r", " ").replace("\n", " ").split())
+    canonical = "".join(
+        character for character in canonical if unicodedata.category(character) != "Cc"
+    ).strip()
+    if not canonical:
+        raise ValueError("caption is empty after display normalization")
+    parts: list[str] = []
+    offset = 0
+    while offset < len(canonical):
+        end = min(offset + MAX_CAPTION_TEXT_CHARACTERS, len(canonical))
+        while (
+            end > offset
+            and len(normalize_display_text(canonical[offset:end])) > MAX_CAPTION_TEXT_CHARACTERS
+        ):
+            end -= 1
+        if end <= offset:
+            raise ValueError("caption cannot fit the normalized display text limit")
+        parts.append(canonical[offset:end])
+        offset = end
+    if len(parts) == 1:
+        # Preserve the existing short-segment coalescing path below; only a
+        # provider-sized segment needs proportional subdivision here.
+        return (_CaptionInterval(start_ms=start_ms, end_ms=end_ms, text=parts[0]),)
+    duration_ms = end_ms - start_ms
+    minimum_durations = tuple(
+        len(split_display_caption_text(part)) * MIN_CAPTION_CUE_MS for part in parts
+    )
+    required_ms = sum(minimum_durations)
+    if duration_ms < required_ms:
+        raise _CaptionDensityError("transcript caption text is too dense for its source interval")
+
+    distributable_ms = duration_ms - required_ms
+    total_characters = sum(len(part) for part in parts)
+    consumed_characters = 0
+    consumed_extra_ms = 0
+    cursor_ms = start_ms
+    intervals: list[_CaptionInterval] = []
+    for index, (part, minimum_ms) in enumerate(zip(parts, minimum_durations, strict=True)):
+        consumed_characters += len(part)
+        cumulative_extra_ms = distributable_ms * consumed_characters // total_characters
+        part_duration_ms = minimum_ms + cumulative_extra_ms - consumed_extra_ms
+        part_end_ms = end_ms if index == len(parts) - 1 else cursor_ms + part_duration_ms
+        intervals.append(
+            _CaptionInterval(
+                start_ms=cursor_ms,
+                end_ms=part_end_ms,
+                text=part,
+            )
+        )
+        cursor_ms = part_end_ms
+        consumed_extra_ms = cumulative_extra_ms
+    return tuple(intervals)
 
 
 def _coalesce_short_caption_intervals(

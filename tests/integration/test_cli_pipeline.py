@@ -68,9 +68,12 @@ def test_cli_foreground_run_status_and_clips_share_persisted_services(
         assert clips_result.exit_code == 0, clips_result.output
         lines = [line for line in clips_result.output.splitlines() if "pending_review" in line]
         assert len(lines) == 3
+        assert "  Hook: " in clips_result.output
         assert "  Reason: " in clips_result.output
         assert "  Risk flags: " in clips_result.output
         assert "  Proxy status: succeeded" in clips_result.output
+        assert re.search(r"  Captions \([1-9][0-9]*, clip-relative\):", clips_result.output)
+        assert re.search(r"    01 \| 0\.000-[0-9]+\.[0-9]{3}s \| ", clips_result.output)
         assert "  Proxy path: " in clips_result.output
         assert str(data_dir.resolve()) in clips_result.output
         clip_id = lines[0].split(" | ", maxsplit=1)[0]
@@ -88,6 +91,9 @@ def test_cli_foreground_run_status_and_clips_share_persisted_services(
         assert review_result.exit_code == 0, review_result.output
         assert "EditPlan revision: 2" in review_result.output
         assert "Review status: approved" in review_result.output
+        assert "Hook: " in review_result.output
+        assert "Captions (" in review_result.output
+        assert "clip-relative" in review_result.output
 
         render_result = runner.invoke(app, ["rerender", clip_id, "--wait"])
         assert render_result.exit_code == 0, render_result.output

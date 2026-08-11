@@ -1,66 +1,92 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-05 20:18 CST
-Current milestone: M7 local implementation complete; external OpenRouter cloud acceptance is `not_run`
-Branch: `master`
-Latest implementation commit: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
-Earlier baseline commits: `60283ba` (M6 implementation), `65b327e` (delivered documentation)
+Updated: 2026-08-11 12:06 CST
+Current milestone: M8 independently verified PASS; Git publication in progress
+Branch: `master` (must become `main` before push)
+Latest local commit: `6afded7` (`docs: prepare OpenRouter ASR smoke fixture`)
+Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
-## Current outcome
+## Current user-visible outcome
 
-The user-selected real chain is implemented as OpenRouter `openai/whisper-large-v3` timestamped Chinese ASR followed by the installed Codex CLI for editorial scoring. ASR converts speech to timestamped text; Codex only receives bounded transcript/context and cannot listen to video. Neither Provider executes model-generated commands or silently substitutes Mock evidence.
+The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Review proxies are now clean 540×960 video clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text.
 
-The prior 2.19 GB `input/7.28.mp4` run used Mock ASR and Mock LLM. It proves read-only ingest, chunking, leases, persistence and proxy mechanics—not content understanding. The file has not been uploaded to OpenRouter.
+Run `make dev`, then open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-2 run `5ed80fea40ea48eca37fa10e8c4f1a06` is `completed` at 100% with 15 candidates.
 
-## Completed in M7
+Top clip:
 
-- Added strict `openrouter-codex`, retained explicit `openai`, `openai-codex`, `mock` and development-only `mock-codex` modes.
-- Implemented OpenRouter JSON `input_audio` with fixed official Base URL/model, Chinese segment/word timestamps, documented best-effort `provider.options.groq.prompt`, bounded retry/cache/resume and no Mock fallback.
-- Required exact `X-Generation-Id`; ordinary, missing, invalid or overlong request IDs cannot become success evidence. Root duration and usage seconds/cost must be numeric, finite and nonnegative.
-- Hardened Codex CLI 0.146.0 with 41 disabled tool features, real feature probe, read-only/no-approval execution, ignored user config/rules, credential/proxy-stripped child environment, executable/profile fingerprint and per-call identity fence.
-- Rejects Codex tool items, oversized JSONL and truncated stdout; repair cancellation retains every prior call record. Real Codex smoke requires a thread/correlation ID and positive token usage.
-- Added Provider readiness to Doctor/API/Web, readiness-safe Idempotency-Key replay, OpenRouter integration/smoke commands, privacy documentation, ADRs and regression coverage.
-- Preserved the user-owned `OPENROUTER_SETUP.md`; its old-Key-compromised warning is enforced and it is excluded from the M7 commit.
+- Clip ID: `4914ad2599c243be9582c31c9d526e34`
+- Title: `没天赋也能学好唱歌`
+- Video: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g002/renders/proxies/4914ad2599c243be9582c31c9d526e34/r001/review.mp4`
+- Contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g002/renders/proxies/4914ad2599c243be9582c31c9d526e34/r001/review-quality/contact-sheet.png`
+- Media asset: `8ff4c680b9c7458ba3a2717f59147a0c`; Range request returned HTTP 206.
 
-## Verified
+## Real-provider evidence
 
-- `make doctor`: READY; Python 3.12.13 arm64, Node 22.11 LTS, FFmpeg/ffprobe 8.1.2, SQLite 3.53.1, data root and Codex pass. Expected warnings: raster text fallback, missing regenerated OpenRouter Key, VideoToolbox failure with successful libx264 fallback.
-- `make lint`: PASS; Ruff, 167-file format check, mypy over 104 source files, EditPlan schema drift check and TypeScript all pass.
-- `make test`: PASS after the final generation-ID boundary fix; 498 Python tests in 134.75 seconds, 13 Vitest tests, one controlled Mock Chrome E2E and one real API + leased Worker + SQLite + FFmpeg Chrome E2E.
-- Real hardened `make smoke-codex`: PASS with provider `codex_cli`, model `gpt-5.6-terra`, thread `019fd196-1428-7b10-a814-422f64f4f030`, input 8,899/output 105 tokens and a non-degraded validated plan. This proves the editor only, not ASR.
-- `make smoke-openrouter INPUT="/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/7.28.mp4"`: correctly stopped `not_run` before paid work because no new safe Key exists; no Mock fallback.
-- Prepared a bounded real-ASR smoke fixture at `/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4`: source interval 300–390 seconds, 90.033 seconds, H.264 960×600 plus AAC audio, 4,906,445 bytes, SHA-256 `f603658f7eba804ab2201366c02811de786f9868a17f2c6c7339313e263a0a13`. FFmpeg fully decoded both streams to a null sink with exit 0; source stat identity was unchanged.
-- The exact short-fixture `make smoke-openrouter` command was executed and exited 2 with `not_run`: `OPENROUTER_API_KEY (new, non-exposed key)` and `OPENROUTER_ASR_NOT_CONFIGURED`. It stopped before upload or billing and did not substitute Mock.
-- Fresh `make demo`: project `demo_20260805T120045_8bc01ec3`, three candidates, status `delivered`, immutable v001 ZIP. Final is 1080×1920 H.264/AAC, 12.000 seconds; ffprobe/full decode/automatic quality/ZIP integrity pass.
-- The fresh final contact sheet was actually viewed: Chinese title/captions stay in the portrait safe area; no black/blank frame, wrong orientation or severe crop. Its quality report records `viewed_passed`.
-- Latest service health returns `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false` and `OPENROUTER_ASR_NOT_CONFIGURED`; Web returns HTTP 200 at `http://127.0.0.1:5173/`.
-- The Browser plugin exposed no attached browser instance, so no MCP visual claim is made. The checked host-Chrome E2E suites did launch and pass.
-- Independent M7 Reviewer: PASS, P0/P1/P2 all zero after 102 focused tests plus the full static gate.
+Generation 1 (`cf49e19a317d42eea50b720b1a5882f1`) processed read-only `input/7.28.mp4` (2,190,937,089 bytes, 2,780.437 seconds):
 
-## External verification still pending
+- OpenRouter: 33/33 successful requests, 0 retries, 2,942.016 overlap-inclusive audio seconds, 172.314 seconds summed request latency, USD 0.0735504 Provider-reported cost.
+- Transcript: 233 absolute-time segments covering 0.284–2,780.256 seconds. Observed optional word timing was not reliably alignable, so word timing is truthfully `unavailable`; 0 word timestamps were invented.
+- Rough candidates: 39.
+- The restricted Codex sandbox could not initialize its nested app-server client (`Operation not permitted`), so generation 1 truthfully used deterministic degraded editing. This is retained as failure/recovery evidence, not claimed as LLM success.
 
-- Real `OpenRouter ASR → Codex → proxies` smoke and actual upstream/usage shape.
-- Whether the Groq-specific vocabulary hint affects a target term; ordinary smoke only proves the chain.
-- Authorized real-content run on `input/7.28.mp4`; run only after a short smoke and budget check.
-- Representative 2–4 hour Apple M3 peak memory/runtime/disk measurements. The available host is Apple M2 and the fixture is 46:20.
+Generation 2 (`5ed80fea40ea48eca37fa10e8c4f1a06`) proves recovery and the real editor:
 
-## Blocking safety boundary
+- Reused 33/33 ASR caches from generation 1 under the then-current key-first identity; it created no new OpenRouter usage row and did not repay/reupload the chunks. A post-run canonical comparison confirmed all 33 tuples of chunk ID, interval, preprocessing key and actual audio-byte SHA-256 were identical. The reviewed v2 identity now binds both hashes; it is regression-tested but was not the code used during g2 and was not re-proven with another paid long run.
+- Host Worker completed 39/39 Codex candidate calls, 0 failures. All 15 selected EditPlans have `degraded=false` and distinct Chinese titles/reasons.
+- A dense 532 ms partial caption tail initially caused `EDIT_OUTPUT_INVALID`. The exact cause was fixed, 36 focused caption/edit/stage tests passed, and the same stage was manually retried from the 39 immutable Codex caches without another model call.
+- 15/15 clean review proxies succeeded. The top proxy is H.264/AAC 540×960, 83.233 seconds versus 83.216 expected, 26,784,712 bytes; ffprobe, complete decode, black/edge/crop heuristics and automatic quality all passed.
+- The top contact sheet was actually viewed: foreground/source-native livestream UI and blurred portrait background look coherent; no LiveClip title/caption overlay, black/blank frame or wrong orientation is visible. The committed automated report still records visual status pending; this observation is recorded here and in the ExecPlan without rewriting its committed Asset bytes.
 
-There is no safe OpenRouter Key in `.env` or `.env.local`. `OPENROUTER_SETUP.md` says the original Key appeared in chat and must be revoked. Do not recover, print or use it. The user must create a new limited Key and place it only in ignored `.env.local`; never request it in chat. This blocks paid cloud evidence, not the implementation, Demo, tests, Web or real Codex editor smoke.
+## Implemented in the current worktree
 
-## Worktree and service state
+- Hardened OpenAI/OpenRouter ASR response compatibility while preserving strict segment timing and explicit unavailable word timing.
+- Default ASR chunk size changed to 90 seconds.
+- Added same-Project cross-generation ASR cache reuse with correct historical call attribution; the final v2 identity requires both a valid preprocessing key and content SHA-256 and rejects same-key/different-byte fallback reuse.
+- Added renderer text modes `none` and `title_and_captions`; pipeline/manual proxies use `none`, final/Demo delivery uses reviewed overlays.
+- Added migration and query-time fencing so legacy text-bearing proxies become `stale` and cannot be presented as clean; queued legacy jobs are cancelled and running jobs receive cancellation.
+- Added Web wording/tests for clean proxy plus separate high-value metadata.
+- Added CLI Hook and clip-relative caption metadata output for both candidate listing and review results.
+- Added caption splitting/dense-boundary behavior and a versioned EditPlan pipeline contract.
+- Added bounded payload-free local validation diagnostics and same-run implementation-repair retry for `UNEXPECTED_STAGE_ERROR`/`EDIT_OUTPUT_INVALID`.
+- Added Alembic migrations `d2c59b8e4f31` (legacy Asset scope repair), `e7b14c2d9a60` (remove obsolete unique RenderJob task constraint) and `b81e3c7a4d20` (stale legacy text-bearing proxies). Current database is at `b81e3c7a4d20`; integrity/FK checks passed. Dirty render `709244f4fac84980ae81e1713bf2a79e` is stale, while all 15 current clean `7.28` proxies remain succeeded.
+- Pre-migration backups remain under `data/projects/migration-backups/`; `liveclip-pre-b81e3c7a4d20.sqlite3` SHA-256 is `952d53edb1aa5b8773ed5895c5bd7372e84dc389acaeb755abf65f6b5793f4ee`.
+- Product Spec, Solution, README, architecture, API/EditPlan notes, OpenRouter research/integration guide, ADR-010 and the Living ExecPlan are being updated to the real evidence.
 
-- M7 implementation is committed locally at `0a0b08a`; no remote exists and nothing is pushed.
-- `.env` is ignored, mode 600, selects `openrouter-codex`, allows repository `input/`, and contains an empty OpenRouter Key.
-- User `input/`, generated data, databases, deliveries and browser evidence remain ignored. No source video was changed.
-- The generated 90-second fixture under ignored `input/.liveclip-smoke/` is ready for the first paid smoke and does not affect Git.
-- `OPENROUTER_SETUP.md` remains an untracked user file and must not be staged.
-- Local API, Worker and Web are intended to remain running after the final restart.
+## Validation already run for this worktree
+
+- ASR-focused regressions: 103 passed.
+- Clean-proxy/render-focused backend regressions: 73 passed; Web typecheck and component tests passed.
+- Migration/proxy persistence regressions: 5 passed; pipeline-retry/migration set: 23 passed.
+- Cross-generation transcript/stage/proxy set: 34 passed.
+- Latest caption/edit/stage set: 36 passed; latest pipeline/caption set: 26 passed.
+- Targeted Ruff formatting/checks and mypy on changed core modules pass.
+- Real long run: generation 2 completed all six stages and 15 proxies; API/Web health is HTTP 200 and media Range is 206.
+- Final host `make doctor`: READY with one expected text-filter warning; OpenRouter and Codex are ready, and an actual `h264_videotoolbox` H.264/AAC encode succeeded. A separate restricted-sandbox run truthfully exercised the successful `libx264` fallback.
+- `make lint`: PASS after review repairs; Ruff and 169-file format gate, mypy over 105 source files, EditPlan Schema drift and TypeScript all pass.
+- First full `make test`: 514/515 Python exposed a punctuation-preservation regression. After all independent-review repairs, the final complete gate is 527/527 Python, 13/13 Web, one Mock browser E2E and one real API/Worker/SQLite/FFmpeg browser E2E.
+- Fresh `make demo`: `demo_20260811T032338_6f7414aa`, three candidates, `delivered`, immutable v001 ZIP. Proxy and final contact sheets were actually viewed; both reports record `viewed_passed`. Final is H.264/AAC 1080×1920, 12.000 seconds, 9,216,424 bytes, SHA-256 `0d9a4255b5d3dd0a5d0367652b5023355a6c509c6c432e9536561777e224adfe`; ZIP integrity passes.
+- Fresh `make smoke-openrouter`: project `a8d1035f78c24b28b392308bdde33d05`, run `0b523cdc396148b5af6d36cc5559edfe`; two OpenRouter requests + one Codex request, zero retries, 95.104 audio seconds, USD 0.0023776 Provider cost, non-degraded title `高音别硬喊：强混声与假声区别`, no Mock evidence.
+- Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
+
+## Not yet verified in M8
+
+- Final staged-scope/secret check, local commit, branch rename to `main`, remote add and push.
+- Representative 2–4 hour Apple M3 peak memory/runtime/disk. The actual available source is 46:20 and the host is Apple M2.
+- Whether the Groq-specific vocabulary hint improves a chosen target term; ordinary real success proves transport, not terminology accuracy.
+- A paid real cross-generation run under the new dual-hash cache identity. It is deliberately not repeated because historical g1/g2 manifests were post-verified byte-identical and same/different-byte behavior is covered locally.
+
+## Security and worktree state
+
+- The local OpenRouter credential is present only in ignored environment and was accepted by the real service. Its value has never been printed or persisted by this work.
+- `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
+- Source video remains a read-only reference and was not modified.
+- Local API/Worker/Web are currently stopped after test isolation. The Browser plugin still exposes no attached controllable browser; checked host-Chrome E2E passed independently.
+- The worktree contains intentional M8 source/test/doc changes plus three new migration files, the renderer contract module and focused tests. No remote is configured yet.
 
 ## Next concrete task
 
-After the user revokes the exposed Key and creates a new limited Key, place it locally in ignored `.env.local`, restart `make dev`, run Doctor, then execute `make smoke-openrouter INPUT="/Users/junhuaxu/Workspace/AGI/liveclip-ai/input/.liveclip-smoke/7.28-300s-90s.mp4"`. Inspect persisted OpenRouter generation/usage, Chinese transcript segments and non-Mock Codex evidence. Only after that succeeds should `input/7.28.mp4` be processed with `liveclip run --input ... --wait`.
+Inspect the complete diff/staged scope, exclude `OPENROUTER_SETUP.md` and all ignored secrets/input/generated data, commit locally, rename the branch to `main`, add the exact user-specified SSH remote and push without force. Restart `make dev` afterward so the review Web remains available.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, inspect the latest commits and verify API health. Never use or expose the compromised OpenRouter Key, and never describe a Mock long-file run as AI content validation.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify the database project/run facts above, and continue with the first command in “Next concrete task.” Preserve `OPENROUTER_SETUP.md` and all ignored user/generated data. Do not repeat the paid 46:20 ASR run or misattribute generation-1 deterministic editing as Codex success.

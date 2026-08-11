@@ -32,9 +32,15 @@ flowchart LR
   TRANSCRIPT --> CAND[Local deterministic candidates]
   CAND -->|bounded text + metadata| EDITOR[OpenAI Responses or local Codex CLI process]
   EDITOR -->|cloud inference; no tools| VALIDATE[Local strict validation]
-  VALIDATE --> RENDER[Local deterministic renderer]
-  SOURCE --> RENDER
-  RENDER --> LOCAL[(Local proxies/finals/deliveries)]
+  VALIDATE --> META[Separate title / Hook / reason / risks / captions]
+  VALIDATE --> PROXY[Local clean proxy renderer]
+  META --> REVIEW[Human review]
+  PROXY --> REVIEW
+  REVIEW --> FINAL[Local final renderer with approved overlays]
+  SOURCE --> PROXY
+  SOURCE --> FINAL
+  FINAL --> LOCAL[(Local finals/deliveries)]
+  PROXY --> LOCAL_PROXY[(Local review proxies)]
 ```
 
 Video frames, files, database, proxies, finals and deliveries stay local. In the default chain, prepared audio passes through OpenRouter to its selected Whisper host. Bounded transcript data then goes separately to the local Codex CLI process, whose inference remains cloud-based through saved ChatGPT authentication. Codex never receives source video/audio and is not ASR. Direct OpenAI ASR/Responses modes remain explicit alternatives.
@@ -101,14 +107,17 @@ flowchart LR
   TEXT[Untrusted transcript] --> MODEL[LLM: no tools]
   MODEL --> WIRE[Strict wire schema]
   WIRE --> DOMAIN[Domain invariants + whitelist]
-  DOMAIN --> MAP[Local enum/template mapping]
-  DOMAIN --> PNG[Pillow text rasterization]
+  DOMAIN --> MODE{System-owned render mode}
+  MODE -->|review: none| MAP[Local layout/effect mapping]
+  MODE -->|final: title_and_captions| PNG[Pillow text rasterization]
+  PNG --> MAP
   MAP --> ARGV[System-built FFmpeg argv]
-  PNG --> ARGV
   ARGV --> EXEC[subprocess shell=False]
 ```
 
 No path, command, filtergraph, SQL, code or script is accepted from the model.
+
+Review proxies always use the `none` text mode and expose editorial fields separately. Final renders use `title_and_captions` only for the approved current revision. The text mode participates in the render fingerprint.
 
 ## Revision and invalidation
 

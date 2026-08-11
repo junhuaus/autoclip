@@ -9,7 +9,7 @@ from liveclip.providers.telemetry import ProviderConfigurationError
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_ASR_MODEL = "openai/whisper-large-v3"
-OPENROUTER_ASR_CONTRACT_VERSION = "openrouter-asr-whisper-large-v3-timestamps-v2"
+OPENROUTER_ASR_CONTRACT_VERSION = "openrouter-asr-whisper-large-v3-timestamps-v5"
 
 
 class OpenRouterASRProvider(_TimestampASRProvider):

@@ -1,3 +1,5 @@
+import pytest
+
 from liveclip.domain.transcript import TranscriptSegment
 from liveclip.services.captions import captions_for_clip
 
@@ -60,3 +62,70 @@ def test_caption_density_is_coalesced_without_losing_text() -> None:
 
     assert len(cues) <= 7
     assert "".join(cue.text.replace(" ", "") for cue in cues) == "0123456789"
+
+
+def test_long_openrouter_segment_is_time_split_without_losing_text() -> None:
+    text = "强混声需要正确训练而不是用嗓子硬喊" * 12
+    segments = (
+        TranscriptSegment(
+            segment_id="openrouter_000001",
+            start_ms=188,
+            end_ms=30_188,
+            text=text,
+        ),
+    )
+
+    cues = captions_for_clip(segments, source_start_ms=188, source_end_ms=30_188)
+
+    assert len(cues) > 1
+    assert cues[0].start_ms == 0
+    assert cues[-1].end_ms == 30_000
+    assert all(len(cue.text) <= 120 for cue in cues)
+    assert all(cue.end_ms - cue.start_ms >= 250 for cue in cues)
+    assert "".join(cue.text for cue in cues) == text
+
+
+def test_transcript_caption_preserves_chinese_full_width_punctuation() -> None:
+    text = "很多人先介绍自己，观众却不知道为什么要留下。"  # noqa: RUF001
+    segments = (TranscriptSegment(segment_id="punctuation", start_ms=0, end_ms=4_000, text=text),)
+
+    cues = captions_for_clip(segments, source_start_ms=0, source_end_ms=4_000)
+
+    assert [cue.text for cue in cues] == [text]
+
+
+def test_dense_provider_sentence_at_clip_boundary_is_omitted() -> None:
+    segments = (
+        TranscriptSegment(
+            segment_id="complete",
+            start_ms=0,
+            end_ms=30_000,
+            text="候选主体内容完整保留",
+        ),
+        TranscriptSegment(
+            segment_id="uncertain_boundary_tail",
+            start_ms=30_000,
+            end_ms=60_000,
+            text="边界长句" * 30,
+        ),
+    )
+
+    cues = captions_for_clip(segments, source_start_ms=0, source_end_ms=30_500)
+
+    assert [(cue.start_ms, cue.end_ms, cue.text) for cue in cues] == [
+        (0, 30_000, "候选主体内容完整保留")
+    ]
+
+
+def test_dense_provider_sentence_inside_clip_remains_invalid() -> None:
+    segments = (
+        TranscriptSegment(
+            segment_id="dense_complete_segment",
+            start_ms=0,
+            end_ms=500,
+            text="完整但过密的字幕" * 20,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="too dense"):
+        captions_for_clip(segments, source_start_ms=0, source_end_ms=500)

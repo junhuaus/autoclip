@@ -36,6 +36,7 @@ class _ScoringProvider:
     scores: dict[str, float]
     fail_first: bool = False
     calls: int = 0
+    contract: str = "test-contract-v1"
 
     @property
     def provider_name(self) -> str:
@@ -55,7 +56,7 @@ class _ScoringProvider:
 
     @property
     def contract_version(self) -> str:
-        return "test-contract-v1"
+        return self.contract
 
     def edit_candidate(
         self,
@@ -129,6 +130,20 @@ def test_per_candidate_cache_prevents_duplicate_provider_calls(tmp_path: Path) -
     assert all(item.cache_hit for item in result.all_results)
     assert result.selected[0].candidate.candidate_id == "candidate_1"
     assert replay_events == []  # Test provider has no cloud call evidence.
+
+
+def test_cache_accepts_hashed_codex_contract_identity(tmp_path: Path) -> None:
+    candidate = _candidate(0, 50)
+    contract = "codex-cli-editorial-v2.0.146.0." + "a" * 64
+    first = _ScoringProvider(scores={candidate.candidate_id: 82}, contract=contract)
+
+    _run(first, (candidate,), tmp_path)
+    replay = _ScoringProvider(scores={candidate.candidate_id: 1}, contract=contract)
+    result = _run(replay, (candidate,), tmp_path)
+
+    assert first.calls == 1
+    assert replay.calls == 0
+    assert result.selected[0].result.plan.score == 82
 
 
 def test_provider_error_opens_circuit_for_remaining_candidates(tmp_path: Path) -> None:

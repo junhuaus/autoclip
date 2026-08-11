@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -65,6 +66,8 @@ ChunkOutcomeCallback = Callable[
     [AudioChunkLike, ProviderCallRecord | None, ProviderCallStatus, bool],
     None,
 ]
+
+_CHUNK_CACHE_IDENTITY_VERSION = "audio-chunk-cache-identity-v2"
 
 
 def normalize_transcript_text(value: str) -> str:
@@ -195,6 +198,7 @@ def transcribe_chunks(
     source_duration_ms: int,
     output_dir: Path,
     cache_dir: Path | None = None,
+    fallback_cache_dirs: Sequence[Path] = (),
     language: str = "zh",
     vocabulary_prompt: str | None = None,
     concurrency: int = 1,
@@ -209,6 +213,7 @@ def transcribe_chunks(
         source_duration_ms=source_duration_ms,
         output_dir=output_dir,
         cache_dir=cache_dir,
+        fallback_cache_dirs=fallback_cache_dirs,
         language=language,
         vocabulary_prompt=vocabulary_prompt,
         concurrency=concurrency,
@@ -224,6 +229,7 @@ def transcribe_chunks_detailed(
     source_duration_ms: int,
     output_dir: Path,
     cache_dir: Path | None = None,
+    fallback_cache_dirs: Sequence[Path] = (),
     language: str = "zh",
     vocabulary_prompt: str | None = None,
     concurrency: int = 1,
@@ -237,6 +243,7 @@ def transcribe_chunks_detailed(
 
     destination = Path(output_dir)
     cache_root = Path(cache_dir) if cache_dir is not None else destination / "asr-cache"
+    fallback_roots = tuple(Path(value) for value in fallback_cache_dirs)
     ordered_chunks = tuple(
         sorted(
             chunks,
@@ -256,7 +263,7 @@ def transcribe_chunks_detailed(
         if cancel_requested():
             raise ProviderCancelled()
         chunk_cache_identity = _chunk_cache_identity(chunk)
-        cache_path = cache_root / _chunk_cache_filename(
+        cache_filename = _chunk_cache_filename(
             chunk.chunk_id,
             chunk_cache_identity,
             provider_name=provider.provider_name,
@@ -265,16 +272,21 @@ def transcribe_chunks_detailed(
             language=language,
             vocabulary_prompt_sha256=vocabulary_prompt_sha256,
         )
-        cached = _load_cached_result(
-            cache_path,
-            chunk,
-            chunk_cache_identity=chunk_cache_identity,
-            provider_name=provider.provider_name,
-            model_name=provider.model_name,
-            provider_contract_version=contract_version,
-            language=language,
-            vocabulary_prompt_sha256=vocabulary_prompt_sha256,
-        )
+        cache_path = cache_root / cache_filename
+        cached: ASRChunkResult | None = None
+        for candidate_path in (cache_path, *(root / cache_filename for root in fallback_roots)):
+            cached = _load_cached_result(
+                candidate_path,
+                chunk,
+                chunk_cache_identity=chunk_cache_identity,
+                provider_name=provider.provider_name,
+                model_name=provider.model_name,
+                provider_contract_version=contract_version,
+                language=language,
+                vocabulary_prompt_sha256=vocabulary_prompt_sha256,
+            )
+            if cached is not None:
+                break
         if cached is not None:
             results_by_chunk[chunk.chunk_id] = cached
             if cached.call_record is not None:
@@ -519,11 +531,27 @@ def _chunk_cache_filename(
 
 
 def _chunk_cache_identity(chunk: AudioChunkLike) -> str:
-    for attribute in ("cache_key", "sha256"):
-        value = getattr(chunk, attribute, None)
-        if isinstance(value, str) and value:
-            return value[:256]
-    return f"{chunk.chunk_id}:{chunk.source_start_ms}:{chunk.source_end_ms}"
+    cache_key = getattr(chunk, "cache_key", None)
+    content_sha256 = getattr(chunk, "sha256", None)
+    if cache_key is not None or content_sha256 is not None:
+        if not _is_sha256(cache_key) or not _is_sha256(content_sha256):
+            raise ValueError(
+                "audio chunk cache identity requires both cache_key and content sha256"
+            )
+        identity = "\0".join((_CHUNK_CACHE_IDENTITY_VERSION, cache_key, content_sha256))
+        return hashlib.sha256(identity.encode()).hexdigest()
+    # Minimal protocol stubs and legacy Mock callers have no persisted chunk
+    # fingerprint. They remain scoped to their explicit ID and interval, while
+    # every real preprocessed AudioChunk must take the cryptographic branch above.
+    return f"legacy-v1:{chunk.chunk_id}:{chunk.source_start_ms}:{chunk.source_end_ms}"
+
+
+def _is_sha256(value: object) -> TypeGuard[str]:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _load_cached_result(

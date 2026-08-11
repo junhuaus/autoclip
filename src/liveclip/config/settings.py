@@ -63,9 +63,7 @@ class Settings(BaseSettings):
         validation_alias="LIVECLIP_CODEX_EXECUTABLE",
     )
 
-    asr_chunk_seconds: int = Field(
-        default=300, ge=10, le=3600, validation_alias="ASR_CHUNK_SECONDS"
-    )
+    asr_chunk_seconds: int = Field(default=90, ge=10, le=3600, validation_alias="ASR_CHUNK_SECONDS")
     asr_chunk_overlap_seconds: int = Field(
         default=5, ge=0, le=60, validation_alias="ASR_CHUNK_OVERLAP_SECONDS"
     )

@@ -165,6 +165,17 @@ def test_stage_diagnostic_write_failure_is_visible_but_path_free(
     assert "/private/tmp/source.mp4" not in repr(warnings)
 
 
+def test_safe_exception_site_contains_no_error_payload() -> None:
+    try:
+        raise ValueError("secret transcript and /private/source.mp4")
+    except ValueError as error:
+        site = stage_handler_module._safe_exception_site(error)
+
+    assert "test_stage_handlers.py" in site
+    assert "secret transcript" not in site
+    assert "/private/source.mp4" not in site
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

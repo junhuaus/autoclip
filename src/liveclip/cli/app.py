@@ -167,17 +167,25 @@ def clips(project_id: str) -> None:
                 typer.echo("No review clips are available")
                 return
             for clip in values:
+                detail = runtime.review_service.get_clip(clip.clip_id)
                 typer.echo(
                     f"{clip.clip_id} | {clip.review_status.value} | "
                     f"{clip.source_start_ms / 1000:.3f}-{clip.source_end_ms / 1000:.3f}s | "
                     f"{clip.score:.1f} | {clip.title}"
                 )
+                typer.echo(f"  Hook: {detail.plan.hook}")
                 typer.echo(f"  Reason: {clip.reason}")
                 typer.echo(
                     "  Risk flags: " + (", ".join(clip.risk_flags) if clip.risk_flags else "none")
                 )
                 proxy_status = clip.proxy_status.value if clip.proxy_status else "not_rendered"
                 typer.echo(f"  Proxy status: {proxy_status}")
+                typer.echo(f"  Captions ({len(detail.captions)}, clip-relative):")
+                for index, cue in enumerate(detail.captions, start=1):
+                    typer.echo(
+                        f"    {index:02d} | {cue.start_ms / 1000:.3f}-"
+                        f"{cue.end_ms / 1000:.3f}s | {cue.text}"
+                    )
                 if clip.proxy_asset_id is not None:
                     try:
                         proxy = runtime.media_asset_service.resolve(
@@ -274,6 +282,13 @@ def review(
                 f"{result.plan.source_end_ms / 1000:.3f}s"
             )
             typer.echo(f"Title: {result.plan.title}")
+            typer.echo(f"Hook: {result.plan.hook}")
+            typer.echo(f"Captions ({len(result.captions)}, clip-relative):")
+            for index, cue in enumerate(result.captions, start=1):
+                typer.echo(
+                    f"  {index:02d} | {cue.start_ms / 1000:.3f}-"
+                    f"{cue.end_ms / 1000:.3f}s | {cue.text}"
+                )
     except typer.Exit:
         raise
     except (BootstrapError, ValidationError, ValueError, RuntimeError, LookupError) as exc:

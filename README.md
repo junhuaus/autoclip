@@ -2,7 +2,7 @@
 
 LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It turns a local 2–4 hour video into reviewable 9:16 clips, lets a user adjust and approve exact revisions, and creates immutable MP4/SRT/manifest/ZIP deliveries.
 
-> Development status: the LiveClip v1 baseline is `delivered`; M7 adds the user's requested real chain: OpenRouter `openai/whisper-large-v3` ASR followed by the local Codex CLI editor. A real hardened Codex call has passed through saved ChatGPT login. The OpenRouter adapter is implemented and tested offline, but a real-video cloud run remains `not_run` because the old Key was exposed and no regenerated local Key is configured. The authoritative snapshot is [STATUS.md](STATUS.md).
+> Development status: the LiveClip v1 baseline is `delivered`. The selected real chain—OpenRouter `openai/whisper-large-v3` ASR followed by the local Codex CLI editor—has now processed the repository's read-only 46:20 input: 33/33 ASR chunks succeeded, Codex scored 39 candidates, and 15 non-degraded clean review clips were produced. The authoritative evidence and remaining limits are in [STATUS.md](STATUS.md).
 
 ## Architecture
 
@@ -73,7 +73,7 @@ All commands above are implemented. `review` creates an immutable human revision
 make dev
 ```
 
-This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. Its home page names the ASR and editorial providers separately, warns when either is Mock, and disables full processing when a required real provider is missing. A “preflight passed” label confirms local configuration/login only; it does not claim remote quota or model availability. An optional Bearer token is held only in page memory.
+This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The review console creates projects from allowed absolute paths, shows Pipeline progress/transcript/candidates, plays signed Range-enabled clean proxies, edits revisions/captions, approves or rejects, rerenders, and creates/downloads versioned deliveries. A proxy contains no LiveClip-generated title or captions; score, title, Hook, reason, risks and caption cues are displayed alongside it as editable metadata. Only the approved final render may burn text. The home page names the ASR and editorial providers separately, warns when either is Mock, and disables full processing when a required real provider is missing. A “preflight passed” label confirms local configuration/login only; it does not claim remote quota or model availability. An optional Bearer token is held only in page memory.
 
 In the page: enter the optional local API token, enter an allowed absolute media path and clip settings, create and start the project, wait for all six stages, inspect transcript/candidates, open a candidate editor, change title/bounds/caption cues, approve or reject it, render the current final revision, then create and download a new Delivery ZIP. Error, cancelled and retryable states expose their retry action; a stale video is never presented as the current revision.
 
@@ -85,7 +85,7 @@ The OpenAPI document is available at `http://127.0.0.1:8765/openapi.json`; healt
 
 ## Demo and cloud smoke
 
-`make demo` now requires no API key and creates real copyright-free H.264/AAC media, three overlapped mono audio chunks, a Mock Chinese transcript, three candidates and validated proxies. It approves one Demo clip, creates a human title revision that stales the old proxy, renders a validated 1080×1920 final, then emits SRT, manifest and `delivery.zip`. It prints the project ID and every required absolute path; reruns create a new isolated Demo project.
+`make demo` requires no API key and creates real copyright-free H.264/AAC media, three overlapped mono audio chunks, a Mock Chinese transcript, three candidates and validated clean proxies with separate editorial metadata. It approves one Demo clip, creates a human title revision that stales the old proxy, renders a text-bearing validated 1080×1920 final, then emits SRT, manifest and `delivery.zip`. It prints the project ID and every required absolute path; reruns create a new isolated Demo project.
 
 ```bash
 make demo
@@ -138,8 +138,8 @@ Use `liveclip status`, the API run retry endpoint, or the Web retry action for f
 - `SOURCE_NOT_ALLOWED` or import refusal: make the real source path a descendant of one `LIVECLIP_ALLOWED_MEDIA_ROOTS` entry; symlink escapes and `..` are intentionally rejected.
 - Port already in use: set `LIVECLIP_API_PORT` and/or `LIVECLIP_WEB_PORT` before `make dev`; Vite receives the API target automatically. For a non-5173 Web port, also set `LIVECLIP_CORS_ORIGINS=http://127.0.0.1:PORT`. E2E ports have their own variables above.
 - Browser test preflight fails: install Google Chrome in `/Applications` or set `LIVECLIP_CHROME_EXECUTABLE`; the test never attaches to an unrelated browser session.
-- OpenRouter smoke says `not_run`: set `openrouter-codex`, an allowed root and a newly regenerated Key in `.env.local`; it never substitutes Mock.
-- Web shows `OPENROUTER_ASR_NOT_CONFIGURED`: revoke the exposed old Key and configure a new Key only in ignored `.env.local`; a successful `codex login` alone cannot transcribe audio.
+- OpenRouter smoke says `not_run`: set `openrouter-codex`, an allowed root and a safe local Key in `.env.local`; it never substitutes Mock.
+- Web shows `OPENROUTER_ASR_NOT_CONFIGURED`: configure a safe Key only in ignored `.env.local`; a successful `codex login` alone cannot transcribe audio.
 - Web shows `OPENAI_ASR_NOT_CONFIGURED`: the explicit `openai-codex`/`openai` mode needs an OpenAI Platform key.
 - Web shows `CODEX_CLI_NOT_READY`: run `codex login` and `liveclip doctor`. LiveClip never asks you to paste that credential into the page.
 - Provider status did not change after editing `.env` or logging in: restart `make dev`; health intentionally uses one startup preflight rather than launching Codex on every unauthenticated poll.
@@ -150,4 +150,4 @@ Known development-host differences are tracked in Solution: current PATH Python 
 
 ## Current limitations
 
-The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Generated-media, API, CLI, Web, lease/recovery, VFR/rotation, revision, render and Delivery paths are verified. A read-only 2.19 GB, 46:20 repository input completed the six-stage streaming Mock pipeline in 28.83 seconds without changing its source hash. That run proves large-file/chunk mechanics only: its transcript was Mock and it did not test content understanding. A hardened real Codex structured editorial smoke passed. The full `OpenRouter ASR → Codex` run on `input/7.28.mp4` remains unverified until a newly regenerated local OpenRouter Key is configured; the exposed old Key will not be used. Representative 2–4 hour peak memory/runtime/disk, Apple M3 throughput, broader codec/device diversity and the Linux `renameat2` branch also remain unverified; the current development host is Apple M2. See STATUS for exact evidence.
+The Demo intentionally uses a 32-second source and explicit 8–12 second clip settings for fast repeatable local acceptance; product defaults remain 30–90 seconds. Generated-media, API, CLI, Web, lease/recovery, VFR/rotation, revision, render and Delivery paths are verified. A read-only 2.19 GB, 46:20 repository input completed the real `OpenRouter ASR → Codex` path on 2026-08-05: 33 ASR chunks produced 233 timestamped segments, 39 Codex calls succeeded, and 15 non-degraded 540×960 clean proxies passed full decode. Word-level timing was unavailable in the observed upstream response and was not fabricated. This sample is shorter than the typical 2–4 hour target; representative 2–4 hour peak memory/runtime/disk, Apple M3 throughput, broader codec/device diversity and the Linux `renameat2` branch remain unverified. The current development host is Apple M2. See STATUS for exact evidence.

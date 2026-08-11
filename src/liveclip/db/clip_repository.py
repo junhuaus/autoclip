@@ -8,11 +8,13 @@ from liveclip.application.pipeline import PipelineResourceNotFound
 from liveclip.db.models import (
     CandidateClipRow,
     EditPlanRevisionRow,
+    PipelineRunRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
 )
 from liveclip.domain.state_transitions import RenderStatus, ReviewStatus
+from liveclip.renderer.contracts import is_clean_review_proxy
 
 
 class SqlAlchemyClipQueryRepository:
@@ -39,12 +41,14 @@ class SqlAlchemyClipQueryRepository:
                     EditPlanRevisionRow.title,
                     EditPlanRevisionRow.reason,
                     EditPlanRevisionRow.risk_flags_json,
+                    PipelineRunRow.config_json,
                 )
                 .join(
                     EditPlanRevisionRow,
                     (EditPlanRevisionRow.candidate_clip_id == CandidateClipRow.id)
                     & (EditPlanRevisionRow.revision == CandidateClipRow.current_revision),
                 )
+                .join(PipelineRunRow, PipelineRunRow.id == CandidateClipRow.pipeline_run_id)
                 .where(
                     CandidateClipRow.project_id == project_id,
                     CandidateClipRow.pipeline_run_id == current_run_id,
@@ -64,7 +68,11 @@ class SqlAlchemyClipQueryRepository:
                     .limit(1)
                 )
                 render = connection.execute(
-                    select(RenderJobRow.status, RenderJobRow.asset_id)
+                    select(
+                        RenderJobRow.status,
+                        RenderJobRow.asset_id,
+                        RenderJobRow.spec_json,
+                    )
                     .where(
                         RenderJobRow.candidate_clip_id == row["id"],
                         RenderJobRow.edit_plan_revision_id == row["revision_id"],
@@ -75,7 +83,11 @@ class SqlAlchemyClipQueryRepository:
                 ).one_or_none()
                 if render is None:
                     render = connection.execute(
-                        select(RenderJobRow.status, RenderJobRow.asset_id)
+                        select(
+                            RenderJobRow.status,
+                            RenderJobRow.asset_id,
+                            RenderJobRow.spec_json,
+                        )
                         .where(
                             RenderJobRow.candidate_clip_id == row["id"],
                             RenderJobRow.kind == "proxy",
@@ -83,6 +95,16 @@ class SqlAlchemyClipQueryRepository:
                         .order_by(RenderJobRow.created_at.desc(), RenderJobRow.id.desc())
                         .limit(1)
                     ).one_or_none()
+                proxy_is_clean = bool(
+                    render
+                    and is_clean_review_proxy(
+                        spec=render[2],
+                        pipeline_config=row["config_json"],
+                    )
+                )
+                proxy_status = RenderStatus(str(render[0])) if render else None
+                if proxy_status == RenderStatus.SUCCEEDED and not proxy_is_clean:
+                    proxy_status = RenderStatus.STALE
                 summaries.append(
                     ClipSummary(
                         clip_id=str(row["id"]),
@@ -99,10 +121,13 @@ class SqlAlchemyClipQueryRepository:
                             if decision is not None
                             else ReviewStatus.PENDING_REVIEW
                         ),
-                        proxy_status=(RenderStatus(str(render[0])) if render else None),
+                        proxy_status=proxy_status,
                         proxy_asset_id=(
                             str(render[1])
-                            if render and render[0] == RenderStatus.SUCCEEDED.value and render[1]
+                            if render
+                            and proxy_status == RenderStatus.SUCCEEDED
+                            and proxy_is_clean
+                            and render[1]
                             else None
                         ),
                     )

@@ -34,7 +34,7 @@ class _CandidateEditCacheRecord(BaseModel):
     model: str = Field(min_length=1, max_length=100)
     prompt_version: str = Field(min_length=1, max_length=64)
     prompt_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    provider_contract_version: str = Field(min_length=1, max_length=80)
+    provider_contract_version: str = Field(min_length=1, max_length=120)
     result_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     result: LLMProviderResult
 
