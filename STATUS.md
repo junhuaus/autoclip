@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-12 13:10 CST
-Current milestone: M13 portable offline review package complete; local source checkpoint pending
+Current milestone: M13 portable offline review package complete and locally committed
 Branch: `main` tracking `origin/main`
-Latest implementation commit: `4e81d6c` (`ui: focus review on highlight moments`)
+Latest implementation commit: `1ec1437` (`feat: export fenced offline review packages`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
@@ -121,6 +121,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
 - M9 gates: `make lint` PASS; final-tree `make test` PASS with 531 Python, 13 Web, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. After the review-only migration coverage repair, 30 targeted tests pass. Independent M9 re-review is `PASS`, P0=0/P1=0/P2=0; the reviewer also viewed all 15 current contact sheets.
 - M10 final `make doctor`: READY with two expected warnings. Host VideoToolbox failed this invocation and the required actual `libx264` fallback encode succeeded; OpenRouter and Codex readiness passed without displaying secrets.
+- M13 independent final verifier: `PASS`, P0=0/P1=0/P2=0. It independently recomputed the v003 snapshot fingerprint, matched 15/15 manifest lineage rows to SQLite and confirmed all checksums/ZIP structure/state-preservation evidence. The only blocked observation is the separately disclosed MCP Chrome visual/playback check.
 - M10 final `make lint`: PASS; Ruff, 173-file format gate, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
 - M10 final host-permission `make test`: PASS with 540 Python tests, 19 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. A preceding restricted launch failed before assertions with macOS Chrome `SIGABRT/EPERM`; no assertion was suppressed, and the exact complete host run exited 0.
 - Real Chrome/CDP acceptance on the unchanged `7.28` data passed all DOM/count/seek/selection/dirty checks and the viewed media comparison described above.
@@ -146,7 +147,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 
 ## Next concrete task
 
-Review the final M13 diff and independent verifier verdict, then create the local source/document checkpoint. Do not rerun ASR/LLM.
+Restore the Codex Chrome browser connection if a tool-driven visual/playback check of v003 is desired; otherwise use the delivered file-only page or ZIP directly. Do not rerun ASR/LLM.
 
 ## Resume instructions
 
