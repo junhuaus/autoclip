@@ -63,9 +63,23 @@ liveclip review CLIP_ID --subtitle-text "修订后的整段字幕" --approve
 liveclip review CLIP_ID --reject --reason "内容不完整"
 liveclip rerender CLIP_ID --wait
 liveclip deliver PROJECT_ID --zip
+liveclip export-review PROJECT_ID --zip
 ```
 
 All commands above are implemented. `review` creates an immutable human revision when title/boundary/subtitle fields change, `rerender` queues or foreground-executes the current revision, and `deliver` creates a new immutable delivery version. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
+
+`export-review` is intentionally different from formal `deliver`: it snapshots every current
+successful clean review proxy while clips may still be `pending_review`, leaves all review and
+Project state unchanged, and creates a versioned self-contained offline package. The package
+contains MP4s, SRTs, per-clip and combined Markdown descriptions, JSON metadata, SHA-256 checksums,
+an offline `index.html`, and `offline-review.zip`. Open `index.html` after extraction to play and
+inspect the clips without API, Worker, Web, ASR, or LLM services.
+
+The offline-review manifest v2 records the exact Pipeline generation, Project revision epoch,
+EditPlan revision, review state, clean-proxy RenderJob, producer Task and committed Asset lineage.
+LiveClip rechecks that snapshot immediately before and after atomic publication and withdraws a
+raced package. Interrupted private attempts are recovered safely on the next export. This remains
+a review snapshot, not an approval or formal Delivery.
 
 ## Local Web workflow
 

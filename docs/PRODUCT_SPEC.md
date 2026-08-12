@@ -10,6 +10,8 @@ Amendment, 2026-08-05: the user explicitly selected OpenRouter `openai/whisper-l
 
 Amendment, 2026-08-05: the user explicitly requires review proxies to be clean video clips without LiveClip-generated title or caption overlays. Editorial title, Hook, reason, risk flags and editable caption cues are separate metadata shown by CLI/API/Web. Only the post-review final render may burn the approved current revision's title and captions. This changes proxy presentation, not revision fencing, quality validation or final delivery requirements.
 
+Amendment, 2026-08-12: the user requires a portable package of generated review clips and their descriptions before final approval/rendering. LiveClip therefore supports a separate versioned offline-review export containing current clean proxy MP4s, SRTs, titles, high-impact sentences, recommendation reasons, risks, editor keywords with evidence timing, an offline HTML viewer, JSON/Markdown metadata, hashes and ZIP. This export is explicitly not a formal Delivery, does not approve clips, does not burn text into video and does not change Project/review/Delivery state.
+
 ## Product outcome
 
 LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video. LiveClip deterministically imports and analyzes it, uses configured cloud ASR plus OpenAI/Codex editorial understanding, produces 10–20 configurable highlight candidates (default duration 30–90 seconds), supports human review and revision, re-encodes approved vertical clips, and creates an immutable versioned delivery package.

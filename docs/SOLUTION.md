@@ -37,6 +37,7 @@ Import direction is enforced:
 - `liveclip.renderer`: deterministic layout mapping, raster text assets, FFmpeg execution, validation/contact sheets.
 - `liveclip.review`: revision/review application helpers where they do not belong in generic commands.
 - `liveclip.delivery`: immutable snapshot, manifest, filenames, ZIP validation and atomic publish.
+- `liveclip.delivery.review_package`: state-preserving offline-review snapshots of current clean proxies and editorial metadata; these never substitute for formal approved Delivery.
 - `liveclip.observability`: structured logging, redaction, usage and subprocess diagnostics.
 - `liveclip.bootstrap`: the single composition root.
 - `apps/api`, `apps/worker`, and `liveclip.cli`: thin entry adapters.
@@ -189,6 +190,8 @@ Validation is a first-class output. A single pinned output descriptor feeds ffpr
 The service allocates a unique version and snapshots ordered eligible revisions/render assets before I/O. It copies only validated final media into a same-filesystem private attempt directory, emits relative SRT and a canonical manifest, and pins every resulting video, subtitle and manifest with exact size/SHA evidence. ZIP creation streams from those descriptors, never from ordinary member paths; the exclusively-created ZIP is fsynced, pinned, hashed and reopened from the descriptor to verify its complete canonical member list, member sizes, every member SHA and manifest object.
 
 Publication scans the exact regular-file tree and then performs a native atomic no-replace directory rename. After rename, every canonical endpoint is rebound to the original pinned descriptor and rehashed; failure withdraws the canonical version and fails closed. Before the task records success, it rechecks Project revision epoch/current eligibility and repeats manifest, disk member, ZIP member and committed Asset hash validation. An existing version is never removed or overwritten. Crash recovery adopts only a directory that passes the same exact validation; mere presence of `manifest.json` or `delivery.zip` is insufficient.
+
+Offline review export is a separate synchronous application query/export path. It resolves only the current clean succeeded proxy Asset for every selected current-generation clip, verifies the committed size/hash and transactionally captures run/generation/Project epoch/current revision/review/RenderJob/producer Task/Asset lineage. It snapshots the exact EditPlan description/captions/grounded keywords and builds outside SQLite, then rechecks the captured fence immediately before and after atomic no-replace publication; a raced post-publication version is withdrawn by exact directory identity. Strictly named crash-orphan attempts are recovered under the package lock with no-follow identity checks. Each immutable `offline-review-packages/vNNN` includes a CSP-constrained file-only HTML viewer plus MP4/SRT/Markdown/v2 JSON/checksums/ZIP and requires no server after extraction. The export never writes a ReviewDecision, RenderJob, Delivery row, ApiUsage row or Project status; `pending_review` remains truthful and formal Delivery continues to require approval plus a current final render.
 
 ## API, errors, and idempotency
 

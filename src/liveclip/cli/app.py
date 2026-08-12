@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from liveclip import __version__
 from liveclip.application.deliveries import DeliveryRequest
 from liveclip.application.media_assets import MediaAssetInvalid, MediaAssetNotFound
+from liveclip.application.offline_review import OfflineReviewPackageConflict
 from liveclip.application.reviewing import ClipPatch, RenderRequest, ReviewCommand
 from liveclip.bootstrap import (
     BootstrapError,
@@ -381,6 +382,46 @@ def deliver(
     except typer.Exit:
         raise
     except (BootstrapError, ValidationError, ValueError, RuntimeError, LookupError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("export-review")
+def export_review(
+    project_id: str,
+    include_zip: Annotated[
+        bool,
+        typer.Option("--zip/--no-zip", help="Include the self-contained offline ZIP."),
+    ] = True,
+) -> None:
+    """Export current clean proxies and editorial descriptions for offline review."""
+
+    settings = get_settings()
+    try:
+        with LiveClipRuntime.open(settings) as runtime:
+            result = runtime.offline_review_package_service.create(
+                project_id,
+                include_zip=include_zip,
+            )
+            typer.echo(f"Offline review package: {result.package_id}")
+            typer.echo(f"Package version: {result.package_version}")
+            typer.echo(f"Clips: {result.clip_count}")
+            typer.echo(f"Package directory: {result.directory.resolve(strict=True)}")
+            typer.echo(f"Offline page: {result.index_path.resolve(strict=True)}")
+            typer.echo(f"Manifest: {result.manifest_path.resolve(strict=True)}")
+            typer.echo(f"Manifest SHA-256: {result.manifest_sha256}")
+            if result.zip_path is not None:
+                typer.echo(f"Package ZIP: {result.zip_path.resolve(strict=True)}")
+                typer.echo(f"Package ZIP SHA-256: {result.zip_sha256}")
+            typer.echo("Review state unchanged: this package is not a formal approved delivery")
+    except (
+        BootstrapError,
+        OfflineReviewPackageConflict,
+        ValidationError,
+        ValueError,
+        RuntimeError,
+        LookupError,
+    ) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
         raise typer.Exit(code=1) from exc
 

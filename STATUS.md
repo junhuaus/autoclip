@@ -1,7 +1,7 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-12 11:21 CST
-Current milestone: M12 candidate-focused horizontal highlight list complete and published
+Updated: 2026-08-12 13:10 CST
+Current milestone: M13 portable offline review package complete; local source checkpoint pending
 Branch: `main` tracking `origin/main`
 Latest implementation commit: `4e81d6c` (`ui: focus review on highlight moments`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
@@ -11,6 +11,8 @@ Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board is now named `高光时刻` and reviews the existing candidates—there are no A/B variants—as a single-column list. Each full-width desktop row places video left and editorial content right; its complete subtitle block is last. The persisted current-revision Hook is shown as audience-oriented `高光语句`; ASR-grounded timed terms are explicitly `编辑关键词` for editor navigation. Atomic multi-candidate approve/reject remains intact. The redundant full-livestream `源视频绝对时间 / 转写` panel is not rendered or requested by the Web; persisted transcript/ASR and the REST transcript endpoint remain available for processing and external consumers.
 
 The local API/Worker/Web are running. Open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7` is `completed` at 100% with 15 candidates. Generations 1 and 2 no longer appear in the active database or project run directory.
+
+M13 adds `liveclip export-review PROJECT_ID --zip`, a separate state-preserving export for current clean review proxies. Final real v003 is at `data/projects/f91cb996f7534a6682aa5e5f01374b7b/offline-review-packages/v003`: 15 MP4s, 15 SRTs, 15 per-clip descriptions, 90 caption cues, 34 grounded keyword ranges, combined Markdown, v2 JSON manifest, checksums, CSP-protected offline HTML and a 288 MiB ZIP. Manifest SHA-256 is `7f52624db226c71cf3d661b3db30066f67810545424328264a7b837de6f07f25`; ZIP SHA-256 is `5851d26406258838a140f0ece4f5be44bb8a1ff325189055f26bc10d754eb645`. All 49 non-ZIP disk members, all 50 ZIP members, ZIP structure and 15/15 H.264/AAC 540×960 full decodes pass. The v2 manifest binds run/generation/Project epoch/current revision/review state/RenderJob/producer Task/committed Asset. Publication is fenced before and after atomic rename, and crash-orphan attempts are safely recovered. The Project remains `pending_review`; review decisions and formal deliveries remain zero; API usage remains 147 rows/147 requests, proving the export added no Provider call. v001/v002 are immutable pre-fence historical packages, not the current v2 contract. Browser runtime discovery returned `[]`; a strict retry found running Chrome but no registered Codex extension/native host, so the browser skill prohibited any fallback control. The offline page has not been visually confirmed in the in-app browser and no such claim is made.
 
 Top clip:
 
@@ -113,7 +115,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Fresh real long rerun: generation 3 completed all six stages, 33 OpenRouter calls, 41 Codex calls and 15 validated proxies. API health is `ok`, Web is HTTP 200, media Range is HTTP 206 and the project-list API returns exactly one project after both cleanup passes.
 - Final host `make doctor`: READY with one expected text-filter warning; OpenRouter and Codex are ready, and an actual `h264_videotoolbox` H.264/AAC encode succeeded. A separate restricted-sandbox run truthfully exercised the successful `libx264` fallback.
 - `make lint`: PASS after review repairs; Ruff and 169-file format gate, mypy over 105 source files, EditPlan Schema drift and TypeScript all pass.
-- First full `make test`: 514/515 Python exposed a punctuation-preservation regression. After all independent-review repairs, the final complete gate is 527/527 Python, 13/13 Web, one Mock browser E2E and one real API/Worker/SQLite/FFmpeg browser E2E.
+- First full `make test`: 514/515 Python exposed a punctuation-preservation regression. After all independent-review repairs, M12 passed 527/527 Python, 13/13 Web and both browser E2Es. M13 then passed 554/554 Python, 21/21 Web, one Mock browser E2E and one real API/Worker/SQLite/FFmpeg browser E2E; post-gate orphan/result-evidence hardening has 16/16 targeted tests and a fresh `make lint` PASS.
 - Fresh `make demo`: `demo_20260811T032338_6f7414aa`, three candidates, `delivered`, immutable v001 ZIP. Proxy and final contact sheets were actually viewed; both reports record `viewed_passed`. Final is H.264/AAC 1080×1920, 12.000 seconds, 9,216,424 bytes, SHA-256 `0d9a4255b5d3dd0a5d0367652b5023355a6c509c6c432e9536561777e224adfe`; ZIP integrity passes.
 - Fresh `make smoke-openrouter`: project `a8d1035f78c24b28b392308bdde33d05`, run `0b523cdc396148b5af6d36cc5559edfe`; two OpenRouter requests + one Codex request, zero retries, 95.104 audio seconds, USD 0.0023776 Provider cost, non-degraded title `高音别硬喊：强混声与假声区别`, no Mock evidence.
 - Independent Product-Spec M8 verifier: `PASS`, P0=0/P1=0/P2=0 after reproducing and closing optional-word, cache identity, legacy proxy and CLI metadata gaps. Its focused gate passed 138 tests; final commit is allowed after the staged secret/scope check.
@@ -144,8 +146,8 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 
 ## Next concrete task
 
-Use the Web `高光时刻` list to review the 15 current `7.28` clips, final-render approved revisions and create a new immutable Delivery. Do not rerun ASR/LLM unless the source or content-analysis requirements actually change.
+Review the final M13 diff and independent verifier verdict, then create the local source/document checkpoint. Do not rerun ASR/LLM.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR/LLM run. New engineering work starts after the completed M12 checkpoint rather than reopening verified tasks without evidence.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify the M13 v003 manifest/ZIP hashes above and continue with the first command in “Next concrete task.” Preserve all ignored input/generated data. Do not repeat the paid 46:20 ASR/LLM run.

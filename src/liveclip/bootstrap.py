@@ -17,6 +17,7 @@ from liveclip.application.clips import ClipQueryService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
 from liveclip.application.media_assets import MediaAssetService
+from liveclip.application.offline_review import OfflineReviewPackageService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
 from liveclip.application.render_runner import RenderTaskRunner
 from liveclip.application.rendering import RenderProfile, RenderService
@@ -28,6 +29,7 @@ from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
+from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
 from liveclip.db.render_repository import SqlAlchemyRenderRepository
 from liveclip.db.review_repository import SqlAlchemyReviewRepository
@@ -78,6 +80,7 @@ class LiveClipRuntime:
     delivery_service: DeliveryService
     delivery_runner: DeliveryTaskRunner
     media_asset_service: MediaAssetService
+    offline_review_package_service: OfflineReviewPackageService
 
     @classmethod
     def open(
@@ -111,11 +114,12 @@ class LiveClipRuntime:
                 lease_seconds=settings.worker_lease_seconds,
             )
             asset_store = SqlAlchemyAssetStore(engine)
+            stage_state_store = SqlAlchemyStageStateStore(engine)
             handlers = PipelineStageHandlers(
                 data_dir=data_dir,
                 allowed_media_roots=tuple(settings.allowed_media_roots),
                 assets=asset_store,
-                state=SqlAlchemyStageStateStore(engine),
+                state=stage_state_store,
                 openai_api_key=(
                     settings.openai_api_key.get_secret_value().strip()
                     if settings.ai_provider in {"openai", "openai-codex"}
@@ -174,6 +178,14 @@ class LiveClipRuntime:
                 SqlAlchemyMediaAssetRepository(engine),
                 data_dir=data_dir,
             )
+            offline_review_package_service = OfflineReviewPackageService(
+                pipeline=service,
+                clips=clip_query_service,
+                source_media=stage_state_store,
+                media_assets=media_asset_service,
+                fence_repository=SqlAlchemyOfflineReviewFenceRepository(engine),
+                data_dir=data_dir,
+            )
             return cls(
                 settings=settings,
                 data_dir=data_dir,
@@ -190,6 +202,7 @@ class LiveClipRuntime:
                 delivery_service=delivery_service,
                 delivery_runner=delivery_runner,
                 media_asset_service=media_asset_service,
+                offline_review_package_service=offline_review_package_service,
             )
         except Exception:
             engine.dispose(close=True)
