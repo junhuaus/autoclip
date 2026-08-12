@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-11 16:16 CST
-Current milestone: M10 multi-candidate review metadata and controls complete; Git checkpoint pending
+Current milestone: M10 multi-candidate review metadata and controls complete and published
 Branch: `main` tracking `origin/main`
-Latest implementation commit: `c14c910` (`milestone: prohibit blurred-background rendering`)
+Latest implementation commit: `cb7be17` (`milestone: add grounded multi-candidate review`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
@@ -119,11 +119,11 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
 - Source video remains a read-only reference and was not modified.
 - Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The user's existing Chrome debugging session at port 9222 opened and exercised the actual review board; no browser extension was installed or required.
-- The current 24-file M10 source/docs/test scope passes whitespace and secret-format scans with zero forbidden paths or real credential values. The latest published implementation remains `c14c910` until the pending scoped checkpoint; ignored local secrets/input/generated data and validation screenshots will not be committed.
+- The 24-file M10 source/docs/test scope passed whitespace and secret-format scans with zero forbidden paths or real credential values. Commit `cb7be17` is pushed to `origin/main`; ignored local secrets/input/generated data and validation screenshots were not committed.
 
 ## Next concrete task
 
-Create the scoped M10 Git checkpoint and push `main`; afterward the next product action is human review of the 15 current `7.28` candidates, final render of approved revisions and a new immutable Delivery—not another ASR run.
+Use the Web to review the 15 current `7.28` candidates, final-render approved revisions and create a new immutable Delivery. Do not rerun ASR unless the source or transcription requirements actually change.
 
 ## Resume instructions
 

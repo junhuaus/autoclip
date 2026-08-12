@@ -177,7 +177,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-11 Show each card's subtitles and keywords directly below its video with per-card seek controls.
 - [x] 2026-08-11 Add multi-select approve/reject controls and observable conflict/error/retry states.
 - [x] 2026-08-11 Run targeted Python/Web tests, verify current `7.28` through the API and host Chrome, and obtain an independent read-only `PASS`.
-- [x] 2026-08-11 Update recovery evidence and prepare a source/docs/tests-only milestone checkpoint for push.
+- [x] 2026-08-11 Update recovery evidence, create source/docs/tests-only checkpoint `cb7be17`, and push it to `origin/main` without local media, generated data or credentials.
 
 ## Work breakdown and file ownership
 
@@ -546,7 +546,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M10 implementation and acceptance are complete and ready for the scoped Git checkpoint. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The existing transcript is reused read-only. The board now exposes 90 subtitle cues and 34 segment-grounded keyword occurrences, per-card seek and atomic batch approval/rejection with exact retry/draft fencing. Final gates pass 540 Python, 19 Web and both Chrome flows; independent M10 review is `PASS`, P0=0/P1=0/P2=0. Chrome screenshots and source/proxy comparison frames are stored under the ignored generation validation directory. No paid provider call was made for M10.
+M10 implementation and acceptance are complete at checkpoint `cb7be17` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The existing transcript is reused read-only. The board now exposes 90 subtitle cues and 34 segment-grounded keyword occurrences, per-card seek and atomic batch approval/rejection with exact retry/draft fencing. Final gates pass 540 Python, 19 Web and both Chrome flows; independent M10 review is `PASS`, P0=0/P1=0/P2=0. Chrome screenshots and source/proxy comparison frames are stored under the ignored generation validation directory. No paid provider call was made for M10.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -564,4 +564,4 @@ M8 is complete at implementation commit `2bbdd4f` plus the publication-document 
 
 M9 is complete at implementation commit `c14c910` on `origin/main`. Layout is no longer an LLM output; active plans, review approval, render enqueue and FFmpeg execution all fail closed unless the system-owned layout is `center_crop`. The renderer contains one scale-to-fill/center-crop source branch and no blur/duplicated-foreground graph. Migration `c91f4e2a7b63` invalidated older media; all 15 real proxies were regenerated, fully decoded and independently viewed as consistent single-layer crops. Final gates pass at 531 Python tests, 13 Web tests and both browser flows; the M9 reviewer returned `PASS` with P0=0/P1=0/P2=0. No generated media, database, input or credential entered Git.
 
-M10 implementation is complete and awaiting its scoped checkpoint. It adds no A/B entities or media. Existing candidates receive current-revision captions and read-only grounded keyword ranges; the batch service is one revision-fenced/idempotent SQLite transaction; and the Web owns independent video seek state plus conservative dirty/retry fencing. Real `7.28` acceptance observed 15 cards, 90 cues and 34 transcript-segment keyword ranges without changing Provider usage. Final gates pass at 540 Python tests, 19 Web tests and both Chrome flows, and independent review returned `PASS` with P0=0/P1=0/P2=0.
+M10 is complete at implementation checkpoint `cb7be17` on `origin/main`. It adds no A/B entities or media. Existing candidates receive current-revision captions and read-only grounded keyword ranges; the batch service is one revision-fenced/idempotent SQLite transaction; and the Web owns independent video seek state plus conservative dirty/retry fencing. Real `7.28` acceptance observed 15 cards, 90 cues and 34 transcript-segment keyword ranges without changing Provider usage. Final gates pass at 540 Python tests, 19 Web tests and both Chrome flows, and independent review returned `PASS` with P0=0/P1=0/P2=0.
