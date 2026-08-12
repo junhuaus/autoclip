@@ -1,14 +1,14 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-11 16:16 CST
-Current milestone: M10 multi-candidate review metadata and controls complete and published
+Updated: 2026-08-12 10:13 CST
+Current milestone: M11 redundant full-transcript Web panel removed and published
 Branch: `main` tracking `origin/main`
-Latest implementation commit: `cb7be17` (`milestone: add grounded multi-candidate review`)
+Latest implementation commit: `df8b8db` (`ui: remove full transcript panel`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
 
-The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board reviews the existing candidates—there are no A/B variants—and now places clickable subtitles and truthful ASR-grounded keyword ranges directly below every video, with atomic multi-candidate approve/reject controls.
+The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board reviews the existing candidates—there are no A/B variants—and places clickable subtitles and truthful ASR-grounded keyword ranges directly below every video, with atomic multi-candidate approve/reject controls. The redundant full-livestream `源视频绝对时间 / 转写` panel is no longer rendered or requested by the Web; persisted transcript/ASR and the REST transcript endpoint remain available for processing and external consumers.
 
 The local API/Worker/Web are running. Open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7` is `completed` at 100% with 15 candidates. Generations 1 and 2 no longer appear in the active database or project run directory.
 
@@ -69,6 +69,14 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Actual viewed board/card screenshots are `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/validation/m10/review-board.png` and `.../first-card.png`. The fixed Web page header crossed the element screenshot but is not burned into media. Extracted same-time source/proxy frames under that directory prove the proxy is a direct center crop with no blur or LiveClip-generated text.
 - Independent M10 review returned `PASS`, P0=0/P1=0/P2=0 after closing word-provenance and four batch/draft/cache retry races.
 
+## M11 Web transcript-panel removal evidence
+
+- Removed the complete-livestream `TranscriptPanel` and its styles from the review workspace. The Web no longer calls `GET /projects/{project_id}/transcript` while loading a Project.
+- Candidate-local subtitles, grounded keyword ranges and the candidate-detail transcript remain directly associated with the video being reviewed. Pipeline stage progress still truthfully reports the Chinese transcription stage.
+- A component regression installs a transcript endpoint spy and proves both that `源视频绝对时间`/the `转写` heading are absent and that the endpoint receives zero requests.
+- Both checked Chrome flows explicitly assert the full panel is absent and per-card subtitles/keywords remain visible. The real-backend success screenshot was actually viewed and shows Pipeline progress followed directly by `高光候选`.
+- No ASR, LLM, source-media, Project, candidate or render state changed. This is a Web presentation/query reduction only.
+
 ## Implemented in the current worktree
 
 - Hardened OpenAI/OpenRouter ASR response compatibility while preserving strict segment timing and explicit unavailable word timing.
@@ -106,6 +114,8 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - M10 final `make lint`: PASS; Ruff, 173-file format gate, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
 - M10 final host-permission `make test`: PASS with 540 Python tests, 19 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. A preceding restricted launch failed before assertions with macOS Chrome `SIGABRT/EPERM`; no assertion was suppressed, and the exact complete host run exited 0.
 - Real Chrome/CDP acceptance on the unchanged `7.28` data passed all DOM/count/seek/selection/dirty checks and the viewed media comparison described above.
+- M11 final `make lint`: PASS; Ruff, 173-file format gate, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
+- M11 final `make test`: PASS with 540 Python tests, 20 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. The real-flow delivery screenshot was actually viewed after the run.
 
 ## Not yet verified in M8
 
@@ -119,7 +129,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - `OPENROUTER_SETUP.md` is explicitly ignored and must never be staged. Likewise never stage `.env`, `.env.local`, `input/`, databases, media, caches, delivery output or migration backups.
 - Source video remains a read-only reference and was not modified.
 - Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The user's existing Chrome debugging session at port 9222 opened and exercised the actual review board; no browser extension was installed or required.
-- The 24-file M10 source/docs/test scope passed whitespace and secret-format scans with zero forbidden paths or real credential values. Commit `cb7be17` is pushed to `origin/main`; ignored local secrets/input/generated data and validation screenshots were not committed.
+- The 9-file M11 implementation scope passed whitespace and credential-pattern checks. Commit `df8b8db` is pushed to `origin/main`; ignored local secrets/input/generated data and E2E screenshots were not committed.
 
 ## Next concrete task
 
@@ -127,4 +137,4 @@ Use the Web to review the 15 current `7.28` candidates, final-render approved re
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M10 checkpoint rather than reopening verified tasks without evidence.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M11 checkpoint rather than reopening verified tasks without evidence.

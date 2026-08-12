@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call. M11 removes the redundant full-livestream transcript panel from the Web review workspace while retaining persisted ASR/transcript data, the REST transcript endpoint and candidate-local subtitles/keywords.
 
 ## Architecture Summary
 
@@ -178,6 +178,15 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-11 Add multi-select approve/reject controls and observable conflict/error/retry states.
 - [x] 2026-08-11 Run targeted Python/Web tests, verify current `7.28` through the API and host Chrome, and obtain an independent read-only `PASS`.
 - [x] 2026-08-11 Update recovery evidence, create source/docs/tests-only checkpoint `cb7be17`, and push it to `origin/main` without local media, generated data or credentials.
+
+### M11 — Candidate-focused review workspace
+
+- [x] 2026-08-12 Remove the complete-livestream `源视频绝对时间 / 转写` panel and its unused styles from the Web review workspace.
+- [x] 2026-08-12 Stop the Project workspace from requesting the full transcript while retaining ASR, persisted transcript data and the REST endpoint.
+- [x] 2026-08-12 Keep per-candidate subtitles, grounded keyword time ranges and candidate-detail transcript controls beneath the relevant video.
+- [x] 2026-08-12 Add component and both Chrome-flow regressions proving the full panel is absent and candidate-local metadata remains visible.
+- [x] 2026-08-12 Pass `make lint` and complete `make test`: 540 Python, 20 Web, Mock Chrome and real FastAPI/SQLite Worker/FFmpeg Chrome flows.
+- [x] 2026-08-12 Actually view the real-backend delivered screenshot and publish implementation checkpoint `df8b8db` without generated media, input or credentials.
 
 ## Work breakdown and file ownership
 
@@ -393,6 +402,8 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Surprises and Discoveries
 
+- 2026-08-12: M10 correctly placed actionable subtitles and keywords beneath each video but left the older full-livestream transcript panel in the workspace. Removing the component also removes one large, redundant transcript fetch per Project view; the backend/API contract does not need to change.
+
 - 2026-08-05: The real OpenRouter response contained valid timestamped segments but optional word data sometimes mirrored a whole sentence or could not be aligned. Rejecting the entire response discarded usable ASR. The Adapter now degrades only optional word timing to `unavailable`; segment timing remains strict and 233 real segments were persisted with zero invented words.
 - 2026-08-05: The historical database predated Asset scope and allowed only one RenderJob per Task through an obsolete unique `task_id` constraint. Backups were taken before each narrow migration; Alembic reached `e7b14c2d9a60`, SQLite integrity/FK checks passed, and the real pipeline subsequently persisted all 15 proxy RenderJobs.
 - 2026-08-05: Generation 1 completed all paid ASR calls but its Codex child could not initialize an in-process app server inside the restricted Codex sandbox, so it truthfully degraded. The same Project's generation 2 reused all 33 historical caches under the then-current key-first identity and ran Codex under the host Worker: 39 successes, zero failures, 15 selected plans, zero degraded. Post-run manifest comparison confirmed both preprocessing key and byte SHA matched for every chunk; the later dual-hash v2 enforcement is tested but was not the code used during that paid run.
@@ -484,6 +495,8 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Decision Log
 
+- 2026-08-12: Treat the persisted transcript as a processing/API capability rather than a separate Web review panel; rationale: candidate review needs subtitles, keywords and local context attached to the exact video, while removing ASR itself would break candidate generation, captions and grounded timing.
+
 - 2026-08-05: Adopt ADR-010 clean review proxies with separate editorial metadata and reserve text overlays for final renders; rationale: the user must judge the underlying slice before approving generated presentation text.
 - 2026-08-05: Permit verified ASR cache reuse only across generations of the same Project and record no new call evidence on a cache hit; rationale: retries/config generations should not repay identical chunks, while historical Provider provenance must not be copied or misattributed.
 - 2026-08-11: Bind real ASR cache identity to both the preprocessing key and published audio-byte SHA-256; rationale: a deterministic configuration key cannot alone prove encoder output bytes are identical, and partial identity must fail closed.
@@ -546,7 +559,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M10 implementation and acceptance are complete at checkpoint `cb7be17` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The existing transcript is reused read-only. The board now exposes 90 subtitle cues and 34 segment-grounded keyword occurrences, per-card seek and atomic batch approval/rejection with exact retry/draft fencing. Final gates pass 540 Python, 19 Web and both Chrome flows; independent M10 review is `PASS`, P0=0/P1=0/P2=0. Chrome screenshots and source/proxy comparison frames are stored under the ignored generation validation directory. No paid provider call was made for M10.
+M11 implementation is complete at checkpoint `df8b8db` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The Web does not render or request the complete-livestream transcript; candidate-local subtitles and grounded keywords remain. Persisted ASR/transcript data and the REST transcript endpoint remain unchanged. Final gates pass 540 Python, 20 Web and both Chrome flows. The in-app browser adapter exposed no attached browser during this session, so no MCP-control claim is made; the checked Playwright suites launched installed host Chrome and the real-backend success screenshot was actually viewed. No paid provider call was made for M11.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -565,3 +578,5 @@ M8 is complete at implementation commit `2bbdd4f` plus the publication-document 
 M9 is complete at implementation commit `c14c910` on `origin/main`. Layout is no longer an LLM output; active plans, review approval, render enqueue and FFmpeg execution all fail closed unless the system-owned layout is `center_crop`. The renderer contains one scale-to-fill/center-crop source branch and no blur/duplicated-foreground graph. Migration `c91f4e2a7b63` invalidated older media; all 15 real proxies were regenerated, fully decoded and independently viewed as consistent single-layer crops. Final gates pass at 531 Python tests, 13 Web tests and both browser flows; the M9 reviewer returned `PASS` with P0=0/P1=0/P2=0. No generated media, database, input or credential entered Git.
 
 M10 is complete at implementation checkpoint `cb7be17` on `origin/main`. It adds no A/B entities or media. Existing candidates receive current-revision captions and read-only grounded keyword ranges; the batch service is one revision-fenced/idempotent SQLite transaction; and the Web owns independent video seek state plus conservative dirty/retry fencing. Real `7.28` acceptance observed 15 cards, 90 cues and 34 transcript-segment keyword ranges without changing Provider usage. Final gates pass at 540 Python tests, 19 Web tests and both Chrome flows, and independent review returned `PASS` with P0=0/P1=0/P2=0.
+
+M11 is complete at implementation checkpoint `df8b8db` on `origin/main`. The review workspace now goes from Pipeline progress directly to the candidate board; it neither displays nor fetches the redundant full transcript. Per-candidate subtitles, grounded keyword navigation and candidate-detail context remain intact, while backend transcript/ASR capability is unchanged. Full gates pass at 540 Python tests, 20 Web tests and both host-Chrome flows; the real-backend delivered screenshot was actually viewed.
