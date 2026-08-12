@@ -19,6 +19,7 @@ class ClipSummary(BaseModel):
     source_end_ms: int = Field(gt=0)
     score: float = Field(ge=0, le=100)
     title: str
+    hook: str
     reason: str
     risk_flags: tuple[str, ...]
     captions: tuple[CaptionCue, ...]

@@ -604,10 +604,16 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   font-variant-numeric: tabular-nums;
 }
 
-.clip-grid {
+.highlight-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
-  gap: 1rem;
+  gap: 1.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlight-list > li {
+  min-width: 0;
 }
 
 .batch-review-bar {
@@ -655,15 +661,28 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   background: rgba(7, 21, 23, 0.72);
 }
 
+.clip-card-main {
+  display: grid;
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  min-height: 32rem;
+}
+
+.clip-card-media {
+  border-right: 1px solid var(--line);
+  background: #030708;
+}
+
 .clip-stale {
   border-color: rgba(255, 138, 130, 0.28);
 }
 
-.clip-card video,
-.video-placeholder {
+.clip-card-media video,
+.clip-card-media .video-placeholder {
   display: block;
   width: 100%;
-  aspect-ratio: 9 / 16;
+  height: 100%;
+  min-height: 32rem;
+  max-height: 38rem;
   background: #030708;
   object-fit: contain;
 }
@@ -680,6 +699,25 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   margin: 0 0 0.55rem;
   color: #d9e9e8;
   font-size: 0.88rem;
+}
+
+.metadata-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.metadata-heading h4 {
+  margin: 0;
+  color: #d9e9e8;
+  font-size: 0.88rem;
+}
+
+.metadata-heading > span {
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .clip-captions ol {
@@ -702,6 +740,17 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   background: rgba(105, 140, 138, 0.08);
   text-align: left;
   cursor: pointer;
+}
+
+.clip-card-captions {
+  padding: 1rem;
+  border-top: 1px solid var(--line);
+  background: rgba(4, 14, 16, 0.72);
+}
+
+.clip-card-captions ol {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 15rem;
 }
 
 .clip-captions button:hover,
@@ -750,7 +799,8 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   font-size: 0.68rem;
 }
 
-.clip-timed-metadata button:disabled {
+.clip-timed-metadata button:disabled,
+.clip-card-captions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -762,7 +812,10 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
 }
 
 .clip-card-body {
-  padding: 1rem;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 1.15rem 1.25rem;
 }
 
 .clip-card-body h3 {
@@ -772,6 +825,37 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
 .clip-card-body > p:not(.clip-time, .stale-copy) {
   color: #b4c5c5;
   line-height: 1.6;
+}
+
+.clip-highlight-sentence,
+.clip-card-body > .clip-keywords {
+  margin-top: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: rgba(4, 14, 16, 0.54);
+}
+
+.clip-highlight-sentence {
+  border-color: rgba(88, 224, 193, 0.3);
+  background: linear-gradient(135deg, rgba(37, 136, 119, 0.16), rgba(4, 14, 16, 0.5));
+}
+
+.clip-highlight-sentence blockquote {
+  margin: 0;
+  color: #eefbf7;
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  font-weight: 780;
+  line-height: 1.55;
+}
+
+.clip-highlight-sentence .hint {
+  margin: 0.55rem 0 0;
+}
+
+.clip-edit-button {
+  align-self: flex-start;
+  margin-top: auto;
 }
 
 .risk-list {
@@ -976,8 +1060,26 @@ summary {
   }
 
   .home-layout,
-  .editor-grid {
+  .editor-grid,
+  .clip-card-main {
     grid-template-columns: 1fr;
+  }
+
+  .clip-card-main {
+    min-height: 0;
+  }
+
+  .clip-card-media {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .clip-card-media video,
+  .clip-card-media .video-placeholder {
+    height: auto;
+    min-height: 0;
+    max-height: 34rem;
+    aspect-ratio: 9 / 16;
   }
 
   .create-panel,
@@ -1010,6 +1112,16 @@ summary {
   .delivery-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .clip-card-captions ol {
+    grid-template-columns: 1fr;
+  }
+
+  .metadata-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
   }
 }
 

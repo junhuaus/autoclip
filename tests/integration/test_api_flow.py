@@ -289,6 +289,9 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert len(clips.json()) == 1
             clip_summary = clips.json()[0]
             clip_id = str(clip_summary["clip"]["clip_id"])
+            detail = client.get(f"/api/v1/clips/{clip_id}", headers=auth)
+            assert detail.status_code == 200
+            assert clip_summary["clip"]["hook"] == detail.json()["clip"]["plan"]["hook"]
             assert clip_summary["clip"]["captions"]
             assert clip_summary["clip"]["keywords"]
             for keyword in clip_summary["clip"]["keywords"]:

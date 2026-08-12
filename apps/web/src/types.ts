@@ -142,6 +142,7 @@ export interface ClipSummary {
   source_end_ms: number;
   score: number;
   title: string;
+  hook: string;
   reason: string;
   risk_flags: string[];
   captions: CaptionCue[];

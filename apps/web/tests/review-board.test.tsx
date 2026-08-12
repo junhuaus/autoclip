@@ -23,6 +23,7 @@ function secondSummary(): ClipSummaryResponse {
       clip_id: "clip-2",
       candidate_key: "candidate-2",
       title: "第二条高光",
+      hook: "第二条应该上屏的高光语句",
       source_start_ms: 20_000,
       source_end_ms: 30_000,
       keywords: [
@@ -78,7 +79,7 @@ it("seeks only the video belonging to the clicked subtitle or keyword", async ()
     Object.defineProperty(video, "duration", { configurable: true, value: 10 });
   }
 
-  await user.click(screen.getByRole("button", { name: /定位到关键词 第二关键词/ }));
+  await user.click(screen.getByRole("button", { name: /定位到编辑关键词 第二关键词/ }));
   expect(videos[0].currentTime).toBe(0);
   expect(videos[1].currentTime).toBe(2);
 
@@ -86,6 +87,23 @@ it("seeks only the video belonging to the clicked subtitle or keyword", async ()
   expect(videos[0].currentTime).toBe(0);
   expect(videos[1].currentTime).toBe(2);
   expect(screen.getAllByText("转写段时间窗").length).toBeGreaterThan(0);
+});
+
+it("renders each highlight as one horizontal list row with its sentence and captions last", () => {
+  const { container } = render(<ClipCard item={clipSummary} onOpen={() => undefined} />);
+  const card = container.querySelector("article.clip-card");
+  const main = card?.querySelector(":scope > .clip-card-main");
+  const captions = card?.querySelector(":scope > .clip-card-captions");
+
+  expect(card).not.toBeNull();
+  expect(main).not.toBeNull();
+  expect(captions).not.toBeNull();
+  expect(main?.nextElementSibling).toBe(captions);
+  expect(screen.getByRole("heading", { name: "高光语句" })).toBeVisible();
+  expect(screen.getByText("开头提出关键问题")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "编辑关键词" })).toBeVisible();
+  expect(screen.getByText("推荐上屏")).toBeVisible();
+  expect(screen.getByText("仅供编辑定位")).toBeVisible();
 });
 
 it("omits the redundant full transcript panel and does not request it", async () => {
@@ -107,7 +125,7 @@ it("omits the redundant full transcript panel and does not request it", async ()
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
 
-  await screen.findByRole("heading", { name: "高光候选" });
+  await screen.findByRole("heading", { name: "高光时刻" });
   await screen.findByLabelText("原始高光标题 字幕");
   expect(screen.queryByText("源视频绝对时间")).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "转写" })).not.toBeInTheDocument();
@@ -141,7 +159,7 @@ it("submits selected candidates through one atomic batch endpoint", async () => 
   );
   await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
   await screen.findByRole("button", { name: "关闭详情" });
-  await user.click(await screen.findByLabelText("全选可审核候选"));
+  await user.click(await screen.findByLabelText("全选可审核高光"));
   await user.click(screen.getByRole("button", { name: "批量批准" }));
 
   await waitFor(() =>
@@ -191,7 +209,7 @@ it("retries a failed batch with the exact same body and idempotency key", async 
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click(await screen.findByLabelText("全选可审核候选"));
+  await user.click(await screen.findByLabelText("全选可审核高光"));
   await user.click(screen.getByRole("button", { name: "批量批准" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("无法连接本机 LiveClip API");
@@ -222,7 +240,7 @@ it("blocks retry when a clip from the failed batch gains an unsaved draft", asyn
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click(await screen.findByLabelText("全选可审核候选"));
+  await user.click(await screen.findByLabelText("全选可审核高光"));
   await user.click(screen.getByRole("button", { name: "批量批准" }));
   const retryButton = await screen.findByRole("button", { name: "重试同一批次" });
   expect(retryButton).toBeEnabled();

@@ -77,12 +77,28 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await expect(page.getByLabel("总进度 100%")).toBeVisible();
   await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "高光候选" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "高光时刻" })).toBeVisible();
 
   const firstCard = page.locator("article.clip-card").first();
+  await expect(firstCard.getByRole("heading", { name: "高光语句" })).toBeVisible();
+  const highlightSentence = firstCard.locator(".clip-highlight-sentence blockquote");
+  await expect(highlightSentence).not.toBeEmpty();
+  await expect(firstCard.getByRole("heading", { name: "编辑关键词" })).toBeVisible();
   await expect(firstCard.locator(".clip-captions")).toBeVisible();
   await expect(firstCard.locator(".clip-keywords")).toBeVisible();
   await expect(firstCard.locator(".clip-captions button").first()).toBeVisible();
+  const cardMainBox = await firstCard.locator(":scope > .clip-card-main").boundingBox();
+  const cardVideoBox = await firstCard.locator("video").boundingBox();
+  const cardBodyBox = await firstCard.locator(".clip-card-body").boundingBox();
+  const cardCaptionBox = await firstCard.locator(":scope > .clip-card-captions").boundingBox();
+  expect(cardMainBox).not.toBeNull();
+  expect(cardVideoBox).not.toBeNull();
+  expect(cardBodyBox).not.toBeNull();
+  expect(cardCaptionBox).not.toBeNull();
+  expect((cardBodyBox as { x: number }).x).toBeGreaterThan((cardVideoBox as { x: number }).x);
+  expect((cardCaptionBox as { y: number }).y).toBeGreaterThanOrEqual(
+    (cardMainBox as { y: number; height: number }).y + (cardMainBox as { height: number }).height - 1,
+  );
   const proxyVideo = page.locator("article.clip-card video").first();
   await expect(proxyVideo).toHaveAttribute("src", /\/api\/v1\/media\/.+signature=/);
   const proxyUrl = await proxyVideo.getAttribute("src");

@@ -250,8 +250,25 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await expect(page.getByRole("heading", { name: "直播测试项目" })).toBeVisible();
   await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "高光时刻" })).toBeVisible();
+  const firstCard = page.locator("article.clip-card").first();
+  await expect(firstCard.getByRole("heading", { name: "高光语句" })).toBeVisible();
+  await expect(firstCard.getByText("开头提出关键问题")).toBeVisible();
+  await expect(firstCard.getByRole("heading", { name: "编辑关键词" })).toBeVisible();
   await expect(page.getByText("第一条字幕")).toBeVisible();
-  await expect(page.getByRole("button", { name: /定位到关键词 中文直播/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /定位到编辑关键词 中文直播/ })).toBeVisible();
+  const mainBox = await firstCard.locator(":scope > .clip-card-main").boundingBox();
+  const videoBox = await firstCard.locator("video").boundingBox();
+  const bodyBox = await firstCard.locator(".clip-card-body").boundingBox();
+  const captionBox = await firstCard.locator(":scope > .clip-card-captions").boundingBox();
+  expect(mainBox).not.toBeNull();
+  expect(videoBox).not.toBeNull();
+  expect(bodyBox).not.toBeNull();
+  expect(captionBox).not.toBeNull();
+  expect((bodyBox as { x: number }).x).toBeGreaterThan((videoBox as { x: number }).x);
+  expect((captionBox as { y: number }).y).toBeGreaterThanOrEqual(
+    (mainBox as { y: number; height: number }).y + (mainBox as { height: number }).height - 1,
+  );
   const proxy = page.getByLabel("原始高光标题 审核代理");
   await expect(proxy).toHaveAttribute("src", /signature=signed/);
 

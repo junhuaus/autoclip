@@ -170,112 +170,141 @@ export function ClipCard({
   };
 
   return (
-    <article className={`clip-card ${clip.proxy_status === "stale" ? "clip-stale" : ""}`}>
-      {item.proxy_media_url ? (
-        <video
-          ref={videoRef}
-          controls
-          preload="metadata"
-          src={item.proxy_media_url}
-          aria-label={`${clip.title} 审核代理`}
-          onLoadedMetadata={applyPendingSeek}
-        >
-          浏览器不支持 HTML5 视频播放。
-        </video>
-      ) : (
-        <div className="video-placeholder">
-          {clip.proxy_status === "stale" ? "旧代理已失效" : "暂无可播放代理"}
-        </div>
-      )}
-      <div className="clip-timed-metadata">
-        <section className="clip-captions" aria-labelledby={`captions-${clip.clip_id}`}>
-          <h4 id={`captions-${clip.clip_id}`}>字幕</h4>
-          {clip.captions.length > 0 ? (
-            <ol aria-label={`${clip.title} 字幕`}>
-              {clip.captions.map((cue, index) => (
-                <li key={`${cue.start_ms}-${cue.end_ms}-${index}`}>
-                  <button
-                    type="button"
-                    disabled={!item.proxy_media_url}
-                    onClick={() => seekTo(cue.start_ms)}
-                    aria-label={`定位到字幕 ${formatMs(cue.start_ms)}：${cue.text}`}
-                  >
-                    <time>{formatMs(cue.start_ms)}–{formatMs(cue.end_ms)}</time>
-                    <span>{cue.text}</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
+    <article
+      className={`clip-card ${clip.proxy_status === "stale" ? "clip-stale" : ""}`}
+      aria-labelledby={`clip-title-${clip.clip_id}`}
+    >
+      <div className="clip-card-main">
+        <div className="clip-card-media">
+          {item.proxy_media_url ? (
+            <video
+              ref={videoRef}
+              controls
+              preload="metadata"
+              src={item.proxy_media_url}
+              aria-label={`${clip.title} 审核代理`}
+              onLoadedMetadata={applyPendingSeek}
+            >
+              浏览器不支持 HTML5 视频播放。
+            </video>
           ) : (
-            <p className="hint">暂无字幕</p>
+            <div className="video-placeholder">
+              {clip.proxy_status === "stale" ? "旧代理已失效" : "暂无可播放代理"}
+            </div>
           )}
-        </section>
-        <section className="clip-keywords" aria-labelledby={`keywords-${clip.clip_id}`}>
-          <h4 id={`keywords-${clip.clip_id}`}>关键词</h4>
-          {clip.keywords.length > 0 ? (
-            <ul aria-label={`${clip.title} 关键词`}>
-              {clip.keywords.map((keyword, index) => (
-                <li key={`${keyword.text}-${keyword.clip_start_ms}-${index}`}>
-                  <button
-                    type="button"
-                    disabled={!item.proxy_media_url}
-                    onClick={() => seekTo(keyword.clip_start_ms)}
-                    aria-label={`定位到关键词 ${keyword.text}，${formatMs(keyword.clip_start_ms)}`}
-                  >
-                    <strong>{keyword.text}</strong>
-                    <time>{formatMs(keyword.clip_start_ms)}–{formatMs(keyword.clip_end_ms)}</time>
-                    <span>{keyword.timing_precision === "word" ? "词级时间" : "转写段时间窗"}</span>
-                    <span>
-                      源 {formatMs(keyword.source_start_ms)}–{formatMs(keyword.source_end_ms)}
-                    </span>
-                  </button>
-                </li>
-              ))}
+        </div>
+        <div className="clip-card-body">
+          <div className="section-heading compact">
+            <label className="clip-select">
+              <input
+                type="checkbox"
+                checked={selected}
+                disabled={selectionDisabled}
+                onChange={(event) => onSelectedChange(event.target.checked)}
+              />
+              选择批量审核
+            </label>
+            <StatusBadge status={clip.review_status} />
+          </div>
+          <span className="eyebrow">revision {clip.edit_plan_revision}</span>
+          <h3 id={`clip-title-${clip.clip_id}`}>{clip.title}</h3>
+          <p className="hint">干净切片 · 高光文案独立展示</p>
+          <p className="clip-time">{formatMs(clip.source_start_ms)}–{formatMs(clip.source_end_ms)}</p>
+          <p>{clip.reason}</p>
+
+          <section
+            className="clip-highlight-sentence"
+            aria-labelledby={`highlight-sentence-${clip.clip_id}`}
+          >
+            <div className="metadata-heading">
+              <h4 id={`highlight-sentence-${clip.clip_id}`}>高光语句</h4>
+              <span>推荐上屏</span>
+            </div>
+            <blockquote>{clip.hook}</blockquote>
+            <p className="hint">AI 从当前高光内容提炼，作为可审核的画面文案。</p>
+          </section>
+
+          <section className="clip-keywords" aria-labelledby={`keywords-${clip.clip_id}`}>
+            <div className="metadata-heading">
+              <h4 id={`keywords-${clip.clip_id}`}>编辑关键词</h4>
+              <span>仅供编辑定位</span>
+            </div>
+            {clip.keywords.length > 0 ? (
+              <ul aria-label={`${clip.title} 编辑关键词`}>
+                {clip.keywords.map((keyword, index) => (
+                  <li key={`${keyword.text}-${keyword.clip_start_ms}-${index}`}>
+                    <button
+                      type="button"
+                      disabled={!item.proxy_media_url}
+                      onClick={() => seekTo(keyword.clip_start_ms)}
+                      aria-label={`定位到编辑关键词 ${keyword.text}，${formatMs(keyword.clip_start_ms)}`}
+                    >
+                      <strong>{keyword.text}</strong>
+                      <time>{formatMs(keyword.clip_start_ms)}–{formatMs(keyword.clip_end_ms)}</time>
+                      <span>{keyword.timing_precision === "word" ? "词级时间" : "转写段时间窗"}</span>
+                      <span>
+                        源 {formatMs(keyword.source_start_ms)}–{formatMs(keyword.source_end_ms)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint">暂无可定位的编辑关键词</p>
+            )}
+          </section>
+
+          <div className="badge-row">
+            <span className="metric">{clip.score.toFixed(1)} 分</span>
+            {clip.proxy_status ? <StatusBadge status={clip.proxy_status} label={`代理${statusLabel(clip.proxy_status)}`} /> : null}
+          </div>
+          {clip.proxy_status === "stale" ? (
+            <p className="stale-copy" role="status">当前 revision 需要重新渲染，旧代理不能用于交付。</p>
+          ) : null}
+          {clip.risk_flags.length > 0 ? (
+            <ul className="risk-list" aria-label="风险标签">
+              {clip.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
             </ul>
-          ) : (
-            <p className="hint">暂无可信时间关键词</p>
-          )}
-        </section>
-      </div>
-      <div className="clip-card-body">
-        <div className="section-heading compact">
-          <label className="clip-select">
-            <input
-              type="checkbox"
-              checked={selected}
-              disabled={selectionDisabled}
-              onChange={(event) => onSelectedChange(event.target.checked)}
-            />
-            选择批量审核
-          </label>
-          <StatusBadge status={clip.review_status} />
+          ) : null}
+          <button
+            type="button"
+            className="button button-primary clip-edit-button"
+            disabled={openDisabled}
+            onClick={onOpen}
+          >
+            审核和编辑
+          </button>
         </div>
-        <span className="eyebrow">revision {clip.edit_plan_revision}</span>
-        <h3>{clip.title}</h3>
-        <p className="hint">干净切片 · 标题与描述独立展示</p>
-        <p className="clip-time">{formatMs(clip.source_start_ms)}–{formatMs(clip.source_end_ms)}</p>
-        <p>{clip.reason}</p>
-        <div className="badge-row">
-          <span className="metric">{clip.score.toFixed(1)} 分</span>
-          {clip.proxy_status ? <StatusBadge status={clip.proxy_status} label={`代理${statusLabel(clip.proxy_status)}`} /> : null}
-        </div>
-        {clip.proxy_status === "stale" ? (
-          <p className="stale-copy" role="status">当前 revision 需要重新渲染，旧代理不能用于交付。</p>
-        ) : null}
-        {clip.risk_flags.length > 0 ? (
-          <ul className="risk-list" aria-label="风险标签">
-            {clip.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
-          </ul>
-        ) : null}
-        <button
-          type="button"
-          className="button button-primary"
-          disabled={openDisabled}
-          onClick={onOpen}
-        >
-          审核和编辑
-        </button>
       </div>
+
+      <section
+        className="clip-captions clip-card-captions"
+        aria-labelledby={`captions-${clip.clip_id}`}
+      >
+        <div className="metadata-heading">
+          <h4 id={`captions-${clip.clip_id}`}>字幕</h4>
+          <span>点击跳转到对应画面</span>
+        </div>
+        {clip.captions.length > 0 ? (
+          <ol aria-label={`${clip.title} 字幕`}>
+            {clip.captions.map((cue, index) => (
+              <li key={`${cue.start_ms}-${cue.end_ms}-${index}`}>
+                <button
+                  type="button"
+                  disabled={!item.proxy_media_url}
+                  onClick={() => seekTo(cue.start_ms)}
+                  aria-label={`定位到字幕 ${formatMs(cue.start_ms)}：${cue.text}`}
+                >
+                  <time>{formatMs(cue.start_ms)}–{formatMs(cue.end_ms)}</time>
+                  <span>{cue.text}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="hint">暂无字幕</p>
+        )}
+      </section>
     </article>
   );
 }
@@ -624,14 +653,14 @@ export function ProjectWorkspace({
         <div className="section-heading">
           <div>
             <p className="eyebrow">人工审核</p>
-            <h2 id="clips-title">高光候选</h2>
+            <h2 id="clips-title">高光时刻</h2>
           </div>
           <span className="metric">已批准 {approvedCount}</span>
         </div>
-        {!contentEnabled ? <EmptyState title="候选尚未可用">等待 Pipeline 完成。</EmptyState> : null}
-        {contentEnabled && clipsQuery.isPending ? <LoadingState>正在加载候选…</LoadingState> : null}
+        {!contentEnabled ? <EmptyState title="高光时刻尚未可用">等待 Pipeline 完成。</EmptyState> : null}
+        {contentEnabled && clipsQuery.isPending ? <LoadingState>正在加载高光时刻…</LoadingState> : null}
         {clipsQuery.isError ? <ErrorState error={clipsQuery.error} onRetry={() => void clipsQuery.refetch()} /> : null}
-        {clipsQuery.data?.length === 0 ? <EmptyState title="没有高光候选" /> : null}
+        {clipsQuery.data?.length === 0 ? <EmptyState title="没有高光时刻" /> : null}
         {clipsQuery.data && clipsQuery.data.length > 0 ? (
           <>
             <div className="batch-review-bar" aria-label="批量审核">
@@ -648,7 +677,7 @@ export function ProjectWorkspace({
                     )
                   }
                 />
-                全选可审核候选
+                全选可审核高光
               </label>
               <strong>已选 {selectedItems.length} 条</strong>
               <button
@@ -698,32 +727,33 @@ export function ProjectWorkspace({
               ) : null}
               {dirtyClipIds.size > 0 ? (
                 <p className="hint" role="status">
-                  有 {dirtyClipIds.size} 个候选存在未保存编辑，已从批量审核中排除。
+                  有 {dirtyClipIds.size} 个高光存在未保存编辑，已从批量审核中排除。
                 </p>
               ) : null}
             </div>
-            <div className="clip-grid">
+            <ol className="highlight-list" aria-label="高光时刻列表">
               {clipsQuery.data.map((item) => (
-                <ClipCard
-                  key={item.clip.clip_id}
-                  item={item}
-                  selected={selectedClipIds.has(item.clip.clip_id)}
-                  selectionDisabled={
-                    batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
-                  }
-                  openDisabled={batchMutation.isPending}
-                  onSelectedChange={(selected) =>
-                    setSelectedClipIds((current) => {
-                      const next = new Set(current);
-                      if (selected) next.add(item.clip.clip_id);
-                      else next.delete(item.clip.clip_id);
-                      return next;
-                    })
-                  }
-                  onOpen={() => setSelectedClipId(item.clip.clip_id)}
-                />
+                <li key={item.clip.clip_id}>
+                  <ClipCard
+                    item={item}
+                    selected={selectedClipIds.has(item.clip.clip_id)}
+                    selectionDisabled={
+                      batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
+                    }
+                    openDisabled={batchMutation.isPending}
+                    onSelectedChange={(selected) =>
+                      setSelectedClipIds((current) => {
+                        const next = new Set(current);
+                        if (selected) next.add(item.clip.clip_id);
+                        else next.delete(item.clip.clip_id);
+                        return next;
+                      })
+                    }
+                    onOpen={() => setSelectedClipId(item.clip.clip_id)}
+                  />
+                </li>
               ))}
-            </div>
+            </ol>
           </>
         ) : null}
       </section>

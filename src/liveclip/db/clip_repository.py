@@ -190,6 +190,7 @@ class SqlAlchemyClipQueryRepository:
                         source_end_ms=int(row["source_end_ms"]),
                         score=float(row["score"]),
                         title=str(row["title"]),
+                        hook=plan.hook,
                         reason=str(row["reason"]),
                         risk_flags=tuple(str(value) for value in row["risk_flags_json"]),
                         captions=captions,

@@ -68,6 +68,7 @@ export const clipSummary: ClipSummaryResponse = {
     source_end_ms: 11_000,
     score: 88,
     title: "原始高光标题",
+    hook: "开头提出关键问题",
     reason: "表达完整且开头有吸引力",
     risk_flags: ["需人工确认"],
     captions: [{ start_ms: 0, end_ms: 4_000, text: "第一条字幕" }],

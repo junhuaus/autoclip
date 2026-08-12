@@ -229,13 +229,13 @@ export function ClipEditor({
   }, [activeRenderQuery.data?.status]);
 
   if (clipQuery.isPending) {
-    return <LoadingState>正在加载候选详情…</LoadingState>;
+    return <LoadingState>正在加载高光详情…</LoadingState>;
   }
   if (clipQuery.isError) {
     return <ErrorState error={clipQuery.error} onRetry={() => void clipQuery.refetch()} />;
   }
   if (!draft) {
-    return <EmptyState title="候选详情不可用" />;
+    return <EmptyState title="高光详情不可用" />;
   }
 
   const response = clipQuery.data;
@@ -294,7 +294,7 @@ export function ClipEditor({
     <section className="clip-editor panel" aria-labelledby="clip-editor-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">候选 #{clip.rank ?? "—"} · revision {clip.current_revision}</p>
+          <p className="eyebrow">高光 #{clip.rank ?? "—"} · revision {clip.current_revision}</p>
           <h2 id="clip-editor-title">{clip.plan.title}</h2>
         </div>
         <button type="button" className="button button-ghost" onClick={onClose}>
@@ -358,6 +358,34 @@ export function ClipEditor({
           )}
 
           <div className="clip-timed-metadata editor-timed-metadata">
+            <section className="clip-keywords" aria-labelledby={`editor-keywords-${clip.clip_id}`}>
+              <h4 id={`editor-keywords-${clip.clip_id}`}>编辑关键词</h4>
+              {clip.keywords.length > 0 ? (
+                <ul aria-label="当前切片详情编辑关键词">
+                  {clip.keywords.map((keyword, index) => (
+                    <li key={`${keyword.text}-${keyword.clip_start_ms}-${index}`}>
+                      <button
+                        type="button"
+                        disabled={!video}
+                        onClick={() => seekTo(keyword.clip_start_ms)}
+                        aria-label={`定位到详情编辑关键词 ${keyword.text}，${formatMs(keyword.clip_start_ms)}`}
+                      >
+                        <strong>{keyword.text}</strong>
+                        <time>{formatMs(keyword.clip_start_ms)}–{formatMs(keyword.clip_end_ms)}</time>
+                        <span>
+                          {keyword.timing_precision === "word" ? "词级时间" : "转写段时间窗"}
+                        </span>
+                        <span>
+                          源 {formatMs(keyword.source_start_ms)}–{formatMs(keyword.source_end_ms)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="hint">暂无可定位的编辑关键词</p>
+              )}
+            </section>
             <section className="clip-captions" aria-labelledby={`editor-captions-${clip.clip_id}`}>
               <h4 id={`editor-captions-${clip.clip_id}`}>字幕</h4>
               <ol aria-label="当前切片详情字幕">
@@ -376,40 +404,12 @@ export function ClipEditor({
                 ))}
               </ol>
             </section>
-            <section className="clip-keywords" aria-labelledby={`editor-keywords-${clip.clip_id}`}>
-              <h4 id={`editor-keywords-${clip.clip_id}`}>关键词</h4>
-              {clip.keywords.length > 0 ? (
-                <ul aria-label="当前切片详情关键词">
-                  {clip.keywords.map((keyword, index) => (
-                    <li key={`${keyword.text}-${keyword.clip_start_ms}-${index}`}>
-                      <button
-                        type="button"
-                        disabled={!video}
-                        onClick={() => seekTo(keyword.clip_start_ms)}
-                        aria-label={`定位到详情关键词 ${keyword.text}，${formatMs(keyword.clip_start_ms)}`}
-                      >
-                        <strong>{keyword.text}</strong>
-                        <time>{formatMs(keyword.clip_start_ms)}–{formatMs(keyword.clip_end_ms)}</time>
-                        <span>
-                          {keyword.timing_precision === "word" ? "词级时间" : "转写段时间窗"}
-                        </span>
-                        <span>
-                          源 {formatMs(keyword.source_start_ms)}–{formatMs(keyword.source_end_ms)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="hint">暂无可信时间关键词</p>
-              )}
-            </section>
           </div>
 
           <div className="transcript-card">
             <h3>高光描述（独立元数据）</h3>
             <p><strong>标题：</strong>{clip.plan.title}</p>
-            <p><strong>Hook：</strong>{clip.plan.hook}</p>
+            <p><strong>高光语句：</strong>{clip.plan.hook}</p>
             <p><strong>推荐理由：</strong>{clip.plan.reason}</p>
             <p className="hint">标题、描述和字幕不会写入审核切片画面；审核修改后再生成最终视频。</p>
             {clip.plan.risk_flags.length > 0 ? (
@@ -420,7 +420,7 @@ export function ClipEditor({
           </div>
 
           <div className="transcript-card">
-            <h3>候选转写</h3>
+            <h3>高光原文</h3>
             <p>{clip.transcript_text}</p>
             <details>
               <summary>查看前后文与生成原因</summary>

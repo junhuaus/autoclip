@@ -1,14 +1,14 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-12 10:13 CST
-Current milestone: M11 redundant full-transcript Web panel removed and published
+Updated: 2026-08-12 11:21 CST
+Current milestone: M12 candidate-focused horizontal highlight list complete; checkpoint pending
 Branch: `main` tracking `origin/main`
 Latest implementation commit: `df8b8db` (`ui: remove full transcript panel`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
 
-The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board reviews the existing candidates—there are no A/B variants—and places clickable subtitles and truthful ASR-grounded keyword ranges directly below every video, with atomic multi-candidate approve/reject controls. The redundant full-livestream `源视频绝对时间 / 转写` panel is no longer rendered or requested by the Web; persisted transcript/ASR and the REST transcript endpoint remain available for processing and external consumers.
+The user-selected real chain is working on the repository input: OpenRouter `openai/whisper-large-v3` performs timestamped Chinese ASR, then the installed hardened Codex CLI scores bounded transcript candidates and creates title/Hook/reason/risk metadata. Layout is no longer model-selected. Every review/final render uses one direct source-video layer with center crop; blurred backgrounds and duplicated/shrunken foreground composition are prohibited. Review proxies are clean 540×960 clips with no LiveClip-generated title or captions. Editorial fields and editable caption cues are separate metadata; only an approved final render may burn text. The board is now named `高光时刻` and reviews the existing candidates—there are no A/B variants—as a single-column list. Each full-width desktop row places video left and editorial content right; its complete subtitle block is last. The persisted current-revision Hook is shown as audience-oriented `高光语句`; ASR-grounded timed terms are explicitly `编辑关键词` for editor navigation. Atomic multi-candidate approve/reject remains intact. The redundant full-livestream `源视频绝对时间 / 转写` panel is not rendered or requested by the Web; persisted transcript/ASR and the REST transcript endpoint remain available for processing and external consumers.
 
 The local API/Worker/Web are running. Open `http://127.0.0.1:5173`. Project `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`) is `pending_review`; current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7` is `completed` at 100% with 15 candidates. Generations 1 and 2 no longer appear in the active database or project run directory.
 
@@ -65,7 +65,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - The live clip list returns 15 clean videos, 90 current-revision caption cues and 34 keyword occurrences. All 34 use explicit `segment` precision; an independent cross-check proved each normalized phrase occurs in its exact persisted TranscriptSegment, each returned source interval equals that segment, and every segment is fully contained by the current clip.
 - Batch review accepts 1–100 unique clips and validates Project generation, current revision and active layout before any write. Decisions, Delivery invalidation and the Idempotency-Key record share one `BEGIN IMMEDIATE`; one conflict rolls back the entire batch. A real two-item request with one deliberately wrong revision returned 409 and persisted zero decisions.
 - Web retries preserve the exact failed body/key and first reconcile server state. Dirty drafts, changed revisions or missing clips disable an old retry. Dirty candidates are removed from selection, editor writes are locked while a batch is in flight, and successful detail snapshots update open-editor caches.
-- Host Chrome opened `http://127.0.0.1:5173` on the actual `7.28` Project and observed 15 videos, 15 subtitle sections, 15 keyword sections, 34 keyword buttons and no A/B text. DOM order is `video → subtitles/keywords → card body`. Clicking `热身` moved only the first video from 0 to 55.144 seconds; batch selection enabled approval; an unsaved title draft disabled that clip's batch selection.
+- Historical M10 acceptance opened `http://127.0.0.1:5173` on the actual `7.28` Project and observed 15 videos, 15 subtitle sections, 15 keyword sections, 34 keyword buttons and no A/B text. Its old DOM order was `video → subtitles/keywords → card body`; M12 intentionally supersedes that presentation with `video + content → subtitles last`. Clicking `热身` moved only the first video from 0 to 55.144 seconds; batch selection enabled approval; an unsaved title draft disabled that clip's batch selection.
 - Actual viewed board/card screenshots are `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/validation/m10/review-board.png` and `.../first-card.png`. The fixed Web page header crossed the element screenshot but is not burned into media. Extracted same-time source/proxy frames under that directory prove the proxy is a direct center crop with no blur or LiveClip-generated text.
 - Independent M10 review returned `PASS`, P0=0/P1=0/P2=0 after closing word-provenance and four batch/draft/cache retry races.
 
@@ -74,8 +74,16 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Removed the complete-livestream `TranscriptPanel` and its styles from the review workspace. The Web no longer calls `GET /projects/{project_id}/transcript` while loading a Project.
 - Candidate-local subtitles, grounded keyword ranges and the candidate-detail transcript remain directly associated with the video being reviewed. Pipeline stage progress still truthfully reports the Chinese transcription stage.
 - A component regression installs a transcript endpoint spy and proves both that `源视频绝对时间`/the `转写` heading are absent and that the endpoint receives zero requests.
-- Both checked Chrome flows explicitly assert the full panel is absent and per-card subtitles/keywords remain visible. The real-backend success screenshot was actually viewed and shows Pipeline progress followed directly by `高光候选`.
+- Both checked M11 Chrome flows explicitly asserted the full panel was absent and per-card subtitles/keywords remained visible. The real-backend success screenshot was actually viewed and showed Pipeline progress followed directly by the review board; M12 subsequently renamed that heading to `高光时刻`.
 - No ASR, LLM, source-media, Project, candidate or render state changed. This is a Web presentation/query reduction only.
+
+## M12 horizontal high-impact review evidence
+
+- The review heading is `高光时刻`; candidates render as semantic ordered-list rows rather than a multi-column card grid.
+- Desktop CSS and Chrome geometry checks prove video is left of editorial content. The row's subtitle section is a direct final sibling after the main horizontal grid; narrow screens collapse to one column without changing DOM order.
+- `ClipSummary` now includes the exact current-revision persisted EditPlan Hook. The Web labels it `高光语句` with `推荐上屏`; this is distinct from timed `编辑关键词`, which are labelled `仅供编辑定位`.
+- The restarted real API returned 15/15 non-empty existing Hooks for `7.28`, including `KTV唱歌前做十个蹲起，能快速找状态吗？`. No ASR/LLM call, Project revision or render change occurred.
+- The checked real-backend Chrome screenshot was actually viewed: layout, hierarchy and subtitle-last order are correct; the clean proxy remains no-text and no-blur.
 
 ## Implemented in the current worktree
 
@@ -116,6 +124,8 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Real Chrome/CDP acceptance on the unchanged `7.28` data passed all DOM/count/seek/selection/dirty checks and the viewed media comparison described above.
 - M11 final `make lint`: PASS; Ruff, 173-file format gate, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
 - M11 final `make test`: PASS with 540 Python tests, 20 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. The real-flow delivery screenshot was actually viewed after the run.
+- M12 final `make lint`: PASS; Ruff/format, mypy over 106 source files, EditPlan schema sync and TypeScript typecheck all pass.
+- M12 final `make test`: PASS with 540 Python tests, 21 Web tests, one Mock Chrome E2E and one real FastAPI/SQLite lease Worker/FFmpeg Chrome E2E. Both browser flows assert horizontal geometry, high-impact copy, editor-keyword naming and subtitle-last order.
 
 ## Not yet verified in M8
 
@@ -133,8 +143,8 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 
 ## Next concrete task
 
-Use the Web to review the 15 current `7.28` candidates, final-render approved revisions and create a new immutable Delivery. Do not rerun ASR unless the source or transcription requirements actually change.
+Use the Web `高光时刻` list to review the 15 current `7.28` clips, final-render approved revisions and create a new immutable Delivery. Do not rerun ASR/LLM unless the source or content-analysis requirements actually change.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR run. New engineering work starts after the completed M11 checkpoint rather than reopening verified tasks without evidence.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, verify generation 3 and the 15 clips through the API, and continue with the first command in “Next concrete task.” Preserve all ignored user/generated data, including validation screenshots and explicit cleanup backup/trash unless the user asks for permanent reclamation. Do not repeat the paid 46:20 ASR/LLM run. New engineering work starts after the completed M12 checkpoint rather than reopening verified tasks without evidence.

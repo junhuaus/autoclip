@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call. M11 removes the redundant full-livestream transcript panel from the Web review workspace while retaining persisted ASR/transcript data, the REST transcript endpoint and candidate-local subtitles/keywords.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call. M11 removes the redundant full-livestream transcript panel from the Web review workspace while retaining persisted ASR/transcript data, the REST transcript endpoint and candidate-local subtitles/keywords. M12 renames the board `高光时刻`, uses one full-width horizontal row per clip, promotes the persisted Hook to `高光语句`, labels timed terms as editor-only keywords and makes subtitles the final row section.
 
 ## Architecture Summary
 
@@ -187,6 +187,16 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-12 Add component and both Chrome-flow regressions proving the full panel is absent and candidate-local metadata remains visible.
 - [x] 2026-08-12 Pass `make lint` and complete `make test`: 540 Python, 20 Web, Mock Chrome and real FastAPI/SQLite Worker/FFmpeg Chrome flows.
 - [x] 2026-08-12 Actually view the real-backend delivered screenshot and publish implementation checkpoint `df8b8db` without generated media, input or credentials.
+
+### M12 — Horizontal high-impact moment list
+
+- [x] 2026-08-12 Rename the review section and its loading/empty/batch language from candidates to `高光时刻`.
+- [x] 2026-08-12 Expose the exact current-revision persisted EditPlan Hook in the list DTO and render it as audience-oriented `高光语句`.
+- [x] 2026-08-12 Rename grounded timed terms to `编辑关键词` and state that they are only for editor navigation.
+- [x] 2026-08-12 Replace the responsive multi-card grid with one semantic full-width row per highlight: video left, content right, subtitles last and full-width.
+- [x] 2026-08-12 Add API equality, component semantic-order and both Chrome geometry/content regressions.
+- [x] 2026-08-12 Restart the real local services, prove 15/15 existing Hooks without a Provider call, pass lint/full test, and actually view the real-browser screenshot.
+- [ ] Create and publish the scoped M12 Git checkpoint without input, secrets, database, E2E output or generated media.
 
 ## Work breakdown and file ownership
 
@@ -402,6 +412,8 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Surprises and Discoveries
 
+- 2026-08-12: The real editorial model had already produced a useful Hook for all 15 current `7.28` revisions, but the list DTO omitted it and the Web exposed only grounded keywords. A summary DTO field closes the UX gap without schema migration, model rerun or N+1 detail requests.
+
 - 2026-08-12: M10 correctly placed actionable subtitles and keywords beneath each video but left the older full-livestream transcript panel in the workspace. Removing the component also removes one large, redundant transcript fetch per Project view; the backend/API contract does not need to change.
 
 - 2026-08-05: The real OpenRouter response contained valid timestamped segments but optional word data sometimes mirrored a whole sentence or could not be aligned. Rejecting the entire response discarded usable ASR. The Adapter now degrades only optional word timing to `unavailable`; segment timing remains strict and 233 real segments were persisted with zero invented words.
@@ -495,6 +507,9 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Decision Log
 
+- 2026-08-12: Present persisted EditPlan `hook` as `高光语句` and grounded timed phrases as `编辑关键词`; rationale: the Hook is audience-facing editorial copy that may be reviewed for on-screen use, whereas keyword ranges exist to help an editor navigate evidence and should not be mistaken for finished copy.
+- 2026-08-12: Use one semantic ordered-list row per high-impact moment, with a desktop video/content split and subtitles as the final sibling; rationale: reviewers compare complete moments vertically while retaining a direct relationship between video, copy, navigation and full subtitles.
+
 - 2026-08-12: Treat the persisted transcript as a processing/API capability rather than a separate Web review panel; rationale: candidate review needs subtitles, keywords and local context attached to the exact video, while removing ASR itself would break candidate generation, captions and grounded timing.
 
 - 2026-08-05: Adopt ADR-010 clean review proxies with separate editorial metadata and reserve text overlays for final renders; rationale: the user must judge the underlying slice before approving generated presentation text.
@@ -559,7 +574,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M11 implementation is complete at checkpoint `df8b8db` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The Web does not render or request the complete-livestream transcript; candidate-local subtitles and grounded keywords remain. Persisted ASR/transcript data and the REST transcript endpoint remain unchanged. Final gates pass 540 Python, 20 Web and both Chrome flows. The in-app browser adapter exposed no attached browser during this session, so no MCP-control claim is made; the checked Playwright suites launched installed host Chrome and the real-backend success screenshot was actually viewed. No paid provider call was made for M11.
+M12 implementation is complete in the worktree; Git checkpoint publication is the only remaining checkbox. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The restarted clip-list API returns all 15 exact persisted Hooks; no paid Provider request was made. The board is `高光时刻`, one full-width horizontal row per clip, with `高光语句`, editor-only timed keywords and subtitles last. Final gates pass 540 Python, 21 Web and both Chrome flows. The in-app browser adapter again exposed no attached browser, so no MCP-control claim is made; the checked suites launched installed host Chrome and the real-backend success screenshot was actually viewed.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -580,3 +595,5 @@ M9 is complete at implementation commit `c14c910` on `origin/main`. Layout is no
 M10 is complete at implementation checkpoint `cb7be17` on `origin/main`. It adds no A/B entities or media. Existing candidates receive current-revision captions and read-only grounded keyword ranges; the batch service is one revision-fenced/idempotent SQLite transaction; and the Web owns independent video seek state plus conservative dirty/retry fencing. Real `7.28` acceptance observed 15 cards, 90 cues and 34 transcript-segment keyword ranges without changing Provider usage. Final gates pass at 540 Python tests, 19 Web tests and both Chrome flows, and independent review returned `PASS` with P0=0/P1=0/P2=0.
 
 M11 is complete at implementation checkpoint `df8b8db` on `origin/main`. The review workspace now goes from Pipeline progress directly to the candidate board; it neither displays nor fetches the redundant full transcript. Per-candidate subtitles, grounded keyword navigation and candidate-detail context remain intact, while backend transcript/ASR capability is unchanged. Full gates pass at 540 Python tests, 20 Web tests and both host-Chrome flows; the real-backend delivered screenshot was actually viewed.
+
+M12 is implemented and verified, pending only its scoped Git checkpoint. `ClipSummary.hook` is now the list's `高光语句`; timed phrases are explicitly internal `编辑关键词`. A semantic one-column list renders video/content horizontally on desktop and subtitles as each row's final section. The real `7.28` API proved all 15 Hooks without changing Provider usage or media, and full gates pass at 540 Python, 21 Web and both host-Chrome flows with an actually viewed screenshot.
