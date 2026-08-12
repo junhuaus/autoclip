@@ -88,6 +88,32 @@ it("seeks only the video belonging to the clicked subtitle or keyword", async ()
   expect(screen.getAllByText("转写段时间窗").length).toBeGreaterThan(0);
 });
 
+it("omits the redundant full transcript panel and does not request it", async () => {
+  let transcriptReads = 0;
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/transcript", () => {
+      transcriptReads += 1;
+      return HttpResponse.json(transcript);
+    }),
+    http.get("/api/v1/projects/project-1/clips", () =>
+      HttpResponse.json([structuredClone(clipSummary)]),
+    ),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+  );
+
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  await screen.findByRole("heading", { name: "高光候选" });
+  await screen.findByLabelText("原始高光标题 字幕");
+  expect(screen.queryByText("源视频绝对时间")).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "转写" })).not.toBeInTheDocument();
+  expect(transcriptReads).toBe(0);
+});
+
 it("submits selected candidates through one atomic batch endpoint", async () => {
   const summaries = [structuredClone(clipSummary), secondSummary()];
   let batchBody: BatchReviewRequest | null = null;

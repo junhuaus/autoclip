@@ -373,7 +373,6 @@ textarea {
 .project-list,
 .delivery-list,
 .stage-list,
-.transcript-list,
 .risk-list,
 .render-history ul {
   margin: 0;
@@ -600,29 +599,9 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   color: var(--muted);
 }
 
-.transcript-list {
-  max-height: 28rem;
-  overflow: auto;
-  border-top: 1px solid var(--line);
-}
-
-.transcript-list li {
-  display: grid;
-  grid-template-columns: 10rem minmax(0, 1fr);
-  gap: 1rem;
-  border-bottom: 1px solid var(--line);
-  padding: 0.85rem 0;
-}
-
-.transcript-list time,
 .clip-time {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
-}
-
-.transcript-list p {
-  margin-bottom: 0;
-  line-height: 1.7;
 }
 
 .clip-grid {
@@ -1026,11 +1005,6 @@ summary {
   .action-grid,
   .delivery-row {
     grid-template-columns: 1fr;
-  }
-
-  .transcript-list li {
-    grid-template-columns: 1fr;
-    gap: 0.25rem;
   }
 
   .delivery-actions {

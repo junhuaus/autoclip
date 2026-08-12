@@ -87,7 +87,7 @@ Long-running commands return HTTP 202 with a resource ID and polling URL. Creati
 
 ### Web review console
 
-The React/TypeScript/Vite UI supports project creation from a local path, run configuration, stage/progress/error display, transcript viewing, candidate video preview, title/boundary/subtitle editing, approve/reject, rerender, delivery creation/version listing, and ZIP download. It must represent loading, empty, error, stale, disabled, retrying, and cancelled states. It does not copy backend state transitions or EditPlan validation.
+The React/TypeScript/Vite UI supports project creation from a local path, run configuration, stage/progress/error display, candidate video preview, title/boundary/subtitle editing, approve/reject, rerender, delivery creation/version listing, and ZIP download. The review workspace deliberately does not show a separate full-livestream transcript panel: current-revision subtitles and grounded keywords live directly below each candidate video, while the transcript remains available through the REST API and backend application services. It must represent loading, empty, error, stale, disabled, retrying, and cancelled states. It does not copy backend state transitions or EditPlan validation.
 
 ## Runtime and engineering baseline
 

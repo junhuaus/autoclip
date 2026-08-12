@@ -75,12 +75,14 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
 
   await expect(page.getByRole("heading", { name: "处理进度" })).toBeVisible();
   await expect(page.getByLabel("总进度 100%")).toBeVisible();
-  const transcript = page.getByRole("region", { name: "转写" });
-  await expect(transcript).toBeVisible();
-  await expect(transcript.getByText("今天我们聊三个能立刻改善直播表达的方法。")).toBeVisible();
-  await expect(transcript.locator("ol.transcript-list > li")).toHaveCount(4);
+  await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "高光候选" })).toBeVisible();
 
+  const firstCard = page.locator("article.clip-card").first();
+  await expect(firstCard.locator(".clip-captions")).toBeVisible();
+  await expect(firstCard.locator(".clip-keywords")).toBeVisible();
+  await expect(firstCard.locator(".clip-captions button").first()).toBeVisible();
   const proxyVideo = page.locator("article.clip-card video").first();
   await expect(proxyVideo).toHaveAttribute("src", /\/api\/v1\/media\/.+signature=/);
   const proxyUrl = await proxyVideo.getAttribute("src");

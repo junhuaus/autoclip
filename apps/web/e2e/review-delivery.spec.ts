@@ -13,7 +13,6 @@ import {
   completedRun,
   project as initialProject,
   succeededDelivery,
-  transcript,
 } from "../tests/fixtures";
 
 test("creates, reviews, rerenders and downloads one visible delivery flow", async ({ page }) => {
@@ -95,10 +94,6 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     }
     if (path === "/api/v1/runs/run-1" && method === "GET") {
       await route.fulfill({ json: completedRun });
-      return;
-    }
-    if (path === "/api/v1/projects/project-1/transcript" && method === "GET") {
-      await route.fulfill({ json: transcript });
       return;
     }
     if (path === "/api/v1/projects/project-1/clips" && method === "GET") {
@@ -253,7 +248,10 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await page.getByRole("button", { name: "创建项目并启动处理" }).click();
 
   await expect(page.getByRole("heading", { name: "直播测试项目" })).toBeVisible();
-  await expect(page.getByText("这是第一段中文直播转写。")).toBeVisible();
+  await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
+  await expect(page.getByText("第一条字幕")).toBeVisible();
+  await expect(page.getByRole("button", { name: /定位到关键词 中文直播/ })).toBeVisible();
   const proxy = page.getByLabel("原始高光标题 审核代理");
   await expect(proxy).toHaveAttribute("src", /signature=signed/);
 

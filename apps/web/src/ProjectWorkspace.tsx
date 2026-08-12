@@ -130,46 +130,6 @@ function RunPanel({
   );
 }
 
-function TranscriptPanel({ api, projectId, enabled }: { api: LiveClipApiClient; projectId: string; enabled: boolean }) {
-  const query = useQuery({
-    queryKey: ["transcript", projectId],
-    queryFn: () => api.getTranscript(projectId),
-    enabled,
-  });
-
-  return (
-    <section className="panel" aria-labelledby="transcript-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">源视频绝对时间</p>
-          <h2 id="transcript-title">转写</h2>
-        </div>
-        {query.data ? <span className="metric">{query.data.segments.length} 段</span> : null}
-      </div>
-      {!enabled ? <EmptyState title="转写尚未可用">等待 Pipeline 完成。</EmptyState> : null}
-      {enabled && query.isPending ? <LoadingState>正在加载转写…</LoadingState> : null}
-      {query.isError ? <ErrorState error={query.error} onRetry={() => void query.refetch()} /> : null}
-      {query.data?.segments.length === 0 ? <EmptyState title="转写为空" /> : null}
-      {query.data && query.data.segments.length > 0 ? (
-        <>
-          <p className="hint">
-            {query.data.language} · {query.data.provider}/{query.data.model} · 词级时间：
-            {query.data.word_timing_status === "available" ? "可用" : "不可用"}
-          </p>
-          <ol className="transcript-list">
-            {query.data.segments.map((segment) => (
-              <li key={segment.segment_id}>
-                <time>{formatMs(segment.start_ms)}–{formatMs(segment.end_ms)}</time>
-                <p>{segment.text}</p>
-              </li>
-            ))}
-          </ol>
-        </>
-      ) : null}
-    </section>
-  );
-}
-
 export function ClipCard({
   item,
   onOpen,
@@ -659,8 +619,6 @@ export function ProjectWorkspace({
           onRetry={() => retryMutation.mutate()}
         />
       ) : null}
-
-      <TranscriptPanel api={api} projectId={projectId} enabled={contentEnabled} />
 
       <section className="panel" aria-labelledby="clips-title">
         <div className="section-heading">

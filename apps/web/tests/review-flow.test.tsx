@@ -6,7 +6,7 @@ import { expect, it } from "vitest";
 import { LiveClipApiClient } from "../src/api";
 import { ProjectWorkspace } from "../src/ProjectWorkspace";
 import type { ClipDetailResponse, ClipPatchRequest, ClipSummaryResponse, ReviewActionRequest } from "../src/types";
-import { clipDetail, clipSummary, completedRun, project, transcript } from "./fixtures";
+import { clipDetail, clipSummary, completedRun, project } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
@@ -19,7 +19,6 @@ it("edits title, boundaries and cue text, exposes stale media, then approves the
   server.use(
     http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
     http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
-    http.get("/api/v1/projects/project-1/transcript", () => HttpResponse.json(transcript)),
     http.get("/api/v1/projects/project-1/clips", () => HttpResponse.json([currentSummary])),
     http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
     http.get("/api/v1/clips/clip-1", () => HttpResponse.json(currentDetail)),
@@ -120,7 +119,6 @@ it("sends a boundary-only patch without stale relative captions", async () => {
   server.use(
     http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
     http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
-    http.get("/api/v1/projects/project-1/transcript", () => HttpResponse.json(transcript)),
     http.get("/api/v1/projects/project-1/clips", () => HttpResponse.json([clipSummary])),
     http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
     http.get("/api/v1/clips/clip-1", () => HttpResponse.json(currentDetail)),
