@@ -196,7 +196,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-12 Replace the responsive multi-card grid with one semantic full-width row per highlight: video left, content right, subtitles last and full-width.
 - [x] 2026-08-12 Add API equality, component semantic-order and both Chrome geometry/content regressions.
 - [x] 2026-08-12 Restart the real local services, prove 15/15 existing Hooks without a Provider call, pass lint/full test, and actually view the real-browser screenshot.
-- [ ] Create and publish the scoped M12 Git checkpoint without input, secrets, database, E2E output or generated media.
+- [x] 2026-08-12 Create and publish scoped M12 checkpoint `4e81d6c` without input, secrets, database, E2E output or generated media.
 
 ## Work breakdown and file ownership
 
@@ -574,7 +574,7 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
-M12 implementation is complete in the worktree; Git checkpoint publication is the only remaining checkbox. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The restarted clip-list API returns all 15 exact persisted Hooks; no paid Provider request was made. The board is `高光时刻`, one full-width horizontal row per clip, with `高光语句`, editor-only timed keywords and subtitles last. Final gates pass 540 Python, 21 Web and both Chrome flows. The in-app browser adapter again exposed no attached browser, so no MCP-control claim is made; the checked suites launched installed host Chrome and the real-backend success screenshot was actually viewed.
+M12 implementation is complete at checkpoint `4e81d6c` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The restarted clip-list API returns all 15 exact persisted Hooks; no paid Provider request was made. The board is `高光时刻`, one full-width horizontal row per clip, with `高光语句`, editor-only timed keywords and subtitles last. Final gates pass 540 Python, 21 Web and both Chrome flows. The in-app browser adapter again exposed no attached browser, so no MCP-control claim is made; the checked suites launched installed host Chrome and the real-backend success screenshot was actually viewed.
 
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
@@ -596,4 +596,4 @@ M10 is complete at implementation checkpoint `cb7be17` on `origin/main`. It adds
 
 M11 is complete at implementation checkpoint `df8b8db` on `origin/main`. The review workspace now goes from Pipeline progress directly to the candidate board; it neither displays nor fetches the redundant full transcript. Per-candidate subtitles, grounded keyword navigation and candidate-detail context remain intact, while backend transcript/ASR capability is unchanged. Full gates pass at 540 Python tests, 20 Web tests and both host-Chrome flows; the real-backend delivered screenshot was actually viewed.
 
-M12 is implemented and verified, pending only its scoped Git checkpoint. `ClipSummary.hook` is now the list's `高光语句`; timed phrases are explicitly internal `编辑关键词`. A semantic one-column list renders video/content horizontally on desktop and subtitles as each row's final section. The real `7.28` API proved all 15 Hooks without changing Provider usage or media, and full gates pass at 540 Python, 21 Web and both host-Chrome flows with an actually viewed screenshot.
+M12 is complete at checkpoint `4e81d6c` on `origin/main`. `ClipSummary.hook` is now the list's `高光语句`; timed phrases are explicitly internal `编辑关键词`. A semantic one-column list renders video/content horizontally on desktop and subtitles as each row's final section. The real `7.28` API proved all 15 Hooks without changing Provider usage or media, and full gates pass at 540 Python, 21 Web and both host-Chrome flows with an actually viewed screenshot.

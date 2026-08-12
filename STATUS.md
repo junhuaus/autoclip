@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
 Updated: 2026-08-12 11:21 CST
-Current milestone: M12 candidate-focused horizontal highlight list complete; checkpoint pending
+Current milestone: M12 candidate-focused horizontal highlight list complete and published
 Branch: `main` tracking `origin/main`
-Latest implementation commit: `df8b8db` (`ui: remove full transcript panel`)
+Latest implementation commit: `4e81d6c` (`ui: focus review on highlight moments`)
 Implementation baseline: `0a0b08a` (M7 OpenRouter ASR + Codex editor)
 
 ## Current user-visible outcome
@@ -140,6 +140,7 @@ Current generation 3 (`634c68f9d0b24c99b16ddac8d14ddfd7`) is a fresh user-reques
 - Source video remains a read-only reference and was not modified.
 - Local API/Worker/Web are currently running at `127.0.0.1:8765` and `127.0.0.1:5173`. The user's existing Chrome debugging session at port 9222 opened and exercised the actual review board; no browser extension was installed or required.
 - The 9-file M11 implementation scope passed whitespace and credential-pattern checks. Commit `df8b8db` is pushed to `origin/main`; ignored local secrets/input/generated data and E2E screenshots were not committed.
+- The 18-file M12 source/test/document scope passed whitespace, forbidden-path and credential-pattern checks. Commit `4e81d6c` is pushed to `origin/main`; input, secrets, database, generated media and browser evidence remain ignored and uncommitted.
 
 ## Next concrete task
 
