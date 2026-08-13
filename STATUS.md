@@ -1,9 +1,9 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-13 12:08 CST
-Current milestone: M14 collaborative video-editor Project workspace implementation complete; Git checkpoint pending
+Updated: 2026-08-13 12:14 CST
+Current milestone: M14 collaborative video-editor Project workspace complete
 Branch: `main` tracking `origin/main`
-Latest committed implementation: `1ec1437` (`feat: export fenced offline review packages`)
+Latest committed implementation: `d40ec81` (`feat: add collaborative project workspace`)
 
 ## Current user-visible outcome
 
@@ -62,11 +62,11 @@ The real Project remains `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`), generation
 - The local OpenRouter credential remains only in ignored environment; its value was not printed or persisted by M14.
 - Source video and all existing generated media are unchanged.
 - Local API/Worker/Web should be running at `127.0.0.1:8765` and `127.0.0.1:5173`; restart `make dev` after source migration/auth changes before handoff.
-- Current source/docs/tests changes are unstaged pending final diff, secret-scope check, commit and push.
+- M14 implementation checkpoint `d40ec81` passed staged whitespace, forbidden-path and credential-pattern scans. No ignored local data entered Git.
 
 ## Next concrete task
 
-Restart `make dev`, verify `/api/v1/session`, member-scoped `/api/v1/projects` and the Vite home page, then create/push the scoped M14 checkpoint and record its hash here.
+Continue editor UX refinement from the member-scoped “我的项目” baseline. Do not rerun paid ASR/LLM unless a new content-generation request requires it.
 
 ## Resume instructions
 
