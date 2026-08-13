@@ -302,3 +302,27 @@ def test_api_security_requires_token_off_loopback_and_issues_short_lived_signed_
     security.require_bearer("Bearer local-secret-token")
     with pytest.raises(ApiAuthenticationError):
         security.require_bearer("Bearer wrong-token")
+
+
+def test_api_security_resolves_workspace_identity_from_distinct_bearer_tokens() -> None:
+    security = ApiSecurity(
+        Settings(
+            api_token=SecretStr("local-admin-token"),
+            workspace_username="local-admin",
+            workspace_tokens_raw=(
+                '{"lin-editor":"editor-token-1234","wang-review":"review-token-1234"}'
+            ),
+            _env_file=None,
+        )
+    )
+
+    editor = security.authenticate("Bearer editor-token-1234")
+    reviewer = security.authenticate("Bearer review-token-1234")
+    administrator = security.authenticate("Bearer local-admin-token")
+
+    assert editor.username == "lin-editor"
+    assert reviewer.username == "wang-review"
+    assert administrator.username == "local-admin"
+    assert len({editor.caller_scope, reviewer.caller_scope, administrator.caller_scope}) == 3
+    with pytest.raises(ApiAuthenticationError):
+        security.authenticate(None)

@@ -134,6 +134,85 @@ def test_idempotency_replay_survives_provider_becoming_unavailable(tmp_path: Pat
         unavailable_runtime.close()
 
 
+def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    source = media_root / "team-source.mp4"
+    source.write_bytes(b"pipeline task is intentionally not leased")
+    admin_token = "admin-workspace-token"
+    editor_token = "editor-workspace-token"
+    outsider_token = "outsider-workspace-token"
+    settings = Settings(
+        data_dir=tmp_path / "projects",
+        allowed_media_roots_raw=str(media_root),
+        api_token=SecretStr(admin_token),
+        workspace_tokens_raw=json.dumps(
+            {
+                "lin-editor": editor_token,
+                "wang-review": outsider_token,
+            }
+        ),
+        ai_provider="mock",
+        _env_file=None,
+    )
+    runtime = LiveClipRuntime.open(settings, project_root=project_root)
+    app = create_app(settings, runtime=runtime, project_root=project_root)
+    admin_auth = {"Authorization": f"Bearer {admin_token}"}
+    editor_auth = {"Authorization": f"Bearer {editor_token}"}
+    outsider_auth = {"Authorization": f"Bearer {outsider_token}"}
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            created = client.post(
+                "/api/v1/projects/import",
+                headers=admin_auth,
+                json={"input_path": str(source)},
+            )
+            assert created.status_code == 202
+            project_id = str(created.json()["project_id"])
+            assert (
+                client.get("/api/v1/session", headers=editor_auth).json()["user"]["username"]
+                == "lin-editor"
+            )
+            assert client.get("/api/v1/projects", headers=editor_auth).json() == []
+            editor_project = client.get(f"/api/v1/projects/{project_id}", headers=editor_auth)
+            assert editor_project.status_code == 404
+
+            added = client.post(
+                f"/api/v1/projects/{project_id}/members",
+                headers=admin_auth,
+                json={
+                    "username": "lin-editor",
+                    "display_name": "林编辑",
+                    "role": "editor",
+                },
+            )
+            assert added.status_code == 200
+            assert [member["role"] for member in added.json()["members"]] == [
+                "owner",
+                "editor",
+            ]
+            editor_projects = client.get("/api/v1/projects", headers=editor_auth)
+            assert editor_projects.status_code == 200
+            assert [item["project_id"] for item in editor_projects.json()] == [project_id]
+            assert editor_projects.json()[0]["current_user_role"] == "editor"
+            assert client.get("/api/v1/projects", headers=outsider_auth).json() == []
+
+            forbidden = client.post(
+                f"/api/v1/projects/{project_id}/members",
+                headers=editor_auth,
+                json={
+                    "username": "wang-review",
+                    "display_name": "王审核",
+                    "role": "reviewer",
+                },
+            )
+            assert forbidden.status_code == 403
+            assert forbidden.json()["error"]["code"] == "PROJECT_PERMISSION_DENIED"
+    finally:
+        runtime.close()
+
+
 def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -608,7 +687,8 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert str(data_dir.resolve()) not in visible_payloads
             assert idempotency_key.encode() not in runtime.database_path.read_bytes()
 
-            def busy_failure() -> None:
+            def busy_failure(*, user_id: str | None = None) -> None:
+                del user_id
                 raise OperationalError(
                     "SELECT secret FROM local_state",
                     {},
@@ -623,7 +703,8 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert busy.json()["error"]["retryable"] is True
             assert "SELECT secret" not in busy.text
 
-            def secret_failure() -> None:
+            def secret_failure(*, user_id: str | None = None) -> None:
+                del user_id
                 raise RuntimeError(f"Authorization: Bearer {token} at {source_path}")
 
             caplog.set_level(logging.ERROR, logger="liveclip.api.app")

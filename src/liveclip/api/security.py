@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import ipaddress
 import time
+from dataclasses import dataclass
 from urllib.parse import urlencode, urlsplit
 
 from liveclip.config import Settings
@@ -11,6 +12,12 @@ from liveclip.config import Settings
 
 class ApiAuthenticationError(PermissionError):
     """A request did not provide valid local API authorization."""
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedCaller:
+    username: str
+    caller_scope: str
 
 
 def validate_network_settings(settings: Settings) -> None:
@@ -36,6 +43,8 @@ class ApiSecurity:
     def __init__(self, settings: Settings) -> None:
         validate_network_settings(settings)
         self._token = _configured_token(settings)
+        self._default_username = settings.workspace_username
+        self._workspace_tokens = settings.workspace_tokens
         self._ttl_seconds = settings.media_url_ttl_seconds
 
     @property
@@ -44,6 +53,24 @@ class ApiSecurity:
             return "local"
         digest = hashlib.sha256(self._token.encode("utf-8")).hexdigest()[:24]
         return f"bearer:{digest}"
+
+    def authenticate(self, authorization: str | None) -> AuthenticatedCaller:
+        if authorization is None and self._token is None and not self._workspace_tokens:
+            return AuthenticatedCaller(username=self._default_username, caller_scope="local")
+        credential = _bearer_credential(authorization)
+        for username, expected in self._workspace_tokens.items():
+            if hmac.compare_digest(credential, expected):
+                digest = hashlib.sha256(expected.encode("utf-8")).hexdigest()[:24]
+                return AuthenticatedCaller(
+                    username=username,
+                    caller_scope=f"workspace:{username}:{digest}",
+                )
+        if self._token is not None and hmac.compare_digest(credential, self._token):
+            return AuthenticatedCaller(
+                username=self._default_username,
+                caller_scope=self.caller_scope,
+            )
+        raise ApiAuthenticationError("Bearer authorization is invalid")
 
     def require_bearer(self, authorization: str | None) -> None:
         if self._token is None:
@@ -103,6 +130,15 @@ def _configured_token(settings: Settings) -> str | None:
         return None
     value = settings.api_token.get_secret_value()
     return value if value else None
+
+
+def _bearer_credential(authorization: str | None) -> str:
+    if authorization is None:
+        raise ApiAuthenticationError("Bearer authorization is required")
+    scheme, separator, credential = authorization.partition(" ")
+    if not separator or scheme.lower() != "bearer" or not credential:
+        raise ApiAuthenticationError("Bearer authorization is invalid")
+    return credential
 
 
 def _is_loopback_host(host: str) -> bool:

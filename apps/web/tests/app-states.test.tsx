@@ -1,9 +1,11 @@
 import { HttpResponse, delay, http } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { App } from "../src/App";
+import type { ProjectSnapshot } from "../src/types";
+import { project } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
@@ -18,11 +20,10 @@ describe("project list states", () => {
 
     renderWithClient(<App />);
 
-    expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
+    expect(screen.getByText("正在加载你的项目…")).toBeInTheDocument();
     expect(await screen.findByText("还没有项目")).toBeInTheDocument();
-    expect(screen.getByText("从上方输入本地视频路径开始。")).toBeInTheDocument();
-    expect(screen.getByText(/当前使用 Mock ASR/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "创建第一个视频项目" })).toBeEnabled();
+    expect(screen.queryByText(/Mock ASR/)).not.toBeInTheDocument();
   });
 
   it("renders only the stable safe API error and retry affordance", async () => {
@@ -66,11 +67,12 @@ describe("project list states", () => {
     renderWithClient(<App />);
 
     await screen.findByText("还没有项目");
+    await user.click(screen.getByRole("button", { name: "打开账户与系统设置" }));
     await user.type(
-      screen.getByLabelText(/本机 API Bearer token/),
+      screen.getByLabelText(/成员访问 Token/),
       "temporary-browser-token",
     );
-    await user.click(screen.getByRole("button", { name: "应用" }));
+    await user.click(screen.getByRole("button", { name: "应用 Token" }));
 
     await waitFor(() => expect(authorizations).toContain("Bearer temporary-browser-token"));
     expect(screen.getByText("已在内存中启用")).toBeInTheDocument();
@@ -79,7 +81,7 @@ describe("project list states", () => {
     expect(window.location.href).not.toContain("temporary-browser-token");
   });
 
-  it("shows the real provider split and blocks processing without OpenAI ASR", async () => {
+  it("keeps provider diagnostics out of the dashboard and blocks unavailable processing", async () => {
     server.use(
       http.get("/api/v1/health", () =>
         HttpResponse.json({
@@ -102,16 +104,19 @@ describe("project list states", () => {
       http.get("/api/v1/projects", () => HttpResponse.json([])),
     );
 
+    const user = userEvent.setup();
     renderWithClient(<App />);
 
-    expect(await screen.findByText(/OpenAI ASR 尚未配置/)).toBeInTheDocument();
-    expect(screen.getByText(/本机 Codex CLI/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeDisabled();
-    expect(screen.getByText(/Codex 不能直接听视频/)).toBeInTheDocument();
-    expect(screen.getByText(/实际云端权限、额度和模型可用性/)).toBeInTheDocument();
+    await screen.findByText("还没有项目");
+    expect(screen.queryByText(/OpenAI ASR 尚未配置/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "打开账户与系统设置" }));
+    expect(await screen.findByText(/AI 处理链路未就绪/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "＋ 新建项目" }));
+    expect(screen.getByRole("button", { name: "创建并开始处理" })).toBeDisabled();
+    expect(screen.getByText(/请在右上角设置中检查配置/)).toBeInTheDocument();
   });
 
-  it("shows OpenRouter Whisper separately and requires a local regenerated key", async () => {
+  it("uses the same concise unavailable state for OpenRouter ASR", async () => {
     server.use(
       http.get("/api/v1/health", () =>
         HttpResponse.json({
@@ -134,12 +139,55 @@ describe("project list states", () => {
       http.get("/api/v1/projects", () => HttpResponse.json([])),
     );
 
+    const user = userEvent.setup();
     renderWithClient(<App />);
 
-    expect(
-      await screen.findByText(/OpenRouter Whisper Large V3 中文语音转写/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/撤销曾暴露的旧 Key/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "创建项目并启动处理" })).toBeDisabled();
+    await screen.findByText("还没有项目");
+    expect(screen.queryByText(/OpenRouter Whisper/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "打开账户与系统设置" }));
+    expect(await screen.findByText(/AI 处理链路未就绪/)).toBeInTheDocument();
+  });
+
+  it("presents member-scoped projects as a searchable editor dashboard", async () => {
+    const deliveredProject: ProjectSnapshot = {
+      ...project,
+      project_id: "project-delivered",
+      name: "发布会精剪",
+      source_filename: "launch-event.mov",
+      status: "delivered",
+      current_user_role: "editor",
+      members: [
+        project.members[0],
+        {
+          user_id: "editor-1",
+          username: "lin-editor",
+          display_name: "林编辑",
+          role: "editor",
+        },
+      ],
+    };
+    server.use(
+      http.get("/api/v1/projects", () => HttpResponse.json([project, deliveredProject])),
+    );
+    const user = userEvent.setup();
+
+    renderWithClient(<App />);
+
+    const projectList = await screen.findByRole("heading", { name: "项目列表" });
+    const manager = projectList.closest("section");
+    expect(manager).not.toBeNull();
+    expect(await within(manager!).findByText("直播测试项目")).toBeInTheDocument();
+    expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
+    expect(within(manager!).getByText("我的角色 · 编辑")).toBeInTheDocument();
+    expect(within(manager!).getByText("2 位成员")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "已交付" }));
+    expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument();
+    expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "全部" }));
+    await user.type(screen.getByPlaceholderText("项目名、源视频或负责人"), "launch-event");
+    expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument();
+    expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
   });
 });

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -112,8 +113,10 @@ def test_import_only_config_does_not_require_executing_codex_probe(
 
 
 def test_public_summary_never_contains_secret_values() -> None:
+    editor_token = "editor-secret-token"
     settings = Settings(
         api_token="local-token-value",
+        workspace_tokens_raw=json.dumps({"lin-editor": editor_token}),
         openai_api_key="cloud-key-value",
         openrouter_api_key="router-key-value",
         _env_file=None,
@@ -123,9 +126,34 @@ def test_public_summary_never_contains_secret_values() -> None:
     assert "local-token-value" not in serialized
     assert "cloud-key-value" not in serialized
     assert "router-key-value" not in serialized
+    assert editor_token not in serialized
     assert settings.public_summary()["api_token_configured"] is True
     assert settings.public_summary()["openai_configured"] is True
     assert settings.public_summary()["openrouter_configured"] is True
+    assert settings.public_summary()["workspace_user_tokens_configured"] == 1
+
+
+def test_settings_validates_workspace_token_map_without_exposing_tokens() -> None:
+    settings = Settings(
+        api_token="local-admin-token",
+        workspace_tokens_raw='{"lin-editor":"editor-token-1234"}',
+        _env_file=None,
+    )
+
+    assert settings.workspace_tokens == {"lin-editor": "editor-token-1234"}
+    with pytest.raises(ValidationError, match="LIVECLIP_API_TOKEN"):
+        Settings(
+            workspace_tokens_raw='{"lin-editor":"editor-token-1234"}',
+            _env_file=None,
+        )
+    with pytest.raises(ValidationError, match="unique"):
+        Settings(
+            api_token="local-admin-token",
+            workspace_tokens_raw=(
+                '{"lin-editor":"same-token-12345","wang-review":"same-token-12345"}'
+            ),
+            _env_file=None,
+        )
 
 
 @pytest.mark.parametrize(

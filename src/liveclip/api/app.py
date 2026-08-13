@@ -33,12 +33,15 @@ from liveclip.api.schemas import (
     DeliveryDetailResponse,
     HealthResponse,
     JobCreateRequest,
+    ProjectMemberCreateRequest,
+    ProjectMembersResponse,
     ProviderHealthResponse,
     RenderCreateRequest,
     ReviewActionRequest,
     RunCreateRequest,
+    SessionResponse,
 )
-from liveclip.api.security import ApiAuthenticationError, ApiSecurity
+from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
 from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
@@ -65,8 +68,10 @@ from liveclip.application.reviewing import (
     ReviewConflict,
     TranscriptSnapshot,
 )
+from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
+from liveclip.db.workspace_repository import WorkspacePermissionDenied
 from liveclip.domain.state_transitions import ReviewStatus
 from liveclip.media.ingest import MediaIngestError, resolve_allowed_source
 from liveclip.providers.readiness import (
@@ -105,6 +110,7 @@ def create_app(
         lifespan=lifespan,
         responses={
             401: {"model": ApiErrorEnvelope, "description": "Authentication failed"},
+            403: {"model": ApiErrorEnvelope, "description": "Permission denied"},
             404: {"model": ApiErrorEnvelope, "description": "Resource not found"},
             409: {"model": ApiErrorEnvelope, "description": "State conflict"},
             416: {"model": ApiErrorEnvelope, "description": "Range not satisfiable"},
@@ -122,7 +128,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(configured.cors_origins),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "Range"],
         expose_headers=[
             "Accept-Ranges",
@@ -164,9 +170,12 @@ def create_app(
     _install_exception_handlers(app)
 
     def require_api_auth(
+        request: Request,
         authorization: Annotated[str | None, Header(alias="Authorization")] = None,
-    ) -> None:
-        security.require_bearer(authorization)
+    ) -> AuthenticatedCaller:
+        caller = security.authenticate(authorization)
+        request.state.authenticated_caller = caller
+        return caller
 
     protected = APIRouter(prefix="/api/v1", dependencies=[Depends(require_api_auth)])
 
@@ -189,6 +198,11 @@ def create_app(
             ),
         )
 
+    @protected.get("/session", response_model=SessionResponse)
+    def get_session(request: Request) -> SessionResponse:
+        user = _runtime(request).workspace_service.get_user_by_username(_caller(request).username)
+        return SessionResponse(user=user)
+
     @protected.post(
         "/jobs",
         status_code=status.HTTP_202_ACCEPTED,
@@ -201,8 +215,10 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
+        caller = _caller(request)
+        workspace_user = active.workspace_service.get_user_by_username(caller.username)
         idempotency = _idempotency(
-            security,
+            caller,
             idempotency_key,
             operation="POST:/api/v1/jobs",
             payload=body.model_dump(mode="json"),
@@ -216,6 +232,7 @@ def create_app(
                 source_path=source_path,
                 config=config,
                 max_stage_retries=configured.max_stage_retries,
+                owner_id=workspace_user.user_id,
                 idempotency=idempotency,
             )
         location = f"/api/v1/jobs/{created.run_id}"
@@ -230,11 +247,13 @@ def create_app(
 
     @protected.get("/jobs/{run_id}", response_model=RunSnapshot)
     def get_job(run_id: str, request: Request) -> RunSnapshot:
-        return _runtime(request).pipeline_service.get_run(run_id)
+        return _require_run_access(_runtime(request), _caller(request), run_id)
 
     @protected.get("/projects", response_model=list[ProjectSnapshot])
     def list_projects(request: Request) -> list[ProjectSnapshot]:
-        return list(_runtime(request).pipeline_service.list_projects())
+        active = _runtime(request)
+        workspace_user = active.workspace_service.get_user_by_username(_caller(request).username)
+        return list(active.pipeline_service.list_projects_for_user(workspace_user.user_id))
 
     @protected.post(
         "/projects/import",
@@ -248,13 +267,15 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
+        caller = _caller(request)
         source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
         created = active.pipeline_service.import_project(
             source_path=source_path,
             config=_pipeline_config(configured, body, run_scope="import"),
             max_stage_retries=configured.max_stage_retries,
+            owner_id=active.workspace_service.get_user_by_username(caller.username).user_id,
             idempotency=_idempotency(
-                security,
+                caller,
                 idempotency_key,
                 operation="POST:/api/v1/projects/import",
                 payload=body.model_dump(mode="json"),
@@ -272,7 +293,65 @@ def create_app(
 
     @protected.get("/projects/{project_id}", response_model=ProjectSnapshot)
     def get_project(project_id: str, request: Request) -> ProjectSnapshot:
-        return _runtime(request).pipeline_service.get_project(project_id)
+        active = _runtime(request)
+        workspace_user = active.workspace_service.get_user_by_username(_caller(request).username)
+        return active.pipeline_service.get_project(project_id, user_id=workspace_user.user_id)
+
+    @protected.get(
+        "/projects/{project_id}/members",
+        response_model=ProjectMembersResponse,
+    )
+    def list_project_members(project_id: str, request: Request) -> ProjectMembersResponse:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return ProjectMembersResponse(
+            project_id=project_id,
+            members=active.workspace_service.list_project_members(project_id),
+        )
+
+    @protected.post(
+        "/projects/{project_id}/members",
+        response_model=ProjectMembersResponse,
+    )
+    def add_project_member(
+        project_id: str,
+        body: ProjectMemberCreateRequest,
+        request: Request,
+    ) -> ProjectMembersResponse:
+        active = _runtime(request)
+        caller_user = _require_project_access(active, _caller(request), project_id)
+        active.workspace_service.add_project_member(
+            project_id=project_id,
+            acting_user_id=caller_user.user_id,
+            username=body.username,
+            display_name=body.display_name,
+            role=body.role,
+        )
+        return ProjectMembersResponse(
+            project_id=project_id,
+            members=active.workspace_service.list_project_members(project_id),
+        )
+
+    @protected.delete(
+        "/projects/{project_id}/members/{member_user_id}",
+        response_model=ProjectMembersResponse,
+    )
+    def remove_project_member(
+        project_id: str,
+        member_user_id: str,
+        request: Request,
+    ) -> ProjectMembersResponse:
+        active = _runtime(request)
+        caller_user = _require_project_access(active, _caller(request), project_id)
+        active.workspace_service.remove_project_member(
+            project_id=project_id,
+            acting_user_id=caller_user.user_id,
+            member_user_id=member_user_id,
+        )
+        return ProjectMembersResponse(
+            project_id=project_id,
+            members=active.workspace_service.list_project_members(project_id),
+        )
 
     @protected.post(
         "/projects/{project_id}/runs",
@@ -287,8 +366,10 @@ def create_app(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
+        caller = _caller(request)
+        _require_project_access(active, caller, project_id)
         idempotency = _idempotency(
-            security,
+            caller,
             idempotency_key,
             operation="POST:/api/v1/projects/:project_id/runs",
             payload={"project_id": project_id, **body.model_dump(mode="json")},
@@ -317,41 +398,63 @@ def create_app(
 
     @protected.get("/runs/{run_id}", response_model=RunSnapshot)
     def get_run(run_id: str, request: Request) -> RunSnapshot:
-        return _runtime(request).pipeline_service.get_run(run_id)
+        return _require_run_access(_runtime(request), _caller(request), run_id)
 
     @protected.post(
         "/runs/{run_id}/cancel",
         status_code=status.HTTP_202_ACCEPTED,
         response_model=RunSnapshot,
     )
-    def cancel_run(run_id: str, response: Response, request: Request) -> RunSnapshot:
+    def cancel_run(
+        run_id: str,
+        response: Response,
+        request: Request,
+    ) -> RunSnapshot:
+        active = _runtime(request)
+        _require_run_access(active, _caller(request), run_id)
         response.headers["Location"] = f"/api/v1/runs/{run_id}"
         response.headers["Retry-After"] = "1"
-        return _runtime(request).pipeline_service.cancel(run_id)
+        return active.pipeline_service.cancel(run_id)
 
     @protected.post(
         "/runs/{run_id}/retry",
         status_code=status.HTTP_202_ACCEPTED,
         response_model=RunSnapshot,
     )
-    def retry_run(run_id: str, response: Response, request: Request) -> RunSnapshot:
+    def retry_run(
+        run_id: str,
+        response: Response,
+        request: Request,
+    ) -> RunSnapshot:
+        active = _runtime(request)
+        _require_run_access(active, _caller(request), run_id)
         response.headers["Location"] = f"/api/v1/runs/{run_id}"
         response.headers["Retry-After"] = "1"
-        return _runtime(request).pipeline_service.retry(run_id)
+        return active.pipeline_service.retry(run_id)
 
     @protected.get(
         "/projects/{project_id}/transcript",
         response_model=TranscriptSnapshot,
     )
-    def get_transcript(project_id: str, request: Request) -> TranscriptSnapshot:
-        return _runtime(request).review_service.get_transcript(project_id)
+    def get_transcript(
+        project_id: str,
+        request: Request,
+    ) -> TranscriptSnapshot:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return active.review_service.get_transcript(project_id)
 
     @protected.get(
         "/projects/{project_id}/clips",
         response_model=list[ClipSummaryResponse],
     )
-    def list_clips(project_id: str, request: Request) -> list[ClipSummaryResponse]:
-        values = _runtime(request).clip_query_service.list_project_clips(project_id)
+    def list_clips(
+        project_id: str,
+        request: Request,
+    ) -> list[ClipSummaryResponse]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        values = active.clip_query_service.list_project_clips(project_id)
         return [
             ClipSummaryResponse(
                 clip=value,
@@ -363,8 +466,14 @@ def create_app(
         ]
 
     @protected.get("/clips/{clip_id}", response_model=ClipDetailResponse)
-    def get_clip(clip_id: str, request: Request) -> ClipDetailResponse:
-        return _clip_response(security, _runtime(request).review_service.get_clip(clip_id))
+    def get_clip(
+        clip_id: str,
+        request: Request,
+    ) -> ClipDetailResponse:
+        return _clip_response(
+            security,
+            _require_clip_access(_runtime(request), _caller(request), clip_id),
+        )
 
     @protected.patch("/clips/{clip_id}", response_model=ClipDetailResponse)
     def patch_clip(
@@ -372,7 +481,9 @@ def create_app(
         body: ClipPatchRequest,
         request: Request,
     ) -> ClipDetailResponse:
-        detail = _runtime(request).review_service.revise_clip(clip_id, _clip_patch(body))
+        active = _runtime(request)
+        _require_clip_access(active, _caller(request), clip_id)
+        detail = active.review_service.revise_clip(clip_id, _clip_patch(body))
         return _clip_response(security, detail)
 
     @protected.post("/clips/{clip_id}/review", response_model=ClipDetailResponse)
@@ -382,6 +493,7 @@ def create_app(
         request: Request,
     ) -> ClipDetailResponse:
         active = _runtime(request)
+        _require_clip_access(active, _caller(request), clip_id)
         command = ReviewCommand(
             expected_revision=body.expected_revision,
             status=ReviewStatus(body.status),
@@ -407,15 +519,18 @@ def create_app(
         request: Request,
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> BatchReviewResponse:
+        caller = _caller(request)
+        active = _runtime(request)
+        _require_project_access(active, caller, project_id)
         canonical_items = sorted(
             (item.model_dump(mode="json") for item in body.items),
             key=lambda item: str(item["clip_id"]),
         )
-        details = _runtime(request).review_service.review_clips_batch(
+        details = active.review_service.review_clips_batch(
             project_id,
             body.to_command(),
             idempotency=_idempotency(
-                security,
+                caller,
                 idempotency_key,
                 operation="POST:/api/v1/projects/:project_id/reviews/batch",
                 payload={"project_id": project_id, "items": canonical_items},
@@ -438,11 +553,14 @@ def create_app(
         request: Request,
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedTaskResponse:
-        queued = _runtime(request).render_service.enqueue(
+        caller = _caller(request)
+        active = _runtime(request)
+        _require_clip_access(active, caller, clip_id)
+        queued = active.render_service.enqueue(
             clip_id,
             RenderRequest(expected_revision=body.expected_revision, kind=body.kind),
             idempotency=_idempotency(
-                security,
+                caller,
                 idempotency_key,
                 operation="POST:/api/v1/clips/:clip_id/render",
                 payload={"clip_id": clip_id, **body.model_dump(mode="json")},
@@ -460,8 +578,11 @@ def create_app(
         )
 
     @protected.get("/renders/{render_id}", response_model=QueuedRender)
-    def get_render(render_id: str, request: Request) -> QueuedRender:
-        return _runtime(request).render_service.get(render_id)
+    def get_render(
+        render_id: str,
+        request: Request,
+    ) -> QueuedRender:
+        return _require_render_access(_runtime(request), _caller(request), render_id)
 
     @protected.post(
         "/projects/{project_id}/deliveries",
@@ -475,11 +596,14 @@ def create_app(
         request: Request,
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     ) -> AcceptedTaskResponse:
-        queued = _runtime(request).delivery_service.enqueue(
+        caller = _caller(request)
+        active = _runtime(request)
+        _require_project_access(active, caller, project_id)
+        queued = active.delivery_service.enqueue(
             project_id,
             DeliveryRequest(include_zip=body.include_zip),
             idempotency=_idempotency(
-                security,
+                caller,
                 idempotency_key,
                 operation="POST:/api/v1/projects/:project_id/deliveries",
                 payload={"project_id": project_id, **body.model_dump(mode="json")},
@@ -500,17 +624,24 @@ def create_app(
         "/projects/{project_id}/deliveries",
         response_model=list[DeliveryDetailResponse],
     )
-    def list_deliveries(project_id: str, request: Request) -> list[DeliveryDetailResponse]:
+    def list_deliveries(
+        project_id: str,
+        request: Request,
+    ) -> list[DeliveryDetailResponse]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
         return [
-            _delivery_response(security, item)
-            for item in _runtime(request).delivery_service.list(project_id)
+            _delivery_response(security, item) for item in active.delivery_service.list(project_id)
         ]
 
     @protected.get("/deliveries/{delivery_id}", response_model=DeliveryDetailResponse)
-    def get_delivery(delivery_id: str, request: Request) -> DeliveryDetailResponse:
+    def get_delivery(
+        delivery_id: str,
+        request: Request,
+    ) -> DeliveryDetailResponse:
         return _delivery_response(
             security,
-            _runtime(request).delivery_service.get(delivery_id),
+            _require_delivery_access(_runtime(request), _caller(request), delivery_id),
         )
 
     app.include_router(protected)
@@ -574,6 +705,13 @@ def _runtime(request: Request) -> LiveClipRuntime:
     return value
 
 
+def _caller(request: Request) -> AuthenticatedCaller:
+    value = getattr(request.state, "authenticated_caller", None)
+    if not isinstance(value, AuthenticatedCaller):
+        raise ApiAuthenticationError("authenticated caller is unavailable")
+    return value
+
+
 def _pipeline_config(
     settings: Settings,
     body: JobCreateRequest | RunCreateRequest,
@@ -590,7 +728,7 @@ def _pipeline_config(
 
 
 def _idempotency(
-    security: ApiSecurity,
+    caller: AuthenticatedCaller,
     raw_key: str | None,
     *,
     operation: str,
@@ -600,10 +738,61 @@ def _idempotency(
         return None
     return build_idempotency_context(
         raw_key=raw_key,
-        caller_scope=security.caller_scope,
+        caller_scope=caller.caller_scope,
         operation_scope=operation,
         request_payload=payload,
     )
+
+
+def _require_project_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    project_id: str,
+) -> WorkspaceUser:
+    user = runtime.workspace_service.get_user_by_username(caller.username)
+    runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
+    return user
+
+
+def _require_run_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    run_id: str,
+) -> RunSnapshot:
+    run = runtime.pipeline_service.get_run(run_id)
+    _require_project_access(runtime, caller, run.project_id)
+    return run
+
+
+def _require_clip_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    clip_id: str,
+) -> ClipDetail:
+    clip = runtime.review_service.get_clip(clip_id)
+    _require_project_access(runtime, caller, clip.project_id)
+    return clip
+
+
+def _require_render_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    render_id: str,
+) -> QueuedRender:
+    render = runtime.render_service.get(render_id)
+    clip = runtime.review_service.get_clip(render.clip_id)
+    _require_project_access(runtime, caller, clip.project_id)
+    return render
+
+
+def _require_delivery_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    delivery_id: str,
+) -> DeliverySnapshot:
+    delivery = runtime.delivery_service.get(delivery_id)
+    _require_project_access(runtime, caller, delivery.project_id)
+    return delivery
 
 
 def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
@@ -748,6 +937,18 @@ def _install_exception_handlers(app: FastAPI) -> None:
             code="AUTHENTICATION_REQUIRED",
             message="Valid Bearer authorization or signed media access is required",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(WorkspacePermissionDenied)
+    async def workspace_permission_handler(
+        request: Request,
+        _exc: WorkspacePermissionDenied,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=403,
+            code="PROJECT_PERMISSION_DENIED",
+            message="Only the project owner can manage project members",
         )
 
     @app.exception_handler(MediaRangeNotSatisfiable)

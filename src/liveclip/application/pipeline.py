@@ -189,6 +189,15 @@ class RunSnapshot(BaseModel):
     stages: tuple[StageSnapshot, ...]
 
 
+class WorkspaceMember(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    user_id: str
+    username: str
+    display_name: str
+    role: Literal["owner", "editor", "reviewer"]
+
+
 class ProjectSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -198,6 +207,9 @@ class ProjectSnapshot(BaseModel):
     status: ProjectStatus
     current_run_id: str
     generation: int = Field(ge=1)
+    owner: WorkspaceMember
+    members: tuple[WorkspaceMember, ...]
+    current_user_role: Literal["owner", "editor", "reviewer"]
 
 
 class LeaseIdentity(BaseModel):
@@ -267,14 +279,15 @@ class PipelineRepository(Protocol):
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        owner_id: str | None = None,
         idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline: ...
 
     def get_run(self, run_id: str) -> RunSnapshot: ...
 
-    def get_project(self, project_id: str) -> ProjectSnapshot: ...
+    def get_project(self, project_id: str, *, user_id: str | None = None) -> ProjectSnapshot: ...
 
-    def list_projects(self) -> tuple[ProjectSnapshot, ...]: ...
+    def list_projects(self, *, user_id: str | None = None) -> tuple[ProjectSnapshot, ...]: ...
 
     def create_run(
         self,
@@ -300,6 +313,7 @@ class PipelineService:
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        owner_id: str | None = None,
         idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline:
         if not source_path.is_absolute() or ".." in source_path.parts:
@@ -310,6 +324,7 @@ class PipelineService:
             source_path=source_path,
             config=config,
             max_stage_retries=max_stage_retries,
+            owner_id=owner_id,
             idempotency=idempotency,
         )
 
@@ -332,6 +347,7 @@ class PipelineService:
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        owner_id: str | None = None,
         idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline:
         payload = config.model_dump(mode="python")
@@ -341,17 +357,21 @@ class PipelineService:
             source_path=source_path,
             config=import_config,
             max_stage_retries=max_stage_retries,
+            owner_id=owner_id,
             idempotency=idempotency,
         )
 
     def get_run(self, run_id: str) -> RunSnapshot:
         return self._repository.get_run(run_id)
 
-    def get_project(self, project_id: str) -> ProjectSnapshot:
-        return self._repository.get_project(project_id)
+    def get_project(self, project_id: str, *, user_id: str | None = None) -> ProjectSnapshot:
+        return self._repository.get_project(project_id, user_id=user_id)
 
-    def list_projects(self) -> tuple[ProjectSnapshot, ...]:
-        return self._repository.list_projects()
+    def list_projects(self, *, user_id: str | None = None) -> tuple[ProjectSnapshot, ...]:
+        return self._repository.list_projects(user_id=user_id)
+
+    def list_projects_for_user(self, user_id: str) -> tuple[ProjectSnapshot, ...]:
+        return self.list_projects(user_id=user_id)
 
     def create_run(
         self,

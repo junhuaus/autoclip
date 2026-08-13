@@ -67,6 +67,38 @@ export interface ProjectSnapshot {
   status: ProjectStatus;
   current_run_id: string;
   generation: number;
+  owner: WorkspaceMember;
+  members: WorkspaceMember[];
+  current_user_role: WorkspaceRole;
+}
+
+export type WorkspaceRole = "owner" | "editor" | "reviewer";
+
+export interface WorkspaceUser {
+  user_id: string;
+  username: string;
+  display_name: string;
+}
+
+export interface WorkspaceMember extends WorkspaceUser {
+  role: WorkspaceRole;
+}
+
+export interface SessionResponse {
+  schema_version: "1";
+  user: WorkspaceUser;
+}
+
+export interface ProjectMemberCreateRequest {
+  username: string;
+  display_name: string;
+  role: "editor" | "reviewer";
+}
+
+export interface ProjectMembersResponse {
+  schema_version: "1";
+  project_id: string;
+  members: WorkspaceMember[];
 }
 
 export interface JobCreateRequest {

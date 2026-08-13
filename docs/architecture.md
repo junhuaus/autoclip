@@ -20,6 +20,23 @@ flowchart TB
   DELIVERY[Delivery adapter] -.implements.-> PORTS
 ```
 
+## Workspace identity and project visibility
+
+```mermaid
+flowchart LR
+  TOKEN[Environment-only Bearer token] --> AUTH[Authenticated workspace user]
+  AUTH --> MEMBERSHIP[(ProjectMember)]
+  MEMBERSHIP --> PROJECT[(Project)]
+  PROJECT --> RUN[Pipeline runs]
+  PROJECT --> CLIP[Clips and revisions]
+  PROJECT --> RENDER[Render jobs]
+  PROJECT --> DELIVERY[Deliveries]
+  OWNER[Project owner] -->|manage| MEMBERSHIP
+  WEB[My Projects dashboard] -->|membership-scoped API| AUTH
+```
+
+The browser never filters a global Project collection. The API joins the authenticated user through `ProjectMember` and repeats that Project check for every descendant resource. Credentials stay in ignored environment configuration; SQLite stores only identity and membership. The owner alone manages membership, while all current v1 members share the editing/review workflow.
+
 ## Data flow and cloud boundary
 
 ```mermaid

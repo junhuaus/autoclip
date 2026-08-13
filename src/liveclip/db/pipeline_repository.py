@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import func, insert, or_, select, update
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy import case, func, insert, or_, select, update
+from sqlalchemy.engine import Connection, Engine, RowMapping
 
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import (
@@ -22,6 +22,7 @@ from liveclip.application.pipeline import (
     StageLeaseLost,
     StageSnapshot,
     StageWork,
+    WorkspaceMember,
     load_persisted_pipeline_config,
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
@@ -37,6 +38,7 @@ from liveclip.db.models import (
     DeliveryRow,
     EditPlanRevisionRow,
     PipelineRunRow,
+    ProjectMemberRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
@@ -46,6 +48,7 @@ from liveclip.db.models import (
     TaskRow,
     TranscriptRow,
     TranscriptSegmentRow,
+    WorkspaceUserRow,
 )
 from liveclip.domain.state_transitions import (
     PIPELINE_STAGE_ORDER,
@@ -114,6 +117,7 @@ class SqlAlchemyPipelineRepository:
         source_path: Path,
         config: PipelineRunConfig,
         max_stage_retries: int,
+        owner_id: str | None = None,
         idempotency: IdempotencyContext | None = None,
     ) -> CreatedPipeline:
         now = datetime.now(UTC)
@@ -130,16 +134,35 @@ class SqlAlchemyPipelineRepository:
                 if replay_project_id is None:
                     raise PipelineConflict("idempotent pipeline resource no longer exists")
                 return CreatedPipeline(project_id=str(replay_project_id), run_id=replay_run_id)
+            resolved_owner_id = owner_id or _default_workspace_user_id(connection)
+            owner_exists = connection.scalar(
+                select(WorkspaceUserRow.id).where(
+                    WorkspaceUserRow.id == resolved_owner_id,
+                    WorkspaceUserRow.is_active.is_(True),
+                )
+            )
+            if owner_exists is None:
+                raise PipelineConflict("workspace owner does not exist")
             connection.execute(
                 insert(ProjectRow).values(
                     id=project_id,
                     name=source_path.stem[:200] or "LiveClip project",
+                    owner_id=resolved_owner_id,
                     source_request_path=str(source_path),
                     current_generation=1,
                     current_pipeline_run_id=run_id,
                     revision_epoch=0,
                     created_at=now,
                     updated_at=now,
+                )
+            )
+            connection.execute(
+                insert(ProjectMemberRow).values(
+                    id=new_id(),
+                    project_id=project_id,
+                    user_id=resolved_owner_id,
+                    role="owner",
+                    created_at=now,
                 )
             )
             _insert_pipeline_run(
@@ -260,15 +283,20 @@ class SqlAlchemyPipelineRepository:
             )
         return CreatedPipeline(project_id=project_id, run_id=run_id)
 
-    def list_projects(self) -> tuple[ProjectSnapshot, ...]:
+    def list_projects(self, *, user_id: str | None = None) -> tuple[ProjectSnapshot, ...]:
         with self._engine.connect() as connection:
+            query = select(ProjectRow.id)
+            if user_id is not None:
+                query = query.join(
+                    ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id
+                ).where(ProjectMemberRow.user_id == user_id)
             project_ids = tuple(
                 str(value)
                 for value in connection.scalars(
-                    select(ProjectRow.id).order_by(ProjectRow.created_at.desc(), ProjectRow.id)
+                    query.order_by(ProjectRow.updated_at.desc(), ProjectRow.id)
                 )
             )
-        return tuple(self.get_project(project_id) for project_id in project_ids)
+        return tuple(self.get_project(project_id, user_id=user_id) for project_id in project_ids)
 
     def get_run(self, run_id: str) -> RunSnapshot:
         with self._engine.connect() as connection:
@@ -323,13 +351,14 @@ class SqlAlchemyPipelineRepository:
             stages=stage_snapshots,
         )
 
-    def get_project(self, project_id: str) -> ProjectSnapshot:
+    def get_project(self, project_id: str, *, user_id: str | None = None) -> ProjectSnapshot:
         with self._engine.connect() as connection:
             project = (
                 connection.execute(
                     select(
                         ProjectRow.id,
                         ProjectRow.name,
+                        ProjectRow.owner_id,
                         ProjectRow.source_request_path,
                         ProjectRow.current_pipeline_run_id,
                         ProjectRow.current_generation,
@@ -341,6 +370,45 @@ class SqlAlchemyPipelineRepository:
             )
             if project is None or project["current_pipeline_run_id"] is None:
                 raise PipelineResourceNotFound("project does not exist")
+            members = tuple(
+                connection.execute(
+                    select(
+                        WorkspaceUserRow.id,
+                        WorkspaceUserRow.username,
+                        WorkspaceUserRow.display_name,
+                        ProjectMemberRow.role,
+                    )
+                    .join(ProjectMemberRow, ProjectMemberRow.user_id == WorkspaceUserRow.id)
+                    .where(
+                        ProjectMemberRow.project_id == project_id,
+                        WorkspaceUserRow.is_active.is_(True),
+                    )
+                    .order_by(
+                        case((ProjectMemberRow.role == "owner", 0), else_=1),
+                        WorkspaceUserRow.display_name,
+                        WorkspaceUserRow.id,
+                    )
+                ).mappings()
+            )
+            if not members:
+                raise PipelineResourceNotFound("project membership does not exist")
+            current_member = next(
+                (member for member in members if str(member["id"]) == user_id),
+                None,
+            )
+            if user_id is not None and current_member is None:
+                raise PipelineResourceNotFound("project does not exist")
+            owner_member = next(
+                (
+                    member
+                    for member in members
+                    if str(member["id"]) == str(project["owner_id"])
+                    and str(member["role"]) == "owner"
+                ),
+                None,
+            )
+            if owner_member is None:
+                raise PipelineResourceNotFound("project owner membership does not exist")
             run_id = str(project["current_pipeline_run_id"])
             run_facts = connection.execute(
                 select(
@@ -433,6 +501,9 @@ class SqlAlchemyPipelineRepository:
                 latest_delivery_matches_current=latest_delivery_current,
             )
         )
+        current_role = str(current_member["role"]) if current_member is not None else "owner"
+        if current_role not in {"owner", "editor", "reviewer"}:
+            raise PipelineResourceNotFound("project membership role is invalid")
         return ProjectSnapshot(
             project_id=str(project["id"]),
             name=str(project["name"]),
@@ -440,6 +511,9 @@ class SqlAlchemyPipelineRepository:
             status=project_status,
             current_run_id=run_id,
             generation=int(project["current_generation"]),
+            owner=_workspace_member(owner_member),
+            members=tuple(_workspace_member(member) for member in members),
+            current_user_role=current_role,  # type: ignore[arg-type]
         )
 
     def request_run_cancel(self, run_id: str) -> RunSnapshot:
@@ -1658,6 +1732,41 @@ def _checkpoint_count(checkpoint: dict[str, object], key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise PipelineConflict(f"stage checkpoint {key} is invalid")
     return value
+
+
+def _default_workspace_user_id(connection: Connection) -> str:
+    user_id = connection.scalar(
+        select(WorkspaceUserRow.id)
+        .where(WorkspaceUserRow.is_active.is_(True))
+        .order_by(WorkspaceUserRow.created_at, WorkspaceUserRow.id)
+        .limit(1)
+    )
+    if user_id is None:
+        user_id = "00000000000000000000000000000001"
+        now = datetime.now(UTC)
+        connection.execute(
+            insert(WorkspaceUserRow).values(
+                id=user_id,
+                username="local-admin",
+                display_name="本机管理员",
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return str(user_id)
+
+
+def _workspace_member(row: RowMapping) -> WorkspaceMember:
+    role = str(row["role"])
+    if role not in {"owner", "editor", "reviewer"}:
+        raise PipelineResourceNotFound("project membership role is invalid")
+    return WorkspaceMember(
+        user_id=str(row["id"]),
+        username=str(row["username"]),
+        display_name=str(row["display_name"]),
+        role=role,  # type: ignore[arg-type]
+    )
 
 
 def _optional_string(value: object) -> str | None:

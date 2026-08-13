@@ -15,7 +15,7 @@ import {
   succeededDelivery,
 } from "../tests/fixtures";
 
-test("creates, reviews, rerenders and downloads one visible delivery flow", async ({ page }) => {
+test("creates, reviews, rerenders and downloads one visible delivery flow", async ({ page }, testInfo) => {
   let created = false;
   let deliveryCreated = false;
   let renderPollCount = 0;
@@ -62,6 +62,19 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
+    if (path === "/api/v1/session" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          user: {
+            user_id: "user-local-admin",
+            username: "local-admin",
+            display_name: "本机管理员",
+          },
+        },
+      });
+      return;
+    }
     if (path === "/api/v1/deliveries/delivery-1/download") {
       await route.fulfill({
         status: 200,
@@ -90,6 +103,16 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     }
     if (path === "/api/v1/projects/project-1" && method === "GET") {
       await route.fulfill({ json: project });
+      return;
+    }
+    if (path === "/api/v1/projects/project-1/members" && method === "POST") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          project_id: "project-1",
+          members: project.members,
+        },
+      });
       return;
     }
     if (path === "/api/v1/runs/run-1" && method === "GET") {
@@ -240,17 +263,19 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   });
 
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "我的项目" })).toBeVisible();
   await expect(page.getByText("还没有项目")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "当前 AI 处理链路" })).toBeVisible();
-  await expect(page.getByText(/当前使用 Mock ASR/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
+  await expect(page.getByText(/Mock ASR/)).toHaveCount(0);
+  await page.getByRole("button", { name: "＋ 新建项目" }).click();
+  await expect(page.getByRole("button", { name: "创建并开始处理" })).toBeEnabled();
   await page.getByLabel("本地视频绝对路径").fill("/Users/demo/Videos/live.mp4");
-  await page.getByRole("button", { name: "创建项目并启动处理" }).click();
+  await page.getByRole("button", { name: "创建并开始处理" }).click();
 
   await expect(page.getByRole("heading", { name: "直播测试项目" })).toBeVisible();
   await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "高光时刻" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "项目成员" })).toBeVisible();
   const firstCard = page.locator("article.clip-card").first();
   await expect(firstCard.getByRole("heading", { name: "高光语句" })).toBeVisible();
   await expect(firstCard.getByText("开头提出关键问题")).toBeVisible();
@@ -308,4 +333,11 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     disposition: 'attachment; filename="liveclip-v001.zip"',
     magic: [0x50, 0x4b],
   });
+
+  await page.getByRole("button", { name: "我的项目", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "我的项目" })).toBeVisible();
+  await expect(page.getByText("发布会精剪")).toHaveCount(0);
+  await expect(page.getByText("直播测试项目")).toBeVisible();
+  await expect(page.getByText("负责人 本机管理员")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("project-dashboard.png"), fullPage: true });
 });

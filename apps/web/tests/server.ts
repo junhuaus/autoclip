@@ -2,6 +2,16 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 
 export const server = setupServer(
+  http.get("/api/v1/session", () =>
+    HttpResponse.json({
+      schema_version: "1",
+      user: {
+        user_id: "user-local-admin",
+        username: "local-admin",
+        display_name: "本机管理员",
+      },
+    }),
+  ),
   http.get("/api/v1/health", () =>
     HttpResponse.json({
       schema_version: "1",

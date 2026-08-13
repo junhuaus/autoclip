@@ -12,10 +12,13 @@ import type {
   HealthResponse,
   JobCreateRequest,
   ProjectSnapshot,
+  ProjectMemberCreateRequest,
+  ProjectMembersResponse,
   QueuedRender,
   RenderKind,
   ReviewActionRequest,
   RunSnapshot,
+  SessionResponse,
   TranscriptSnapshot,
 } from "./types";
 
@@ -110,6 +113,10 @@ export class LiveClipApiClient {
     return this.request("/health");
   }
 
+  session(): Promise<SessionResponse> {
+    return this.request("/session");
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
@@ -162,6 +169,30 @@ export class LiveClipApiClient {
 
   getProject(projectId: string): Promise<ProjectSnapshot> {
     return this.request(`/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  listProjectMembers(projectId: string): Promise<ProjectMembersResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/members`);
+  }
+
+  addProjectMember(
+    projectId: string,
+    body: ProjectMemberCreateRequest,
+  ): Promise<ProjectMembersResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/members`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  removeProjectMember(
+    projectId: string,
+    userId: string,
+  ): Promise<ProjectMembersResponse> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    );
   }
 
   createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {

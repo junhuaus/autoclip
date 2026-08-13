@@ -5,7 +5,7 @@ Decision date: 2026-08-03
 
 ## User scenarios and success boundary
 
-LiveClip turns a local Chinese livestream into reviewable vertical highlights and an immutable delivery archive. A CLI user can run the whole pipeline in the foreground; API and Web users enqueue the identical work for one independent Worker. Users first review clean vertical video clips alongside separate editorial title/Hook/reason/risk/caption metadata, then choose whether the approved final revision burns title and captions. Users can recover failed stages, change a proposed clip without mutating history, see stale media, rerender the exact current revision, and download a versioned ZIP.
+LiveClip turns a local Chinese livestream into reviewable vertical highlights and an immutable delivery archive. A CLI user can run the whole pipeline in the foreground; API and Web users enqueue the identical work for one independent Worker. The Web opens as a video-editor project workspace: each authenticated member sees only assigned Projects, while a Project owner can add editors and reviewers. Users first review clean vertical video clips alongside separate editorial title/Hook/reason/risk/caption metadata, then choose whether the approved final revision burns title and captions. Users can recover failed stages, change a proposed clip without mutating history, see stale media, rerender the exact current revision, and download a versioned ZIP.
 
 The system controls execution. Cloud models may interpret content and propose a whitelisted EditPlan, but they cannot choose local paths, commands, filtergraphs, SQL, or code. Source video frames never leave the Mac; prepared audio is sent to the selected ASR Provider, and bounded transcript text plus metadata is sent separately to the editor model.
 
@@ -60,6 +60,8 @@ The public EditPlan representation exposes both clearly named millisecond fields
 The initial relational model is:
 
 - Project: user-created workspace, current successful generation/run, current processing run, revision epoch.
+- WorkspaceUser: local username/display identity without a password, API token or Provider credential.
+- ProjectMember: unique user/Project membership with `owner`, `editor` or `reviewer` role; every Project has one owner membership matching `Project.owner_id`.
 - SourceMedia: one read-only resolved reference per Project, filename, fingerprint, stat identity, ffprobe metadata.
 - PipelineRun: immutable configuration snapshot, generation, run state, progress and error.
 - StageRun: logical stage state, input/output fingerprint, checkpoint and progress.
@@ -197,6 +199,10 @@ Offline review export is a separate synchronous application query/export path. I
 
 API schemas are DTOs, never ORM serialization. Internal absolute paths are omitted unless a CLI-only command explicitly needs them; Web receives asset IDs and source filenames/ranges. The stable error envelope contains version, code, message, retryable, resource ID, and optional safe field details/correlation ID. Exception mapping strips headers, tokens, provider request content, raw SQL and stack traces.
 
+The API resolves one `AuthenticatedCaller` at the request boundary. In the default loopback-only single-user configuration that caller is `LIVECLIP_WORKSPACE_USERNAME`; a configured `LIVECLIP_WORKSPACE_TOKENS` JSON mapping gives each local username a distinct Bearer credential. Tokens remain only in ignored environment configuration. Bootstrap creates the configured identities, while SQLite stores only users and memberships. A new Project is owned by its creator. `GET /projects` joins through `ProjectMember`, and every run, clip, render and Delivery route first resolves its owning Project and verifies current membership. Non-members receive the same not-found response as unknown resources, preventing existence disclosure. Only the owner can add/update or remove non-owner memberships. Short-lived signed media URLs are issued only after this check.
+
+The Web receives the safe current-session identity plus Project owner/member/role DTOs. It never decides authorization: member-scoped queries and mutations remain backend rules. Bearer input is retained in React memory only. v1 deliberately uses operator-provisioned local tokens rather than passwords, cookies, invitations or an external identity provider; roles describe workflow responsibility, and all members share editing/review operations while membership administration is owner-only.
+
 An Idempotency-Key is scoped by authenticated caller and endpoint. The canonical request hash is stored with the created resource. Reuse with the same hash returns that resource even if Provider readiness later changes; reuse with a different payload is a stable 409. API create handlers replay a completed record before readiness gating, while new work is still rejected when the selected chain is unavailable. Creation and record insert occur in one transaction.
 
 Batch review is a short synchronous application transaction, not a background task. The request carries a unique clip ID, expected EditPlan revision, decision and optional rejection reason for each selected candidate. The repository first checks the canonical `Idempotency-Key` record, validates every item belongs to the requested current Project generation and every expected revision still matches, then records every decision, invalidates active Delivery snapshots and persists the idempotency result under the same `BEGIN IMMEDIATE`; any conflict rolls back the entire batch. A same-key/same-payload replay returns current snapshots without repeating effects, while same-key/different-payload fails with 409. The Web never approximates this with concurrent single-clip requests. A failed Web request retains the exact body/key for explicit retry, reconciles Project/clip state first, and disables that retry if any included candidate is missing, has a changed revision or has an unsaved editor draft. Batch work in flight locks editor writes so a response cannot overwrite local draft state.
@@ -209,7 +215,7 @@ The Web review workspace does not fetch or render the complete livestream transc
 
 ## Configuration and secrets
 
-Pydantic Settings reads environment variables and optional ignored `.env`/`.env.local` files. Settings validation never includes secret values in exceptions or dumps. The composition root reads `OPENROUTER_API_KEY` only for `openrouter-codex` and `OPENAI_API_KEY` only for `openai`/`openai-codex`; a runtime/provider mismatch fails deterministically before any stage handler. OpenRouter's Base URL and v1 model are exact allowlisted values, preventing configuration-based credential exfiltration. Mock-only startup retains neither key and instantiates no cloud client. Codex receives no ASR key, API token or credential-bearing proxy URL. API health exposes only safe Provider names, readiness booleans and stable issue codes.
+Pydantic Settings reads environment variables and optional ignored `.env`/`.env.local` files. Settings validation never includes secret values in exceptions or dumps. `LIVECLIP_API_TOKEN` authenticates the configured default workspace user and signs browser-media URLs; optional `LIVECLIP_WORKSPACE_TOKENS` contains distinct member tokens and therefore requires that signing token. Only a safe configured-member count appears in public configuration summaries. The composition root reads `OPENROUTER_API_KEY` only for `openrouter-codex` and `OPENAI_API_KEY` only for `openai`/`openai-codex`; a runtime/provider mismatch fails deterministically before any stage handler. OpenRouter's Base URL and v1 model are exact allowlisted values, preventing configuration-based credential exfiltration. Mock-only startup retains neither key and instantiates no cloud client. Codex receives no ASR key, API token or credential-bearing proxy URL. API health exposes only safe Provider names, readiness booleans and stable issue codes.
 
 ## Observability
 
@@ -267,3 +273,4 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-010: clean review proxies with separate editorial metadata; text overlays only in final mode.
 - ADR-011: one direct center-crop source layer; blurred backgrounds and duplicated foregrounds are prohibited.
 - ADR-012: grounded review metadata and atomic, revision-fenced batch decisions without A/B variants.
+- ADR-013: environment-authenticated workspace identities with server-side Project membership isolation.

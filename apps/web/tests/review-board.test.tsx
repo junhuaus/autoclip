@@ -132,6 +132,50 @@ it("omits the redundant full transcript panel and does not request it", async ()
   expect(transcriptReads).toBe(0);
 });
 
+it("lets the owner add a project editor from the collaboration panel", async () => {
+  let submitted: unknown = null;
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/clips", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+    http.post("/api/v1/projects/project-1/members", async ({ request }) => {
+      submitted = await request.json();
+      return HttpResponse.json({
+        schema_version: "1",
+        project_id: "project-1",
+        members: [
+          ...project.members,
+          {
+            user_id: "editor-1",
+            username: "lin-editor",
+            display_name: "林编辑",
+            role: "editor",
+          },
+        ],
+      });
+    }),
+  );
+  const user = userEvent.setup();
+
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "＋ 添加成员" }));
+  await user.type(screen.getByLabelText("成员账号"), "lin-editor");
+  await user.type(screen.getByLabelText("显示名称"), "林编辑");
+  await user.click(screen.getByRole("button", { name: "添加到项目" }));
+
+  await waitFor(() =>
+    expect(submitted).toEqual({
+      username: "lin-editor",
+      display_name: "林编辑",
+      role: "editor",
+    }),
+  );
+});
+
 it("submits selected candidates through one atomic batch endpoint", async () => {
   const summaries = [structuredClone(clipSummary), secondSummary()];
   let batchBody: BatchReviewRequest | null = null;

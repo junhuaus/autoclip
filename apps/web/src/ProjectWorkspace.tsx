@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -12,6 +12,7 @@ import type {
   ClipSummaryResponse,
   BatchReviewRequest,
   DeliveryDetailResponse,
+  ProjectMemberCreateRequest,
   ProjectSnapshot,
   RunSnapshot,
   StageSnapshot,
@@ -27,9 +28,95 @@ const STAGE_LABELS: Record<string, string> = {
   proxy_render: "审核代理渲染",
 };
 
+const MEMBER_ROLE_LABELS = {
+  owner: "负责人",
+  editor: "编辑",
+  reviewer: "审核",
+} as const;
+
 interface BatchReviewOperation {
   body: BatchReviewRequest;
   requestKey: string;
+}
+
+function ProjectMembersPanel({
+  api,
+  project,
+  onChanged,
+}: {
+  api: LiveClipApiClient;
+  project: ProjectSnapshot;
+  onChanged: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const addMutation = useMutation({
+    mutationFn: (body: ProjectMemberCreateRequest) => api.addProjectMember(project.project_id, body),
+    onSuccess: () => {
+      setShowForm(false);
+      onChanged();
+    },
+  });
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => api.removeProjectMember(project.project_id, userId),
+    onSuccess: onChanged,
+  });
+  const addMember = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    addMutation.mutate({
+      username: String(data.get("username") ?? ""),
+      display_name: String(data.get("display_name") ?? ""),
+      role: String(data.get("role") ?? "editor") as "editor" | "reviewer",
+    });
+  };
+
+  return (
+    <section className="panel project-members-panel" aria-labelledby="project-members-title">
+      <div className="section-heading compact">
+        <div>
+          <p className="eyebrow">协作</p>
+          <h2 id="project-members-title">项目成员</h2>
+        </div>
+        {project.current_user_role === "owner" ? (
+          <button type="button" className="button button-secondary" onClick={() => setShowForm((value) => !value)}>
+            {showForm ? "取消" : "＋ 添加成员"}
+          </button>
+        ) : null}
+      </div>
+      <ul className="project-member-list">
+        {project.members.map((member) => (
+          <li key={member.user_id}>
+            <span className="user-avatar">{member.display_name.slice(0, 1)}</span>
+            <span><strong>{member.display_name}</strong><small>@{member.username}</small></span>
+            <StatusBadge status={member.role} label={MEMBER_ROLE_LABELS[member.role]} />
+            {project.current_user_role === "owner" && member.role !== "owner" ? (
+              <button
+                type="button"
+                className="button button-danger-ghost"
+                disabled={removeMutation.isPending}
+                onClick={() => removeMutation.mutate(member.user_id)}
+              >
+                移除
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {showForm ? (
+        <div className="project-member-form-wrap">
+          <form className="project-member-form" onSubmit={addMember}>
+            <label>成员账号<input name="username" required maxLength={80} pattern="[a-z0-9][a-z0-9._-]*" placeholder="lin-editor" /></label>
+            <label>显示名称<input name="display_name" required maxLength={120} placeholder="林编辑" /></label>
+            <label>项目角色<select name="role" defaultValue="editor"><option value="editor">编辑</option><option value="reviewer">审核</option></select></label>
+            <button type="submit" className="button button-primary" disabled={addMutation.isPending}>{addMutation.isPending ? "正在添加…" : "添加到项目"}</button>
+          </form>
+          <p className="hint">成员登录凭证由本机管理员单独配置，不会显示在项目页面。</p>
+        </div>
+      ) : null}
+      {addMutation.isError ? <p className="form-error" role="alert">{errorMessage(addMutation.error)}</p> : null}
+      {removeMutation.isError ? <p className="form-error" role="alert">{errorMessage(removeMutation.error)}</p> : null}
+    </section>
+  );
 }
 
 function stageDisplayStatus(stage: StageSnapshot): { status: string; label: string } {
@@ -634,8 +721,17 @@ export function ProjectWorkspace({
         <div className="hero-status">
           <StatusBadge status={project.status} />
           <span>已批准 {approvedCount}/{clipsQuery.data?.length ?? 0}</span>
+          <span>
+            {MEMBER_ROLE_LABELS[project.current_user_role]} · {project.members.length} 位成员
+          </span>
         </div>
       </section>
+
+      <ProjectMembersPanel
+        api={api}
+        project={project}
+        onChanged={() => void projectQuery.refetch()}
+      />
 
       {runQuery.isPending ? <LoadingState>正在加载 Pipeline 状态…</LoadingState> : null}
       {runQuery.isError ? <ErrorState error={runQuery.error} onRetry={() => void runQuery.refetch()} /> : null}

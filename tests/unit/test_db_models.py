@@ -80,6 +80,8 @@ def test_schema_contains_every_v1_persistence_entity_and_named_constraints(
         "transcript_segments",
         "transcript_words",
         "transcripts",
+        "workspace_users",
+        "project_members",
     }
     for table in Base.metadata.sorted_tables:
         assert all(constraint.name for constraint in table.constraints)

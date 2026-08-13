@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
+from liveclip.application.workspace import WorkspaceMembership, WorkspaceUser
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
 from liveclip.domain.state_transitions import ReviewStatus
 
@@ -120,6 +121,16 @@ class DeliveryCreateRequest(ApiRequestModel):
     include_zip: bool = True
 
 
+class ProjectMemberCreateRequest(ApiRequestModel):
+    username: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    display_name: str = Field(min_length=1, max_length=120)
+    role: Literal["editor", "reviewer"]
+
+
 class AcceptedPipelineResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -162,6 +173,21 @@ class HealthResponse(BaseModel):
     version: str
     database: Literal["ok"] = "ok"
     providers: ProviderHealthResponse
+
+
+class SessionResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    user: WorkspaceUser
+
+
+class ProjectMembersResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    project_id: str
+    members: tuple[WorkspaceMembership, ...]
 
 
 class ClipSummaryResponse(BaseModel):

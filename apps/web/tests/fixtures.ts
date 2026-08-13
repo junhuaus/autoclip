@@ -14,6 +14,21 @@ export const project: ProjectSnapshot = {
   status: "pending_review",
   current_run_id: "run-1",
   generation: 1,
+  owner: {
+    user_id: "user-local-admin",
+    username: "local-admin",
+    display_name: "本机管理员",
+    role: "owner",
+  },
+  members: [
+    {
+      user_id: "user-local-admin",
+      username: "local-admin",
+      display_name: "本机管理员",
+      role: "owner",
+    },
+  ],
+  current_user_role: "owner",
 };
 
 export const completedRun: RunSnapshot = {

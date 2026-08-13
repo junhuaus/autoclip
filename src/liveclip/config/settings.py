@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
@@ -30,6 +32,16 @@ class Settings(BaseSettings):
         default="", validation_alias="LIVECLIP_ALLOWED_MEDIA_ROOTS"
     )
     api_token: SecretStr | None = None
+    workspace_username: str = Field(
+        default="local-admin",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    workspace_tokens_raw: SecretStr | None = Field(
+        default=None,
+        validation_alias="LIVECLIP_WORKSPACE_TOKENS",
+    )
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8765, ge=1, le=65535)
     media_url_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
@@ -199,6 +211,11 @@ class Settings(BaseSettings):
             self.llm_output_price_per_million is None
         ):
             raise ValueError("both optional OpenAI LLM price variables must be configured together")
+        workspace_tokens = self.workspace_tokens
+        if workspace_tokens and not (self.api_token and self.api_token.get_secret_value().strip()):
+            raise ValueError(
+                "LIVECLIP_API_TOKEN is required when LIVECLIP_WORKSPACE_TOKENS is configured"
+            )
         return self
 
     @property
@@ -222,6 +239,8 @@ class Settings(BaseSettings):
             "api_host": self.api_host,
             "api_port": self.api_port,
             "api_token_configured": bool(self.api_token and self.api_token.get_secret_value()),
+            "workspace_username": self.workspace_username,
+            "workspace_user_tokens_configured": len(self.workspace_tokens),
             "ai_provider": self.ai_provider,
             "codex_provider_selected": self.ai_provider.endswith("-codex"),
             "openai_configured": bool(
@@ -237,6 +256,37 @@ class Settings(BaseSettings):
             ),
             "llm_model": self.llm_model,
         }
+
+    @property
+    def workspace_tokens(self) -> dict[str, str]:
+        """Return validated username-to-token mappings without exposing them in summaries."""
+
+        if self.workspace_tokens_raw is None:
+            return {}
+        raw = self.workspace_tokens_raw.get_secret_value().strip()
+        if not raw:
+            return {}
+        try:
+            value = json.loads(raw)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise ValueError("LIVECLIP_WORKSPACE_TOKENS must be a JSON object") from exc
+        if not isinstance(value, dict):
+            raise ValueError("LIVECLIP_WORKSPACE_TOKENS must be a JSON object")
+        result: dict[str, str] = {}
+        for username, token in value.items():
+            if (
+                not isinstance(username, str)
+                or not username
+                or len(username) > 80
+                or re.fullmatch(r"[a-z0-9][a-z0-9._-]*", username) is None
+            ):
+                raise ValueError("LIVECLIP_WORKSPACE_TOKENS contains an invalid username")
+            if not isinstance(token, str) or len(token.strip()) < 16:
+                raise ValueError("LIVECLIP_WORKSPACE_TOKENS contains an invalid token")
+            result[username] = token.strip()
+        if len(set(result.values())) != len(result):
+            raise ValueError("LIVECLIP_WORKSPACE_TOKENS tokens must be unique")
+        return result
 
 
 def _split_list(value: str, *, include_path_separator: bool = True) -> list[str]:

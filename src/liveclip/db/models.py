@@ -40,6 +40,19 @@ def _enum_sql(enum_type: type[StrEnum]) -> str:
     return ", ".join(f"'{item.value}'" for item in enum_type)
 
 
+class WorkspaceUserRow(Base):
+    __tablename__ = "workspace_users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
 class ProjectRow(Base):
     __tablename__ = "projects"
     __table_args__ = (
@@ -49,6 +62,13 @@ class ProjectRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    owner_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        index=True,
+        default="00000000000000000000000000000001",
+        server_default="00000000000000000000000000000001",
+    )
     source_request_path: Mapped[str] = mapped_column(Text, nullable=False)
     current_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_pipeline_run_id: Mapped[str | None] = mapped_column(String(32), index=True)
@@ -57,6 +77,26 @@ class ProjectRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
     )
+
+
+class ProjectMemberRow(Base):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint("project_id", "user_id", name="project_member_identity"),
+        CheckConstraint(
+            "role IN ('owner', 'editor', 'reviewer')", name="project_member_role_allowed"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
 
 
 class SourceMediaRow(Base):

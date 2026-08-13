@@ -12,6 +12,8 @@ Amendment, 2026-08-05: the user explicitly requires review proxies to be clean v
 
 Amendment, 2026-08-12: the user requires a portable package of generated review clips and their descriptions before final approval/rendering. LiveClip therefore supports a separate versioned offline-review export containing current clean proxy MP4s, SRTs, titles, high-impact sentences, recommendation reasons, risks, editor keywords with evidence timing, an offline HTML viewer, JSON/Markdown metadata, hashes and ZIP. This export is explicitly not a formal Delivery, does not approve clips, does not burn text into video and does not change Project/review/Delivery state.
 
+Amendment, 2026-08-13: the Web home page is a video-editor project workspace rather than a processing diagnostic page. Every authenticated workspace member sees only Projects to which they belong, with searchable status views, personal workload counts and explicit owner/editor/reviewer membership. The Project owner manages membership; access isolation is enforced by the API for Project, run, clip, render and Delivery resources rather than copied into the browser. Local installations may assign one distinct Bearer token per username; no token is stored in SQLite or returned to the Web client.
+
 ## Product outcome
 
 LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video. LiveClip deterministically imports and analyzes it, uses configured cloud ASR plus OpenAI/Codex editorial understanding, produces 10–20 configurable highlight candidates (default duration 30–90 seconds), supports human review and revision, re-encodes approved vertical clips, and creates an immutable versioned delivery package.
@@ -89,7 +91,9 @@ Long-running commands return HTTP 202 with a resource ID and polling URL. Creati
 
 ### Web review console
 
-The React/TypeScript/Vite UI supports project creation from a local path, run configuration, stage/progress/error display, candidate video preview, title/boundary/subtitle editing, approve/reject, rerender, delivery creation/version listing, and ZIP download. The review section is named “高光时刻” and is a single-column list. Each item is one full-width horizontal row with video and editorial metadata side by side; the complete subtitle block is the last section in that row. The EditPlan Hook is shown to the user as “高光语句”, meaning concise AI-authored candidate-grounded copy suitable for consideration as on-screen text. Grounded timed terms are labelled “编辑关键词” and explicitly treated as editor-only navigation rather than audience-facing copy. The review workspace deliberately does not show a separate full-livestream transcript panel, while the transcript remains available through the REST API and backend application services. It must represent loading, empty, error, stale, disabled, retrying, and cancelled states. It does not copy backend state transitions or EditPlan validation.
+The React/TypeScript/Vite UI opens on “我的项目”, a project-management workspace for video editors. It shows only the signed-in member's Projects, searchable and filterable by workflow state, with “需要我处理”, processing and delivered counts. Project cards identify owner, member count, the current user's role and the next meaningful action. Creating a Project makes the current user its owner; an owner can add editor/reviewer members or remove non-owners from the Project workspace.
+
+The workspace supports project creation from a local path, run configuration, stage/progress/error display, candidate video preview, title/boundary/subtitle editing, approve/reject, rerender, delivery creation/version listing, and ZIP download. The review section is named “高光时刻” and is a single-column list. Each item is one full-width horizontal row with video and editorial metadata side by side; the complete subtitle block is the last section in that row. The EditPlan Hook is shown to the user as “高光语句”, meaning concise AI-authored candidate-grounded copy suitable for consideration as on-screen text. Grounded timed terms are labelled “编辑关键词” and explicitly treated as editor-only navigation rather than audience-facing copy. The review workspace deliberately does not show a separate full-livestream transcript panel, while the transcript remains available through the REST API and backend application services. It must represent loading, empty, error, stale, disabled, retrying, and cancelled states. It does not copy backend state transitions, access-control decisions or EditPlan validation.
 
 ## Runtime and engineering baseline
 
@@ -185,7 +189,7 @@ Delivery: queued | creating | succeeded | failed
 Project (derived): imported | processing | pending_review | ready_for_delivery | delivered | failed
 ```
 
-Transitions are centralized and tested. Required durable concepts include Project, SourceMedia, PipelineRun, StageRun/attempt, Task, Asset, AudioChunk, Transcript/Segment, CandidateClip, EditPlanRevision/captions, RenderJob, ReviewDecision, Delivery/DeliveryClip, ApiUsage, and idempotency records.
+Transitions are centralized and tested. Required durable concepts include WorkspaceUser, ProjectMember, Project, SourceMedia, PipelineRun, StageRun/attempt, Task, Asset, AudioChunk, Transcript/Segment, CandidateClip, EditPlanRevision/captions, RenderJob, ReviewDecision, Delivery/DeliveryClip, ApiUsage, and idempotency records. Every Project has exactly one owner membership; Project listings and resource reads are server-side membership-scoped.
 
 SQLite uses WAL, foreign keys, busy timeout, Alembic migrations, short explicit transactions, atomic task claims, default single heavy-task concurrency, leases, heartbeat, expiry, worker ID and fencing token, retry counts, crash recovery, safe cancellation, stage idempotency, artifact/input/dependency fingerprints, and persisted failure classification. External I/O never holds a write transaction.
 
@@ -196,6 +200,8 @@ SQLite uses WAL, foreign keys, busy timeout, Alembic migrations, short explicit 
 - LLM receives only candidate transcript/context and necessary metadata.
 - The ASR/API key comes only from local environment and never enters DB, logs, UI, errors, Git, or conversation requirements. Codex CLI authentication stays in the CLI credential store and is never copied into LiveClip state.
 - Authorization headers/tokens/credentials are redacted.
+- Workspace Bearer tokens remain environment-only. SQLite stores user identity and Project membership, never credentials.
+- Every Project/run/clip/render/Delivery API operation resolves the owning Project and requires current membership. A non-member receives the same not-found shape as an unknown Project.
 - Allowed-root enforcement governs input reads; output paths are system-owned.
 - Model output is untrusted and cannot control execution.
 - `.gitignore` covers `.env`, DBs, media, caches, and deliveries.

@@ -43,21 +43,24 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
 
   await page.goto("/");
   await expect(page.getByRole("alert")).toContainText("AUTHENTICATION_REQUIRED");
-  await page.getByLabel("本机 API Bearer token（可选）").fill(token);
-  await page.getByRole("button", { name: "应用" }).click();
+  await page.getByRole("button", { name: "打开账户与系统设置" }).click();
+  await page.getByLabel(/成员访问 Token/).fill(token);
+  await page.getByRole("button", { name: "应用 Token" }).click();
   await expect(page.getByText("还没有项目")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "当前 AI 处理链路" })).toBeVisible();
-  await expect(page.getByText(/当前使用 Mock ASR/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "创建项目并启动处理" })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "我的项目" })).toBeVisible();
+  await expect(page.getByText(/Mock ASR/)).toHaveCount(0);
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "＋ 新建项目" }).click();
+  await expect(page.getByRole("button", { name: "创建并开始处理" })).toBeEnabled();
 
   await page.getByLabel("本地视频绝对路径").fill(inputPath);
-  await page.getByLabel("候选数量").fill("1");
+  await page.getByLabel("高光数量").fill("1");
   await page.getByLabel("最短秒数").fill("8");
   await page.getByLabel("最长秒数").fill("12");
   const acceptedJob = page.waitForResponse(
     (response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/jobs",
   );
-  await page.getByRole("button", { name: "创建项目并启动处理" }).click();
+  await page.getByRole("button", { name: "创建并开始处理" }).click();
   const jobResponse = await acceptedJob;
   expect(jobResponse.status()).toBe(202);
   const job = await jobResponse.json() as { project_id: string; run_id: string };
@@ -78,6 +81,7 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await expect(page.getByText("源视频绝对时间")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "转写" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "高光时刻" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "项目成员" })).toBeVisible();
 
   const firstCard = page.locator("article.clip-card").first();
   await expect(firstCard.getByRole("heading", { name: "高光语句" })).toBeVisible();

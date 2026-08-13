@@ -17,7 +17,12 @@ from liveclip.application.offline_review import (
     OfflineReviewPackageConflict,
     OfflineReviewPackageService,
 )
-from liveclip.application.pipeline import PipelineRunConfig, PipelineService, ProjectSnapshot
+from liveclip.application.pipeline import (
+    PipelineRunConfig,
+    PipelineService,
+    ProjectSnapshot,
+    WorkspaceMember,
+)
 from liveclip.db.base import Base
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.engine import create_sqlite_engine
@@ -30,12 +35,14 @@ from liveclip.db.models import (
     DeliveryRow,
     EditPlanRevisionRow,
     PipelineRunRow,
+    ProjectMemberRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
     SourceMediaRow,
     TaskAttemptRow,
     TaskRow,
+    WorkspaceUserRow,
 )
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
@@ -81,6 +88,12 @@ class OfflineReviewFixture:
 
     @property
     def project(self) -> ProjectSnapshot:
+        owner = WorkspaceMember(
+            user_id="local-admin",
+            username="local-admin",
+            display_name="本机管理员",
+            role="owner",
+        )
         return ProjectSnapshot(
             project_id=PROJECT_ID,
             name="离线审核测试",
@@ -88,6 +101,9 @@ class OfflineReviewFixture:
             status=ProjectStatus.PENDING_REVIEW,
             current_run_id=RUN_ID,
             generation=1,
+            owner=owner,
+            members=(owner,),
+            current_user_role="owner",
         )
 
     @property
@@ -172,13 +188,33 @@ def offline_review_fixture(tmp_path: Path) -> OfflineReviewFixture:
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(
+            insert(WorkspaceUserRow).values(
+                id="local-admin",
+                username="local-admin",
+                display_name="本机管理员",
+                is_active=True,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        connection.execute(
             insert(ProjectRow).values(
                 id=PROJECT_ID,
                 name="离线审核测试",
+                owner_id="local-admin",
                 source_request_path=str(source_path),
                 current_generation=1,
                 current_pipeline_run_id=RUN_ID,
                 revision_epoch=0,
+            )
+        )
+        connection.execute(
+            insert(ProjectMemberRow).values(
+                id="membership-offline-owner",
+                project_id=PROJECT_ID,
+                user_id="local-admin",
+                role="owner",
+                created_at=NOW,
             )
         )
         connection.execute(

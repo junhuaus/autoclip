@@ -4,7 +4,9 @@ The local API base path is `/api/v1`; FastAPI publishes the matching OpenAPI doc
 
 ## Authentication and browser media
 
-The server binds to `127.0.0.1` by default. If `LIVECLIP_API_TOKEN` is configured, protected JSON routes require `Authorization: Bearer …`; a non-loopback bind is rejected unless a token exists. CORS accepts only explicitly configured loopback HTTP origins. The Web console keeps a user-entered API token in memory only.
+The server binds to `127.0.0.1` by default. If `LIVECLIP_API_TOKEN` is configured, protected JSON routes require `Authorization: Bearer …`; that token acts as `LIVECLIP_WORKSPACE_USERNAME`. An optional `LIVECLIP_WORKSPACE_TOKENS` JSON mapping assigns distinct local Bearer tokens to additional usernames. It is environment-only and only its entry count may appear in safe configuration summaries. A non-loopback bind is rejected unless the main token exists. CORS accepts only explicitly configured loopback HTTP origins. The Web console keeps a user-entered token in memory only.
+
+SQLite stores identities and Project memberships, never tokens. `GET /projects` is server-side filtered to current membership. Every run, clip, render and Delivery route resolves its Project and applies the same check; a non-member receives 404 rather than Project-existence information. A creator becomes owner. Owners alone may manage membership; `editor` and `reviewer` are workflow labels in v1 and do not duplicate authorization logic in the Web client.
 
 An authenticated clip/delivery response may contain a relative, short-lived HMAC URL. The signature binds `GET`, the canonical path, resource purpose/ID and expiry. It lets HTML5 `<video>` seek or a download link work without putting the long-lived Bearer token in a URL. Signed URLs expire within `LIVECLIP_MEDIA_URL_TTL_SECONDS`; the API is started with access logging disabled, and the Vite development proxy redacts query strings before error logging, so signatures are not recorded.
 
@@ -12,6 +14,7 @@ An authenticated clip/delivery response may contain a relative, short-lived HMAC
 
 ```text
 GET    /health
+GET    /session
 
 POST   /jobs
 GET    /jobs/{run_id}
@@ -19,6 +22,9 @@ GET    /jobs/{run_id}
 GET    /projects
 POST   /projects/import
 GET    /projects/{project_id}
+GET    /projects/{project_id}/members
+POST   /projects/{project_id}/members
+DELETE /projects/{project_id}/members/{user_id}
 POST   /projects/{project_id}/runs
 GET    /runs/{run_id}
 POST   /runs/{run_id}/cancel
@@ -42,6 +48,8 @@ GET    /media/{asset_id}
 ```
 
 `GET /health` includes a credential-free startup Provider preflight. It reports the configured combined mode, ASR and LLM adapter names, independent readiness booleans, stable blocking issue codes and explicit Mock warnings. For example, a logged-in Codex editor without OpenRouter ASR configuration reports `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false`, `processing_ready=false`, and `OPENROUTER_ASR_NOT_CONFIGURED`. “Ready” means only that local configuration/executable/login preflight passed; it does not prove remote quota, model entitlement or service availability. It never returns a key, token, credential path or raw CLI output. The check is captured once at API startup so an unauthenticated health poll cannot repeatedly spawn the Codex CLI; restart `make dev` after changing `.env`/`.env.local` or Codex login.
+
+`GET /session` returns the authenticated user's ID, username and display name. Project DTOs include safe `owner`, `members` and `current_user_role` fields. `POST /projects/{id}/members` accepts `username`, `display_name` and role `editor|reviewer`; it creates or reactivates that local identity and assigns it to the Project. Adding an existing member updates its role. `DELETE` removes only a non-owner member. Both mutations require the current Project owner and otherwise return stable 403 `PROJECT_PERMISSION_DENIED`; the member needs a separately provisioned environment token to authenticate.
 
 `POST /jobs` and `POST /projects/{id}/runs` return safe `503 PROVIDER_NOT_READY` before creating new work when the configured full processing chain is unavailable. A completed identical `Idempotency-Key` replay is resolved first and still returns its original 202 resource after readiness changes; conflicting reuse remains 409. The Web uses the same health contract to disable its start button. The ingest-only import route remains available as a separate operation and does not execute an LLM readiness/version probe; explicit Mock modes are runnable but health labels them with `MOCK_ASR_SELECTED` and/or `MOCK_LLM_SELECTED`.
 
@@ -125,7 +133,7 @@ Every handled failure uses this stable envelope, including request validation an
 }
 ```
 
-Expected classes are 401 authentication, 404 unknown resource, 409 state/idempotency/asset-integrity conflict, 416 unsatisfiable Range and 422 request/domain validation. `X-Request-ID` carries the correlation ID. Validation details contain only field locations and error types—never submitted values.
+Expected classes are 401 authentication, 403 owner-only membership administration, 404 unknown or inaccessible resource, 409 state/idempotency/asset-integrity conflict, 416 unsatisfiable Range and 422 request/domain validation. `X-Request-ID` carries the correlation ID. Validation details contain only field locations and error types—never submitted values.
 
 ## Generated asset serving
 

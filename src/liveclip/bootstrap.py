@@ -23,6 +23,7 @@ from liveclip.application.render_runner import RenderTaskRunner
 from liveclip.application.rendering import RenderProfile, RenderService
 from liveclip.application.reviewing import ReviewService
 from liveclip.application.stage_runner import StageTaskRunner
+from liveclip.application.workspace import WorkspaceService
 from liveclip.config import Settings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
@@ -35,6 +36,7 @@ from liveclip.db.render_repository import SqlAlchemyRenderRepository
 from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
+from liveclip.db.workspace_repository import SqlAlchemyWorkspaceRepository
 from liveclip.delivery.task_handler import DeliveryTaskHandler
 from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION
 from liveclip.observability import configure_logging
@@ -81,6 +83,7 @@ class LiveClipRuntime:
     delivery_runner: DeliveryTaskRunner
     media_asset_service: MediaAssetService
     offline_review_package_service: OfflineReviewPackageService
+    workspace_service: WorkspaceService
 
     @classmethod
     def open(
@@ -109,6 +112,10 @@ class LiveClipRuntime:
                 )
             repository = SqlAlchemyPipelineRepository(engine)
             service = PipelineService(repository)
+            workspace_service = WorkspaceService(SqlAlchemyWorkspaceRepository(engine))
+            workspace_service.ensure_configured_users(
+                tuple(dict.fromkeys((settings.workspace_username, *settings.workspace_tokens)))
+            )
             queue = SQLiteTaskQueue(
                 engine,
                 lease_seconds=settings.worker_lease_seconds,
@@ -203,6 +210,7 @@ class LiveClipRuntime:
                 delivery_runner=delivery_runner,
                 media_asset_service=media_asset_service,
                 offline_review_package_service=offline_review_package_service,
+                workspace_service=workspace_service,
             )
         except Exception:
             engine.dispose(close=True)
