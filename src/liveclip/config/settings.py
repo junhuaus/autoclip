@@ -42,6 +42,8 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="LIVECLIP_WORKSPACE_TOKENS",
     )
+    bootstrap_admin_password: SecretStr | None = None
+    session_ttl_hours: int = Field(default=12, ge=1, le=168)
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8765, ge=1, le=65535)
     media_url_ttl_seconds: int = Field(default=900, ge=60, le=3_600)
@@ -241,6 +243,10 @@ class Settings(BaseSettings):
             "api_token_configured": bool(self.api_token and self.api_token.get_secret_value()),
             "workspace_username": self.workspace_username,
             "workspace_user_tokens_configured": len(self.workspace_tokens),
+            "bootstrap_admin_password_configured": bool(
+                self.bootstrap_admin_password
+                and self.bootstrap_admin_password.get_secret_value().strip()
+            ),
             "ai_provider": self.ai_provider,
             "codex_provider_selected": self.ai_provider.endswith("-codex"),
             "openai_configured": bool(

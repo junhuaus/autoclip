@@ -195,7 +195,7 @@ class WorkspaceMember(BaseModel):
     user_id: str
     username: str
     display_name: str
-    role: Literal["owner", "editor", "reviewer"]
+    role: Literal["owner", "editor", "reviewer", "viewer"]
 
 
 class ProjectSnapshot(BaseModel):
@@ -207,9 +207,10 @@ class ProjectSnapshot(BaseModel):
     status: ProjectStatus
     current_run_id: str
     generation: int = Field(ge=1)
+    visibility: Literal["private", "workspace"] = "private"
     owner: WorkspaceMember
     members: tuple[WorkspaceMember, ...]
-    current_user_role: Literal["owner", "editor", "reviewer"]
+    current_user_role: Literal["owner", "editor", "reviewer", "viewer"]
 
 
 class LeaseIdentity(BaseModel):

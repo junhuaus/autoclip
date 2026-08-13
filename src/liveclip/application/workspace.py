@@ -4,7 +4,8 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-WorkspaceRole = Literal["owner", "editor", "reviewer"]
+SystemRole = Literal["administrator", "member"]
+WorkspaceRole = Literal["owner", "editor", "reviewer", "viewer"]
 
 
 class WorkspaceUser(BaseModel):
@@ -13,6 +14,7 @@ class WorkspaceUser(BaseModel):
     user_id: str
     username: str
     display_name: str
+    system_role: SystemRole = "member"
 
 
 class WorkspaceMembership(BaseModel):
@@ -31,6 +33,8 @@ class WorkspaceRepository(Protocol):
 
     def list_project_members(self, project_id: str) -> tuple[WorkspaceMembership, ...]: ...
 
+    def get_project_membership(self, project_id: str, user_id: str) -> WorkspaceMembership: ...
+
     def add_project_member(
         self,
         *,
@@ -38,7 +42,7 @@ class WorkspaceRepository(Protocol):
         acting_user_id: str,
         username: str,
         display_name: str,
-        role: Literal["editor", "reviewer"],
+        role: Literal["editor", "reviewer", "viewer"],
     ) -> WorkspaceMembership: ...
 
     def remove_project_member(
@@ -60,6 +64,9 @@ class WorkspaceService:
     def list_project_members(self, project_id: str) -> tuple[WorkspaceMembership, ...]:
         return self._repository.list_project_members(project_id)
 
+    def get_project_membership(self, project_id: str, user_id: str) -> WorkspaceMembership:
+        return self._repository.get_project_membership(project_id, user_id)
+
     def add_project_member(
         self,
         *,
@@ -67,7 +74,7 @@ class WorkspaceService:
         acting_user_id: str,
         username: str,
         display_name: str,
-        role: Literal["editor", "reviewer"],
+        role: Literal["editor", "reviewer", "viewer"],
     ) -> WorkspaceMembership:
         return self._repository.add_project_member(
             project_id=project_id,

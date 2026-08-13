@@ -67,32 +67,73 @@ export interface ProjectSnapshot {
   status: ProjectStatus;
   current_run_id: string;
   generation: number;
+  visibility: "private" | "workspace";
   owner: WorkspaceMember;
   members: WorkspaceMember[];
   current_user_role: WorkspaceRole;
 }
 
-export type WorkspaceRole = "owner" | "editor" | "reviewer";
+export type WorkspaceRole = "owner" | "editor" | "reviewer" | "viewer";
 
 export interface WorkspaceUser {
   user_id: string;
   username: string;
   display_name: string;
+  system_role: "administrator" | "member";
 }
 
-export interface WorkspaceMember extends WorkspaceUser {
+export interface WorkspaceMember {
+  user_id: string;
+  username: string;
+  display_name: string;
   role: WorkspaceRole;
 }
 
 export interface SessionResponse {
   schema_version: "1";
   user: WorkspaceUser;
+  credential_kind: "session" | "legacy";
+  csrf_token: string | null;
+  expires_at: string | null;
+}
+
+export interface LoginResponse {
+  schema_version: "1";
+  user: WorkspaceUser;
+  csrf_token: string;
+  expires_at: string;
+}
+
+export interface ManagedUser extends WorkspaceUser {
+  is_active: boolean;
+  password_configured: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+}
+
+export interface AdminUsersResponse {
+  schema_version: "1";
+  users: ManagedUser[];
+}
+
+export interface AdminUserCreateRequest {
+  username: string;
+  display_name: string;
+  system_role: "administrator" | "member";
+  password: string;
+}
+
+export interface AdminUserPatchRequest {
+  display_name?: string;
+  system_role?: "administrator" | "member";
+  is_active?: boolean;
 }
 
 export interface ProjectMemberCreateRequest {
   username: string;
   display_name: string;
-  role: "editor" | "reviewer";
+  role: "editor" | "reviewer" | "viewer";
 }
 
 export interface ProjectMembersResponse {

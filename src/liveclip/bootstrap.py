@@ -6,6 +6,7 @@ import re
 import socket
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +17,7 @@ from sqlalchemy.engine import Engine
 from liveclip.application.clips import ClipQueryService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
+from liveclip.application.identity import AuthenticationService, UserAdministrationService
 from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.offline_review import OfflineReviewPackageService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
@@ -29,6 +31,7 @@ from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.engine import create_sqlite_engine
+from liveclip.db.identity_repository import SqlAlchemyIdentityRepository
 from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
@@ -84,6 +87,8 @@ class LiveClipRuntime:
     media_asset_service: MediaAssetService
     offline_review_package_service: OfflineReviewPackageService
     workspace_service: WorkspaceService
+    authentication_service: AuthenticationService
+    user_administration_service: UserAdministrationService
 
     @classmethod
     def open(
@@ -115,6 +120,21 @@ class LiveClipRuntime:
             workspace_service = WorkspaceService(SqlAlchemyWorkspaceRepository(engine))
             workspace_service.ensure_configured_users(
                 tuple(dict.fromkeys((settings.workspace_username, *settings.workspace_tokens)))
+            )
+            identity_repository = SqlAlchemyIdentityRepository(engine)
+            user_administration_service = UserAdministrationService(identity_repository)
+            bootstrap_secret = (
+                settings.bootstrap_admin_password.get_secret_value().strip()
+                if settings.bootstrap_admin_password is not None
+                else ""
+            )
+            user_administration_service.bootstrap(
+                username=settings.workspace_username,
+                password=bootstrap_secret or None,
+            )
+            authentication_service = AuthenticationService(
+                identity_repository,
+                session_ttl=timedelta(hours=settings.session_ttl_hours),
             )
             queue = SQLiteTaskQueue(
                 engine,
@@ -211,6 +231,8 @@ class LiveClipRuntime:
                 media_asset_service=media_asset_service,
                 offline_review_package_service=offline_review_package_service,
                 workspace_service=workspace_service,
+                authentication_service=authentication_service,
+                user_administration_service=user_administration_service,
             )
         except Exception:
             engine.dispose(close=True)

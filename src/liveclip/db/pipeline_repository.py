@@ -359,6 +359,7 @@ class SqlAlchemyPipelineRepository:
                         ProjectRow.id,
                         ProjectRow.name,
                         ProjectRow.owner_id,
+                        ProjectRow.visibility,
                         ProjectRow.source_request_path,
                         ProjectRow.current_pipeline_run_id,
                         ProjectRow.current_generation,
@@ -502,7 +503,7 @@ class SqlAlchemyPipelineRepository:
             )
         )
         current_role = str(current_member["role"]) if current_member is not None else "owner"
-        if current_role not in {"owner", "editor", "reviewer"}:
+        if current_role not in {"owner", "editor", "reviewer", "viewer"}:
             raise PipelineResourceNotFound("project membership role is invalid")
         return ProjectSnapshot(
             project_id=str(project["id"]),
@@ -511,6 +512,7 @@ class SqlAlchemyPipelineRepository:
             status=project_status,
             current_run_id=run_id,
             generation=int(project["current_generation"]),
+            visibility=str(project["visibility"]),  # type: ignore[arg-type]
             owner=_workspace_member(owner_member),
             members=tuple(_workspace_member(member) for member in members),
             current_user_role=current_role,  # type: ignore[arg-type]
@@ -1749,6 +1751,7 @@ def _default_workspace_user_id(connection: Connection) -> str:
                 id=user_id,
                 username="local-admin",
                 display_name="本机管理员",
+                system_role="administrator",
                 is_active=True,
                 created_at=now,
                 updated_at=now,
@@ -1759,7 +1762,7 @@ def _default_workspace_user_id(connection: Connection) -> str:
 
 def _workspace_member(row: RowMapping) -> WorkspaceMember:
     role = str(row["role"])
-    if role not in {"owner", "editor", "reviewer"}:
+    if role not in {"owner", "editor", "reviewer", "viewer"}:
         raise PipelineResourceNotFound("project membership role is invalid")
     return WorkspaceMember(
         user_id=str(row["id"]),

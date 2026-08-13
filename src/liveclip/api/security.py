@@ -18,6 +18,10 @@ class ApiAuthenticationError(PermissionError):
 class AuthenticatedCaller:
     username: str
     caller_scope: str
+    user_id: str | None = None
+    system_role: str = "member"
+    credential_kind: str = "legacy"
+    session_id: str | None = None
 
 
 def validate_network_settings(settings: Settings) -> None:

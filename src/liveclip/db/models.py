@@ -46,6 +46,10 @@ class WorkspaceUserRow(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    system_role: Mapped[str] = mapped_column(String(24), nullable=False, default="member")
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -69,6 +73,7 @@ class ProjectRow(Base):
         default="00000000000000000000000000000001",
         server_default="00000000000000000000000000000001",
     )
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     source_request_path: Mapped[str] = mapped_column(Text, nullable=False)
     current_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_pipeline_run_id: Mapped[str | None] = mapped_column(String(32), index=True)
@@ -84,7 +89,8 @@ class ProjectMemberRow(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "user_id", name="project_member_identity"),
         CheckConstraint(
-            "role IN ('owner', 'editor', 'reviewer')", name="project_member_role_allowed"
+            "role IN ('owner', 'editor', 'reviewer', 'viewer')",
+            name="project_member_role_allowed",
         ),
     )
 
@@ -96,6 +102,53 @@ class ProjectMemberRow(Base):
         ForeignKey("workspace_users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class AuthSessionRow(Base):
+    __tablename__ = "auth_sessions"
+    __table_args__ = (CheckConstraint("user_auth_version >= 0", name="auth_version_nonnegative"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_auth_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class AuthLoginAttemptRow(Base):
+    __tablename__ = "auth_login_attempts"
+    __table_args__ = (
+        CheckConstraint("failed_count >= 0", name="login_failed_count_nonnegative"),
+    )
+
+    identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    blocked_until: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class AuditEventRow(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    actor_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    actor_username: Mapped[str | None] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    target_id: Mapped[str | None] = mapped_column(String(80))
+    project_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    before_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    correlation_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
 
 

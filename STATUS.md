@@ -1,10 +1,10 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-13 16:02 CST
+Updated: 2026-08-13 21:30 CST
 
 Current product baseline: `0.1.0`
 
-Current milestone: v0.2 V2-M0 complete; V2-M1 accounts/administration next
+Current milestone: v0.2 V2-M1 accounts/administration in progress
 
 Branch: `main` tracking `origin/main`
 
@@ -55,6 +55,12 @@ Authoritative new documents:
 - TikTok's official developer transfer guide recommends MP4/H.264 and documents 23–60 fps, minimum 360-pixel dimensions, up to 4 GB and account-dependent duration entitlement.
 - Apple documents FCPXML as a professional interchange target, but it is later scope and not a Jianying substitute.
 - ADR-014 chooses local opaque Web sessions, optional hashed PATs, separate authority dimensions, business lifecycle and immutable editor packages.
+- V2-M1 now has Alembic head `f42b7c1d9e63`, Argon2id credentials, server-side hashed/revocable sessions, CSRF, login throttling and append-only audit events.
+- Administrator APIs and Web UI can list/create/edit/disable/reactivate/reset-password and grant/revoke the system administrator role while retaining at least one active administrator.
+- New Projects persist `visibility=private`; Project roles now include viewer and central owner/editor/reviewer/viewer action policy guards unsafe routes.
+- `569` Python tests passed; `25` Web tests passed. Targeted identity/migration/authorization regression passed `21` after the latest user-edit change.
+- Isolated Chrome at `http://127.0.0.1:5273` equivalent port exercised signed-out login → administrator dashboard → members page. Viewed screenshots were `/tmp/liveclip-v02-login.png` and `/tmp/liveclip-v02-admin.png`; `/tmp` evidence is not durable.
+- Browser plugin discovery returned no available browser (`[]`), so MCP Browser success is not claimed; host Chrome was the verified fallback.
 
 ## Security and local state
 
@@ -64,16 +70,18 @@ Authoritative new documents:
 - Existing local services may continue serving v0.1 at `127.0.0.1:8765` and `127.0.0.1:5173`.
 - V2-M0 checkpoint `dfc1639` contains only tracked planning/recovery documents; no ignored local data or credential entered Git.
 
-## Unverified
+## Still pending in V2-M1
 
-- Password hashing/session implementation and dependency choice are not yet implemented or validated.
+- Optional scoped PATs, ownership transfer, server-derived capability DTOs and explicit audited administrator Project override.
+- A dedicated two-user private-resource API/browser matrix including media/download denial.
+- Real database login opt-in: no bootstrap password has been written to the real v0.1 data store, so existing local tokenless access is preserved.
 - Jianying/CapCut import of a generated v0.2 package has not yet occurred because V2-M3 is pending.
 - China-platform/Instagram numeric presets must be rechecked from primary documentation immediately before V2-M4; no unsupported numbers are frozen now.
 - Representative 2–4 hour Apple M3 resource measurements remain outside this identity/planning phase.
 
 ## Next concrete task
 
-Start V2-M1 with authorization-matrix, password-verifier and session tests before creating its Alembic migration.
+Finish V2-M1 with two-user private-resource tests and ownership transfer/capability DTOs, rerun full gates, then review/commit/push. PAT may be a separate V2-M1 checkpoint.
 
 ## Resume instructions
 

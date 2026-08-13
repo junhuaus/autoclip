@@ -1,17 +1,21 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { AdminUsers } from "./AdminUsers";
 import { LiveClipApiClient, errorMessage } from "./api";
+import { LoginPage } from "./LoginPage";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import type { JobCreateRequest, ProjectSnapshot, ProjectStatus } from "./types";
 import { EmptyState, ErrorState, LoadingState, StatusBadge, statusLabel } from "./ui";
 
 type ProjectFilter = "all" | "active" | "attention" | "pending_review" | "delivered";
+type AppView = "projects" | "users";
 
 const ROLE_LABELS = {
   owner: "负责人",
   editor: "编辑",
   reviewer: "审核",
+  viewer: "只读",
 } as const;
 
 function optionalInteger(value: FormDataEntryValue | null): number | undefined {
@@ -52,6 +56,7 @@ function ProjectCard({ project, onOpen }: { project: ProjectSnapshot; onOpen: ()
           <strong>{project.name}</strong>
           <small>{project.source_filename}</small>
           <span className="project-card-meta">
+            <span>{project.visibility === "private" ? "私有项目" : "工作区可见"}</span>
             <span>负责人 {project.owner.display_name}</span>
             <span>{project.members.length} 位成员</span>
             <span>第 {project.generation} 次处理</span>
@@ -73,6 +78,7 @@ export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [activeView, setActiveView] = useState<AppView>("projects");
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
   const [projectSearch, setProjectSearch] = useState("");
   const api = useMemo(() => new LiveClipApiClient(activeToken), [activeToken]);
@@ -90,7 +96,7 @@ export function App() {
   const projectsQuery = useQuery({
     queryKey: ["projects", authVersion],
     queryFn: () => api.listProjects(),
-    enabled: selectedProjectId === null,
+    enabled: selectedProjectId === null && activeView === "projects" && !sessionQuery.isError,
   });
   const createMutation = useMutation({
     mutationFn: (body: JobCreateRequest) => api.createJob(body),
@@ -109,6 +115,7 @@ export function App() {
     setAuthVersion((value) => value + 1);
   };
   const showProjectList = () => {
+    setActiveView("projects");
     setSelectedProjectId(null);
     window.scrollTo({ top: 0, behavior: "auto" });
   };
@@ -142,6 +149,13 @@ export function App() {
   const deliveredCount = projects.filter((project) => project.status === "delivered").length;
   const currentUser = sessionQuery.data?.user;
 
+  if (sessionQuery.isPending && !activeToken) {
+    return <main className="login-shell"><LoadingState>正在验证登录状态…</LoadingState></main>;
+  }
+  if (sessionQuery.isError && !activeToken) {
+    return <LoginPage api={api} onAuthenticated={() => { queryClient.clear(); setAuthVersion((value) => value + 1); }} />;
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header editor-header">
@@ -155,9 +169,10 @@ export function App() {
           <span className="brand-copy"><strong>LiveClip</strong><span>视频编辑工作台</span></span>
         </button>
         <nav className="primary-nav" aria-label="主导航">
-          <button type="button" className="nav-item nav-item-active" onClick={showProjectList}>
+          <button type="button" className={`nav-item ${activeView === "projects" ? "nav-item-active" : ""}`} onClick={showProjectList}>
             我的项目
           </button>
+          {currentUser?.system_role === "administrator" ? <button type="button" className={`nav-item ${activeView === "users" ? "nav-item-active" : ""}`} onClick={() => { setSelectedProjectId(null); setActiveView("users"); setShowSettings(false); }}>成员管理</button> : null}
         </nav>
         <div className="header-actions">
           <button type="button" className="button button-primary" onClick={() => setShowCreate(true)}>
@@ -170,7 +185,7 @@ export function App() {
             onClick={() => setShowSettings((value) => !value)}
           >
             <span className="user-avatar">{currentUser?.display_name.slice(0, 1) ?? "本"}</span>
-            <span><strong>{currentUser?.display_name ?? "本机用户"}</strong><small>视频编辑者</small></span>
+            <span><strong>{currentUser?.display_name ?? "本机用户"}</strong><small>{currentUser?.system_role === "administrator" ? "系统管理员" : "视频编辑者"}</small></span>
             <span aria-hidden="true">⌄</span>
           </button>
         </div>
@@ -184,6 +199,7 @@ export function App() {
           </div>
           <p><strong>当前成员：</strong>{currentUser?.display_name ?? "正在识别…"}</p>
           <p><strong>AI 处理：</strong>{processingReady ? "已就绪" : "需要配置"}</p>
+          {sessionQuery.data?.credential_kind === "session" ? <button type="button" className="button button-secondary" onClick={() => { void api.logout().finally(() => { queryClient.clear(); setAuthVersion((value) => value + 1); }); }}>退出登录</button> : null}
           <form className="token-form settings-token-form" onSubmit={applyToken}>
             <label>成员访问 Token
               <input type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.currentTarget.value)} placeholder="仅保存在当前页面内存" />
@@ -196,7 +212,9 @@ export function App() {
         </aside>
       ) : null}
 
-      {selectedProjectId ? (
+      {activeView === "users" ? (
+        <AdminUsers api={api} />
+      ) : selectedProjectId ? (
         <ProjectWorkspace api={api} projectId={selectedProjectId} onBack={showProjectList} />
       ) : (
         <main className="project-dashboard">

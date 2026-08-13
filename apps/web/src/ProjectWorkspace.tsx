@@ -32,6 +32,7 @@ const MEMBER_ROLE_LABELS = {
   owner: "负责人",
   editor: "编辑",
   reviewer: "审核",
+  viewer: "只读",
 } as const;
 
 interface BatchReviewOperation {
@@ -66,7 +67,7 @@ function ProjectMembersPanel({
     addMutation.mutate({
       username: String(data.get("username") ?? ""),
       display_name: String(data.get("display_name") ?? ""),
-      role: String(data.get("role") ?? "editor") as "editor" | "reviewer",
+      role: String(data.get("role") ?? "editor") as "editor" | "reviewer" | "viewer",
     });
   };
 
@@ -107,7 +108,7 @@ function ProjectMembersPanel({
           <form className="project-member-form" onSubmit={addMember}>
             <label>成员账号<input name="username" required maxLength={80} pattern="[a-z0-9][a-z0-9._-]*" placeholder="lin-editor" /></label>
             <label>显示名称<input name="display_name" required maxLength={120} placeholder="林编辑" /></label>
-            <label>项目角色<select name="role" defaultValue="editor"><option value="editor">编辑</option><option value="reviewer">审核</option></select></label>
+            <label>项目角色<select name="role" defaultValue="editor"><option value="editor">编辑</option><option value="reviewer">审核</option><option value="viewer">只读</option></select></label>
             <button type="submit" className="button button-primary" disabled={addMutation.isPending}>{addMutation.isPending ? "正在添加…" : "添加到项目"}</button>
           </form>
           <p className="hint">成员登录凭证由本机管理员单独配置，不会显示在项目页面。</p>

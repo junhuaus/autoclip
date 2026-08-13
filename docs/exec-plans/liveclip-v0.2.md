@@ -40,14 +40,14 @@ The existing dependency direction remains unchanged. New application services ow
 
 ### V2-M1 — Accounts, administrator console and authorization
 
-- [ ] Add password/session/PAT/audit persistence migration; back up and migrate the real DB without changing Project/media facts.
-- [ ] Add memory-hard password hashing and verification with dependency/runtime capability evidence; values never enter logs/API/DB outside salted verifier bytes.
-- [ ] Add one-time bootstrap administrator, login/logout/current-session and session revocation/expiry/rate limiting.
-- [ ] Add administrator user list/create/update/disable/reactivate/password-reset/system-role grant/revoke; forbid removal/disable of the final enabled administrator.
-- [ ] Add central authorization policy for system and Project roles, including administrator override audit.
-- [ ] Add `viewer`, default-private visibility, ownership transfer and server-derived allowed actions/capabilities.
-- [ ] Replace Web token settings as the primary flow with login/logout and an administrator console; retain v0.1 token compatibility for CLI/API migration.
-- [ ] Add unit/integration/component/browser coverage for two-user isolation, role denial, revocation, CSRF, password/session secrecy and legacy migration.
+- [x] 2026-08-13 Add password/session/login-attempt/audit persistence migration and prove fresh/legacy migration checks. Real DB migration remains deferred until the user opts into a bootstrap password.
+- [x] 2026-08-13 Add Argon2id password hashing and verification; salted verifier only, neutral login responses and secrecy tests.
+- [x] 2026-08-13 Add bootstrap administrator, login/logout/current-session, expiry, hashed opaque session storage, revocation, CSRF and persisted rate limiting.
+- [x] 2026-08-13 Add administrator user list/create/update/disable/reactivate/password-reset/system-role grant/revoke; forbid disabling/demoting the final enabled administrator.
+- [~] Add central authorization policy for system and Project roles. Role/action matrix and route enforcement are implemented; explicit audited administrator Project override remains pending.
+- [~] Add `viewer`, default-private visibility, ownership transfer and server-derived allowed actions/capabilities. Viewer/private are implemented; transfer and capability DTOs remain pending.
+- [x] 2026-08-13 Add Web login/logout and administrator console while retaining v0.1 token compatibility for CLI/API migration.
+- [~] Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy and legacy migration. Two-user private-resource/browser denial and PAT coverage remain pending.
 - [ ] Run lint/full tests, inspect the real migrated UI without paid Provider work, review, commit and push.
 
 ### V2-M2 — Project lifecycle and production operations
@@ -132,6 +132,9 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: v0.1 Project membership correctly isolates resources but its environment-token identity cannot satisfy login, password reset, user disable, session revocation or administrator audit.
 - 2026-08-13: Current CapCut documentation supports editable SRT import on Desktop/Web but not direct mobile import. Clean MP4 + matched UTF-8 SRT is therefore a truthful Jianying handoff; native draft files are not.
 - 2026-08-13: YouTube and TikTok primary documentation support the current H.264/AAC MP4 direction, while account/platform-specific duration and policy checks cannot be represented by one permanent global number.
+- 2026-08-13: OWASP recommends Argon2id and HttpOnly/SameSite browser sessions. V2-M1 uses Argon2id at 64 MiB/time-cost 3, opaque random session tokens stored only as SHA-256 digests, and synchronizer CSRF tokens derived from the HttpOnly token.
+- 2026-08-13: `browser:control-in-app-browser` initialized successfully but `agent.browsers.list()` returned no browser instance. After following its troubleshooting instructions, an isolated host Chrome exercised login and administrator navigation and produced viewed screenshots; MCP Browser success is not claimed.
+- 2026-08-13: Full Python regression passed 569 tests and Web regression passed 25 tests after the first V2-M1 slice. Targeted migration/identity/authorization tests subsequently passed 21 tests after user-edit support was added.
 
 ## Decision Log
 
@@ -153,7 +156,7 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M0 is complete at planning checkpoint `dfc1639` plus the following status checkpoint. The next unambiguous task is to begin V2-M1 with failing authorization/password/session tests before editing the migration head. Preserve running v0.1 services and ignored real media; do not repeat paid Provider work.
+V2-M1 is partially implemented in the current working tree. Resume by running the targeted identity/migration/Web tests, then add two-user private-resource API coverage, ownership transfer/capability DTOs and optional scoped PATs. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
 
 ## Outcomes and Retrospective
 

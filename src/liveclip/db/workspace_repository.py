@@ -31,6 +31,7 @@ class SqlAlchemyWorkspaceRepository:
                     WorkspaceUserRow.id,
                     WorkspaceUserRow.username,
                     WorkspaceUserRow.display_name,
+                    WorkspaceUserRow.system_role,
                 ).where(
                     WorkspaceUserRow.username == username,
                     WorkspaceUserRow.is_active.is_(True),
@@ -42,6 +43,7 @@ class SqlAlchemyWorkspaceRepository:
             user_id=str(row.id),
             username=str(row.username),
             display_name=str(row.display_name),
+            system_role=str(row.system_role),  # type: ignore[arg-type]
         )
 
     def ensure_user(self, *, username: str, display_name: str) -> WorkspaceUser:
@@ -56,6 +58,7 @@ class SqlAlchemyWorkspaceRepository:
                     WorkspaceUserRow.id,
                     WorkspaceUserRow.username,
                     WorkspaceUserRow.display_name,
+                    WorkspaceUserRow.system_role,
                 ).where(WorkspaceUserRow.username == username)
             ).one_or_none()
             if row is None:
@@ -65,6 +68,7 @@ class SqlAlchemyWorkspaceRepository:
                         id=user_id,
                         username=username,
                         display_name=display_name,
+                        system_role="member",
                         is_active=True,
                         created_at=now,
                         updated_at=now,
@@ -74,16 +78,19 @@ class SqlAlchemyWorkspaceRepository:
                     user_id=user_id,
                     username=username,
                     display_name=display_name,
+                    system_role="member",
                 )
-            connection.execute(
-                update(WorkspaceUserRow)
-                .where(WorkspaceUserRow.id == row.id)
-                .values(is_active=True, updated_at=now)
-            )
+            if not bool(
+                connection.scalar(
+                    select(WorkspaceUserRow.is_active).where(WorkspaceUserRow.id == row.id)
+                )
+            ):
+                raise WorkspaceUserNotFound("workspace user does not exist")
             return WorkspaceUser(
                 user_id=str(row.id),
                 username=str(row.username),
                 display_name=str(row.display_name),
+                system_role=str(row.system_role),  # type: ignore[arg-type]
             )
 
     def list_project_members(self, project_id: str) -> tuple[WorkspaceMembership, ...]:
@@ -109,7 +116,7 @@ class SqlAlchemyWorkspaceRepository:
         memberships: list[WorkspaceMembership] = []
         for row in rows:
             role = str(row.role)
-            if role not in {"owner", "editor", "reviewer"}:
+            if role not in {"owner", "editor", "reviewer", "viewer"}:
                 raise WorkspaceUserNotFound("project membership role is invalid")
             memberships.append(
                 WorkspaceMembership(
@@ -121,6 +128,34 @@ class SqlAlchemyWorkspaceRepository:
             )
         return tuple(memberships)
 
+    def get_project_membership(self, project_id: str, user_id: str) -> WorkspaceMembership:
+        with self._engine.connect() as connection:
+            row = connection.execute(
+                select(
+                    WorkspaceUserRow.id,
+                    WorkspaceUserRow.username,
+                    WorkspaceUserRow.display_name,
+                    ProjectMemberRow.role,
+                )
+                .join(ProjectMemberRow, ProjectMemberRow.user_id == WorkspaceUserRow.id)
+                .where(
+                    ProjectMemberRow.project_id == project_id,
+                    ProjectMemberRow.user_id == user_id,
+                    WorkspaceUserRow.is_active.is_(True),
+                )
+            ).one_or_none()
+        if row is None:
+            raise WorkspaceUserNotFound("project membership does not exist")
+        role = str(row.role)
+        if role not in {"owner", "editor", "reviewer", "viewer"}:
+            raise WorkspaceUserNotFound("project membership role is invalid")
+        return WorkspaceMembership(
+            user_id=str(row.id),
+            username=str(row.username),
+            display_name=str(row.display_name),
+            role=role,  # type: ignore[arg-type]
+        )
+
     def add_project_member(
         self,
         *,
@@ -128,32 +163,21 @@ class SqlAlchemyWorkspaceRepository:
         acting_user_id: str,
         username: str,
         display_name: str,
-        role: Literal["editor", "reviewer"],
+        role: Literal["editor", "reviewer", "viewer"],
     ) -> WorkspaceMembership:
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
             _require_project_owner(connection, project_id, acting_user_id)
-            user_id = connection.scalar(
-                select(WorkspaceUserRow.id).where(WorkspaceUserRow.username == username)
-            )
-            if user_id is None:
-                user_id = new_id()
-                connection.execute(
-                    insert(WorkspaceUserRow).values(
-                        id=user_id,
-                        username=username,
-                        display_name=display_name,
-                        is_active=True,
-                        created_at=now,
-                        updated_at=now,
-                    )
-                )
-            else:
-                connection.execute(
-                    update(WorkspaceUserRow)
-                    .where(WorkspaceUserRow.id == user_id)
-                    .values(display_name=display_name, is_active=True, updated_at=now)
-                )
+            user = connection.execute(
+                select(
+                    WorkspaceUserRow.id,
+                    WorkspaceUserRow.display_name,
+                    WorkspaceUserRow.is_active,
+                ).where(WorkspaceUserRow.username == username)
+            ).one_or_none()
+            if user is None or not bool(user.is_active):
+                raise WorkspaceUserNotFound("active workspace user does not exist")
+            user_id = str(user.id)
             membership = connection.execute(
                 select(ProjectMemberRow.id, ProjectMemberRow.role).where(
                     ProjectMemberRow.project_id == project_id,
@@ -181,7 +205,7 @@ class SqlAlchemyWorkspaceRepository:
         return WorkspaceMembership(
             user_id=str(user_id),
             username=username,
-            display_name=display_name,
+            display_name=str(user.display_name),
             role=role,
         )
 

@@ -14,6 +14,7 @@ export const project: ProjectSnapshot = {
   status: "pending_review",
   current_run_id: "run-1",
   generation: 1,
+  visibility: "private",
   owner: {
     user_id: "user-local-admin",
     username: "local-admin",

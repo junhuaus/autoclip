@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
+from liveclip.application.identity import ManagedUser
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
 from liveclip.application.workspace import WorkspaceMembership, WorkspaceUser
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
@@ -128,7 +129,43 @@ class ProjectMemberCreateRequest(ApiRequestModel):
         pattern=r"^[a-z0-9][a-z0-9._-]*$",
     )
     display_name: str = Field(min_length=1, max_length=120)
-    role: Literal["editor", "reviewer"]
+    role: Literal["editor", "reviewer", "viewer"]
+
+
+class LoginRequest(ApiRequestModel):
+    username: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    password: SecretStr = Field(min_length=1, max_length=128)
+
+
+class AdminUserCreateRequest(ApiRequestModel):
+    username: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9._-]*$",
+    )
+    display_name: str = Field(min_length=1, max_length=120)
+    system_role: Literal["administrator", "member"] = "member"
+    password: SecretStr = Field(min_length=12, max_length=128)
+
+
+class AdminUserPatchRequest(ApiRequestModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=120)
+    system_role: Literal["administrator", "member"] | None = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def require_change(self) -> AdminUserPatchRequest:
+        if self.display_name is None and self.system_role is None and self.is_active is None:
+            raise ValueError("at least one user field must change")
+        return self
+
+
+class AdminPasswordResetRequest(ApiRequestModel):
+    password: SecretStr = Field(min_length=12, max_length=128)
 
 
 class AcceptedPipelineResponse(BaseModel):
@@ -180,6 +217,25 @@ class SessionResponse(BaseModel):
 
     schema_version: Literal["1"] = "1"
     user: WorkspaceUser
+    credential_kind: Literal["session", "legacy"] = "legacy"
+    csrf_token: str | None = None
+    expires_at: str | None = None
+
+
+class LoginResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    user: WorkspaceUser
+    csrf_token: str
+    expires_at: str
+
+
+class AdminUsersResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    users: tuple[ManagedUser, ...]
 
 
 class ProjectMembersResponse(BaseModel):

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, FastAPI, Header, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,6 +21,10 @@ from liveclip.api.media import MediaRangeNotSatisfiable, stream_asset_response
 from liveclip.api.schemas import (
     AcceptedPipelineResponse,
     AcceptedTaskResponse,
+    AdminPasswordResetRequest,
+    AdminUserCreateRequest,
+    AdminUserPatchRequest,
+    AdminUsersResponse,
     ApiErrorDetail,
     ApiErrorEnvelope,
     ApiErrorItem,
@@ -33,6 +37,8 @@ from liveclip.api.schemas import (
     DeliveryDetailResponse,
     HealthResponse,
     JobCreateRequest,
+    LoginRequest,
+    LoginResponse,
     ProjectMemberCreateRequest,
     ProjectMembersResponse,
     ProviderHealthResponse,
@@ -42,6 +48,11 @@ from liveclip.api.schemas import (
     SessionResponse,
 )
 from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
+from liveclip.application.authorization import (
+    ProjectAction,
+    ProjectActionDenied,
+    require_project_action,
+)
 from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
@@ -51,6 +62,12 @@ from liveclip.application.idempotency import (
     IdempotencyConflict,
     IdempotencyContext,
     build_idempotency_context,
+)
+from liveclip.application.identity import (
+    AdministrationDenied,
+    AuthenticationFailed,
+    IdentityConflict,
+    LoginRateLimited,
 )
 from liveclip.application.media_assets import MediaAssetInvalid
 from liveclip.application.pipeline import (
@@ -81,6 +98,8 @@ from liveclip.providers.readiness import (
 )
 
 logger = logging.getLogger(__name__)
+
+SESSION_COOKIE_NAME = "liveclip_session"
 
 
 def create_app(
@@ -127,9 +146,15 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(configured.cors_origins),
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "Range"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "Range",
+            "X-CSRF-Token",
+        ],
         expose_headers=[
             "Accept-Ranges",
             "Content-Length",
@@ -172,8 +197,34 @@ def create_app(
     def require_api_auth(
         request: Request,
         authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
+        csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
     ) -> AuthenticatedCaller:
-        caller = security.authenticate(authorization)
+        active = _runtime(request)
+        if session_token:
+            session = active.authentication_service.authenticate_session(session_token)
+            if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                active.authentication_service.require_csrf(session_token, csrf_token)
+            caller = AuthenticatedCaller(
+                username=session.user.username,
+                caller_scope=session.caller_scope,
+                user_id=session.user.user_id,
+                system_role=session.user.system_role,
+                credential_kind="session",
+                session_id=session.session_id,
+            )
+        else:
+            if authorization is None and active.authentication_service.login_required():
+                raise ApiAuthenticationError("account login is required")
+            legacy = security.authenticate(authorization)
+            user = active.workspace_service.get_user_by_username(legacy.username)
+            caller = AuthenticatedCaller(
+                username=user.username,
+                caller_scope=legacy.caller_scope,
+                user_id=user.user_id,
+                system_role=user.system_role,
+                credential_kind="legacy",
+            )
         request.state.authenticated_caller = caller
         return caller
 
@@ -198,10 +249,134 @@ def create_app(
             ),
         )
 
+    @app.post("/api/v1/auth/login", response_model=LoginResponse)
+    def login(body: LoginRequest, request: Request, response: Response) -> LoginResponse:
+        grant = _runtime(request).authentication_service.login(
+            username=body.username,
+            password=body.password.get_secret_value(),
+            correlation_id=_correlation_id(request),
+        )
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=grant.raw_token,
+            max_age=configured.session_ttl_hours * 3_600,
+            secure=request.url.scheme == "https",
+            httponly=True,
+            samesite="strict",
+            path="/",
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return LoginResponse(
+            user=grant.session.user,
+            csrf_token=grant.csrf_token,
+            expires_at=grant.session.expires_at.isoformat(),
+        )
+
     @protected.get("/session", response_model=SessionResponse)
     def get_session(request: Request) -> SessionResponse:
-        user = _runtime(request).workspace_service.get_user_by_username(_caller(request).username)
-        return SessionResponse(user=user)
+        caller = _caller(request)
+        user = _runtime(request).workspace_service.get_user_by_username(caller.username)
+        raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+        session = (
+            _runtime(request).authentication_service.authenticate_session(raw_token)
+            if caller.credential_kind == "session" and raw_token
+            else None
+        )
+        return SessionResponse(
+            user=user,
+            credential_kind="session" if session else "legacy",
+            csrf_token=(
+                _runtime(request).authentication_service.csrf_token(raw_token)
+                if session and raw_token
+                else None
+            ),
+            expires_at=session.expires_at.isoformat() if session else None,
+        )
+
+    @protected.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+    def logout(request: Request, response: Response) -> Response:
+        raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+        if raw_token:
+            _runtime(request).authentication_service.logout(
+                raw_token,
+                correlation_id=_correlation_id(request),
+            )
+        response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @protected.get("/admin/users", response_model=AdminUsersResponse)
+    def list_users(request: Request) -> AdminUsersResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+
+    @protected.post(
+        "/admin/users",
+        status_code=status.HTTP_201_CREATED,
+        response_model=AdminUsersResponse,
+    )
+    def create_user(body: AdminUserCreateRequest, request: Request) -> AdminUsersResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        active.user_administration_service.create_user(
+            actor=actor,
+            username=body.username,
+            display_name=body.display_name,
+            system_role=body.system_role,
+            password=body.password.get_secret_value(),
+            correlation_id=_correlation_id(request),
+        )
+        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+
+    @protected.patch("/admin/users/{user_id}", response_model=AdminUsersResponse)
+    def update_user(
+        user_id: str,
+        body: AdminUserPatchRequest,
+        request: Request,
+    ) -> AdminUsersResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        active.user_administration_service.update_user(
+            actor=actor,
+            user_id=user_id,
+            display_name=body.display_name,
+            system_role=body.system_role,
+            is_active=body.is_active,
+            correlation_id=_correlation_id(request),
+        )
+        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+
+    @protected.delete("/admin/users/{user_id}", response_model=AdminUsersResponse)
+    def disable_user(user_id: str, request: Request) -> AdminUsersResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        active.user_administration_service.update_user(
+            actor=actor,
+            user_id=user_id,
+            is_active=False,
+            correlation_id=_correlation_id(request),
+        )
+        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+
+    @protected.post(
+        "/admin/users/{user_id}/reset-password",
+        response_model=AdminUsersResponse,
+    )
+    def reset_user_password(
+        user_id: str,
+        body: AdminPasswordResetRequest,
+        request: Request,
+    ) -> AdminUsersResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        active.user_administration_service.reset_password(
+            actor=actor,
+            user_id=user_id,
+            password=body.password.get_secret_value(),
+            correlation_id=_correlation_id(request),
+        )
+        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
 
     @protected.post(
         "/jobs",
@@ -367,7 +542,7 @@ def create_app(
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
         caller = _caller(request)
-        _require_project_access(active, caller, project_id)
+        _require_project_access(active, caller, project_id, action="run_pipeline")
         idempotency = _idempotency(
             caller,
             idempotency_key,
@@ -411,7 +586,7 @@ def create_app(
         request: Request,
     ) -> RunSnapshot:
         active = _runtime(request)
-        _require_run_access(active, _caller(request), run_id)
+        _require_run_access(active, _caller(request), run_id, action="run_pipeline")
         response.headers["Location"] = f"/api/v1/runs/{run_id}"
         response.headers["Retry-After"] = "1"
         return active.pipeline_service.cancel(run_id)
@@ -427,7 +602,7 @@ def create_app(
         request: Request,
     ) -> RunSnapshot:
         active = _runtime(request)
-        _require_run_access(active, _caller(request), run_id)
+        _require_run_access(active, _caller(request), run_id, action="run_pipeline")
         response.headers["Location"] = f"/api/v1/runs/{run_id}"
         response.headers["Retry-After"] = "1"
         return active.pipeline_service.retry(run_id)
@@ -482,7 +657,7 @@ def create_app(
         request: Request,
     ) -> ClipDetailResponse:
         active = _runtime(request)
-        _require_clip_access(active, _caller(request), clip_id)
+        _require_clip_access(active, _caller(request), clip_id, action="edit_clip")
         detail = active.review_service.revise_clip(clip_id, _clip_patch(body))
         return _clip_response(security, detail)
 
@@ -493,7 +668,7 @@ def create_app(
         request: Request,
     ) -> ClipDetailResponse:
         active = _runtime(request)
-        _require_clip_access(active, _caller(request), clip_id)
+        _require_clip_access(active, _caller(request), clip_id, action="review_clip")
         command = ReviewCommand(
             expected_revision=body.expected_revision,
             status=ReviewStatus(body.status),
@@ -521,7 +696,7 @@ def create_app(
     ) -> BatchReviewResponse:
         caller = _caller(request)
         active = _runtime(request)
-        _require_project_access(active, caller, project_id)
+        _require_project_access(active, caller, project_id, action="review_clip")
         canonical_items = sorted(
             (item.model_dump(mode="json") for item in body.items),
             key=lambda item: str(item["clip_id"]),
@@ -555,7 +730,7 @@ def create_app(
     ) -> AcceptedTaskResponse:
         caller = _caller(request)
         active = _runtime(request)
-        _require_clip_access(active, caller, clip_id)
+        _require_clip_access(active, caller, clip_id, action="render")
         queued = active.render_service.enqueue(
             clip_id,
             RenderRequest(expected_revision=body.expected_revision, kind=body.kind),
@@ -598,7 +773,7 @@ def create_app(
     ) -> AcceptedTaskResponse:
         caller = _caller(request)
         active = _runtime(request)
-        _require_project_access(active, caller, project_id)
+        _require_project_access(active, caller, project_id, action="deliver")
         queued = active.delivery_service.enqueue(
             project_id,
             DeliveryRequest(include_zip=body.include_zip),
@@ -655,14 +830,19 @@ def create_app(
         expires: Annotated[int | None, Query(ge=0)] = None,
         signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
     ) -> Response:
-        security.authorize_resource(
+        active = _runtime(request)
+        asset = active.media_asset_service.resolve(asset_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=asset.project_id,
             path=f"/api/v1/media/{asset_id}",
             resource=f"asset:{asset_id}",
-            authorization=authorization,
             expires=expires,
             signature=signature,
         )
-        asset = _runtime(request).media_asset_service.resolve(asset_id)
         return stream_asset_response(asset, range_header=range_header)
 
     @app.get("/api/v1/deliveries/{delivery_id}/download")
@@ -674,15 +854,19 @@ def create_app(
         expires: Annotated[int | None, Query(ge=0)] = None,
         signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
     ) -> Response:
-        security.authorize_resource(
+        active = _runtime(request)
+        delivery = active.delivery_service.get(delivery_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=delivery.project_id,
             path=f"/api/v1/deliveries/{delivery_id}/download",
             resource=f"delivery:{delivery_id}",
-            authorization=authorization,
             expires=expires,
             signature=signature,
         )
-        active = _runtime(request)
-        delivery = active.delivery_service.get(delivery_id)
         if delivery.zip_asset_id is None or delivery.status.value != "succeeded":
             raise DeliveryConflict("delivery ZIP is not available")
         asset = active.media_asset_service.resolve(
@@ -710,6 +894,65 @@ def _caller(request: Request) -> AuthenticatedCaller:
     if not isinstance(value, AuthenticatedCaller):
         raise ApiAuthenticationError("authenticated caller is unavailable")
     return value
+
+
+def _workspace_user_from_caller(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+) -> WorkspaceUser:
+    user = runtime.workspace_service.get_user_by_username(caller.username)
+    if caller.user_id is not None and caller.user_id != user.user_id:
+        raise ApiAuthenticationError("authenticated user identity changed")
+    return user
+
+
+def _authorize_asset_read(
+    *,
+    runtime: LiveClipRuntime,
+    security: ApiSecurity,
+    request: Request,
+    authorization: str | None,
+    project_id: str,
+    path: str,
+    resource: str,
+    expires: int | None,
+    signature: str | None,
+) -> None:
+    raw_session = request.cookies.get(SESSION_COOKIE_NAME)
+    if raw_session:
+        session = runtime.authentication_service.authenticate_session(raw_session)
+        caller = AuthenticatedCaller(
+            username=session.user.username,
+            caller_scope=session.caller_scope,
+            user_id=session.user.user_id,
+            system_role=session.user.system_role,
+            credential_kind="session",
+            session_id=session.session_id,
+        )
+        _require_project_access(runtime, caller, project_id)
+        return
+    if runtime.authentication_service.login_required():
+        legacy = security.authenticate(authorization)
+        user = runtime.workspace_service.get_user_by_username(legacy.username)
+        _require_project_access(
+            runtime,
+            AuthenticatedCaller(
+                username=user.username,
+                caller_scope=legacy.caller_scope,
+                user_id=user.user_id,
+                system_role=user.system_role,
+                credential_kind="legacy",
+            ),
+            project_id,
+        )
+        return
+    security.authorize_resource(
+        path=path,
+        resource=resource,
+        authorization=authorization,
+        expires=expires,
+        signature=signature,
+    )
 
 
 def _pipeline_config(
@@ -748,9 +991,13 @@ def _require_project_access(
     runtime: LiveClipRuntime,
     caller: AuthenticatedCaller,
     project_id: str,
+    *,
+    action: ProjectAction = "read",
 ) -> WorkspaceUser:
     user = runtime.workspace_service.get_user_by_username(caller.username)
     runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
+    membership = runtime.workspace_service.get_project_membership(project_id, user.user_id)
+    require_project_action(membership.role, action)
     return user
 
 
@@ -758,9 +1005,11 @@ def _require_run_access(
     runtime: LiveClipRuntime,
     caller: AuthenticatedCaller,
     run_id: str,
+    *,
+    action: ProjectAction = "read",
 ) -> RunSnapshot:
     run = runtime.pipeline_service.get_run(run_id)
-    _require_project_access(runtime, caller, run.project_id)
+    _require_project_access(runtime, caller, run.project_id, action=action)
     return run
 
 
@@ -768,9 +1017,11 @@ def _require_clip_access(
     runtime: LiveClipRuntime,
     caller: AuthenticatedCaller,
     clip_id: str,
+    *,
+    action: ProjectAction = "read",
 ) -> ClipDetail:
     clip = runtime.review_service.get_clip(clip_id)
-    _require_project_access(runtime, caller, clip.project_id)
+    _require_project_access(runtime, caller, clip.project_id, action=action)
     return clip
 
 
@@ -927,6 +1178,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ApiAuthenticationError)
+    @app.exception_handler(AuthenticationFailed)
     async def authentication_handler(
         request: Request,
         _exc: ApiAuthenticationError,
@@ -935,7 +1187,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
             request,
             status_code=401,
             code="AUTHENTICATION_REQUIRED",
-            message="Valid Bearer authorization or signed media access is required",
+            message="Authentication is required or the session is no longer valid",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -949,6 +1201,57 @@ def _install_exception_handlers(app: FastAPI) -> None:
             status_code=403,
             code="PROJECT_PERMISSION_DENIED",
             message="Only the project owner can manage project members",
+        )
+
+    @app.exception_handler(AdministrationDenied)
+    async def administration_permission_handler(
+        request: Request,
+        _exc: AdministrationDenied,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=403,
+            code="ADMIN_PERMISSION_DENIED",
+            message="System administrator permission is required",
+        )
+
+    @app.exception_handler(ProjectActionDenied)
+    async def project_action_permission_handler(
+        request: Request,
+        _exc: ProjectActionDenied,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=403,
+            code="PROJECT_ACTION_DENIED",
+            message="The current project role cannot perform this action",
+        )
+
+    @app.exception_handler(LoginRateLimited)
+    async def login_rate_limited_handler(
+        request: Request,
+        exc: LoginRateLimited,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=429,
+            code="LOGIN_RATE_LIMITED",
+            message="Too many login attempts; try again later",
+            retryable=True,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        )
+
+    @app.exception_handler(IdentityConflict)
+    async def identity_conflict_handler(
+        request: Request,
+        exc: IdentityConflict,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=409,
+            code="IDENTITY_CONFLICT",
+            message=message if message else "The account change conflicts with an identity rule",
         )
 
     @app.exception_handler(MediaRangeNotSatisfiable)

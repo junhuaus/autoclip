@@ -20,7 +20,8 @@ describe("project list states", () => {
 
     renderWithClient(<App />);
 
-    expect(screen.getByText("正在加载你的项目…")).toBeInTheDocument();
+    expect(screen.getByText("正在验证登录状态…")).toBeInTheDocument();
+    expect(await screen.findByText("正在加载你的项目…")).toBeInTheDocument();
     expect(await screen.findByText("还没有项目")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "创建第一个视频项目" })).toBeEnabled();
     expect(screen.queryByText(/Mock ASR/)).not.toBeInTheDocument();

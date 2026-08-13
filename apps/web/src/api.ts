@@ -1,6 +1,9 @@
 import type {
   AcceptedPipelineResponse,
   AcceptedTaskResponse,
+  AdminUserCreateRequest,
+  AdminUserPatchRequest,
+  AdminUsersResponse,
   ApiErrorDetail,
   ApiErrorEnvelope,
   BatchReviewRequest,
@@ -11,6 +14,7 @@ import type {
   DeliveryDetailResponse,
   HealthResponse,
   JobCreateRequest,
+  LoginResponse,
   ProjectSnapshot,
   ProjectMemberCreateRequest,
   ProjectMembersResponse,
@@ -92,6 +96,29 @@ function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   );
 }
 
+async function responseError(response: Response): Promise<LiveClipApiError> {
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // Never surface an untrusted raw response body.
+  }
+  if (isErrorEnvelope(payload)) {
+    return new LiveClipApiError(payload.error.message, {
+      status: response.status,
+      code: payload.error.code,
+      retryable: payload.error.retryable,
+      correlationId: payload.error.correlation_id,
+      details: payload.error.details,
+    });
+  }
+  return new LiveClipApiError("LiveClip API 请求失败", {
+    status: response.status,
+    code: "HTTP_ERROR",
+    correlationId: response.headers.get("X-Request-ID"),
+  });
+}
+
 export function createIdempotencyKey(scope: string): string {
   const random =
     typeof globalThis.crypto?.randomUUID === "function"
@@ -103,6 +130,7 @@ export function createIdempotencyKey(scope: string): string {
 export class LiveClipApiClient {
   private readonly token: string;
   private readonly baseUrl: string;
+  private csrfToken = "";
 
   constructor(token = "", baseUrl = "/api/v1") {
     this.token = token.trim();
@@ -114,7 +142,51 @@ export class LiveClipApiClient {
   }
 
   session(): Promise<SessionResponse> {
-    return this.request("/session");
+    return this.request<SessionResponse>("/session").then((session) => {
+      this.csrfToken = session.csrf_token ?? "";
+      return session;
+    });
+  }
+
+  login(username: string, password: string): Promise<LoginResponse> {
+    return this.request<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }).then((session) => {
+      this.csrfToken = session.csrf_token;
+      return session;
+    });
+  }
+
+  async logout(): Promise<void> {
+    await this.requestNoContent("/auth/logout", { method: "POST" });
+    this.csrfToken = "";
+  }
+
+  listUsers(): Promise<AdminUsersResponse> {
+    return this.request("/admin/users");
+  }
+
+  createUser(body: AdminUserCreateRequest): Promise<AdminUsersResponse> {
+    return this.request("/admin/users", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  updateUser(userId: string, body: AdminUserPatchRequest): Promise<AdminUsersResponse> {
+    return this.request(`/admin/users/${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  disableUser(userId: string): Promise<AdminUsersResponse> {
+    return this.request(`/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+  }
+
+  resetUserPassword(userId: string, password: string): Promise<AdminUsersResponse> {
+    return this.request(`/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -126,10 +198,17 @@ export class LiveClipApiClient {
     if (this.token) {
       headers.set("Authorization", `Bearer ${this.token}`);
     }
+    if (this.csrfToken && init.method && !["GET", "HEAD"].includes(init.method)) {
+      headers.set("X-CSRF-Token", this.csrfToken);
+    }
 
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers,
+        credentials: "include",
+      });
     } catch {
       throw new LiveClipApiError("无法连接本机 LiveClip API", {
         code: "NETWORK_ERROR",
@@ -138,29 +217,23 @@ export class LiveClipApiClient {
     }
 
     if (!response.ok) {
-      let payload: unknown = null;
-      try {
-        payload = await response.json();
-      } catch {
-        // Never surface an untrusted raw response body.
-      }
-      if (isErrorEnvelope(payload)) {
-        throw new LiveClipApiError(payload.error.message, {
-          status: response.status,
-          code: payload.error.code,
-          retryable: payload.error.retryable,
-          correlationId: payload.error.correlation_id,
-          details: payload.error.details,
-        });
-      }
-      throw new LiveClipApiError("LiveClip API 请求失败", {
-        status: response.status,
-        code: "HTTP_ERROR",
-        correlationId: response.headers.get("X-Request-ID"),
-      });
+      throw await responseError(response);
     }
 
     return (await response.json()) as T;
+  }
+
+  private async requestNoContent(path: string, init: RequestInit): Promise<void> {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (this.token) headers.set("Authorization", `Bearer ${this.token}`);
+    if (this.csrfToken) headers.set("X-CSRF-Token", this.csrfToken);
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+    if (!response.ok) throw await responseError(response);
   }
 
   listProjects(): Promise<ProjectSnapshot[]> {

@@ -70,7 +70,11 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
             user_id: "user-local-admin",
             username: "local-admin",
             display_name: "本机管理员",
+            system_role: "administrator",
           },
+          credential_kind: "legacy",
+          csrf_token: null,
+          expires_at: null,
         },
       });
       return;
