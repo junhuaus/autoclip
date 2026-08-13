@@ -1,73 +1,78 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-13 12:14 CST
-Current milestone: M14 collaborative video-editor Project workspace complete
+Updated: 2026-08-13 16:02 CST
+
+Current product baseline: `0.1.0`
+
+Current milestone: v0.2 V2-M0 product/Solution planning in progress
+
 Branch: `main` tracking `origin/main`
-Latest committed implementation: `d40ec81` (`feat: add collaborative project workspace`)
 
-## Current user-visible outcome
+Latest committed v0.1 checkpoint: `0f34e2b` (`docs: record M14 project workspace checkpoint`)
 
-Open `http://127.0.0.1:5173`. The home page is now a concise “我的项目” workspace for video editors:
+## v0.1 frozen baseline
 
-- personal Project, attention, processing and delivered counts;
-- search plus workflow-state filters;
-- one card per accessible Project with status, next action, owner, member count and current role;
-- a focused Project workspace with owner-managed editor/reviewer membership;
-- existing horizontal “高光时刻” rows, “高光语句”, editor-only timed keywords and subtitles last.
+v0.1 is the currently working release line. It includes the real recoverable media Pipeline, OpenRouter Whisper ASR, Codex editing, clean direct center-crop review proxies, `高光时刻` review UI, immutable revisions/renders/Delivery, offline review package and server-side Project membership isolation. Package metadata and `liveclip.__version__` are already `0.1.0`.
 
-This is not a browser-only filter. Migration `d31a6e9f4b72` adds local workspace users, Project owner and memberships. `GET /projects` and every Project/run/clip/render/Delivery route enforce current membership; inaccessible resources return not-found. Only the owner manages members. Distinct usernames can authenticate through environment-only Bearer tokens; token values never enter SQLite, logs, responses or the frontend bundle. v1 roles describe workflow responsibility; all members otherwise share editing/review actions.
+Open `http://127.0.0.1:5173`. Current real Project `7.28` is `f91cb996f7534a6682aa5e5f01374b7b`, generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, `pending_review`, with 15 non-degraded clean no-blur proxies. It must not be reprocessed for v0.2 account/lifecycle/export work.
 
-The real Project remains `7.28` (`f91cb996f7534a6682aa5e5f01374b7b`), generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, `pending_review`, with 15 non-degraded clean no-blur proxies. M14 assigned it to migrated owner `local-admin` without rerunning ASR/LLM or changing clip/review/render/Delivery state.
+The latest v0.1 full gate passed 559 Python tests, 23 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E. `make lint` passed Ruff/format/mypy/schema/TypeScript. Exact historical media/provider/export evidence remains in `docs/exec-plans/liveclip-v1.md` and Git; it is not duplicated here.
 
-## Durable real-media evidence retained
+## v0.2 requested outcome
 
-- Source: ignored read-only `input/7.28.mp4`, 2,190,937,089 bytes, 2,780.437 seconds, persisted SHA-256 `595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03`.
-- Real generation 3: 33/33 OpenRouter Whisper calls, 248 absolute-time segments, 41/41 Codex editorial calls and 15/15 non-degraded selected plans.
-- Current proxies: all 15 are H.264/AAC 540×960 direct center crops, automatically validated and fully decoded; blurred background and duplicated foreground are prohibited.
-- Top clip `73ab6116e49d4d9d837d469274aa47d5`: `KTV唱歌前的快速热身法`.
-- Top video: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r002/s-baa64c00a3180462/t-215fc4b619474c48/review.mp4`.
-- Top contact sheet: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/renders/proxies/73ab6116e49d4d9d837d469274aa47d5/r002/s-baa64c00a3180462/t-215fc4b619474c48/quality/contact-sheet.png`.
-- Current offline review package: `/Users/junhuaxu/Workspace/AGI/liveclip-ai/data/projects/f91cb996f7534a6682aa5e5f01374b7b/offline-review-packages/v003` with 15 MP4s/SRTs/descriptions and `offline-review.zip`; manifest SHA-256 `7f52624db226c71cf3d661b3db30066f67810545424328264a7b837de6f07f25`, ZIP SHA-256 `5851d26406258838a140f0ece4f5be44bb8a1ff325189055f26bc10d754eb645`.
+- Real administrator login and local user management: create, edit, disable/reactivate, password reset and system-role authorization.
+- Clear system administrator versus Project owner/editor/reviewer/viewer responsibilities.
+- New Projects private by default; only creator/owner initially sees them. Optional workspace-visible mode remains authenticated, never public.
+- Professional lifecycle separate from technical processing: draft, processing, attention, editorial review, changes requested, approval, ready to publish, published and archived.
+- Assignment, due date, priority, comments, activity/audit history and archive/restore.
+- Select one or more current clips for individual MP4/SRT download or immutable editor handoff ZIP.
+- Jianying/CapCut Desktop/Web compatibility through clean H.264/AAC MP4 plus basename-matched plain UTF-8 relative-time SRT; no unverified native Jianying draft claim and no direct-mobile SRT claim.
+- Versioned platform release presets, preflight, cover/copy/hashtags/rights checklist and manually recorded publication outcome; no automatic social credential storage/posting in the initial release.
 
-## M14 implementation
+Authoritative new documents:
 
-- Added `WorkspaceUser`, `ProjectMember`, `Project.owner_id`, service/repository ports and safe member DTOs.
-- Added Alembic revision `d31a6e9f4b72`; applied it to the real database. Alembic head/drift, `PRAGMA integrity_check` and `PRAGMA foreign_key_check` pass.
-- Added `GET /api/v1/session` and Project member list/add/remove routes.
-- Added environment-authenticated caller identity, distinct per-user token mapping and per-caller idempotency scope.
-- Added server-side access checks to Project/run/clip/render/Delivery queries and mutations.
-- Rebuilt Web home as an editor Project manager; moved Provider/token diagnostics to the account/system popover.
-- Added owner-only membership UI and kept the existing candidate-local review experience intact.
-- Added backend, migration, API, component and both Chrome E2E regression coverage.
-- Updated Product Spec, Solution, API, architecture, README, ADR-013 and Living ExecPlan.
+- `docs/PRODUCT_SPEC_V0.2.md`
+- `docs/exec-plans/liveclip-v0.2.md`
+- `docs/adr/014-v02-identity-lifecycle-and-editor-handoff.md`
+- `docs/research/editor-handoff-platforms.md`
 
-## Validation for this worktree
+## Phased plan
 
-- `make lint`: PASS; Ruff, format (180 files), mypy (111 source files), EditPlan schema drift and TypeScript all pass.
-- `make test`: PASS; 559 Python tests, 23 Web component tests, one Mock Chrome E2E and one real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E.
-- Latest real E2E: Project `3ced841d8d21439d9d9be233e7f4c27e`, six stages, eight Tasks/attempts, Delivery v001; it used isolated temporary Mock AI and cleaned up after success.
-- Actual host-Chrome screenshots were viewed: the Project dashboard hierarchy/search/filter/card layout is coherent, and the real delivered workspace still shows members, pipeline, high-impact row/editor and Delivery controls correctly.
-- Browser skill initialization followed the prescribed runtime, but browser discovery returned `[]`; no MCP-control success is claimed. Host Playwright Chrome provided the checked visual and browser-flow evidence.
-- The real API currently returns one `7.28` Project for `local-admin`, with owner/member/current-role fields. Provider health reports the configured OpenRouter/Codex chain ready without exposing credentials.
+- V2-M0: freeze v0.1, research and v0.2 contracts.
+- V2-M1: accounts, administrator console, sessions/PATs, central authorization and audit.
+- V2-M2: Project visibility/lifecycle/assignment/comments/activity/archive.
+- V2-M3: selective individual download and immutable Jianying-friendly edit package.
+- V2-M4: platform-ready presets and release planning/outcome records.
+- V2-M5: migration/security/recovery/storage hardening and full acceptance.
 
-## Not rerun or externally unverified
+## Evidence and decisions recorded this session
 
-- No paid OpenRouter/Codex call was made for M14 and no existing long Project was reprocessed.
-- Representative 2–4 hour Apple M3 peak memory/runtime/disk remains unmeasured; the real available sample is 46:20 on Apple M2.
-- The separate file-only v003 offline page still lacks an MCP-browser visual check because no browser is registered to that runtime; its files, checksums, ZIP structure and all video decodes already pass.
+- Repository was clean on `main` at `0f34e2b`; package is already `0.1.0`.
+- Current CapCut primary help confirms SRT/TXT import on Desktop and SRT on Web, with editable timed text layers and UTF-8 guidance; mobile has no direct external subtitle import.
+- YouTube primary help supports MP4/H.264/AAC, Fast Start, progressive/yuv420p-style upload masters, plain UTF-8 SRT and vertical/square Shorts up to three minutes under current rules.
+- TikTok's official developer transfer guide recommends MP4/H.264 and documents 23–60 fps, minimum 360-pixel dimensions, up to 4 GB and account-dependent duration entitlement.
+- Apple documents FCPXML as a professional interchange target, but it is later scope and not a Jianying substitute.
+- ADR-014 chooses local opaque Web sessions, optional hashed PATs, separate authority dimensions, business lifecycle and immutable editor packages.
 
-## Security and worktree state
+## Security and local state
 
 - Never stage `.env`, `.env.local`, `OPENROUTER_SETUP.md`, `input/`, SQLite, media, caches, E2E output, deliveries or migration backups.
-- The local OpenRouter credential remains only in ignored environment; its value was not printed or persisted by M14.
-- Source video and all existing generated media are unchanged.
-- Local API/Worker/Web should be running at `127.0.0.1:8765` and `127.0.0.1:5173`; restart `make dev` after source migration/auth changes before handoff.
-- M14 implementation checkpoint `d40ec81` passed staged whitespace, forbidden-path and credential-pattern scans. No ignored local data entered Git.
+- No credential value was read or printed during v0.2 planning.
+- No source video, Project, database, render, Delivery or Provider usage was changed.
+- Existing local services may continue serving v0.1 at `127.0.0.1:8765` and `127.0.0.1:5173`.
+- Current worktree contains only new/updated tracked planning documents; V2-M0 has not yet been committed.
+
+## Unverified
+
+- Password hashing/session implementation and dependency choice are not yet implemented or validated.
+- Jianying/CapCut import of a generated v0.2 package has not yet occurred because V2-M3 is pending.
+- China-platform/Instagram numeric presets must be rechecked from primary documentation immediately before V2-M4; no unsupported numbers are frozen now.
+- Representative 2–4 hour Apple M3 resource measurements remain outside this identity/planning phase.
 
 ## Next concrete task
 
-Continue editor UX refinement from the member-scoped “我的项目” baseline. Do not rerun paid ASR/LLM unless a new content-generation request requires it.
+Finish V2-M0 document consistency/diff/link checks, commit and push the planning checkpoint. Then start V2-M1 with authorization-matrix, password-verifier and session tests before creating its Alembic migration.
 
 ## Resume instructions
 
-Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v1.md` and this file. Run `git status --short --branch`, `git log -5 --oneline`, and verify the most recent M14 test results above. Preserve ignored input/generated data and do not repeat the paid `7.28` ASR/LLM run.
+Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/PRODUCT_SPEC_V0.2.md`, `docs/SOLUTION.md`, `.agent/PLANS.md`, both Living ExecPlans and this file. Run `git status --short --branch` and `git log -5 --oneline`. Continue with “Next concrete task”; preserve ignored real media/data and do not repeat paid `7.28` ASR/LLM work.
