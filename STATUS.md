@@ -8,7 +8,7 @@ Current milestone: v0.2 V2-M1 accounts/administration in progress
 
 Branch: `main` tracking `origin/main`
 
-Latest v0.2 planning checkpoint: `dfc1639` (`docs: plan LiveClip v0.2 production workflow`)
+Latest v0.2 implementation checkpoint: `a5e52a3` (`feat: add local accounts and admin console`)
 
 Latest committed v0.1 checkpoint: `0f34e2b` (`docs: record M14 project workspace checkpoint`)
 
@@ -58,7 +58,8 @@ Authoritative new documents:
 - V2-M1 now has Alembic head `f42b7c1d9e63`, Argon2id credentials, server-side hashed/revocable sessions, CSRF, login throttling and append-only audit events.
 - Administrator APIs and Web UI can list/create/edit/disable/reactivate/reset-password and grant/revoke the system administrator role while retaining at least one active administrator.
 - New Projects persist `visibility=private`; Project roles now include viewer and central owner/editor/reviewer/viewer action policy guards unsafe routes.
-- `569` Python tests passed; `25` Web tests passed. Targeted identity/migration/authorization regression passed `21` after the latest user-edit change.
+- `569` Python tests passed; `25` Web tests and production build passed. Targeted identity/migration/authorization regression passed after the latest user-edit/private-isolation change.
+- V2-M1 checkpoint `a5e52a3` was pushed to `origin/main`.
 - Isolated Chrome at `http://127.0.0.1:5273` equivalent port exercised signed-out login → administrator dashboard → members page. Viewed screenshots were `/tmp/liveclip-v02-login.png` and `/tmp/liveclip-v02-admin.png`; `/tmp` evidence is not durable.
 - Browser plugin discovery returned no available browser (`[]`), so MCP Browser success is not claimed; host Chrome was the verified fallback.
 

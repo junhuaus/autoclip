@@ -48,7 +48,7 @@ The existing dependency direction remains unchanged. New application services ow
 - [~] Add `viewer`, default-private visibility, ownership transfer and server-derived allowed actions/capabilities. Viewer/private are implemented; transfer and capability DTOs remain pending.
 - [x] 2026-08-13 Add Web login/logout and administrator console while retaining v0.1 token compatibility for CLI/API migration.
 - [~] Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy and legacy migration. Two-user private-resource/browser denial and PAT coverage remain pending.
-- [ ] Run lint/full tests, inspect the real migrated UI without paid Provider work, review, commit and push.
+- [x] 2026-08-13 Run Ruff/mypy/TypeScript/full Python/Web tests, inspect isolated login/admin UI without paid Provider work, review, commit `a5e52a3` and push. Real database login opt-in remains intentionally deferred.
 
 ### V2-M2 — Project lifecycle and production operations
 
@@ -156,8 +156,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1 is partially implemented in the current working tree. Resume by running the targeted identity/migration/Web tests, then add two-user private-resource API coverage, ownership transfer/capability DTOs and optional scoped PATs. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
+V2-M1 first checkpoint is `a5e52a3`. Resume with ownership transfer/capability DTOs, explicit audited administrator Project override and optional scoped PATs. Two-user private Project API isolation is covered; add private generated-media denial when the next real Project fixture is extended. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
 
 ## Outcomes and Retrospective
 
-V2-M0 is complete at checkpoint `dfc1639`. Product authority, lifecycle and editor handoff are decomposed into independently testable milestones. Primary documentation supports the first MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
+V2-M0 is complete at checkpoint `dfc1639`. V2-M1 checkpoint `a5e52a3` delivers the first account/admin/private-role slice without changing the v0.1 media facts or making a paid Provider call. Remaining V2-M1 governance work is explicit above. Primary documentation supports the later MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
