@@ -4,9 +4,11 @@ Updated: 2026-08-13 16:02 CST
 
 Current product baseline: `0.1.0`
 
-Current milestone: v0.2 V2-M0 product/Solution planning in progress
+Current milestone: v0.2 V2-M0 complete; V2-M1 accounts/administration next
 
 Branch: `main` tracking `origin/main`
+
+Latest v0.2 planning checkpoint: `dfc1639` (`docs: plan LiveClip v0.2 production workflow`)
 
 Latest committed v0.1 checkpoint: `0f34e2b` (`docs: record M14 project workspace checkpoint`)
 
@@ -60,7 +62,7 @@ Authoritative new documents:
 - No credential value was read or printed during v0.2 planning.
 - No source video, Project, database, render, Delivery or Provider usage was changed.
 - Existing local services may continue serving v0.1 at `127.0.0.1:8765` and `127.0.0.1:5173`.
-- Current worktree contains only new/updated tracked planning documents; V2-M0 has not yet been committed.
+- V2-M0 checkpoint `dfc1639` contains only tracked planning/recovery documents; no ignored local data or credential entered Git.
 
 ## Unverified
 
@@ -71,7 +73,7 @@ Authoritative new documents:
 
 ## Next concrete task
 
-Finish V2-M0 document consistency/diff/link checks, commit and push the planning checkpoint. Then start V2-M1 with authorization-matrix, password-verifier and session tests before creating its Alembic migration.
+Start V2-M1 with authorization-matrix, password-verifier and session tests before creating its Alembic migration.
 
 ## Resume instructions
 

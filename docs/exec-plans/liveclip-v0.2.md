@@ -36,7 +36,7 @@ The existing dependency direction remains unchanged. New application services ow
 - [x] 2026-08-13 Check current primary CapCut, YouTube, TikTok and Apple interchange documentation and record evidence/limits.
 - [x] 2026-08-13 Adopt ADR-014: local sessions, distinct authority dimensions, business lifecycle and immutable MP4/SRT editor package.
 - [x] 2026-08-13 Create this self-contained Living ExecPlan and update the recovery snapshot.
-- [ ] Commit and push the v0.2 planning checkpoint without secrets/generated data.
+- [x] 2026-08-13 Commit v0.2 planning checkpoint `dfc1639` without secrets/generated data and publish it with the following status checkpoint.
 
 ### V2-M1 — Accounts, administrator console and authorization
 
@@ -153,8 +153,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M0 planning documents exist in the current worktree. The next unambiguous task is to review/stage only those documents plus the baseline references, run Markdown/link/diff checks, commit/push V2-M0, then begin V2-M1 with failing authorization/password/session tests before editing the migration head. Preserve running v0.1 services and ignored real media; do not repeat paid Provider work.
+V2-M0 is complete at planning checkpoint `dfc1639` plus the following status checkpoint. The next unambiguous task is to begin V2-M1 with failing authorization/password/session tests before editing the migration head. Preserve running v0.1 services and ignored real media; do not repeat paid Provider work.
 
 ## Outcomes and Retrospective
 
-V2-M0 is in progress. Product authority, lifecycle and editor handoff have been decomposed into independently testable milestones. Primary documentation supports the first MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
+V2-M0 is complete at checkpoint `dfc1639`. Product authority, lifecycle and editor handoff are decomposed into independently testable milestones. Primary documentation supports the first MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
