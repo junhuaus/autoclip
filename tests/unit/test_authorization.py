@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from liveclip.application.authorization import ProjectActionDenied, require_project_action
+from liveclip.application.authorization import (
+    ProjectActionDenied,
+    project_actions,
+    require_project_action,
+)
 
 
 @pytest.mark.parametrize(
@@ -23,3 +27,8 @@ def test_project_actions_are_centrally_authorized(
     if denied is not None:
         with pytest.raises(ProjectActionDenied):
             require_project_action(role, denied)  # type: ignore[arg-type]
+
+
+def test_capability_list_comes_from_the_same_policy_matrix() -> None:
+    assert project_actions("viewer") == ("read",)
+    assert project_actions("reviewer") == ("read", "review_clip")

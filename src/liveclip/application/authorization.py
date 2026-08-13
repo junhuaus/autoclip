@@ -13,6 +13,15 @@ ProjectAction = Literal[
     "render",
     "deliver",
 ]
+PROJECT_ACTION_ORDER: tuple[ProjectAction, ...] = (
+    "read",
+    "manage_members",
+    "run_pipeline",
+    "edit_clip",
+    "review_clip",
+    "render",
+    "deliver",
+)
 
 _ALLOWED: dict[WorkspaceRole, frozenset[ProjectAction]] = {
     "owner": frozenset(
@@ -39,3 +48,7 @@ class ProjectActionDenied(PermissionError):
 def require_project_action(role: WorkspaceRole, action: ProjectAction) -> None:
     if action not in _ALLOWED[role]:
         raise ProjectActionDenied("project role does not grant this action")
+
+
+def project_actions(role: WorkspaceRole) -> tuple[ProjectAction, ...]:
+    return tuple(action for action in PROJECT_ACTION_ORDER if action in _ALLOWED[role])

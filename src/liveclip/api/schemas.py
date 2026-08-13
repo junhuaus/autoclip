@@ -132,6 +132,10 @@ class ProjectMemberCreateRequest(ApiRequestModel):
     role: Literal["editor", "reviewer", "viewer"]
 
 
+class ProjectOwnershipTransferRequest(ApiRequestModel):
+    new_owner_user_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+
 class LoginRequest(ApiRequestModel):
     username: str = Field(
         min_length=1,

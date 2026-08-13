@@ -14,6 +14,9 @@ import { EmptyState, ErrorState, LoadingState, StatusBadge, formatMs } from "./u
 interface ClipEditorProps {
   api: LiveClipApiClient;
   clipId: string;
+  canEdit?: boolean;
+  canReview?: boolean;
+  canRender?: boolean;
   onClose: () => void;
   onChanged: () => void;
   onDirtyChange?: (clipId: string, dirty: boolean) => void;
@@ -103,6 +106,9 @@ function currentVideo(
 export function ClipEditor({
   api,
   clipId,
+  canEdit = true,
+  canReview = true,
+  canRender = true,
   onClose,
   onChanged,
   onDirtyChange = () => undefined,
@@ -444,7 +450,7 @@ export function ClipEditor({
               value={draft.title}
               maxLength={40}
               required
-              disabled={busy}
+              disabled={busy || !canEdit}
               onChange={(event) => setDraft({ ...draft, title: event.currentTarget.value })}
             />
           </label>
@@ -456,7 +462,7 @@ export function ClipEditor({
                 step="1"
                 min="0"
                 required
-                disabled={busy}
+                disabled={busy || !canEdit}
                 value={draft.sourceStartMs}
                 onChange={(event) => setDraft({ ...draft, sourceStartMs: event.currentTarget.value })}
               />
@@ -468,7 +474,7 @@ export function ClipEditor({
                 step="1"
                 min="1"
                 required
-                disabled={busy}
+                disabled={busy || !canEdit}
                 value={draft.sourceEndMs}
                 onChange={(event) => setDraft({ ...draft, sourceEndMs: event.currentTarget.value })}
               />
@@ -480,7 +486,7 @@ export function ClipEditor({
 
           <div className="caption-heading">
             <h4>逐 cue 字幕</h4>
-            <button type="button" className="button button-ghost" onClick={addCaption} disabled={busy}>
+            <button type="button" className="button button-ghost" onClick={addCaption} disabled={busy || !canEdit}>
               添加字幕
             </button>
           </div>
@@ -497,7 +503,7 @@ export function ClipEditor({
                       step="1"
                       min="0"
                       required
-                      disabled={busy}
+                      disabled={busy || !canEdit}
                       value={cue.startMs}
                       onChange={(event) => updateCaption(index, { startMs: event.currentTarget.value })}
                     />
@@ -509,7 +515,7 @@ export function ClipEditor({
                       step="1"
                       min="1"
                       required
-                      disabled={busy}
+                      disabled={busy || !canEdit}
                       value={cue.endMs}
                       onChange={(event) => updateCaption(index, { endMs: event.currentTarget.value })}
                     />
@@ -521,7 +527,7 @@ export function ClipEditor({
                     rows={2}
                     maxLength={120}
                     required
-                    disabled={busy}
+                    disabled={busy || !canEdit}
                     value={cue.text}
                     onChange={(event) => updateCaption(index, { text: event.currentTarget.value })}
                   />
@@ -529,7 +535,7 @@ export function ClipEditor({
                 <button
                   type="button"
                   className="button button-danger-ghost"
-                  disabled={busy || draft.captions.length <= 1}
+                  disabled={busy || !canEdit || draft.captions.length <= 1}
                   onClick={() => setDraft({ ...draft, captions: draft.captions.filter((_, cueIndex) => cueIndex !== index) })}
                 >
                   删除此 cue
@@ -543,7 +549,7 @@ export function ClipEditor({
           <button
             type="submit"
             className="button button-primary"
-            disabled={busy || !dirty || draft.captions.length === 0 || !allowed.has("edit")}
+            disabled={busy || !canEdit || !dirty || draft.captions.length === 0 || !allowed.has("edit")}
           >
             {saveMutation.isPending ? "保存中…" : "保存为新 revision"}
           </button>
@@ -559,7 +565,7 @@ export function ClipEditor({
             <button
               type="button"
               className="button button-success"
-              disabled={busy || dirty || !allowed.has("approve")}
+              disabled={busy || !canReview || dirty || !allowed.has("approve")}
               onClick={() => reviewMutation.mutate({ status: "approved" })}
             >
               {reviewMutation.isPending ? "提交中…" : "批准"}
@@ -570,7 +576,7 @@ export function ClipEditor({
             <textarea
               rows={2}
               maxLength={1_000}
-              disabled={busy}
+              disabled={busy || !canReview}
               value={rejectionReason}
               onChange={(event) => setRejectionReason(event.currentTarget.value)}
               placeholder="说明内容不完整等原因"
@@ -579,7 +585,7 @@ export function ClipEditor({
           <button
             type="button"
             className="button button-danger"
-            disabled={busy || dirty || !allowed.has("reject") || !rejectionReason.trim()}
+            disabled={busy || !canReview || dirty || !allowed.has("reject") || !rejectionReason.trim()}
             onClick={() => reviewMutation.mutate({ status: "rejected", reason: rejectionReason.trim() })}
           >
             拒绝此 revision
@@ -595,7 +601,7 @@ export function ClipEditor({
             <button
               type="button"
               className="button button-secondary"
-              disabled={busy || renderPolling || !allowed.has("render_proxy")}
+              disabled={busy || !canRender || renderPolling || !allowed.has("render_proxy")}
               onClick={() => renderMutation.mutate("proxy")}
             >
               渲染审核代理
@@ -603,7 +609,7 @@ export function ClipEditor({
             <button
               type="button"
               className="button button-primary"
-              disabled={busy || renderPolling || !allowed.has("render_final")}
+              disabled={busy || !canRender || renderPolling || !allowed.has("render_final")}
               onClick={() => renderMutation.mutate("final")}
             >
               渲染最终视频

@@ -37,19 +37,19 @@ async function waitForTerminal(
 test("drives the real API, leased Worker and FFmpeg through delivered", async ({ page }, testInfo) => {
   const inputPath = process.env.LIVECLIP_E2E_INPUT;
   const token = process.env.LIVECLIP_E2E_TOKEN;
-  if (!inputPath || !token) {
+  const password = process.env.LIVECLIP_E2E_PASSWORD;
+  if (!inputPath || !token || !password) {
     throw new Error("isolated real E2E fixture environment is missing");
   }
 
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("AUTHENTICATION_REQUIRED");
-  await page.getByRole("button", { name: "打开账户与系统设置" }).click();
-  await page.getByLabel(/成员访问 Token/).fill(token);
-  await page.getByRole("button", { name: "应用 Token" }).click();
+  await expect(page.getByRole("heading", { name: "登录 LiveClip" })).toBeVisible();
+  await page.getByLabel("账号").fill("local-admin");
+  await page.getByLabel("密码").fill(password);
+  await page.getByRole("button", { name: "登录工作台" }).click();
   await expect(page.getByText("还没有项目")).toBeVisible();
   await expect(page.getByRole("heading", { name: "我的项目" })).toBeVisible();
   await expect(page.getByText(/Mock ASR/)).toHaveCount(0);
-  await page.getByRole("button", { name: "关闭" }).click();
   await page.getByRole("button", { name: "＋ 新建项目" }).click();
   await expect(page.getByRole("button", { name: "创建并开始处理" })).toBeEnabled();
 

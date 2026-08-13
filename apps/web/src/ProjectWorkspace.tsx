@@ -50,6 +50,8 @@ function ProjectMembersPanel({
   onChanged: () => void;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<string | null>(null);
+  const canManage = project.allowed_actions.includes("manage_members");
   const addMutation = useMutation({
     mutationFn: (body: ProjectMemberCreateRequest) => api.addProjectMember(project.project_id, body),
     onSuccess: () => {
@@ -60,6 +62,13 @@ function ProjectMembersPanel({
   const removeMutation = useMutation({
     mutationFn: (userId: string) => api.removeProjectMember(project.project_id, userId),
     onSuccess: onChanged,
+  });
+  const transferMutation = useMutation({
+    mutationFn: (userId: string) => api.transferProjectOwnership(project.project_id, userId),
+    onSuccess: () => {
+      setTransferTarget(null);
+      onChanged();
+    },
   });
   const addMember = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -78,7 +87,7 @@ function ProjectMembersPanel({
           <p className="eyebrow">协作</p>
           <h2 id="project-members-title">项目成员</h2>
         </div>
-        {project.current_user_role === "owner" ? (
+        {canManage ? (
           <button type="button" className="button button-secondary" onClick={() => setShowForm((value) => !value)}>
             {showForm ? "取消" : "＋ 添加成员"}
           </button>
@@ -90,15 +99,25 @@ function ProjectMembersPanel({
             <span className="user-avatar">{member.display_name.slice(0, 1)}</span>
             <span><strong>{member.display_name}</strong><small>@{member.username}</small></span>
             <StatusBadge status={member.role} label={MEMBER_ROLE_LABELS[member.role]} />
-            {project.current_user_role === "owner" && member.role !== "owner" ? (
-              <button
-                type="button"
-                className="button button-danger-ghost"
-                disabled={removeMutation.isPending}
-                onClick={() => removeMutation.mutate(member.user_id)}
-              >
-                移除
-              </button>
+            {canManage && member.role !== "owner" ? (
+              <span className="project-member-actions">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={removeMutation.isPending || transferMutation.isPending}
+                  onClick={() => setTransferTarget(member.user_id)}
+                >
+                  移交负责人
+                </button>
+                <button
+                  type="button"
+                  className="button button-danger-ghost"
+                  disabled={removeMutation.isPending || transferMutation.isPending}
+                  onClick={() => removeMutation.mutate(member.user_id)}
+                >
+                  移除
+                </button>
+              </span>
             ) : null}
           </li>
         ))}
@@ -114,8 +133,33 @@ function ProjectMembersPanel({
           <p className="hint">成员登录凭证由本机管理员单独配置，不会显示在项目页面。</p>
         </div>
       ) : null}
+      {transferTarget ? (
+        <div className="ownership-transfer-confirm" role="alertdialog" aria-labelledby="ownership-transfer-title">
+          <div>
+            <strong id="ownership-transfer-title">确认移交项目负责人</strong>
+            <p>
+              {project.members.find((member) => member.user_id === transferTarget)?.display_name}
+              将成为唯一负责人；你将变为编辑。该操作会写入审计日志。
+            </p>
+          </div>
+          <div className="button-row">
+            <button type="button" className="button button-ghost" onClick={() => setTransferTarget(null)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="button button-danger"
+              disabled={transferMutation.isPending}
+              onClick={() => transferMutation.mutate(transferTarget)}
+            >
+              {transferMutation.isPending ? "正在移交…" : "确认移交"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {addMutation.isError ? <p className="form-error" role="alert">{errorMessage(addMutation.error)}</p> : null}
       {removeMutation.isError ? <p className="form-error" role="alert">{errorMessage(removeMutation.error)}</p> : null}
+      {transferMutation.isError ? <p className="form-error" role="alert">{errorMessage(transferMutation.error)}</p> : null}
     </section>
   );
 }
@@ -129,12 +173,14 @@ function stageDisplayStatus(stage: StageSnapshot): { status: string; label: stri
 
 function RunPanel({
   run,
+  canManage,
   busy,
   error,
   onCancel,
   onRetry,
 }: {
   run: RunSnapshot;
+  canManage: boolean;
   busy: boolean;
   error: unknown;
   onCancel: () => void;
@@ -195,7 +241,7 @@ function RunPanel({
         })}
       </ol>
 
-      <div className="button-row">
+      {canManage ? <div className="button-row">
         <button
           type="button"
           className="button button-danger-ghost"
@@ -212,7 +258,7 @@ function RunPanel({
         >
           {busy && run.status === "failed" ? "重试提交中…" : "重试失败任务"}
         </button>
-      </div>
+      </div> : null}
       {error ? <p className="form-error" role="alert">{errorMessage(error)}</p> : null}
     </section>
   );
@@ -480,7 +526,9 @@ export function DeliveryPanel({
   const hasFailedDelivery = deliveriesQuery.data?.some(
     ({ delivery }) => delivery.status === "failed",
   );
-  const canCreate = approvedCount > 0 && !activeDelivery && !createMutation.isPending;
+  const canDeliver = project.allowed_actions.includes("deliver");
+  const canCreate =
+    canDeliver && approvedCount > 0 && !activeDelivery && !createMutation.isPending;
 
   return (
     <section className="panel" aria-labelledby="delivery-title">
@@ -496,6 +544,7 @@ export function DeliveryPanel({
           <input
             type="checkbox"
             checked={includeZip}
+            disabled={!canDeliver}
             onChange={(event) => setIncludeZip(event.currentTarget.checked)}
           />
           创建 delivery.zip
@@ -517,7 +566,9 @@ export function DeliveryPanel({
       </div>
       {!canCreate ? (
         <p className="hint disabled-reason">
-          {approvedCount === 0
+          {!canDeliver
+            ? "你的项目角色可以查看已有交付，但不能创建新交付版本。"
+            : approvedCount === 0
             ? "至少批准一个当前 revision 后才能请求交付；最终渲染资格仍由后端校验。"
             : "已有交付任务正在执行，请等待其进入终态。"}
         </p>
@@ -707,6 +758,10 @@ export function ProjectWorkspace({
     return <ErrorState error={projectQuery.error} onRetry={() => void projectQuery.refetch()} />;
   }
   const project = projectQuery.data;
+  const canRunPipeline = project.allowed_actions.includes("run_pipeline");
+  const canEdit = project.allowed_actions.includes("edit_clip");
+  const canReview = project.allowed_actions.includes("review_clip");
+  const canRender = project.allowed_actions.includes("render");
 
   return (
     <main className="workspace">
@@ -739,6 +794,7 @@ export function ProjectWorkspace({
       {runQuery.data ? (
         <RunPanel
           run={runQuery.data}
+          canManage={canRunPipeline}
           busy={cancelMutation.isPending || retryMutation.isPending}
           error={cancelMutation.error ?? retryMutation.error}
           onCancel={() => cancelMutation.mutate()}
@@ -760,7 +816,7 @@ export function ProjectWorkspace({
         {clipsQuery.data?.length === 0 ? <EmptyState title="没有高光时刻" /> : null}
         {clipsQuery.data && clipsQuery.data.length > 0 ? (
           <>
-            <div className="batch-review-bar" aria-label="批量审核">
+            {canReview ? <div className="batch-review-bar" aria-label="批量审核">
               <label>
                 <input
                   type="checkbox"
@@ -827,7 +883,7 @@ export function ProjectWorkspace({
                   有 {dirtyClipIds.size} 个高光存在未保存编辑，已从批量审核中排除。
                 </p>
               ) : null}
-            </div>
+            </div> : null}
             <ol className="highlight-list" aria-label="高光时刻列表">
               {clipsQuery.data.map((item) => (
                 <li key={item.clip.clip_id}>
@@ -835,7 +891,7 @@ export function ProjectWorkspace({
                     item={item}
                     selected={selectedClipIds.has(item.clip.clip_id)}
                     selectionDisabled={
-                      batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
+                      !canReview || batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
                     }
                     openDisabled={batchMutation.isPending}
                     onSelectedChange={(selected) =>
@@ -859,6 +915,9 @@ export function ProjectWorkspace({
         <ClipEditor
           api={api}
           clipId={selectedClipId}
+          canEdit={canEdit}
+          canReview={canReview}
+          canRender={canRender}
           onClose={() => setSelectedClipId(null)}
           onChanged={() => {
             void clipsQuery.refetch();

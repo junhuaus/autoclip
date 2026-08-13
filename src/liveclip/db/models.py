@@ -123,9 +123,7 @@ class AuthSessionRow(Base):
 
 class AuthLoginAttemptRow(Base):
     __tablename__ = "auth_login_attempts"
-    __table_args__ = (
-        CheckConstraint("failed_count >= 0", name="login_failed_count_nonnegative"),
-    )
+    __table_args__ = (CheckConstraint("failed_count >= 0", name="login_failed_count_nonnegative"),)
 
     identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

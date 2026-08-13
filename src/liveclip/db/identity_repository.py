@@ -30,9 +30,13 @@ class SqlAlchemyIdentityRepository:
 
     def find_auth_user(self, username: str) -> AuthUserRecord | None:
         with self._engine.connect() as connection:
-            row = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.username == username)
-            ).mappings().one_or_none()
+            row = (
+                connection.execute(
+                    select(*_USER_COLUMNS).where(WorkspaceUserRow.username == username)
+                )
+                .mappings()
+                .one_or_none()
+            )
         return _auth_record(row) if row is not None else None
 
     def password_login_required(self) -> bool:
@@ -100,9 +104,7 @@ class SqlAlchemyIdentityRepository:
             else:
                 failed_count = int(row.failed_count) + 1
             blocked_until = (
-                now + timedelta(seconds=block_seconds)
-                if failed_count >= maximum_attempts
-                else None
+                now + timedelta(seconds=block_seconds) if failed_count >= maximum_attempts else None
             )
             if row is not None and row.window_started_at + timedelta(seconds=window_seconds) > now:
                 connection.execute(
@@ -139,9 +141,13 @@ class SqlAlchemyIdentityRepository:
         correlation_id: str | None,
     ) -> AuthenticatedSession:
         with begin_immediate(self._engine) as connection:
-            current = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user.user.user_id)
-            ).mappings().one_or_none()
+            current = (
+                connection.execute(
+                    select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user.user.user_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
             if (
                 current is None
                 or not current.is_active
@@ -325,9 +331,11 @@ class SqlAlchemyIdentityRepository:
                         updated_at=now,
                     )
                 )
-                created = connection.execute(
-                    select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id)
-                ).mappings().one()
+                created = (
+                    connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
+                    .mappings()
+                    .one()
+                )
                 result = _managed_user(created)
                 _audit(
                     connection,
@@ -356,16 +364,20 @@ class SqlAlchemyIdentityRepository:
         correlation_id: str | None,
     ) -> ManagedUser:
         with begin_immediate(self._engine) as connection:
-            target = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id)
-            ).mappings().one_or_none()
+            target = (
+                connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
+                .mappings()
+                .one_or_none()
+            )
             if target is None:
                 raise LookupError("user does not exist")
             before = _managed_user(target)
             next_role = system_role if system_role is not None else before.system_role
             next_active = is_active if is_active is not None else before.is_active
-            if before.system_role == "administrator" and before.is_active and (
-                next_role != "administrator" or not next_active
+            if (
+                before.system_role == "administrator"
+                and before.is_active
+                and (next_role != "administrator" or not next_active)
             ):
                 other_admins = connection.scalar(
                     select(func.count())
@@ -385,9 +397,8 @@ class SqlAlchemyIdentityRepository:
                 values["system_role"] = system_role
             if is_active is not None:
                 values["is_active"] = is_active
-            security_changed = (
-                (system_role is not None and system_role != before.system_role)
-                or (is_active is not None and is_active != before.is_active)
+            security_changed = (system_role is not None and system_role != before.system_role) or (
+                is_active is not None and is_active != before.is_active
             )
             if security_changed:
                 values["auth_version"] = WorkspaceUserRow.auth_version + 1
@@ -400,9 +411,11 @@ class SqlAlchemyIdentityRepository:
                     .where(AuthSessionRow.user_id == user_id, AuthSessionRow.revoked_at.is_(None))
                     .values(revoked_at=now)
                 )
-            current = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id)
-            ).mappings().one()
+            current = (
+                connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
+                .mappings()
+                .one()
+            )
             result = _managed_user(current)
             _audit(
                 connection,
@@ -427,9 +440,11 @@ class SqlAlchemyIdentityRepository:
         correlation_id: str | None,
     ) -> ManagedUser:
         with begin_immediate(self._engine) as connection:
-            target = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id)
-            ).mappings().one_or_none()
+            target = (
+                connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
+                .mappings()
+                .one_or_none()
+            )
             if target is None:
                 raise LookupError("user does not exist")
             connection.execute(
@@ -446,9 +461,11 @@ class SqlAlchemyIdentityRepository:
                 .where(AuthSessionRow.user_id == user_id, AuthSessionRow.revoked_at.is_(None))
                 .values(revoked_at=now)
             )
-            current = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id)
-            ).mappings().one()
+            current = (
+                connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
+                .mappings()
+                .one()
+            )
             result = _managed_user(current)
             _audit(
                 connection,
@@ -494,9 +511,13 @@ class SqlAlchemyIdentityRepository:
                 )
                 or 0
             )
-            target = connection.execute(
-                select(*_USER_COLUMNS).where(WorkspaceUserRow.username == username)
-            ).mappings().one_or_none()
+            target = (
+                connection.execute(
+                    select(*_USER_COLUMNS).where(WorkspaceUserRow.username == username)
+                )
+                .mappings()
+                .one_or_none()
+            )
             if target is None:
                 connection.execute(
                     insert(WorkspaceUserRow).values(

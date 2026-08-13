@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-13 21:30 CST
+Updated: 2026-08-13 22:15 CST
 
 Current product baseline: `0.1.0`
 
@@ -8,7 +8,7 @@ Current milestone: v0.2 V2-M1 accounts/administration in progress
 
 Branch: `main` tracking `origin/main`
 
-Latest v0.2 implementation checkpoint: `a5e52a3` (`feat: add local accounts and admin console`)
+Latest v0.2 checkpoint: `06c10df` (`docs: checkpoint v0.2 account management`); an ownership/capability checkpoint is ready to commit.
 
 Latest committed v0.1 checkpoint: `0f34e2b` (`docs: record M14 project workspace checkpoint`)
 
@@ -58,10 +58,14 @@ Authoritative new documents:
 - V2-M1 now has Alembic head `f42b7c1d9e63`, Argon2id credentials, server-side hashed/revocable sessions, CSRF, login throttling and append-only audit events.
 - Administrator APIs and Web UI can list/create/edit/disable/reactivate/reset-password and grant/revoke the system administrator role while retaining at least one active administrator.
 - New Projects persist `visibility=private`; Project roles now include viewer and central owner/editor/reviewer/viewer action policy guards unsafe routes.
-- `569` Python tests passed; `25` Web tests and production build passed. Targeted identity/migration/authorization regression passed after the latest user-edit/private-isolation change.
+- `570` Python tests and `27` Web tests passed; `make lint`, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E passed after the ownership/capability work.
 - V2-M1 checkpoint `a5e52a3` was pushed to `origin/main`.
 - Isolated Chrome at `http://127.0.0.1:5273` equivalent port exercised signed-out login → administrator dashboard → members page. Viewed screenshots were `/tmp/liveclip-v02-login.png` and `/tmp/liveclip-v02-admin.png`; `/tmp` evidence is not durable.
 - Browser plugin discovery returned no available browser (`[]`), so MCP Browser success is not claimed; host Chrome was the verified fallback.
+- Project DTOs now expose server-derived `allowed_actions`; the Web uses them to gate member, Pipeline, edit, review, render and Delivery actions instead of copying the role matrix.
+- Owners can explicitly confirm an atomic transfer to an active Project member; the former owner becomes editor, the Project owner pointer changes and audit history records the change.
+- Member add/change/remove are audited. A two-session integration test proves a non-member receives 404 even with a private Project, committed media or Delivery ZIP ID.
+- Real browser E2E now tests the v0.2 password-login path rather than the superseded v0.1 shared-token settings flow.
 
 ## Security and local state
 
@@ -73,8 +77,8 @@ Authoritative new documents:
 
 ## Still pending in V2-M1
 
-- Optional scoped PATs, ownership transfer, server-derived capability DTOs and explicit audited administrator Project override.
-- A dedicated two-user private-resource API/browser matrix including media/download denial.
+- Optional scoped PATs and explicit audited administrator Project override.
+- Full two-account browser denial remains later hardening; API integration already covers private Project/media/download denial and component tests cover viewer read-only capability UX.
 - Real database login opt-in: no bootstrap password has been written to the real v0.1 data store, so existing local tokenless access is preserved.
 - Jianying/CapCut import of a generated v0.2 package has not yet occurred because V2-M3 is pending.
 - China-platform/Instagram numeric presets must be rechecked from primary documentation immediately before V2-M4; no unsupported numbers are frozen now.
@@ -82,7 +86,7 @@ Authoritative new documents:
 
 ## Next concrete task
 
-Finish V2-M1 with two-user private-resource tests and ownership transfer/capability DTOs, rerun full gates, then review/commit/push. PAT may be a separate V2-M1 checkpoint.
+Review/commit/push the ownership/capability checkpoint. Then either finish optional PAT/admin override or start V2-M2 with the lifecycle schema and central transition table.
 
 ## Resume instructions
 

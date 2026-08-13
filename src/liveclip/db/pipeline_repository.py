@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlalchemy import case, func, insert, or_, select, update
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from liveclip.application.authorization import project_actions
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import (
     CreatedPipeline,
@@ -516,6 +517,7 @@ class SqlAlchemyPipelineRepository:
             owner=_workspace_member(owner_member),
             members=tuple(_workspace_member(member) for member in members),
             current_user_role=current_role,  # type: ignore[arg-type]
+            allowed_actions=project_actions(current_role),  # type: ignore[arg-type]
         )
 
     def request_run_cancel(self, run_id: str) -> RunSnapshot:

@@ -268,6 +268,16 @@ export class LiveClipApiClient {
     );
   }
 
+  transferProjectOwnership(
+    projectId: string,
+    newOwnerUserId: string,
+  ): Promise<ProjectMembersResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/ownership-transfer`, {
+      method: "POST",
+      body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
+    });
+  }
+
   createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {
     return this.request("/jobs", {
       method: "POST",

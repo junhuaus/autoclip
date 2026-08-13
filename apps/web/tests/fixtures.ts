@@ -30,6 +30,15 @@ export const project: ProjectSnapshot = {
     },
   ],
   current_user_role: "owner",
+  allowed_actions: [
+    "read",
+    "manage_members",
+    "run_pipeline",
+    "edit_clip",
+    "review_clip",
+    "render",
+    "deliver",
+  ],
 };
 
 export const completedRun: RunSnapshot = {

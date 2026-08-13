@@ -71,9 +71,18 @@ export interface ProjectSnapshot {
   owner: WorkspaceMember;
   members: WorkspaceMember[];
   current_user_role: WorkspaceRole;
+  allowed_actions: ProjectAction[];
 }
 
 export type WorkspaceRole = "owner" | "editor" | "reviewer" | "viewer";
+export type ProjectAction =
+  | "read"
+  | "manage_members"
+  | "run_pipeline"
+  | "edit_clip"
+  | "review_clip"
+  | "render"
+  | "deliver";
 
 export interface WorkspaceUser {
   user_id: string;

@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 
@@ -174,6 +174,92 @@ it("lets the owner add a project editor from the collaboration panel", async () 
       role: "editor",
     }),
   );
+});
+
+it("requires an explicit confirmation before transferring project ownership", async () => {
+  const editor = {
+    user_id: "editor-1",
+    username: "lin-editor",
+    display_name: "林编辑",
+    role: "editor" as const,
+  };
+  let transferredTo: unknown = null;
+  let projectView = { ...project, members: [...project.members, editor] };
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(projectView)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/clips", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+    http.post(
+      "/api/v1/projects/project-1/ownership-transfer",
+      async ({ request }) => {
+        transferredTo = await request.json();
+        projectView = {
+          ...projectView,
+          owner: { ...editor, role: "owner" },
+          members: [
+            { ...editor, role: "owner" },
+            { ...project.members[0], role: "editor" },
+          ],
+          current_user_role: "editor",
+          allowed_actions: ["read", "run_pipeline", "edit_clip", "render", "deliver"],
+        };
+        return HttpResponse.json({
+          schema_version: "1",
+          project_id: "project-1",
+          members: projectView.members,
+        });
+      },
+    ),
+  );
+  const user = userEvent.setup();
+
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "移交负责人" }));
+  expect(screen.getByRole("alertdialog", { name: "确认移交项目负责人" })).toHaveTextContent(
+    "你将变为编辑",
+  );
+  expect(transferredTo).toBeNull();
+  await user.click(screen.getByRole("button", { name: "确认移交" }));
+  await waitFor(() => expect(transferredTo).toEqual({ new_owner_user_id: "editor-1" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "＋ 添加成员" })).toBeNull());
+});
+
+it("uses server capabilities to keep a viewer read-only", async () => {
+  const viewerProject = {
+    ...project,
+    current_user_role: "viewer" as const,
+    allowed_actions: ["read"] as const,
+  };
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(viewerProject)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/clips", () =>
+      HttpResponse.json([structuredClone(clipSummary)]),
+    ),
+    http.get("/api/v1/clips/clip-1", () => HttpResponse.json(clipDetail)),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+  );
+  const user = userEvent.setup();
+
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  expect(await screen.findByText("只读 · 1 位成员")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "＋ 添加成员" })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("批量审核")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "取消处理" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "创建新交付版本" })).toBeDisabled();
+
+  await user.click(await screen.findByRole("button", { name: "审核和编辑" }));
+  const editorPanel = await screen.findByRole("region", { name: /原始高光标题/ });
+  expect(within(editorPanel).getByLabelText("标题")).toBeDisabled();
+  expect(within(editorPanel).getByRole("button", { name: "批准" })).toBeDisabled();
+  expect(within(editorPanel).getByRole("button", { name: "渲染审核代理" })).toBeDisabled();
 });
 
 it("submits selected candidates through one atomic batch endpoint", async () => {

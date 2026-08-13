@@ -196,6 +196,13 @@ def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
             assert editor_projects.status_code == 200
             assert [item["project_id"] for item in editor_projects.json()] == [project_id]
             assert editor_projects.json()[0]["current_user_role"] == "editor"
+            assert editor_projects.json()[0]["allowed_actions"] == [
+                "read",
+                "run_pipeline",
+                "edit_clip",
+                "render",
+                "deliver",
+            ]
             assert client.get("/api/v1/projects", headers=outsider_auth).json() == []
 
             forbidden = client.post(
@@ -208,7 +215,21 @@ def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
                 },
             )
             assert forbidden.status_code == 403
-            assert forbidden.json()["error"]["code"] == "PROJECT_PERMISSION_DENIED"
+            assert forbidden.json()["error"]["code"] == "PROJECT_ACTION_DENIED"
+
+            transferred = client.post(
+                f"/api/v1/projects/{project_id}/ownership-transfer",
+                headers=admin_auth,
+                json={"new_owner_user_id": added.json()["members"][1]["user_id"]},
+            )
+            assert transferred.status_code == 200
+            assert [member["role"] for member in transferred.json()["members"]] == [
+                "owner",
+                "editor",
+            ]
+            transferred_project = client.get(f"/api/v1/projects/{project_id}", headers=editor_auth)
+            assert transferred_project.json()["current_user_role"] == "owner"
+            assert transferred_project.json()["owner"]["username"] == "lin-editor"
     finally:
         runtime.close()
 

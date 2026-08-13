@@ -44,10 +44,10 @@ The existing dependency direction remains unchanged. New application services ow
 - [x] 2026-08-13 Add Argon2id password hashing and verification; salted verifier only, neutral login responses and secrecy tests.
 - [x] 2026-08-13 Add bootstrap administrator, login/logout/current-session, expiry, hashed opaque session storage, revocation, CSRF and persisted rate limiting.
 - [x] 2026-08-13 Add administrator user list/create/update/disable/reactivate/password-reset/system-role grant/revoke; forbid disabling/demoting the final enabled administrator.
-- [~] Add central authorization policy for system and Project roles. Role/action matrix and route enforcement are implemented; explicit audited administrator Project override remains pending.
-- [~] Add `viewer`, default-private visibility, ownership transfer and server-derived allowed actions/capabilities. Viewer/private are implemented; transfer and capability DTOs remain pending.
+- [~] Add central authorization policy for system and Project roles. Role/action matrix, route enforcement and client capability DTOs are implemented; explicit audited administrator Project override remains pending.
+- [x] 2026-08-13 Add `viewer`, default-private visibility, atomic ownership transfer and server-derived allowed actions/capabilities.
 - [x] 2026-08-13 Add Web login/logout and administrator console while retaining v0.1 token compatibility for CLI/API migration.
-- [~] Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy and legacy migration. Two-user private-resource/browser denial and PAT coverage remain pending.
+- [~] Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy, legacy migration and two-user private Project/media/ZIP denial. PAT coverage remains pending.
 - [x] 2026-08-13 Run Ruff/mypy/TypeScript/full Python/Web tests, inspect isolated login/admin UI without paid Provider work, review, commit `a5e52a3` and push. Real database login opt-in remains intentionally deferred.
 
 ### V2-M2 — Project lifecycle and production operations
@@ -135,6 +135,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: OWASP recommends Argon2id and HttpOnly/SameSite browser sessions. V2-M1 uses Argon2id at 64 MiB/time-cost 3, opaque random session tokens stored only as SHA-256 digests, and synchronizer CSRF tokens derived from the HttpOnly token.
 - 2026-08-13: `browser:control-in-app-browser` initialized successfully but `agent.browsers.list()` returned no browser instance. After following its troubleshooting instructions, an isolated host Chrome exercised login and administrator navigation and produced viewed screenshots; MCP Browser success is not claimed.
 - 2026-08-13: Full Python regression passed 569 tests and Web regression passed 25 tests after the first V2-M1 slice. Targeted migration/identity/authorization tests subsequently passed 21 tests after user-edit support was added.
+- 2026-08-13: Ownership transfer now updates both membership roles and `Project.owner_id` atomically, audits member/ownership changes with request correlation IDs, and exposes actions from the same server policy used by route enforcement. A known non-member receives 404 for private Project, committed media and Delivery ZIP IDs.
+- 2026-08-13: The real Chrome E2E originally expected the v0.1 shared-token settings flow. v0.2 correctly rendered login instead, so the E2E was migrated to a temporary bootstrap administrator password and then passed the real FastAPI/Worker/SQLite/FFmpeg flow. Full gates passed 570 Python tests, 27 Web tests, Mock Chrome E2E and real Chrome E2E.
 
 ## Decision Log
 
@@ -156,8 +158,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1 first checkpoint is `a5e52a3`. Resume with ownership transfer/capability DTOs, explicit audited administrator Project override and optional scoped PATs. Two-user private Project API isolation is covered; add private generated-media denial when the next real Project fixture is extended. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
+V2-M1 account checkpoint is `a5e52a3`; the subsequent documentation checkpoint is `06c10df`. The current worktree completes ownership transfer, capability DTOs/UI gating and two-user private generated-media/ZIP denial. Resume with explicit audited administrator Project override and optional scoped PATs, or start V2-M2 lifecycle if PATs are deliberately deferred. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
 
 ## Outcomes and Retrospective
 
-V2-M0 is complete at checkpoint `dfc1639`. V2-M1 checkpoint `a5e52a3` delivers the first account/admin/private-role slice without changing the v0.1 media facts or making a paid Provider call. Remaining V2-M1 governance work is explicit above. Primary documentation supports the later MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
+V2-M0 is complete at checkpoint `dfc1639`. V2-M1 now delivers accounts/admin, private-role isolation, atomic ownership transfer, audited collaboration changes and capability-driven UI without changing v0.1 media facts or making a paid Provider call. Remaining V2-M1 governance work is explicit above. Primary documentation supports the later MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.

@@ -41,6 +41,7 @@ from liveclip.api.schemas import (
     LoginResponse,
     ProjectMemberCreateRequest,
     ProjectMembersResponse,
+    ProjectOwnershipTransferRequest,
     ProviderHealthResponse,
     RenderCreateRequest,
     ReviewActionRequest,
@@ -494,13 +495,19 @@ def create_app(
         request: Request,
     ) -> ProjectMembersResponse:
         active = _runtime(request)
-        caller_user = _require_project_access(active, _caller(request), project_id)
+        caller_user = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action="manage_members",
+        )
         active.workspace_service.add_project_member(
             project_id=project_id,
             acting_user_id=caller_user.user_id,
             username=body.username,
             display_name=body.display_name,
             role=body.role,
+            correlation_id=_correlation_id(request),
         )
         return ProjectMembersResponse(
             project_id=project_id,
@@ -517,16 +524,46 @@ def create_app(
         request: Request,
     ) -> ProjectMembersResponse:
         active = _runtime(request)
-        caller_user = _require_project_access(active, _caller(request), project_id)
+        caller_user = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action="manage_members",
+        )
         active.workspace_service.remove_project_member(
             project_id=project_id,
             acting_user_id=caller_user.user_id,
             member_user_id=member_user_id,
+            correlation_id=_correlation_id(request),
         )
         return ProjectMembersResponse(
             project_id=project_id,
             members=active.workspace_service.list_project_members(project_id),
         )
+
+    @protected.post(
+        "/projects/{project_id}/ownership-transfer",
+        response_model=ProjectMembersResponse,
+    )
+    def transfer_project_ownership(
+        project_id: str,
+        body: ProjectOwnershipTransferRequest,
+        request: Request,
+    ) -> ProjectMembersResponse:
+        active = _runtime(request)
+        caller_user = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action="manage_members",
+        )
+        members = active.workspace_service.transfer_project_ownership(
+            project_id=project_id,
+            acting_user_id=caller_user.user_id,
+            new_owner_user_id=body.new_owner_user_id,
+            correlation_id=_correlation_id(request),
+        )
+        return ProjectMembersResponse(project_id=project_id, members=members)
 
     @protected.post(
         "/projects/{project_id}/runs",

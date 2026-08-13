@@ -35,6 +35,7 @@ GET    /projects/{project_id}
 GET    /projects/{project_id}/members
 POST   /projects/{project_id}/members
 DELETE /projects/{project_id}/members/{user_id}
+POST   /projects/{project_id}/ownership-transfer
 POST   /projects/{project_id}/runs
 GET    /runs/{run_id}
 POST   /runs/{run_id}/cancel
@@ -59,9 +60,9 @@ GET    /media/{asset_id}
 
 `GET /health` includes a credential-free startup Provider preflight. It reports the configured combined mode, ASR and LLM adapter names, independent readiness booleans, stable blocking issue codes and explicit Mock warnings. For example, a logged-in Codex editor without OpenRouter ASR configuration reports `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false`, `processing_ready=false`, and `OPENROUTER_ASR_NOT_CONFIGURED`. “Ready” means only that local configuration/executable/login preflight passed; it does not prove remote quota, model entitlement or service availability. It never returns a key, token, credential path or raw CLI output. The check is captured once at API startup so an unauthenticated health poll cannot repeatedly spawn the Codex CLI; restart `make dev` after changing `.env`/`.env.local` or Codex login.
 
-`GET /session` returns safe user identity, credential kind, expiry and—only for a cookie session—the CSRF value. Project DTOs include safe `owner`, `members`, `visibility` and `current_user_role` fields. Administrator user responses expose status and password-configured boolean but never hashes. `DELETE /admin/users/{id}` is a recoverable soft disable. The service refuses to disable/demote the last active administrator.
+`GET /session` returns safe user identity, credential kind, expiry and—only for a cookie session—the CSRF value. Project DTOs include safe `owner`, `members`, `visibility`, `current_user_role` and server-derived `allowed_actions` fields. The Web consumes these capabilities instead of maintaining another role matrix. Administrator user responses expose status and password-configured boolean but never hashes. `DELETE /admin/users/{id}` is a recoverable soft disable. The service refuses to disable/demote the last active administrator.
 
-`POST /projects/{id}/members` accepts an existing active `username`, compatibility `display_name`, and role `editor|reviewer|viewer`; it never creates or reactivates an account. Adding an existing member updates its Project role. `DELETE` removes only a non-owner member. Both require the current Project owner and otherwise return 403.
+`POST /projects/{id}/members` accepts an existing active `username`, compatibility `display_name`, and role `editor|reviewer|viewer`; it never creates or reactivates an account. Adding an existing member updates its Project role. `DELETE` removes only a non-owner member. `POST /projects/{id}/ownership-transfer` accepts an active member ID, atomically makes that member the unique owner and demotes the former owner to editor. All three operations require the current owner, write correlation-linked audit events and otherwise return 403.
 
 `POST /jobs` and `POST /projects/{id}/runs` return safe `503 PROVIDER_NOT_READY` before creating new work when the configured full processing chain is unavailable. A completed identical `Idempotency-Key` replay is resolved first and still returns its original 202 resource after readiness changes; conflicting reuse remains 409. The Web uses the same health contract to disable its start button. The ingest-only import route remains available as a separate operation and does not execute an LLM readiness/version probe; explicit Mock modes are runnable but health labels them with `MOCK_ASR_SELECTED` and/or `MOCK_LLM_SELECTED`.
 

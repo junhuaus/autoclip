@@ -1,22 +1,34 @@
 from __future__ import annotations
 
+import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 
 from liveclip.api.app import create_app
 from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings
-from liveclip.db.models import AuditEventRow, AuthSessionRow, ProjectMemberRow, WorkspaceUserRow
+from liveclip.db.models import (
+    AssetRow,
+    AuditEventRow,
+    AuthSessionRow,
+    DeliveryRow,
+    ProjectMemberRow,
+    TaskRow,
+    WorkspaceUserRow,
+)
+from liveclip.domain.state_transitions import AssetStatus, DeliveryStatus
 
 
 @pytest.mark.integration
 def test_admin_login_user_management_session_revocation_and_audit(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[2]
+    data_dir = tmp_path / "projects"
     settings = Settings(
-        data_dir=tmp_path / "projects",
+        data_dir=data_dir,
         allowed_media_roots_raw=str(tmp_path),
         ai_provider="mock",
         bootstrap_admin_password="administrator password 2026",
@@ -74,9 +86,7 @@ def test_admin_login_user_management_session_revocation_and_audit(tmp_path: Path
             )
             assert update_role.status_code == 200
             changed = next(
-                item
-                for item in update_role.json()["users"]
-                if item["user_id"] == editor["user_id"]
+                item for item in update_role.json()["users"] if item["user_id"] == editor["user_id"]
             )
             assert (changed["display_name"], changed["system_role"]) == (
                 "林主编",
@@ -122,6 +132,76 @@ def test_admin_login_user_management_session_revocation_and_audit(tmp_path: Path
             project_id = private_project.json()["project_id"]
             assert client.get(f"/api/v1/projects/{project_id}").json()["visibility"] == "private"
 
+            asset_id = "private-review-proxy"
+            delivery_asset_id = "private-delivery-zip"
+            delivery_id = "private-delivery"
+            asset_dir = data_dir / project_id / "test-assets"
+            asset_dir.mkdir(parents=True, exist_ok=True)
+            media_bytes = b"private project media bytes"
+            delivery_bytes = b"private project delivery bytes"
+            (asset_dir / "proxy.mp4").write_bytes(media_bytes)
+            (asset_dir / "delivery.zip").write_bytes(delivery_bytes)
+            now = datetime.now(UTC)
+            with runtime.engine.begin() as connection:
+                task_id = connection.scalar(
+                    select(TaskRow.id).where(
+                        TaskRow.pipeline_run_id == private_project.json()["run_id"]
+                    )
+                )
+                assert task_id is not None
+                connection.execute(
+                    insert(AssetRow),
+                    [
+                        {
+                            "id": asset_id,
+                            "project_id": project_id,
+                            "status": AssetStatus.COMMITTED.value,
+                            "kind": "review_proxy",
+                            "relative_path": "test-assets/proxy.mp4",
+                            "mime_type": "video/mp4",
+                            "input_fingerprint": "a" * 64,
+                            "sha256": hashlib.sha256(media_bytes).hexdigest(),
+                            "size_bytes": len(media_bytes),
+                            "committed_at": now,
+                            "created_at": now,
+                        },
+                        {
+                            "id": delivery_asset_id,
+                            "project_id": project_id,
+                            "status": AssetStatus.COMMITTED.value,
+                            "kind": "delivery_zip",
+                            "relative_path": "test-assets/delivery.zip",
+                            "mime_type": "application/zip",
+                            "input_fingerprint": "b" * 64,
+                            "sha256": hashlib.sha256(delivery_bytes).hexdigest(),
+                            "size_bytes": len(delivery_bytes),
+                            "committed_at": now,
+                            "created_at": now,
+                        },
+                    ],
+                )
+                connection.execute(
+                    insert(DeliveryRow).values(
+                        id=delivery_id,
+                        project_id=project_id,
+                        task_id=task_id,
+                        version=1,
+                        status=DeliveryStatus.SUCCEEDED.value,
+                        expected_revision_epoch=0,
+                        expected_generation=1,
+                        snapshot_fingerprint="c" * 64,
+                        directory_relative_path="deliveries/v001",
+                        zip_asset_id=delivery_asset_id,
+                        include_zip=True,
+                        created_at=now,
+                        completed_at=now,
+                    )
+                )
+            assert client.get(f"/api/v1/media/{asset_id}").content == media_bytes
+            assert (
+                client.get(f"/api/v1/deliveries/{delivery_id}/download").content == delivery_bytes
+            )
+
             client.patch(
                 f"/api/v1/admin/users/{editor['user_id']}",
                 headers={"X-CSRF-Token": csrf},
@@ -136,13 +216,18 @@ def test_admin_login_user_management_session_revocation_and_audit(tmp_path: Path
                 assert outsider.get("/api/v1/projects").json() == []
                 hidden = outsider.get(f"/api/v1/projects/{project_id}")
                 assert hidden.status_code == 404
+                assert outsider.get(f"/api/v1/media/{asset_id}").status_code == 404
+                assert outsider.get(f"/api/v1/deliveries/{delivery_id}/download").status_code == 404
 
             with runtime.engine.connect() as connection:
-                assert connection.scalar(
-                    select(func.count())
-                    .select_from(ProjectMemberRow)
-                    .where(ProjectMemberRow.project_id == project_id)
-                ) == 1
+                assert (
+                    connection.scalar(
+                        select(func.count())
+                        .select_from(ProjectMemberRow)
+                        .where(ProjectMemberRow.project_id == project_id)
+                    )
+                    == 1
+                )
 
         with runtime.engine.connect() as connection:
             stored_password = connection.scalar(

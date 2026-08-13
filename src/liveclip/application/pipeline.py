@@ -9,6 +9,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from liveclip.application.authorization import ProjectAction
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.domain.state_transitions import (
     FailureClass,
@@ -211,6 +212,7 @@ class ProjectSnapshot(BaseModel):
     owner: WorkspaceMember
     members: tuple[WorkspaceMember, ...]
     current_user_role: Literal["owner", "editor", "reviewer", "viewer"]
+    allowed_actions: tuple[ProjectAction, ...] = ()
 
 
 class LeaseIdentity(BaseModel):

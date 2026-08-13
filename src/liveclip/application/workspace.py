@@ -43,6 +43,7 @@ class WorkspaceRepository(Protocol):
         username: str,
         display_name: str,
         role: Literal["editor", "reviewer", "viewer"],
+        correlation_id: str | None = None,
     ) -> WorkspaceMembership: ...
 
     def remove_project_member(
@@ -51,7 +52,17 @@ class WorkspaceRepository(Protocol):
         project_id: str,
         acting_user_id: str,
         member_user_id: str,
+        correlation_id: str | None = None,
     ) -> None: ...
+
+    def transfer_project_ownership(
+        self,
+        *,
+        project_id: str,
+        acting_user_id: str,
+        new_owner_user_id: str,
+        correlation_id: str | None = None,
+    ) -> tuple[WorkspaceMembership, ...]: ...
 
 
 class WorkspaceService:
@@ -75,6 +86,7 @@ class WorkspaceService:
         username: str,
         display_name: str,
         role: Literal["editor", "reviewer", "viewer"],
+        correlation_id: str | None = None,
     ) -> WorkspaceMembership:
         return self._repository.add_project_member(
             project_id=project_id,
@@ -82,6 +94,7 @@ class WorkspaceService:
             username=username,
             display_name=display_name,
             role=role,
+            correlation_id=correlation_id,
         )
 
     def remove_project_member(
@@ -90,11 +103,28 @@ class WorkspaceService:
         project_id: str,
         acting_user_id: str,
         member_user_id: str,
+        correlation_id: str | None = None,
     ) -> None:
         self._repository.remove_project_member(
             project_id=project_id,
             acting_user_id=acting_user_id,
             member_user_id=member_user_id,
+            correlation_id=correlation_id,
+        )
+
+    def transfer_project_ownership(
+        self,
+        *,
+        project_id: str,
+        acting_user_id: str,
+        new_owner_user_id: str,
+        correlation_id: str | None = None,
+    ) -> tuple[WorkspaceMembership, ...]:
+        return self._repository.transfer_project_ownership(
+            project_id=project_id,
+            acting_user_id=acting_user_id,
+            new_owner_user_id=new_owner_user_id,
+            correlation_id=correlation_id,
         )
 
     def ensure_configured_users(self, usernames: tuple[str, ...]) -> None:
