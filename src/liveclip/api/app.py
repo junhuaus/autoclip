@@ -21,7 +21,11 @@ from liveclip.api.media import MediaRangeNotSatisfiable, stream_asset_response
 from liveclip.api.schemas import (
     AcceptedPipelineResponse,
     AcceptedTaskResponse,
+    AdminAuditEventsResponse,
     AdminPasswordResetRequest,
+    AdminProjectResponse,
+    AdminProjectsResponse,
+    AdminStorageCleanupRequest,
     AdminUserCreateRequest,
     AdminUserPatchRequest,
     AdminUsersResponse,
@@ -114,6 +118,14 @@ from liveclip.application.reviewing import (
     ReviewConflict,
     TranscriptSnapshot,
 )
+from liveclip.application.storage import (
+    ProjectPurgeCommand,
+    ProjectPurgePlan,
+    ProjectPurgeResult,
+    StorageCleanupResult,
+    StorageConflict,
+    StorageReport,
+)
 from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
@@ -139,6 +151,7 @@ def create_app(
     project_root: Path | None = None,
 ) -> FastAPI:
     configured = settings or get_settings()
+    configured_data_dir = configured.resolved_data_dir(project_root or Path.cwd())
     security = ApiSecurity(configured)
     provider_readiness = assess_provider_readiness(configured)
 
@@ -349,7 +362,7 @@ def create_app(
     def create_user(body: AdminUserCreateRequest, request: Request) -> AdminUsersResponse:
         active = _runtime(request)
         actor = _workspace_user_from_caller(active, _caller(request))
-        active.user_administration_service.create_user(
+        result = active.user_administration_service.create_user(
             actor=actor,
             username=body.username,
             display_name=body.display_name,
@@ -357,7 +370,7 @@ def create_app(
             password=body.password.get_secret_value(),
             correlation_id=_correlation_id(request),
         )
-        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+        return AdminUsersResponse(users=result.users)
 
     @protected.patch("/admin/users/{user_id}", response_model=AdminUsersResponse)
     def update_user(
@@ -367,7 +380,7 @@ def create_app(
     ) -> AdminUsersResponse:
         active = _runtime(request)
         actor = _workspace_user_from_caller(active, _caller(request))
-        active.user_administration_service.update_user(
+        result = active.user_administration_service.update_user(
             actor=actor,
             user_id=user_id,
             display_name=body.display_name,
@@ -375,19 +388,19 @@ def create_app(
             is_active=body.is_active,
             correlation_id=_correlation_id(request),
         )
-        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+        return AdminUsersResponse(users=result.users)
 
     @protected.delete("/admin/users/{user_id}", response_model=AdminUsersResponse)
     def disable_user(user_id: str, request: Request) -> AdminUsersResponse:
         active = _runtime(request)
         actor = _workspace_user_from_caller(active, _caller(request))
-        active.user_administration_service.update_user(
+        result = active.user_administration_service.update_user(
             actor=actor,
             user_id=user_id,
             is_active=False,
             correlation_id=_correlation_id(request),
         )
-        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+        return AdminUsersResponse(users=result.users)
 
     @protected.post(
         "/admin/users/{user_id}/reset-password",
@@ -400,13 +413,119 @@ def create_app(
     ) -> AdminUsersResponse:
         active = _runtime(request)
         actor = _workspace_user_from_caller(active, _caller(request))
-        active.user_administration_service.reset_password(
+        result = active.user_administration_service.reset_password(
             actor=actor,
             user_id=user_id,
             password=body.password.get_secret_value(),
             correlation_id=_correlation_id(request),
         )
-        return AdminUsersResponse(users=active.user_administration_service.list_users(actor))
+        return AdminUsersResponse(users=result.users)
+
+    @protected.get("/admin/projects", response_model=AdminProjectsResponse)
+    def list_administrative_projects(request: Request) -> AdminProjectsResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return AdminProjectsResponse(
+            projects=active.project_governance_service.list_projects(actor)
+        )
+
+    @protected.get(
+        "/admin/projects/{project_id}",
+        response_model=AdminProjectResponse,
+    )
+    def get_administrative_project(
+        project_id: str,
+        request: Request,
+    ) -> AdminProjectResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return AdminProjectResponse(
+            project=active.project_governance_service.get_project(actor, project_id)
+        )
+
+    @protected.post(
+        "/admin/projects/{project_id}/ownership-transfer",
+        response_model=AdminProjectResponse,
+    )
+    def transfer_project_ownership_administratively(
+        project_id: str,
+        body: ProjectOwnershipTransferRequest,
+        request: Request,
+    ) -> AdminProjectResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return AdminProjectResponse(
+            project=active.project_governance_service.transfer_project_ownership(
+                actor=actor,
+                project_id=project_id,
+                new_owner_user_id=body.new_owner_user_id,
+                correlation_id=_correlation_id(request),
+            )
+        )
+
+    @protected.get("/admin/audit-events", response_model=AdminAuditEventsResponse)
+    def list_administrative_audit_events(
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=200)] = 100,
+        project_id: Annotated[
+            str | None,
+            Query(max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+        ] = None,
+    ) -> AdminAuditEventsResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return AdminAuditEventsResponse(
+            events=active.project_governance_service.list_audit_events(
+                actor,
+                limit=limit,
+                project_id=project_id,
+            )
+        )
+
+    @protected.get("/admin/storage", response_model=StorageReport)
+    def get_storage_report(request: Request) -> StorageReport:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return active.storage_administration_service.report(actor)
+
+    @protected.post("/admin/storage/cleanup", response_model=StorageCleanupResult)
+    def cleanup_safe_storage(
+        _body: AdminStorageCleanupRequest,
+        request: Request,
+    ) -> StorageCleanupResult:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return active.storage_administration_service.cleanup_terminal_attempts(
+            actor,
+            correlation_id=_correlation_id(request),
+        )
+
+    @protected.get(
+        "/admin/storage/projects/{project_id}/purge-plan",
+        response_model=ProjectPurgePlan,
+    )
+    def get_project_purge_plan(project_id: str, request: Request) -> ProjectPurgePlan:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return active.storage_administration_service.project_purge_plan(actor, project_id)
+
+    @protected.post(
+        "/admin/storage/projects/{project_id}/purge",
+        response_model=ProjectPurgeResult,
+    )
+    def purge_archived_project(
+        project_id: str,
+        body: ProjectPurgeCommand,
+        request: Request,
+    ) -> ProjectPurgeResult:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return active.storage_administration_service.purge_project(
+            actor,
+            project_id,
+            body,
+            correlation_id=_correlation_id(request),
+        )
 
     @protected.post(
         "/jobs",
@@ -431,7 +550,11 @@ def create_app(
         created = active.pipeline_service.replay_pipeline(idempotency)
         if created is None:
             ensure_processing_ready(provider_readiness)
-            source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
+            source_path = resolve_allowed_source(
+                body.input_path,
+                configured.allowed_media_roots,
+                forbidden_roots=(configured_data_dir,),
+            )
             config = _pipeline_config(configured, body)
             created = active.pipeline_service.create_project_and_run(
                 source_path=source_path,
@@ -473,7 +596,11 @@ def create_app(
     ) -> AcceptedPipelineResponse:
         active = _runtime(request)
         caller = _caller(request)
-        source_path = resolve_allowed_source(body.input_path, configured.allowed_media_roots)
+        source_path = resolve_allowed_source(
+            body.input_path,
+            configured.allowed_media_roots,
+            forbidden_roots=(configured_data_dir,),
+        )
         created = active.pipeline_service.import_project(
             source_path=source_path,
             config=_pipeline_config(configured, body, run_scope="import"),
@@ -2033,6 +2160,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DeliveryConflict)
     @app.exception_handler(EditPackageConflict)
     @app.exception_handler(ReleaseConflict)
+    @app.exception_handler(StorageConflict)
     async def state_conflict_handler(request: Request, exc: Exception) -> JSONResponse:
         message = str(exc).strip()
         return _error_response(

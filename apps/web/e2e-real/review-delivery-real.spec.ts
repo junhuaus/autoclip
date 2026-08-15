@@ -391,4 +391,18 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   expect(deliveredProject.status).toBe("delivered");
   expect(deliveredProject.lifecycle).toBe("published");
   await page.screenshot({ path: testInfo.outputPath("delivered.png"), fullPage: true });
+
+  await page.getByRole("button", { name: "项目治理" }).click();
+  await expect(page.getByRole("heading", { name: "项目治理" })).toBeVisible();
+  await expect(page.getByText("普通“我的项目”仍只显示当前用户拥有或被分配的项目。")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "治理操作" })).toBeVisible();
+  await expect(page.locator(".governance-table tbody tr")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "安全与治理审计" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("admin-governance.png"), fullPage: true });
+
+  await page.getByRole("button", { name: "存储管理" }).click();
+  await expect(page.getByRole("heading", { name: "存储与保留" })).toBeVisible();
+  await expect(page.getByText("源视频只是只读引用，不在这里删除。")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "保留操作" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("admin-storage.png"), fullPage: true });
 });

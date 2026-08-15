@@ -18,6 +18,7 @@ from liveclip.application.clips import ClipQueryService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
 from liveclip.application.edit_packages import EditPackageService
+from liveclip.application.governance import ProjectGovernanceService
 from liveclip.application.identity import AuthenticationService, UserAdministrationService
 from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.offline_review import OfflineReviewPackageService
@@ -28,6 +29,7 @@ from liveclip.application.render_runner import RenderTaskRunner
 from liveclip.application.rendering import RenderProfile, RenderService
 from liveclip.application.reviewing import ReviewService
 from liveclip.application.stage_runner import StageTaskRunner
+from liveclip.application.storage import StorageAdministrationService
 from liveclip.application.workspace import WorkspaceService
 from liveclip.config import Settings
 from liveclip.db.assets import SqlAlchemyAssetStore
@@ -35,6 +37,7 @@ from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
 from liveclip.db.engine import create_sqlite_engine
+from liveclip.db.governance_repository import SqlAlchemyProjectGovernanceRepository
 from liveclip.db.identity_repository import SqlAlchemyIdentityRepository
 from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
@@ -44,6 +47,10 @@ from liveclip.db.release_repository import SqlAlchemyReleaseRepository
 from liveclip.db.render_repository import SqlAlchemyRenderRepository
 from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
+from liveclip.db.storage_repository import (
+    SqlAlchemyStorageAdministrationRepository,
+    recover_interrupted_project_purges,
+)
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.db.workspace_repository import SqlAlchemyWorkspaceRepository
 from liveclip.delivery.edit_package_task_handler import EditPackageTaskHandler
@@ -100,6 +107,8 @@ class LiveClipRuntime:
     workspace_service: WorkspaceService
     authentication_service: AuthenticationService
     user_administration_service: UserAdministrationService
+    project_governance_service: ProjectGovernanceService
+    storage_administration_service: StorageAdministrationService
 
     @classmethod
     def open(
@@ -118,6 +127,12 @@ class LiveClipRuntime:
                 engine,
                 project_root=project_root or _installed_project_root(),
             )
+            purge_recovery = recover_interrupted_project_purges(engine, data_dir=data_dir)
+            if purge_recovery[2]:
+                _LOGGER.warning(
+                    "project_purge_recovery incomplete inspected=%s recovered=%s failed=%s",
+                    *purge_recovery,
+                )
             cleanup_report = cleanup_terminal_attempt_worktrees(engine, data_dir=data_dir)
             if cleanup_report.failed:
                 _LOGGER.warning(
@@ -127,7 +142,10 @@ class LiveClipRuntime:
                     cleanup_report.failed,
                 )
             repository = SqlAlchemyPipelineRepository(engine)
-            service = PipelineService(repository)
+            service = PipelineService(
+                repository,
+                forbidden_source_roots=(data_dir,),
+            )
             project_management_service = ProjectManagementService(
                 SqlAlchemyProjectManagementRepository(engine)
             )
@@ -150,9 +168,13 @@ class LiveClipRuntime:
                 identity_repository,
                 session_ttl=timedelta(hours=settings.session_ttl_hours),
             )
+            project_governance_service = ProjectGovernanceService(
+                SqlAlchemyProjectGovernanceRepository(engine)
+            )
             queue = SQLiteTaskQueue(
                 engine,
                 lease_seconds=settings.worker_lease_seconds,
+                data_dir=data_dir,
             )
             asset_store = SqlAlchemyAssetStore(engine)
             stage_state_store = SqlAlchemyStageStateStore(engine)
@@ -250,6 +272,9 @@ class LiveClipRuntime:
                 fence_repository=SqlAlchemyOfflineReviewFenceRepository(engine),
                 data_dir=data_dir,
             )
+            storage_administration_service = StorageAdministrationService(
+                SqlAlchemyStorageAdministrationRepository(engine, data_dir=data_dir)
+            )
             return cls(
                 settings=settings,
                 data_dir=data_dir,
@@ -273,6 +298,8 @@ class LiveClipRuntime:
                 workspace_service=workspace_service,
                 authentication_service=authentication_service,
                 user_administration_service=user_administration_service,
+                project_governance_service=project_governance_service,
+                storage_administration_service=storage_administration_service,
             )
         except Exception:
             engine.dispose(close=True)

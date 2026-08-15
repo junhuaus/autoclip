@@ -10,16 +10,27 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 
 from liveclip.api.app import create_app
+from liveclip.application.edit_packages import EditPackageConflict
+from liveclip.application.pipeline import LeaseIdentity
+from liveclip.application.storage import ProjectPurgeCommand
+from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings
+from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
+from liveclip.db.models import ProjectRow, WorkspaceUserRow
+from liveclip.domain.project_lifecycle import ProjectLifecycle
 from liveclip.domain.state_transitions import (
     DeliveryStatus,
     EditPackageStatus,
+    FailureClass,
     PipelineRunStatus,
     RenderStatus,
+    TaskKind,
+    TaskStatus,
 )
 from liveclip.services.demo_media import create_demo_source
 
@@ -372,6 +383,11 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                 },
             )
             assert release_editor.status_code == 200
+            release_editor_user_id = next(
+                member["user_id"]
+                for member in release_editor.json()["members"]
+                if member["username"] == "release-editor"
+            )
 
             completed = runtime.stage_runner.run_until_terminal(
                 run_id,
@@ -1181,6 +1197,55 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert cancelled.status_code == 202
             assert cancelled.json()["status"] == "cancelled"
 
+            permission_package = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={
+                    **release_editor_auth,
+                    "Idempotency-Key": "api-edit-package-permission-fence-001",
+                },
+                json={
+                    "items": [{"clip_id": clip_id, "expected_revision": 3}],
+                    "preset": "clean_editing",
+                    "content": "metadata_only",
+                    "include_zip": True,
+                },
+            )
+            assert permission_package.status_code == 202
+            claimed_permission_package = runtime.task_queue.claim(
+                worker_id="api-permission-fence-worker",
+                task_kind=TaskKind.DELIVERY,
+            )
+            assert claimed_permission_package is not None
+            assert claimed_permission_package.target_id == permission_package.json()["resource_id"]
+            permission_lease = LeaseIdentity(
+                task_id=claimed_permission_package.task_id,
+                worker_id=claimed_permission_package.worker_id,
+                lease_token=claimed_permission_package.lease_token,
+            )
+            edit_package_repository = SqlAlchemyEditPackageRepository(runtime.engine)
+            permission_work = edit_package_repository.start_edit_package(permission_lease)
+            removed_release_editor = client.delete(
+                f"/api/v1/projects/{project_id}/members/{release_editor_user_id}",
+                headers=auth,
+            )
+            assert removed_release_editor.status_code == 200
+            with pytest.raises(EditPackageConflict, match=r"no longer has.*permission"):
+                edit_package_repository.assert_edit_package_current(
+                    permission_lease,
+                    permission_work,
+                )
+            failed_permission_task = runtime.task_queue.fail(
+                claimed_permission_package,
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code="EDIT_PACKAGE_PERMISSION_REVOKED",
+                safe_message="Edit-package permission was revoked during export",
+            )
+            assert failed_permission_task is TaskStatus.FAILED
+            assert (
+                edit_package_repository.get_edit_package(permission_work.edit_package_id).status
+                is EditPackageStatus.FAILED
+            )
+
             stale_package = client.post(
                 f"/api/v1/projects/{project_id}/edit-packages",
                 headers={**auth, "Idempotency-Key": "api-edit-package-stale-001"},
@@ -1235,6 +1300,49 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert token not in visible_payloads
             assert str(data_dir.resolve()) not in visible_payloads
             assert idempotency_key.encode() not in runtime.database_path.read_bytes()
+
+            with runtime.engine.begin() as connection:
+                administrator = connection.execute(
+                    select(
+                        WorkspaceUserRow.id,
+                        WorkspaceUserRow.username,
+                        WorkspaceUserRow.display_name,
+                    ).where(WorkspaceUserRow.username == "local-admin")
+                ).one()
+                connection.execute(
+                    update(ProjectRow)
+                    .where(ProjectRow.id == project_id)
+                    .values(
+                        lifecycle=ProjectLifecycle.ARCHIVED.value,
+                        lifecycle_before_archive=ProjectLifecycle.READY_TO_PUBLISH.value,
+                        archived_at=ProjectRow.updated_at,
+                        management_version=ProjectRow.management_version + 1,
+                    )
+                )
+            storage_actor = WorkspaceUser(
+                user_id=str(administrator.id),
+                username=str(administrator.username),
+                display_name=str(administrator.display_name),
+                system_role="administrator",
+            )
+            rich_purge_plan = runtime.storage_administration_service.project_purge_plan(
+                storage_actor,
+                project_id,
+            )
+            assert rich_purge_plan.ready is True
+            rich_purge = runtime.storage_administration_service.purge_project(
+                storage_actor,
+                project_id,
+                ProjectPurgeCommand(
+                    snapshot_fingerprint=rich_purge_plan.snapshot_fingerprint,
+                    project_name=rich_purge_plan.project_name,
+                    administrator_username=storage_actor.username,
+                    confirmation_phrase=rich_purge_plan.confirmation_phrase,
+                ),
+            )
+            assert rich_purge.source_media_preserved is True
+            assert source_path.is_file()
+            assert client.get(f"/api/v1/projects/{project_id}", headers=auth).status_code == 404
 
             def busy_failure(*, user_id: str | None = None) -> None:
                 del user_id

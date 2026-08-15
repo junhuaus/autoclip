@@ -13,7 +13,14 @@ from liveclip.application.pipeline import LeaseIdentity, PipelineRunConfig, Pipe
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.db.base import Base, new_id
 from liveclip.db.engine import create_sqlite_engine
-from liveclip.db.models import AssetRow, PipelineRunRow, SourceMediaRow, StageRunRow, TaskRow
+from liveclip.db.models import (
+    AssetRow,
+    PipelineRunRow,
+    ProjectRow,
+    SourceMediaRow,
+    StageRunRow,
+    TaskRow,
+)
 from liveclip.db.pipeline_repository import (
     DeterministicRetryRejected,
     PipelineConflict,
@@ -68,6 +75,33 @@ def _create(service: PipelineService, suffix: str = "a") -> tuple[str, str]:
         max_stage_retries=3,
     )
     return created.project_id, created.run_id
+
+
+def test_pipeline_service_rechecks_data_directory_source_before_database_insert(
+    tmp_path: Path,
+) -> None:
+    engine = create_sqlite_engine(tmp_path / "state" / "pipeline.sqlite3")
+    Base.metadata.create_all(engine)
+    data_dir = tmp_path / "projects"
+    source = data_dir / "existing-project" / "source.mp4"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"must survive cleanup")
+    service = PipelineService(
+        SqlAlchemyPipelineRepository(engine),
+        forbidden_source_roots=(data_dir,),
+    )
+    try:
+        with pytest.raises(ValueError, match="outside the LiveClip data"):
+            service.create_project_and_run(
+                source_path=source,
+                config=_config(),
+                max_stage_retries=3,
+            )
+        with engine.connect() as connection:
+            assert connection.scalar(select(func.count()).select_from(ProjectRow)) == 0
+        assert source.read_bytes() == b"must survive cleanup"
+    finally:
+        engine.dispose(close=True)
 
 
 def _identity(lease: TaskLease) -> LeaseIdentity:

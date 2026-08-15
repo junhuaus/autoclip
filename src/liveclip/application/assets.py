@@ -46,3 +46,28 @@ class AssetStore(Protocol):
         validation: dict[str, object],
         expected_sha256: str | None = None,
     ) -> AssetReservation: ...
+
+    def invalidate_attempt_assets(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        reason: str,
+    ) -> None: ...
+
+    def withdraw_attempt_publication(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        project_dir: Path,
+        relative_directory: str,
+        expected_identity: tuple[int, int],
+        reason: str,
+    ) -> bool:
+        """Atomically fence and quarantine one attempt-owned publication.
+
+        A false result means that the lease or Asset ownership was already
+        transferred, so the caller must leave the official directory alone.
+        """
+        ...

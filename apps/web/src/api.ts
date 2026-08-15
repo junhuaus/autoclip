@@ -1,6 +1,9 @@
 import type {
   AcceptedPipelineResponse,
   AcceptedTaskResponse,
+  AdminAuditEventsResponse,
+  AdminProjectResponse,
+  AdminProjectsResponse,
   AdminUserCreateRequest,
   AdminUserPatchRequest,
   AdminUsersResponse,
@@ -21,6 +24,8 @@ import type {
   ProjectManagementRequest,
   ProjectLifecycleRequest,
   ProjectActivityResponse,
+  ProjectPurgePlan,
+  ProjectPurgeResult,
   ProjectMemberCreateRequest,
   ProjectMembersResponse,
   QueuedRender,
@@ -37,6 +42,8 @@ import type {
   ReviewActionRequest,
   RunSnapshot,
   SessionResponse,
+  StorageCleanupResult,
+  StorageReport,
   TranscriptSnapshot,
 } from "./types";
 
@@ -200,6 +207,59 @@ export class LiveClipApiClient {
     return this.request(`/admin/users/${encodeURIComponent(userId)}/reset-password`, {
       method: "POST",
       body: JSON.stringify({ password }),
+    });
+  }
+
+  listAdminProjects(): Promise<AdminProjectsResponse> {
+    return this.request("/admin/projects");
+  }
+
+  getAdminProject(projectId: string): Promise<AdminProjectResponse> {
+    return this.request(`/admin/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  transferAdminProjectOwnership(
+    projectId: string,
+    newOwnerUserId: string,
+  ): Promise<AdminProjectResponse> {
+    return this.request(`/admin/projects/${encodeURIComponent(projectId)}/ownership-transfer`, {
+      method: "POST",
+      body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
+    });
+  }
+
+  listAdminAuditEvents(projectId?: string): Promise<AdminAuditEventsResponse> {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    return this.request(`/admin/audit-events${query}`);
+  }
+
+  storageReport(): Promise<StorageReport> {
+    return this.request("/admin/storage");
+  }
+
+  cleanupSafeStorage(): Promise<StorageCleanupResult> {
+    return this.request("/admin/storage/cleanup", {
+      method: "POST",
+      body: JSON.stringify({ confirmation: "CLEANUP_TERMINAL_ATTEMPTS" }),
+    });
+  }
+
+  projectPurgePlan(projectId: string): Promise<ProjectPurgePlan> {
+    return this.request(`/admin/storage/projects/${encodeURIComponent(projectId)}/purge-plan`);
+  }
+
+  purgeProject(
+    projectId: string,
+    command: {
+      snapshot_fingerprint: string;
+      project_name: string;
+      administrator_username: string;
+      confirmation_phrase: string;
+    },
+  ): Promise<ProjectPurgeResult> {
+    return this.request(`/admin/storage/projects/${encodeURIComponent(projectId)}/purge`, {
+      method: "POST",
+      body: JSON.stringify(command),
     });
   }
 

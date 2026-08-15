@@ -14,6 +14,8 @@ v0.1 remains the `0.1.0` compatibility baseline. v0.2 is delivered in independen
 
 Authentication becomes local account plus opaque server-side session. Password verifiers use a memory-hard scheme and never leave the credential service. Browser sessions use an HttpOnly SameSite cookie; personal access tokens are separate, hashed and scopeable for CLI/API. The v0.1 environment-token map is a bootstrap/migration bridge, not the long-term user store.
 
+Implementation status (2026-08-15): local accounts and opaque sessions are implemented. Scoped personal access-token lifecycle is still staged and is not claimed as tested; CLI/API compatibility currently retains only the bounded v0.1 environment-token bridge. When PAT work is authorized, it must follow the separate/hashed/scoped decision above rather than repurposing browser sessions.
+
 System role (`administrator`/ordinary member), Project role (`owner`, `editor`, `reviewer`, `viewer`) and Project visibility (`private`, `workspace`) are separate dimensions. New Projects are private. All resource authorization is centralized in application policy and applied before descendant repository access. Administrator override is explicit and audited.
 
 Project business lifecycle is stored separately from Pipeline, Render, Review and Delivery technical state. Central transitions reconcile technical facts but retain the human workflow states, actor, reason, assignment and due-date history.

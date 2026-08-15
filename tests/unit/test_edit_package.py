@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -10,11 +12,15 @@ import pytest
 from pydantic import ValidationError
 
 import liveclip.delivery.edit_package as edit_package_module
+from liveclip.application.assets import AssetReservation
 from liveclip.application.edit_packages import (
     EditPackageClipMetadata,
     EditPackageItem,
     EditPackageRequest,
+    EditPackageWork,
+    EditPackageWorkClip,
 )
+from liveclip.application.pipeline import LeaseIdentity
 from liveclip.delivery.edit_package import (
     EditPackageClipInput,
     EditPackageError,
@@ -23,9 +29,10 @@ from liveclip.delivery.edit_package import (
     validate_editor_video,
     validate_existing_edit_package,
 )
+from liveclip.delivery.edit_package_task_handler import EditPackageTaskHandler
 from liveclip.domain.edit_plan import CaptionCue
 from liveclip.domain.keywords import KeywordOccurrence, KeywordTimingPrecision
-from liveclip.domain.state_transitions import ReviewStatus
+from liveclip.domain.state_transitions import AssetStatus, ReviewStatus
 from liveclip.media.fingerprint import stream_sha256
 from liveclip.renderer.quality import (
     MediaValidationCancelled,
@@ -63,7 +70,11 @@ def _metadata() -> EditPackageClipMetadata:
     )
 
 
-def _metadata_only_package(tmp_path: Path):
+def _metadata_only_package(
+    tmp_path: Path,
+    *,
+    publication_fence: Callable[[], None] | None = None,
+):
     video = tmp_path / "unused-proxy.mp4"
     video.write_bytes(b"unused clean proxy")
     contact_sheet = tmp_path / "contact-sheet.png"
@@ -96,6 +107,7 @@ def _metadata_only_package(tmp_path: Path):
         clips=(clip,),
         include_zip=True,
         created_at=datetime(2026, 8, 15, tzinfo=UTC),
+        publication_fence=publication_fence,
     )
 
 
@@ -166,6 +178,225 @@ def test_existing_package_rejects_changed_member(tmp_path: Path) -> None:
             snapshot_fingerprint="b" * 64,
             include_zip=True,
         )
+
+
+def test_permission_loss_after_publication_withdraws_new_edit_package(
+    tmp_path: Path,
+) -> None:
+    calls = 0
+
+    def revoke_after_publish() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise PermissionError("requester permission was revoked")
+
+    with pytest.raises(PermissionError, match="permission was revoked"):
+        _metadata_only_package(
+            tmp_path,
+            publication_fence=revoke_after_publish,
+        )
+
+    packages = tmp_path / "project" / "edit-packages"
+    assert calls == 2
+    assert not (packages / "v001").exists()
+    assert not tuple(packages.glob(".v001-attempt-*"))
+
+
+class _NoCommitAssetStore:
+    def __init__(self, *, fail_on_commit: int = 1) -> None:
+        self.commits = 0
+        self.invalidations = 0
+        self.invalidated_asset_ids: tuple[str, ...] = ()
+        self._fail_on_commit = fail_on_commit
+
+    def reserve(
+        self,
+        _lease: LeaseIdentity,
+        *,
+        relative_path: str,
+        **_kwargs: object,
+    ) -> AssetReservation:
+        return AssetReservation(
+            asset_id=f"asset-{len(relative_path)}",
+            status=AssetStatus.PENDING,
+            relative_path=relative_path,
+            sha256=None,
+            size_bytes=None,
+        )
+
+    def commit(
+        self,
+        _lease: LeaseIdentity,
+        reservation: AssetReservation,
+        **kwargs: object,
+    ) -> AssetReservation:
+        self.commits += 1
+        if self.commits == self._fail_on_commit:
+            raise RuntimeError("simulated Asset commit failure")
+        expected_sha256 = kwargs.get("expected_sha256")
+        return AssetReservation(
+            asset_id=reservation.asset_id,
+            status=AssetStatus.COMMITTED,
+            relative_path=reservation.relative_path,
+            sha256=str(expected_sha256),
+            size_bytes=1,
+        )
+
+    def invalidate_attempt_assets(
+        self,
+        _lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        **_kwargs: object,
+    ) -> None:
+        self.invalidations += 1
+        self.invalidated_asset_ids = asset_ids
+
+    def withdraw_attempt_publication(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        project_dir: Path,
+        relative_directory: str,
+        **kwargs: object,
+    ) -> bool:
+        shutil.rmtree(project_dir / relative_directory)
+        self.invalidate_attempt_assets(lease, asset_ids, **kwargs)
+        return True
+
+
+def _edit_handler_work(
+    tmp_path: Path,
+) -> tuple[Path, Path, EditPackageWork, LeaseIdentity]:
+    data_dir = tmp_path / "projects"
+    project_id = "1" * 32
+    project_dir = data_dir / project_id
+    inputs = project_dir / "renders"
+    inputs.mkdir(parents=True)
+    video = inputs / "proxy.mp4"
+    video.write_bytes(b"unused clean proxy")
+    contact = inputs / "contact.png"
+    contact.write_bytes(b"contact sheet" * 100)
+    work = EditPackageWork(
+        edit_package_id="package_1",
+        task_id="task_1",
+        project_id=project_id,
+        project_name="直播项目",
+        owner_username="owner",
+        requested_by_user_id="editor_1",
+        requested_by_username="editor",
+        run_id="run_1",
+        generation=1,
+        revision_epoch=2,
+        version=1,
+        preset="clean_editing",
+        content="metadata_only",
+        include_zip=True,
+        snapshot_fingerprint="a" * 64,
+        package_fingerprint="b" * 64,
+        created_at=datetime(2026, 8, 15, tzinfo=UTC),
+        source_filename="直播源.ts",
+        source_fingerprint="c" * 64,
+        clips=(
+            EditPackageWorkClip(
+                ordinal=1,
+                edit_plan_revision_id="revision_1",
+                render_job_id="render_1",
+                metadata=_metadata(),
+                video_asset_id="video_1",
+                video_relative_path="renders/proxy.mp4",
+                video_sha256=stream_sha256(video),
+                video_size_bytes=video.stat().st_size,
+                contact_sheet_asset_id="contact_1",
+                contact_sheet_relative_path="renders/contact.png",
+                contact_sheet_sha256=stream_sha256(contact),
+                contact_sheet_size_bytes=contact.stat().st_size,
+            ),
+        ),
+    )
+    lease = LeaseIdentity(task_id="task_1", worker_id="worker_1", lease_token="lease_1")
+    return data_dir, project_dir, work, lease
+
+
+def test_task_handler_third_fence_withdraws_published_edit_package(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _edit_handler_work(tmp_path)
+    calls = 0
+
+    def revoke_at_handler_fence(
+        _lease: LeaseIdentity,
+        _work: EditPackageWork,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise PermissionError("requester permission was revoked")
+
+    assets = _NoCommitAssetStore()
+    handler = EditPackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=revoke_at_handler_fence,
+    )
+    with pytest.raises(PermissionError, match="permission was revoked"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    packages = project_dir / "edit-packages"
+    assert calls == 3
+    assert assets.commits == 0
+    assert assets.invalidations == 1
+    assert not (packages / "v001").exists()
+    assert not tuple(packages.glob(".v001-attempt-*"))
+
+
+def test_second_asset_commit_failure_withdraws_edit_package_and_both_reservations(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _edit_handler_work(tmp_path)
+    assets = _NoCommitAssetStore(fail_on_commit=2)
+    handler = EditPackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=lambda _lease, _work: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Asset commit failure"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    packages = project_dir / "edit-packages"
+    assert assets.commits == 2
+    assert assets.invalidations == 1
+    assert len(assets.invalidated_asset_ids) == 2
+    assert not (packages / "v001").exists()
+    assert not tuple(packages.glob(".v001-attempt-*"))
+
+
+def test_adopted_corrupt_edit_package_is_withdrawn_and_next_retry_rebuilds(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _edit_handler_work(tmp_path)
+    destination = project_dir / "edit-packages" / "v001"
+    destination.mkdir(parents=True)
+    (destination / "manifest.json").write_text("not-json", encoding="utf-8")
+    assets = _NoCommitAssetStore(fail_on_commit=999)
+    handler = EditPackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=lambda _lease, _work: None,
+    )
+
+    with pytest.raises(EditPackageError, match="manifest is invalid"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    assert assets.invalidations == 1
+    assert not destination.exists()
+    persistence = handler.execute(work, lease, cancel_requested=lambda: False)
+    assert destination.is_dir()
+    assert persistence.manifest_asset_id
+    assert persistence.zip_asset_id
+    assert assets.commits == 2
 
 
 def test_editor_video_validation_preserves_transient_failure_class(

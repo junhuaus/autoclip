@@ -5,6 +5,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from pathlib import Path
 
 from sqlalchemy import exists, func, insert, or_, select, true, update
 from sqlalchemy.engine import Connection, Engine, RowMapping
@@ -21,6 +22,7 @@ from liveclip.application.tasks import (
 from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
+    CandidateClipRow,
     DeliveryRow,
     EditPackageRow,
     PipelineRunRow,
@@ -45,6 +47,12 @@ from liveclip.domain.state_transitions import (
     transition_delivery,
     transition_edit_package,
     transition_render,
+)
+from liveclip.media.secure_files import (
+    SecureFileError,
+    create_directory_exclusive_no_follow,
+    ensure_directory_no_follow,
+    remove_tree_no_follow,
 )
 
 
@@ -112,13 +120,20 @@ class RecoveryResult:
 
 
 class SQLiteTaskQueue:
-    def __init__(self, engine: Engine, *, lease_seconds: int) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        lease_seconds: int,
+        data_dir: Path | None = None,
+    ) -> None:
         if not isinstance(engine, Engine):
             raise TypeError("task queue requires a SQLAlchemy Engine")
         if isinstance(lease_seconds, bool) or lease_seconds <= 0:
             raise ValueError("lease duration must be a positive integer")
         self._engine = engine
         self._lease_seconds = lease_seconds
+        self._data_dir = data_dir
 
     def enqueue(self, spec: TaskSpec, *, now: datetime | None = None) -> EnqueueResult:
         instant = _now(now)
@@ -225,6 +240,7 @@ class SQLiteTaskQueue:
         lease_token = secrets.token_hex(32)
         dependency = aliased(TaskRow)
         running_heavy = aliased(TaskRow)
+        created_attempt: tuple[Path, Path, tuple[int, int]] | None = None
         try:
             with begin_immediate(self._engine) as connection:
                 self._recover_expired(connection, instant)
@@ -302,6 +318,16 @@ class SQLiteTaskQueue:
                     .one()
                 )
                 attempt_number = int(claimed["attempt_count"])
+                temp_identity: str | None = None
+                if self._data_dir is not None:
+                    project_id = _project_id_for_claim(connection, claimed)
+                    created_attempt = _create_claim_attempt_worktree(
+                        self._data_dir,
+                        project_id=project_id,
+                        task_id=str(claimed["id"]),
+                        lease_token=lease_token,
+                    )
+                    temp_identity = _serialize_directory_identity(created_attempt[2])
                 connection.execute(
                     insert(TaskAttemptRow).values(
                         id=new_id(),
@@ -313,6 +339,7 @@ class SQLiteTaskQueue:
                         started_at=instant,
                         heartbeat_at=instant,
                         lease_expires_at=expires_at,
+                        temp_identity=temp_identity,
                     )
                 )
                 self._activate_stage_owner(connection, claimed, instant)
@@ -328,7 +355,11 @@ class SQLiteTaskQueue:
                     cancellation_requested=claimed["cancellation_requested_at"] is not None,
                 )
         except OperationalError as exc:
+            _cleanup_failed_claim_attempt(created_attempt)
             raise _queue_operational_error(exc) from exc
+        except Exception:
+            _cleanup_failed_claim_attempt(created_attempt)
+            raise
 
     def heartbeat(
         self,
@@ -1078,6 +1109,73 @@ def _now(value: datetime | None) -> datetime:
     instant = value or datetime.now(UTC)
     _require_aware(instant)
     return instant.astimezone(UTC)
+
+
+def _project_id_for_claim(connection: Connection, claimed: RowMapping) -> str:
+    pipeline_run_id = claimed["pipeline_run_id"]
+    if pipeline_run_id is not None:
+        project_id = connection.scalar(
+            select(PipelineRunRow.project_id).where(PipelineRunRow.id == pipeline_run_id)
+        )
+        if project_id is not None:
+            return str(project_id)
+    target_id = str(claimed["target_id"])
+    kind = TaskKind(str(claimed["kind"]))
+    project_ids: set[str] = set()
+    if kind == TaskKind.RENDER:
+        value = connection.scalar(
+            select(CandidateClipRow.project_id)
+            .join(RenderJobRow, RenderJobRow.candidate_clip_id == CandidateClipRow.id)
+            .where(RenderJobRow.id == target_id)
+        )
+        if value is not None:
+            project_ids.add(str(value))
+    elif kind == TaskKind.DELIVERY:
+        for model in (DeliveryRow, EditPackageRow, ReleasePackageRow):
+            value = connection.scalar(select(model.project_id).where(model.id == target_id))
+            if value is not None:
+                project_ids.add(str(value))
+    if len(project_ids) != 1:
+        raise TaskQueueError("claimed task has no unique project worktree scope")
+    return project_ids.pop()
+
+
+def _create_claim_attempt_worktree(
+    data_dir: Path,
+    *,
+    project_id: str,
+    task_id: str,
+    lease_token: str,
+) -> tuple[Path, Path, tuple[int, int]]:
+    try:
+        project_dir = ensure_directory_no_follow(data_dir / project_id)
+        attempt_root = ensure_directory_no_follow(project_dir / ".attempts")
+        task_root = ensure_directory_no_follow(attempt_root / task_id)
+        target = task_root / lease_token
+        identity = create_directory_exclusive_no_follow(target)
+    except SecureFileError as exc:
+        raise TaskQueueError("claimed task worktree could not be created safely") from exc
+    return target, attempt_root, identity
+
+
+def _serialize_directory_identity(identity: tuple[int, int]) -> str:
+    return f"{identity[0]}:{identity[1]}"
+
+
+def _cleanup_failed_claim_attempt(
+    created: tuple[Path, Path, tuple[int, int]] | None,
+) -> None:
+    if created is None:
+        return
+    target, attempt_root, identity = created
+    try:
+        remove_tree_no_follow(
+            target,
+            required_ancestor=attempt_root,
+            expected_identity=identity,
+        )
+    except SecureFileError:
+        return
 
 
 def _require_aware(value: datetime) -> None:

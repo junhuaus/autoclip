@@ -1,7 +1,9 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminUsers } from "./AdminUsers";
+import { AdminStorage } from "./AdminStorage";
+import { AdminGovernance } from "./AdminGovernance";
 import { LiveClipApiClient, errorMessage } from "./api";
 import { LoginPage } from "./LoginPage";
 import { PROJECT_LIFECYCLE_LABELS } from "./ProjectOperations";
@@ -10,7 +12,7 @@ import type { JobCreateRequest, ProjectLifecycle, ProjectSnapshot } from "./type
 import { EmptyState, ErrorState, LoadingState, StatusBadge, statusLabel } from "./ui";
 
 type ProjectFilter = "all" | "active" | "attention" | "review" | "publish" | "archived";
-type AppView = "projects" | "users";
+type AppView = "projects" | "governance" | "users" | "storage";
 
 const ROLE_LABELS = {
   owner: "负责人",
@@ -116,6 +118,7 @@ export function App() {
     event.preventDefault();
     queryClient.clear();
     setSelectedProjectId(null);
+    setActiveView("projects");
     setActiveToken(tokenDraft);
     setAuthVersion((value) => value + 1);
   };
@@ -154,11 +157,19 @@ export function App() {
   const publishCount = projects.filter((project) => ["ready_to_publish", "published"].includes(project.lifecycle)).length;
   const currentUser = sessionQuery.data?.user;
 
+  useEffect(() => {
+    if (currentUser && currentUser.system_role !== "administrator" && activeView !== "projects") {
+      setActiveView("projects");
+      setSelectedProjectId(null);
+      setShowSettings(false);
+    }
+  }, [activeView, currentUser]);
+
   if (sessionQuery.isPending && !activeToken) {
     return <main className="login-shell"><LoadingState>正在验证登录状态…</LoadingState></main>;
   }
   if (sessionQuery.isError && !activeToken) {
-    return <LoginPage api={api} onAuthenticated={() => { queryClient.clear(); setAuthVersion((value) => value + 1); }} />;
+    return <LoginPage api={api} onAuthenticated={() => { queryClient.clear(); setActiveView("projects"); setSelectedProjectId(null); setShowSettings(false); setAuthVersion((value) => value + 1); }} />;
   }
 
   return (
@@ -178,6 +189,8 @@ export function App() {
             我的项目
           </button>
           {currentUser?.system_role === "administrator" ? <button type="button" className={`nav-item ${activeView === "users" ? "nav-item-active" : ""}`} onClick={() => { setSelectedProjectId(null); setActiveView("users"); setShowSettings(false); }}>成员管理</button> : null}
+          {currentUser?.system_role === "administrator" ? <button type="button" className={`nav-item ${activeView === "governance" ? "nav-item-active" : ""}`} onClick={() => { setSelectedProjectId(null); setActiveView("governance"); setShowSettings(false); }}>项目治理</button> : null}
+          {currentUser?.system_role === "administrator" ? <button type="button" className={`nav-item ${activeView === "storage" ? "nav-item-active" : ""}`} onClick={() => { setSelectedProjectId(null); setActiveView("storage"); setShowSettings(false); }}>存储管理</button> : null}
         </nav>
         <div className="header-actions">
           <button type="button" className="button button-primary" onClick={() => setShowCreate(true)}>
@@ -204,7 +217,7 @@ export function App() {
           </div>
           <p><strong>当前成员：</strong>{currentUser?.display_name ?? "正在识别…"}</p>
           <p><strong>AI 处理：</strong>{processingReady ? "已就绪" : "需要配置"}</p>
-          {sessionQuery.data?.credential_kind === "session" ? <button type="button" className="button button-secondary" onClick={() => { void api.logout().finally(() => { queryClient.clear(); setAuthVersion((value) => value + 1); }); }}>退出登录</button> : null}
+          {sessionQuery.data?.credential_kind === "session" ? <button type="button" className="button button-secondary" onClick={() => { void api.logout().finally(() => { queryClient.clear(); setActiveView("projects"); setSelectedProjectId(null); setShowSettings(false); setAuthVersion((value) => value + 1); }); }}>退出登录</button> : null}
           <form className="token-form settings-token-form" onSubmit={applyToken}>
             <label>成员访问 Token
               <input type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.currentTarget.value)} placeholder="仅保存在当前页面内存" />
@@ -219,6 +232,10 @@ export function App() {
 
       {activeView === "users" ? (
         <AdminUsers api={api} />
+      ) : activeView === "governance" ? (
+        <AdminGovernance api={api} />
+      ) : activeView === "storage" ? (
+        <AdminStorage api={api} administratorUsername={currentUser?.username ?? ""} />
       ) : selectedProjectId ? (
         <ProjectWorkspace api={api} projectId={selectedProjectId} onBack={showProjectList} />
       ) : (

@@ -431,7 +431,10 @@ class SqlAlchemyPipelineRepository:
                     .join(ProjectMemberRow, ProjectMemberRow.user_id == WorkspaceUserRow.id)
                     .where(
                         ProjectMemberRow.project_id == project_id,
-                        WorkspaceUserRow.is_active.is_(True),
+                        or_(
+                            WorkspaceUserRow.is_active.is_(True),
+                            WorkspaceUserRow.id == str(project["owner_id"]),
+                        ),
                     )
                     .order_by(
                         case((ProjectMemberRow.role == "owner", 0), else_=1),

@@ -155,6 +155,75 @@ class PinnedRegularFile:
         self._identity = _file_identity(opened_now)
         os.fsync(self._parent_descriptor)
 
+    def publish_no_replace(self, destination: Path) -> None:
+        """Atomically rename this exact inode to a new, previously absent endpoint."""
+
+        self._require_open()
+        target = _absolute_path(destination)
+        destination_parent_fd, destination_name = _open_parent(target, create=True)
+        transferred_parent = False
+        try:
+            self.validate_binding()
+            expected_device_inode = (self.metadata.st_dev, self.metadata.st_ino)
+            expected_size = self.metadata.st_size
+            expected_sha256 = self.sha256()
+            try:
+                _rename_directory_no_replace(
+                    self._parent_descriptor,
+                    self._filename,
+                    destination_parent_fd,
+                    destination_name,
+                )
+            except FileExistsError as exc:
+                raise SecureFileError("publication destination already exists") from exc
+            try:
+                opened_now = os.fstat(self.descriptor)
+                current = os.stat(
+                    destination_name,
+                    dir_fd=destination_parent_fd,
+                    follow_symlinks=False,
+                )
+                if (
+                    not stat.S_ISREG(opened_now.st_mode)
+                    or not stat.S_ISREG(current.st_mode)
+                    or (opened_now.st_dev, opened_now.st_ino) != expected_device_inode
+                    or (current.st_dev, current.st_ino) != expected_device_inode
+                    or opened_now.st_size != expected_size
+                    or current.st_size != expected_size
+                    or _sha256_open_descriptor(self.descriptor) != expected_sha256
+                ):
+                    raise SecureFileError("published regular file identity or bytes changed")
+                os.fsync(self.descriptor)
+                os.fsync(self._parent_descriptor)
+                os.fsync(destination_parent_fd)
+            except (OSError, SecureFileError) as publication_error:
+                try:
+                    _withdraw_pinned_regular_publication(
+                        destination_parent_fd,
+                        destination_name,
+                        self.descriptor,
+                        expected=expected_device_inode,
+                    )
+                except (OSError, SecureFileError) as withdrawal_error:
+                    raise SecureFileError(
+                        "published regular file failure could not be withdrawn safely"
+                    ) from withdrawal_error
+                raise SecureFileError(
+                    "published database does not match the pinned source or was not durable"
+                ) from publication_error
+            previous_parent_fd = self._parent_descriptor
+            self.metadata = opened_now
+            self._identity = _file_identity(opened_now)
+            self._parent_descriptor = destination_parent_fd
+            self._filename = destination_name
+            self.path = target
+            transferred_parent = True
+            with suppress(OSError):
+                os.close(previous_parent_fd)
+        finally:
+            if not transferred_parent:
+                os.close(destination_parent_fd)
+
     def close(self) -> None:
         if self._closed:
             return
@@ -369,6 +438,43 @@ def require_directory_no_follow(path: Path) -> Path:
     descriptor = _open_directory(target, create=False, mode=0o700)
     os.close(descriptor)
     return target
+
+
+def directory_identity_no_follow(path: Path) -> tuple[int, int]:
+    """Return a stable device/inode identity for one symlink-free directory."""
+
+    target = _absolute_path(path)
+    descriptor = _open_directory(target, create=False, mode=0o700)
+    try:
+        return _directory_identity(os.fstat(descriptor))
+    finally:
+        os.close(descriptor)
+
+
+def interrupted_tree_cleanup_path(path: Path) -> Path:
+    """Return the deterministic private name used while deleting one tree."""
+
+    target = _absolute_path(path)
+    return target.with_name(f".{target.name}.cleanup")
+
+
+def cleanup_tree_identity_no_follow(path: Path) -> tuple[int, int] | None:
+    """Inspect an original or interrupted cleanup endpoint without links.
+
+    A process may terminate after the exact directory is renamed but before
+    recursive deletion completes. Exactly one of the public endpoint and its
+    deterministic cleanup endpoint may exist; both is a fail-closed conflict.
+    """
+
+    identities: list[tuple[int, int]] = []
+    for endpoint in (path, interrupted_tree_cleanup_path(path)):
+        try:
+            identities.append(directory_identity_no_follow(endpoint))
+        except SecureFileMissing:
+            continue
+    if len(identities) > 1:
+        raise SecureFileError("cleanup has competing original and interrupted endpoints")
+    return identities[0] if identities else None
 
 
 def read_regular_file_no_follow(path: Path, *, max_bytes: int) -> bytes:
@@ -595,6 +701,7 @@ def publish_directory_no_replace_no_follow(
     destination: Path,
     *,
     pinned_files: Mapping[str, PinnedFileEvidence] | None = None,
+    expected_identity: tuple[int, int] | None = None,
 ) -> None:
     """Atomically publish one pinned directory without replacing an existing name.
 
@@ -614,6 +721,8 @@ def publish_directory_no_replace_no_follow(
     try:
         source_fd, source_metadata = _open_directory_from_parent(source_parent_fd, source_name)
         source_identity = _directory_identity(source_metadata)
+        if expected_identity is not None and source_identity != expected_identity:
+            raise SecureFileError("directory publication source identity changed")
         destination_parent_fd, destination_name = _open_parent(destination_path, create=True)
         if expected_files:
             _validate_pinned_directory_files(
@@ -708,6 +817,13 @@ def remove_tree_no_follow(
         ancestor_fd = _open_directory(ancestor, create=False, mode=0o700)
     except SecureFileMissing:
         return False
+    try:
+        ancestor_metadata = os.fstat(ancestor_fd)
+        root_filesystem = _directory_filesystem_identity(ancestor_fd, ancestor_metadata)
+    except OSError as exc:
+        os.close(ancestor_fd)
+        raise SecureFileError("cleanup ancestor filesystem could not be inspected") from exc
+    visited: set[_DirectoryIdentity] = {_directory_identity(ancestor_metadata)}
     parent_fd = ancestor_fd
     opened_parents: list[int] = []
     try:
@@ -718,28 +834,75 @@ def remove_tree_no_follow(
                 return False
             except OSError as exc:
                 raise SecureFileError("cleanup directory chain is not symlink-free") from exc
+            child_metadata = os.fstat(child)
+            child_identity = _directory_identity(child_metadata)
+            if (
+                _directory_filesystem_identity(child, child_metadata) != root_filesystem
+                or child_identity in visited
+            ):
+                os.close(child)
+                raise SecureFileError(
+                    "cleanup directory chain crosses or repeats a filesystem boundary"
+                )
+            visited.add(child_identity)
             opened_parents.append(child)
             parent_fd = child
         name = relative.parts[-1]
+        quarantine_name = interrupted_tree_cleanup_path(target).name
+        resumed_cleanup = False
         try:
             target_fd, target_metadata = _open_directory_from_parent(parent_fd, name)
         except SecureFileMissing:
-            return False
+            try:
+                target_fd, target_metadata = _open_directory_from_parent(
+                    parent_fd,
+                    quarantine_name,
+                )
+            except SecureFileMissing:
+                return False
+            if expected_identity is None:
+                os.close(target_fd)
+                raise SecureFileError(
+                    "interrupted cleanup requires an expected directory identity"
+                ) from None
+            resumed_cleanup = True
+        if not resumed_cleanup:
+            try:
+                os.stat(quarantine_name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                os.close(target_fd)
+                raise SecureFileError("cleanup quarantine endpoint could not be inspected") from exc
+            else:
+                os.close(target_fd)
+                raise SecureFileError("cleanup has competing original and interrupted endpoints")
         target_identity = _directory_identity(target_metadata)
+        if (
+            _directory_filesystem_identity(target_fd, target_metadata) != root_filesystem
+            or target_identity in visited
+        ):
+            os.close(target_fd)
+            raise SecureFileError("cleanup target crosses or repeats a filesystem boundary")
+        visited.add(target_identity)
         if expected_identity is not None and target_identity != expected_identity:
             os.close(target_fd)
             raise SecureFileError("cleanup target is not the directory created by this operation")
-        quarantine_name = f".{name}.cleanup-{uuid.uuid4().hex}"
         try:
-            _publish_pinned_directory_no_replace(
-                source_parent_fd=parent_fd,
-                source_name=name,
-                destination_parent_fd=parent_fd,
-                destination_name=quarantine_name,
-                source_fd=target_fd,
-                expected=target_identity,
+            if not resumed_cleanup:
+                _publish_pinned_directory_no_replace(
+                    source_parent_fd=parent_fd,
+                    source_name=name,
+                    destination_parent_fd=parent_fd,
+                    destination_name=quarantine_name,
+                    source_fd=target_fd,
+                    expected=target_identity,
+                )
+            _remove_open_directory_contents(
+                target_fd,
+                root_filesystem=root_filesystem,
+                visited=visited,
             )
-            _remove_open_directory_contents(target_fd)
             _assert_stable_directory_endpoint(
                 parent_fd,
                 quarantine_name,
@@ -748,7 +911,19 @@ def remove_tree_no_follow(
             )
             os.rmdir(quarantine_name, dir_fd=parent_fd)
             os.fsync(parent_fd)
-        except OSError as exc:
+        except (OSError, SecureFileError) as exc:
+            try:
+                _restore_cleanup_quarantine(
+                    parent_fd,
+                    original_name=name,
+                    quarantine_name=quarantine_name,
+                    directory_fd=target_fd,
+                    expected=target_identity,
+                )
+            except SecureFileError as rollback_exc:
+                raise SecureFileError(
+                    "cleanup was interrupted and its quarantined remainder could not be restored"
+                ) from rollback_exc
             raise SecureFileError("cleanup target changed while being removed") from exc
         finally:
             os.close(target_fd)
@@ -759,7 +934,91 @@ def remove_tree_no_follow(
         os.close(ancestor_fd)
 
 
-def _remove_open_directory_contents(descriptor: int) -> None:
+def remove_directory_children_except_no_follow(
+    path: Path,
+    *,
+    preserve_names: frozenset[str],
+    expected_identity: tuple[int, int],
+) -> bool:
+    """Delete every child except an exact allowlist under one pinned directory."""
+
+    if any(
+        not name or name in {".", ".."} or "/" in name or "\\" in name for name in preserve_names
+    ):
+        raise SecureFileError("cleanup preserve name is invalid")
+    parent_fd, name = _open_parent(path, create=False)
+    target_fd: int | None = None
+    changed = False
+    try:
+        target_fd, target_metadata = _open_directory_from_parent(parent_fd, name)
+        target_identity = _directory_identity(target_metadata)
+        if target_identity != expected_identity:
+            raise SecureFileError("cleanup target is not the recorded attempt directory")
+        root_filesystem = _directory_filesystem_identity(target_fd, target_metadata)
+        visited = {target_identity}
+        with os.scandir(target_fd) as iterator:
+            entries = tuple(iterator)
+        for entry in entries:
+            entry_name = entry.name
+            metadata = entry.stat(follow_symlinks=False)
+            if entry_name in preserve_names:
+                if not stat.S_ISDIR(metadata.st_mode):
+                    raise SecureFileError("preserved cleanup entry is not a directory")
+                continue
+            if stat.S_ISDIR(metadata.st_mode):
+                child_fd, child_metadata = _open_directory_from_parent(target_fd, entry_name)
+                child_identity = _directory_identity(child_metadata)
+                try:
+                    if child_identity != _directory_identity(metadata):
+                        raise SecureFileError("cleanup child directory binding changed")
+                    if (
+                        _directory_filesystem_identity(child_fd, child_metadata) != root_filesystem
+                        or child_identity in visited
+                    ):
+                        raise SecureFileError(
+                            "cleanup child crosses or repeats a filesystem boundary"
+                        )
+                    visited.add(child_identity)
+                    _remove_open_directory_contents(
+                        child_fd,
+                        root_filesystem=root_filesystem,
+                        visited=visited,
+                    )
+                    _assert_stable_directory_endpoint(
+                        target_fd,
+                        entry_name,
+                        child_fd,
+                        expected=child_identity,
+                    )
+                finally:
+                    os.close(child_fd)
+                os.rmdir(entry_name, dir_fd=target_fd)
+            else:
+                os.unlink(entry_name, dir_fd=target_fd)
+            changed = True
+        _assert_stable_directory_endpoint(
+            parent_fd,
+            name,
+            target_fd,
+            expected=expected_identity,
+        )
+        os.fsync(target_fd)
+        os.fsync(parent_fd)
+        return changed
+    except OSError as exc:
+        raise SecureFileError("attempt cleanup changed while removing children") from exc
+    finally:
+        if target_fd is not None:
+            os.close(target_fd)
+        os.close(parent_fd)
+
+
+def _remove_open_directory_contents(
+    descriptor: int,
+    *,
+    root_filesystem: tuple[int, int | None],
+    visited: set[_DirectoryIdentity],
+) -> None:
     try:
         with os.scandir(descriptor) as iterator:
             entries = tuple(iterator)
@@ -772,13 +1031,24 @@ def _remove_open_directory_contents(descriptor: int) -> None:
         try:
             metadata = entry.stat(follow_symlinks=False)
             if stat.S_ISDIR(metadata.st_mode):
+                if metadata.st_dev != root_filesystem[0]:
+                    raise SecureFileError("cleanup refuses to cross a filesystem boundary")
                 child_fd, child_metadata = _open_directory_from_parent(descriptor, name)
                 child_identity = _directory_identity(child_metadata)
                 if child_identity != _directory_identity(metadata):
                     os.close(child_fd)
                     raise SecureFileError("cleanup child directory binding changed")
                 try:
-                    _remove_open_directory_contents(child_fd)
+                    if _directory_filesystem_identity(child_fd, child_metadata) != root_filesystem:
+                        raise SecureFileError("cleanup refuses to cross a filesystem boundary")
+                    if child_identity in visited:
+                        raise SecureFileError("cleanup refuses a repeated directory identity")
+                    visited.add(child_identity)
+                    _remove_open_directory_contents(
+                        child_fd,
+                        root_filesystem=root_filesystem,
+                        visited=visited,
+                    )
                     _assert_stable_directory_endpoint(
                         descriptor,
                         name,
@@ -796,6 +1066,69 @@ def _remove_open_directory_contents(descriptor: int) -> None:
         os.fsync(descriptor)
     except OSError as exc:
         raise SecureFileError("cleanup directory could not be synchronized") from exc
+
+
+def _restore_cleanup_quarantine(
+    parent_fd: int,
+    *,
+    original_name: str,
+    quarantine_name: str,
+    directory_fd: int,
+    expected: _DirectoryIdentity,
+) -> None:
+    """Restore an interrupted deterministic quarantine when it still belongs to us."""
+
+    try:
+        _assert_stable_directory_endpoint(
+            parent_fd,
+            quarantine_name,
+            directory_fd,
+            expected=expected,
+        )
+    except SecureFileError:
+        # The rename may have failed before publication; the original endpoint
+        # must then still be the exact pinned directory.
+        _assert_stable_directory_endpoint(
+            parent_fd,
+            original_name,
+            directory_fd,
+            expected=expected,
+        )
+        return
+    try:
+        os.stat(original_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        pass
+    else:
+        raise SecureFileError("cleanup original endpoint was recreated during rollback")
+    try:
+        os.rename(
+            quarantine_name,
+            original_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        _assert_stable_directory_endpoint(
+            parent_fd,
+            original_name,
+            directory_fd,
+            expected=expected,
+        )
+        os.fsync(parent_fd)
+    except OSError as exc:
+        raise SecureFileError("cleanup quarantine could not be rolled back") from exc
+
+
+def _directory_filesystem_identity(
+    descriptor: int,
+    metadata: os.stat_result,
+) -> tuple[int, int | None]:
+    try:
+        filesystem = os.fstatvfs(descriptor)
+    except OSError as exc:
+        raise SecureFileError("cleanup filesystem identity could not be inspected") from exc
+    fsid = getattr(filesystem, "f_fsid", None)
+    return metadata.st_dev, int(fsid) if fsid is not None else None
 
 
 def _open_parent(path: Path, *, create: bool) -> tuple[int, str]:
@@ -1087,24 +1420,25 @@ def _publish_pinned_directory_no_replace(
             source_fd,
             expected=expected,
         )
-    except SecureFileError as binding_error:
+        os.fsync(source_fd)
+        os.fsync(source_parent_fd)
+        os.fsync(destination_parent_fd)
+    except (OSError, SecureFileError) as publication_error:
         try:
-            _rollback_unexpected_directory_publication(
+            _rollback_pinned_directory_after_content_failure(
                 source_parent_fd=source_parent_fd,
+                source_name=source_name,
                 destination_parent_fd=destination_parent_fd,
                 destination_name=destination_name,
                 expected=expected,
             )
         except (OSError, SecureFileError) as rollback_error:
             raise SecureFileError(
-                "unexpected directory publication could not be rolled back safely"
+                "published directory failure could not be rolled back safely"
             ) from rollback_error
         raise SecureFileError(
-            "published directory does not match the pinned source"
-        ) from binding_error
-    os.fsync(source_fd)
-    os.fsync(source_parent_fd)
-    os.fsync(destination_parent_fd)
+            "published directory does not match the pinned source or was not durable"
+        ) from publication_error
 
 
 def _rollback_pinned_directory_after_content_failure(
@@ -1203,6 +1537,65 @@ def _rollback_unexpected_directory_publication(
         raise SecureFileError("unexpected directory remained at the publication destination")
     os.fsync(source_parent_fd)
     os.fsync(destination_parent_fd)
+
+
+def _quarantine_unexpected_regular_publication(parent_fd: int, name: str) -> None:
+    """Remove an untrusted post-rename endpoint from the official destination name."""
+
+    try:
+        os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    quarantine_name = f".{name}.rejected-{uuid.uuid4().hex}"
+    try:
+        _rename_directory_no_replace(parent_fd, name, parent_fd, quarantine_name)
+        os.fsync(parent_fd)
+    except OSError as exc:
+        raise SecureFileError("unexpected regular publication could not be quarantined") from exc
+
+
+def _withdraw_pinned_regular_publication(
+    parent_fd: int,
+    name: str,
+    descriptor: int,
+    *,
+    expected: tuple[int, int],
+) -> None:
+    """Withdraw only the published pinned inode from an official endpoint."""
+
+    try:
+        opened = os.fstat(descriptor)
+        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise SecureFileError("published regular file could not be inspected") from exc
+    if (
+        not stat.S_ISREG(opened.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or (opened.st_dev, opened.st_ino) != expected
+        or (current.st_dev, current.st_ino) != expected
+    ):
+        _quarantine_unexpected_regular_publication(parent_fd, name)
+        raise SecureFileError("publication endpoint changed while it was withdrawn")
+    try:
+        os.unlink(name, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+    except OSError as exc:
+        raise SecureFileError(
+            "published regular file withdrawal was not durably confirmed"
+        ) from exc
+
+
+def _sha256_open_descriptor(descriptor: int) -> str:
+    digest = hashlib.sha256()
+    offset = 0
+    while True:
+        block = os.pread(descriptor, 1024 * 1024, offset)
+        if not block:
+            return digest.hexdigest()
+        digest.update(block)
+        offset += len(block)
 
 
 def _assert_stable_directory_endpoint(

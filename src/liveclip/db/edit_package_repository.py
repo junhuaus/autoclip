@@ -305,12 +305,21 @@ class SqlAlchemyEditPackageRepository:
                 raise EditPackageConflict("edit package is not queued")
             return work
 
-    def assert_edit_package_current(self, work: EditPackageWork) -> None:
+    def assert_edit_package_current(
+        self,
+        lease: LeaseIdentity,
+        work: EditPackageWork,
+    ) -> None:
+        now = datetime.now(UTC)
         with self._engine.connect() as connection:
             task = connection.execute(
                 select(TaskRow.status, TaskRow.input_fingerprint).where(
+                    TaskRow.id == lease.task_id,
                     TaskRow.id == work.task_id,
                     TaskRow.target_id == work.edit_package_id,
+                    TaskRow.worker_id == lease.worker_id,
+                    TaskRow.lease_token == lease.lease_token,
+                    TaskRow.lease_expires_at > now,
                     TaskRow.cancellation_requested_at.is_(None),
                 )
             ).one_or_none()

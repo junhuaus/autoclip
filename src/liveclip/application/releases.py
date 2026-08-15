@@ -395,6 +395,7 @@ class ReleasePackagePersistence:
     zip_asset_id: str | None
     manifest_sha256: str
     zip_sha256: str | None
+    directory_identity: tuple[int, int] | None = None
 
 
 class ReleaseRepository(Protocol):

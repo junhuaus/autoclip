@@ -7,14 +7,18 @@ from enum import StrEnum
 from liveclip.application.deliveries import DeliveryConflict, DeliveryRepository, DeliverySnapshot
 from liveclip.application.edit_packages import (
     EditPackageConflict,
+    EditPackagePersistence,
     EditPackageRepository,
     EditPackageSnapshot,
+    EditPackageWork,
 )
 from liveclip.application.lease_monitor import LeaseMonitor
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.application.releases import (
     ReleaseConflict,
+    ReleasePackagePersistence,
     ReleasePackageSnapshot,
+    ReleasePackageWork,
     ReleaseRepository,
 )
 from liveclip.application.render_runner import RenderTaskQueue
@@ -258,6 +262,7 @@ class DeliveryTaskRunner:
             thread_name=f"liveclip-edit-package-lease-{lease.task_id[:8]}",
         )
         monitor.start()
+        persistence = None
         try:
             persistence = handler.execute(
                 work,
@@ -266,6 +271,7 @@ class DeliveryTaskRunner:
             )
             monitor.refresh()
             if monitor.cancel_requested:
+                self._withdraw_edit_package(handler, work, identity, persistence)
                 return (
                     DeliveryRunOutcome.CANCELLED
                     if self._queue.acknowledge_cancel(lease)
@@ -275,6 +281,7 @@ class DeliveryTaskRunner:
                 return DeliveryRunOutcome.LOST_LEASE
             if repository.complete_edit_package(identity, work, persistence):
                 return DeliveryRunOutcome.SUCCEEDED
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return DeliveryRunOutcome.LOST_LEASE
         except EditPackageTaskCancelled:
             return (
@@ -283,6 +290,7 @@ class DeliveryTaskRunner:
                 else DeliveryRunOutcome.LOST_LEASE
             )
         except OSError:
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.TRANSIENT,
@@ -290,6 +298,7 @@ class DeliveryTaskRunner:
                 safe_message="The edit package could not be written and may be retried",
             )
         except EditPackageTransientError:
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.TRANSIENT,
@@ -302,6 +311,7 @@ class DeliveryTaskRunner:
                 type(exc).__name__,
                 str(exc),
             )
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.DETERMINISTIC,
@@ -313,6 +323,7 @@ class DeliveryTaskRunner:
                 "edit_package_validation_failed error_type=%s",
                 type(exc).__name__,
             )
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.DETERMINISTIC,
@@ -320,6 +331,7 @@ class DeliveryTaskRunner:
                 safe_message="The edit package did not pass deterministic validation",
             )
         except Exception:
+            self._withdraw_edit_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.DETERMINISTIC,
@@ -360,6 +372,7 @@ class DeliveryTaskRunner:
             thread_name=f"liveclip-release-package-lease-{lease.task_id[:8]}",
         )
         monitor.start()
+        persistence = None
         try:
             persistence = handler.execute(
                 work,
@@ -368,6 +381,7 @@ class DeliveryTaskRunner:
             )
             monitor.refresh()
             if monitor.cancel_requested:
+                self._withdraw_release_package(handler, work, identity, persistence)
                 return (
                     DeliveryRunOutcome.CANCELLED
                     if self._queue.acknowledge_cancel(lease)
@@ -377,6 +391,7 @@ class DeliveryTaskRunner:
                 return DeliveryRunOutcome.LOST_LEASE
             if repository.complete_release_package(identity, work, persistence):
                 return DeliveryRunOutcome.SUCCEEDED
+            self._withdraw_release_package(handler, work, identity, persistence)
             return DeliveryRunOutcome.LOST_LEASE
         except ReleasePackageTaskCancelled:
             return (
@@ -385,6 +400,7 @@ class DeliveryTaskRunner:
                 else DeliveryRunOutcome.LOST_LEASE
             )
         except OSError:
+            self._withdraw_release_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.TRANSIENT,
@@ -392,6 +408,7 @@ class DeliveryTaskRunner:
                 safe_message="The release package could not be written and may be retried",
             )
         except ReleasePackageTransientError:
+            self._withdraw_release_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.TRANSIENT,
@@ -404,6 +421,7 @@ class DeliveryTaskRunner:
                 type(exc).__name__,
                 str(exc),
             )
+            self._withdraw_release_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.DETERMINISTIC,
@@ -411,6 +429,7 @@ class DeliveryTaskRunner:
                 safe_message="The release package did not pass deterministic validation",
             )
         except Exception:
+            self._withdraw_release_package(handler, work, identity, persistence)
             return self._fail(
                 lease,
                 failure_class=FailureClass.DETERMINISTIC,
@@ -419,6 +438,40 @@ class DeliveryTaskRunner:
             )
         finally:
             monitor.stop()
+
+    @staticmethod
+    def _withdraw_edit_package(
+        handler: EditPackageTaskHandler,
+        work: EditPackageWork,
+        identity: LeaseIdentity,
+        persistence: EditPackagePersistence | None,
+    ) -> None:
+        if persistence is None:
+            return
+        try:
+            handler.withdraw(work, identity, persistence)
+        except Exception as exc:
+            logger.error(
+                "edit_package_withdrawal_failed error_type=%s",
+                type(exc).__name__,
+            )
+
+    @staticmethod
+    def _withdraw_release_package(
+        handler: ReleasePackageTaskHandler,
+        work: ReleasePackageWork,
+        identity: LeaseIdentity,
+        persistence: ReleasePackagePersistence | None,
+    ) -> None:
+        if persistence is None:
+            return
+        try:
+            handler.withdraw(work, identity, persistence)
+        except Exception as exc:
+            logger.error(
+                "release_package_withdrawal_failed error_type=%s",
+                type(exc).__name__,
+            )
 
     def _fail(
         self,

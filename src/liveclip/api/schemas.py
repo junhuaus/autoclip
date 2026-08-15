@@ -12,6 +12,7 @@ from liveclip.application.edit_packages import (
     EditPackageRequest,
     EditPackageSnapshot,
 )
+from liveclip.application.governance import AdministrativeAuditEvent, AdminProjectSnapshot
 from liveclip.application.identity import ManagedUser
 from liveclip.application.projects import ProjectActivity
 from liveclip.application.releases import (
@@ -290,6 +291,31 @@ class AdminUserPatchRequest(ApiRequestModel):
 
 class AdminPasswordResetRequest(ApiRequestModel):
     password: SecretStr = Field(min_length=12, max_length=128)
+
+
+class AdminProjectsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    projects: tuple[AdminProjectSnapshot, ...]
+
+
+class AdminProjectResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    project: AdminProjectSnapshot
+
+
+class AdminAuditEventsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    events: tuple[AdministrativeAuditEvent, ...]
+
+
+class AdminStorageCleanupRequest(ApiRequestModel):
+    confirmation: Literal["CLEANUP_TERMINAL_ATTEMPTS"]
 
 
 class AcceptedPipelineResponse(BaseModel):

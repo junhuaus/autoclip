@@ -183,6 +183,147 @@ export interface AdminUsersResponse {
   users: ManagedUser[];
 }
 
+export interface AdminProjectMember extends WorkspaceMember {
+  is_active: boolean;
+}
+
+export interface AdminProjectSnapshot {
+  project_id: string;
+  name: string;
+  source_filename: string;
+  pipeline_status: PipelineRunStatus | null;
+  current_run_id: string | null;
+  generation: number;
+  visibility: "private" | "workspace";
+  lifecycle: ProjectLifecycle;
+  management_version: number;
+  assignee: AdminProjectMember | null;
+  priority: ProjectPriority;
+  due_at: string | null;
+  updated_at: string | null;
+  owner: AdminProjectMember;
+  members: AdminProjectMember[];
+  administrative_context: true;
+  allowed_governance_actions: Array<"view" | "transfer_ownership">;
+}
+
+export interface AdminProjectsResponse {
+  schema_version: "1";
+  projects: AdminProjectSnapshot[];
+}
+
+export interface AdminProjectResponse {
+  schema_version: "1";
+  project: AdminProjectSnapshot;
+}
+
+export interface AdminAuditEvent {
+  event_id: string;
+  actor_username: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  project_id: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  correlation_id: string | null;
+  created_at: string;
+}
+
+export interface AdminAuditEventsResponse {
+  schema_version: "1";
+  events: AdminAuditEvent[];
+}
+
+export interface ProjectStorageUsage {
+  project_id: string;
+  project_name: string;
+  lifecycle: string;
+  actual_bytes: number;
+  actual_file_count: number;
+  tracked_asset_bytes: number;
+  stale_render_asset_bytes: number;
+  orphan_asset_bytes: number;
+  pending_asset_bytes: number;
+  untracked_bytes: number;
+  untracked_file_count: number;
+  missing_committed_asset_count: number;
+  unsafe_entry_count: number;
+  source_reference_bytes: number;
+}
+
+export interface StorageReport {
+  schema_version: "1";
+  scanned_at: string;
+  filesystem_capacity_bytes: number;
+  filesystem_free_bytes: number;
+  data_directory_bytes: number;
+  database_bytes: number;
+  migration_backup_bytes: number;
+  database_backup_bytes: number;
+  purge_quarantine_bytes: number;
+  purge_quarantine_file_count: number;
+  project_directory_bytes: number;
+  unknown_project_directory_bytes: number;
+  unknown_project_file_count: number;
+  other_bytes: number;
+  unsafe_entry_count: number;
+  projects: ProjectStorageUsage[];
+  policy: {
+    automatic_project_purge: false;
+    source_media_deletion: false;
+    safe_cleanup_committed_artifact_deletion: false;
+    safe_cleanup_scope: "terminal_attempt_worktrees_and_completed_purge_quarantine";
+    archive_retains_artifacts: true;
+    destructive_project_purge_available: true;
+    purge_requires_archived_project: true;
+    purge_creates_database_backup: true;
+  };
+}
+
+export interface StorageCleanupResult {
+  schema_version: "1";
+  inspected_attempts: number;
+  cleaned_attempts: number;
+  failed_attempts: number;
+  inspected_purge_quarantines: number;
+  cleaned_purge_quarantines: number;
+  failed_purge_quarantines: number;
+  report: StorageReport;
+}
+
+export interface ProjectPurgePlan {
+  schema_version: "1";
+  project_id: string;
+  project_name: string;
+  lifecycle: string;
+  management_version: number;
+  generated_bytes: number;
+  generated_file_count: number;
+  unsafe_entry_count: number;
+  source_filename: string | null;
+  source_media_preserved: true;
+  active_run_count: number;
+  active_task_count: number;
+  blockers: string[];
+  ready: boolean;
+  snapshot_fingerprint: string;
+  confirmation_phrase: string;
+}
+
+export interface ProjectPurgeResult {
+  schema_version: "1";
+  project_id: string;
+  project_name: string;
+  purged_at: string;
+  removed_generated_bytes: number;
+  removed_generated_file_count: number;
+  source_media_preserved: true;
+  database_backup_filename: string;
+  database_backup_sha256: string;
+  filesystem_cleanup_pending: boolean;
+}
+
 export interface AdminUserCreateRequest {
   username: string;
   display_name: string;

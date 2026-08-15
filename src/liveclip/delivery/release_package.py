@@ -48,6 +48,7 @@ from liveclip.media.secure_files import (
     SecureFileError,
     capture_pinned_file_evidence,
     create_directory_exclusive_no_follow,
+    directory_identity_no_follow,
     ensure_directory_no_follow,
     publish_directory_no_replace_no_follow,
     publish_regular_file_immutable_no_follow,
@@ -76,6 +77,7 @@ class ReleasePackageResult(BaseModel):
     manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     zip_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     member_sha256: dict[str, str]
+    directory_identity: tuple[int, int] | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def validate_evidence(self) -> ReleasePackageResult:
@@ -128,6 +130,7 @@ def create_release_package(
             raise ReleasePackageError(
                 "release package attempt could not be created safely"
             ) from exc
+        published = False
         try:
             result = _build_release_package(
                 temporary=temporary,
@@ -151,12 +154,15 @@ def create_release_package(
                         destination,
                         pinned_files=pinned,
                     )
+                    published = True
+                    if publication_fence is not None:
+                        publication_fence()
             except SecureFileError as exc:
                 raise ReleasePackageError("release package could not be published safely") from exc
         except Exception:
             try:
                 remove_tree_no_follow(
-                    temporary,
+                    destination if published else temporary,
                     required_ancestor=item_dir,
                     expected_identity=temporary_identity,
                 )
@@ -172,6 +178,7 @@ def create_release_package(
             "directory": destination,
             "manifest_path": destination / "manifest.json",
             "zip_path": (destination / release_archive_name(work) if work.include_zip else None),
+            "directory_identity": temporary_identity,
         }
     )
 
@@ -307,6 +314,7 @@ def validate_existing_release_package(
         manifest_sha256=manifest_sha256,
         zip_sha256=zip_sha256,
         member_sha256=member_hashes,
+        directory_identity=directory_identity_no_follow(destination),
     )
 
 

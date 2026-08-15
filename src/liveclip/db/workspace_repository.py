@@ -324,7 +324,11 @@ class SqlAlchemyWorkspaceRepository:
             project_update = connection.execute(
                 update(ProjectRow)
                 .where(ProjectRow.id == project_id, ProjectRow.owner_id == acting_user_id)
-                .values(owner_id=new_owner_user_id, updated_at=now)
+                .values(
+                    owner_id=new_owner_user_id,
+                    management_version=ProjectRow.management_version + 1,
+                    updated_at=now,
+                )
             )
             if project_update.rowcount != 1:
                 raise WorkspacePermissionDenied("project ownership changed concurrently")
@@ -338,7 +342,10 @@ class SqlAlchemyWorkspaceRepository:
                     target_id=project_id,
                     project_id=project_id,
                     before_json={"owner_user_id": acting_user_id},
-                    after_json={"owner_user_id": new_owner_user_id},
+                    after_json={
+                        "owner_user_id": new_owner_user_id,
+                        "management_version_incremented": True,
+                    },
                     correlation_id=correlation_id,
                     created_at=now,
                 )

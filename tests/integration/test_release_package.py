@@ -12,6 +12,8 @@ import pytest
 from PIL import Image
 
 import liveclip.delivery.release_package as release_package_module
+from liveclip.application.assets import AssetReservation
+from liveclip.application.pipeline import LeaseIdentity
 from liveclip.application.releases import ReleasePackageWork
 from liveclip.delivery.edit_package import EditPackageTransientError
 from liveclip.delivery.release_package import (
@@ -20,6 +22,7 @@ from liveclip.delivery.release_package import (
     create_release_package,
     validate_existing_release_package,
 )
+from liveclip.delivery.release_package_task_handler import ReleasePackageTaskHandler
 from liveclip.domain.edit_plan import CaptionCue
 from liveclip.domain.releases import (
     ReleaseCaptionMode,
@@ -29,6 +32,7 @@ from liveclip.domain.releases import (
     ReleasePreflightCheck,
     get_platform_preset,
 )
+from liveclip.domain.state_transitions import AssetStatus
 from liveclip.media.fingerprint import stream_sha256
 
 pytestmark = pytest.mark.integration
@@ -181,6 +185,193 @@ def test_release_package_builds_real_media_cover_metadata_and_zip(tmp_path: Path
     recovered = validate_existing_release_package(result.directory, work=work)
     assert recovered.manifest_sha256 == result.manifest_sha256
     assert recovered.zip_sha256 == result.zip_sha256
+
+
+def test_permission_loss_after_publication_withdraws_new_release_package(
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "portrait.mp4"
+    _create_portrait_video(video)
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    work = _work(video)
+    calls = 0
+
+    def revoke_after_publish() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise PermissionError("requester permission was revoked")
+
+    with pytest.raises(PermissionError, match="permission was revoked"):
+        create_release_package(
+            project_dir=project_dir,
+            work=work,
+            video_path=video,
+            publication_fence=revoke_after_publish,
+        )
+
+    item_dir = project_dir / "release-packages" / work.release_item_id
+    assert calls == 2
+    assert not (item_dir / "v001").exists()
+    assert not tuple(item_dir.glob(".v001-attempt-*"))
+
+
+class _NoCommitReleaseAssetStore:
+    def __init__(self, *, fail_on_commit: int = 1) -> None:
+        self.commits = 0
+        self.invalidations = 0
+        self.invalidated_asset_ids: tuple[str, ...] = ()
+        self._fail_on_commit = fail_on_commit
+
+    def reserve(
+        self,
+        _lease: LeaseIdentity,
+        *,
+        relative_path: str,
+        **_kwargs: object,
+    ) -> AssetReservation:
+        return AssetReservation(
+            asset_id=f"asset-{len(relative_path)}",
+            status=AssetStatus.PENDING,
+            relative_path=relative_path,
+            sha256=None,
+            size_bytes=None,
+        )
+
+    def commit(
+        self,
+        _lease: LeaseIdentity,
+        reservation: AssetReservation,
+        **kwargs: object,
+    ) -> AssetReservation:
+        self.commits += 1
+        if self.commits == self._fail_on_commit:
+            raise RuntimeError("simulated Asset commit failure")
+        expected_sha256 = kwargs.get("expected_sha256")
+        return AssetReservation(
+            asset_id=reservation.asset_id,
+            status=AssetStatus.COMMITTED,
+            relative_path=reservation.relative_path,
+            sha256=str(expected_sha256),
+            size_bytes=1,
+        )
+
+    def invalidate_attempt_assets(
+        self,
+        _lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        **_kwargs: object,
+    ) -> None:
+        self.invalidations += 1
+        self.invalidated_asset_ids = asset_ids
+
+    def withdraw_attempt_publication(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        project_dir: Path,
+        relative_directory: str,
+        **kwargs: object,
+    ) -> bool:
+        shutil.rmtree(project_dir / relative_directory)
+        self.invalidate_attempt_assets(lease, asset_ids, **kwargs)
+        return True
+
+
+def _release_handler_work(
+    tmp_path: Path,
+) -> tuple[Path, Path, ReleasePackageWork, LeaseIdentity]:
+    data_dir = tmp_path / "projects"
+    project_id = "1" * 32
+    project_dir = data_dir / project_id
+    video = project_dir / "renders" / "review.mp4"
+    video.parent.mkdir(parents=True)
+    _create_portrait_video(video)
+    work = replace(_work(video), project_id=project_id)
+    lease = LeaseIdentity(task_id="task_1", worker_id="worker_1", lease_token="lease_1")
+    return data_dir, project_dir, work, lease
+
+
+def test_task_handler_third_fence_withdraws_published_release_package(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _release_handler_work(tmp_path)
+    calls = 0
+
+    def revoke_at_handler_fence(
+        _lease: LeaseIdentity,
+        _work: ReleasePackageWork,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise PermissionError("requester permission was revoked")
+
+    assets = _NoCommitReleaseAssetStore()
+    handler = ReleasePackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=revoke_at_handler_fence,
+    )
+    with pytest.raises(PermissionError, match="permission was revoked"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    item_dir = project_dir / "release-packages" / work.release_item_id
+    assert calls == 3
+    assert assets.commits == 0
+    assert assets.invalidations == 1
+    assert not (item_dir / "v001").exists()
+    assert not tuple(item_dir.glob(".v001-attempt-*"))
+
+
+def test_second_asset_commit_failure_withdraws_release_package_and_both_reservations(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _release_handler_work(tmp_path)
+    assets = _NoCommitReleaseAssetStore(fail_on_commit=2)
+    handler = ReleasePackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=lambda _lease, _work: None,
+    )
+
+    with pytest.raises(RuntimeError, match="Asset commit failure"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    item_dir = project_dir / "release-packages" / work.release_item_id
+    assert assets.commits == 2
+    assert assets.invalidations == 1
+    assert len(assets.invalidated_asset_ids) == 2
+    assert not (item_dir / "v001").exists()
+    assert not tuple(item_dir.glob(".v001-attempt-*"))
+
+
+def test_adopted_corrupt_release_package_is_withdrawn_and_next_retry_rebuilds(
+    tmp_path: Path,
+) -> None:
+    data_dir, project_dir, work, lease = _release_handler_work(tmp_path)
+    destination = project_dir / "release-packages" / work.release_item_id / "v001"
+    destination.mkdir(parents=True)
+    (destination / "manifest.json").write_text("not-json", encoding="utf-8")
+    assets = _NoCommitReleaseAssetStore(fail_on_commit=999)
+    handler = ReleasePackageTaskHandler(
+        data_dir=data_dir,
+        assets=assets,  # type: ignore[arg-type]
+        publication_fence=lambda _lease, _work: None,
+    )
+
+    with pytest.raises(ReleasePackageError, match="manifest is invalid"):
+        handler.execute(work, lease, cancel_requested=lambda: False)
+
+    assert assets.invalidations == 1
+    assert not destination.exists()
+    persistence = handler.execute(work, lease, cancel_requested=lambda: False)
+    assert destination.is_dir()
+    assert persistence.manifest_asset_id
+    assert persistence.zip_asset_id
+    assert assets.commits == 2
 
 
 def test_actual_media_preflight_preserves_duplicate_content_warning(tmp_path: Path) -> None:

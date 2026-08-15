@@ -13,6 +13,7 @@ from liveclip.application.pipeline import LeaseIdentity
 from liveclip.delivery.edit_package import (
     EditPackageClipInput,
     EditPackageError,
+    EditPackageTransientError,
     create_edit_package,
     validate_existing_edit_package,
 )
@@ -21,6 +22,7 @@ from liveclip.media.artifacts import project_directory
 from liveclip.media.secure_files import (
     SecureFileError,
     SecureFileMissing,
+    directory_identity_no_follow,
     require_directory_no_follow,
 )
 
@@ -35,7 +37,7 @@ class EditPackageTaskHandler:
         *,
         data_dir: Path,
         assets: AssetStore,
-        publication_fence: Callable[[EditPackageWork], None],
+        publication_fence: Callable[[LeaseIdentity, EditPackageWork], None],
     ) -> None:
         self._data_dir = data_dir
         self._assets = assets
@@ -114,7 +116,7 @@ class EditPackageTaskHandler:
                     include_zip=work.include_zip,
                     created_at=work.created_at,
                     cancel_requested=cancel_requested,
-                    publication_fence=lambda: self._publication_fence(work),
+                    publication_fence=lambda: self._publication_fence(lease, work),
                 )
             except InterruptedError as exc:
                 raise EditPackageTaskCancelled(
@@ -123,35 +125,56 @@ class EditPackageTaskHandler:
         except SecureFileError as exc:
             raise EditPackageError("existing edit package directory is unsafe") from exc
         else:
-            self._publication_fence(work)
-            result = validate_existing_edit_package(
-                destination,
-                edit_package_id=work.edit_package_id,
-                project_id=work.project_id,
-                package_version=package_version,
-                snapshot_fingerprint=work.snapshot_fingerprint,
-                include_zip=work.include_zip,
-            )
-        _check_cancel(cancel_requested)
-        manifest_clips = _manifest_clips(result.manifest)
-        committed_manifest = self._assets.commit(
-            lease,
-            manifest_reservation,
-            project_dir=project_dir,
-            validation={
-                "schema_version": "liveclip.edit-package.v1",
-                "edit_package_id": work.edit_package_id,
-                "package_version": package_version,
-                "snapshot_fingerprint": work.snapshot_fingerprint,
-                "clip_count": len(work.clips),
-            },
-            expected_sha256=result.manifest_sha256,
-        )
-        committed_zip = None
-        if zip_reservation is not None:
-            committed_zip = self._assets.commit(
+            self._publication_fence(lease, work)
+            try:
+                existing_identity = directory_identity_no_follow(destination)
+                result = validate_existing_edit_package(
+                    destination,
+                    edit_package_id=work.edit_package_id,
+                    project_id=work.project_id,
+                    package_version=package_version,
+                    snapshot_fingerprint=work.snapshot_fingerprint,
+                    include_zip=work.include_zip,
+                )
+            except EditPackageTransientError:
+                # A bounded local outage does not prove the immutable bytes are
+                # corrupt.  Keep them for the next exact retry.
+                raise
+            except InterruptedError as exc:
+                self._withdraw_and_invalidate(
+                    lease,
+                    destination,
+                    project_dir=project_dir,
+                    expected_identity=existing_identity,
+                    asset_ids=tuple(
+                        reservation.asset_id
+                        for reservation in (manifest_reservation, zip_reservation)
+                        if reservation is not None
+                    ),
+                )
+                raise EditPackageTaskCancelled(
+                    "edit package task cancellation was requested"
+                ) from exc
+            except EditPackageError:
+                self._withdraw_and_invalidate(
+                    lease,
+                    destination,
+                    project_dir=project_dir,
+                    expected_identity=existing_identity,
+                    asset_ids=tuple(
+                        reservation.asset_id
+                        for reservation in (manifest_reservation, zip_reservation)
+                        if reservation is not None
+                    ),
+                )
+                raise
+        try:
+            _check_cancel(cancel_requested)
+            self._publication_fence(lease, work)
+            manifest_clips = _manifest_clips(result.manifest)
+            committed_manifest = self._assets.commit(
                 lease,
-                zip_reservation,
+                manifest_reservation,
                 project_dir=project_dir,
                 validation={
                     "schema_version": "liveclip.edit-package.v1",
@@ -160,12 +183,86 @@ class EditPackageTaskHandler:
                     "snapshot_fingerprint": work.snapshot_fingerprint,
                     "clip_count": len(work.clips),
                 },
-                expected_sha256=result.zip_sha256,
+                expected_sha256=result.manifest_sha256,
             )
+            committed_zip = None
+            if zip_reservation is not None:
+                committed_zip = self._assets.commit(
+                    lease,
+                    zip_reservation,
+                    project_dir=project_dir,
+                    validation={
+                        "schema_version": "liveclip.edit-package.v1",
+                        "edit_package_id": work.edit_package_id,
+                        "package_version": package_version,
+                        "snapshot_fingerprint": work.snapshot_fingerprint,
+                        "clip_count": len(work.clips),
+                    },
+                    expected_sha256=result.zip_sha256,
+                )
+            _check_cancel(cancel_requested)
+            self._publication_fence(lease, work)
+        except Exception:
+            self._withdraw_and_invalidate(
+                lease,
+                result.directory,
+                project_dir=project_dir,
+                expected_identity=result.directory_identity,
+                asset_ids=tuple(
+                    reservation.asset_id
+                    for reservation in (manifest_reservation, zip_reservation)
+                    if reservation is not None
+                ),
+            )
+            raise
         return EditPackagePersistence(
             manifest_asset_id=committed_manifest.asset_id,
             zip_asset_id=committed_zip.asset_id if committed_zip is not None else None,
             manifest_clips=manifest_clips,
+            directory_identity=result.directory_identity,
+        )
+
+    def withdraw(
+        self,
+        work: EditPackageWork,
+        lease: LeaseIdentity,
+        persistence: EditPackagePersistence,
+    ) -> None:
+        project_dir = project_directory(self._data_dir, work.project_id)
+        self._withdraw_and_invalidate(
+            lease,
+            project_dir / "edit-packages" / f"v{work.version:03d}",
+            project_dir=project_dir,
+            expected_identity=persistence.directory_identity,
+            asset_ids=tuple(
+                asset_id
+                for asset_id in (persistence.manifest_asset_id, persistence.zip_asset_id)
+                if asset_id is not None
+            ),
+        )
+
+    def _withdraw_and_invalidate(
+        self,
+        lease: LeaseIdentity,
+        directory: Path,
+        *,
+        project_dir: Path,
+        expected_identity: tuple[int, int] | None,
+        asset_ids: tuple[str, ...],
+    ) -> None:
+        if expected_identity is None:
+            raise EditPackageError("edit package publication identity is missing")
+        try:
+            relative_directory = directory.relative_to(project_dir)
+        except ValueError as exc:
+            raise EditPackageError("edit package publication escaped its project") from exc
+        self._assets.withdraw_attempt_publication(
+            lease,
+            asset_ids,
+            project_dir=project_dir,
+            relative_directory=relative_directory.as_posix(),
+            expected_identity=expected_identity,
+            reason="edit package publication was withdrawn",
         )
 
     def _reserve(

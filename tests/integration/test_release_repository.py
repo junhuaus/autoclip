@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.engine import Connection, Engine
 
 from liveclip.application.idempotency import build_idempotency_context
@@ -1828,6 +1828,41 @@ def test_release_package_publication_fence_rejects_asset_lineage_change(
             update(AssetRow).where(AssetRow.id == QUALITY_ASSET_ID).values(sha256="0" * 64)
         )
     with pytest.raises(ReleaseConflict, match=r"source evidence changed|snapshot changed"):
+        release_fixture.repository.assert_release_package_current(lease, work)
+
+
+def test_release_package_publication_fence_observes_real_member_removal(
+    release_fixture: ReleaseFixture,
+) -> None:
+    ready = _ready_item(release_fixture)
+    queued = release_fixture.repository.enqueue_package(
+        ready.release_item_id,
+        requested_by_user_id=EDITOR_ID,
+        request=ReleasePackageRequest(
+            expected_release_item_version=ready.management_version,
+        ),
+        max_retries=1,
+    )
+    claimed = SQLiteTaskQueue(release_fixture.engine, lease_seconds=60).claim(
+        worker_id="release-permission-fence-worker",
+        task_kind=TaskKind.DELIVERY,
+    )
+    assert claimed is not None and claimed.task_id == queued.task_id
+    lease = LeaseIdentity(
+        task_id=claimed.task_id,
+        worker_id=claimed.worker_id,
+        lease_token=claimed.lease_token,
+    )
+    work = release_fixture.repository.start_release_package(lease)
+    with release_fixture.engine.begin() as connection:
+        connection.execute(
+            delete(ProjectMemberRow).where(
+                ProjectMemberRow.project_id == PROJECT_ID,
+                ProjectMemberRow.user_id == EDITOR_ID,
+            )
+        )
+
+    with pytest.raises(ReleaseConflict, match="no longer has release permission"):
         release_fixture.repository.assert_release_package_current(lease, work)
 
 

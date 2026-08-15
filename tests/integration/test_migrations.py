@@ -10,7 +10,9 @@ from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import Column, Integer, create_engine, inspect
+
+from liveclip.db.engine import create_sqlite_engine
 
 
 @pytest.mark.integration
@@ -25,6 +27,39 @@ def test_initial_migration_upgrade_check_downgrade_round_trip(
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     command.check(config)
+
+
+@pytest.mark.integration
+def test_sqlite_migration_ddl_and_data_rollback_atomically(tmp_path: Path) -> None:
+    database_path = tmp_path / "rollback.sqlite3"
+    engine = create_sqlite_engine(database_path)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("CREATE TABLE stable (id INTEGER PRIMARY KEY, value TEXT)")
+            connection.exec_driver_sql("INSERT INTO stable(id, value) VALUES (1, 'original')")
+
+        connection = engine.connect()
+        transaction = connection.begin()
+        try:
+            context = MigrationContext.configure(connection)
+            operations = Operations(context)
+            operations.create_table(
+                "interrupted_migration",
+                Column("id", Integer, primary_key=True),
+            )
+            connection.exec_driver_sql("UPDATE stable SET value = 'changed' WHERE id = 1")
+            raise RuntimeError("simulated migration failure")
+        except RuntimeError:
+            transaction.rollback()
+        finally:
+            connection.close()
+
+        assert "interrupted_migration" not in inspect(engine).get_table_names()
+        with engine.connect() as connection:
+            value = connection.exec_driver_sql("SELECT value FROM stable WHERE id = 1").scalar_one()
+            assert value == "original"
+    finally:
+        engine.dispose(close=True)
 
 
 @pytest.mark.integration

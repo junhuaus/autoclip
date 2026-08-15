@@ -31,7 +31,12 @@ class MediaIngestCancelled(MediaIngestError):
     """Source inspection stopped before metadata or fingerprint publication."""
 
 
-def resolve_allowed_source(source_path: str | Path, allowed_roots: Iterable[Path]) -> Path:
+def resolve_allowed_source(
+    source_path: str | Path,
+    allowed_roots: Iterable[Path],
+    *,
+    forbidden_roots: Iterable[Path] = (),
+) -> Path:
     """Resolve and validate a source path against strict real allowed roots."""
 
     candidate = Path(source_path)
@@ -55,6 +60,9 @@ def resolve_allowed_source(source_path: str | Path, allowed_roots: Iterable[Path
         raise MediaIngestError("source media must be a regular file")
     if not any(resolved == root or root in resolved.parents for root in roots):
         raise MediaIngestError("source media is outside the configured allowed roots")
+    forbidden = tuple(_resolve_forbidden_root(root) for root in forbidden_roots)
+    if any(resolved == root or root in resolved.parents for root in forbidden):
+        raise MediaIngestError("source media must be outside the LiveClip data directory")
     return resolved
 
 
@@ -206,6 +214,16 @@ def _resolve_allowed_root(root: Path) -> Path:
     if not resolved.is_dir():
         raise MediaIngestError("allowed media roots must be directories")
     return resolved
+
+
+def _resolve_forbidden_root(root: Path) -> Path:
+    candidate = Path(root).expanduser()
+    if not candidate.is_absolute():
+        raise MediaIngestError("forbidden media roots must be absolute")
+    try:
+        return candidate.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise MediaIngestError("a forbidden media root cannot be resolved") from exc
 
 
 def _stream_type(value: object) -> str | None:

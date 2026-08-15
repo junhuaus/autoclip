@@ -8,10 +8,12 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import IntegrityError
 
 from liveclip.application.identity import (
+    AdministrationDenied,
     AuthenticatedSession,
     AuthUserRecord,
     IdentityConflict,
     ManagedUser,
+    UserAdministrationResult,
 )
 from liveclip.application.workspace import SystemRole, WorkspaceUser
 from liveclip.db.base import new_id
@@ -74,10 +76,12 @@ class SqlAlchemyIdentityRepository:
     ) -> int | None:
         with begin_immediate(self._engine) as connection:
             row = connection.execute(
-                select(AuthLoginAttemptRow).where(
-                    AuthLoginAttemptRow.identity_hash == identity_hash
-                )
-            ).scalar_one_or_none()
+                select(
+                    AuthLoginAttemptRow.failed_count,
+                    AuthLoginAttemptRow.window_started_at,
+                    AuthLoginAttemptRow.blocked_until,
+                ).where(AuthLoginAttemptRow.identity_hash == identity_hash)
+            ).one_or_none()
             if row is None or row.window_started_at + timedelta(seconds=window_seconds) <= now:
                 failed_count = 1
                 if row is None:
@@ -291,15 +295,12 @@ class SqlAlchemyIdentityRepository:
                 now=now,
             )
 
-    def list_users(self) -> tuple[ManagedUser, ...]:
-        with self._engine.connect() as connection:
-            rows = connection.execute(
-                select(*_USER_COLUMNS).order_by(
-                    WorkspaceUserRow.display_name,
-                    WorkspaceUserRow.username,
-                )
-            ).mappings()
-            return tuple(_managed_user(row) for row in rows)
+    def list_users(self, *, actor: WorkspaceUser) -> tuple[ManagedUser, ...]:
+        # A short IMMEDIATE transaction gives administrator revocation and this
+        # private workspace-wide projection one deterministic ordering.
+        with begin_immediate(self._engine) as connection:
+            _require_current_administrator(connection, actor.user_id)
+            return _list_managed_users(connection)
 
     def create_user(
         self,
@@ -311,12 +312,13 @@ class SqlAlchemyIdentityRepository:
         password_hash: str,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         if not display_name:
             raise ValueError("display name cannot be empty")
         user_id = new_id()
         try:
             with begin_immediate(self._engine) as connection:
+                _require_current_administrator(connection, actor.user_id)
                 connection.execute(
                     insert(WorkspaceUserRow).values(
                         id=user_id,
@@ -348,9 +350,10 @@ class SqlAlchemyIdentityRepository:
                     correlation_id=correlation_id,
                     now=now,
                 )
+                users = _list_managed_users(connection)
         except IntegrityError as exc:
             raise IdentityConflict("username already exists") from exc
-        return result
+        return UserAdministrationResult(user=result, users=users)
 
     def update_user(
         self,
@@ -362,8 +365,9 @@ class SqlAlchemyIdentityRepository:
         is_active: bool | None,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         with begin_immediate(self._engine) as connection:
+            _require_current_administrator(connection, actor.user_id)
             target = (
                 connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
                 .mappings()
@@ -428,7 +432,8 @@ class SqlAlchemyIdentityRepository:
                 correlation_id=correlation_id,
                 now=now,
             )
-        return result
+            users = _list_managed_users(connection)
+        return UserAdministrationResult(user=result, users=users)
 
     def reset_password(
         self,
@@ -438,8 +443,9 @@ class SqlAlchemyIdentityRepository:
         password_hash: str,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         with begin_immediate(self._engine) as connection:
+            _require_current_administrator(connection, actor.user_id)
             target = (
                 connection.execute(select(*_USER_COLUMNS).where(WorkspaceUserRow.id == user_id))
                 .mappings()
@@ -478,7 +484,8 @@ class SqlAlchemyIdentityRepository:
                 correlation_id=correlation_id,
                 now=now,
             )
-        return result
+            users = _list_managed_users(connection)
+        return UserAdministrationResult(user=result, users=users)
 
     def bootstrap_administrator(
         self,
@@ -593,6 +600,26 @@ def _managed_user(row: RowMapping) -> ManagedUser:
         updated_at=row.updated_at,
         last_login_at=row.last_login_at,
     )
+
+
+def _list_managed_users(connection: Connection) -> tuple[ManagedUser, ...]:
+    rows = connection.execute(
+        select(*_USER_COLUMNS).order_by(
+            WorkspaceUserRow.display_name,
+            WorkspaceUserRow.username,
+        )
+    ).mappings()
+    return tuple(_managed_user(row) for row in rows)
+
+
+def _require_current_administrator(connection: Connection, user_id: str) -> None:
+    current = connection.execute(
+        select(WorkspaceUserRow.is_active, WorkspaceUserRow.system_role).where(
+            WorkspaceUserRow.id == user_id
+        )
+    ).one_or_none()
+    if current is None or not bool(current.is_active) or current.system_role != "administrator":
+        raise AdministrationDenied("system administrator permission is required")
 
 
 def _audit_user(user: ManagedUser) -> dict[str, object]:

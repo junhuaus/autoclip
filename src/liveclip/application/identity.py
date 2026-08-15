@@ -57,6 +57,15 @@ class ManagedUser(BaseModel):
         )
 
 
+class UserAdministrationResult(BaseModel):
+    """One atomic administrator mutation and its post-mutation user snapshot."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    user: ManagedUser
+    users: tuple[ManagedUser, ...]
+
+
 class AuthUserRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -120,7 +129,7 @@ class IdentityRepository(Protocol):
         correlation_id: str | None,
     ) -> None: ...
 
-    def list_users(self) -> tuple[ManagedUser, ...]: ...
+    def list_users(self, *, actor: WorkspaceUser) -> tuple[ManagedUser, ...]: ...
 
     def create_user(
         self,
@@ -132,7 +141,7 @@ class IdentityRepository(Protocol):
         password_hash: str,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser: ...
+    ) -> UserAdministrationResult: ...
 
     def update_user(
         self,
@@ -144,7 +153,7 @@ class IdentityRepository(Protocol):
         is_active: bool | None,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser: ...
+    ) -> UserAdministrationResult: ...
 
     def reset_password(
         self,
@@ -154,7 +163,7 @@ class IdentityRepository(Protocol):
         password_hash: str,
         now: datetime,
         correlation_id: str | None,
-    ) -> ManagedUser: ...
+    ) -> UserAdministrationResult: ...
 
     def bootstrap_administrator(
         self,
@@ -311,7 +320,7 @@ class UserAdministrationService:
 
     def list_users(self, actor: WorkspaceUser) -> tuple[ManagedUser, ...]:
         _require_administrator(actor)
-        return self._repository.list_users()
+        return self._repository.list_users(actor=actor)
 
     def create_user(
         self,
@@ -322,7 +331,7 @@ class UserAdministrationService:
         system_role: SystemRole,
         password: str,
         correlation_id: str | None = None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         _require_administrator(actor)
         return self._repository.create_user(
             actor=actor,
@@ -343,7 +352,7 @@ class UserAdministrationService:
         system_role: SystemRole | None = None,
         is_active: bool | None = None,
         correlation_id: str | None = None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         _require_administrator(actor)
         normalized_name = display_name.strip() if display_name is not None else None
         if normalized_name == "":
@@ -365,7 +374,7 @@ class UserAdministrationService:
         user_id: str,
         password: str,
         correlation_id: str | None = None,
-    ) -> ManagedUser:
+    ) -> UserAdministrationResult:
         _require_administrator(actor)
         return self._repository.reset_password(
             actor=actor,

@@ -28,6 +28,8 @@ flowchart LR
   TOKEN[Compatibility Bearer token] --> AUTH[Authenticated workspace user]
   SESSION --> AUTH
   ADMIN[System administrator] -->|manage accounts| AUTH
+  ADMIN -->|explicit governance context| GOVERNANCE[All-Project metadata + audit]
+  GOVERNANCE -->|audited owner transfer only| PROJECT
   AUTH --> MEMBERSHIP[(ProjectMember)]
   MEMBERSHIP --> PROJECT[(Project)]
   AUTH -->|read only when workspace-visible| PROJECT
@@ -39,7 +41,7 @@ flowchart LR
   WEB[My Projects dashboard] -->|server-filtered API| AUTH
 ```
 
-The browser never filters a global Project collection. The API returns explicit memberships plus authenticated read-only access to Projects intentionally marked workspace-visible, and repeats the same policy for every descendant resource. New Projects are private. SQLite stores Argon2id verifiers and session digests, never plaintext credentials; Provider credentials stay in ignored environment configuration. System administrator, Project role and visibility are independent authority dimensions. API DTOs expose server-derived capabilities, so the Web does not copy the role matrix.
+The ordinary browser workspace never filters a global Project collection: the API returns explicit memberships plus authenticated read-only access to Projects intentionally marked workspace-visible, and repeats the same policy for every descendant resource. New Projects are private. A separate administrator governance endpoint can list safe metadata for every Project and transfer ownership under an audited same-transaction authority fence; it does not create membership or expose descendant media/export access. Its dedicated DTO includes inactive owners so account disable cannot make an orphaned Project ungovernable. Every administrator DB operation rechecks the live enabled system role in its transaction; long filesystem storage scans recheck again before returning, so a request-start identity snapshot cannot outlive concurrent revocation. SQLite stores Argon2id verifiers and session digests, never plaintext credentials; Provider credentials stay in ignored environment configuration. System administrator, Project role and visibility are independent authority dimensions. API DTOs expose server-derived capabilities, so the Web does not copy the role matrix.
 
 ## Data flow and cloud boundary
 
@@ -118,6 +120,25 @@ stateDiagram-v2
 
 This business lifecycle is not the computed technical Project status. Manual transitions come only from the domain table returned by the API; Pipeline terminal signals may move processing/attention/review states, but Delivery never asserts `published`. Owner mutations use an optimistic management version, a required lifecycle reason and an audit event. Archive preserves the exact restore target and makes ordinary Project writes unavailable.
 
+## Retention, purge, and recovery boundary
+
+```mermaid
+flowchart LR
+    Admin[Current administrator + CSRF] --> Plan[No-follow dry-run fingerprint]
+    Plan --> Confirm[Exact project name + PURGE project ID]
+    Confirm --> Backup[SQLite online backup\nquick/FK/revision/hash]
+    Backup --> Fence[Short transaction\nadmin/state/source fence]
+    Fence --> Quarantine[O(1) exact-inode rename]
+    Quarantine --> Verify[Transaction-free\nno-follow tree verification]
+    Verify --> Delete[Short transaction\nrepeat fence + graph delete + audit]
+    Delete --> Cleanup[Transaction-free recursive cleanup]
+    Cleanup -->|failure| Pending[Visible identity-bound cleanup pending]
+    Source[External SourceMedia] -. never delete .-> Fence
+    DataRoot[LIVECLIP_DATA_DIR] -. forbidden as new source .-> Source
+```
+
+Archive retains all files and can restore the exact prior lifecycle. Routine cleanup cannot delete committed assets. It claims terminal attempts with the same short source/inode fence and deletes their quarantined trees without holding SQLite's writer lock, so active Worker heartbeats remain available. Permanent purge is a separate administrator action and is refused for any source reference under generated scope; all new source paths below `LIVECLIP_DATA_DIR` are rejected before Project insertion. A failed verification/database transaction moves the same quarantined inode back, startup restores a started-only purge, and a post-commit cleanup failure remains visible. Backup/restore always publishes a new SQLite file and never overwrites the live endpoint.
+
 ## Durable command and media access
 
 ```mermaid
@@ -191,7 +212,7 @@ flowchart LR
   EVIDENCE --> RECORD[Actual time + external URL/ID + notes + metrics]
 ```
 
-Release approval, queue state, formal Delivery and Project lifecycle are distinct evidence. The Web renders capabilities returned by the server: an editor manages metadata and submits, while an owner/reviewer approves, returns or revokes approval. Platform presets are dated immutable configuration with one selected current version and resolvable history; hard blockers are limited to verified media rules and local evidence, while account-specific policy remains a required human confirmation. Duplicate evidence is a warning only, and its enqueue-time form is frozen for deterministic package recovery while excluded from material-current fingerprints. LiveClip stores no platform credential and `scheduled_external` never claims an upload. Package execution shares SQLite leases, pins the exact current producer lineage, validates actual bytes, extracts the cover with system-owned FFmpeg argv and publishes a no-replace version directory. Recovery regenerates deterministic members instead of trusting self-reported hashes. Release-item changes, clip revisions and new runs fail active package resources and cancel/fence their Tasks in the same transaction; successful package versions remain immutable. Publication then pins one exact current successful ZIP and persists its hashes together with the operator's actual timestamp and external result.
+Release approval, queue state, formal Delivery and Project lifecycle are distinct evidence. The Web renders capabilities returned by the server: an editor manages metadata and submits, while an owner/reviewer approves, returns or revokes approval. Platform presets are dated immutable configuration with one selected current version and resolvable history; hard blockers are limited to verified media rules and local evidence, while account-specific policy remains a required human confirmation. Duplicate evidence is a warning only, and its enqueue-time form is frozen for deterministic package recovery while excluded from material-current fingerprints. LiveClip stores no platform credential and `scheduled_external` never claims an upload. Package execution shares SQLite leases, pins the exact current producer lineage, validates actual bytes, extracts the cover with system-owned FFmpeg argv and publishes a no-replace version directory. Recovery regenerates deterministic members instead of trusting self-reported hashes and transfers exact committed Asset ownership to the successor attempt. A lost runner never withdraws; an owned failure uses one short transaction to fence the lease/Assets and move only the expected directory inode to its attempt quarantine before invalidation, with recursive cleanup after commit. Release-item changes, clip revisions and new runs fail active package resources and cancel/fence their Tasks in the same transaction; successful package versions remain immutable. Publication then pins one exact current successful ZIP and persists its hashes together with the operator's actual timestamp and external result.
 
 ## EditPlan execution boundary
 

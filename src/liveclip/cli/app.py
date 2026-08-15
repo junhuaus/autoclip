@@ -20,6 +20,7 @@ from liveclip.bootstrap import (
 )
 from liveclip.cli.doctor import DoctorReport, run_doctor
 from liveclip.config import get_settings
+from liveclip.db.engine import create_sqlite_engine
 from liveclip.domain.edit_plan import CaptionCue
 from liveclip.domain.state_transitions import (
     DeliveryStatus,
@@ -28,9 +29,16 @@ from liveclip.domain.state_transitions import (
     ReviewStatus,
 )
 from liveclip.domain.time import seconds_to_ms
+from liveclip.media.ingest import resolve_allowed_source
 from liveclip.providers.readiness import require_processing_ready
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
+from liveclip.services.database_backup import (
+    DatabaseBackupError,
+    backup_database,
+    default_backup_path,
+    restore_database,
+)
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
 from liveclip.services.openrouter_smoke import OpenRouterSmokeError, run_openrouter_smoke
@@ -76,6 +84,65 @@ def version() -> None:
     typer.echo(__version__)
 
 
+@app.command("db-backup")
+def db_backup(
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="New backup filename; existing files are never replaced."),
+    ] = None,
+    label: Annotated[
+        str,
+        typer.Option("--label", help="Short lowercase label used by the default backup name."),
+    ] = "operator",
+) -> None:
+    """Create and validate a WAL-consistent, no-clobber SQLite backup."""
+
+    settings = get_settings()
+    data_dir = settings.resolved_data_dir(Path.cwd())
+    database_path = data_dir / "liveclip.sqlite3"
+    if not database_path.is_file():
+        typer.echo("LiveClip database does not exist", err=True)
+        raise typer.Exit(code=1)
+    try:
+        destination = output or default_backup_path(data_dir, label=label)
+        engine = create_sqlite_engine(database_path)
+        try:
+            result = backup_database(engine, destination)
+        finally:
+            engine.dispose(close=True)
+    except (DatabaseBackupError, RuntimeError, ValueError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Backup: {result.path}")
+    typer.echo(f"SHA-256: {result.sha256}")
+    typer.echo(f"Alembic revision: {result.alembic_revision}")
+    typer.echo("Integrity: quick_check=ok, foreign_key_check=0")
+
+
+@app.command("db-restore")
+def db_restore(
+    backup: Annotated[Path, typer.Option("--backup", help="Validated SQLite backup file.")],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="New database filename. Stop services first; existing files are never replaced.",
+        ),
+    ],
+) -> None:
+    """Restore a validated backup to a new file without replacing the live database."""
+
+    try:
+        result = restore_database(backup, output)
+    except (DatabaseBackupError, RuntimeError, ValueError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Restored database: {result.path}")
+    typer.echo(f"SHA-256: {result.sha256}")
+    typer.echo(f"Alembic revision: {result.alembic_revision}")
+    typer.echo("Integrity: quick_check=ok, foreign_key_check=0")
+
+
 @app.command("run")
 def run_pipeline(
     input_path: Annotated[Path, typer.Option("--input", help="Absolute local source video path.")],
@@ -101,8 +168,13 @@ def run_pipeline(
             maximum_clip_seconds=maximum_seconds,
         )
         with LiveClipRuntime.open(settings) as runtime:
+            source_path = resolve_allowed_source(
+                input_path,
+                settings.allowed_media_roots,
+                forbidden_roots=(settings.resolved_data_dir(Path.cwd()),),
+            )
             created = runtime.pipeline_service.create_project_and_run(
-                source_path=input_path,
+                source_path=source_path,
                 config=config,
                 max_stage_retries=settings.max_stage_retries,
             )

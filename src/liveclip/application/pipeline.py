@@ -317,8 +317,16 @@ class PipelineRepository(Protocol):
 
 
 class PipelineService:
-    def __init__(self, repository: PipelineRepository) -> None:
+    def __init__(
+        self,
+        repository: PipelineRepository,
+        *,
+        forbidden_source_roots: tuple[Path, ...] = (),
+    ) -> None:
         self._repository = repository
+        self._forbidden_source_roots = tuple(
+            root.expanduser().resolve(strict=False) for root in forbidden_source_roots
+        )
 
     def create_project_and_run(
         self,
@@ -331,10 +339,16 @@ class PipelineService:
     ) -> CreatedPipeline:
         if not source_path.is_absolute() or ".." in source_path.parts:
             raise ValueError("source path must be absolute and cannot contain '..'")
+        resolved_source = source_path.expanduser().resolve(strict=False)
+        if any(
+            resolved_source == root or root in resolved_source.parents
+            for root in self._forbidden_source_roots
+        ):
+            raise ValueError("source media must be outside the LiveClip data directory")
         if max_stage_retries < 0:
             raise ValueError("max stage retries must be nonnegative")
         return self._repository.create_project_and_run(
-            source_path=source_path,
+            source_path=resolved_source,
             config=config,
             max_stage_retries=max_stage_retries,
             owner_id=owner_id,

@@ -156,6 +156,7 @@ class EditPackagePersistence:
     manifest_asset_id: str
     zip_asset_id: str | None
     manifest_clips: tuple[EditPackageManifestClip, ...]
+    directory_identity: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,7 +189,11 @@ class EditPackageRepository(Protocol):
 
     def start_edit_package(self, lease: LeaseIdentity) -> EditPackageWork: ...
 
-    def assert_edit_package_current(self, work: EditPackageWork) -> None: ...
+    def assert_edit_package_current(
+        self,
+        lease: LeaseIdentity,
+        work: EditPackageWork,
+    ) -> None: ...
 
     def complete_edit_package(
         self,

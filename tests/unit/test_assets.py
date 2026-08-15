@@ -7,15 +7,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import event, func, insert, select, update
 from sqlalchemy.engine import Engine
 
+import liveclip.db.assets as assets_module
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.db.assets import AssetReservation, AssetReservationError, SqlAlchemyAssetStore
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import AssetRow, PipelineRunRow, ProjectRow, TaskAttemptRow
-from liveclip.db.task_queue import SQLiteTaskQueue, TaskLease, TaskSpec
+from liveclip.db.task_queue import CompletionResult, SQLiteTaskQueue, TaskLease, TaskSpec
 from liveclip.domain.state_transitions import (
     AssetStatus,
     AttemptOutcome,
@@ -25,6 +26,8 @@ from liveclip.domain.state_transitions import (
     TaskKind,
     TaskStatus,
 )
+from liveclip.media.secure_files import SecureFileError, directory_identity_no_follow
+from liveclip.services.janitor import cleanup_terminal_attempt_worktrees
 
 PROJECT_ID = "p" * 32
 RUN_ID = "r" * 32
@@ -78,7 +81,11 @@ def asset_context(tmp_path: Path) -> Iterator[AssetContext]:
     try:
         yield AssetContext(
             engine=engine,
-            queue=SQLiteTaskQueue(engine, lease_seconds=60),
+            queue=SQLiteTaskQueue(
+                engine,
+                lease_seconds=60,
+                data_dir=tmp_path / "projects",
+            ),
             store=SqlAlchemyAssetStore(engine),
             project_dir=project_dir,
             claim_time=claim_time,
@@ -524,6 +531,342 @@ def test_lost_attempt_pending_asset_is_adopted_by_new_claim(
         validation={"decode": "passed"},
     )
     assert committed.status == AssetStatus.COMMITTED
+
+
+def test_lost_attempt_committed_asset_is_adopted_and_old_attempt_cannot_invalidate_it(
+    asset_context: AssetContext,
+) -> None:
+    old_lease = _claim(asset_context)
+    original = _reserve(asset_context, old_lease)
+    content = b"published-before-lease-handoff"
+    _write_asset(asset_context, content)
+    committed = asset_context.store.commit(
+        _identity(old_lease),
+        original,
+        project_dir=asset_context.project_dir,
+        validation={"decode": "passed"},
+    )
+    with asset_context.engine.connect() as connection:
+        old_attempt_id = connection.scalar(
+            select(TaskAttemptRow.id).where(TaskAttemptRow.lease_token == old_lease.lease_token)
+        )
+
+    recovery = asset_context.queue.recover_expired(now=old_lease.lease_expires_at)
+    assert recovery.requeued == 1
+    new_lease = asset_context.queue.claim(
+        worker_id="worker-b",
+        now=old_lease.lease_expires_at,
+    )
+    assert new_lease is not None
+    adopted = _reserve(asset_context, new_lease)
+
+    assert adopted == committed
+    with asset_context.engine.connect() as connection:
+        new_attempt_id = connection.scalar(
+            select(TaskAttemptRow.id).where(TaskAttemptRow.lease_token == new_lease.lease_token)
+        )
+        producer_attempt_id = connection.scalar(
+            select(AssetRow.producer_attempt_id).where(AssetRow.id == original.asset_id)
+        )
+    assert producer_attempt_id == new_attempt_id
+    assert producer_attempt_id != old_attempt_id
+
+    asset_context.store.invalidate_attempt_assets(
+        _identity(old_lease),
+        (original.asset_id,),
+        reason="stale runner attempted withdrawal",
+    )
+    with asset_context.engine.connect() as connection:
+        row = connection.execute(
+            select(AssetRow.status, AssetRow.producer_attempt_id).where(
+                AssetRow.id == original.asset_id
+            )
+        ).one()
+    assert row == (AssetStatus.COMMITTED.value, new_attempt_id)
+    assert (
+        asset_context.store.commit(
+            _identity(new_lease),
+            adopted,
+            project_dir=asset_context.project_dir,
+            validation={"decode": "passed"},
+        )
+        == committed
+    )
+
+
+def test_stale_attempt_cannot_withdraw_package_adopted_by_successor(
+    asset_context: AssetContext,
+) -> None:
+    relative_directory = "edit-packages/v001"
+    relative_path = f"{relative_directory}/manifest.json"
+    old_lease = _claim(asset_context)
+    original = _reserve(asset_context, old_lease, relative_path=relative_path)
+    package_dir = asset_context.project_dir / relative_directory
+    package_dir.mkdir(parents=True)
+    manifest = package_dir / "manifest.json"
+    manifest.write_bytes(b'{"schema_version":"test"}\n')
+    committed = asset_context.store.commit(
+        _identity(old_lease),
+        original,
+        project_dir=asset_context.project_dir,
+        validation={"schema_version": "test"},
+    )
+    package_identity = directory_identity_no_follow(package_dir)
+
+    recovery = asset_context.queue.recover_expired(now=old_lease.lease_expires_at)
+    assert recovery.requeued == 1
+    new_lease = asset_context.queue.claim(
+        worker_id="worker-b",
+        now=old_lease.lease_expires_at,
+    )
+    assert new_lease is not None
+    adopted = _reserve(asset_context, new_lease, relative_path=relative_path)
+    assert adopted == committed
+    assert (
+        asset_context.queue.complete(
+            new_lease,
+            now=old_lease.lease_expires_at + timedelta(seconds=1),
+        )
+        == CompletionResult.COMPLETED
+    )
+
+    withdrawn = asset_context.store.withdraw_attempt_publication(
+        _identity(old_lease),
+        (original.asset_id,),
+        project_dir=asset_context.project_dir,
+        relative_directory=relative_directory,
+        expected_identity=package_identity,
+        reason="stale runner attempted withdrawal",
+    )
+
+    assert withdrawn is False
+    assert manifest.read_bytes() == b'{"schema_version":"test"}\n'
+    with asset_context.engine.connect() as connection:
+        new_attempt_id = connection.scalar(
+            select(TaskAttemptRow.id).where(TaskAttemptRow.lease_token == new_lease.lease_token)
+        )
+        row = connection.execute(
+            select(AssetRow.status, AssetRow.producer_attempt_id).where(
+                AssetRow.id == original.asset_id
+            )
+        ).one()
+    assert row == (AssetStatus.COMMITTED.value, new_attempt_id)
+
+
+def test_current_attempt_withdrawal_quarantines_package_before_invalidating_asset(
+    asset_context: AssetContext,
+) -> None:
+    relative_directory = "edit-packages/v001"
+    relative_path = f"{relative_directory}/manifest.json"
+    lease = _claim(asset_context)
+    reservation = _reserve(asset_context, lease, relative_path=relative_path)
+    package_dir = asset_context.project_dir / relative_directory
+    package_dir.mkdir(parents=True)
+    (package_dir / "manifest.json").write_bytes(b'{"schema_version":"test"}\n')
+    committed = asset_context.store.commit(
+        _identity(lease),
+        reservation,
+        project_dir=asset_context.project_dir,
+        validation={"schema_version": "test"},
+    )
+
+    assert asset_context.store.withdraw_attempt_publication(
+        _identity(lease),
+        (committed.asset_id,),
+        project_dir=asset_context.project_dir,
+        relative_directory=relative_directory,
+        expected_identity=directory_identity_no_follow(package_dir),
+        reason="current package completion fence failed",
+    )
+
+    assert not package_dir.exists()
+    with asset_context.engine.connect() as connection:
+        row = connection.execute(
+            select(AssetRow.status, AssetRow.validation_json).where(
+                AssetRow.id == committed.asset_id
+            )
+        ).one()
+    assert row == (
+        AssetStatus.INVALID.value,
+        {
+            "publication_withdrawn": True,
+            "reason": "current package completion fence failed",
+        },
+    )
+
+
+def test_withdrawal_restores_exact_package_inode_when_asset_update_fails(
+    asset_context: AssetContext,
+) -> None:
+    relative_directory = "edit-packages/v001"
+    relative_path = f"{relative_directory}/manifest.json"
+    lease = _claim(asset_context)
+    reservation = _reserve(asset_context, lease, relative_path=relative_path)
+    package_dir = asset_context.project_dir / relative_directory
+    package_dir.mkdir(parents=True)
+    manifest = package_dir / "manifest.json"
+    manifest.write_bytes(b'{"schema_version":"test"}\n')
+    committed = asset_context.store.commit(
+        _identity(lease),
+        reservation,
+        project_dir=asset_context.project_dir,
+        validation={"schema_version": "test"},
+    )
+    original_identity = directory_identity_no_follow(package_dir)
+
+    def fail_invalidation(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: object,
+    ) -> None:
+        if statement.lstrip().startswith("UPDATE assets SET status="):
+            raise RuntimeError("simulated Asset update failure")
+
+    event.listen(asset_context.engine, "before_cursor_execute", fail_invalidation)
+    try:
+        with pytest.raises(RuntimeError, match="Asset update failure"):
+            asset_context.store.withdraw_attempt_publication(
+                _identity(lease),
+                (committed.asset_id,),
+                project_dir=asset_context.project_dir,
+                relative_directory=relative_directory,
+                expected_identity=original_identity,
+                reason="completion fence failed",
+            )
+    finally:
+        event.remove(asset_context.engine, "before_cursor_execute", fail_invalidation)
+
+    assert directory_identity_no_follow(package_dir) == original_identity
+    assert manifest.read_bytes() == b'{"schema_version":"test"}\n'
+    with asset_context.engine.connect() as connection:
+        row = connection.execute(
+            select(AssetRow.status, AssetRow.producer_attempt_id).where(
+                AssetRow.id == committed.asset_id
+            )
+        ).one()
+        attempt_id = connection.scalar(
+            select(TaskAttemptRow.id).where(TaskAttemptRow.lease_token == lease.lease_token)
+        )
+    assert row == (AssetStatus.COMMITTED.value, attempt_id)
+
+
+def test_deferred_withdrawal_quarantine_is_removed_by_attempt_janitor(
+    asset_context: AssetContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relative_directory = "edit-packages/v001"
+    relative_path = f"{relative_directory}/manifest.json"
+    lease = _claim(asset_context)
+    reservation = _reserve(asset_context, lease, relative_path=relative_path)
+    package_dir = asset_context.project_dir / relative_directory
+    package_dir.mkdir(parents=True)
+    (package_dir / "manifest.json").write_bytes(b'{"schema_version":"test"}\n')
+    committed = asset_context.store.commit(
+        _identity(lease),
+        reservation,
+        project_dir=asset_context.project_dir,
+        validation={"schema_version": "test"},
+    )
+    original_remove = assets_module.remove_tree_no_follow
+
+    def defer_cleanup(*_args: object, **_kwargs: object) -> bool:
+        raise SecureFileError("simulated deferred recursive cleanup")
+
+    monkeypatch.setattr(assets_module, "remove_tree_no_follow", defer_cleanup)
+    assert asset_context.store.withdraw_attempt_publication(
+        _identity(lease),
+        (committed.asset_id,),
+        project_dir=asset_context.project_dir,
+        relative_directory=relative_directory,
+        expected_identity=directory_identity_no_follow(package_dir),
+        reason="completion fence failed",
+    )
+    monkeypatch.setattr(assets_module, "remove_tree_no_follow", original_remove)
+
+    attempt_root = asset_context.project_dir / ".attempts" / lease.task_id / lease.lease_token
+    assert not package_dir.exists()
+    assert tuple((attempt_root / "withdrawals").iterdir())
+    assert (
+        asset_context.queue.fail(
+            lease,
+            failure_class=FailureClass.DETERMINISTIC,
+            error_code="PACKAGE_COMPLETION_FAILED",
+            safe_message="The package completion fence failed",
+            now=context_time_after_claim(asset_context),
+        )
+        == TaskStatus.FAILED
+    )
+
+    report = cleanup_terminal_attempt_worktrees(
+        asset_context.engine,
+        data_dir=asset_context.project_dir.parent,
+    )
+
+    assert report.failed == 0
+    assert report.cleaned == 1
+    assert not attempt_root.exists()
+
+
+def test_withdrawn_asset_is_reset_and_reowned_by_same_task_retry(
+    asset_context: AssetContext,
+) -> None:
+    first_lease = _claim(asset_context)
+    original = _reserve(asset_context, first_lease)
+    content = b"published-then-withdrawn"
+    _write_asset(asset_context, content)
+    committed = asset_context.store.commit(
+        _identity(first_lease),
+        original,
+        project_dir=asset_context.project_dir,
+        validation={"decode": "passed"},
+    )
+    asset_context.store.invalidate_attempt_assets(
+        _identity(first_lease),
+        (committed.asset_id,),
+        reason="package publication was withdrawn",
+    )
+    retry_at = context_time_after_claim(asset_context)
+    assert (
+        asset_context.queue.fail(
+            first_lease,
+            failure_class=FailureClass.TRANSIENT,
+            error_code="PACKAGE_COMMIT_TEMPORARY",
+            safe_message="Retry the package commit",
+            retry_delay_ms=0,
+            now=retry_at,
+        )
+        == TaskStatus.QUEUED
+    )
+    retry_lease = asset_context.queue.claim(worker_id="worker-b", now=retry_at)
+    assert retry_lease is not None
+
+    retried = _reserve(asset_context, retry_lease)
+    assert retried == AssetReservation(
+        asset_id=original.asset_id,
+        status=AssetStatus.PENDING,
+        relative_path=RELATIVE_PATH,
+        sha256=None,
+        size_bytes=None,
+    )
+    with asset_context.engine.connect() as connection:
+        producer_attempt_id = connection.scalar(
+            select(AssetRow.producer_attempt_id).where(AssetRow.id == original.asset_id)
+        )
+        retry_attempt_id = connection.scalar(
+            select(TaskAttemptRow.id).where(TaskAttemptRow.lease_token == retry_lease.lease_token)
+        )
+    assert producer_attempt_id == retry_attempt_id
+    recommitted = asset_context.store.commit(
+        _identity(retry_lease),
+        retried,
+        project_dir=asset_context.project_dir,
+        validation={"decode": "passed"},
+    )
+    assert recommitted.status == AssetStatus.COMMITTED
+    assert recommitted.sha256 == hashlib.sha256(content).hexdigest()
 
 
 def test_same_path_with_different_input_fingerprint_conflicts(

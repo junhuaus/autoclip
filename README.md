@@ -64,6 +64,8 @@ liveclip review CLIP_ID --reject --reason "内容不完整"
 liveclip rerender CLIP_ID --wait
 liveclip deliver PROJECT_ID --zip
 liveclip export-review PROJECT_ID --zip
+liveclip db-backup
+liveclip db-restore --backup /absolute/path/backup.sqlite3 --output /absolute/path/restored/liveclip.sqlite3
 ```
 
 All commands above are implemented. `review` creates an immutable human revision when title/boundary/subtitle fields change, `rerender` queues or foreground-executes the current revision, and `deliver` creates a new immutable delivery version. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
@@ -91,7 +93,11 @@ This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.
 
 The review console shows Pipeline progress and candidates, plays signed Range-enabled clean proxies, edits revisions/captions, approves or rejects one or several selected candidates atomically, rerenders, and creates/downloads versioned deliveries. It intentionally omits a separate full-livestream transcript panel. “高光时刻” is a one-column list: every full-width row places the vertical video on the left and editorial content on the right, followed by the row's complete subtitle section at the bottom. The persisted EditPlan `hook` is presented as “高光语句”—AI-authored, candidate-grounded copy suitable for editorial consideration as on-screen text. Grounded terms are explicitly labelled “编辑关键词”; they are editor navigation metadata, not audience-facing copy. Clicking a keyword or subtitle seeks only that row's video. Segment-level keyword windows come from the existing ASR transcript and are labelled honestly when word timing is unavailable, without repeating ASR. A proxy contains no LiveClip-generated title or captions; score, title, high-impact sentence, reason, risks and caption cues are displayed alongside it as metadata. Only the approved final render may burn text. Each current clean proxy also offers individual MP4/SRT download. Owners and editors can separately tick “选择导出” on any number of current rows and create an immutable “剪辑交接包”: clean MP4, matching editable SRT, JSON/CSV descriptions, high-impact sentences, keyword times, thumbnails, checksums and a Chinese Jianying/CapCut import guide. It uses portable interchange files rather than claiming an undocumented Jianying private draft format. Provider diagnostics live under the top-right account/system menu, keeping the editor's dashboard task-focused. An optional Bearer token is held only in page memory.
 
-The v0.2 development line adds local login and an administrator “成员管理” page while package version `0.1.0` remains the stable baseline. To opt in without committing a credential, put a 12–128 character value in ignored `.env.local` as `LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD`; it initializes only a missing password for `LIVECLIP_WORKSPACE_USERNAME`. Restart `make dev`, sign in, then create editors/reviewers as ordinary members and grant their Project roles inside each private Project. Clearing the environment variable does not erase a configured password. Administrator disable, password reset and system-role changes revoke existing browser sessions.
+The v0.2 development line adds local login and administrator “成员管理” and “项目治理” pages while package version `0.1.0` remains the stable baseline. To opt in without committing a credential, put a 12–128 character value in ignored `.env.local` as `LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD`; it initializes only a missing password for `LIVECLIP_WORKSPACE_USERNAME`. Restart `make dev`, sign in, then create editors/reviewers as ordinary members and grant their Project roles inside each private Project. Clearing the environment variable does not erase a configured password. Administrator disable, password reset and system-role changes revoke existing browser sessions.
+
+“项目治理” is an explicit system-administration context. It lists every Project, including a private Project whose recorded owner has been disabled, and shows recent sanitized security/governance audit events. It does not add the administrator as a Project member or grant clip/media/export access. An administrator may explicitly transfer ownership to any active account after entering the exact Project name; the new user becomes the unique owner, the former owner becomes an editor, the Project management version advances and one audit event records the before/after owner. Create a `liveclip db-backup` recovery point before an operational ownership transfer.
+
+Administrators also have a “存储管理” page. It scans the local data tree without following symbolic links, separates database/backups, known Project files, stale/pending/orphan/untracked files, unknown Project directories and interrupted purge quarantine. “安全清理” removes only terminal task worktrees or an exact completed-purge quarantine recorded with its device/inode identity. Large scans/deletions run after a short atomic quarantine claim, without holding SQLite's writer lock and blocking Worker heartbeats. If the process exits after the quarantine rename, the next janitor/safe-cleanup pass recognizes only the same recorded inode at the deterministic hidden cleanup endpoint and resumes; competing endpoints fail closed. Ordinary archive is read-only retention and deletes nothing. Permanent Project purge is deliberately separate: the Project must be archived with no active work, the administrator must enter both the exact Project name and `PURGE PROJECT_ID`, LiveClip creates and validates a no-clobber SQLite recovery point first, then quarantines and deletes only the Project's generated local directory and database graph. The external SourceMedia file is never deleted; every new source must be outside `LIVECLIP_DATA_DIR`, and purge additionally checks all existing Project/SourceMedia references.
 
 The V2-M2 Project page adds “任务与生命周期”: the owner assigns an active Project member, sets priority/deadline/visibility, advances or returns the editorial stage with a required reason, archives/restores, and reads recent activity. Business stages are 草稿、处理中、需要处理、编辑审核、待修改、终审、待发布、已发布、已归档. They are intentionally separate from technical processing/Delivery status; only an explicit human transition records “已发布”. Concurrent browser tabs use `management_version` and receive 409 instead of overwriting one another.
 
@@ -154,7 +160,7 @@ For normal real video processing with the Codex editor, keep `LIVECLIP_AI_PROVID
 
 ## Data and privacy
 
-- Source video is a read-only path reference below `LIVECLIP_ALLOWED_MEDIA_ROOTS` and is not copied by default.
+- Source video is a read-only path reference below `LIVECLIP_ALLOWED_MEDIA_ROOTS`, outside `LIVECLIP_DATA_DIR`, and is not copied by default. Keep imports in `input/` or another dedicated media root, never under `data/projects/`.
 - Video frames, SQLite, transcripts, intermediate/generated videos and deliveries stay under the local data directory.
 - Prepared audio chunks are uploaded to the configured ASR provider. In `openrouter-codex`, they pass through OpenRouter to its selected upstream Whisper host.
 - Only bounded candidate transcript/context and metadata are sent to the LLM provider. Codex receives them through stdin, never argv, and runs with executable tools disabled.
@@ -167,7 +173,26 @@ Default project data will live under `data/projects`; Demo-owned data lives unde
 
 Use `liveclip status`, the API run retry endpoint, or the Web retry action for failed durable work. Expired leases are recovered by the same queue; stale revision renders cannot enter a Delivery. Consult structured local logs, then resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
 
-- `SOURCE_NOT_ALLOWED` or import refusal: make the real source path a descendant of one `LIVECLIP_ALLOWED_MEDIA_ROOTS` entry; symlink escapes and `..` are intentionally rejected.
+Before a migration, ownership operation or destructive retention action, create a consistent backup. The command uses SQLite's online backup API, includes committed WAL data, requires `quick_check=ok`, zero foreign-key violations and one Alembic revision, computes SHA-256, and atomically publishes a new file without overwrite:
+
+```bash
+liveclip db-backup
+# or choose a new absolute filename
+liveclip db-backup --output /absolute/path/liveclip-before-change.sqlite3
+```
+
+Restore is intentionally offline and never replaces the live database. Stop `make dev`, restore to a new filename, inspect the printed revision/hash, then point `LIVECLIP_DATA_DIR` at a directory whose validated file is named `liveclip.sqlite3` before restarting:
+
+```bash
+liveclip db-restore \
+  --backup /absolute/path/liveclip-before-change.sqlite3 \
+  --output /absolute/path/recovered/liveclip.sqlite3
+```
+
+If either destination already exists, the command fails rather than overwriting it. Default operator and purge recovery points are under ignored `data/projects/database-backups/`; migration checkpoints remain under `data/projects/migration-backups/`.
+See the [database backup and recovery runbook](docs/operations/database-recovery.md) before switching a restored data root.
+
+- `SOURCE_NOT_ALLOWED` or import refusal: make the real source path a descendant of one `LIVECLIP_ALLOWED_MEDIA_ROOTS` entry and outside `LIVECLIP_DATA_DIR`; symlink escapes, generated Project/quarantine paths and `..` are intentionally rejected.
 - Port already in use: set `LIVECLIP_API_PORT` and/or `LIVECLIP_WEB_PORT` before `make dev`; Vite receives the API target automatically. For a non-5173 Web port, also set `LIVECLIP_CORS_ORIGINS=http://127.0.0.1:PORT`. E2E ports have their own variables above.
 - Browser test preflight fails: install Google Chrome in `/Applications` or set `LIVECLIP_CHROME_EXECUTABLE`; the test never attaches to an unrelated browser session.
 - OpenRouter smoke says `not_run`: set `openrouter-codex`, an allowed root and a safe local Key in `.env.local`; it never substitutes Mock.

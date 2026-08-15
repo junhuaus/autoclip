@@ -34,6 +34,7 @@ from liveclip.media.secure_files import (
     SecureFileError,
     capture_pinned_file_evidence,
     create_directory_exclusive_no_follow,
+    directory_identity_no_follow,
     ensure_directory_no_follow,
     open_pinned_regular_file,
     publish_directory_no_replace_no_follow,
@@ -83,6 +84,7 @@ class EditPackageResult(BaseModel):
     zip_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     member_sha256: dict[str, str]
     clip_count: int = Field(gt=0)
+    directory_identity: tuple[int, int] | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def validate_evidence(self) -> EditPackageResult:
@@ -156,6 +158,7 @@ def create_edit_package(
             temporary_identity = create_directory_exclusive_no_follow(temporary)
         except SecureFileError as exc:
             raise EditPackageError("edit package attempt could not be created safely") from exc
+        published = False
         try:
             result = _build_edit_package(
                 temporary=temporary,
@@ -189,12 +192,15 @@ def create_edit_package(
                         destination,
                         pinned_files=pinned,
                     )
+                    published = True
+                    if publication_fence is not None:
+                        publication_fence()
             except SecureFileError as exc:
                 raise EditPackageError("edit package could not be published safely") from exc
         except Exception:
             try:
                 remove_tree_no_follow(
-                    temporary,
+                    destination if published else temporary,
                     required_ancestor=packages_dir,
                     expected_identity=temporary_identity,
                 )
@@ -214,6 +220,7 @@ def create_edit_package(
                 if include_zip
                 else None
             ),
+            "directory_identity": temporary_identity,
         }
     )
 
@@ -301,6 +308,7 @@ def validate_existing_edit_package(
         zip_sha256=zip_sha256,
         member_sha256=member_hashes,
         clip_count=len(clips),
+        directory_identity=directory_identity_no_follow(destination),
     )
 
 

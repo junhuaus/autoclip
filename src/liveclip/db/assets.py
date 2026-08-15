@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -31,9 +33,15 @@ from liveclip.domain.state_transitions import (
 )
 from liveclip.media.secure_files import (
     SecureFileError,
+    directory_identity_no_follow,
+    ensure_directory_no_follow,
     open_pinned_regular_file,
+    publish_directory_no_replace_no_follow,
+    remove_tree_no_follow,
     require_directory_no_follow,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +56,13 @@ class _LeaseScope:
     revision_epoch: int
     expected_revision: int | None
     expected_revision_epoch: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class _WithdrawalScope:
+    attempt_id: str
+    project_id: str
+    attempt_directory_identity: tuple[int, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +182,62 @@ class SqlAlchemyAssetStore:
                         )
                         .values(producer_attempt_id=scope.attempt_id)
                     )
+                if (
+                    existing.status == AssetStatus.COMMITTED
+                    and existing.producer_attempt_id != scope.attempt_id
+                ):
+                    if old_attempt.outcome == AttemptOutcome.RUNNING.value:
+                        raise AssetReservationError("asset is owned by another active attempt")
+                    adopted = connection.execute(
+                        update(AssetRow)
+                        .where(
+                            AssetRow.id == existing.asset_id,
+                            AssetRow.status == AssetStatus.COMMITTED.value,
+                            AssetRow.producer_attempt_id == existing.producer_attempt_id,
+                        )
+                        .values(producer_attempt_id=scope.attempt_id)
+                        .returning(AssetRow.id)
+                    ).scalar_one_or_none()
+                    if adopted is None:
+                        raise AssetReservationError(
+                            "committed asset reservation lost its retry fence"
+                        )
+                if existing.status == AssetStatus.INVALID:
+                    if (
+                        existing.producer_attempt_id != scope.attempt_id
+                        and old_attempt.outcome == AttemptOutcome.RUNNING.value
+                    ):
+                        raise AssetReservationError(
+                            "invalid asset is still owned by an active attempt"
+                        )
+                    changed = connection.execute(
+                        update(AssetRow)
+                        .where(
+                            AssetRow.id == existing.asset_id,
+                            AssetRow.status == AssetStatus.INVALID.value,
+                            AssetRow.producer_attempt_id == existing.producer_attempt_id,
+                        )
+                        .values(
+                            status=AssetStatus.PENDING.value,
+                            producer_attempt_id=scope.attempt_id,
+                            sha256=None,
+                            size_bytes=None,
+                            validation_json=None,
+                            committed_at=None,
+                        )
+                        .returning(AssetRow.id)
+                    ).scalar_one_or_none()
+                    if changed is None:
+                        raise AssetReservationError(
+                            "invalid asset reservation lost its retry fence"
+                        )
+                    return AssetReservation(
+                        asset_id=existing.asset_id,
+                        status=AssetStatus.PENDING,
+                        relative_path=existing.relative_path,
+                        sha256=None,
+                        size_bytes=None,
+                    )
                 return _reservation(existing)
             asset_id = new_id()
             connection.execute(
@@ -283,6 +354,231 @@ class SqlAlchemyAssetStore:
             raise AssetReservationError(
                 "reserved asset output is missing, symbolic, or unstable"
             ) from exc
+
+    def invalidate_attempt_assets(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        reason: str,
+    ) -> None:
+        """Demote assets owned by one exact attempt after withdrawing publication."""
+
+        if not asset_ids:
+            return
+        if not reason or len(reason) > 200:
+            raise ValueError("asset invalidation reason is invalid")
+        unique_asset_ids = set(asset_ids)
+        with begin_immediate(self._engine) as connection:
+            attempt_id = connection.scalar(
+                select(TaskAttemptRow.id).where(
+                    TaskAttemptRow.task_id == lease.task_id,
+                    TaskAttemptRow.worker_id == lease.worker_id,
+                    TaskAttemptRow.lease_token == lease.lease_token,
+                )
+            )
+            if attempt_id is None:
+                raise AssetReservationError("asset invalidation attempt does not exist")
+            connection.execute(
+                update(AssetRow)
+                .where(
+                    AssetRow.id.in_(unique_asset_ids),
+                    AssetRow.producer_attempt_id == attempt_id,
+                    AssetRow.status.in_((AssetStatus.PENDING.value, AssetStatus.COMMITTED.value)),
+                )
+                .values(
+                    status=AssetStatus.INVALID.value,
+                    validation_json={"publication_withdrawn": True, "reason": reason},
+                )
+            )
+
+    def withdraw_attempt_publication(
+        self,
+        lease: LeaseIdentity,
+        asset_ids: tuple[str, ...],
+        *,
+        project_dir: Path,
+        relative_directory: str,
+        expected_identity: tuple[int, int],
+        reason: str,
+    ) -> bool:
+        """Move an official package out of view under the exact active lease.
+
+        The O(1) inode-bound rename and Asset invalidation share one SQLite
+        writer transaction.  A successor attempt therefore either adopts the
+        committed Assets first, or observes the old publication already
+        quarantined; an expired producer can never delete its successor's
+        official package.
+        """
+
+        if not asset_ids or len(set(asset_ids)) != len(asset_ids):
+            raise ValueError("publication withdrawal requires distinct assets")
+        if not re.fullmatch(r"[a-f0-9]{32}", lease.task_id) or not re.fullmatch(
+            r"[a-f0-9]{64}", lease.lease_token
+        ):
+            raise ValueError("publication withdrawal lease identity is invalid")
+        if any(not re.fullmatch(r"[a-f0-9]{32}", asset_id) for asset_id in asset_ids):
+            raise ValueError("publication withdrawal asset ID is invalid")
+        if not reason or len(reason) > 200:
+            raise ValueError("asset invalidation reason is invalid")
+        relative = _validate_relative_path(relative_directory)
+        if len(expected_identity) != 2 or expected_identity[0] < 0 or expected_identity[1] <= 0:
+            raise ValueError("publication directory identity is invalid")
+        try:
+            root = require_directory_no_follow(project_dir)
+        except SecureFileError as exc:
+            raise AssetReservationError("asset project directory is not symlink-free") from exc
+
+        source = root / Path(*PurePosixPath(relative).parts)
+        moved = False
+        quarantine: Path | None = None
+        attempt_root: Path | None = None
+        try:
+            now = datetime.now(UTC)
+            with begin_immediate(self._engine) as connection:
+                scope = _load_withdrawal_scope(connection, lease, now=now)
+                if scope is None:
+                    return False
+                if root.name != scope.project_id:
+                    raise AssetReservationError("asset project directory does not match its owner")
+                current_assets = tuple(
+                    _persisted_asset(row)
+                    for row in connection.execute(
+                        _asset_select().where(AssetRow.id.in_(set(asset_ids)))
+                    ).all()
+                )
+                if len(current_assets) != len(asset_ids):
+                    raise AssetReservationError("publication assets are incomplete")
+                prefix = f"{relative}/"
+                if any(
+                    asset.project_id != scope.project_id
+                    or asset.producer_attempt_id != scope.attempt_id
+                    or asset.status not in {AssetStatus.PENDING, AssetStatus.COMMITTED}
+                    or not asset.relative_path.startswith(prefix)
+                    for asset in current_assets
+                ):
+                    # A retry may already have adopted the exact publication.
+                    # In that case this stale caller owns neither the Assets nor
+                    # the right to move the official directory.
+                    return False
+
+                attempt_root = require_directory_no_follow(
+                    root / ".attempts" / lease.task_id / lease.lease_token
+                )
+                if directory_identity_no_follow(attempt_root) != scope.attempt_directory_identity:
+                    raise AssetReservationError("publication withdrawal attempt directory changed")
+                withdrawal_root = ensure_directory_no_follow(attempt_root / "withdrawals")
+                quarantine = withdrawal_root / (
+                    "package-" + hashlib.sha256(relative.encode("utf-8")).hexdigest()
+                )
+                publish_directory_no_replace_no_follow(
+                    source,
+                    quarantine,
+                    expected_identity=expected_identity,
+                )
+                moved = True
+                changed = set(
+                    connection.execute(
+                        update(AssetRow)
+                        .where(
+                            AssetRow.id.in_(set(asset_ids)),
+                            AssetRow.producer_attempt_id == scope.attempt_id,
+                            AssetRow.status.in_(
+                                (AssetStatus.PENDING.value, AssetStatus.COMMITTED.value)
+                            ),
+                        )
+                        .values(
+                            status=AssetStatus.INVALID.value,
+                            validation_json={
+                                "publication_withdrawn": True,
+                                "reason": reason,
+                            },
+                        )
+                        .returning(AssetRow.id)
+                    ).scalars()
+                )
+                if changed != set(asset_ids):
+                    raise AssetReservationError("publication withdrawal lost its Asset fence")
+        except Exception:
+            if moved and quarantine is not None:
+                try:
+                    publish_directory_no_replace_no_follow(
+                        quarantine,
+                        source,
+                        expected_identity=expected_identity,
+                    )
+                except SecureFileError as restore_error:
+                    raise AssetReservationError(
+                        "publication withdrawal could not be rolled back safely"
+                    ) from restore_error
+            raise
+
+        if quarantine is not None and attempt_root is not None:
+            try:
+                remove_tree_no_follow(
+                    quarantine,
+                    required_ancestor=attempt_root,
+                    expected_identity=expected_identity,
+                )
+            except SecureFileError as exc:
+                # The official endpoint is already absent and the Assets are
+                # INVALID.  Keep the exact inode in the attempt quarantine for
+                # the existing janitor instead of restoring a false success.
+                logger.warning(
+                    "package_withdrawal_cleanup_deferred error_type=%s",
+                    type(exc).__name__,
+                )
+        return True
+
+
+def _load_withdrawal_scope(
+    connection: Connection,
+    lease: LeaseIdentity,
+    *,
+    now: datetime,
+) -> _WithdrawalScope | None:
+    """Load an unexpired producer without rejecting a requested cancellation."""
+
+    row = connection.execute(
+        select(
+            TaskAttemptRow.id,
+            PipelineRunRow.project_id,
+            TaskAttemptRow.temp_identity,
+        )
+        .join(TaskRow, TaskRow.id == TaskAttemptRow.task_id)
+        .join(PipelineRunRow, PipelineRunRow.id == TaskRow.pipeline_run_id)
+        .where(
+            TaskRow.id == lease.task_id,
+            TaskRow.status == TaskStatus.RUNNING.value,
+            TaskRow.worker_id == lease.worker_id,
+            TaskRow.lease_token == lease.lease_token,
+            TaskRow.lease_expires_at > now,
+            TaskAttemptRow.lease_token == lease.lease_token,
+            TaskAttemptRow.outcome == AttemptOutcome.RUNNING.value,
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    identity = _parse_directory_identity(str(row[2]) if row[2] is not None else None)
+    if identity is None:
+        raise AssetReservationError("publication withdrawal has no recorded attempt directory")
+    return _WithdrawalScope(
+        attempt_id=str(row[0]),
+        project_id=str(row[1]),
+        attempt_directory_identity=identity,
+    )
+
+
+def _parse_directory_identity(value: str | None) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    parts = value.split(":")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        return None
+    device, inode = (int(part) for part in parts)
+    if device < 0 or inode <= 0:
+        return None
+    return device, inode
 
 
 def _load_lease_scope(
@@ -433,6 +729,8 @@ def _assert_owned_asset(
     )
     if asset.producer_attempt_id is None:
         raise AssetReservationError("asset has no producer attempt")
+    if asset.producer_attempt_id != scope.attempt_id:
+        raise AssetReservationError("asset is not owned by the current attempt")
     producer_task_id = connection.scalar(
         select(TaskAttemptRow.task_id).where(TaskAttemptRow.id == asset.producer_attempt_id)
     )

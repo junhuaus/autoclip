@@ -10,6 +10,7 @@ from liveclip.media import secure_files
 from liveclip.media.secure_files import (
     SecureFileError,
     create_directory_exclusive_no_follow,
+    create_pinned_regular_file_no_follow,
     ensure_directory_no_follow,
     publish_directory_no_replace_no_follow,
     publish_regular_file_immutable_no_follow,
@@ -249,6 +250,86 @@ def test_directory_publication_detects_source_swap_and_rolls_back_destination(
     assert (detached / "manifest.json").read_text(encoding="utf-8") == "verified"
 
 
+@pytest.mark.parametrize("failure_call", [1, 2, 3])
+def test_directory_publication_rolls_back_each_post_rename_fsync_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_call: int,
+) -> None:
+    parent = tmp_path / "deliveries"
+    source = parent / ".v001-attempt"
+    source.mkdir(parents=True)
+    (source / "manifest.json").write_text("verified", encoding="utf-8")
+    destination = parent / "v001"
+    real_rename = secure_files._rename_directory_no_replace
+    real_fsync = secure_files.os.fsync
+    armed = False
+    fsync_calls = 0
+
+    def observe_publication(
+        source_parent_fd: int,
+        source_name: str,
+        destination_parent_fd: int,
+        destination_name: str,
+    ) -> None:
+        nonlocal armed
+        real_rename(
+            source_parent_fd,
+            source_name,
+            destination_parent_fd,
+            destination_name,
+        )
+        if destination_name == destination.name:
+            armed = True
+
+    def fail_selected_fsync(descriptor: int) -> None:
+        nonlocal fsync_calls
+        if armed:
+            fsync_calls += 1
+            if fsync_calls == failure_call:
+                raise OSError("simulated post-rename fsync failure")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(secure_files, "_rename_directory_no_replace", observe_publication)
+    monkeypatch.setattr(secure_files.os, "fsync", fail_selected_fsync)
+
+    with pytest.raises(SecureFileError, match="not durable"):
+        publish_directory_no_replace_no_follow(source, destination)
+
+    assert not destination.exists()
+    assert (source / "manifest.json").read_text(encoding="utf-8") == "verified"
+
+
+@pytest.mark.parametrize("failure_call", [1, 2, 3])
+def test_regular_publication_withdraws_each_post_rename_fsync_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_call: int,
+) -> None:
+    temporary = tmp_path / ".backup.tmp"
+    destination = tmp_path / "backup.sqlite3"
+    pinned = create_pinned_regular_file_no_follow(temporary)
+    with pinned:
+        os.write(pinned.descriptor, b"verified")
+        pinned.seal_after_write()
+        real_fsync = secure_files.os.fsync
+        fsync_calls = 0
+
+        def fail_selected_fsync(descriptor: int) -> None:
+            nonlocal fsync_calls
+            fsync_calls += 1
+            if fsync_calls == failure_call:
+                raise OSError("simulated post-rename fsync failure")
+            real_fsync(descriptor)
+
+        monkeypatch.setattr(secure_files.os, "fsync", fail_selected_fsync)
+        with pytest.raises(SecureFileError, match="not durable"):
+            pinned.publish_no_replace(destination)
+
+    assert not destination.exists()
+    assert not temporary.exists()
+
+
 def test_identity_constrained_cleanup_never_deletes_replacement_directory(
     tmp_path: Path,
 ) -> None:
@@ -446,6 +527,133 @@ def test_remove_tree_does_not_follow_nested_or_target_symlinks(tmp_path: Path) -
     assert outside_file.read_text(encoding="utf-8") == "keep"
 
 
+def test_remove_tree_resumes_exact_interrupted_cleanup_quarantine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ancestor = tmp_path / "attempts"
+    target = ancestor / "task" / "lease"
+    target.mkdir(parents=True)
+    payload = target / "temporary.bin"
+    payload.write_bytes(b"temporary")
+    identity = (target.stat().st_dev, target.stat().st_ino)
+    interrupted = secure_files.interrupted_tree_cleanup_path(target)
+    real_remove_contents = secure_files._remove_open_directory_contents
+
+    with monkeypatch.context() as crash:
+
+        def terminate_after_quarantine(*_args: object, **_kwargs: object) -> None:
+            raise KeyboardInterrupt("simulated process termination")
+
+        crash.setattr(
+            secure_files,
+            "_remove_open_directory_contents",
+            terminate_after_quarantine,
+        )
+        with pytest.raises(KeyboardInterrupt, match="process termination"):
+            remove_tree_no_follow(
+                target,
+                required_ancestor=ancestor,
+                expected_identity=identity,
+            )
+
+    assert not target.exists()
+    assert (interrupted.stat().st_dev, interrupted.stat().st_ino) == identity
+    assert (interrupted / payload.name).read_bytes() == b"temporary"
+    assert secure_files.cleanup_tree_identity_no_follow(target) == identity
+
+    monkeypatch.setattr(
+        secure_files,
+        "_remove_open_directory_contents",
+        real_remove_contents,
+    )
+    assert (
+        remove_tree_no_follow(
+            target,
+            required_ancestor=ancestor,
+            expected_identity=identity,
+        )
+        is True
+    )
+    assert not target.exists()
+    assert not interrupted.exists()
+    assert secure_files.cleanup_tree_identity_no_follow(target) is None
+
+
+def test_remove_tree_refuses_competing_original_and_interrupted_endpoints(
+    tmp_path: Path,
+) -> None:
+    ancestor = tmp_path / "attempts"
+    target = ancestor / "task" / "lease"
+    interrupted = secure_files.interrupted_tree_cleanup_path(target)
+    target.mkdir(parents=True)
+    interrupted.mkdir()
+    (target / "original.bin").write_bytes(b"original")
+    (interrupted / "interrupted.bin").write_bytes(b"interrupted")
+
+    with pytest.raises(SecureFileError, match="competing"):
+        secure_files.cleanup_tree_identity_no_follow(target)
+    with pytest.raises(SecureFileError, match="competing"):
+        remove_tree_no_follow(
+            target,
+            required_ancestor=ancestor,
+            expected_identity=(target.stat().st_dev, target.stat().st_ino),
+        )
+
+    assert (target / "original.bin").read_bytes() == b"original"
+    assert (interrupted / "interrupted.bin").read_bytes() == b"interrupted"
+
+
+def test_remove_tree_refuses_wrong_interrupted_cleanup_identity(tmp_path: Path) -> None:
+    ancestor = tmp_path / "attempts"
+    target = ancestor / "task" / "lease"
+    interrupted = secure_files.interrupted_tree_cleanup_path(target)
+    interrupted.mkdir(parents=True)
+    payload = interrupted / "must-survive.bin"
+    payload.write_bytes(b"must survive")
+    identity = (interrupted.stat().st_dev, interrupted.stat().st_ino)
+
+    with pytest.raises(SecureFileError, match="not the directory created"):
+        remove_tree_no_follow(
+            target,
+            required_ancestor=ancestor,
+            expected_identity=(identity[0], identity[1] + 1),
+        )
+
+    assert payload.read_bytes() == b"must survive"
+
+
+def test_remove_tree_refuses_target_filesystem_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ancestor = tmp_path / "attempts"
+    target = ancestor / "mounted-target"
+    target.mkdir(parents=True)
+    protected = target / "external-volume.bin"
+    protected.write_bytes(b"must survive")
+    target_inode = target.stat().st_ino
+    real_identity = secure_files._directory_filesystem_identity
+
+    def report_other_filesystem(
+        descriptor: int,
+        metadata: os.stat_result,
+    ) -> tuple[int, int | None]:
+        observed = real_identity(descriptor, metadata)
+        if metadata.st_ino == target_inode:
+            return observed[0], (observed[1] or 0) + 1
+        return observed
+
+    monkeypatch.setattr(
+        secure_files,
+        "_directory_filesystem_identity",
+        report_other_filesystem,
+    )
+    with pytest.raises(SecureFileError, match="filesystem boundary"):
+        remove_tree_no_follow(target, required_ancestor=ancestor)
+    assert protected.read_bytes() == b"must survive"
+
+
 def test_remove_tree_is_ancestor_constrained_and_rejects_endpoint_swap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -468,7 +676,7 @@ def test_remove_tree_is_ancestor_constrained_and_rejects_endpoint_swap(
         destination_name: str,
     ) -> None:
         nonlocal swapped
-        if not swapped and ".cleanup-" in destination_name:
+        if not swapped and destination_name == f".{target.name}.cleanup":
             swapped = True
             os.rename(
                 source_name,
@@ -491,7 +699,7 @@ def test_remove_tree_is_ancestor_constrained_and_rejects_endpoint_swap(
 
     monkeypatch.setattr(secure_files, "_rename_directory_no_replace", racing_cleanup_rename)
 
-    with pytest.raises(SecureFileError, match="pinned source"):
+    with pytest.raises(SecureFileError, match="interrupted"):
         remove_tree_no_follow(target, required_ancestor=ancestor)
 
     assert swapped

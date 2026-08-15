@@ -8,8 +8,11 @@ from pathlib import Path
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.media.secure_files import (
     SecureFileError,
+    cleanup_tree_identity_no_follow,
+    directory_identity_no_follow,
     ensure_directory_no_follow,
     publish_regular_file_immutable_no_follow,
+    remove_directory_children_except_no_follow,
     remove_tree_no_follow,
     require_directory_no_follow,
     write_bytes_immutable_no_follow,
@@ -104,6 +107,7 @@ def cleanup_attempt_worktree(
     task_id: str,
     lease_token: str,
     preserve_diagnostics: bool,
+    expected_identity: tuple[int, int] | None = None,
 ) -> bool:
     if not re.fullmatch(r"[a-f0-9]{32}", task_id):
         raise ArtifactPublicationError("cleanup task ID is invalid")
@@ -112,11 +116,23 @@ def cleanup_attempt_worktree(
     attempt_root = project_dir / ".attempts"
     target = attempt_root / task_id / lease_token
     try:
+        if (
+            expected_identity is not None
+            and cleanup_tree_identity_no_follow(target) != expected_identity
+        ):
+            raise SecureFileError("attempt directory differs from its recorded identity")
         if not preserve_diagnostics:
-            return remove_tree_no_follow(target, required_ancestor=attempt_root)
-        removed = False
-        for worktree in ("runs", "transcript", "delivery"):
-            removed = remove_tree_no_follow(target / worktree, required_ancestor=target) or removed
-        return removed
+            return remove_tree_no_follow(
+                target,
+                required_ancestor=attempt_root,
+                expected_identity=expected_identity,
+            )
+        if expected_identity is None:
+            expected_identity = directory_identity_no_follow(target)
+        return remove_directory_children_except_no_follow(
+            target,
+            preserve_names=frozenset({"diagnostics"}),
+            expected_identity=expected_identity,
+        )
     except SecureFileError as exc:
         raise ArtifactPublicationError("attempt cleanup could not be performed safely") from exc
