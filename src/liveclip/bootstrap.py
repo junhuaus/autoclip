@@ -23,6 +23,7 @@ from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.offline_review import OfflineReviewPackageService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
 from liveclip.application.projects import ProjectManagementService
+from liveclip.application.releases import ReleaseService
 from liveclip.application.render_runner import RenderTaskRunner
 from liveclip.application.rendering import RenderProfile, RenderService
 from liveclip.application.reviewing import ReviewService
@@ -39,12 +40,14 @@ from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
 from liveclip.db.project_repository import SqlAlchemyProjectManagementRepository
+from liveclip.db.release_repository import SqlAlchemyReleaseRepository
 from liveclip.db.render_repository import SqlAlchemyRenderRepository
 from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.db.workspace_repository import SqlAlchemyWorkspaceRepository
 from liveclip.delivery.edit_package_task_handler import EditPackageTaskHandler
+from liveclip.delivery.release_package_task_handler import ReleasePackageTaskHandler
 from liveclip.delivery.task_handler import DeliveryTaskHandler
 from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION
 from liveclip.observability import configure_logging
@@ -90,6 +93,7 @@ class LiveClipRuntime:
     render_runner: RenderTaskRunner
     delivery_service: DeliveryService
     edit_package_service: EditPackageService
+    release_service: ReleaseService
     delivery_runner: DeliveryTaskRunner
     media_asset_service: MediaAssetService
     offline_review_package_service: OfflineReviewPackageService
@@ -211,6 +215,11 @@ class LiveClipRuntime:
                 clip_query_service,
                 max_retries=settings.max_stage_retries,
             )
+            release_repository = SqlAlchemyReleaseRepository(engine)
+            release_service = ReleaseService(
+                release_repository,
+                max_retries=settings.max_stage_retries,
+            )
             delivery_runner = DeliveryTaskRunner(
                 queue=queue,
                 repository=delivery_repository,
@@ -221,6 +230,12 @@ class LiveClipRuntime:
                     data_dir=data_dir,
                     assets=asset_store,
                     publication_fence=edit_package_repository.assert_edit_package_current,
+                ),
+                release_repository=release_repository,
+                release_package_handler=ReleasePackageTaskHandler(
+                    data_dir=data_dir,
+                    assets=asset_store,
+                    publication_fence=release_repository.assert_release_package_current,
                 ),
             )
             media_asset_service = MediaAssetService(
@@ -251,6 +266,7 @@ class LiveClipRuntime:
                 render_runner=render_runner,
                 delivery_service=delivery_service,
                 edit_package_service=edit_package_service,
+                release_service=release_service,
                 delivery_runner=delivery_runner,
                 media_asset_service=media_asset_service,
                 offline_review_package_service=offline_review_package_service,

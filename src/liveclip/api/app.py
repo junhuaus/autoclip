@@ -48,6 +48,15 @@ from liveclip.api.schemas import (
     ProjectMembersResponse,
     ProjectOwnershipTransferRequest,
     ProviderHealthResponse,
+    ReleaseApprovalRequest,
+    ReleaseItemCreateRequest,
+    ReleaseItemsResponse,
+    ReleaseItemUpdateRequest,
+    ReleaseMetricRequest,
+    ReleasePackageCreateRequest,
+    ReleasePackageDetailResponse,
+    ReleasePresetsResponse,
+    ReleaseStatusRequest,
     RenderCreateRequest,
     ReviewActionRequest,
     RunCreateRequest,
@@ -90,6 +99,11 @@ from liveclip.application.projects import (
     ProjectLifecycleUpdate,
     ProjectManagementConflict,
     ProjectManagementUpdate,
+)
+from liveclip.application.releases import (
+    ReleaseConflict,
+    ReleaseItemSnapshot,
+    ReleasePackageSnapshot,
 )
 from liveclip.application.rendering import QueuedRender, RenderConflict
 from liveclip.application.reviewing import (
@@ -1024,6 +1038,278 @@ def create_app(
             ),
         )
 
+    @protected.get("/release-presets", response_model=ReleasePresetsResponse)
+    def list_release_presets(request: Request) -> ReleasePresetsResponse:
+        service = _runtime(request).release_service
+        return ReleasePresetsResponse(
+            presets=service.presets(include_historical=True),
+            current_versions=service.current_preset_versions(),
+        )
+
+    @protected.get(
+        "/projects/{project_id}/releases",
+        response_model=ReleaseItemsResponse,
+    )
+    def list_release_items(
+        project_id: str,
+        request: Request,
+    ) -> ReleaseItemsResponse:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        releases = active.release_service.list_items(project_id)
+        return ReleaseItemsResponse(
+            project_id=project_id,
+            releases=releases,
+            preview_media_urls={
+                item.release_item_id: _asset_url(security, item.preview_asset_id)
+                for item in releases
+                if item.preview_asset_id is not None
+            },
+        )
+
+    @protected.post(
+        "/projects/{project_id}/releases",
+        status_code=status.HTTP_201_CREATED,
+        response_model=ReleaseItemSnapshot,
+    )
+    def create_release_item(
+        project_id: str,
+        body: ReleaseItemCreateRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> ReleaseItemSnapshot:
+        active = _runtime(request)
+        caller = _caller(request)
+        user = _require_project_access(active, caller, project_id, action="manage_release")
+        created = active.release_service.create_item(
+            project_id=project_id,
+            acting_user_id=user.user_id,
+            command=body.to_domain(),
+            correlation_id=_correlation_id(request),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/projects/:project_id/releases",
+                payload={"project_id": project_id, **body.model_dump(mode="json")},
+            ),
+        )
+        response.headers["Location"] = f"/api/v1/releases/{created.release_item_id}"
+        return created
+
+    @protected.get("/releases/{release_item_id}", response_model=ReleaseItemSnapshot)
+    def get_release_item(
+        release_item_id: str,
+        request: Request,
+    ) -> ReleaseItemSnapshot:
+        return _require_release_access(
+            _runtime(request),
+            _caller(request),
+            release_item_id,
+        )
+
+    @protected.patch("/releases/{release_item_id}", response_model=ReleaseItemSnapshot)
+    def update_release_item(
+        release_item_id: str,
+        body: ReleaseItemUpdateRequest,
+        request: Request,
+    ) -> ReleaseItemSnapshot:
+        active = _runtime(request)
+        caller = _caller(request)
+        release = _require_release_access(
+            active,
+            caller,
+            release_item_id,
+            action="manage_release",
+        )
+        user = _require_project_access(
+            active,
+            caller,
+            release.project_id,
+            action="manage_release",
+        )
+        return active.release_service.update_item(
+            release_item_id,
+            acting_user_id=user.user_id,
+            command=body.to_domain(),
+            correlation_id=_correlation_id(request),
+        )
+
+    @protected.post(
+        "/releases/{release_item_id}/approval",
+        response_model=ReleaseItemSnapshot,
+    )
+    def approve_release_item(
+        release_item_id: str,
+        body: ReleaseApprovalRequest,
+        request: Request,
+    ) -> ReleaseItemSnapshot:
+        active = _runtime(request)
+        caller = _caller(request)
+        release = _require_release_access(
+            active,
+            caller,
+            release_item_id,
+            action="read",
+        )
+        action: ProjectAction = (
+            "approve_release"
+            if release.approval_status.value == "approved"
+            or body.target.value in {"approved", "changes_requested"}
+            else "manage_release"
+        )
+        user = _require_project_access(
+            active,
+            caller,
+            release.project_id,
+            action=action,
+        )
+        return active.release_service.transition_approval(
+            release_item_id,
+            acting_user_id=user.user_id,
+            command=body.to_domain(),
+            correlation_id=_correlation_id(request),
+        )
+
+    @protected.post(
+        "/releases/{release_item_id}/status",
+        response_model=ReleaseItemSnapshot,
+    )
+    def transition_release_status(
+        release_item_id: str,
+        body: ReleaseStatusRequest,
+        request: Request,
+    ) -> ReleaseItemSnapshot:
+        active = _runtime(request)
+        caller = _caller(request)
+        release = _require_release_access(
+            active,
+            caller,
+            release_item_id,
+            action="manage_release",
+        )
+        user = _require_project_access(
+            active,
+            caller,
+            release.project_id,
+            action="manage_release",
+        )
+        return active.release_service.transition_status(
+            release_item_id,
+            acting_user_id=user.user_id,
+            command=body.to_domain(),
+            correlation_id=_correlation_id(request),
+        )
+
+    @protected.post(
+        "/releases/{release_item_id}/metrics",
+        status_code=status.HTTP_201_CREATED,
+        response_model=ReleaseItemSnapshot,
+    )
+    def add_release_metric(
+        release_item_id: str,
+        body: ReleaseMetricRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> ReleaseItemSnapshot:
+        active = _runtime(request)
+        caller = _caller(request)
+        release = _require_release_access(
+            active,
+            caller,
+            release_item_id,
+            action="manage_release",
+        )
+        user = _require_project_access(
+            active,
+            caller,
+            release.project_id,
+            action="manage_release",
+        )
+        return active.release_service.add_metric(
+            release_item_id,
+            acting_user_id=user.user_id,
+            command=body.to_domain(),
+            correlation_id=_correlation_id(request),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/releases/:release_item_id/metrics",
+                payload={
+                    "release_item_id": release_item_id,
+                    **body.model_dump(mode="json"),
+                },
+            ),
+        )
+
+    @protected.post(
+        "/releases/{release_item_id}/packages",
+        status_code=status.HTTP_202_ACCEPTED,
+        response_model=AcceptedTaskResponse,
+    )
+    def create_release_package(
+        release_item_id: str,
+        body: ReleasePackageCreateRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> AcceptedTaskResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        release = _require_release_access(
+            active,
+            caller,
+            release_item_id,
+            action="manage_release",
+        )
+        user = _require_project_access(
+            active,
+            caller,
+            release.project_id,
+            action="manage_release",
+        )
+        queued = active.release_service.enqueue_package(
+            release_item_id,
+            requested_by_user_id=user.user_id,
+            request=body.to_domain(),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/releases/:release_item_id/packages",
+                payload={
+                    "release_item_id": release_item_id,
+                    **body.model_dump(mode="json"),
+                },
+            ),
+        )
+        location = f"/api/v1/release-packages/{queued.release_package_id}"
+        response.headers["Location"] = location
+        response.headers["Retry-After"] = "1"
+        return AcceptedTaskResponse(
+            resource_type="release_package",
+            resource_id=queued.release_package_id,
+            task_id=queued.task_id,
+            status=queued.status.value,
+            status_url=location,
+        )
+
+    @protected.get(
+        "/release-packages/{release_package_id}",
+        response_model=ReleasePackageDetailResponse,
+    )
+    def get_release_package(
+        release_package_id: str,
+        request: Request,
+    ) -> ReleasePackageDetailResponse:
+        return _release_package_response(
+            security,
+            _require_release_package_access(
+                _runtime(request),
+                _caller(request),
+                release_package_id,
+            ),
+        )
+
     app.include_router(protected)
 
     @app.get("/api/v1/media/{asset_id}")
@@ -1116,6 +1402,53 @@ def create_app(
             asset,
             range_header=range_header,
             download_filename=f"liveclip-edit-package-{package.package_version}.zip",
+        )
+
+    @app.get("/api/v1/release-packages/{release_package_id}/download")
+    def download_release_package(
+        release_package_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        range_header: Annotated[str | None, Header(alias="Range")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        package = active.release_service.get_package(release_package_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=package.project_id,
+            path=f"/api/v1/release-packages/{release_package_id}/download",
+            resource=f"release-package:{release_package_id}",
+            expires=expires,
+            signature=signature,
+        )
+        if package.status.value != "succeeded":
+            raise ReleaseConflict("release package is not available")
+        asset_id = package.zip_asset_id or package.manifest_asset_id
+        if asset_id is None:
+            raise ReleaseConflict("release package artifact is not available")
+        kind = (
+            "release_package_zip"
+            if package.zip_asset_id is not None
+            else ("release_package_manifest")
+        )
+        asset = active.media_asset_service.resolve(asset_id, required_kind=kind)
+        filename = (
+            asset.filename
+            if package.zip_asset_id is not None
+            else (
+                f"liveclip-release-{package.release_item_id[:8]}-"
+                f"{package.package_version}-manifest.json"
+            )
+        )
+        return stream_asset_response(
+            asset,
+            range_header=range_header,
+            download_filename=filename,
         )
 
     @app.get("/api/v1/clips/{clip_id}/download/video")
@@ -1380,6 +1713,28 @@ def _require_edit_package_access(
     return package
 
 
+def _require_release_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    release_item_id: str,
+    *,
+    action: ProjectAction = "read",
+) -> ReleaseItemSnapshot:
+    release = runtime.release_service.get_item(release_item_id)
+    _require_project_access(runtime, caller, release.project_id, action=action)
+    return release
+
+
+def _require_release_package_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    release_package_id: str,
+) -> ReleasePackageSnapshot:
+    package = runtime.release_service.get_package(release_package_id)
+    _require_project_access(runtime, caller, package.project_id)
+    return package
+
+
 def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
     return ClipPatch(
         expected_revision=body.expected_revision,
@@ -1484,6 +1839,27 @@ def _edit_package_response(
             resource=f"edit-package:{package.edit_package_id}",
         )
     return EditPackageDetailResponse(edit_package=package, download_url=download_url)
+
+
+def _release_package_response(
+    security: ApiSecurity,
+    package: ReleasePackageSnapshot,
+) -> ReleasePackageDetailResponse:
+    download_url = None
+    download_kind: Literal["zip", "manifest"] | None = None
+    if package.status.value == "succeeded" and (
+        package.zip_asset_id is not None or package.manifest_asset_id is not None
+    ):
+        download_url = security.signed_url(
+            path=f"/api/v1/release-packages/{package.release_package_id}/download",
+            resource=f"release-package:{package.release_package_id}",
+        )
+        download_kind = "zip" if package.zip_asset_id is not None else "manifest"
+    return ReleasePackageDetailResponse(
+        release_package=package,
+        download_url=download_url,
+        download_kind=download_kind,
+    )
 
 
 def _install_exception_handlers(app: FastAPI) -> None:
@@ -1656,6 +2032,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RenderConflict)
     @app.exception_handler(DeliveryConflict)
     @app.exception_handler(EditPackageConflict)
+    @app.exception_handler(ReleaseConflict)
     async def state_conflict_handler(request: Request, exc: Exception) -> JSONResponse:
         message = str(exc).strip()
         return _error_response(

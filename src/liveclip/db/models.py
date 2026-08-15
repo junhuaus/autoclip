@@ -21,6 +21,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from liveclip.db.base import Base, UTCDateTime, new_id, utc_now
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
+from liveclip.domain.releases import (
+    ReleaseApprovalStatus,
+    ReleaseCaptionMode,
+    ReleaseItemStatus,
+    ReleasePackageStatus,
+    ReleasePlatform,
+)
 from liveclip.domain.state_transitions import (
     AssetStatus,
     AttemptOutcome,
@@ -906,6 +913,227 @@ class EditPackageClipRow(Base):
     video_sha256: Mapped[str | None] = mapped_column(String(64))
     subtitle_sha256: Mapped[str | None] = mapped_column(String(64))
     thumbnail_sha256: Mapped[str | None] = mapped_column(String(64))
+
+
+class ReleaseItemRow(Base):
+    __tablename__ = "release_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_clip_id",
+            "platform",
+            "account_label",
+            name="release_item_clip_platform_account",
+        ),
+        CheckConstraint(
+            f"platform IN ({_enum_sql(ReleasePlatform)})",
+            name="release_item_platform_allowed",
+        ),
+        CheckConstraint(
+            f"caption_mode IN ({_enum_sql(ReleaseCaptionMode)})",
+            name="release_item_caption_mode_allowed",
+        ),
+        CheckConstraint(
+            f"approval_status IN ({_enum_sql(ReleaseApprovalStatus)})",
+            name="release_item_approval_allowed",
+        ),
+        CheckConstraint(
+            f"status IN ({_enum_sql(ReleaseItemStatus)})",
+            name="release_item_status_allowed",
+        ),
+        CheckConstraint("edit_plan_revision > 0", name="release_item_revision_positive"),
+        CheckConstraint("management_version > 0", name="release_item_version_positive"),
+        CheckConstraint("cover_time_ms >= 0", name="release_item_cover_nonnegative"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    candidate_clip_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_clips.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    edit_plan_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("edit_plan_revisions.id", ondelete="RESTRICT"), nullable=False
+    )
+    edit_plan_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    preset_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    account_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    title_variants_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    hashtags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    cta: Mapped[str] = mapped_column(String(200), nullable=False)
+    caption_mode: Mapped[str] = mapped_column(String(24), nullable=False)
+    cover_time_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    assignee_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    planned_publish_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), index=True)
+    approval_status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=ReleaseApprovalStatus.DRAFT.value, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=ReleaseItemStatus.DRAFT.value, index=True
+    )
+    checklist_json: Mapped[dict[str, bool]] = mapped_column(JSON, nullable=False)
+    preflight_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    management_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    external_url: Mapped[str | None] = mapped_column(String(1_000))
+    external_id: Mapped[str | None] = mapped_column(String(200))
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), index=True)
+    result_notes: Mapped[str | None] = mapped_column(Text)
+    created_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
+class ReleaseMetricSnapshotRow(Base):
+    __tablename__ = "release_metric_snapshots"
+    __table_args__ = (
+        CheckConstraint("views >= 0", name="release_metric_views_nonnegative"),
+        CheckConstraint("likes >= 0", name="release_metric_likes_nonnegative"),
+        CheckConstraint("comments >= 0", name="release_metric_comments_nonnegative"),
+        CheckConstraint("shares >= 0", name="release_metric_shares_nonnegative"),
+        CheckConstraint("saves >= 0", name="release_metric_saves_nonnegative"),
+        CheckConstraint(
+            "followers_gained >= 0",
+            name="release_metric_followers_nonnegative",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    release_item_id: Mapped[str] = mapped_column(
+        ForeignKey("release_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    recorded_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    captured_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, index=True)
+    views: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    likes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    comments: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    shares: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    saves: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    followers_gained: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    notes: Mapped[str | None] = mapped_column(String(1_000))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class ReleasePackageRow(Base):
+    __tablename__ = "release_packages"
+    __table_args__ = (
+        UniqueConstraint("release_item_id", "version", name="release_item_package_version"),
+        CheckConstraint("version > 0", name="release_package_version_positive"),
+        CheckConstraint(
+            "expected_generation > 0",
+            name="release_package_generation_positive",
+        ),
+        CheckConstraint(
+            "expected_release_item_version > 0",
+            name="release_package_item_version_positive",
+        ),
+        CheckConstraint(
+            f"status IN ({_enum_sql(ReleasePackageStatus)})",
+            name="release_package_status_allowed",
+        ),
+        CheckConstraint(
+            f"caption_mode IN ({_enum_sql(ReleaseCaptionMode)})",
+            name="release_package_caption_mode_allowed",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    release_item_id: Mapped[str] = mapped_column(
+        ForeignKey("release_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    requested_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), unique=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ReleasePackageStatus.QUEUED.value, index=True
+    )
+    expected_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_revision_epoch: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    expected_release_item_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    preset_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    caption_mode: Mapped[str] = mapped_column(String(24), nullable=False)
+    snapshot_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    directory_relative_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_render_job_id: Mapped[str] = mapped_column(
+        ForeignKey("render_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_video_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    manifest_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    zip_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    manifest_sha256: Mapped[str | None] = mapped_column(String(64))
+    zip_sha256: Mapped[str | None] = mapped_column(String(64))
+    include_zip: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    safe_error_message: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class ReleasePublicationEvidenceRow(Base):
+    __tablename__ = "release_publication_evidence"
+    __table_args__ = (
+        CheckConstraint(
+            "release_item_version > 0",
+            name="release_publication_item_version_positive",
+        ),
+        CheckConstraint(
+            "package_version > 0",
+            name="release_publication_package_version_positive",
+        ),
+        CheckConstraint(
+            "artifact_kind IN ('zip', 'manifest')",
+            name="release_publication_artifact_kind_allowed",
+        ),
+        CheckConstraint(
+            "length(video_sha256) = 64 AND length(artifact_sha256) = 64 "
+            "AND length(manifest_sha256) = 64 "
+            "AND (zip_sha256 IS NULL OR length(zip_sha256) = 64)",
+            name="release_publication_hash_lengths",
+        ),
+    )
+
+    release_item_id: Mapped[str] = mapped_column(
+        ForeignKey("release_items.id", ondelete="CASCADE"), primary_key=True
+    )
+    release_package_id: Mapped[str] = mapped_column(
+        ForeignKey("release_packages.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    release_item_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    package_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    preset_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    caption_mode: Mapped[str] = mapped_column(String(24), nullable=False)
+    video_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    artifact_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    zip_sha256: Mapped[str | None] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
 
 class ApiUsageRow(Base):

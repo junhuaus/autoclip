@@ -52,6 +52,7 @@ from liveclip.db.models import (
     TranscriptSegmentRow,
     WorkspaceUserRow,
 )
+from liveclip.db.release_package_invalidation import invalidate_active_release_packages
 from liveclip.domain.project_lifecycle import (
     ProjectLifecycle,
     ProjectPriority,
@@ -239,7 +240,17 @@ class SqlAlchemyPipelineRepository:
                     PipelineRunStatus.RUNNING.value,
                 }:
                     raise PipelineConflict("project already has an active pipeline run")
-                active_work = connection.scalar(
+                invalidated_release_packages = invalidate_active_release_packages(
+                    connection,
+                    instant=now,
+                    project_id=project_id,
+                )
+                invalidated_release_task_ids = tuple(
+                    item.task_id
+                    for item in invalidated_release_packages
+                    if item.task_id is not None
+                )
+                active_work_query = (
                     select(func.count())
                     .select_from(TaskRow)
                     .where(
@@ -247,6 +258,11 @@ class SqlAlchemyPipelineRepository:
                         TaskRow.status.in_([TaskStatus.QUEUED.value, TaskStatus.RUNNING.value]),
                     )
                 )
+                if invalidated_release_task_ids:
+                    active_work_query = active_work_query.where(
+                        TaskRow.id.not_in(invalidated_release_task_ids)
+                    )
+                active_work = connection.scalar(active_work_query)
                 if active_work:
                     raise PipelineConflict("project still has active render or delivery work")
                 for current in (

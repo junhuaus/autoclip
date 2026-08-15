@@ -9,6 +9,7 @@ import {
 } from "./api";
 import { ClipEditor } from "./ClipEditor";
 import { ProjectOperations, PROJECT_LIFECYCLE_LABELS } from "./ProjectOperations";
+import { ReleaseWorkspace } from "./ReleaseWorkspace";
 import type {
   ClipSummaryResponse,
   BatchReviewRequest,
@@ -927,6 +928,13 @@ export function ProjectWorkspace({
       return next;
     });
   }, []);
+  const handleReleaseChanged = useCallback(() => {
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+      queryClient.invalidateQueries({ queryKey: ["projects"] }),
+      queryClient.invalidateQueries({ queryKey: ["project-activity", projectId] }),
+    ]);
+  }, [projectId, queryClient]);
   const batchMutation = useMutation({
     mutationFn: (operation: BatchReviewOperation) =>
       api.reviewClipsBatch(projectId, operation.body, operation.requestKey),
@@ -1228,6 +1236,15 @@ export function ProjectWorkspace({
       ) : null}
 
       <DeliveryPanel api={api} project={project} approvedCount={approvedCount} />
+
+      {contentEnabled ? (
+        <ReleaseWorkspace
+          api={api}
+          project={project}
+          clips={clipsQuery.data ?? []}
+          onProjectChanged={handleReleaseChanged}
+        />
+      ) : null}
     </main>
   );
 }

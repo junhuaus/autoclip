@@ -168,6 +168,31 @@ flowchart LR
 
 `EditPackage` is neither Review nor formal Delivery. It may snapshot pending-review clips, never burns LiveClip text, never changes Project lifecycle/status and never invokes ASR or LLM. The selection keeps its original exact revision even when a later edit makes the old clean proxy stale; queued/creating work fails closed, while an already succeeded version remains an immutable historical handoff.
 
+## Release planning and platform package
+
+```mermaid
+flowchart LR
+  CLIP[Current non-rejected clip] --> ITEM[ReleaseItem draft per platform/account]
+  ITEM --> COPY[Editable title/body/tags/CTA]
+  ITEM --> COVER[Cover time + safe-zone preview]
+  ITEM --> CHECK[Nine human checks + deterministic preflight]
+  PRIOR[Immutable prior package/delivery evidence] -. advisory duplicate warning .-> CHECK
+  COPY --> SUBMIT[Editor submits]
+  COVER --> SUBMIT
+  CHECK --> SUBMIT
+  SUBMIT --> APPROVE[Owner/reviewer approval]
+  APPROVE --> READY[Ready / externally scheduled]
+  READY --> SNAP[Leased immutable package snapshot]
+  SNAP --> FENCE[Requester + run + revision + render + Asset fence]
+  FENCE --> PACKAGE[Complete ZIP: MP4 + optional SRT + cover + copy + manifest]
+  READY --> EXTERNAL[Human publishes outside LiveClip]
+  PACKAGE --> EVIDENCE[Exact package/video/manifest/ZIP hashes]
+  EXTERNAL --> EVIDENCE
+  EVIDENCE --> RECORD[Actual time + external URL/ID + notes + metrics]
+```
+
+Release approval, queue state, formal Delivery and Project lifecycle are distinct evidence. The Web renders capabilities returned by the server: an editor manages metadata and submits, while an owner/reviewer approves, returns or revokes approval. Platform presets are dated immutable configuration with one selected current version and resolvable history; hard blockers are limited to verified media rules and local evidence, while account-specific policy remains a required human confirmation. Duplicate evidence is a warning only, and its enqueue-time form is frozen for deterministic package recovery while excluded from material-current fingerprints. LiveClip stores no platform credential and `scheduled_external` never claims an upload. Package execution shares SQLite leases, pins the exact current producer lineage, validates actual bytes, extracts the cover with system-owned FFmpeg argv and publishes a no-replace version directory. Recovery regenerates deterministic members instead of trusting self-reported hashes. Release-item changes, clip revisions and new runs fail active package resources and cancel/fence their Tasks in the same transaction; successful package versions remain immutable. Publication then pins one exact current successful ZIP and persists its hashes together with the operator's actual timestamp and external result.
+
 ## EditPlan execution boundary
 
 ```mermaid
@@ -195,6 +220,7 @@ flowchart TD
   R1 --> A1[Review decision r1]
   CHANGE[Title/boundary/caption change] --> R2[EditPlan revision 2]
   CHANGE -->|marks| P1S[Proxy/final r1 stale]
+  CHANGE -->|Project epoch + transaction| RP[Queued/creating release packages failed; Tasks cancelled/fenced]
   R2 --> P2[Proxy render r2]
   P2 --> E2[Optional immutable EditPackage r2]
   R2 --> A2[Approval r2]

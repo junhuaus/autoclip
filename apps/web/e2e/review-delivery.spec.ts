@@ -5,6 +5,7 @@ import type {
   ClipPatchRequest,
   ClipSummaryResponse,
   ProjectSnapshot,
+  ReleaseItemSnapshot,
   ReviewActionRequest,
 } from "../src/types";
 import {
@@ -20,6 +21,7 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   let deliveryCreated = false;
   let editPackageCreated = false;
   let renderPollCount = 0;
+  let releaseItem: ReleaseItemSnapshot | null = null;
   let project: ProjectSnapshot = initialProject;
   let clipDetail: ClipDetailResponse = structuredClone(initialClipDetail);
   let clipSummary: ClipSummaryResponse = structuredClone(initialClipSummary);
@@ -97,6 +99,18 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
           "Content-Disposition": 'attachment; filename="liveclip-edit-package-v001.zip"',
         },
         body: "PK\u0003\u0004mock-liveclip-edit-package",
+      });
+      return;
+    }
+    if (path === "/api/v1/release-packages/release-package-1/download") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/zip",
+        headers: {
+          "Content-Disposition":
+            'attachment; filename="liveclip-release-douyin-highlight-release--v001.zip"',
+        },
+        body: "PK\u0003\u0004mock-liveclip-release-package",
       });
       return;
     }
@@ -178,6 +192,188 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     };
     if (path === "/api/v1/projects/project-1/edit-packages" && method === "GET") {
       await route.fulfill({ json: editPackageCreated ? [editPackage] : [] });
+      return;
+    }
+    if (path === "/api/v1/release-presets" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          current_versions: {
+            douyin: "2026-08-15.1",
+            xiaohongshu: "2026-08-15.1",
+            bilibili_vertical: "2026-08-15.1",
+            youtube_shorts: "2026-08-15.1",
+            tiktok: "2026-08-15.1",
+            generic_vertical: "2026-08-15.1",
+          },
+          presets: [
+            {
+              platform: "douyin",
+              version: "2026-08-15.1",
+              checked_at: "2026-08-15",
+              label: "抖音",
+              recommended_width: 1080,
+              recommended_height: 1920,
+              minimum_width: 360,
+              minimum_height: 640,
+              maximum_dimension: null,
+              maximum_duration_ms: null,
+              maximum_file_bytes: null,
+              safe_zone: {
+                top: 0.08,
+                right: 0.08,
+                bottom: 0.2,
+                left: 0.08,
+                basis: "平台界面遮挡保守值",
+              },
+              account_policy_confirmation_required: true,
+              policy_notes: ["发布前复核账号规则。"],
+              official_sources: ["https://example.com/official"],
+            },
+          ],
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/projects/project-1/releases" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          project_id: "project-1",
+          releases: releaseItem ? [releaseItem] : [],
+          preview_media_urls: releaseItem
+            ? { "release-1": "/api/v1/media/proxy-asset-1?expires=9999999999&signature=preview-signed" }
+            : {},
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/projects/project-1/releases" && method === "POST") {
+      expect(request.postDataJSON()).toMatchObject({
+        clip_id: "clip-1",
+        expected_revision: 2,
+        platform: "douyin",
+        account_label: "官方主账号",
+        caption_mode: "clean_separate",
+      });
+      releaseItem = {
+        release_item_id: "release-1",
+        project_id: "project-1",
+        clip_id: "clip-1",
+        edit_plan_revision: 2,
+        current_edit_plan_revision: 2,
+        stale: false,
+        stale_reason: null,
+        platform: "douyin",
+        preset_version: "2026-08-15.1",
+        account_label: "官方主账号",
+        title: "浏览器审核后的标题",
+        title_variants: [],
+        description: "已完成编辑和审核的发布说明。",
+        hashtags: ["直播", "高光"],
+        cta: "关注获取更多内容",
+        caption_mode: "clean_separate",
+        cover_time_ms: 1_000,
+        clip_duration_ms: 9_800,
+        high_impact_sentence: "开头提出关键问题",
+        risk_flags: [],
+        preview_asset_id: "proxy-asset-1",
+        assignee: null,
+        planned_publish_at: "2026-08-16T04:00:00Z",
+        approval_status: "approved",
+        status: "ready",
+        checklist: {
+          hook_confirmed: true,
+          first_frame_confirmed: true,
+          subtitles_confirmed: true,
+          music_rights_confirmed: true,
+          likeness_confirmed: true,
+          personal_data_confirmed: true,
+          claims_confirmed: true,
+          sponsorship_confirmed: true,
+          platform_policy_confirmed: true,
+        },
+        preflight: {
+          schema_version: "liveclip.release-preflight.v1",
+          preset_id: "douyin@2026-08-15.1",
+          checked_at: "2026-08-15",
+          passed: true,
+          blocker_count: 0,
+          warning_count: 0,
+          checks: [
+            {
+              code: "trusted_media",
+              category: "media",
+              outcome: "passed",
+              message: "媒体已验证。",
+            },
+          ],
+        },
+        management_version: 4,
+        external_url: null,
+        external_id: null,
+        published_at: null,
+        result_notes: null,
+        publication_evidence: null,
+        metrics: [],
+        packages: [],
+        created_at: "2026-08-15T02:00:00Z",
+        updated_at: "2026-08-15T02:00:00Z",
+      };
+      await route.fulfill({ status: 201, json: releaseItem });
+      return;
+    }
+    if (path === "/api/v1/releases/release-1/packages" && method === "POST") {
+      expect(request.postDataJSON()).toEqual({
+        expected_release_item_version: 4,
+        include_zip: true,
+      });
+      await route.fulfill({
+        status: 202,
+        json: {
+          resource_type: "release_package",
+          resource_id: "release-package-1",
+          task_id: "release-package-task-1",
+          status: "queued",
+          status_url: "/api/v1/release-packages/release-package-1",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/release-packages/release-package-1" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          release_package: {
+            release_package_id: "release-package-1",
+            release_item_id: "release-1",
+            project_id: "project-1",
+            task_id: "release-package-task-1",
+            requested_by_user_id: "user-local-admin",
+            version: 1,
+            package_version: "v001",
+            release_item_version: 4,
+            current: true,
+            published_artifact: false,
+            status: "succeeded",
+            preset_version: "2026-08-15.1",
+            caption_mode: "clean_separate",
+            manifest_asset_id: "release-manifest-1",
+            zip_asset_id: "release-zip-1",
+            video_sha256: "a".repeat(64),
+            manifest_sha256: "b".repeat(64),
+            zip_sha256: "c".repeat(64),
+            include_zip: true,
+            error_code: null,
+            safe_error_message: null,
+            created_at: "2026-08-15T02:01:00Z",
+            completed_at: "2026-08-15T02:01:02Z",
+          },
+          download_url:
+            "/api/v1/release-packages/release-package-1/download?expires=9999999999&signature=release-signed",
+          download_kind: "zip",
+        },
+      });
       return;
     }
     if (path === "/api/v1/projects/project-1/edit-packages" && method === "POST") {
@@ -433,6 +629,36 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   expect(downloaded).toEqual({
     status: 200,
     disposition: 'attachment; filename="liveclip-v001.zip"',
+    magic: [0x50, 0x4b],
+  });
+
+  await expect(page.getByRole("heading", { name: "发布队列" })).toBeVisible();
+  await page.getByRole("button", { name: "＋ 建立发布任务" }).click();
+  const releaseForm = page.locator("form.release-create-form");
+  await releaseForm.getByLabel("高光时刻").selectOption("clip-1");
+  await releaseForm.getByLabel("发布账号").fill("官方主账号");
+  await releaseForm.getByLabel("计划发布时间").fill("2026-08-16T12:00");
+  await releaseForm.getByRole("button", { name: "建立发布任务" }).click();
+  await expect(page.getByText(/抖音 · 官方主账号/)).toBeVisible();
+  await page.getByRole("button", { name: "日历" }).click();
+  await expect(page.getByRole("heading", { name: /2026年8月16日/ })).toBeVisible();
+  await page.getByRole("button", { name: "生成平台包" }).click();
+  const releaseDownload = page.getByRole("link", { name: "下载平台 ZIP" });
+  await expect(releaseDownload).toHaveAttribute("href", /signature=release-signed/);
+  const releaseHref = await releaseDownload.getAttribute("href");
+  const releaseArchive = await page.evaluate(async (href) => {
+    const response = await fetch(href);
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      disposition: response.headers.get("Content-Disposition"),
+      magic: Array.from(body.slice(0, 2)),
+    };
+  }, releaseHref as string);
+  expect(releaseArchive).toEqual({
+    status: 200,
+    disposition:
+      'attachment; filename="liveclip-release-douyin-highlight-release--v001.zip"',
     magic: [0x50, 0x4b],
   });
 

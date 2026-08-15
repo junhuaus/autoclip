@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import liveclip.delivery.edit_package as edit_package_module
 from liveclip.application.edit_packages import (
     EditPackageClipMetadata,
     EditPackageItem,
@@ -17,13 +18,19 @@ from liveclip.application.edit_packages import (
 from liveclip.delivery.edit_package import (
     EditPackageClipInput,
     EditPackageError,
+    EditPackageTransientError,
     create_edit_package,
+    validate_editor_video,
     validate_existing_edit_package,
 )
 from liveclip.domain.edit_plan import CaptionCue
 from liveclip.domain.keywords import KeywordOccurrence, KeywordTimingPrecision
 from liveclip.domain.state_transitions import ReviewStatus
 from liveclip.media.fingerprint import stream_sha256
+from liveclip.renderer.quality import (
+    MediaValidationCancelled,
+    MediaValidationTransientError,
+)
 
 
 def _metadata() -> EditPackageClipMetadata:
@@ -159,3 +166,35 @@ def test_existing_package_rejects_changed_member(tmp_path: Path) -> None:
             snapshot_fingerprint="b" * 64,
             include_zip=True,
         )
+
+
+def test_editor_video_validation_preserves_transient_failure_class(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "proxy.mp4"
+    video.write_bytes(b"not inspected")
+
+    def fail_probe(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise MediaValidationTransientError("temporary ffprobe failure")
+
+    monkeypatch.setattr(edit_package_module, "probe_media", fail_probe)
+
+    with pytest.raises(EditPackageTransientError, match="temporarily failed"):
+        validate_editor_video(video, cancel_requested=lambda: False)
+
+
+def test_editor_video_validation_preserves_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "proxy.mp4"
+    video.write_bytes(b"not inspected")
+
+    def cancel_probe(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise MediaValidationCancelled("cancelled")
+
+    monkeypatch.setattr(edit_package_module, "probe_media", cancel_probe)
+
+    with pytest.raises(InterruptedError, match="cancelled"):
+        validate_editor_video(video, cancel_requested=lambda: True)

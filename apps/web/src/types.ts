@@ -106,7 +106,9 @@ export type ProjectAction =
   | "review_clip"
   | "render"
   | "export"
-  | "deliver";
+  | "deliver"
+  | "manage_release"
+  | "approve_release";
 
 export interface ProjectManagementRequest {
   expected_management_version: number;
@@ -383,7 +385,7 @@ export interface BatchReviewResponse {
 }
 
 export interface AcceptedTaskResponse {
-  resource_type: "render" | "delivery" | "edit_package";
+  resource_type: "render" | "delivery" | "edit_package" | "release_package";
   resource_id: string;
   task_id: string;
   status: string;
@@ -454,6 +456,254 @@ export interface EditPackageSnapshot {
 export interface EditPackageDetailResponse {
   edit_package: EditPackageSnapshot;
   download_url: string | null;
+}
+
+export type ReleasePlatform =
+  | "douyin"
+  | "xiaohongshu"
+  | "bilibili_vertical"
+  | "youtube_shorts"
+  | "tiktok"
+  | "generic_vertical";
+export type ReleaseCaptionMode = "clean_separate" | "burned";
+export type ReleaseApprovalStatus =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "changes_requested";
+export type ReleaseItemStatus =
+  | "draft"
+  | "ready"
+  | "scheduled_external"
+  | "published"
+  | "failed"
+  | "withdrawn";
+export type ReleasePackageStatus = "queued" | "creating" | "succeeded" | "failed";
+
+export interface ReleaseChecklist {
+  hook_confirmed: boolean;
+  first_frame_confirmed: boolean;
+  subtitles_confirmed: boolean;
+  music_rights_confirmed: boolean;
+  likeness_confirmed: boolean;
+  personal_data_confirmed: boolean;
+  claims_confirmed: boolean;
+  sponsorship_confirmed: boolean;
+  platform_policy_confirmed: boolean;
+}
+
+export interface ReleasePreflightCheck {
+  code: string;
+  category: string;
+  outcome: "passed" | "blocked" | "warning" | "info";
+  message: string;
+}
+
+export interface ReleasePreflight {
+  schema_version: string;
+  preset_id: string;
+  checked_at: string;
+  passed: boolean;
+  blocker_count: number;
+  warning_count: number;
+  checks: ReleasePreflightCheck[];
+}
+
+export interface ReleaseAssignee {
+  user_id: string;
+  username: string;
+  display_name: string;
+}
+
+export interface ReleaseMetricSnapshot {
+  metric_id: string;
+  captured_at: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  followers_gained: number;
+  notes: string | null;
+  recorded_by_username: string;
+  created_at: string;
+}
+
+export interface ReleasePackageSnapshot {
+  release_package_id: string;
+  release_item_id: string;
+  project_id: string;
+  task_id: string;
+  requested_by_user_id: string;
+  version: number;
+  package_version: string;
+  release_item_version: number;
+  current: boolean;
+  published_artifact: boolean;
+  status: ReleasePackageStatus;
+  preset_version: string;
+  caption_mode: ReleaseCaptionMode;
+  manifest_asset_id: string | null;
+  zip_asset_id: string | null;
+  video_sha256: string;
+  manifest_sha256: string | null;
+  zip_sha256: string | null;
+  include_zip: boolean;
+  error_code: string | null;
+  safe_error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ReleasePublicationEvidence {
+  schema_version: "liveclip.release-publication-evidence.v1";
+  release_package_id: string;
+  package_version: string;
+  release_item_version: number;
+  preset_version: string;
+  caption_mode: ReleaseCaptionMode;
+  video_sha256: string;
+  artifact_kind: "zip" | "manifest";
+  artifact_sha256: string;
+  manifest_sha256: string;
+  zip_sha256: string | null;
+  recorded_at: string;
+}
+
+export interface ReleaseItemSnapshot {
+  release_item_id: string;
+  project_id: string;
+  clip_id: string;
+  edit_plan_revision: number;
+  current_edit_plan_revision: number;
+  stale: boolean;
+  stale_reason: "revision_changed" | "project_run_changed" | null;
+  platform: ReleasePlatform;
+  preset_version: string;
+  account_label: string;
+  title: string;
+  title_variants: string[];
+  description: string;
+  hashtags: string[];
+  cta: string;
+  caption_mode: ReleaseCaptionMode;
+  cover_time_ms: number;
+  clip_duration_ms: number;
+  high_impact_sentence: string;
+  risk_flags: string[];
+  preview_asset_id: string | null;
+  assignee: ReleaseAssignee | null;
+  planned_publish_at: string | null;
+  approval_status: ReleaseApprovalStatus;
+  status: ReleaseItemStatus;
+  checklist: ReleaseChecklist;
+  preflight: ReleasePreflight;
+  management_version: number;
+  external_url: string | null;
+  external_id: string | null;
+  published_at: string | null;
+  result_notes: string | null;
+  publication_evidence: ReleasePublicationEvidence | null;
+  metrics: ReleaseMetricSnapshot[];
+  packages: ReleasePackageSnapshot[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformPreset {
+  platform: ReleasePlatform;
+  version: string;
+  checked_at: string;
+  label: string;
+  recommended_width: number;
+  recommended_height: number;
+  minimum_width: number;
+  minimum_height: number;
+  maximum_dimension: number | null;
+  maximum_duration_ms: number | null;
+  maximum_file_bytes: number | null;
+  safe_zone: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+    basis: string;
+  };
+  account_policy_confirmation_required: boolean;
+  policy_notes: string[];
+  official_sources: string[];
+}
+
+export interface ReleasePresetsResponse {
+  schema_version: "1";
+  presets: PlatformPreset[];
+  current_versions: Record<ReleasePlatform, string>;
+}
+
+export interface ReleaseItemsResponse {
+  schema_version: "1";
+  project_id: string;
+  releases: ReleaseItemSnapshot[];
+  preview_media_urls: Record<string, string>;
+}
+
+export interface ReleasePackageDetailResponse {
+  schema_version: "1";
+  release_package: ReleasePackageSnapshot;
+  download_url: string | null;
+  download_kind: "zip" | "manifest" | null;
+}
+
+export interface ReleaseItemCreateRequest {
+  clip_id: string;
+  expected_revision: number;
+  platform: ReleasePlatform;
+  account_label: string;
+  caption_mode: ReleaseCaptionMode;
+  assignee_user_id: string | null;
+  planned_publish_at: string | null;
+}
+
+export interface ReleaseItemUpdateRequest {
+  expected_management_version: number;
+  edit_plan_revision: number;
+  title: string;
+  title_variants: string[];
+  description: string;
+  hashtags: string[];
+  cta: string;
+  caption_mode: ReleaseCaptionMode;
+  cover_time_ms: number;
+  assignee_user_id: string | null;
+  planned_publish_at: string | null;
+  checklist: ReleaseChecklist;
+}
+
+export interface ReleaseApprovalRequest {
+  expected_management_version: number;
+  target: ReleaseApprovalStatus;
+  reason: string;
+}
+
+export interface ReleaseStatusRequest {
+  expected_management_version: number;
+  target: ReleaseItemStatus;
+  release_package_id?: string;
+  external_url?: string;
+  external_id?: string;
+  published_at?: string;
+  result_notes?: string;
+}
+
+export interface ReleaseMetricRequest {
+  captured_at: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  followers_gained: number;
+  notes: string | null;
 }
 
 export interface ApiErrorItem {

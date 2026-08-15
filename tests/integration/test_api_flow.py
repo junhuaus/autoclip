@@ -208,6 +208,7 @@ def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
                 "render",
                 "export",
                 "deliver",
+                "manage_release",
             ]
             assert client.get("/api/v1/projects", headers=outsider_auth).json() == []
 
@@ -252,11 +253,17 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     create_demo_source(output_path=source_path, duration_ms=16_000)
     token = "test-api-token-never-return"
     outsider_token = "test-outsider-token-never-return"
+    release_editor_token = "test-release-editor-token-never-return"
     settings = Settings(
         data_dir=data_dir,
         allowed_media_roots_raw=str(media_root),
         api_token=SecretStr(token),
-        workspace_tokens_raw=json.dumps({"outsider": outsider_token}),
+        workspace_tokens_raw=json.dumps(
+            {
+                "outsider": outsider_token,
+                "release-editor": release_editor_token,
+            }
+        ),
         ai_provider="mock",
         min_clip_seconds=8,
         max_clip_seconds=12,
@@ -274,6 +281,7 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     app = create_app(settings, runtime=runtime, project_root=project_root)
     auth = {"Authorization": f"Bearer {token}"}
     outsider_auth = {"Authorization": f"Bearer {outsider_token}"}
+    release_editor_auth = {"Authorization": f"Bearer {release_editor_token}"}
     idempotency_key = "api-job-once-001"
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -354,6 +362,16 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert created.json()["status"] == "queued"
             project_id = str(created.json()["project_id"])
             run_id = str(created.json()["run_id"])
+            release_editor = client.post(
+                f"/api/v1/projects/{project_id}/members",
+                headers=auth,
+                json={
+                    "username": "release-editor",
+                    "display_name": "发布编辑",
+                    "role": "editor",
+                },
+            )
+            assert release_editor.status_code == 200
 
             completed = runtime.stage_runner.run_until_terminal(
                 run_id,
@@ -786,6 +804,292 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert len(deliveries.json()) == 1
             project = client.get(f"/api/v1/projects/{project_id}", headers=auth)
             assert project.json()["status"] == "delivered"
+
+            presets = client.get("/api/v1/release-presets", headers=auth)
+            assert presets.status_code == 200
+            assert {item["platform"] for item in presets.json()["presets"]} == {
+                "douyin",
+                "xiaohongshu",
+                "bilibili_vertical",
+                "youtube_shorts",
+                "tiktok",
+                "generic_vertical",
+            }
+            assert presets.json()["current_versions"]["generic_vertical"] == "2026-08-15.1"
+            release_created = client.post(
+                f"/api/v1/projects/{project_id}/releases",
+                headers={**auth, "Idempotency-Key": "api-release-item-001"},
+                json={
+                    "clip_id": clip_id,
+                    "expected_revision": 3,
+                    "platform": "generic_vertical",
+                    "account_label": "官方主账号",
+                    "caption_mode": "burned",
+                    "assignee_user_id": None,
+                    "planned_publish_at": "2026-08-16T12:00:00+08:00",
+                },
+            )
+            assert release_created.status_code == 201
+            release_id = str(release_created.json()["release_item_id"])
+            assert release_created.headers["location"] == f"/api/v1/releases/{release_id}"
+            release_replay = client.post(
+                f"/api/v1/projects/{project_id}/releases",
+                headers={**auth, "Idempotency-Key": "api-release-item-001"},
+                json={
+                    "clip_id": clip_id,
+                    "expected_revision": 3,
+                    "platform": "generic_vertical",
+                    "account_label": "官方主账号",
+                    "caption_mode": "burned",
+                    "assignee_user_id": None,
+                    "planned_publish_at": "2026-08-16T12:00:00+08:00",
+                },
+            )
+            assert release_replay.status_code == 201
+            assert release_replay.json()["release_item_id"] == release_id
+            illegal_release = client.post(
+                f"/api/v1/releases/{release_id}/status",
+                headers=auth,
+                json={
+                    "expected_management_version": release_created.json()["management_version"],
+                    "target": "published",
+                    "release_package_id": "not-yet-created",
+                    "external_id": "must-not-skip-workflow",
+                    "published_at": "2026-08-16T12:05:00+08:00",
+                },
+            )
+            assert illegal_release.status_code == 409
+            assert illegal_release.json()["error"]["code"] == "STATE_CONFLICT"
+            assert (
+                client.get(f"/api/v1/releases/{release_id}", headers=outsider_auth).status_code
+                == 404
+            )
+
+            release = release_created.json()
+            release_updated = client.patch(
+                f"/api/v1/releases/{release_id}",
+                headers=auth,
+                json={
+                    "expected_management_version": release["management_version"],
+                    "edit_plan_revision": 3,
+                    "title": "API 发布高光",
+                    "title_variants": ["API 发布高光备选"],
+                    "description": "这是准备发布到短视频平台的完整说明。",
+                    "hashtags": ["直播", "高光"],
+                    "cta": "关注获取更多内容",
+                    "caption_mode": "burned",
+                    "cover_time_ms": 1_000,
+                    "assignee_user_id": None,
+                    "planned_publish_at": "2026-08-16T12:00:00+08:00",
+                    "checklist": {
+                        "hook_confirmed": True,
+                        "first_frame_confirmed": True,
+                        "subtitles_confirmed": True,
+                        "music_rights_confirmed": True,
+                        "likeness_confirmed": True,
+                        "personal_data_confirmed": True,
+                        "claims_confirmed": True,
+                        "sponsorship_confirmed": True,
+                        "platform_policy_confirmed": True,
+                    },
+                },
+            )
+            assert release_updated.status_code == 200
+            release = release_updated.json()
+            assert release["preflight"]["blocker_count"] == 1
+            assert (
+                next(
+                    check
+                    for check in release["preflight"]["checks"]
+                    if check["code"] == "release_approval"
+                )["outcome"]
+                == "blocked"
+            )
+
+            pending_approval = client.post(
+                f"/api/v1/releases/{release_id}/approval",
+                headers=auth,
+                json={
+                    "expected_management_version": release["management_version"],
+                    "target": "pending_review",
+                    "reason": "提交发布审核",
+                },
+            )
+            assert pending_approval.status_code == 200
+            approved_release = client.post(
+                f"/api/v1/releases/{release_id}/approval",
+                headers=auth,
+                json={
+                    "expected_management_version": pending_approval.json()["management_version"],
+                    "target": "approved",
+                    "reason": "发布审核通过",
+                },
+            )
+            assert approved_release.status_code == 200
+            assert approved_release.json()["preflight"]["passed"] is True
+            editor_revoke = client.post(
+                f"/api/v1/releases/{release_id}/approval",
+                headers=release_editor_auth,
+                json={
+                    "expected_management_version": approved_release.json()["management_version"],
+                    "target": "draft",
+                    "reason": "编辑者不能绕过发布审核人撤销批准",
+                },
+            )
+            assert editor_revoke.status_code == 403
+            assert editor_revoke.json()["error"]["code"] == "PROJECT_ACTION_DENIED"
+            ready_release = client.post(
+                f"/api/v1/releases/{release_id}/status",
+                headers=auth,
+                json={
+                    "expected_management_version": approved_release.json()["management_version"],
+                    "target": "ready",
+                },
+            )
+            assert ready_release.status_code == 200
+            scheduled_release = client.post(
+                f"/api/v1/releases/{release_id}/status",
+                headers=auth,
+                json={
+                    "expected_management_version": ready_release.json()["management_version"],
+                    "target": "scheduled_external",
+                },
+            )
+            assert scheduled_release.status_code == 200
+
+            release_package = client.post(
+                f"/api/v1/releases/{release_id}/packages",
+                headers={**auth, "Idempotency-Key": "api-release-package-001"},
+                json={
+                    "expected_release_item_version": scheduled_release.json()["management_version"],
+                    "include_zip": True,
+                },
+            )
+            assert release_package.status_code == 202
+            assert release_package.json()["resource_type"] == "release_package"
+            release_package_id = str(release_package.json()["resource_id"])
+            completed_release_package = runtime.delivery_runner.run_release_package_until_terminal(
+                release_package_id,
+                worker_id="api-release-package-worker",
+            )
+            assert completed_release_package.status.value == "succeeded"
+            release_package_detail = client.get(
+                f"/api/v1/release-packages/{release_package_id}",
+                headers=auth,
+            )
+            assert release_package_detail.status_code == 200
+            assert release_package_detail.json()["download_kind"] == "zip"
+            release_zip = client.get(release_package_detail.json()["download_url"])
+            assert release_zip.status_code == 200, (
+                release_zip.text,
+                caplog.text,
+            )
+            with zipfile.ZipFile(io.BytesIO(release_zip.content)) as archive:
+                assert archive.testzip() is None
+                names = set(archive.namelist())
+                assert "manifest.json" in names
+                assert "metadata/release-copy.txt" in names
+                assert "metadata/checklist.json" in names
+                assert "cover/API-发布高光-cover.png" in names
+                assert any(name.startswith("media/") for name in names)
+
+            manifest_only = client.post(
+                f"/api/v1/releases/{release_id}/packages",
+                headers={**auth, "Idempotency-Key": "api-release-package-002"},
+                json={
+                    "expected_release_item_version": scheduled_release.json()["management_version"],
+                    "include_zip": False,
+                },
+            )
+            assert manifest_only.status_code == 422
+
+            managed_project = client.get(
+                f"/api/v1/projects/{project_id}",
+                headers=auth,
+            ).json()
+            if managed_project["lifecycle"] == "editorial_review":
+                managed_project = client.post(
+                    f"/api/v1/projects/{project_id}/lifecycle",
+                    headers=auth,
+                    json={
+                        "expected_management_version": managed_project["management_version"],
+                        "target": "approval",
+                        "reason": "剪辑已完成, 进入发布审批",
+                    },
+                ).json()
+            if managed_project["lifecycle"] == "approval":
+                managed_project = client.post(
+                    f"/api/v1/projects/{project_id}/lifecycle",
+                    headers=auth,
+                    json={
+                        "expected_management_version": managed_project["management_version"],
+                        "target": "ready_to_publish",
+                        "reason": "发布资产与平台包均已确认",
+                    },
+                ).json()
+            assert managed_project["lifecycle"] == "ready_to_publish"
+            published_release = client.post(
+                f"/api/v1/releases/{release_id}/status",
+                headers=auth,
+                json={
+                    "expected_management_version": scheduled_release.json()["management_version"],
+                    "target": "published",
+                    "release_package_id": release_package_id,
+                    "external_url": "https://example.com/posts/liveclip-api",
+                    "external_id": "external-liveclip-api-001",
+                    "published_at": "2026-08-16T12:05:00+08:00",
+                    "result_notes": "已由运营人员在外部平台发布",
+                },
+            )
+            assert published_release.status_code == 200
+            assert published_release.json()["status"] == "published"
+            assert (
+                published_release.json()["publication_evidence"]["release_package_id"]
+                == release_package_id
+            )
+            assert published_release.json()["publication_evidence"]["video_sha256"]
+            assert (
+                client.get(f"/api/v1/projects/{project_id}", headers=auth).json()["lifecycle"]
+                == "published"
+            )
+            metric_body = {
+                "captured_at": "2026-08-17T12:00:00+08:00",
+                "views": 12_345,
+                "likes": 678,
+                "comments": 45,
+                "shares": 32,
+                "saves": 88,
+                "followers_gained": 21,
+                "notes": "发布后 24 小时快照",
+            }
+            metric = client.post(
+                f"/api/v1/releases/{release_id}/metrics",
+                headers={**auth, "Idempotency-Key": "api-release-metric-001"},
+                json=metric_body,
+            )
+            assert metric.status_code == 201
+            assert metric.json()["metrics"][0]["views"] == 12_345
+            metric_replay = client.post(
+                f"/api/v1/releases/{release_id}/metrics",
+                headers={**auth, "Idempotency-Key": "api-release-metric-001"},
+                json=metric_body,
+            )
+            assert metric_replay.status_code == 201
+            assert len(metric_replay.json()["metrics"]) == 1
+            release_list = client.get(
+                f"/api/v1/projects/{project_id}/releases",
+                headers=auth,
+            )
+            assert release_list.status_code == 200
+            assert [item["release_item_id"] for item in release_list.json()["releases"]] == [
+                release_id
+            ]
+            preview_asset_id = published_release.json()["preview_asset_id"]
+            assert preview_asset_id is not None
+            assert (
+                f"/api/v1/media/{preview_asset_id}"
+                in release_list.json()["preview_media_urls"][release_id]
+            )
 
             imported = client.post(
                 "/api/v1/projects/import",

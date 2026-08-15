@@ -108,12 +108,14 @@ def verify_completed_run(
     connection.row_factory = sqlite3.Row
     try:
         connection.execute("PRAGMA query_only = ON")
-        projects = connection.execute("SELECT id FROM projects").fetchall()
+        projects = connection.execute("SELECT id, lifecycle FROM projects").fetchall()
         if len(projects) != 1:
             raise ValueError("real browser E2E must create exactly one isolated project")
         project_id = str(projects[0]["id"])
         if not re.fullmatch(r"[a-f0-9]{32}", project_id):
             raise ValueError("real browser E2E project ID is invalid")
+        if str(projects[0]["lifecycle"]) != "published":
+            raise ValueError("real browser E2E did not record the Project publication")
         runs = connection.execute(
             "SELECT id, status, progress FROM pipeline_runs WHERE project_id = ?",
             (project_id,),
@@ -137,13 +139,13 @@ def verify_completed_run(
         attempt_task_ids = {str(row["task_id"]) for row in attempts}
         lease_tokens = {str(row["lease_token"]) for row in attempts}
         if (
-            len(tasks) != 9
+            len(tasks) != 10
             or {str(row["status"]) for row in tasks} != {"succeeded"}
-            or len(attempts) != 9
+            or len(attempts) != 10
             or task_ids != attempt_task_ids
             or any(not str(row["worker_id"]).startswith("worker:") for row in attempts)
             or any(str(row["outcome"]) != "succeeded" for row in attempts)
-            or len(lease_tokens) != 9
+            or len(lease_tokens) != 10
             or any(not re.fullmatch(r"[a-f0-9]{64}", value) for value in lease_tokens)
         ):
             raise ValueError("real browser E2E task lease evidence is incomplete")
@@ -251,6 +253,88 @@ def verify_completed_run(
             or clips[0].get("edit_plan_revision") != 2
         ):
             raise ValueError("real browser E2E ZIP manifest is not the delivered revision")
+        release_items = connection.execute(
+            """
+            SELECT id, platform, caption_mode, approval_status, status, external_id
+            FROM release_items
+            """
+        ).fetchall()
+        if len(release_items) != 1 or (
+            str(release_items[0]["platform"]),
+            str(release_items[0]["caption_mode"]),
+            str(release_items[0]["approval_status"]),
+            str(release_items[0]["status"]),
+            str(release_items[0]["external_id"]),
+        ) != ("douyin", "burned", "approved", "published", "douyin-e2e-001"):
+            raise ValueError("real browser E2E release item evidence is incomplete")
+        release_item_id = str(release_items[0]["id"])
+        release_metrics = connection.execute(
+            "SELECT views, likes FROM release_metric_snapshots WHERE release_item_id = ?",
+            (release_item_id,),
+        ).fetchall()
+        if len(release_metrics) != 1 or (
+            int(release_metrics[0]["views"]),
+            int(release_metrics[0]["likes"]),
+        ) != (1_200, 88):
+            raise ValueError("real browser E2E release metrics are incomplete")
+        release_packages = connection.execute(
+            """
+            SELECT id, version, status, directory_relative_path
+            FROM release_packages WHERE release_item_id = ?
+            """,
+            (release_item_id,),
+        ).fetchall()
+        if len(release_packages) != 1 or (
+            int(release_packages[0]["version"]),
+            str(release_packages[0]["status"]),
+        ) != (1, "succeeded"):
+            raise ValueError("real browser E2E release package did not succeed as v001")
+        release_package_id = str(release_packages[0]["id"])
+        release_relative = PurePosixPath(str(release_packages[0]["directory_relative_path"]))
+        if release_relative.is_absolute() or any(
+            part in {"", ".", ".."} for part in release_relative.parts
+        ):
+            raise ValueError("real browser E2E release package path is invalid")
+        release_directory = validated / "projects" / project_id / Path(*release_relative.parts)
+        release_archives = tuple(release_directory.glob("*.zip"))
+        if len(release_archives) != 1:
+            raise ValueError("real browser E2E release package must contain exactly one ZIP")
+        release_archive_path = release_archives[0]
+        if (
+            not release_archive_path.name.startswith("liveclip-release-douyin-")
+            or f"-{release_item_id[:8]}-v001.zip" not in release_archive_path.name
+        ):
+            raise ValueError("real browser E2E release-package ZIP name is not stable and unique")
+        with open_pinned_regular_file(release_archive_path) as pinned:
+            with (
+                os.fdopen(os.dup(pinned.descriptor), mode="rb") as stream,
+                zipfile.ZipFile(stream, mode="r") as archive,
+            ):
+                validate_zip_infos(archive.infolist())
+                if archive.testzip() is not None:
+                    raise ValueError("real browser E2E release-package ZIP is corrupt")
+                release_manifest = json.loads(
+                    read_zip_member_bounded(
+                        archive,
+                        "manifest.json",
+                        maximum_bytes=2_000_000,
+                    )
+                )
+            pinned.validate_binding()
+        if (
+            not isinstance(release_manifest, dict)
+            or release_manifest.get("schema_version") != "liveclip.release-package.v1"
+            or release_manifest.get("release_package_id") != release_package_id
+            or release_manifest.get("release_item_id") != release_item_id
+            or release_manifest.get("project_id") != project_id
+            or release_manifest.get("package_version") != "v001"
+            or release_manifest.get("platform") != "douyin"
+            or release_manifest.get("caption_mode") != "burned"
+            or release_manifest.get("edit_plan_revision") != 2
+            or not isinstance(release_manifest.get("package_preflight"), dict)
+            or release_manifest["package_preflight"].get("passed") is not True
+        ):
+            raise ValueError("real browser E2E release-package ZIP snapshot is invalid")
         return {
             "project_id": project_id,
             "run_id": run_id,
@@ -261,6 +345,9 @@ def verify_completed_run(
             "edit_package_version": "v001",
             "delivery_id": delivery_id,
             "delivery_version": "v001",
+            "release_item_id": release_item_id,
+            "release_package_id": release_package_id,
+            "release_package_version": "v001",
         }
     finally:
         connection.close()

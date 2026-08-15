@@ -40,11 +40,21 @@ from liveclip.media.secure_files import (
     remove_tree_no_follow,
     write_bytes_immutable_no_follow,
 )
-from liveclip.renderer.quality import MediaValidationError, full_decode, probe_media
+from liveclip.renderer.quality import (
+    MediaValidationCancelled,
+    MediaValidationError,
+    MediaValidationTransientError,
+    full_decode,
+    probe_media,
+)
 
 
 class EditPackageError(RuntimeError):
     """An editor package could not be built or verified from immutable inputs."""
+
+
+class EditPackageTransientError(EditPackageError):
+    """Editor-package validation failed for a bounded-retry local reason."""
 
 
 class EditPackageClipInput(BaseModel):
@@ -346,7 +356,7 @@ def _build_edit_package(
                 video_target,
                 expected_sha256=clip.video_sha256,
             )
-            video_validation = _validate_editor_video(
+            video_validation = validate_editor_video(
                 video_target,
                 cancel_requested=cancel_requested,
             )
@@ -542,7 +552,7 @@ def _validate_request(
         raise EditPackageError("edit package selection order is invalid")
 
 
-def _validate_editor_video(
+def validate_editor_video(
     path: Path,
     *,
     cancel_requested: Callable[[], bool] | None,
@@ -571,9 +581,22 @@ def _validate_editor_video(
             format_payload.get("format_name", "")
         ).split(","):
             raise EditPackageError("editor video must be MP4")
+        try:
+            duration_ms = round(float(format_payload["duration"]) * 1_000)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise EditPackageError("editor video probe has no valid duration") from exc
+        if duration_ms <= 0:
+            raise EditPackageError("editor video probe has no valid duration")
+        size_bytes = path.stat().st_size
+        if size_bytes <= 0:
+            raise EditPackageError("editor video is empty")
         full_decode(path, cancel_requested=cancel_requested)
         if not _has_fast_start(path):
             raise EditPackageError("editor video must place moov before mdat")
+    except MediaValidationCancelled as exc:
+        raise InterruptedError("editor video validation was cancelled") from exc
+    except MediaValidationTransientError as exc:
+        raise EditPackageTransientError("editor video validation temporarily failed") from exc
     except MediaValidationError as exc:
         raise EditPackageError("editor video validation failed") from exc
     return {
@@ -586,6 +609,8 @@ def _validate_editor_video(
         "full_decode": "passed",
         "width": width,
         "height": height,
+        "duration_ms": duration_ms,
+        "size_bytes": size_bytes,
     }
 
 

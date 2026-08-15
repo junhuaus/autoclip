@@ -24,6 +24,15 @@ import type {
   ProjectMemberCreateRequest,
   ProjectMembersResponse,
   QueuedRender,
+  ReleaseApprovalRequest,
+  ReleaseItemCreateRequest,
+  ReleaseItemSnapshot,
+  ReleaseItemUpdateRequest,
+  ReleaseItemsResponse,
+  ReleaseMetricRequest,
+  ReleasePackageDetailResponse,
+  ReleasePresetsResponse,
+  ReleaseStatusRequest,
   RenderKind,
   ReviewActionRequest,
   RunSnapshot,
@@ -414,6 +423,89 @@ export class LiveClipApiClient {
 
   getEditPackage(editPackageId: string): Promise<EditPackageDetailResponse> {
     return this.request(`/edit-packages/${encodeURIComponent(editPackageId)}`);
+  }
+
+  listReleasePresets(): Promise<ReleasePresetsResponse> {
+    return this.request("/release-presets");
+  }
+
+  listReleaseItems(projectId: string): Promise<ReleaseItemsResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/releases`);
+  }
+
+  createReleaseItem(
+    projectId: string,
+    body: ReleaseItemCreateRequest,
+  ): Promise<ReleaseItemSnapshot> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/releases`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("release-item") },
+      body: JSON.stringify(body),
+    });
+  }
+
+  getReleaseItem(releaseItemId: string): Promise<ReleaseItemSnapshot> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}`);
+  }
+
+  updateReleaseItem(
+    releaseItemId: string,
+    body: ReleaseItemUpdateRequest,
+  ): Promise<ReleaseItemSnapshot> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  transitionReleaseApproval(
+    releaseItemId: string,
+    body: ReleaseApprovalRequest,
+  ): Promise<ReleaseItemSnapshot> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}/approval`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  transitionReleaseStatus(
+    releaseItemId: string,
+    body: ReleaseStatusRequest,
+  ): Promise<ReleaseItemSnapshot> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}/status`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  addReleaseMetric(
+    releaseItemId: string,
+    body: ReleaseMetricRequest,
+  ): Promise<ReleaseItemSnapshot> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}/metrics`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("release-metric") },
+      body: JSON.stringify(body),
+    });
+  }
+
+  createReleasePackage(
+    releaseItemId: string,
+    expectedReleaseItemVersion: number,
+    includeZip: boolean,
+  ): Promise<AcceptedTaskResponse> {
+    return this.request(`/releases/${encodeURIComponent(releaseItemId)}/packages`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("release-package") },
+      body: JSON.stringify({
+        expected_release_item_version: expectedReleaseItemVersion,
+        include_zip: includeZip,
+      }),
+    });
+  }
+
+  getReleasePackage(releasePackageId: string): Promise<ReleasePackageDetailResponse> {
+    return this.request(`/release-packages/${encodeURIComponent(releasePackageId)}`);
   }
 }
 

@@ -54,7 +54,14 @@ _PUBLIC_ASSET_KINDS = frozenset(
         "clip_subtitle_srt",
     }
 )
-_SCOPED_ASSET_KINDS = frozenset({"delivery_zip", "edit_package_zip"})
+_SCOPED_ASSET_KINDS = frozenset(
+    {
+        "delivery_zip",
+        "edit_package_zip",
+        "release_package_zip",
+        "release_package_manifest",
+    }
+)
 
 
 class MediaAssetService:

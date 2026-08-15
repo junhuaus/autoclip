@@ -11,6 +11,7 @@ if (!baseURL || !outputDir) {
 export default defineConfig({
   testDir: "./e2e-real",
   outputDir,
+  preserveOutput: "always",
   timeout: 180_000,
   expect: { timeout: 120_000 },
   fullyParallel: false,

@@ -52,6 +52,8 @@ export const project: ProjectSnapshot = {
     "render",
     "export",
     "deliver",
+    "manage_release",
+    "approve_release",
   ],
   allowed_lifecycle_transitions: ["changes_requested", "approval", "archived"],
 };

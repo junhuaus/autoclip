@@ -31,7 +31,7 @@ def test_project_actions_are_centrally_authorized(
 
 def test_capability_list_comes_from_the_same_policy_matrix() -> None:
     assert project_actions("viewer") == ("read",)
-    assert project_actions("reviewer") == ("read", "review_clip")
+    assert project_actions("reviewer") == ("read", "review_clip", "approve_release")
 
 
 def test_archived_project_is_read_only_except_for_owner_restore() -> None:

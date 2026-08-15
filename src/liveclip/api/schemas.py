@@ -14,10 +14,21 @@ from liveclip.application.edit_packages import (
 )
 from liveclip.application.identity import ManagedUser
 from liveclip.application.projects import ProjectActivity
+from liveclip.application.releases import (
+    ReleaseApprovalCommand,
+    ReleaseItemCreate,
+    ReleaseItemSnapshot,
+    ReleaseItemUpdate,
+    ReleaseMetricCreate,
+    ReleasePackageRequest,
+    ReleasePackageSnapshot,
+    ReleaseStatusCommand,
+)
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
 from liveclip.application.workspace import WorkspaceMembership, WorkspaceUser
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
+from liveclip.domain.releases import PlatformPreset, ReleasePlatform
 from liveclip.domain.state_transitions import ReviewStatus
 
 
@@ -156,6 +167,48 @@ class EditPackageCreateRequest(ApiRequestModel):
         )
 
 
+class ReleaseItemCreateRequest(ReleaseItemCreate):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleaseItemCreate:
+        return ReleaseItemCreate.model_validate(self.model_dump())
+
+
+class ReleaseItemUpdateRequest(ReleaseItemUpdate):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleaseItemUpdate:
+        return ReleaseItemUpdate.model_validate(self.model_dump())
+
+
+class ReleaseApprovalRequest(ReleaseApprovalCommand):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleaseApprovalCommand:
+        return ReleaseApprovalCommand.model_validate(self.model_dump())
+
+
+class ReleaseStatusRequest(ReleaseStatusCommand):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleaseStatusCommand:
+        return ReleaseStatusCommand.model_validate(self.model_dump())
+
+
+class ReleaseMetricRequest(ReleaseMetricCreate):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleaseMetricCreate:
+        return ReleaseMetricCreate.model_validate(self.model_dump())
+
+
+class ReleasePackageCreateRequest(ReleasePackageRequest):
+    model_config = ConfigDict(extra="forbid", strict=False)
+
+    def to_domain(self) -> ReleasePackageRequest:
+        return ReleasePackageRequest.model_validate(self.model_dump())
+
+
 class ProjectMemberCreateRequest(ApiRequestModel):
     username: str = Field(
         min_length=1,
@@ -253,7 +306,7 @@ class AcceptedTaskResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal["1"] = "1"
-    resource_type: Literal["render", "delivery", "edit_package"]
+    resource_type: Literal["render", "delivery", "edit_package", "release_package"]
     resource_id: str
     task_id: str
     status: str
@@ -353,6 +406,32 @@ class EditPackageDetailResponse(BaseModel):
 
     edit_package: EditPackageSnapshot
     download_url: str | None
+
+
+class ReleasePresetsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    presets: tuple[PlatformPreset, ...]
+    current_versions: dict[ReleasePlatform, str]
+
+
+class ReleaseItemsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    project_id: str
+    releases: tuple[ReleaseItemSnapshot, ...]
+    preview_media_urls: dict[str, str]
+
+
+class ReleasePackageDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    release_package: ReleasePackageSnapshot
+    download_url: str | None
+    download_kind: Literal["zip", "manifest"] | None
 
 
 class ApiErrorItem(BaseModel):

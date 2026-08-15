@@ -24,11 +24,13 @@ from liveclip.db.models import (
     DeliveryRow,
     EditPackageRow,
     PipelineRunRow,
+    ReleasePackageRow,
     RenderJobRow,
     StageRunRow,
     TaskAttemptRow,
     TaskRow,
 )
+from liveclip.domain.releases import ReleasePackageStatus, transition_release_package
 from liveclip.domain.state_transitions import (
     AttemptOutcome,
     DeliveryStatus,
@@ -935,6 +937,14 @@ def _fail_task_dependents(
         safe_message=safe_message,
         instant=instant,
     )
+    _fail_task_release_packages(
+        connection,
+        task_id=task_id,
+        target=target,
+        error_code=error_code,
+        safe_message=safe_message,
+        instant=instant,
+    )
 
 
 def _fail_task_renders(
@@ -1024,6 +1034,42 @@ def _fail_task_edit_packages(
             error_code=error_code,
             safe_error_message=safe_message,
             completed_at=None if target_status == EditPackageStatus.QUEUED else instant,
+        )
+    )
+
+
+def _fail_task_release_packages(
+    connection: Connection,
+    *,
+    task_id: str,
+    target: TaskStatus,
+    error_code: str,
+    safe_message: str,
+    instant: datetime,
+) -> None:
+    target_status = (
+        ReleasePackageStatus.QUEUED if target == TaskStatus.QUEUED else ReleasePackageStatus.FAILED
+    )
+    for current in (ReleasePackageStatus.QUEUED, ReleasePackageStatus.CREATING):
+        transition_release_package(current, ReleasePackageStatus.FAILED)
+        if target_status == ReleasePackageStatus.QUEUED:
+            transition_release_package(
+                ReleasePackageStatus.FAILED,
+                ReleasePackageStatus.QUEUED,
+            )
+    connection.execute(
+        update(ReleasePackageRow)
+        .where(
+            ReleasePackageRow.task_id == task_id,
+            ReleasePackageRow.status.in_(
+                [ReleasePackageStatus.QUEUED.value, ReleasePackageStatus.CREATING.value]
+            ),
+        )
+        .values(
+            status=target_status.value,
+            error_code=error_code,
+            safe_error_message=safe_message,
+            completed_at=None if target_status == ReleasePackageStatus.QUEUED else instant,
         )
     )
 

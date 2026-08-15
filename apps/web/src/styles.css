@@ -1804,3 +1804,463 @@ summary {
   .login-proof { grid-template-columns: 1fr; }
   .login-card { justify-self: stretch; }
 }
+
+.release-workspace {
+  border-color: rgba(242, 202, 107, 0.34);
+}
+
+.release-workspace-heading {
+  align-items: flex-start;
+}
+
+.release-workspace-heading > div:first-child {
+  max-width: 54rem;
+}
+
+.release-create {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.release-create-form {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: min(72rem, calc(100vw - 4rem));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  border: 1px solid rgba(242, 202, 107, 0.35);
+  border-radius: 14px;
+  padding: 1rem;
+  background: #102325;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.28);
+}
+
+.release-create-form label,
+.release-editor-grid label,
+.release-approval-actions > label,
+.release-publish-evidence label,
+.release-exception-actions label,
+.release-metrics label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.release-create-form .button-row,
+.release-preset-note {
+  align-self: end;
+  margin: 0;
+}
+
+.release-preset-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.release-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.release-stats span {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.release-stats strong {
+  color: var(--accent);
+  font-size: 1.45rem;
+}
+
+.release-view-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.release-view-switch > button:not(.button) {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.release-view-switch > button[aria-pressed="true"] {
+  border-color: rgba(88, 224, 193, 0.55);
+  color: #dffaf3;
+  background: rgba(88, 224, 193, 0.12);
+}
+
+.release-group + .release-group {
+  margin-top: 1.5rem;
+}
+
+.release-group > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+  font-size: 1rem;
+}
+
+.release-group > h3 span {
+  display: inline-grid;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  place-items: center;
+  border-radius: 999px;
+  color: #061815;
+  background: var(--accent);
+  font-size: 0.75rem;
+}
+
+.release-card-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.release-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.1rem;
+  background: rgba(10, 28, 30, 0.72);
+}
+
+.release-card-stale {
+  border-color: rgba(255, 138, 130, 0.5);
+}
+
+.release-card-header,
+.release-card-statuses,
+.release-facts,
+.release-package-actions,
+.release-preflight > div,
+.release-package-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.release-card-header {
+  align-items: flex-start;
+}
+
+.release-card-header h3 {
+  margin-bottom: 0.3rem;
+  font-size: 1.22rem;
+}
+
+.release-card-header p:last-child {
+  margin-bottom: 0;
+  color: #c9d9d8;
+}
+
+.release-card-statuses {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.release-facts {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin: 0.85rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.release-facts span {
+  border-left: 1px solid var(--line);
+  padding-left: 0.7rem;
+}
+
+.release-editor,
+.release-publish-evidence,
+.release-publication-record,
+.release-exception-actions,
+.release-metrics {
+  margin-top: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.release-publication-record {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  border-color: rgba(113, 221, 164, 0.32);
+  background: rgba(113, 221, 164, 0.06);
+  color: #d7e2e1;
+  font-size: 0.82rem;
+}
+
+.release-publication-record strong {
+  color: var(--success);
+}
+
+.release-publication-record a {
+  color: var(--accent);
+}
+
+.release-publication-record p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+}
+
+.release-editor summary,
+.release-publish-evidence summary,
+.release-exception-actions summary,
+.release-metrics summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.release-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0.9rem 0;
+}
+
+.release-wide {
+  grid-column: 1 / -1;
+}
+
+.release-cover-preview {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  margin: 0.9rem 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.release-cover-preview p {
+  max-width: 48rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.release-cover-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  aspect-ratio: 9 / 16;
+  background: #050a0b;
+}
+
+.release-cover-frame video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.release-safe-zone {
+  position: absolute;
+  display: grid;
+  place-items: start center;
+  border: 2px dashed rgba(242, 202, 107, 0.95);
+  pointer-events: none;
+}
+
+.release-safe-zone span {
+  border-radius: 0 0 6px 6px;
+  padding: 0.2rem 0.4rem;
+  background: rgba(8, 24, 25, 0.88);
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-weight: 850;
+}
+
+.release-checklist {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0 0 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.release-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: #c5d7d5;
+  font-size: 0.78rem;
+}
+
+.release-checklist input,
+.release-package-actions input {
+  width: auto;
+}
+
+.release-preflight {
+  margin-top: 0.9rem;
+  border-left: 3px solid var(--danger);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 138, 130, 0.07);
+}
+
+.release-preflight-pass {
+  border-left-color: var(--success);
+  background: rgba(113, 221, 164, 0.07);
+}
+
+.release-preflight span,
+.release-preflight p {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.release-preflight ul {
+  margin: 0.55rem 0;
+  padding-left: 1.1rem;
+  color: #d7e2e1;
+  font-size: 0.82rem;
+}
+
+.release-approval-actions {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+
+.release-package-actions {
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+  border: 1px solid rgba(88, 224, 193, 0.24);
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+
+.release-package-actions p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.release-package-actions label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.release-package-history {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release-package-history li {
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--line);
+  padding: 0.4rem 0;
+  font-size: 0.8rem;
+}
+
+.release-package-history li a {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.release-publish-evidence .button,
+.release-exception-actions .button-row,
+.release-metrics form,
+.release-metrics table {
+  margin-top: 0.8rem;
+}
+
+.release-metrics form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.release-metrics table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.release-metrics th,
+.release-metrics td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.45rem;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .release-workspace-heading,
+  .release-card-header,
+  .release-package-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .release-create {
+    align-items: stretch;
+  }
+
+  .release-create-form,
+  .release-editor-grid,
+  .release-checklist,
+  .release-cover-preview {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .release-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .release-create-form,
+  .release-editor-grid,
+  .release-checklist,
+  .release-cover-preview,
+  .release-metrics form,
+  .release-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .release-wide {
+    grid-column: auto;
+  }
+
+  .release-facts,
+  .release-view-switch,
+  .release-publication-record {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

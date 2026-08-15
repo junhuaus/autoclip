@@ -28,6 +28,82 @@ def test_initial_migration_upgrade_check_downgrade_round_trip(
 
 
 @pytest.mark.integration
+def test_release_planning_migration_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    database_path = tmp_path / "release-planning.sqlite3"
+    monkeypatch.setenv("LIVECLIP_DATABASE_PATH", str(database_path))
+    config = Config(str(project_root / "alembic.ini"))
+
+    command.upgrade(config, "b95f3e6a1c27")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert not {
+            "release_items",
+            "release_metric_snapshots",
+            "release_packages",
+            "release_publication_evidence",
+        }.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose(close=True)
+
+    command.upgrade(config, "head")
+    command.check(config)
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        inspector = inspect(engine)
+        assert {
+            "release_items",
+            "release_metric_snapshots",
+            "release_packages",
+            "release_publication_evidence",
+        }.issubset(inspector.get_table_names())
+        release_foreign_keys = {
+            tuple(value["constrained_columns"])
+            for value in inspector.get_foreign_keys("release_packages")
+        }
+        assert {
+            ("release_item_id",),
+            ("project_id",),
+            ("task_id",),
+            ("source_render_job_id",),
+            ("source_video_asset_id",),
+        }.issubset(release_foreign_keys)
+        release_package_columns = {
+            value["name"] for value in inspector.get_columns("release_packages")
+        }
+        assert {"manifest_sha256", "zip_sha256"}.issubset(release_package_columns)
+        publication_foreign_keys = {
+            tuple(value["constrained_columns"])
+            for value in inspector.get_foreign_keys("release_publication_evidence")
+        }
+        assert publication_foreign_keys == {
+            ("release_item_id",),
+            ("release_package_id",),
+        }
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    finally:
+        engine.dispose(close=True)
+
+    command.downgrade(config, "b95f3e6a1c27")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert not {
+            "release_items",
+            "release_metric_snapshots",
+            "release_packages",
+            "release_publication_evidence",
+        }.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose(close=True)
+    command.upgrade(config, "head")
+    command.check(config)
+
+
+@pytest.mark.integration
 def test_head_repairs_stamped_legacy_asset_scope_columns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

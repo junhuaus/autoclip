@@ -14,6 +14,8 @@ ProjectAction = Literal[
     "render",
     "export",
     "deliver",
+    "manage_release",
+    "approve_release",
 ]
 PROJECT_ACTION_ORDER: tuple[ProjectAction, ...] = (
     "read",
@@ -25,6 +27,8 @@ PROJECT_ACTION_ORDER: tuple[ProjectAction, ...] = (
     "render",
     "export",
     "deliver",
+    "manage_release",
+    "approve_release",
 )
 
 _ALLOWED: dict[WorkspaceRole, frozenset[ProjectAction]] = {
@@ -39,10 +43,22 @@ _ALLOWED: dict[WorkspaceRole, frozenset[ProjectAction]] = {
             "render",
             "export",
             "deliver",
+            "manage_release",
+            "approve_release",
         }
     ),
-    "editor": frozenset({"read", "run_pipeline", "edit_clip", "render", "export", "deliver"}),
-    "reviewer": frozenset({"read", "review_clip"}),
+    "editor": frozenset(
+        {
+            "read",
+            "run_pipeline",
+            "edit_clip",
+            "render",
+            "export",
+            "deliver",
+            "manage_release",
+        }
+    ),
+    "reviewer": frozenset({"read", "review_clip", "approve_release"}),
     "viewer": frozenset({"read"}),
 }
 

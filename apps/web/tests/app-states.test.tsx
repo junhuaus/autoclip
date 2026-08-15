@@ -13,7 +13,7 @@ describe("project list states", () => {
   it("shows loading and then a useful empty state", async () => {
     server.use(
       http.get("/api/v1/projects", async () => {
-        await delay(80);
+        await delay(250);
         return HttpResponse.json([]);
       }),
     );

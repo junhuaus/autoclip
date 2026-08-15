@@ -240,12 +240,155 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
     "编辑审核",
   );
 
+  const releasePanel = page.getByRole("region", { name: "发布队列" });
+  await releasePanel.getByRole("button", { name: "＋ 建立发布任务" }).click();
+  const releaseCreateForm = releasePanel.locator(".release-create-form");
+  await releaseCreateForm.getByLabel("高光时刻").selectOption({ index: 1 });
+  await releaseCreateForm.getByLabel("目标平台").selectOption("douyin");
+  await releaseCreateForm.getByLabel("发布账号").fill("真实 E2E 主账号");
+  await releaseCreateForm.getByLabel("视频与字幕").selectOption("burned");
+  const createdReleaseResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/projects\/.+\/releases$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCreateForm.getByRole("button", { name: "建立发布任务" }).click();
+  expect((await createdReleaseResponse).status()).toBe(201);
+
+  const releaseCard = releasePanel.locator("article.release-card").first();
+  await expect(releaseCard.getByText(/抖音 · 真实 E2E 主账号/)).toBeVisible();
+  const checklistInputs = releaseCard.locator(".release-checklist input");
+  expect(await checklistInputs.count()).toBe(9);
+  for (let index = 0; index < 9; index += 1) {
+    await checklistInputs.nth(index).check();
+  }
+  const savedReleaseResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      /\/api\/v1\/releases\/.+$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCard.getByRole("button", { name: "保存发布设置" }).click();
+  expect((await savedReleaseResponse).status()).toBe(200);
+
+  const approvalReason = releaseCard.getByLabel("审核或状态说明");
+  await approvalReason.fill("编辑已完成发布配置与合规检查");
+  const submittedApprovalResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/approval$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCard.getByRole("button", { name: "提交发布审核" }).click();
+  expect((await submittedApprovalResponse).status()).toBe(200);
+  await approvalReason.fill("审核人确认平台文案和权利清单");
+  const approvedReleaseResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/approval$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCard.getByRole("button", { name: "批准发布" }).click();
+  expect((await approvedReleaseResponse).status()).toBe(200);
+
+  const readyReleaseResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/status$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCard.getByRole("button", { name: "标记可发布" }).click();
+  expect((await readyReleaseResponse).status()).toBe(200);
+  const acceptedReleasePackage = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/packages$/.test(new URL(response.url()).pathname),
+  );
+  await releaseCard.getByRole("button", { name: "生成平台包" }).click();
+  const releasePackageResponse = await acceptedReleasePackage;
+  expect(releasePackageResponse.status()).toBe(202);
+  const releasePackage = await releasePackageResponse.json() as { resource_id: string };
+  await waitForTerminal(
+    async () => {
+      const response = await page.request.get(
+        `/api/v1/release-packages/${releasePackage.resource_id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const body = await response.json() as { release_package: StatusPayload };
+      return { statusCode: response.status(), body: body.release_package };
+    },
+    { success: "succeeded", failures: new Set(["failed"]) },
+  );
+  const releaseDownload = releaseCard.getByRole("link", { name: "下载平台 ZIP" });
+  await expect(releaseDownload).toHaveAttribute(
+    "href",
+    /\/api\/v1\/release-packages\/.+signature=/,
+    { timeout: 8_000 },
+  );
+  const releaseDownloadUrl = await releaseDownload.getAttribute("href");
+  const releaseArchive = await page.evaluate(async (url) => {
+    const response = await fetch(url);
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      disposition: response.headers.get("Content-Disposition"),
+      length: body.length,
+      magic: Array.from(body.slice(0, 2)),
+    };
+  }, releaseDownloadUrl as string);
+  expect(releaseArchive.status).toBe(200);
+  expect(releaseArchive.disposition).toMatch(
+    /^attachment; filename="liveclip-release-douyin-[A-Za-z0-9_.-]+-[a-f0-9]{8}-v001\.zip"$/,
+  );
+  expect(releaseArchive.length).toBeGreaterThan(1_000);
+  expect(releaseArchive.magic).toEqual([0x50, 0x4b]);
+
+  const lifecyclePanel = page.getByRole("region", { name: "任务与生命周期" });
+  for (const [target, reason] of [
+    ["approval", "真实 E2E 进入项目终审"],
+    ["ready_to_publish", "真实 E2E 发布材料已完成"],
+  ] as const) {
+    await lifecyclePanel.getByLabel("下一阶段").selectOption(target);
+    await lifecyclePanel.getByLabel("操作说明").fill(reason);
+    const lifecycleResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/api\/v1\/projects\/.+\/lifecycle$/.test(new URL(response.url()).pathname),
+    );
+    await lifecyclePanel.getByRole("button", { name: "确认推进" }).click();
+    expect((await lifecycleResponse).status()).toBe(200);
+  }
+  await expect(page.locator('.hero-status [data-status="ready_to_publish"]')).toHaveText(
+    "待发布",
+  );
+  const refreshedReleaseCard = releasePanel.locator("article.release-card").first();
+  await refreshedReleaseCard.getByText("记录外部发布结果", { exact: true }).click();
+  await refreshedReleaseCard.getByLabel("平台内容 ID").fill("douyin-e2e-001");
+  await refreshedReleaseCard.getByLabel("结果说明").fill("真实浏览器记录外部发布证据");
+  const publishedReleaseResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/status$/.test(new URL(response.url()).pathname),
+  );
+  await refreshedReleaseCard.getByRole("button", { name: "确认已在外部发布" }).click();
+  expect((await publishedReleaseResponse).status()).toBe(200);
+  await expect(refreshedReleaseCard.locator('[data-status="published"]')).toHaveText("已发布");
+
+  await refreshedReleaseCard.getByText("记录发布效果", { exact: true }).click();
+  await refreshedReleaseCard.getByLabel("播放").fill("1200");
+  await refreshedReleaseCard.getByLabel("点赞").fill("88");
+  const metricResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/releases\/.+\/metrics$/.test(new URL(response.url()).pathname),
+  );
+  await refreshedReleaseCard.getByRole("button", { name: "保存效果快照" }).click();
+  expect((await metricResponse).status()).toBe(201);
+  await expect(refreshedReleaseCard.getByRole("cell", { name: "1,200" })).toBeVisible();
+  await expect(page.locator('.hero-status [data-status="published"]')).toHaveText("已发布");
+
   const projectResponse = await page.request.get(`/api/v1/projects/${job.project_id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(projectResponse.status()).toBe(200);
   const deliveredProject = await projectResponse.json();
   expect(deliveredProject.status).toBe("delivered");
-  expect(deliveredProject.lifecycle).toBe("editorial_review");
+  expect(deliveredProject.lifecycle).toBe("published");
   await page.screenshot({ path: testInfo.outputPath("delivered.png"), fullPage: true });
 });

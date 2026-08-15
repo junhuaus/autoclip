@@ -8,12 +8,12 @@ A small video-production team can sign in to one local LiveClip installation, wo
 
 ## Context and Orientation
 
-Baseline Git checkpoint is `0f34e2b` on `main`; package version is `0.1.0`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. V2-M1 is committed through `d513abf`. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
+The frozen v0.1 baseline is `0f34e2b`; package version remains `0.1.0`. The latest pushed v0.2 checkpoint is `7fd3cd2` on `main`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
 
 Relevant current locations:
 
 - Identity bridge: `src/liveclip/application/workspace.py`, `src/liveclip/db/workspace_repository.py`, `src/liveclip/api/security.py`.
-- Persistence: `src/liveclip/db/models.py`, Alembic head `a84e2d7c9f10` after the V2-M2 checkpoint.
+- Persistence: `src/liveclip/db/models.py`, code and real-database migration head `d8f3a6b1c420`; the controlled V2-M4 migration preserved every protected row count.
 - API composition: `src/liveclip/api/app.py`, `schemas.py`, `bootstrap.py`.
 - Web shell and Project workspace: `apps/web/src/App.tsx`, `ProjectWorkspace.tsx`, `api.ts`, `types.ts`.
 - Delivery/export patterns: `src/liveclip/application/deliveries.py`, `offline_review.py`, `src/liveclip/delivery/`.
@@ -72,17 +72,20 @@ The existing dependency direction remains unchanged. New application services ow
 
 ### V2-M4 — Release planning and platform packages
 
-- [ ] Add versioned platform preset registry and preflight results.
-- [ ] Add ReleaseItem metadata, assignment, approval, planned time and manually recorded outcome/URL.
-- [ ] Add cover selection, safe-zone preview, Hook/first-frame/subtitle/right-risk checklists.
-- [ ] Generate platform-ready package with chosen caption mode and editable release copy.
-- [ ] Add release calendar/queue views and basic manually entered result snapshots.
+- [x] 2026-08-15 Add ADR-015, strict append-only platform presets/current-version registry, checklist/preflight values and centralized item/approval/package transitions.
+- [x] 2026-08-15 Add `c7e5d1a4b920` ReleaseItem/metric/package persistence and `d8f3a6b1c420` immutable publication evidence plus package manifest/ZIP hashes; fresh and round-trip migration tests pass. The real database was WAL-checkpointed, backed up, migrated to d8 and verified without changing protected row counts.
+- [x] 2026-08-15 Add optimistic metadata/assignment/planned time, submit/approve/return/revoke approval, queue/status transitions, actual publication URL/ID/time, immutable package evidence and manual metric snapshots.
+- [x] 2026-08-15 Add exact clean/final preview selection, cover time and historical-preset safe-zone preview, nine-item Hook/first-frame/subtitle/rights/privacy checklist and non-blocking duplicate-content advisory.
+- [x] 2026-08-15 Add leased immutable platform ZIP generation with selected caption mode, MP4/SRT/cover/editable copy/checklist/preflight/manifest/checksums, actual-byte validation, no-replace publication and deterministic crash recovery.
+- [x] 2026-08-15 Add authorized REST API, signed ZIP download, Web queue/calendar/package history/failure retry/stale sync and manually entered outcome/metrics.
+- [x] 2026-08-15 Pass `make doctor`, full lint/test, Mock and real Chrome E2E, screenshot inspection and independent read-only review with P0=0/P1=0. MCP Browser exposed no controllable instance, so only the distinct actual-host-Chrome result is claimed.
+- [~] Create and push the reviewed Git checkpoint; all implementation, migration and validation work is complete.
 
 ### V2-M5 — Hardening and acceptance
 
 - [ ] Exercise backup/restore, migration rollback, concurrent revocation, expired session/PAT and permission changes during long exports.
 - [ ] Add storage/retention visibility and safe archive/purge policies.
-- [ ] Run `make doctor`, `make lint`, `make test`, `make demo` and browser E2E; no real Provider call unless content generation itself changes.
+- [~] `make doctor`, `make lint`, `make test` and browser E2E passed at the V2-M4 boundary; rerun them with `make demo` after M5 changes. Do not make a real Provider call unless content generation itself changes.
 - [ ] Run independent Product Spec verification, close evidenced gaps, update operator/admin/editor docs and publish v0.2 checkpoint.
 
 ## Work breakdown and file ownership
@@ -109,6 +112,15 @@ V2-M2 implementation order:
 
 V2-M3 begins with the existing Delivery/Asset/task patterns, but adds a distinct immutable `EditPackage`; it must not overload formal Delivery or claim undocumented native Jianying draft support.
 
+V2-M4 implementation order:
+
+1. Define ADR-015, strict platform preset/preflight/checklist values and centralized ReleaseItem/ReleasePackage transitions.
+2. Add an additive migration for ReleaseItem, manual metric snapshots and immutable ReleasePackage versions; do not rebuild existing parent tables.
+3. Implement optimistic release metadata/approval/status services, exact current-revision/render evidence, audit events and Project-publication reconciliation.
+4. Add durable delivery-class package execution with requester/revision/item/preset/Asset fencing, actual-byte validation, selected cover extraction and atomic ZIP publication.
+5. Expose authorized preset, queue/calendar, item, approval, result, metrics and package APIs; signed download remains Asset-ID backed.
+6. Add the editor-facing release workspace, safe-zone/cover preview, checklists, queue/calendar and package history, then run migration/unit/integration/component/browser gates and an independent read-only review.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -134,11 +146,12 @@ Expected at V2-M2: business and technical Project states are both visible; stale
 - Migration: v0.1 database backup, row counts, integrity, foreign keys and current `7.28` Project/Asset hashes match before/after except intended identity/lifecycle columns.
 - Lifecycle: every legal/illegal transition and concurrency conflict is tested; history is append-only.
 - Export: selection order, revision/Asset fence, codec/SRT/ZIP/checksum/path safety and retry/crash recovery are verified from actual bytes.
+- Release: current/historical preset resolution, draft-to-approval workflow, exact render mode, duplicate advisory, immutable publication evidence, active-package invalidation, actual-byte ZIP validation and lease/crash recovery are verified independently.
 - UI: login, administrator users, private Project lists, lifecycle actions, selective export and all empty/loading/error/disabled states have observable component plus browser coverage.
 
 ## Idempotency, retry and recovery
 
-User create/update/reset, ownership/role/visibility/lifecycle changes and export creation use explicit transaction boundaries and Idempotency-Key where a client retry could repeat an effect. Password reset/session revocation commit atomically. A failed/expired login attempt never creates a partial session. Edit-package allocation uses immutable versions; a crash leaves only a strictly named private attempt, recoverable by exact snapshot validation. Permission and selected-revision fences are rechecked immediately before and after publication; loss withdraws the new package without touching older versions.
+User create/update/reset, ownership/role/visibility/lifecycle changes and export creation use explicit transaction boundaries and Idempotency-Key where a client retry could repeat an effect. Password reset/session revocation commit atomically. A failed/expired login attempt never creates a partial session. Edit-package and ReleasePackage allocation use immutable versions; a crash leaves only a strictly named private attempt, recoverable by exact snapshot validation. ReleasePackage artifact-facing names and enqueue-time advisory preflight are frozen, while dynamic duplicate evidence is excluded from the material current fingerprint. Permission and selected-revision fences are rechecked immediately before and after publication; loss withdraws the new package without touching older versions. Item/review/revision/run changes atomically fail active release packages and cancel or fence their Tasks.
 
 Before each real migration, checkpoint WAL and copy the database to ignored `data/projects/migration-backups/` with hash evidence. Never use destructive reset or reprocess `7.28` to test non-media behavior.
 
@@ -162,6 +175,11 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-15: V2-M3 local gates pass: Ruff/format, mypy over 121 source files, EditPlan schema, TypeScript, 583 Python tests, 29 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E. The real database was backed up as `liveclip-pre-b95f3e6a1c27-20260815T144143+0800.sqlite3` (SHA-256 `0b6701d00aaa3da45e46bbd93e2816505acb479a849eac19977fdaaf940c7024`) and migrated from `a84e2d7c9f10` to `b95f3e6a1c27`; quick check is `ok`, foreign keys are clean and all pre-existing row counts remain unchanged.
 - 2026-08-15: The two real generation-1 preprocess attempts correctly failed instead of publishing invalid manifests when MPEG-TS silence timestamps overlapped by 1–2 ms. The parser now takes the ordered interval union; 16 preprocess tests and full-source scans pass. Deterministic retry policy correctly rejected an unchanged blind retry, so generation-2 runs were created in the same Projects while failed evidence remained auditable.
 - 2026-08-15: Both long generation-2 runs completed all six stages with real OpenRouter `whisper-large-v3` and Codex CLI `gpt-5.6-terra`. Projects `67e827b4c0c8493b9804241e517cc5fe` and `4e3bf22ebf2f4b6a81f5ae5a0e552a46` each have 15 successful no-blur review proxies and computed state `pending_review`. Full evidence is in `docs/verification/long-input-e2e-2026-08-15.md`.
+- 2026-08-15: V2-M4 review exposed that revision epoch is Project-wide, so revising clip A must invalidate active package work for clip B as well. The shared invalidator now fails queued/creating package resources and cancels queued or fences leased Tasks in the same transaction; an A/B-clip regression passes.
+- 2026-08-15: Duplicate-content evidence is useful to editors but changes when another package completes. It is therefore a non-blocking live advisory, removed from the material current fingerprint and frozen at enqueue for artifact bytes. A crash-point regression proves re-claim after a new duplicate export and display-name changes reproduces the identical snapshot/preflight context.
+- 2026-08-15: Final V2-M4 gates pass `make doctor`, Ruff/format over 207 files, mypy over 127 source files, EditPlan schema, TypeScript, 641 Python tests, 45 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg/ReleasePackage Chrome E2E. A privileged final real-Chrome rerun passed in 19.5 seconds and its full-page screenshot was viewed; the in-app MCP Browser reported no controllable instance and is not claimed as successful.
+- 2026-08-15: Before d8, the real database was WAL-checkpointed and copied to `liveclip-pre-d8f3a6b1c420-20260815T194643+0800.sqlite3` (SHA-256 `af49cc9219a1444ed6de0b2f83fb179cc6d012e4bf62056167c4723dbec24ace`). It now reports d8 head, `quick_check=ok`, no foreign-key violations and unchanged protected counts; all release tables remain empty.
+- 2026-08-15: Independent V2-M4 review passed with P0=0/P1=0 after closing exact-preview, historical-preset, stale-package, crash-context and approval-revocation findings. It left two P2 hardening items for M5: reasonable publication/metric time bounds and a publication-time physical re-hash of pinned manifest/ZIP bytes.
 
 ## Decision Log
 
@@ -173,6 +191,10 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: Treat successful Delivery as `ready_to_publish` only for legacy backfill and never as `published`; rationale: file creation is not evidence that a human published to a platform.
 - 2026-08-13: Reject removal of the current assignee until reassignment; alternative was leaving a dangling assignment or silently clearing it; rationale: explicit workflow ownership is safer and auditable.
 - 2026-08-15: Treat the two `8.15-*.ts` files as two independent Projects and PipelineRuns, not one fixture split or one merged Project; rationale: the user explicitly called them two tasks and duplicate/media reuse must never collapse explicit Project intent.
+- 2026-08-15: Adopt ADR-015 and keep ReleaseItem/ReleasePackage separate from EditPackage and formal Delivery; only primary-source-backed limits are hard blockers, while account-dependent platform policy is an explicit human confirmation. `scheduled_external` is a planning fact and never claims LiveClip scheduled or uploaded to a social platform.
+- 2026-08-15: Permit a ReleaseItem draft from any current non-rejected clip, but keep content approval and exact trusted media as preflight blockers. This lets release copy/assignment work begin in parallel without claiming readiness.
+- 2026-08-15: Treat prior-content similarity as warning-only and preserve intentional cross-platform reuse; only immutable successful export/delivery snapshots may provide duplicate evidence.
+- 2026-08-15: Bind `published` to one exact current successful package and persist immutable publication hashes; mutable ReleaseItem fields and current Asset rows are not sufficient publication evidence.
 
 ## Risks and Mitigations
 
@@ -183,11 +205,13 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - Permission TOCTOU during export: transactionally capture and recheck membership, selection, revision and Asset identity around publication.
 - Undocumented Jianying format churn: ship standards-based MP4/SRT and verify real import; native draft remains excluded.
 - Platform policy drift: presets are versioned and linked to check date; UI labels account-specific checks as required rather than universally “passed”.
+- Locally tampered publication evidence: downloads already re-hash and refuse altered files; M5 will also re-hash pinned manifest/ZIP bytes in the publication transaction before evidence is accepted.
+- Implausible publication metrics: M5 will enforce bounded timestamps, `captured_at >= published_at` and SQLite-safe metric limits without changing the V2-M4 workflow.
 
 ## Recovery Notes
 
-V2-M1 is committed through `d513abf`; V2-M2 core is committed at `f12b7f8`; V2-M3 implementation, migration, local gates and both requested long-input E2Es are complete. The real database is at `b95f3e6a1c27`; Project `7.28` remains unchanged. Projects `8.15-1` and `8.15-2` are ready for human review. Next perform optional external Jianying/CapCut import acceptance on a user-selected EditPackage, or proceed to V2-M4 release planning.
+V2-M1/V2-M2/V2-M3 and both requested long-input E2Es are checkpointed through `7fd3cd2`. Project `7.28` remains unchanged; Projects `8.15-1` and `8.15-2` remain ready for human review. V2-M4 is fully implemented and independently reviewed; only its Git checkpoint remains. The real database is at d8 after WAL-safe backup `liveclip-pre-d8f3a6b1c420-20260815T194643+0800.sqlite3` (SHA-256 `af49cc9219a1444ed6de0b2f83fb179cc6d012e4bf62056167c4723dbec24ace`), integrity/foreign-key checks pass and release tables remain empty. Resume by auditing and committing the V2-M4 source/docs set, then implement the two recorded P2 hardening items in V2-M5. Do not reprocess the three real Projects or invoke paid Providers.
 
 ## Outcomes and Retrospective
 
-V2-M0 is complete at checkpoint `dfc1639`; V2-M1 is complete through `d513abf`; V2-M2 core is complete at `f12b7f8`. V2-M3 provides exact selective MP4/SRT downloads and immutable standards-based editor handoff packages without overloading formal Delivery or claiming undocumented Jianying draft compatibility. Both supplied long MPEG-TS inputs completed real ASR, Codex editing and no-blur proxy rendering to `pending_review`. External Jianying/CapCut import remains honestly unverified. Comments, saved views and bulk assignment remain explicitly staged enhancements.
+V2-M0 through V2-M3 are checkpointed. V2-M4 now provides a separate, auditable release-planning and platform-package path without social credentials or false upload claims; full gates, real d8 migration/restart, actual Chrome E2E, screenshot inspection and independent verification all pass, leaving only the Git checkpoint. Both supplied long MPEG-TS inputs remain at `pending_review` with completed real ASR, Codex editing and no-blur proxy rendering. External Jianying/CapCut import remains honestly unverified. The two P2 publication-evidence hardening items, comments, saved views and bulk assignment remain staged enhancements.

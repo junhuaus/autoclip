@@ -38,6 +38,7 @@ from liveclip.db.models import (
     TranscriptSegmentRow,
     TranscriptWordRow,
 )
+from liveclip.db.release_package_invalidation import invalidate_active_release_packages
 from liveclip.domain.edit_plan import (
     CaptionCue,
     EditPlan,
@@ -222,6 +223,11 @@ class SqlAlchemyReviewRepository:
                 generation=int(context["generation"]),
                 instant=now,
             )
+            invalidate_active_release_packages(
+                connection,
+                instant=now,
+                project_id=str(context["project_id"]),
+            )
             render_task_ids = tuple(
                 str(value)
                 for value in connection.scalars(
@@ -345,6 +351,11 @@ class SqlAlchemyReviewRepository:
                     generation=int(context["generation"]),
                     instant=now,
                 )
+                invalidate_active_release_packages(
+                    connection,
+                    instant=now,
+                    candidate_clip_ids=(clip_id,),
+                )
             result = _get_clip(connection, clip_id)
         return result
 
@@ -385,29 +396,32 @@ class SqlAlchemyReviewRepository:
                     )
                 contexts.append((context, item_command))
 
-            decision_changed = False
+            changed_clip_ids: list[str] = []
             for item, (context, item_command) in zip(
                 command.items,
                 contexts,
                 strict=True,
             ):
-                decision_changed = (
-                    _record_review_decision(
-                        connection,
-                        clip_id=item.clip_id,
-                        revision_id=str(context["revision_id"]),
-                        command=item_command,
-                        decided_at=now,
-                    )
-                    or decision_changed
-                )
+                if _record_review_decision(
+                    connection,
+                    clip_id=item.clip_id,
+                    revision_id=str(context["revision_id"]),
+                    command=item_command,
+                    decided_at=now,
+                ):
+                    changed_clip_ids.append(item.clip_id)
             first_context = contexts[0][0]
-            if decision_changed:
+            if changed_clip_ids:
                 _invalidate_active_deliveries(
                     connection,
                     project_id=project_id,
                     generation=int(first_context["generation"]),
                     instant=now,
+                )
+                invalidate_active_release_packages(
+                    connection,
+                    instant=now,
+                    candidate_clip_ids=tuple(changed_clip_ids),
                 )
             record_idempotent_resource(
                 connection,
