@@ -97,6 +97,19 @@ def test_silencedetect_parser_converts_to_absolute_milliseconds_and_closes_tail(
     )
 
 
+def test_silencedetect_parser_unions_mpegts_timestamp_jitter() -> None:
+    stderr = """
+    [silencedetect] silence_start: 27.811
+    [silencedetect] silence_end: 28.593 | silence_duration: 0.782
+    [silencedetect] silence_start: 28.591
+    [silencedetect] silence_end: 29.219 | silence_duration: 0.628
+    """
+
+    assert parse_silencedetect(stderr, analysis_duration_ms=30_000) == (
+        SilenceInterval(start_ms=27_811, end_ms=29_219),
+    )
+
+
 def test_audio_extract_and_silence_detection_disable_shell(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

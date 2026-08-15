@@ -123,7 +123,24 @@ def parse_silencedetect(
             pending_start_ms = None
     if pending_start_ms is not None and upper_bound is not None and upper_bound > pending_start_ms:
         intervals.append(SilenceInterval(start_ms=pending_start_ms, end_ms=upper_bound))
-    return tuple(intervals)
+    if not intervals:
+        return ()
+    # MPEG-TS timestamp jitter can make two consecutive FFmpeg silence events
+    # overlap by a few milliseconds after canonical millisecond rounding.  Silence
+    # is a set of source-time intervals, so normalize it to an ordered union before
+    # persisting the strict manifest instead of rejecting otherwise valid media.
+    ordered = sorted(intervals, key=lambda interval: (interval.start_ms, interval.end_ms))
+    merged = [ordered[0]]
+    for interval in ordered[1:]:
+        previous = merged[-1]
+        if interval.start_ms < previous.end_ms:
+            merged[-1] = SilenceInterval(
+                start_ms=previous.start_ms,
+                end_ms=max(previous.end_ms, interval.end_ms),
+            )
+        else:
+            merged.append(interval)
+    return tuple(merged)
 
 
 def preprocess_audio(
