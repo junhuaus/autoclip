@@ -16,6 +16,9 @@ export const server = setupServer(
       expires_at: null,
     }),
   ),
+  http.get("/api/v1/projects/:projectId/activity", ({ params }) =>
+    HttpResponse.json({ schema_version: "1", project_id: params.projectId, events: [] }),
+  ),
   http.get("/api/v1/health", () =>
     HttpResponse.json({
       schema_version: "1",

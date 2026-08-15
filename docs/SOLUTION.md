@@ -1,7 +1,7 @@
-# LiveClip v1 Solution
+# LiveClip Solution
 
-Status: accepted implementation baseline; living document
-Decision date: 2026-08-03
+Status: v0.1 accepted baseline with v0.2 production-workflow implementation; living document
+Decision date: 2026-08-03; v0.2 addendum 2026-08-13
 
 ## User scenarios and success boundary
 
@@ -49,6 +49,14 @@ The fixed six automated stages are `ingest`, `preprocess`, `transcribe`, `candid
 
 Commands such as ImportProject, StartPipelineRun, CancelRun, RetryRun, ReviseClip, ReviewClip, RenderClip, and CreateDelivery live once in application services. Queries return sanitized DTOs. CLI commands either enqueue and return, or enqueue then run/poll through the same TaskRunner. They never directly call a private “CLI implementation” of a stage. API returns 202 for enqueued commands. Worker only claims Tasks and dispatches application handlers.
 
+## v0.2 identity, authorization, and production workflow
+
+The local installation has real accounts rather than treating an environment token as a person. Argon2id password verifiers, opaque session-token digests, expiry/revocation, persisted login throttling, CSRF protection, administrator changes, and append-only audit events remain inside SQLite. Provider/API credentials stay environment-only. The v0.1 Bearer-token bridge remains temporarily available for CLI/API compatibility; the Web uses HttpOnly local sessions when account login is configured.
+
+Authority has three independent dimensions: the `administrator|member` system role governs account administration; the `owner|editor|reviewer|viewer` Project role governs work; and `private|workspace` visibility governs discovery. New Projects are private and initially visible only to their creator/owner. Workspace-visible Projects are readable by any active signed-in user as an effective viewer, but visibility never grants mutation rights. API DTOs return the server-derived actions; API, Web, CLI, media, and ZIP access all consume the same policy. An archived Project is read-only except that its owner may manage or restore it.
+
+Business lifecycle is persisted separately from the derived technical Project status. Its values are `draft`, `processing`, `needs_attention`, `editorial_review`, `changes_requested`, `approval`, `ready_to_publish`, `published`, and `archived`. A centralized transition table supplies the only manual next states. Pipeline completion/failure/cancellation updates the appropriate business signal through a system audit event, while successful Delivery does not silently claim publication. Project owners manage visibility, active-member assignment, priority, timezone-aware due date, archive/restore, and lifecycle reason through an optimistic `management_version` compare-and-swap transaction. Removing the current assignee is rejected until the Project is reassigned. This keeps Pipeline facts, human editorial intent, and publication evidence from overwriting one another.
+
 ## Canonical time and identifiers
 
 UUID4 strings identify resources. All stored and domain media times are integer milliseconds measured from the beginning of the original source. Field names use `_ms`. This avoids binary floating drift across revisions, SQLite, JSON, captions, and manifests. CLI/API decimal seconds are converted exactly at ingress; FFmpeg seconds and SRT timestamps are formatted only at adapter egress. UTC aware timestamps use ISO 8601.
@@ -59,9 +67,10 @@ The public EditPlan representation exposes both clearly named millisecond fields
 
 The initial relational model is:
 
-- Project: user-created workspace, current successful generation/run, current processing run, revision epoch.
-- WorkspaceUser: local username/display identity without a password, API token or Provider credential.
-- ProjectMember: unique user/Project membership with `owner`, `editor` or `reviewer` role; every Project has one owner membership matching `Project.owner_id`.
+- Project: user-created workspace, current successful generation/run, current processing run, revision epoch, default-private visibility, business lifecycle, optimistic management version, assignee, priority, due time and archive/restore state.
+- WorkspaceUser: local username/display identity, system role, optional Argon2id password verifier and revocable authentication version; it never stores a Provider credential or plaintext password/token.
+- ProjectMember: unique user/Project membership with `owner`, `editor`, `reviewer` or `viewer` role; every Project has one owner membership matching `Project.owner_id`.
+- AuthSession/AuthLoginAttempt/AuditEvent: hashed opaque browser sessions, bounded persisted login throttling and append-only security/Project activity history.
 - SourceMedia: one read-only resolved reference per Project, filename, fingerprint, stat identity, ffprobe metadata.
 - PipelineRun: immutable configuration snapshot, generation, run state, progress and error.
 - StageRun: logical stage state, input/output fingerprint, checkpoint and progress.
@@ -93,6 +102,8 @@ Allowed transitions are defined only in `domain/state_transitions.py` and are co
 - Delivery: `queued → creating → succeeded|failed`; succeeded snapshots are immutable.
 
 Project state is derived for the current generation, never manually set as a second source of truth. Active pipeline/render/delivery work yields `processing`; an unrecovered current-generation failure yields `failed`; no completed generation yields `imported`; pending/all-rejected/no-approved clips yield `pending_review`; at least one approved current revision with all required current final renders yields `ready_for_delivery`; the latest successful Delivery whose snapshot fingerprint equals the current deliverable set yields `delivered`. Editing after delivery leaves the old version downloadable and recomputes a non-delivered current state.
+
+That derived Project state is a technical readiness projection. The v0.2 business lifecycle above is the human workflow projection. For example, a Project can correctly show business state `editorial_review` and technical state `delivered`: an immutable technical package exists, but an owner has not asserted that publication approval or publication itself occurred. Both are returned and displayed explicitly.
 
 ## Pipeline execution, lease, and recovery
 
@@ -276,3 +287,4 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-011: one direct center-crop source layer; blurred backgrounds and duplicated foregrounds are prohibited.
 - ADR-012: grounded review metadata and atomic, revision-fenced batch decisions without A/B variants.
 - ADR-013: environment-authenticated workspace identities with server-side Project membership isolation.
+- ADR-014: local accounts, separate authority dimensions, professional business lifecycle and immutable standards-based editor handoff packages.

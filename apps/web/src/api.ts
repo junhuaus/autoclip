@@ -16,6 +16,9 @@ import type {
   JobCreateRequest,
   LoginResponse,
   ProjectSnapshot,
+  ProjectManagementRequest,
+  ProjectLifecycleRequest,
+  ProjectActivityResponse,
   ProjectMemberCreateRequest,
   ProjectMembersResponse,
   QueuedRender,
@@ -242,6 +245,30 @@ export class LiveClipApiClient {
 
   getProject(projectId: string): Promise<ProjectSnapshot> {
     return this.request(`/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  updateProjectManagement(
+    projectId: string,
+    body: ProjectManagementRequest,
+  ): Promise<ProjectSnapshot> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/management`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  transitionProjectLifecycle(
+    projectId: string,
+    body: ProjectLifecycleRequest,
+  ): Promise<ProjectSnapshot> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/lifecycle`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  listProjectActivity(projectId: string): Promise<ProjectActivityResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/activity`);
   }
 
   listProjectMembers(projectId: string): Promise<ProjectMembersResponse> {

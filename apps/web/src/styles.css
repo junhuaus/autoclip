@@ -905,6 +905,92 @@ textarea {
   gap: 1rem;
 }
 
+.project-operations {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-operations-grid {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.9fr) minmax(14rem, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 1rem;
+}
+
+.project-management-form,
+.project-lifecycle-form,
+.project-activity {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: rgba(8, 23, 25, 0.52);
+}
+
+.project-management-form h3,
+.project-lifecycle-form h3,
+.project-activity h3,
+.project-lifecycle-form p {
+  margin: 0;
+}
+
+.project-management-form label,
+.project-lifecycle-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.project-lifecycle-form textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.project-activity ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-activity li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.project-activity li > span {
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(88, 224, 193, 0.1);
+}
+
+.project-activity li div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.project-activity p,
+.project-activity small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.project-activity p {
+  font-size: 0.9rem;
+}
+
+.project-activity small {
+  font-size: 0.75rem;
+}
+
 .project-member-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -1514,7 +1600,8 @@ summary {
   .home-layout,
   .editor-grid,
   .clip-card-main,
-  .project-member-form {
+  .project-member-form,
+  .project-operations-grid {
     grid-template-columns: 1fr;
   }
 

@@ -39,6 +39,9 @@ from liveclip.api.schemas import (
     JobCreateRequest,
     LoginRequest,
     LoginResponse,
+    ProjectActivityResponse,
+    ProjectLifecycleRequest,
+    ProjectManagementRequest,
     ProjectMemberCreateRequest,
     ProjectMembersResponse,
     ProjectOwnershipTransferRequest,
@@ -77,6 +80,11 @@ from liveclip.application.pipeline import (
     ProjectSnapshot,
     RunSnapshot,
 )
+from liveclip.application.projects import (
+    ProjectLifecycleUpdate,
+    ProjectManagementConflict,
+    ProjectManagementUpdate,
+)
 from liveclip.application.rendering import QueuedRender, RenderConflict
 from liveclip.application.reviewing import (
     ClipDetail,
@@ -89,7 +97,8 @@ from liveclip.application.reviewing import (
 from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
-from liveclip.db.workspace_repository import WorkspacePermissionDenied
+from liveclip.db.workspace_repository import WorkspaceConflict, WorkspacePermissionDenied
+from liveclip.domain.project_lifecycle import ProjectLifecycleConflict
 from liveclip.domain.state_transitions import ReviewStatus
 from liveclip.media.ingest import MediaIngestError, resolve_allowed_source
 from liveclip.providers.readiness import (
@@ -565,6 +574,70 @@ def create_app(
         )
         return ProjectMembersResponse(project_id=project_id, members=members)
 
+    @protected.patch(
+        "/projects/{project_id}/management",
+        response_model=ProjectSnapshot,
+    )
+    def update_project_management(
+        project_id: str,
+        body: ProjectManagementRequest,
+        request: Request,
+    ) -> ProjectSnapshot:
+        active = _runtime(request)
+        caller_user = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action="manage_project",
+        )
+        active.project_management_service.update_management(
+            project_id=project_id,
+            acting_user_id=caller_user.user_id,
+            update=ProjectManagementUpdate.model_validate(body.model_dump()),
+            correlation_id=_correlation_id(request),
+        )
+        return active.pipeline_service.get_project(project_id, user_id=caller_user.user_id)
+
+    @protected.post(
+        "/projects/{project_id}/lifecycle",
+        response_model=ProjectSnapshot,
+    )
+    def transition_project_lifecycle_route(
+        project_id: str,
+        body: ProjectLifecycleRequest,
+        request: Request,
+    ) -> ProjectSnapshot:
+        active = _runtime(request)
+        caller_user = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action="manage_project",
+        )
+        active.project_management_service.transition_lifecycle(
+            project_id=project_id,
+            acting_user_id=caller_user.user_id,
+            update=ProjectLifecycleUpdate.model_validate(body.model_dump()),
+            correlation_id=_correlation_id(request),
+        )
+        return active.pipeline_service.get_project(project_id, user_id=caller_user.user_id)
+
+    @protected.get(
+        "/projects/{project_id}/activity",
+        response_model=ProjectActivityResponse,
+    )
+    def list_project_activity(
+        project_id: str,
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    ) -> ProjectActivityResponse:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return ProjectActivityResponse(
+            project_id=project_id,
+            events=active.project_management_service.list_activity(project_id, limit=limit),
+        )
+
     @protected.post(
         "/projects/{project_id}/runs",
         status_code=status.HTTP_202_ACCEPTED,
@@ -1032,9 +1105,12 @@ def _require_project_access(
     action: ProjectAction = "read",
 ) -> WorkspaceUser:
     user = runtime.workspace_service.get_user_by_username(caller.username)
-    runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
-    membership = runtime.workspace_service.get_project_membership(project_id, user.user_id)
-    require_project_action(membership.role, action)
+    project = runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
+    require_project_action(
+        project.current_user_role,
+        action,
+        archived=project.lifecycle.value == "archived",
+    )
     return user
 
 
@@ -1326,6 +1402,9 @@ def _install_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(PipelineConflict)
+    @app.exception_handler(ProjectManagementConflict)
+    @app.exception_handler(ProjectLifecycleConflict)
+    @app.exception_handler(WorkspaceConflict)
     @app.exception_handler(ReviewConflict)
     @app.exception_handler(RenderConflict)
     @app.exception_handler(DeliveryConflict)

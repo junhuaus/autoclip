@@ -8,6 +8,7 @@ import {
   signedUrlRefreshInterval,
 } from "./api";
 import { ClipEditor } from "./ClipEditor";
+import { ProjectOperations, PROJECT_LIFECYCLE_LABELS } from "./ProjectOperations";
 import type {
   ClipSummaryResponse,
   BatchReviewRequest,
@@ -775,7 +776,8 @@ export function ProjectWorkspace({
           <p>{project.source_filename}</p>
         </div>
         <div className="hero-status">
-          <StatusBadge status={project.status} />
+          <StatusBadge status={project.lifecycle} label={PROJECT_LIFECYCLE_LABELS[project.lifecycle]} />
+          <span>技术状态 · {statusLabel(project.status)}</span>
           <span>已批准 {approvedCount}/{clipsQuery.data?.length ?? 0}</span>
           <span>
             {MEMBER_ROLE_LABELS[project.current_user_role]} · {project.members.length} 位成员
@@ -783,10 +785,22 @@ export function ProjectWorkspace({
         </div>
       </section>
 
+      <ProjectOperations
+        api={api}
+        project={project}
+        onChanged={(updated) => {
+          queryClient.setQueryData(["project", projectId], updated);
+          void queryClient.invalidateQueries({ queryKey: ["projects"] });
+        }}
+      />
+
       <ProjectMembersPanel
         api={api}
         project={project}
-        onChanged={() => void projectQuery.refetch()}
+        onChanged={() => {
+          void projectQuery.refetch();
+          void queryClient.invalidateQueries({ queryKey: ["project-activity", projectId] });
+        }}
       />
 
       {runQuery.isPending ? <LoadingState>正在加载 Pipeline 状态…</LoadingState> : null}

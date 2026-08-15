@@ -109,6 +109,16 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       await route.fulfill({ json: project });
       return;
     }
+    if (path === "/api/v1/projects/project-1/activity" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          project_id: "project-1",
+          events: [],
+        },
+      });
+      return;
+    }
     if (path === "/api/v1/projects/project-1/members" && method === "POST") {
       await route.fulfill({
         json: {

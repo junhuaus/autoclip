@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Protocol
@@ -11,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.application.authorization import ProjectAction
 from liveclip.application.idempotency import IdempotencyContext
+from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.state_transitions import (
     FailureClass,
     PipelineRunStatus,
@@ -209,10 +211,18 @@ class ProjectSnapshot(BaseModel):
     current_run_id: str
     generation: int = Field(ge=1)
     visibility: Literal["private", "workspace"] = "private"
+    lifecycle: ProjectLifecycle = ProjectLifecycle.PROCESSING
+    lifecycle_before_archive: ProjectLifecycle | None = None
+    management_version: int = Field(default=1, ge=1)
+    assignee: WorkspaceMember | None = None
+    priority: ProjectPriority = ProjectPriority.NORMAL
+    due_at: datetime | None = None
+    updated_at: datetime | None = None
     owner: WorkspaceMember
     members: tuple[WorkspaceMember, ...]
     current_user_role: Literal["owner", "editor", "reviewer", "viewer"]
     allowed_actions: tuple[ProjectAction, ...] = ()
+    allowed_lifecycle_transitions: tuple[ProjectLifecycle, ...] = ()
 
 
 class LeaseIdentity(BaseModel):

@@ -4,11 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminUsers } from "./AdminUsers";
 import { LiveClipApiClient, errorMessage } from "./api";
 import { LoginPage } from "./LoginPage";
+import { PROJECT_LIFECYCLE_LABELS } from "./ProjectOperations";
 import { ProjectWorkspace } from "./ProjectWorkspace";
-import type { JobCreateRequest, ProjectSnapshot, ProjectStatus } from "./types";
+import type { JobCreateRequest, ProjectLifecycle, ProjectSnapshot } from "./types";
 import { EmptyState, ErrorState, LoadingState, StatusBadge, statusLabel } from "./ui";
 
-type ProjectFilter = "all" | "active" | "attention" | "pending_review" | "delivered";
+type ProjectFilter = "all" | "active" | "attention" | "review" | "publish" | "archived";
 type AppView = "projects" | "users";
 
 const ROLE_LABELS = {
@@ -24,33 +25,35 @@ function optionalInteger(value: FormDataEntryValue | null): number | undefined {
 }
 
 function projectNeedsAttention(project: ProjectSnapshot): boolean {
-  return project.status === "pending_review" || project.status === "failed";
+  return project.lifecycle === "needs_attention" || project.lifecycle === "changes_requested";
 }
 
 function matchesProjectFilter(project: ProjectSnapshot, filter: ProjectFilter): boolean {
   if (filter === "all") return true;
   if (filter === "attention") return projectNeedsAttention(project);
-  if (filter === "pending_review") return project.status === "pending_review";
-  if (filter === "delivered") return project.status === "delivered";
-  return project.status === "processing" || project.status === "ready_for_delivery";
+  if (filter === "review") return ["editorial_review", "approval"].includes(project.lifecycle);
+  if (filter === "publish") return ["ready_to_publish", "published"].includes(project.lifecycle);
+  if (filter === "archived") return project.lifecycle === "archived";
+  return ["draft", "processing"].includes(project.lifecycle);
 }
 
-function projectActionLabel(status: ProjectStatus): string {
-  if (status === "pending_review") return "继续审核";
-  if (status === "processing") return "查看进度";
-  if (status === "ready_for_delivery") return "准备交付";
-  if (status === "delivered") return "查看交付";
-  if (status === "failed") return "处理问题";
+function projectActionLabel(lifecycle: ProjectLifecycle): string {
+  if (["editorial_review", "approval"].includes(lifecycle)) return "继续审核";
+  if (lifecycle === "processing") return "查看进度";
+  if (lifecycle === "ready_to_publish") return "准备发布";
+  if (lifecycle === "published") return "查看项目";
+  if (["needs_attention", "changes_requested"].includes(lifecycle)) return "处理问题";
+  if (lifecycle === "archived") return "查看归档";
   return "打开项目";
 }
 
 function ProjectCard({ project, onOpen }: { project: ProjectSnapshot; onOpen: () => void }) {
   return (
     <li className="project-card">
-      <button type="button" onClick={onOpen} aria-label={`${project.name}，${projectActionLabel(project.status)}`}>
+      <button type="button" onClick={onOpen} aria-label={`${project.name}，${projectActionLabel(project.lifecycle)}`}>
         <span className="project-card-main">
           <span className="project-card-topline">
-            <StatusBadge status={project.status} />
+            <StatusBadge status={project.lifecycle} label={PROJECT_LIFECYCLE_LABELS[project.lifecycle]} />
             <span className="project-role">我的角色 · {ROLE_LABELS[project.current_user_role]}</span>
           </span>
           <strong>{project.name}</strong>
@@ -58,12 +61,14 @@ function ProjectCard({ project, onOpen }: { project: ProjectSnapshot; onOpen: ()
           <span className="project-card-meta">
             <span>{project.visibility === "private" ? "私有项目" : "工作区可见"}</span>
             <span>负责人 {project.owner.display_name}</span>
+            <span>执行人 {project.assignee?.display_name ?? "未分配"}</span>
+            <span>优先级 {project.priority === "urgent" ? "紧急" : project.priority === "high" ? "高" : project.priority === "low" ? "低" : "普通"}</span>
             <span>{project.members.length} 位成员</span>
             <span>第 {project.generation} 次处理</span>
           </span>
         </span>
         <span className="project-card-action">
-          {projectActionLabel(project.status)} <span aria-hidden="true">→</span>
+          {projectActionLabel(project.lifecycle)} <span aria-hidden="true">→</span>
         </span>
       </button>
     </li>
@@ -145,8 +150,8 @@ export function App() {
   }, [projectFilter, projectSearch, projects]);
   const processingReady = healthQuery.data?.providers.processing_ready === true;
   const attentionCount = projects.filter(projectNeedsAttention).length;
-  const processingCount = projects.filter((project) => project.status === "processing").length;
-  const deliveredCount = projects.filter((project) => project.status === "delivered").length;
+  const processingCount = projects.filter((project) => project.lifecycle === "processing").length;
+  const publishCount = projects.filter((project) => ["ready_to_publish", "published"].includes(project.lifecycle)).length;
   const currentUser = sessionQuery.data?.user;
 
   if (sessionQuery.isPending && !activeToken) {
@@ -239,8 +244,8 @@ export function App() {
             <button type="button" aria-pressed={projectFilter === "active"} onClick={() => setProjectFilter("active")}>
               <span>处理中</span><strong>{processingCount}</strong><small>AI 正在生成高光</small>
             </button>
-            <button type="button" aria-pressed={projectFilter === "delivered"} onClick={() => setProjectFilter("delivered")}>
-              <span>已交付</span><strong>{deliveredCount}</strong><small>可下载的成片版本</small>
+            <button type="button" aria-pressed={projectFilter === "publish"} onClick={() => setProjectFilter("publish")}>
+              <span>发布队列</span><strong>{publishCount}</strong><small>待发布或已发布项目</small>
             </button>
           </section>
 
@@ -254,7 +259,7 @@ export function App() {
             </div>
             <div className="project-tabs" role="group" aria-label="项目状态筛选">
               {([
-                ["all", "全部"], ["active", "进行中"], ["pending_review", "待审核"], ["delivered", "已交付"],
+                ["all", "全部"], ["active", "进行中"], ["review", "审核中"], ["publish", "发布"], ["archived", "归档"],
               ] as const).map(([value, label]) => (
                 <button key={value} type="button" aria-pressed={projectFilter === value} onClick={() => setProjectFilter(value)}>{label}</button>
               ))}

@@ -156,6 +156,7 @@ describe("project list states", () => {
       name: "发布会精剪",
       source_filename: "launch-event.mov",
       status: "delivered",
+      lifecycle: "published",
       current_user_role: "editor",
       members: [
         project.members[0],
@@ -182,7 +183,7 @@ describe("project list states", () => {
     expect(within(manager!).getByText("我的角色 · 编辑")).toBeInTheDocument();
     expect(within(manager!).getByText("2 位成员")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "已交付" }));
+    await user.click(screen.getByRole("button", { name: /发布队列/ }));
     expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument();
     expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
 

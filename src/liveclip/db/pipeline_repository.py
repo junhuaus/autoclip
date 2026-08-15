@@ -35,6 +35,7 @@ from liveclip.db.idempotency import load_idempotent_resource, record_idempotent_
 from liveclip.db.models import (
     AssetRow,
     AudioChunkRow,
+    AuditEventRow,
     CandidateClipRow,
     DeliveryRow,
     EditPlanRevisionRow,
@@ -50,6 +51,11 @@ from liveclip.db.models import (
     TranscriptRow,
     TranscriptSegmentRow,
     WorkspaceUserRow,
+)
+from liveclip.domain.project_lifecycle import (
+    ProjectLifecycle,
+    ProjectPriority,
+    allowed_project_lifecycle_transitions,
 )
 from liveclip.domain.state_transitions import (
     PIPELINE_STAGE_ORDER,
@@ -149,6 +155,11 @@ class SqlAlchemyPipelineRepository:
                     id=project_id,
                     name=source_path.stem[:200] or "LiveClip project",
                     owner_id=resolved_owner_id,
+                    visibility="private",
+                    lifecycle=ProjectLifecycle.PROCESSING.value,
+                    management_version=1,
+                    assignee_user_id=resolved_owner_id,
+                    priority=ProjectPriority.NORMAL.value,
                     source_request_path=str(source_path),
                     current_generation=1,
                     current_pipeline_run_id=run_id,
@@ -211,10 +222,13 @@ class SqlAlchemyPipelineRepository:
                     ProjectRow.current_pipeline_run_id,
                     ProjectRow.current_generation,
                     ProjectRow.revision_epoch,
+                    ProjectRow.lifecycle,
                 ).where(ProjectRow.id == project_id)
             ).one_or_none()
             if project is None:
                 raise PipelineResourceNotFound("project does not exist")
+            if str(project.lifecycle) == ProjectLifecycle.ARCHIVED.value:
+                raise PipelineConflict("archived project must be restored before processing")
             current_run_id = project.current_pipeline_run_id
             if current_run_id is not None:
                 current_status = connection.scalar(
@@ -263,6 +277,10 @@ class SqlAlchemyPipelineRepository:
                     current_generation=generation,
                     current_pipeline_run_id=run_id,
                     revision_epoch=revision_epoch,
+                    lifecycle=ProjectLifecycle.PROCESSING.value,
+                    lifecycle_before_archive=None,
+                    archived_at=None,
+                    management_version=ProjectRow.management_version + 1,
                     updated_at=now,
                 )
             )
@@ -288,9 +306,16 @@ class SqlAlchemyPipelineRepository:
         with self._engine.connect() as connection:
             query = select(ProjectRow.id)
             if user_id is not None:
-                query = query.join(
-                    ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id
-                ).where(ProjectMemberRow.user_id == user_id)
+                query = (
+                    query.outerjoin(ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id)
+                    .where(
+                        or_(
+                            ProjectMemberRow.user_id == user_id,
+                            ProjectRow.visibility == "workspace",
+                        )
+                    )
+                    .distinct()
+                )
             project_ids = tuple(
                 str(value)
                 for value in connection.scalars(
@@ -361,10 +386,17 @@ class SqlAlchemyPipelineRepository:
                         ProjectRow.name,
                         ProjectRow.owner_id,
                         ProjectRow.visibility,
+                        ProjectRow.lifecycle,
+                        ProjectRow.lifecycle_before_archive,
+                        ProjectRow.management_version,
+                        ProjectRow.assignee_user_id,
+                        ProjectRow.priority,
+                        ProjectRow.due_at,
                         ProjectRow.source_request_path,
                         ProjectRow.current_pipeline_run_id,
                         ProjectRow.current_generation,
                         ProjectRow.revision_epoch,
+                        ProjectRow.updated_at,
                     ).where(ProjectRow.id == project_id)
                 )
                 .mappings()
@@ -398,7 +430,11 @@ class SqlAlchemyPipelineRepository:
                 (member for member in members if str(member["id"]) == user_id),
                 None,
             )
-            if user_id is not None and current_member is None:
+            if (
+                user_id is not None
+                and current_member is None
+                and str(project["visibility"]) != "workspace"
+            ):
                 raise PipelineResourceNotFound("project does not exist")
             owner_member = next(
                 (
@@ -503,9 +539,25 @@ class SqlAlchemyPipelineRepository:
                 latest_delivery_matches_current=latest_delivery_current,
             )
         )
-        current_role = str(current_member["role"]) if current_member is not None else "owner"
+        current_role = (
+            str(current_member["role"])
+            if current_member is not None
+            else "owner"
+            if user_id is None
+            else "viewer"
+        )
         if current_role not in {"owner", "editor", "reviewer", "viewer"}:
             raise PipelineResourceNotFound("project membership role is invalid")
+        lifecycle = ProjectLifecycle(str(project["lifecycle"]))
+        restore_lifecycle = (
+            ProjectLifecycle(str(project["lifecycle_before_archive"]))
+            if project["lifecycle_before_archive"] is not None
+            else None
+        )
+        assignee_member = next(
+            (member for member in members if str(member["id"]) == str(project["assignee_user_id"])),
+            None,
+        )
         return ProjectSnapshot(
             project_id=str(project["id"]),
             name=str(project["name"]),
@@ -514,10 +566,28 @@ class SqlAlchemyPipelineRepository:
             current_run_id=run_id,
             generation=int(project["current_generation"]),
             visibility=str(project["visibility"]),  # type: ignore[arg-type]
+            lifecycle=lifecycle,
+            lifecycle_before_archive=restore_lifecycle,
+            management_version=int(project["management_version"]),
+            assignee=(_workspace_member(assignee_member) if assignee_member is not None else None),
+            priority=ProjectPriority(str(project["priority"])),
+            due_at=project["due_at"],
+            updated_at=project["updated_at"],
             owner=_workspace_member(owner_member),
             members=tuple(_workspace_member(member) for member in members),
             current_user_role=current_role,  # type: ignore[arg-type]
-            allowed_actions=project_actions(current_role),  # type: ignore[arg-type]
+            allowed_actions=project_actions(
+                current_role,  # type: ignore[arg-type]
+                archived=lifecycle is ProjectLifecycle.ARCHIVED,
+            ),
+            allowed_lifecycle_transitions=(
+                allowed_project_lifecycle_transitions(
+                    lifecycle,
+                    restore_target=restore_lifecycle,
+                )
+                if current_role == "owner"
+                else ()
+            ),
         )
 
     def request_run_cancel(self, run_id: str) -> RunSnapshot:
@@ -633,6 +703,19 @@ class SqlAlchemyPipelineRepository:
                             updated_at=now,
                         )
                     )
+            terminal = connection.execute(
+                select(PipelineRunRow.project_id, PipelineRunRow.status).where(
+                    PipelineRunRow.id == run_id
+                )
+            ).one()
+            if str(terminal.status) == PipelineRunStatus.CANCELLED.value:
+                _set_system_lifecycle(
+                    connection,
+                    project_id=str(terminal.project_id),
+                    lifecycle=ProjectLifecycle.NEEDS_ATTENTION,
+                    reason="pipeline.cancelled",
+                    now=now,
+                )
         return self.get_run(run_id)
 
     def retry_failed_run(self, run_id: str) -> RunSnapshot:
@@ -683,6 +766,17 @@ class SqlAlchemyPipelineRepository:
                     updated_at=now,
                 )
             )
+            project_id = connection.scalar(
+                select(PipelineRunRow.project_id).where(PipelineRunRow.id == run_id)
+            )
+            if project_id is not None:
+                _set_system_lifecycle(
+                    connection,
+                    project_id=str(project_id),
+                    lifecycle=ProjectLifecycle.PROCESSING,
+                    reason="pipeline.retried",
+                    now=now,
+                )
             connection.execute(
                 update(StageRunRow)
                 .where(StageRunRow.id == failed_stage_id)
@@ -1062,6 +1156,18 @@ class SqlAlchemyPipelineRepository:
                 .where(PipelineRunRow.id == row.pipeline_run_id)
                 .values(**run_values)
             )
+            if finished_stages == total_stages:
+                _set_system_lifecycle(
+                    connection,
+                    project_id=str(row.project_id),
+                    lifecycle=(
+                        ProjectLifecycle.DRAFT
+                        if import_complete
+                        else ProjectLifecycle.EDITORIAL_REVIEW
+                    ),
+                    reason="pipeline.completed",
+                    now=now,
+                )
             return True
 
     def fail_stage(
@@ -1090,6 +1196,7 @@ class SqlAlchemyPipelineRepository:
                     TaskRow.max_retries,
                     TaskRow.cancellation_requested_at.label("task_cancel"),
                     PipelineRunRow.cancellation_requested_at.label("run_cancel"),
+                    PipelineRunRow.project_id,
                 )
                 .join(PipelineRunRow, PipelineRunRow.id == TaskRow.pipeline_run_id)
                 .where(
@@ -1182,6 +1289,13 @@ class SqlAlchemyPipelineRepository:
                         updated_at=now,
                     )
                 )
+                _set_system_lifecycle(
+                    connection,
+                    project_id=str(row.project_id),
+                    lifecycle=ProjectLifecycle.NEEDS_ATTENTION,
+                    reason="pipeline.failed",
+                    now=now,
+                )
             return target
 
     def cancel_stage(self, lease: LeaseIdentity) -> bool:
@@ -1248,6 +1362,17 @@ def _cancel_owned_stage(
             updated_at=now,
         )
     )
+    project_id = connection.scalar(
+        select(PipelineRunRow.project_id).where(PipelineRunRow.id == pipeline_run_id)
+    )
+    if project_id is not None:
+        _set_system_lifecycle(
+            connection,
+            project_id=str(project_id),
+            lifecycle=ProjectLifecycle.NEEDS_ATTENTION,
+            reason="pipeline.cancelled",
+            now=now,
+        )
     connection.execute(
         update(TaskAttemptRow)
         .where(
@@ -1760,6 +1885,66 @@ def _default_workspace_user_id(connection: Connection) -> str:
             )
         )
     return str(user_id)
+
+
+def _set_system_lifecycle(
+    connection: Connection,
+    *,
+    project_id: str,
+    lifecycle: ProjectLifecycle,
+    reason: str,
+    now: datetime,
+) -> None:
+    row = connection.execute(
+        select(ProjectRow.lifecycle, ProjectRow.management_version).where(
+            ProjectRow.id == project_id
+        )
+    ).one_or_none()
+    if (
+        row is None
+        or str(row.lifecycle) == ProjectLifecycle.ARCHIVED.value
+        or str(row.lifecycle) == lifecycle.value
+    ):
+        return
+    next_version = int(row.management_version) + 1
+    changed = connection.execute(
+        update(ProjectRow)
+        .where(
+            ProjectRow.id == project_id,
+            ProjectRow.management_version == int(row.management_version),
+            ProjectRow.lifecycle != ProjectLifecycle.ARCHIVED.value,
+        )
+        .values(
+            lifecycle=lifecycle.value,
+            lifecycle_before_archive=None,
+            archived_at=None,
+            management_version=next_version,
+            updated_at=now,
+        )
+    )
+    if changed.rowcount != 1:
+        raise PipelineConflict("project lifecycle changed concurrently")
+    connection.execute(
+        insert(AuditEventRow).values(
+            id=new_id(),
+            actor_user_id=None,
+            actor_username="liveclip-system",
+            action=reason,
+            target_type="project",
+            target_id=project_id,
+            project_id=project_id,
+            before_json={
+                "lifecycle": str(row.lifecycle),
+                "management_version": int(row.management_version),
+            },
+            after_json={
+                "lifecycle": lifecycle.value,
+                "management_version": next_version,
+            },
+            correlation_id=None,
+            created_at=now,
+        )
+    )
 
 
 def _workspace_member(row: RowMapping) -> WorkspaceMember:

@@ -32,3 +32,10 @@ def test_project_actions_are_centrally_authorized(
 def test_capability_list_comes_from_the_same_policy_matrix() -> None:
     assert project_actions("viewer") == ("read",)
     assert project_actions("reviewer") == ("read", "review_clip")
+
+
+def test_archived_project_is_read_only_except_for_owner_restore() -> None:
+    assert project_actions("owner", archived=True) == ("read", "manage_project")
+    assert project_actions("editor", archived=True) == ("read",)
+    with pytest.raises(ProjectActionDenied):
+        require_project_action("owner", "deliver", archived=True)

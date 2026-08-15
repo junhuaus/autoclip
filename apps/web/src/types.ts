@@ -16,6 +16,19 @@ export type ProjectStatus =
   | "delivered"
   | "failed";
 
+export type ProjectLifecycle =
+  | "draft"
+  | "processing"
+  | "needs_attention"
+  | "editorial_review"
+  | "changes_requested"
+  | "approval"
+  | "ready_to_publish"
+  | "published"
+  | "archived";
+
+export type ProjectPriority = "low" | "normal" | "high" | "urgent";
+
 export type ReviewStatus = "pending_review" | "approved" | "rejected";
 export type RenderStatus = "queued" | "running" | "succeeded" | "failed" | "stale";
 export type DeliveryStatus = "queued" | "creating" | "succeeded" | "failed";
@@ -68,21 +81,61 @@ export interface ProjectSnapshot {
   current_run_id: string;
   generation: number;
   visibility: "private" | "workspace";
+  lifecycle: ProjectLifecycle;
+  lifecycle_before_archive: ProjectLifecycle | null;
+  management_version: number;
+  assignee: WorkspaceMember | null;
+  priority: ProjectPriority;
+  due_at: string | null;
+  updated_at: string | null;
   owner: WorkspaceMember;
   members: WorkspaceMember[];
   current_user_role: WorkspaceRole;
   allowed_actions: ProjectAction[];
+  allowed_lifecycle_transitions: ProjectLifecycle[];
 }
 
 export type WorkspaceRole = "owner" | "editor" | "reviewer" | "viewer";
 export type ProjectAction =
   | "read"
   | "manage_members"
+  | "manage_project"
   | "run_pipeline"
   | "edit_clip"
   | "review_clip"
   | "render"
   | "deliver";
+
+export interface ProjectManagementRequest {
+  expected_management_version: number;
+  visibility: "private" | "workspace";
+  assignee_user_id: string | null;
+  priority: ProjectPriority;
+  due_at: string | null;
+}
+
+export interface ProjectLifecycleRequest {
+  expected_management_version: number;
+  target: ProjectLifecycle;
+  reason: string;
+}
+
+export interface ProjectActivity {
+  event_id: string;
+  actor_username: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ProjectActivityResponse {
+  schema_version: "1";
+  project_id: string;
+  events: ProjectActivity[];
+}
 
 export interface WorkspaceUser {
   user_id: string;

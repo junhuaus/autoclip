@@ -21,6 +21,7 @@ from liveclip.application.identity import AuthenticationService, UserAdministrat
 from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.offline_review import OfflineReviewPackageService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
+from liveclip.application.projects import ProjectManagementService
 from liveclip.application.render_runner import RenderTaskRunner
 from liveclip.application.rendering import RenderProfile, RenderService
 from liveclip.application.reviewing import ReviewService
@@ -35,6 +36,7 @@ from liveclip.db.identity_repository import SqlAlchemyIdentityRepository
 from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
+from liveclip.db.project_repository import SqlAlchemyProjectManagementRepository
 from liveclip.db.render_repository import SqlAlchemyRenderRepository
 from liveclip.db.review_repository import SqlAlchemyReviewRepository
 from liveclip.db.stage_store import SqlAlchemyStageStateStore
@@ -76,6 +78,7 @@ class LiveClipRuntime:
     engine: Engine
     pipeline_repository: SqlAlchemyPipelineRepository
     pipeline_service: PipelineService
+    project_management_service: ProjectManagementService
     task_queue: SQLiteTaskQueue
     stage_runner: StageTaskRunner
     clip_query_service: ClipQueryService
@@ -117,6 +120,9 @@ class LiveClipRuntime:
                 )
             repository = SqlAlchemyPipelineRepository(engine)
             service = PipelineService(repository)
+            project_management_service = ProjectManagementService(
+                SqlAlchemyProjectManagementRepository(engine)
+            )
             workspace_service = WorkspaceService(SqlAlchemyWorkspaceRepository(engine))
             workspace_service.ensure_configured_users(
                 tuple(dict.fromkeys((settings.workspace_username, *settings.workspace_tokens)))
@@ -220,6 +226,7 @@ class LiveClipRuntime:
                 engine=engine,
                 pipeline_repository=repository,
                 pipeline_service=service,
+                project_management_service=project_management_service,
                 task_queue=queue,
                 stage_runner=runner,
                 clip_query_service=clip_query_service,

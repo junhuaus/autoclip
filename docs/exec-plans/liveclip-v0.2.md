@@ -8,12 +8,12 @@ A small video-production team can sign in to one local LiveClip installation, wo
 
 ## Context and Orientation
 
-Baseline Git checkpoint is `0f34e2b` on `main`; package version is `0.1.0`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
+Baseline Git checkpoint is `0f34e2b` on `main`; package version is `0.1.0`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. V2-M1 is committed through `d513abf`. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
 
 Relevant current locations:
 
 - Identity bridge: `src/liveclip/application/workspace.py`, `src/liveclip/db/workspace_repository.py`, `src/liveclip/api/security.py`.
-- Persistence: `src/liveclip/db/models.py`, Alembic head `d31a6e9f4b72`.
+- Persistence: `src/liveclip/db/models.py`, Alembic head `a84e2d7c9f10` after the V2-M2 checkpoint.
 - API composition: `src/liveclip/api/app.py`, `schemas.py`, `bootstrap.py`.
 - Web shell and Project workspace: `apps/web/src/App.tsx`, `ProjectWorkspace.tsx`, `api.ts`, `types.ts`.
 - Delivery/export patterns: `src/liveclip/application/deliveries.py`, `offline_review.py`, `src/liveclip/delivery/`.
@@ -44,19 +44,21 @@ The existing dependency direction remains unchanged. New application services ow
 - [x] 2026-08-13 Add Argon2id password hashing and verification; salted verifier only, neutral login responses and secrecy tests.
 - [x] 2026-08-13 Add bootstrap administrator, login/logout/current-session, expiry, hashed opaque session storage, revocation, CSRF and persisted rate limiting.
 - [x] 2026-08-13 Add administrator user list/create/update/disable/reactivate/password-reset/system-role grant/revoke; forbid disabling/demoting the final enabled administrator.
-- [~] Add central authorization policy for system and Project roles. Role/action matrix, route enforcement and client capability DTOs are implemented; explicit audited administrator Project override remains pending.
+- [x] 2026-08-13 Add central authorization policy for system and Project roles, route enforcement and client capability DTOs. Explicit administrator Project override and optional PATs are deferred extensions, not requirements for Project-owner isolation.
 - [x] 2026-08-13 Add `viewer`, default-private visibility, atomic ownership transfer and server-derived allowed actions/capabilities.
 - [x] 2026-08-13 Add Web login/logout and administrator console while retaining v0.1 token compatibility for CLI/API migration.
-- [~] Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy, legacy migration and two-user private Project/media/ZIP denial. PAT coverage remains pending.
+- [x] 2026-08-13 Unit/integration/component/browser coverage proves login, create/edit/disable, revocation, CSRF, Argon2 secrecy, role policy, legacy migration and two-user private Project/media/ZIP denial. PAT remains a documented later extension.
 - [x] 2026-08-13 Run Ruff/mypy/TypeScript/full Python/Web tests, inspect isolated login/admin UI without paid Provider work, review, commit `a5e52a3` and push. Real database login opt-in remains intentionally deferred.
 
 ### V2-M2 — Project lifecycle and production operations
 
-- [ ] Add lifecycle/assignment/due-date/priority/archive/audit schemas and central transition table.
-- [ ] Derive processing/attention signals without collapsing Pipeline state into business lifecycle.
-- [ ] Add Project activity timeline and revision/timecode comments with resolution state.
-- [ ] Add professional dashboard filters, saved views and bulk assignment.
-- [ ] Cover illegal transitions, concurrent updates, archived write denial, restore and audit history.
+- [x] 2026-08-13 Add lifecycle/assignment/due-date/priority/archive/audit schemas, optimistic management version and central transition table.
+- [x] 2026-08-13 Derive processing/attention signals without collapsing Pipeline state into business lifecycle; Delivery remains a separate technical fact and never implies publication.
+- [~] Add Project activity timeline and revision/timecode comments with resolution state. The append-only Project activity timeline is complete; threaded timecode comments are staged after editor handoff.
+- [~] Add professional dashboard filters, saved views and bulk assignment. Lifecycle filters, assignee and priority are complete; reusable saved views and cross-Project bulk assignment remain staged.
+- [x] 2026-08-13 Cover illegal transitions, concurrent updates, active-run archive refusal, archived write denial, exact restore, activity history, workspace read-only access and assigned-member removal conflict.
+- [x] 2026-08-13 Back up and migrate the real database to `a84e2d7c9f10`; preserve Project `7.28` as private and backfill it to `editorial_review` without paid Provider work or media mutation.
+- [x] 2026-08-13 Pass Ruff/format/mypy/schema/TypeScript, 575 Python tests, 28 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E.
 
 ### V2-M3 — Selective editor handoff
 
@@ -95,6 +97,17 @@ V2-M1 implementation order:
 5. Add login/admin Web surfaces.
 6. Migrate real data, run two-user tests, review and checkpoint.
 
+V2-M2 implementation order:
+
+1. Define pure lifecycle/priority values and one legal-transition table.
+2. Add additive SQLite columns and conservative backfill without rebuilding the referenced `projects` parent table.
+3. Add owner-only compare-and-swap management/lifecycle services and append-only activity queries.
+4. Synchronize Pipeline terminal signals while preserving archived state and separate technical status.
+5. Add capability-driven dashboard/workspace controls and exercise private/workspace viewers.
+6. Checkpoint WAL, copy/hash the real database, migrate, validate `7.28`, run full gates and checkpoint.
+
+V2-M3 begins with the existing Delivery/Asset/task patterns, but adds a distinct immutable `EditPackage`; it must not overload formal Delivery or claim undocumented native Jianying draft support.
+
 ## Concrete commands and expected observations
 
 From repository root:
@@ -110,6 +123,8 @@ make dev
 ```
 
 Expected at V2-M0: only tracked planning documents differ; no input/data/secret file is staged. Expected at V2-M1: migration head advances once; old Project count/revisions/renders/usage remain unchanged; signed-out protected JSON returns 401; administrator login returns an HttpOnly session cookie; two users see different Project lists; role-denied mutations return stable 403; disabled-user sessions stop working immediately.
+
+Expected at V2-M2: business and technical Project states are both visible; stale `management_version` writes return 409; a workspace-visible non-member has only `read`; archive blocks mutation and restores exactly; activity records actor/reason; `PRAGMA quick_check` is `ok`, foreign-key check is empty, and the real Project/media counts are unchanged.
 
 ## Validation and acceptance
 
@@ -137,6 +152,9 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: Full Python regression passed 569 tests and Web regression passed 25 tests after the first V2-M1 slice. Targeted migration/identity/authorization tests subsequently passed 21 tests after user-edit support was added.
 - 2026-08-13: Ownership transfer now updates both membership roles and `Project.owner_id` atomically, audits member/ownership changes with request correlation IDs, and exposes actions from the same server policy used by route enforcement. A known non-member receives 404 for private Project, committed media and Delivery ZIP IDs.
 - 2026-08-13: The real Chrome E2E originally expected the v0.1 shared-token settings flow. v0.2 correctly rendered login instead, so the E2E was migrated to a temporary bootstrap administrator password and then passed the real FastAPI/Worker/SQLite/FFmpeg flow. Full gates passed 570 Python tests, 27 Web tests, Mock Chrome E2E and real Chrome E2E.
+- 2026-08-13: Rebuilding SQLite's referenced `projects` parent table in Alembic failed safely before commit because `project_members` retains its foreign key. The final migration is additive `ALTER TABLE ADD COLUMN` plus indexes/backfill; typed domain values and compare-and-swap repositories enforce the new contract. Fresh migrations and `alembic check` pass.
+- 2026-08-13: The real database was WAL-checkpointed and copied to ignored `data/projects/migration-backups/liveclip-pre-a84e2d7c9f10-20260815T090223+0800.sqlite3` (SHA-256 `82ec8dfeb374ceb5c91b39d740171b4830816aa55b570072c7152ce5a6794926`) before migration. Post-migration quick check is `ok`, foreign-key check is empty and Project `7.28` remains private at the same ID.
+- 2026-08-13: The first updated real Chrome E2E expected the old derived `delivered` badge in the hero. The UI correctly showed business `editorial_review` beside technical `已交付`; the assertion now proves both states rather than collapsing them. Full gates pass with 575 Python and 28 Web tests plus both Chrome E2Es.
 
 ## Decision Log
 
@@ -145,6 +163,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: Use local opaque sessions plus optional PATs; alternative was continuing shared environment tokens or adding external OAuth; rationale: administrators need revocation and user lifecycle while the local product must remain self-contained.
 - 2026-08-13: Separate business lifecycle from Pipeline status; alternative was expanding the derived Project status string; rationale: processing facts cannot represent assignment, approval, publish and archive intent.
 - 2026-08-13: Add EditPackage and ReleaseItem rather than overloading Delivery; rationale: clean editor handoff, approved final delivery and platform publication have different eligibility and evidence.
+- 2026-08-13: Treat successful Delivery as `ready_to_publish` only for legacy backfill and never as `published`; rationale: file creation is not evidence that a human published to a platform.
+- 2026-08-13: Reject removal of the current assignee until reassignment; alternative was leaving a dangling assignment or silently clearing it; rationale: explicit workflow ownership is safer and auditable.
 
 ## Risks and Mitigations
 
@@ -158,8 +178,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1 account checkpoint is `a5e52a3`; the subsequent documentation checkpoint is `06c10df`. The current worktree completes ownership transfer, capability DTOs/UI gating and two-user private generated-media/ZIP denial. Resume with explicit audited administrator Project override and optional scoped PATs, or start V2-M2 lifecycle if PATs are deliberately deferred. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
+V2-M1 is committed through `d513abf`. The current V2-M2 worktree advances Alembic to `a84e2d7c9f10`, implements the professional lifecycle/operations UI and passes all full gates; commit/push it before beginning V2-M3. The real database is already backed up and migrated, services are running on `127.0.0.1:8765` and `127.0.0.1:5173`, and `7.28` must not be reprocessed. Next implement the distinct immutable selective `EditPackage` from exact current revisions/assets, then add individual MP4/SRT downloads and the editor package UI. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
 
 ## Outcomes and Retrospective
 
-V2-M0 is complete at checkpoint `dfc1639`. V2-M1 now delivers accounts/admin, private-role isolation, atomic ownership transfer, audited collaboration changes and capability-driven UI without changing v0.1 media facts or making a paid Provider call. Remaining V2-M1 governance work is explicit above. Primary documentation supports the later MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
+V2-M0 is complete at checkpoint `dfc1639`; V2-M1 is complete through `d513abf`. V2-M2 core now delivers separate professional lifecycle, private/workspace visibility, assignment, priority, due dates, archive/restore and activity history without changing v0.1 media facts or making a paid Provider call. Comments, saved views and bulk assignment remain explicitly staged enhancements. Primary documentation supports the next MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.

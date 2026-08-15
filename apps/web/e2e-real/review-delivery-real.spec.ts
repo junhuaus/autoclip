@@ -188,12 +188,17 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   expect(archive.disposition).toBe('attachment; filename="liveclip-v001.zip"');
   expect(archive.length).toBeGreaterThan(1_000);
   expect(archive.magic).toEqual([0x50, 0x4b]);
-  await expect(page.locator('.hero-status [data-status="delivered"]')).toHaveText("已交付");
+  await expect(page.locator(".hero-status")).toContainText("技术状态 · 已交付");
+  await expect(page.locator('.hero-status [data-status="editorial_review"]')).toHaveText(
+    "编辑审核",
+  );
 
   const projectResponse = await page.request.get(`/api/v1/projects/${job.project_id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(projectResponse.status()).toBe(200);
-  expect((await projectResponse.json()).status).toBe("delivered");
+  const deliveredProject = await projectResponse.json();
+  expect(deliveredProject.status).toBe("delivered");
+  expect(deliveredProject.lifecycle).toBe("editorial_review");
   await page.screenshot({ path: testInfo.outputPath("delivered.png"), fullPage: true });
 });

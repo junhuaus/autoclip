@@ -24,18 +24,22 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  TOKEN[Environment-only Bearer token] --> AUTH[Authenticated workspace user]
+  LOGIN[Local login] --> SESSION[Hashed revocable session]
+  TOKEN[Compatibility Bearer token] --> AUTH[Authenticated workspace user]
+  SESSION --> AUTH
+  ADMIN[System administrator] -->|manage accounts| AUTH
   AUTH --> MEMBERSHIP[(ProjectMember)]
   MEMBERSHIP --> PROJECT[(Project)]
+  AUTH -->|read only when workspace-visible| PROJECT
   PROJECT --> RUN[Pipeline runs]
   PROJECT --> CLIP[Clips and revisions]
   PROJECT --> RENDER[Render jobs]
   PROJECT --> DELIVERY[Deliveries]
-  OWNER[Project owner] -->|manage| MEMBERSHIP
-  WEB[My Projects dashboard] -->|membership-scoped API| AUTH
+  OWNER[Project owner] -->|members + lifecycle + assignment| PROJECT
+  WEB[My Projects dashboard] -->|server-filtered API| AUTH
 ```
 
-The browser never filters a global Project collection. The API joins the authenticated user through `ProjectMember` and repeats that Project check for every descendant resource. Credentials stay in ignored environment configuration; SQLite stores only identity and membership. The owner alone manages membership, while all current v1 members share the editing/review workflow.
+The browser never filters a global Project collection. The API returns explicit memberships plus authenticated read-only access to Projects intentionally marked workspace-visible, and repeats the same policy for every descendant resource. New Projects are private. SQLite stores Argon2id verifiers and session digests, never plaintext credentials; Provider credentials stay in ignored environment configuration. System administrator, Project role and visibility are independent authority dimensions. API DTOs expose server-derived capabilities, so the Web does not copy the role matrix.
 
 ## Data flow and cloud boundary
 
@@ -83,6 +87,36 @@ stateDiagram-v2
 ```
 
 PipelineRun, StageRun, review, Render and Delivery each have separate state machines; the diagram is user flow, not a single status enum.
+
+## Professional project lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> processing: create / start run
+  processing --> draft: ingest-only complete
+  processing --> editorial_review: full pipeline complete
+  processing --> needs_attention: failed or cancelled
+  needs_attention --> editorial_review
+  editorial_review --> changes_requested
+  changes_requested --> editorial_review
+  editorial_review --> approval
+  approval --> changes_requested
+  approval --> ready_to_publish
+  ready_to_publish --> changes_requested
+  ready_to_publish --> published
+  draft --> archived
+  processing --> archived: only with no active run
+  needs_attention --> archived
+  editorial_review --> archived
+  changes_requested --> archived
+  approval --> archived
+  ready_to_publish --> archived
+  published --> archived
+  state "recorded prior lifecycle" as PRIOR
+  archived --> PRIOR: restore exact prior state
+```
+
+This business lifecycle is not the computed technical Project status. Manual transitions come only from the domain table returned by the API; Pipeline terminal signals may move processing/attention/review states, but Delivery never asserts `published`. Owner mutations use an optimistic management version, a required lifecycle reason and an audit event. Archive preserves the exact restore target and makes ordinary Project writes unavailable.
 
 ## Durable command and media access
 

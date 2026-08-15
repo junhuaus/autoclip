@@ -15,7 +15,19 @@ export const project: ProjectSnapshot = {
   current_run_id: "run-1",
   generation: 1,
   visibility: "private",
+  lifecycle: "editorial_review",
+  lifecycle_before_archive: null,
+  management_version: 1,
+  priority: "normal",
+  due_at: null,
+  updated_at: "2026-08-11T00:00:00Z",
   owner: {
+    user_id: "user-local-admin",
+    username: "local-admin",
+    display_name: "本机管理员",
+    role: "owner",
+  },
+  assignee: {
     user_id: "user-local-admin",
     username: "local-admin",
     display_name: "本机管理员",
@@ -33,12 +45,14 @@ export const project: ProjectSnapshot = {
   allowed_actions: [
     "read",
     "manage_members",
+    "manage_project",
     "run_pipeline",
     "edit_clip",
     "review_clip",
     "render",
     "deliver",
   ],
+  allowed_lifecycle_transitions: ["changes_requested", "approval", "archived"],
 };
 
 export const completedRun: RunSnapshot = {

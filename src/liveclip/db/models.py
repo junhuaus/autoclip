@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from liveclip.db.base import Base, UTCDateTime, new_id, utc_now
+from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.state_transitions import (
     AssetStatus,
     AttemptOutcome,
@@ -74,6 +75,17 @@ class ProjectRow(Base):
         server_default="00000000000000000000000000000001",
     )
     visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
+    lifecycle: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=ProjectLifecycle.PROCESSING.value, index=True
+    )
+    lifecycle_before_archive: Mapped[str | None] = mapped_column(String(32))
+    management_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    assignee_user_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    priority: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ProjectPriority.NORMAL.value
+    )
+    due_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), index=True)
+    archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     source_request_path: Mapped[str] = mapped_column(Text, nullable=False)
     current_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_pipeline_run_id: Mapped[str | None] = mapped_column(String(32), index=True)

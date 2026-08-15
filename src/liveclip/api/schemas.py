@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -7,9 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.identity import ManagedUser
+from liveclip.application.projects import ProjectActivity
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
 from liveclip.application.workspace import WorkspaceMembership, WorkspaceUser
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
+from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.state_transitions import ReviewStatus
 
 
@@ -134,6 +137,39 @@ class ProjectMemberCreateRequest(ApiRequestModel):
 
 class ProjectOwnershipTransferRequest(ApiRequestModel):
     new_owner_user_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class ProjectManagementRequest(ApiRequestModel):
+    expected_management_version: int = Field(ge=1)
+    visibility: Literal["private", "workspace"]
+    assignee_user_id: str | None = Field(
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+    priority: ProjectPriority
+    due_at: datetime | None
+
+    @model_validator(mode="after")
+    def validate_due_at(self) -> ProjectManagementRequest:
+        if self.due_at is not None and (
+            self.due_at.tzinfo is None or self.due_at.utcoffset() is None
+        ):
+            raise ValueError("project due time must include a timezone")
+        return self
+
+
+class ProjectLifecycleRequest(ApiRequestModel):
+    expected_management_version: int = Field(ge=1)
+    target: ProjectLifecycle
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ProjectActivityResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    project_id: str
+    events: tuple[ProjectActivity, ...]
 
 
 class LoginRequest(ApiRequestModel):

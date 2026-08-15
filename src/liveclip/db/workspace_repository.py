@@ -20,6 +20,10 @@ class WorkspacePermissionDenied(PermissionError):
     """The authenticated workspace user cannot change this project's members."""
 
 
+class WorkspaceConflict(RuntimeError):
+    """A requested membership change conflicts with current project management state."""
+
+
 class SqlAlchemyWorkspaceRepository:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -250,6 +254,13 @@ class SqlAlchemyWorkspaceRepository:
                 raise WorkspaceUserNotFound("project member does not exist")
             if str(membership.role) == "owner":
                 raise WorkspacePermissionDenied("project owner cannot be removed")
+            assignee_user_id = connection.scalar(
+                select(ProjectRow.assignee_user_id).where(ProjectRow.id == project_id)
+            )
+            if assignee_user_id == member_user_id:
+                raise WorkspaceConflict(
+                    "project assignee must be changed before removing this member"
+                )
             connection.execute(delete(ProjectMemberRow).where(ProjectMemberRow.id == membership.id))
             connection.execute(
                 insert(AuditEventRow).values(

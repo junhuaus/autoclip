@@ -19,6 +19,14 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "已批准",
   rejected: "已拒绝",
   creating: "创建中",
+  draft: "草稿",
+  needs_attention: "需要处理",
+  editorial_review: "编辑审核",
+  changes_requested: "待修改",
+  approval: "终审",
+  ready_to_publish: "待发布",
+  published: "已发布",
+  archived: "已归档",
 };
 
 export function statusLabel(status: string): string {

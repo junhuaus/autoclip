@@ -176,6 +176,60 @@ it("lets the owner add a project editor from the collaboration panel", async () 
   );
 });
 
+it("lets the owner assign, prioritize and advance a project without client-side transitions", async () => {
+  let managementBody: unknown = null;
+  let lifecycleBody: unknown = null;
+  const managed = {
+    ...project,
+    priority: "urgent" as const,
+    visibility: "workspace" as const,
+    management_version: 2,
+  };
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/clips", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+    http.patch("/api/v1/projects/project-1/management", async ({ request }) => {
+      managementBody = await request.json();
+      return HttpResponse.json(managed);
+    }),
+    http.post("/api/v1/projects/project-1/lifecycle", async ({ request }) => {
+      lifecycleBody = await request.json();
+      return HttpResponse.json({
+        ...managed,
+        lifecycle: "approval",
+        management_version: 3,
+        allowed_lifecycle_transitions: ["changes_requested", "ready_to_publish", "archived"],
+      });
+    }),
+  );
+  const user = userEvent.setup();
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  await screen.findByRole("heading", { name: "任务与生命周期" });
+  await user.selectOptions(screen.getByLabelText("优先级"), "urgent");
+  await user.selectOptions(screen.getByLabelText("可见范围"), "workspace");
+  await user.click(screen.getByRole("button", { name: "保存项目设置" }));
+  await waitFor(() => expect(managementBody).toMatchObject({
+    expected_management_version: 1,
+    priority: "urgent",
+    visibility: "workspace",
+  }));
+
+  await user.selectOptions(screen.getByLabelText("下一阶段"), "approval");
+  await user.type(screen.getByLabelText("操作说明"), "内容已完成编辑审核");
+  await user.click(screen.getByRole("button", { name: "确认推进" }));
+  await waitFor(() => expect(lifecycleBody).toEqual({
+    expected_management_version: 2,
+    target: "approval",
+    reason: "内容已完成编辑审核",
+  }));
+  expect((await screen.findAllByText("终审")).length).toBeGreaterThan(0);
+});
+
 it("requires an explicit confirmation before transferring project ownership", async () => {
   const editor = {
     user_id: "editor-1",
