@@ -8,7 +8,7 @@ A small video-production team can sign in to one local LiveClip installation, wo
 
 ## Context and Orientation
 
-The frozen v0.1 baseline is `0f34e2b`; package version remains `0.1.0`. The latest pushed v0.2 checkpoint is `7fd3cd2` on `main`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
+The frozen v0.1 baseline is `0f34e2b`; package version remains `0.1.0`. V2-M4 is checkpointed at `06b7054` on `main`. v0.1 already provides real OpenRouter ASR, Codex editing, durable SQLite Tasks, clean no-blur proxies, Project memberships, exact revision/render fences, formal Delivery, offline review packages and the editor-facing “我的项目” dashboard. Existing real Project `f91cb996f7534a6682aa5e5f01374b7b` must remain intact and must not trigger paid ASR/LLM during identity, lifecycle or export implementation.
 
 Relevant current locations:
 
@@ -79,7 +79,7 @@ The existing dependency direction remains unchanged. New application services ow
 - [x] 2026-08-15 Add leased immutable platform ZIP generation with selected caption mode, MP4/SRT/cover/editable copy/checklist/preflight/manifest/checksums, actual-byte validation, no-replace publication and deterministic crash recovery.
 - [x] 2026-08-15 Add authorized REST API, signed ZIP download, Web queue/calendar/package history/failure retry/stale sync and manually entered outcome/metrics.
 - [x] 2026-08-15 Pass `make doctor`, full lint/test, Mock and real Chrome E2E, screenshot inspection and independent read-only review with P0=0/P1=0. MCP Browser exposed no controllable instance, so only the distinct actual-host-Chrome result is claimed.
-- [~] Create and push the reviewed Git checkpoint; all implementation, migration and validation work is complete.
+- [x] 2026-08-15 Audit the exact staged set, exclude credentials/input/data/E2E artifacts, and create reviewed implementation checkpoint `06b7054`.
 
 ### V2-M5 — Hardening and acceptance
 
@@ -210,8 +210,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1/V2-M2/V2-M3 and both requested long-input E2Es are checkpointed through `7fd3cd2`. Project `7.28` remains unchanged; Projects `8.15-1` and `8.15-2` remain ready for human review. V2-M4 is fully implemented and independently reviewed; only its Git checkpoint remains. The real database is at d8 after WAL-safe backup `liveclip-pre-d8f3a6b1c420-20260815T194643+0800.sqlite3` (SHA-256 `af49cc9219a1444ed6de0b2f83fb179cc6d012e4bf62056167c4723dbec24ace`), integrity/foreign-key checks pass and release tables remain empty. Resume by auditing and committing the V2-M4 source/docs set, then implement the two recorded P2 hardening items in V2-M5. Do not reprocess the three real Projects or invoke paid Providers.
+V2-M1/V2-M2/V2-M3, both requested long-input E2Es and V2-M4 are checkpointed through `06b7054`. Project `7.28` remains unchanged; Projects `8.15-1` and `8.15-2` remain ready for human review. The real database is at d8 after WAL-safe backup `liveclip-pre-d8f3a6b1c420-20260815T194643+0800.sqlite3` (SHA-256 `af49cc9219a1444ed6de0b2f83fb179cc6d012e4bf62056167c4723dbec24ace`), integrity/foreign-key checks pass and release tables remain empty. Resume with the two recorded P2 hardening items in V2-M5. Do not reprocess the three real Projects or invoke paid Providers.
 
 ## Outcomes and Retrospective
 
-V2-M0 through V2-M3 are checkpointed. V2-M4 now provides a separate, auditable release-planning and platform-package path without social credentials or false upload claims; full gates, real d8 migration/restart, actual Chrome E2E, screenshot inspection and independent verification all pass, leaving only the Git checkpoint. Both supplied long MPEG-TS inputs remain at `pending_review` with completed real ASR, Codex editing and no-blur proxy rendering. External Jianying/CapCut import remains honestly unverified. The two P2 publication-evidence hardening items, comments, saved views and bulk assignment remain staged enhancements.
+V2-M0 through V2-M4 are checkpointed. V2-M4 provides a separate, auditable release-planning and platform-package path without social credentials or false upload claims; full gates, real d8 migration/restart, actual Chrome E2E, screenshot inspection and independent verification all pass. Both supplied long MPEG-TS inputs remain at `pending_review` with completed real ASR, Codex editing and no-blur proxy rendering. External Jianying/CapCut import remains honestly unverified. The two P2 publication-evidence hardening items, comments, saved views and bulk assignment remain staged enhancements.

@@ -1,18 +1,18 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-15 19:54 CST
+Updated: 2026-08-15 19:58 CST
 
 Current product baseline: `0.1.0`
 
-Current milestone: v0.2 V2-M4 verified; Git checkpoint in progress
+Current milestone: v0.2 V2-M5 hardening and final acceptance
 
 Branch: `main` tracking `origin/main`
 
-Latest pushed checkpoint: `7fd3cd2` (`docs: record two long-input E2E runs`)
+Latest implementation checkpoint: `06b7054` (`feat: add release planning and platform packages`)
 
 ## Current user-visible result
 
-V2-M4 is complete in the current worktree. The authenticated Project workspace
+V2-M4 is complete and checkpointed. The authenticated Project workspace
 now includes a “短视频发布运营” queue and calendar. Owners and editors can create
 one task per high-point/platform/account before content approval, edit release
 copy, assignee, planned time, caption mode, cover and checklist, preview the
@@ -118,16 +118,15 @@ The three existing real Projects remain intact and were not reprocessed:
   SQLite/WAL, media, caches, deliveries, E2E output or migration backups.
 - No credential was printed, persisted or staged. V2-M4 tests used Mock/
   isolated fixtures and did not invoke paid ASR/LLM.
-- The worktree currently contains the reviewed V2-M4 implementation. The last
-  remaining M4 action is an explicit source/docs staging audit, local commit and
-  push to `origin/main`.
+- The reviewed V2-M4 implementation is committed as `06b7054`; only this status
+  checkpoint follows it. Generated/private paths remain ignored and unstaged.
 
 ## Next concrete task
 
-Audit the final diff and staged file list for generated data or credentials,
-create the V2-M4 implementation checkpoint, update this snapshot with its hash,
-push both checkpoints to `origin/main`, then begin V2-M5 with the two reviewer
-hardening items.
+Implement the two independent-review P2 hardening items: reasonable publication
+and metric time/value bounds, then physical manifest/ZIP re-hashing immediately
+before publication evidence is accepted. Add boundary, tamper and API tests
+before running the V2-M5 repository gates.
 
 ## Resume instructions
 
@@ -135,5 +134,6 @@ Read `AGENTS.md`, `docs/PRODUCT_SPEC.md`, `docs/PRODUCT_SPEC_V0.2.md`,
 `docs/SOLUTION.md`, `.agent/PLANS.md`, `docs/exec-plans/liveclip-v0.2.md` and
 this file. Run `git status --short --branch`, `git diff --check`, `git log -5
 --oneline`, `.venv/bin/alembic current` and `.venv/bin/alembic check`. Preserve
-the three real Projects and the pre-d8 backup. Continue from “Next concrete
-task”; do not reprocess real inputs or invoke paid Providers for M5 hardening.
+the three real Projects and the pre-d8 backup. Confirm `06b7054` is present on
+`origin/main`, then continue from “Next concrete task”; do not reprocess real
+inputs or invoke paid Providers for M5 hardening.
