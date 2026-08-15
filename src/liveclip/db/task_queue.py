@@ -22,6 +22,7 @@ from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
     DeliveryRow,
+    EditPackageRow,
     PipelineRunRow,
     RenderJobRow,
     StageRunRow,
@@ -31,6 +32,7 @@ from liveclip.db.models import (
 from liveclip.domain.state_transitions import (
     AttemptOutcome,
     DeliveryStatus,
+    EditPackageStatus,
     FailureClass,
     PipelineRunStatus,
     RenderStatus,
@@ -39,6 +41,7 @@ from liveclip.domain.state_transitions import (
     TaskKind,
     TaskStatus,
     transition_delivery,
+    transition_edit_package,
     transition_render,
 )
 
@@ -924,6 +927,14 @@ def _fail_task_dependents(
         safe_message=safe_message,
         instant=instant,
     )
+    _fail_task_edit_packages(
+        connection,
+        task_id=task_id,
+        target=target,
+        error_code=error_code,
+        safe_message=safe_message,
+        instant=instant,
+    )
 
 
 def _fail_task_renders(
@@ -980,6 +991,39 @@ def _fail_task_deliveries(
             error_code=error_code,
             safe_error_message=safe_message,
             completed_at=None if target_status == DeliveryStatus.QUEUED else instant,
+        )
+    )
+
+
+def _fail_task_edit_packages(
+    connection: Connection,
+    *,
+    task_id: str,
+    target: TaskStatus,
+    error_code: str,
+    safe_message: str,
+    instant: datetime,
+) -> None:
+    target_status = (
+        EditPackageStatus.QUEUED if target == TaskStatus.QUEUED else EditPackageStatus.FAILED
+    )
+    for current in (EditPackageStatus.QUEUED, EditPackageStatus.CREATING):
+        transition_edit_package(current, EditPackageStatus.FAILED)
+        if target_status == EditPackageStatus.QUEUED:
+            transition_edit_package(EditPackageStatus.FAILED, EditPackageStatus.QUEUED)
+    connection.execute(
+        update(EditPackageRow)
+        .where(
+            EditPackageRow.task_id == task_id,
+            EditPackageRow.status.in_(
+                [EditPackageStatus.QUEUED.value, EditPackageStatus.CREATING.value]
+            ),
+        )
+        .values(
+            status=target_status.value,
+            error_code=error_code,
+            safe_error_message=safe_message,
+            completed_at=None if target_status == EditPackageStatus.QUEUED else instant,
         )
     )
 

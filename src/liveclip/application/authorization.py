@@ -12,6 +12,7 @@ ProjectAction = Literal[
     "edit_clip",
     "review_clip",
     "render",
+    "export",
     "deliver",
 ]
 PROJECT_ACTION_ORDER: tuple[ProjectAction, ...] = (
@@ -22,6 +23,7 @@ PROJECT_ACTION_ORDER: tuple[ProjectAction, ...] = (
     "edit_clip",
     "review_clip",
     "render",
+    "export",
     "deliver",
 )
 
@@ -35,10 +37,11 @@ _ALLOWED: dict[WorkspaceRole, frozenset[ProjectAction]] = {
             "edit_clip",
             "review_clip",
             "render",
+            "export",
             "deliver",
         }
     ),
-    "editor": frozenset({"read", "run_pipeline", "edit_clip", "render", "deliver"}),
+    "editor": frozenset({"read", "run_pipeline", "edit_clip", "render", "export", "deliver"}),
     "reviewer": frozenset({"read", "review_clip"}),
     "viewer": frozenset({"read"}),
 }

@@ -35,6 +35,8 @@ from liveclip.api.schemas import (
     ClipSummaryResponse,
     DeliveryCreateRequest,
     DeliveryDetailResponse,
+    EditPackageCreateRequest,
+    EditPackageDetailResponse,
     HealthResponse,
     JobCreateRequest,
     LoginRequest,
@@ -61,6 +63,10 @@ from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
     DeliverySnapshot,
+)
+from liveclip.application.edit_packages import (
+    EditPackageConflict,
+    EditPackageSnapshot,
 )
 from liveclip.application.idempotency import (
     IdempotencyConflict,
@@ -746,6 +752,26 @@ def create_app(
                 proxy_media_url=(
                     _asset_url(security, value.proxy_asset_id) if value.proxy_asset_id else None
                 ),
+                download_video_url=(
+                    _clip_download_url(
+                        security,
+                        value.clip_id,
+                        value.edit_plan_revision,
+                        kind="video",
+                    )
+                    if value.proxy_asset_id
+                    else None
+                ),
+                download_subtitle_url=(
+                    _clip_download_url(
+                        security,
+                        value.clip_id,
+                        value.edit_plan_revision,
+                        kind="subtitle",
+                    )
+                    if value.proxy_asset_id
+                    else None
+                ),
             )
             for value in values
         ]
@@ -929,6 +955,75 @@ def create_app(
             _require_delivery_access(_runtime(request), _caller(request), delivery_id),
         )
 
+    @protected.post(
+        "/projects/{project_id}/edit-packages",
+        status_code=status.HTTP_202_ACCEPTED,
+        response_model=AcceptedTaskResponse,
+    )
+    def create_edit_package(
+        project_id: str,
+        body: EditPackageCreateRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> AcceptedTaskResponse:
+        caller = _caller(request)
+        active = _runtime(request)
+        user = _require_project_access(active, caller, project_id, action="export")
+        queued = active.edit_package_service.enqueue(
+            project_id,
+            user.user_id,
+            body.to_domain(),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/projects/:project_id/edit-packages",
+                payload={"project_id": project_id, **body.model_dump(mode="json")},
+            ),
+        )
+        location = f"/api/v1/edit-packages/{queued.edit_package_id}"
+        response.headers["Location"] = location
+        response.headers["Retry-After"] = "1"
+        return AcceptedTaskResponse(
+            resource_type="edit_package",
+            resource_id=queued.edit_package_id,
+            task_id=queued.task_id,
+            status=queued.status.value,
+            status_url=location,
+        )
+
+    @protected.get(
+        "/projects/{project_id}/edit-packages",
+        response_model=list[EditPackageDetailResponse],
+    )
+    def list_edit_packages(
+        project_id: str,
+        request: Request,
+    ) -> list[EditPackageDetailResponse]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return [
+            _edit_package_response(security, item)
+            for item in active.edit_package_service.list(project_id)
+        ]
+
+    @protected.get(
+        "/edit-packages/{edit_package_id}",
+        response_model=EditPackageDetailResponse,
+    )
+    def get_edit_package(
+        edit_package_id: str,
+        request: Request,
+    ) -> EditPackageDetailResponse:
+        return _edit_package_response(
+            security,
+            _require_edit_package_access(
+                _runtime(request),
+                _caller(request),
+                edit_package_id,
+            ),
+        )
+
     app.include_router(protected)
 
     @app.get("/api/v1/media/{asset_id}")
@@ -989,6 +1084,107 @@ def create_app(
             download_filename=f"liveclip-{delivery.delivery_version}.zip",
         )
 
+    @app.get("/api/v1/edit-packages/{edit_package_id}/download")
+    def download_edit_package(
+        edit_package_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        range_header: Annotated[str | None, Header(alias="Range")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        package = active.edit_package_service.get(edit_package_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=package.project_id,
+            path=f"/api/v1/edit-packages/{edit_package_id}/download",
+            resource=f"edit-package:{edit_package_id}",
+            expires=expires,
+            signature=signature,
+        )
+        if package.zip_asset_id is None or package.status.value != "succeeded":
+            raise EditPackageConflict("edit package ZIP is not available")
+        asset = active.media_asset_service.resolve(
+            package.zip_asset_id,
+            required_kind="edit_package_zip",
+        )
+        return stream_asset_response(
+            asset,
+            range_header=range_header,
+            download_filename=f"liveclip-edit-package-{package.package_version}.zip",
+        )
+
+    @app.get("/api/v1/clips/{clip_id}/download/video")
+    def download_clip_video(
+        clip_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        range_header: Annotated[str | None, Header(alias="Range")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        clip = active.edit_package_service.clip_download(clip_id)
+        path = f"/api/v1/clips/{clip_id}/download/video"
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=clip.project_id,
+            path=path,
+            resource=f"clip-video:{clip_id}:r{clip.edit_plan_revision}",
+            expires=expires,
+            signature=signature,
+        )
+        asset = active.media_asset_service.resolve(
+            clip.video_asset_id,
+            required_kind="review_proxy",
+        )
+        return stream_asset_response(
+            asset,
+            range_header=range_header,
+            download_filename=(f"liveclip-{clip_id[:8]}-r{clip.edit_plan_revision}.mp4"),
+        )
+
+    @app.get("/api/v1/clips/{clip_id}/download/subtitle")
+    def download_clip_subtitle(
+        clip_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        clip = active.edit_package_service.clip_download(clip_id)
+        path = f"/api/v1/clips/{clip_id}/download/subtitle"
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=clip.project_id,
+            path=path,
+            resource=f"clip-subtitle:{clip_id}:r{clip.edit_plan_revision}",
+            expires=expires,
+            signature=signature,
+        )
+        return Response(
+            content=clip.subtitle_srt.encode("utf-8"),
+            media_type="application/x-subrip; charset=utf-8",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="liveclip-{clip_id[:8]}-r{clip.edit_plan_revision}.srt"'
+                ),
+                "Cache-Control": "private, no-cache",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     return app
 
 
@@ -1040,6 +1236,21 @@ def _authorize_asset_read(
             session_id=session.session_id,
         )
         _require_project_access(runtime, caller, project_id)
+        return
+    if authorization is not None:
+        legacy = security.authenticate(authorization)
+        user = runtime.workspace_service.get_user_by_username(legacy.username)
+        _require_project_access(
+            runtime,
+            AuthenticatedCaller(
+                username=user.username,
+                caller_scope=legacy.caller_scope,
+                user_id=user.user_id,
+                system_role=user.system_role,
+                credential_kind="legacy",
+            ),
+            project_id,
+        )
         return
     if runtime.authentication_service.login_required():
         legacy = security.authenticate(authorization)
@@ -1159,6 +1370,16 @@ def _require_delivery_access(
     return delivery
 
 
+def _require_edit_package_access(
+    runtime: LiveClipRuntime,
+    caller: AuthenticatedCaller,
+    edit_package_id: str,
+) -> EditPackageSnapshot:
+    package = runtime.edit_package_service.get(edit_package_id)
+    _require_project_access(runtime, caller, package.project_id)
+    return package
+
+
 def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
     return ClipPatch(
         expected_revision=body.expected_revision,
@@ -1209,6 +1430,19 @@ def _asset_url(security: ApiSecurity, asset_id: str) -> str:
     )
 
 
+def _clip_download_url(
+    security: ApiSecurity,
+    clip_id: str,
+    revision: int,
+    *,
+    kind: Literal["video", "subtitle"],
+) -> str:
+    return security.signed_url(
+        path=f"/api/v1/clips/{clip_id}/download/{kind}",
+        resource=f"clip-{kind}:{clip_id}:r{revision}",
+    )
+
+
 def _clip_response(security: ApiSecurity, detail: ClipDetail) -> ClipDetailResponse:
     asset_ids = {
         asset_id
@@ -1237,6 +1471,19 @@ def _delivery_response(
             resource=f"delivery:{delivery.delivery_id}",
         )
     return DeliveryDetailResponse(delivery=delivery, download_url=download_url)
+
+
+def _edit_package_response(
+    security: ApiSecurity,
+    package: EditPackageSnapshot,
+) -> EditPackageDetailResponse:
+    download_url = None
+    if package.status.value == "succeeded" and package.zip_asset_id is not None:
+        download_url = security.signed_url(
+            path=f"/api/v1/edit-packages/{package.edit_package_id}/download",
+            resource=f"edit-package:{package.edit_package_id}",
+        )
+    return EditPackageDetailResponse(edit_package=package, download_url=download_url)
 
 
 def _install_exception_handlers(app: FastAPI) -> None:
@@ -1408,6 +1655,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ReviewConflict)
     @app.exception_handler(RenderConflict)
     @app.exception_handler(DeliveryConflict)
+    @app.exception_handler(EditPackageConflict)
     async def state_conflict_handler(request: Request, exc: Exception) -> JSONResponse:
         message = str(exc).strip()
         return _error_response(

@@ -53,6 +53,13 @@ POST   /projects/{project_id}/reviews/batch
 POST   /clips/{clip_id}/render
 GET    /renders/{render_id}
 
+GET    /clips/{clip_id}/download/video
+GET    /clips/{clip_id}/download/subtitle
+POST   /projects/{project_id}/edit-packages
+GET    /projects/{project_id}/edit-packages
+GET    /edit-packages/{edit_package_id}
+GET    /edit-packages/{edit_package_id}/download
+
 POST   /projects/{project_id}/deliveries
 GET    /projects/{project_id}/deliveries
 GET    /deliveries/{delivery_id}
@@ -122,11 +129,14 @@ Lifecycle:   draft | processing | needs_attention | editorial_review | changes_r
 ClipReview:  pending_review | approved | rejected
 Render:      queued | running | succeeded | failed | stale
 Delivery:    queued | creating | succeeded | failed
+EditPackage: queued | creating | succeeded | failed
 ```
 
 `Project` above is computed technical readiness; `Lifecycle` is owner-controlled production intent plus deterministic Pipeline signals. A successful Delivery can therefore coexist with `editorial_review`. Only an explicit legal transition records `published`.
 
-`GET /clips/{id}` returns the current plan/revision, separate title/Hook/reason/risk/caption metadata, grounded keyword ranges, review/render states and an `asset_urls` map containing only signed generated-media URLs. The clip-list response also includes the current-revision `hook`, bounded captions, keywords and allowed actions so the review board does not need an N+1 detail fan-out. The Web labels `hook` as “高光语句”; it labels timed `keywords` as editor-only navigation. A keyword includes clip-relative and source-absolute integer milliseconds plus `word` or `segment` precision; `segment` is an honest persisted ASR range, not an invented word time or proportional subtitle-display interval. A proxy URL always references the clean no-LiveClip-text review video; final media may contain the approved overlays. `GET /renders/{id}` exposes its current revision, kind and status. `GET /deliveries/{id}` wraps the Delivery snapshot and an optional signed `download_url`; it includes version, clip count, manifest/ZIP asset IDs and safe errors. Transcript, clip-list and delivery-list endpoints expose their respective artifacts without exposing the source absolute path.
+`GET /clips/{id}` returns the current plan/revision, separate title/Hook/reason/risk/caption metadata, grounded keyword ranges, review/render states and an `asset_urls` map containing only signed generated-media URLs. The clip-list response also includes the current-revision `hook`, bounded captions, keywords, allowed actions and—only for a current succeeded clean proxy—short-lived individual MP4/SRT download URLs. The Web labels `hook` as “高光语句”; it labels timed `keywords` as editor-only navigation. A keyword includes clip-relative and source-absolute integer milliseconds plus `word` or `segment` precision; `segment` is an honest persisted ASR range, not an invented word time or proportional subtitle-display interval. A proxy URL always references the clean no-LiveClip-text review video; final media may contain the approved overlays. `GET /renders/{id}` exposes its current revision, kind and status. `GET /deliveries/{id}` wraps the Delivery snapshot and an optional signed `download_url`; it includes version, clip count, manifest/ZIP asset IDs and safe errors. Transcript, clip-list, EditPackage-list and delivery-list endpoints expose their respective artifacts without exposing the source absolute path.
+
+`POST /projects/{id}/edit-packages` is owner/editor-only, accepts `Idempotency-Key`, and snapshots 1–100 ordered unique items shaped as `{"clip_id":"...","expected_revision":2}`. `preset` is currently `clean_editing`; `content` is `full` or `metadata_only`; `include_zip` controls archive creation. Every selected item must still have its exact current clean proxy and quality/producer evidence. The accepted response identifies an `edit_package`; polling returns its immutable `vNNN` state and a signed ZIP URL only after success. A full package contains H.264/AAC MP4, basename-matched UTF-8 no-BOM SRT, JSON/CSV descriptions and keyword times, thumbnails, Chinese import guidance, checksums and manifest. Revision, generation, Asset, authority or lease change before publication fails the active package without mutating an older succeeded version. EditPackage creation does not approve clips, render final text, alter lifecycle, create a formal Delivery or call an AI Provider.
 
 Clip changes use optimistic `expected_revision`. `PATCH /clips/{id}` creates a pending human revision. A boundary change with no `captions` field rebuilds cue-relative milliseconds from the absolute transcript; clients should send `captions` only when the user actually edited them. The optional migration field `layout` accepts only `center_crop`, allowing a historical blur-layout revision to be replaced without changing its editorial text. Every revision must retain at least one cue. `POST /clips/{id}/review` accepts `approved` or `rejected`; when the same body includes title, boundary, layout or caption changes, the new revision and decision commit atomically. A render body is `{"expected_revision":2,"kind":"final"}`. A delivery body is `{"include_zip":true}`.
 
@@ -134,7 +144,7 @@ Clip changes use optimistic `expected_revision`. `PATCH /clips/{id}` creates a p
 
 Revision and review-decision changes atomically fail active Delivery snapshots with `DELIVERY_SNAPSHOT_STALE`; a new delivery request creates the next immutable version. Already succeeded versions are never overwritten or invalidated.
 
-Long-running creation routes return `202 Accepted`, `Location`, `Retry-After: 1`, a resource/task ID and polling URL. `POST /jobs`, imports, runs, renders, deliveries and batch review accept `Idempotency-Key`. The same key plus canonical body returns the same resource/current snapshots; reuse with a different body returns 409. Only the key SHA-256 is persisted.
+Long-running creation routes return `202 Accepted`, `Location`, `Retry-After: 1`, a resource/task ID and polling URL. `POST /jobs`, imports, runs, renders, EditPackages, deliveries and batch review accept `Idempotency-Key`. The same key plus canonical body returns the same resource/current snapshots; reuse with a different body returns 409. Only the key SHA-256 is persisted.
 
 ## Errors
 
@@ -158,7 +168,7 @@ Expected classes are 401 authentication, 403 owner-only membership administratio
 
 ## Generated asset serving
 
-`GET /media/{asset_id}` serves only committed allowlisted generated kinds: review/final videos, contact sheets and clip SRTs; delivery ZIP is resolved from the owning successful Delivery download route. SourceMedia and audio chunks are never public assets.
+`GET /media/{asset_id}` serves only committed allowlisted generated kinds: review/final videos, contact sheets and clip SRTs. EditPackage and Delivery ZIPs are resolved only through their owning successful resource download routes. SourceMedia and audio chunks are never public assets.
 
 The resolver validates the database project-relative path under the configured data root, every symbolic component, regular-file type, size and SHA-256. The streamer reopens with no-follow semantics and rechecks device/inode/size/mtime before and after bounded reads, closing the validation/open race.
 

@@ -477,6 +477,37 @@ def normalize_srt(value: str) -> str:
     return normalized + "\n"
 
 
+def copy_immutable_member(source: Path, destination: Path, *, expected_sha256: str) -> str:
+    """Copy one committed input without following links or replacing a destination."""
+
+    return _copy_no_clobber(source, destination, expected_sha256=expected_sha256)
+
+
+def source_basename(value: str) -> str:
+    """Return a platform-neutral source basename for package metadata."""
+
+    return _source_basename(value)
+
+
+def create_verified_zip(
+    *,
+    root: Path,
+    output_path: Path,
+    members: tuple[PurePosixPath, ...],
+    manifest: dict[str, object],
+    expected_sha256: dict[str, str],
+) -> str:
+    """Stream pinned package members into a verified immutable ZIP."""
+
+    return _create_and_verify_zip(
+        root=root,
+        output_path=output_path,
+        members=members,
+        manifest=manifest,
+        expected_sha256=expected_sha256,
+    )
+
+
 def _source_basename(value: str) -> str:
     normalized = value.replace("\\", "/")
     name = PurePosixPath(normalized).name
@@ -598,7 +629,7 @@ def verify_pinned_zip_members(
         ):
             infos = archive.infolist()
             actual_names = validate_zip_infos(infos)
-            if actual_names != names:
+            if set(actual_names) != set(names):
                 raise DeliveryError("ZIP member list changed during creation")
             info_by_name = {info.filename: info for info in infos}
             for name in names:

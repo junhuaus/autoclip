@@ -55,6 +55,8 @@ it("edits title, boundaries and cue text, exposes stale media, then approves the
           proxy_asset_id: null,
         },
         proxy_media_url: null,
+        download_video_url: null,
+        download_subtitle_url: null,
       };
       return HttpResponse.json(currentDetail);
     }),

@@ -10,6 +10,8 @@ it("makes a stale proxy unmistakable and does not play it as current media", () 
       item={{
         clip: { ...clipSummary.clip, proxy_status: "stale", proxy_asset_id: null },
         proxy_media_url: null,
+        download_video_url: null,
+        download_subtitle_url: null,
       }}
       onOpen={() => undefined}
     />,

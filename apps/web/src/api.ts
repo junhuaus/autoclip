@@ -12,6 +12,8 @@ import type {
   ClipPatchRequest,
   ClipSummaryResponse,
   DeliveryDetailResponse,
+  EditPackageCreateRequest,
+  EditPackageDetailResponse,
   HealthResponse,
   JobCreateRequest,
   LoginResponse,
@@ -393,6 +395,25 @@ export class LiveClipApiClient {
 
   getDelivery(deliveryId: string): Promise<DeliveryDetailResponse> {
     return this.request(`/deliveries/${encodeURIComponent(deliveryId)}`);
+  }
+
+  listEditPackages(projectId: string): Promise<EditPackageDetailResponse[]> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/edit-packages`);
+  }
+
+  createEditPackage(
+    projectId: string,
+    body: EditPackageCreateRequest,
+  ): Promise<AcceptedTaskResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/edit-packages`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("edit-package") },
+      body: JSON.stringify(body),
+    });
+  }
+
+  getEditPackage(editPackageId: string): Promise<EditPackageDetailResponse> {
+    return this.request(`/edit-packages/${encodeURIComponent(editPackageId)}`);
   }
 }
 

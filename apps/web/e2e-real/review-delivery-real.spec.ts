@@ -118,6 +118,52 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   expect(proxyRange.status).toBe(206);
   expect(proxyRange.length).toBe(100);
   expect(proxyRange.contentRange).toMatch(/^bytes 0-99\//);
+  await expect(firstCard.getByRole("link", { name: "下载 MP4" })).toBeVisible();
+  await expect(firstCard.getByRole("link", { name: "下载 SRT" })).toBeVisible();
+
+  await firstCard.getByLabel("选择导出").check();
+  const acceptedPackage = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/projects\/.+\/edit-packages$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "生成所选剪辑交接包" }).click();
+  const packageResponse = await acceptedPackage;
+  expect(packageResponse.status()).toBe(202);
+  const editPackage = await packageResponse.json() as { resource_id: string };
+  await waitForTerminal(
+    async () => {
+      const response = await page.request.get(`/api/v1/edit-packages/${editPackage.resource_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json() as { edit_package: StatusPayload };
+      return { statusCode: response.status(), body: body.edit_package };
+    },
+    { success: "succeeded", failures: new Set(["failed"]) },
+  );
+  const handoffDownload = page.getByRole("link", { name: "下载剪辑交接 ZIP" });
+  await expect(handoffDownload).toHaveAttribute(
+    "href",
+    /\/api\/v1\/edit-packages\/.+signature=/,
+    { timeout: 8_000 },
+  );
+  const handoffUrl = await handoffDownload.getAttribute("href");
+  const handoffArchive = await page.evaluate(async (url) => {
+    const response = await fetch(url);
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      disposition: response.headers.get("Content-Disposition"),
+      length: body.length,
+      magic: Array.from(body.slice(0, 2)),
+    };
+  }, handoffUrl as string);
+  expect(handoffArchive.status).toBe(200);
+  expect(handoffArchive.disposition).toBe(
+    'attachment; filename="liveclip-edit-package-v001.zip"',
+  );
+  expect(handoffArchive.length).toBeGreaterThan(1_000);
+  expect(handoffArchive.magic).toEqual([0x50, 0x4b]);
 
   await page.getByRole("button", { name: "审核和编辑" }).first().click();
   const editor = page.locator("section.clip-editor");
@@ -169,8 +215,9 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
     },
     { success: "succeeded", failures: new Set(["failed"]) },
   );
-  await expect(page.getByText("v001 状态已更新。")).toBeVisible();
-  const downloadLink = page.getByRole("link", { name: "下载 ZIP" });
+  const deliveryPanel = page.getByRole("region", { name: "交付包" });
+  await expect(deliveryPanel.getByText("v001 状态已更新。")).toBeVisible();
+  const downloadLink = deliveryPanel.getByRole("link", { name: "下载 ZIP" });
   await expect(downloadLink).toHaveAttribute("href", /\/api\/v1\/deliveries\/.+signature=/);
   const downloadUrl = await downloadLink.getAttribute("href");
   expect(downloadUrl).not.toBeNull();

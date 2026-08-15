@@ -37,6 +37,7 @@ Import direction is enforced:
 - `liveclip.renderer`: deterministic layout mapping, raster text assets, FFmpeg execution, validation/contact sheets.
 - `liveclip.review`: revision/review application helpers where they do not belong in generic commands.
 - `liveclip.delivery`: immutable snapshot, manifest, filenames, ZIP validation and atomic publish.
+- `liveclip.delivery.edit_package`: selective current-proxy handoff with clean MP4/SRT, editorial metadata, thumbnails, hashes and immutable ZIP publication.
 - `liveclip.delivery.review_package`: state-preserving offline-review snapshots of current clean proxies and editorial metadata; these never substitute for formal approved Delivery.
 - `liveclip.observability`: structured logging, redaction, usage and subprocess diagnostics.
 - `liveclip.bootstrap`: the single composition root.
@@ -47,7 +48,7 @@ The fixed six automated stages are `ingest`, `preprocess`, `transcribe`, `candid
 
 ## Shared application-service boundary
 
-Commands such as ImportProject, StartPipelineRun, CancelRun, RetryRun, ReviseClip, ReviewClip, RenderClip, and CreateDelivery live once in application services. Queries return sanitized DTOs. CLI commands either enqueue and return, or enqueue then run/poll through the same TaskRunner. They never directly call a private “CLI implementation” of a stage. API returns 202 for enqueued commands. Worker only claims Tasks and dispatches application handlers.
+Commands such as ImportProject, StartPipelineRun, CancelRun, RetryRun, ReviseClip, ReviewClip, RenderClip, CreateEditPackage, and CreateDelivery live once in application services. Queries return sanitized DTOs. CLI commands either enqueue and return, or enqueue then run/poll through the same TaskRunner. They never directly call a private “CLI implementation” of a stage. API returns 202 for enqueued commands. Worker only claims Tasks and dispatches application handlers.
 
 ## v0.2 identity, authorization, and production workflow
 
@@ -75,7 +76,7 @@ The initial relational model is:
 - PipelineRun: immutable configuration snapshot, generation, run state, progress and error.
 - StageRun: logical stage state, input/output fingerprint, checkpoint and progress.
 - StageAttempt: append-only lease/attempt/error/metrics audit.
-- Task: operational queue item targeting a StageRun, RenderJob, or Delivery; queue state is separate from domain state.
+- Task: operational queue item targeting a StageRun, RenderJob, Delivery, or EditPackage; queue state is separate from domain state.
 - Asset: generated project-relative path, kind/MIME/size/hash/producer/input fingerprint and validation metadata. SourceMedia is not a downloadable Asset by default.
 - AudioChunk: source absolute interval, overlap, generated audio Asset, size/hash/cache key/provider state.
 - Transcript: versioned run output; TranscriptSegment and optional TranscriptWord hold real absolute times and timing availability.
@@ -86,6 +87,8 @@ The initial relational model is:
 - RenderJob: exact revision, kind, dimensions/spec hash, render state, Asset, quality report/contact sheet.
 - Delivery: unique Project version and immutable status/snapshot metadata.
 - DeliveryClip: ordered immutable snapshot of clip/revision/render/title/bounds/filenames/hash.
+- EditPackage: Project-scoped immutable export version, requester, exact generation/epoch fingerprint, content preset and durable task/result Assets.
+- EditPackageClip: ordered snapshot of the selected EditPlan revision, clean proxy RenderJob/video/contact-sheet Assets, editorial metadata and published member hashes.
 - ApiUsage: provider/method/model/request ID/attempts/latency/audio seconds/token or duration usage; optional configured-cost estimate.
 - IdempotencyRecord: endpoint scope, caller key, canonical request hash and resulting resource.
 
@@ -100,6 +103,7 @@ Allowed transitions are defined only in `domain/state_transitions.py` and are co
 - Review is the effective decision for the current revision. A new revision has no inherited approval and therefore computes `pending_review`.
 - Render: `queued → running → succeeded|failed`; queued, running, succeeded or failed renders for a non-current revision become `stale` and stale is terminal.
 - Delivery: `queued → creating → succeeded|failed`; succeeded snapshots are immutable.
+- EditPackage: `queued → creating → succeeded|failed`; deterministic/transient task failure is persisted, an eligible retry returns `failed → queued`, and succeeded versions are immutable.
 
 Project state is derived for the current generation, never manually set as a second source of truth. Active pipeline/render/delivery work yields `processing`; an unrecovered current-generation failure yields `failed`; no completed generation yields `imported`; pending/all-rejected/no-approved clips yield `pending_review`; at least one approved current revision with all required current final renders yields `ready_for_delivery`; the latest successful Delivery whose snapshot fingerprint equals the current deliverable set yields `delivered`. Editing after delivery leaves the old version downloadable and recomputes a non-delivered current state.
 
@@ -206,13 +210,15 @@ Publication scans the exact regular-file tree and then performs a native atomic 
 
 Offline review export is a separate synchronous application query/export path. It resolves only the current clean succeeded proxy Asset for every selected current-generation clip, verifies the committed size/hash and transactionally captures run/generation/Project epoch/current revision/review/RenderJob/producer Task/Asset lineage. It snapshots the exact EditPlan description/captions/grounded keywords and builds outside SQLite, then rechecks the captured fence immediately before and after atomic no-replace publication; a raced post-publication version is withdrawn by exact directory identity. Strictly named crash-orphan attempts are recovered under the package lock with no-follow identity checks. Each immutable `offline-review-packages/vNNN` includes a CSP-constrained file-only HTML viewer plus MP4/SRT/Markdown/v2 JSON/checksums/ZIP and requires no server after extraction. The export never writes a ReviewDecision, RenderJob, Delivery row, ApiUsage row or Project status; `pending_review` remains truthful and formal Delivery continues to require approval plus a current final render.
 
+Selective editor handoff is the durable `EditPackage` path, distinct from both offline review and formal Delivery. Owner/editor requests carry 1–100 unique clip IDs and exact revisions. One `BEGIN IMMEDIATE` transaction verifies the current completed generation, active membership, immutable EditPlan/captions/review metadata, current clean proxy, contact sheet, producer TaskAttempt lineage, committed hashes and quality evidence; pipeline-stage proxies and later manual proxy renders are both valid only through their own exact producer contract. The selection and package fingerprints are persisted before a normal leased heavy Task is queued. The Worker copies pinned bytes, validates H.264/AAC/yuv420p/progressive/fast-start/full decode, writes matching UTF-8 no-BOM relative-time SRT plus JSON/CSV/thumbnail/guide/checksum members, and publishes `edit-packages/vNNN` atomically without replacement. It rechecks requester authority, Project generation/epoch, every revision/render/Asset and the Task lease before and after publication. A changed selection fails closed; an older succeeded package remains downloadable and never changes Project review, lifecycle, Provider usage or formal Delivery state.
+
 ## API, errors, and idempotency
 
 API schemas are DTOs, never ORM serialization. Internal absolute paths are omitted unless a CLI-only command explicitly needs them; Web receives asset IDs and source filenames/ranges. The stable error envelope contains version, code, message, retryable, resource ID, and optional safe field details/correlation ID. Exception mapping strips headers, tokens, provider request content, raw SQL and stack traces.
 
 The API resolves one `AuthenticatedCaller` at the request boundary. V2-M1 adds local username/password login backed by Argon2id verifiers, opaque random sessions stored only as SHA-256 digests, HttpOnly SameSite=Strict cookies, synchronizer CSRF checks for unsafe cookie-authenticated requests, bounded login throttling and immediate session revocation after logout/disable/role/password change. `LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD` is a local one-time initializer that only fills a missing verifier; it never enters Git or API output. If no password login has been enabled, the v0.1 loopback identity and configured `LIVECLIP_WORKSPACE_TOKENS` Bearer mapping remain a deprecated compatibility bridge rather than locking out the existing installation.
 
-System role (`administrator`/`member`), Project role (`owner`/`editor`/`reviewer`/`viewer`) and Project visibility (`private`/future `workspace`) are distinct. A new Project is private and owned only by its creator. `GET /projects` joins through `ProjectMember`, and every run, clip, render, media and Delivery route resolves the owning Project and verifies current membership. A centralized action matrix grants owner all actions, editor Pipeline/edit/render/delivery, reviewer review, and viewer read only; the same matrix produces `allowed_actions` for clients. Non-members receive the same not-found response as unknown resources, including when they know a media or Delivery ID. Project ownership transfer is one `BEGIN IMMEDIATE` transaction that preserves one owner, demotes the former owner to editor and writes a correlation-linked audit event. The administrator console manages accounts but does not silently add Project membership; explicit audited support override remains a later governance increment.
+System role (`administrator`/`member`), Project role (`owner`/`editor`/`reviewer`/`viewer`) and Project visibility (`private`/future `workspace`) are distinct. A new Project is private and owned only by its creator. `GET /projects` joins through `ProjectMember`, and every run, clip, render, media, EditPackage and Delivery route resolves the owning Project and verifies current membership. A centralized action matrix grants owner all actions, editor Pipeline/edit/render/export/delivery, reviewer review, and viewer read only; the same matrix produces `allowed_actions` for clients. Non-members receive the same not-found response as unknown resources, including when they know a media, EditPackage or Delivery ID. Project ownership transfer is one `BEGIN IMMEDIATE` transaction that preserves one owner, demotes the former owner to editor and writes a correlation-linked audit event. The administrator console manages accounts but does not silently add Project membership; explicit audited support override remains a later governance increment.
 
 The Web receives the safe current-session identity plus Project owner/member/role DTOs. It never decides authorization: member-scoped queries and mutations remain backend rules. Signed-out users see a login screen; administrators see member create/edit/disable/reactivate/reset actions. Session identifiers remain HttpOnly and never enter Web storage; CSRF values are kept on the API client in memory. The optional legacy Bearer input is also retained in React memory only during the migration window.
 
@@ -239,7 +245,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - Unit tests own pure domain, security paths, fingerprints, timestamp conversion/merge, candidates, EditPlan/schema, prompt boundary, subtitles, argv, fallback, states, leases, stale rules, delivery/ZIP and redaction.
 - Integration tests use actual generated H.264/AAC media and FFmpeg/ffprobe, a temp data root and SQLite database, Mock providers, interruption/failure injection, and full artifact validation.
 - API tests use a real application composition with temp resources and verify 202/idempotency/error/auth/Range/user-visible flows.
-- Web unit/component tests cover all critical states and actions. One Playwright flow uses a controlled API double for UI-state determinism; a second isolated flow starts real FastAPI, a leased Worker, SQLite, Vite and FFmpeg with Mock AI, then proves Range, revision stale, final render, ZIP and `delivered` through both UI and persisted evidence.
+- Web unit/component tests cover all critical states and actions. One Playwright flow uses a controlled API double for UI-state determinism; a second isolated flow starts real FastAPI, a leased Worker, SQLite, Vite and FFmpeg with Mock AI, then proves Range, selective EditPackage ZIP, revision stale, final render, formal Delivery ZIP and `delivered` through both UI and persisted evidence.
 - `make demo` is a deterministic real-media acceptance, not a unit-test alias.
 - `make smoke-cloud` is opt-in, calls both real providers, and cannot construct Mock providers.
 - `make smoke-codex` is opt-in, makes one real tool-disabled structured Codex editorial call through saved CLI authentication, and rejects missing thread/token, degraded or Mock evidence. It is not an ASR/video smoke.

@@ -25,6 +25,7 @@ from liveclip.domain.state_transitions import (
     AssetStatus,
     AttemptOutcome,
     DeliveryStatus,
+    EditPackageStatus,
     FailureClass,
     PipelineRunStatus,
     PipelineStage,
@@ -812,6 +813,99 @@ class DeliveryClipRow(Base):
     source_end_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class EditPackageRow(Base):
+    __tablename__ = "edit_packages"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version", name="project_edit_package_version"),
+        CheckConstraint("version > 0", name="edit_package_version_positive"),
+        CheckConstraint("expected_generation > 0", name="edit_package_generation_positive"),
+        CheckConstraint(
+            f"status IN ({_enum_sql(EditPackageStatus)})",
+            name="edit_package_status_allowed",
+        ),
+        CheckConstraint("preset = 'clean_editing'", name="edit_package_preset_allowed"),
+        CheckConstraint(
+            "content IN ('full', 'metadata_only')",
+            name="edit_package_content_allowed",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    requested_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), unique=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=EditPackageStatus.QUEUED.value, index=True
+    )
+    expected_revision_epoch: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    snapshot_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    directory_relative_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    preset: Mapped[str] = mapped_column(String(32), nullable=False, default="clean_editing")
+    content: Mapped[str] = mapped_column(String(24), nullable=False, default="full")
+    manifest_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    zip_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    include_zip: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    expected_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    safe_error_message: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class EditPackageClipRow(Base):
+    __tablename__ = "edit_package_clips"
+    __table_args__ = (
+        UniqueConstraint("edit_package_id", "ordinal", name="edit_package_clip_ordinal"),
+        UniqueConstraint(
+            "edit_package_id",
+            "candidate_clip_id",
+            name="edit_package_candidate",
+        ),
+        CheckConstraint("ordinal > 0", name="edit_package_clip_ordinal_positive"),
+        CheckConstraint("edit_plan_revision > 0", name="edit_package_clip_revision_positive"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    edit_package_id: Mapped[str] = mapped_column(
+        ForeignKey("edit_packages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    candidate_clip_id: Mapped[str] = mapped_column(
+        ForeignKey("candidate_clips.id", ondelete="RESTRICT"), nullable=False
+    )
+    edit_plan_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("edit_plan_revisions.id", ondelete="RESTRICT"), nullable=False
+    )
+    render_job_id: Mapped[str] = mapped_column(
+        ForeignKey("render_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    edit_plan_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    video_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    contact_sheet_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    video_filename: Mapped[str | None] = mapped_column(String(500))
+    subtitle_filename: Mapped[str | None] = mapped_column(String(500))
+    thumbnail_filename: Mapped[str | None] = mapped_column(String(500))
+    video_sha256: Mapped[str | None] = mapped_column(String(64))
+    subtitle_sha256: Mapped[str | None] = mapped_column(String(64))
+    thumbnail_sha256: Mapped[str | None] = mapped_column(String(64))
 
 
 class ApiUsageRow(Base):

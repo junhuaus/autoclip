@@ -10,6 +10,7 @@ import type {
   BatchReviewResponse,
   ClipDetailResponse,
   ClipSummaryResponse,
+  EditPackageDetailResponse,
 } from "../src/types";
 import { clipDetail, clipSummary, completedRun, project, transcript } from "./fixtures";
 import { server } from "./server";
@@ -38,6 +39,8 @@ function secondSummary(): ClipSummaryResponse {
       ],
     },
     proxy_media_url: "/api/v1/media/asset-proxy-2?expires=9999999999&signature=signed",
+    download_video_url: "/api/v1/clips/clip-2/download/video?expires=9999999999&signature=video",
+    download_subtitle_url: "/api/v1/clips/clip-2/download/subtitle?expires=9999999999&signature=srt",
   };
 }
 
@@ -104,6 +107,93 @@ it("renders each highlight as one horizontal list row with its sentence and capt
   expect(screen.getByRole("heading", { name: "编辑关键词" })).toBeVisible();
   expect(screen.getByText("推荐上屏")).toBeVisible();
   expect(screen.getByText("仅供编辑定位")).toBeVisible();
+});
+
+it("selects exact current clips and creates a downloadable editing handoff", async () => {
+  let submitted: unknown = null;
+  let created = false;
+  const completedPackage: EditPackageDetailResponse = {
+    edit_package: {
+      edit_package_id: "package-1",
+      project_id: "project-1",
+      task_id: "task-package-1",
+      requested_by_user_id: "user-local-admin",
+      version: 1,
+      package_version: "v001",
+      status: "succeeded",
+      clip_count: 1,
+      preset: "clean_editing",
+      content: "full",
+      manifest_asset_id: "manifest-package-1",
+      zip_asset_id: "zip-package-1",
+      include_zip: true,
+      error_code: null,
+      safe_error_message: null,
+      created_at: "2026-08-15T00:00:00Z",
+      completed_at: "2026-08-15T00:00:01Z",
+    },
+    download_url:
+      "/api/v1/edit-packages/package-1/download?expires=9999999999&signature=package",
+  };
+  server.use(
+    http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
+    http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
+    http.get("/api/v1/projects/project-1/clips", () =>
+      HttpResponse.json([structuredClone(clipSummary)]),
+    ),
+    http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/project-1/edit-packages", () =>
+      HttpResponse.json(created ? [completedPackage] : []),
+    ),
+    http.get("/api/v1/edit-packages/package-1", () =>
+      HttpResponse.json(completedPackage),
+    ),
+    http.post("/api/v1/projects/project-1/edit-packages", async ({ request }) => {
+      submitted = await request.json();
+      created = true;
+      return HttpResponse.json(
+        {
+          resource_type: "edit_package",
+          resource_id: "package-1",
+          task_id: "task-package-1",
+          status: "queued",
+          status_url: "/api/v1/edit-packages/package-1",
+        },
+        { status: 202 },
+      );
+    }),
+  );
+  const user = userEvent.setup();
+
+  renderWithClient(
+    <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
+  );
+
+  await user.click(await screen.findByLabelText("选择导出"));
+  expect(screen.getByText("已选 1 条用于剪辑交接")).toBeVisible();
+  expect(screen.getByRole("link", { name: "下载 MP4" })).toHaveAttribute(
+    "href",
+    clipSummary.download_video_url,
+  );
+  expect(screen.getByRole("link", { name: "下载 SRT" })).toHaveAttribute(
+    "href",
+    clipSummary.download_subtitle_url,
+  );
+  await user.click(screen.getByRole("button", { name: "生成所选剪辑交接包" }));
+
+  await waitFor(() =>
+    expect(submitted).toEqual({
+      items: [{ clip_id: "clip-1", expected_revision: 1 }],
+      preset: "clean_editing",
+      content: "full",
+      include_zip: true,
+    }),
+  );
+  expect(await screen.findByText("v001 状态已更新。")).toBeVisible();
+  expect(screen.getByRole("link", { name: "下载剪辑交接 ZIP" })).toHaveAttribute(
+    "href",
+    completedPackage.download_url,
+  );
 });
 
 it("omits the redundant full transcript panel and does not request it", async () => {
@@ -256,7 +346,7 @@ it("requires an explicit confirmation before transferring project ownership", as
             { ...project.members[0], role: "editor" },
           ],
           current_user_role: "editor",
-          allowed_actions: ["read", "run_pipeline", "edit_clip", "render", "deliver"],
+          allowed_actions: ["read", "run_pipeline", "edit_clip", "render", "export", "deliver"],
         };
         return HttpResponse.json({
           schema_version: "1",
@@ -453,7 +543,7 @@ it("excludes a candidate with an unsaved editor draft from batch review", async 
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  const selectors = await screen.findAllByLabelText("选择批量审核");
+  const selectors = await screen.findAllByLabelText("批量审核");
   await user.click(selectors[0]);
   await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
   const titleInput = await screen.findByLabelText("标题");
@@ -495,7 +585,7 @@ it("locks the editor while a selected batch review is in flight", async () => {
   );
   await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
   const titleInput = await screen.findByLabelText("标题");
-  await user.click((await screen.findAllByLabelText("选择批量审核"))[0]);
+  await user.click((await screen.findAllByLabelText("批量审核"))[0]);
   await user.click(screen.getByRole("button", { name: "批量批准" }));
 
   await waitFor(() => expect(titleInput).toBeDisabled());

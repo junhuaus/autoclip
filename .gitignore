@@ -42,3 +42,6 @@ data/demo/*
 !data/demo/.gitkeep
 data/projects/*
 !data/projects/.gitkeep
+
+# Local source media is never versioned (including large MPEG-TS recordings).
+/input/

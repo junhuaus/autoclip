@@ -32,6 +32,7 @@ export type ProjectPriority = "low" | "normal" | "high" | "urgent";
 export type ReviewStatus = "pending_review" | "approved" | "rejected";
 export type RenderStatus = "queued" | "running" | "succeeded" | "failed" | "stale";
 export type DeliveryStatus = "queued" | "creating" | "succeeded" | "failed";
+export type EditPackageStatus = "queued" | "creating" | "succeeded" | "failed";
 export type RenderKind = "proxy" | "final";
 
 export interface ProviderHealth {
@@ -104,6 +105,7 @@ export type ProjectAction =
   | "edit_clip"
   | "review_clip"
   | "render"
+  | "export"
   | "deliver";
 
 export interface ProjectManagementRequest {
@@ -291,6 +293,8 @@ export interface ClipSummary {
 export interface ClipSummaryResponse {
   clip: ClipSummary;
   proxy_media_url: string | null;
+  download_video_url: string | null;
+  download_subtitle_url: string | null;
 }
 
 export interface RenderSnapshot {
@@ -379,7 +383,7 @@ export interface BatchReviewResponse {
 }
 
 export interface AcceptedTaskResponse {
-  resource_type: "render" | "delivery";
+  resource_type: "render" | "delivery" | "edit_package";
   resource_id: string;
   task_id: string;
   status: string;
@@ -412,6 +416,43 @@ export interface DeliverySnapshot {
 
 export interface DeliveryDetailResponse {
   delivery: DeliverySnapshot;
+  download_url: string | null;
+}
+
+export interface EditPackageItemRequest {
+  clip_id: string;
+  expected_revision: number;
+}
+
+export interface EditPackageCreateRequest {
+  items: EditPackageItemRequest[];
+  preset: "clean_editing";
+  content: "full" | "metadata_only";
+  include_zip: boolean;
+}
+
+export interface EditPackageSnapshot {
+  edit_package_id: string;
+  project_id: string;
+  task_id: string;
+  requested_by_user_id: string;
+  version: number;
+  package_version: string;
+  status: EditPackageStatus;
+  clip_count: number;
+  preset: "clean_editing";
+  content: "full" | "metadata_only";
+  manifest_asset_id: string | null;
+  zip_asset_id: string | null;
+  include_zip: boolean;
+  error_code: string | null;
+  safe_error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface EditPackageDetailResponse {
+  edit_package: EditPackageSnapshot;
   download_url: string | null;
 }
 

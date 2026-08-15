@@ -1139,6 +1139,31 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   background: rgba(8, 28, 29, 0.72);
 }
 
+.handoff-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(88, 224, 193, 0.3);
+  border-radius: 12px;
+  background: rgba(37, 136, 119, 0.1);
+}
+
+.handoff-selection-bar label,
+.clip-selection-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.clip-export-select {
+  color: var(--accent);
+}
+
 .batch-review-bar > label:first-child,
 .clip-select {
   display: inline-flex;
@@ -1366,7 +1391,15 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
 
 .clip-edit-button {
   align-self: flex-start;
+}
+
+.clip-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
   margin-top: auto;
+  padding-top: 0.8rem;
 }
 
 .risk-list {
@@ -1519,6 +1552,30 @@ summary {
   justify-content: space-between;
 }
 
+.edit-package-panel {
+  border-color: rgba(88, 224, 193, 0.3);
+}
+
+.edit-package-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.edit-package-actions label {
+  display: grid;
+  min-width: min(100%, 22rem);
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.edit-package-row {
+  border-color: rgba(88, 224, 193, 0.2);
+}
+
 .checkbox-label {
   flex-direction: row;
   align-items: center;
@@ -1665,6 +1722,12 @@ summary {
   }
 
   .delivery-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .edit-package-actions,
+  .handoff-selection-bar {
     align-items: stretch;
     flex-direction: column;
   }

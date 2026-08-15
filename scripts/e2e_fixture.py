@@ -137,13 +137,13 @@ def verify_completed_run(
         attempt_task_ids = {str(row["task_id"]) for row in attempts}
         lease_tokens = {str(row["lease_token"]) for row in attempts}
         if (
-            len(tasks) != 8
+            len(tasks) != 9
             or {str(row["status"]) for row in tasks} != {"succeeded"}
-            or len(attempts) != 8
+            or len(attempts) != 9
             or task_ids != attempt_task_ids
             or any(not str(row["worker_id"]).startswith("worker:") for row in attempts)
             or any(str(row["outcome"]) != "succeeded" for row in attempts)
-            or len(lease_tokens) != 8
+            or len(lease_tokens) != 9
             or any(not re.fullmatch(r"[a-f0-9]{64}", value) for value in lease_tokens)
         ):
             raise ValueError("real browser E2E task lease evidence is incomplete")
@@ -156,6 +156,60 @@ def verify_completed_run(
         }
         if render_evidence != {("proxy", 1, "stale"), ("final", 2, "succeeded")}:
             raise ValueError("real browser E2E render revision evidence is incorrect")
+        edit_packages = connection.execute(
+            "SELECT id, version, status, directory_relative_path FROM edit_packages"
+        ).fetchall()
+        if len(edit_packages) != 1 or (
+            int(edit_packages[0]["version"]),
+            str(edit_packages[0]["status"]),
+        ) != (1, "succeeded"):
+            raise ValueError("real browser E2E edit package did not succeed as v001")
+        edit_package_id = str(edit_packages[0]["id"])
+        edit_package_clips = connection.execute(
+            "SELECT edit_plan_revision FROM edit_package_clips WHERE edit_package_id = ?",
+            (edit_package_id,),
+        ).fetchall()
+        if len(edit_package_clips) != 1 or int(edit_package_clips[0]["edit_plan_revision"]) != 1:
+            raise ValueError("real browser E2E edit package did not snapshot revision 1")
+        edit_relative = PurePosixPath(str(edit_packages[0]["directory_relative_path"]))
+        if edit_relative.is_absolute() or any(
+            part in {"", ".", ".."} for part in edit_relative.parts
+        ):
+            raise ValueError("real browser E2E edit package path is invalid")
+        edit_archive_path = (
+            validated
+            / "projects"
+            / project_id
+            / Path(*edit_relative.parts)
+            / "liveclip-edit-package-v001.zip"
+        )
+        with open_pinned_regular_file(edit_archive_path) as pinned:
+            with (
+                os.fdopen(os.dup(pinned.descriptor), mode="rb") as stream,
+                zipfile.ZipFile(stream, mode="r") as archive,
+            ):
+                validate_zip_infos(archive.infolist())
+                if archive.testzip() is not None:
+                    raise ValueError("real browser E2E edit-package ZIP is corrupt")
+                edit_manifest = json.loads(
+                    read_zip_member_bounded(
+                        archive,
+                        "manifest.json",
+                        maximum_bytes=2_000_000,
+                    )
+                )
+            pinned.validate_binding()
+        edit_clips = edit_manifest.get("clips") if isinstance(edit_manifest, dict) else None
+        if (
+            not isinstance(edit_manifest, dict)
+            or edit_manifest.get("schema_version") != "liveclip.edit-package.v1"
+            or edit_manifest.get("project_id") != project_id
+            or edit_manifest.get("package_version") != "v001"
+            or not isinstance(edit_clips, list)
+            or len(edit_clips) != 1
+            or edit_clips[0].get("edit_plan_revision") != 1
+        ):
+            raise ValueError("real browser E2E edit-package ZIP snapshot is invalid")
         deliveries = connection.execute(
             "SELECT id, version, status, directory_relative_path FROM deliveries"
         ).fetchall()
@@ -203,6 +257,8 @@ def verify_completed_run(
             "stage_count": len(stages),
             "task_count": len(tasks),
             "attempt_count": len(attempts),
+            "edit_package_id": edit_package_id,
+            "edit_package_version": "v001",
             "delivery_id": delivery_id,
             "delivery_version": "v001",
         }

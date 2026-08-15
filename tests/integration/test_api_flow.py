@@ -15,7 +15,12 @@ from sqlalchemy.exc import OperationalError
 from liveclip.api.app import create_app
 from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings
-from liveclip.domain.state_transitions import DeliveryStatus, PipelineRunStatus, RenderStatus
+from liveclip.domain.state_transitions import (
+    DeliveryStatus,
+    EditPackageStatus,
+    PipelineRunStatus,
+    RenderStatus,
+)
 from liveclip.services.demo_media import create_demo_source
 
 pytestmark = pytest.mark.integration
@@ -201,6 +206,7 @@ def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
                 "run_pipeline",
                 "edit_clip",
                 "render",
+                "export",
                 "deliver",
             ]
             assert client.get("/api/v1/projects", headers=outsider_auth).json() == []
@@ -245,10 +251,12 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     data_dir = tmp_path / "projects"
     create_demo_source(output_path=source_path, duration_ms=16_000)
     token = "test-api-token-never-return"
+    outsider_token = "test-outsider-token-never-return"
     settings = Settings(
         data_dir=data_dir,
         allowed_media_roots_raw=str(media_root),
         api_token=SecretStr(token),
+        workspace_tokens_raw=json.dumps({"outsider": outsider_token}),
         ai_provider="mock",
         min_clip_seconds=8,
         max_clip_seconds=12,
@@ -265,6 +273,7 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
     runtime = LiveClipRuntime.open(settings, project_root=project_root)
     app = create_app(settings, runtime=runtime, project_root=project_root)
     auth = {"Authorization": f"Bearer {token}"}
+    outsider_auth = {"Authorization": f"Bearer {outsider_token}"}
     idempotency_key = "api-job-once-001"
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -411,6 +420,40 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             invalid_range = client.get(proxy_url, headers={"Range": "bytes=0-1,3-4"})
             assert invalid_range.status_code == 416
             assert invalid_range.json()["error"]["code"] == "RANGE_NOT_SATISFIABLE"
+
+            initial_package_body = {
+                "items": [{"clip_id": clip_id, "expected_revision": 1}],
+                "preset": "clean_editing",
+                "content": "full",
+                "include_zip": True,
+            }
+            initial_package = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={**auth, "Idempotency-Key": "api-initial-edit-package-001"},
+                json=initial_package_body,
+            )
+            assert initial_package.status_code == 202
+            completed_initial_package = runtime.delivery_runner.run_edit_package_until_terminal(
+                str(initial_package.json()["resource_id"]),
+                worker_id="api-initial-edit-package-worker",
+            )
+            assert completed_initial_package.status == EditPackageStatus.SUCCEEDED
+            initial_package_replay = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={**auth, "Idempotency-Key": "api-initial-edit-package-001"},
+                json=initial_package_body,
+            )
+            assert initial_package_replay.status_code == 202
+            assert (
+                initial_package_replay.json()["resource_id"]
+                == initial_package.json()["resource_id"]
+            )
+            initial_package_conflict = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={**auth, "Idempotency-Key": "api-initial-edit-package-001"},
+                json={**initial_package_body, "content": "metadata_only"},
+            )
+            assert initial_package_conflict.status_code == 409
 
             database = sqlite3.connect(runtime.database_path)
             try:
@@ -595,6 +638,114 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             render_status = client.get(f"/api/v1/renders/{render_id}", headers=auth)
             assert render_status.json()["status"] == "succeeded"
 
+            queued_proxy = client.post(
+                f"/api/v1/clips/{clip_id}/render",
+                headers={**auth, "Idempotency-Key": "api-clean-proxy-r3-001"},
+                json={"expected_revision": 3, "kind": "proxy"},
+            )
+            assert queued_proxy.status_code == 202
+            proxy_render = runtime.render_runner.run_until_terminal(
+                str(queued_proxy.json()["resource_id"]),
+                worker_id="api-clean-proxy-worker",
+            )
+            assert proxy_render.status == RenderStatus.SUCCEEDED
+            current_summary = client.get(
+                f"/api/v1/projects/{project_id}/clips",
+                headers=auth,
+            ).json()[0]
+            assert current_summary["clip"]["proxy_status"] == "succeeded"
+            assert current_summary["download_video_url"]
+            assert current_summary["download_subtitle_url"]
+            downloaded_clip = client.get(
+                current_summary["download_video_url"],
+                headers={"Range": "bytes=0-99"},
+            )
+            assert downloaded_clip.status_code == 206
+            assert len(downloaded_clip.content) == 100
+            assert downloaded_clip.headers["content-disposition"].endswith('.mp4"')
+            downloaded_srt = client.get(current_summary["download_subtitle_url"])
+            assert downloaded_srt.status_code == 200
+            assert not downloaded_srt.content.startswith(b"\xef\xbb\xbf")
+            assert b"-->" in downloaded_srt.content
+
+            queued_package = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={**auth, "Idempotency-Key": "api-edit-package-001"},
+                json={
+                    "items": [{"clip_id": clip_id, "expected_revision": 3}],
+                    "preset": "clean_editing",
+                    "content": "full",
+                    "include_zip": True,
+                },
+            )
+            assert queued_package.status_code == 202
+            assert queued_package.json()["resource_type"] == "edit_package"
+            package_id = str(queued_package.json()["resource_id"])
+            completed_package = runtime.delivery_runner.run_edit_package_until_terminal(
+                package_id,
+                worker_id="api-edit-package-worker",
+            )
+            assert completed_package.status == EditPackageStatus.SUCCEEDED
+            package_detail = client.get(
+                f"/api/v1/edit-packages/{package_id}",
+                headers=auth,
+            )
+            assert package_detail.status_code == 200
+            assert (
+                client.get(
+                    f"/api/v1/edit-packages/{package_id}",
+                    headers=outsider_auth,
+                ).status_code
+                == 404
+            )
+            assert (
+                client.get(
+                    f"/api/v1/edit-packages/{package_id}/download",
+                    headers=outsider_auth,
+                ).status_code
+                == 404
+            )
+            assert (
+                client.get(
+                    f"/api/v1/clips/{clip_id}/download/video",
+                    headers=outsider_auth,
+                ).status_code
+                == 404
+            )
+            package_zip = client.get(package_detail.json()["download_url"])
+            assert package_zip.status_code == 200
+            assert package_zip.headers["content-disposition"].endswith(
+                'filename="liveclip-edit-package-v002.zip"'
+            )
+            with zipfile.ZipFile(io.BytesIO(package_zip.content)) as archive:
+                assert archive.testzip() is None
+                package_names = set(archive.namelist())
+                assert "manifest.json" in package_names
+                assert "metadata/clips.json" in package_names
+                assert "metadata/clips.csv" in package_names
+                assert "metadata/README-导入剪映.txt" in package_names
+                assert any(
+                    name.startswith("media/") and name.endswith(".mp4") for name in package_names
+                )
+                assert any(
+                    name.startswith("subtitles/") and name.endswith(".srt")
+                    for name in package_names
+                )
+                package_manifest = json.loads(archive.read("manifest.json"))
+                assert package_manifest["schema_version"] == "liveclip.edit-package.v1"
+                assert package_manifest["clips"][0]["high_impact_sentence"]
+                assert package_manifest["clips"][0]["keywords"]
+                subtitle_name = str(package_manifest["clips"][0]["subtitle_filename"])
+                assert not archive.read(subtitle_name).startswith(b"\xef\xbb\xbf")
+            package_list = client.get(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers=auth,
+            )
+            assert [item["edit_package"]["edit_package_id"] for item in package_list.json()] == [
+                package_id,
+                initial_package.json()["resource_id"],
+            ]
+
             delivery = client.post(
                 f"/api/v1/projects/{project_id}/deliveries",
                 headers={**auth, "Idempotency-Key": "api-delivery-001"},
@@ -679,6 +830,33 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             )
             assert cancelled.status_code == 202
             assert cancelled.json()["status"] == "cancelled"
+
+            stale_package = client.post(
+                f"/api/v1/projects/{project_id}/edit-packages",
+                headers={**auth, "Idempotency-Key": "api-edit-package-stale-001"},
+                json={
+                    "items": [{"clip_id": clip_id, "expected_revision": 3}],
+                    "preset": "clean_editing",
+                    "content": "metadata_only",
+                    "include_zip": True,
+                },
+            )
+            assert stale_package.status_code == 202
+            stale_package_id = str(stale_package.json()["resource_id"])
+            changed_after_selection = client.patch(
+                f"/api/v1/clips/{clip_id}",
+                headers=auth,
+                json={"expected_revision": 3, "title": "交接选择后发生修改"},
+            )
+            assert changed_after_selection.status_code == 200
+            assert changed_after_selection.json()["clip"]["current_revision"] == 4
+            stale_result = runtime.delivery_runner.run_edit_package_until_terminal(
+                stale_package_id,
+                worker_id="api-stale-edit-package-worker",
+            )
+            assert stale_result.status == EditPackageStatus.FAILED
+            assert stale_result.error_code == "EDIT_PACKAGE_STATE_INVALID"
+            assert stale_result.zip_asset_id is None
 
             missing = client.get("/api/v1/clips/does-not-exist", headers=auth)
             assert missing.status_code == 404

@@ -62,11 +62,12 @@ The existing dependency direction remains unchanged. New application services ow
 
 ### V2-M3 — Selective editor handoff
 
-- [ ] Define versioned `EditPackage` schema, selected-clip request and immutable DB status.
-- [ ] Add individual current MP4/SRT downloads with authorization and stable filenames.
-- [ ] Generate selected-package clean MP4/SRT, CSV/JSON metadata, thumbnails, Chinese Jianying guide, checksums and ZIP.
-- [ ] Validate H.264/AAC/progressive/yuv420p/fast-start/full decode and plain UTF-8 no-BOM SRT with matching basenames.
-- [ ] Add Web clip selection/export history/download; never include stale or unauthorized Assets.
+- [x] 2026-08-15 Define versioned `EditPackage` schema, exact selected-revision snapshot, immutable DB status and durable leased Task execution with idempotency, failure and retry synchronization.
+- [x] 2026-08-15 Add signed individual current MP4/SRT downloads with Project authorization, revision-bound signatures and stable filenames.
+- [x] 2026-08-15 Generate selected-package clean MP4/SRT, CSV/JSON metadata, thumbnails, Chinese Jianying guide, checksums and ZIP from pinned successful render Assets.
+- [x] 2026-08-15 Validate H.264/AAC/progressive/yuv420p/fast-start/full decode and plain UTF-8 no-BOM SRT with matching basenames; reject stale revisions, untrusted producers, tampered Assets and unsafe ZIP recovery.
+- [x] 2026-08-15 Add independent Web review/export selection, export history and download states. Component, Mock Chrome and real FastAPI/Worker/SQLite/FFmpeg Chrome flows pass.
+- [ ] Create `input/8.15-1.ts` and `input/8.15-2.ts` as two distinct real Projects/runs and use both as long-input E2E tasks after local gates pass; preserve their independent IDs/status/artifacts and report real Provider evidence without Mock fallback.
 - [ ] Import a generated package into installed CapCut/Jianying Desktop if available; otherwise record that external UI acceptance as pending without overclaim.
 
 ### V2-M4 — Release planning and platform packages
@@ -155,6 +156,10 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: Rebuilding SQLite's referenced `projects` parent table in Alembic failed safely before commit because `project_members` retains its foreign key. The final migration is additive `ALTER TABLE ADD COLUMN` plus indexes/backfill; typed domain values and compare-and-swap repositories enforce the new contract. Fresh migrations and `alembic check` pass.
 - 2026-08-13: The real database was WAL-checkpointed and copied to ignored `data/projects/migration-backups/liveclip-pre-a84e2d7c9f10-20260815T090223+0800.sqlite3` (SHA-256 `82ec8dfeb374ceb5c91b39d740171b4830816aa55b570072c7152ce5a6794926`) before migration. Post-migration quick check is `ok`, foreign-key check is empty and Project `7.28` remains private at the same ID.
 - 2026-08-13: The first updated real Chrome E2E expected the old derived `delivered` badge in the hero. The UI correctly showed business `editorial_review` beside technical `已交付`; the assertion now proves both states rather than collapsing them. Full gates pass with 575 Python and 28 Web tests plus both Chrome E2Es.
+- 2026-08-15: The user supplied two real MPEG-TS long inputs for separate E2E tasks. `8.15-1.ts` is 2,229,033,280 bytes / 4,660.205 seconds and `8.15-2.ts` is 2,398,135,896 bytes / 5,042.717 seconds; both are portrait HEVC 1088×1920 plus AAC. The second reports `avg_frame_rate=0/0` but a valid `r_frame_rate=25/1`, which the existing ingest fallback accepts.
+- 2026-08-15: The first EditPackage FFmpeg/API integration exposed two persistence-boundary defects: strict Pydantic tuples/enums must be restored using JSON-mode validation, and SQLAlchemy Core `Connection` model selects return rows rather than ORM entities. Both were reproduced from the failed SQLite attempt and corrected before any long cloud task was started.
+- 2026-08-15: Package integration additionally exposed that pipeline proxies and manual proxies have intentionally different fingerprints, SQLite revision epoch zero is valid, empty metadata-only directories violate the pinned publication set, and ZIP member order is not an integrity property. The final verifier checks exact producer Task/Attempt lineage, explicit `None`, set equality plus hashes, and no unexplained files.
+- 2026-08-15: V2-M3 local gates pass: Ruff/format, mypy over 121 source files, EditPlan schema, TypeScript, 583 Python tests, 29 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E. The real database was backed up as `liveclip-pre-b95f3e6a1c27-20260815T144143+0800.sqlite3` (SHA-256 `0b6701d00aaa3da45e46bbd93e2816505acb479a849eac19977fdaaf940c7024`) and migrated from `a84e2d7c9f10` to `b95f3e6a1c27`; quick check is `ok`, foreign keys are clean and all pre-existing row counts remain unchanged.
 
 ## Decision Log
 
@@ -165,6 +170,7 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-13: Add EditPackage and ReleaseItem rather than overloading Delivery; rationale: clean editor handoff, approved final delivery and platform publication have different eligibility and evidence.
 - 2026-08-13: Treat successful Delivery as `ready_to_publish` only for legacy backfill and never as `published`; rationale: file creation is not evidence that a human published to a platform.
 - 2026-08-13: Reject removal of the current assignee until reassignment; alternative was leaving a dangling assignment or silently clearing it; rationale: explicit workflow ownership is safer and auditable.
+- 2026-08-15: Treat the two `8.15-*.ts` files as two independent Projects and PipelineRuns, not one fixture split or one merged Project; rationale: the user explicitly called them two tasks and duplicate/media reuse must never collapse explicit Project intent.
 
 ## Risks and Mitigations
 
@@ -178,8 +184,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1 is committed through `d513abf`; V2-M2 core is committed at `f12b7f8`. The real database is backed up and migrated to `a84e2d7c9f10`, services are running on `127.0.0.1:8765` and `127.0.0.1:5173`, and `7.28` must not be reprocessed. Next implement the distinct immutable selective `EditPackage` from exact current revisions/assets, then add individual MP4/SRT downloads and the editor package UI. Do not apply a bootstrap password to the real database without an explicit local secret configured outside Git.
+V2-M1 is committed through `d513abf`; V2-M2 core is committed at `f12b7f8`; V2-M3 local implementation and migration gates are complete in the current checkpoint. The real database is backed up and migrated to `b95f3e6a1c27`; Project `7.28` remains unchanged and must not be reprocessed. Next create two independent real Projects/PipelineRuns for `input/8.15-1.ts` and `input/8.15-2.ts`, allow the single Worker to process them under normal leases, and record Provider/artifact/UI evidence for each without Mock fallback.
 
 ## Outcomes and Retrospective
 
-V2-M0 is complete at checkpoint `dfc1639`; V2-M1 is complete through `d513abf`; V2-M2 core is complete at `f12b7f8`. V2-M2 delivers separate professional lifecycle, private/workspace visibility, assignment, priority, due dates, archive/restore and activity history without changing v0.1 media facts or making a paid Provider call. Comments, saved views and bulk assignment remain explicitly staged enhancements. Primary documentation supports the next MP4/SRT export decision and exposes mobile/native-draft limitations, preventing an unverified “Jianying project” claim.
+V2-M0 is complete at checkpoint `dfc1639`; V2-M1 is complete through `d513abf`; V2-M2 core is complete at `f12b7f8`. V2-M3 now provides exact selective MP4/SRT downloads and immutable standards-based editor handoff packages without overloading formal Delivery or claiming undocumented Jianying draft compatibility. Two supplied long MPEG-TS inputs remain the final real E2E evidence for this milestone. Comments, saved views and bulk assignment remain explicitly staged enhancements.

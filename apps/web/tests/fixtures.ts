@@ -50,6 +50,7 @@ export const project: ProjectSnapshot = {
     "edit_clip",
     "review_clip",
     "render",
+    "export",
     "deliver",
   ],
   allowed_lifecycle_transitions: ["changes_requested", "approval", "archived"],
@@ -127,6 +128,8 @@ export const clipSummary: ClipSummaryResponse = {
     allowed_actions: ["edit", "approve", "reject"],
   },
   proxy_media_url: "/api/v1/media/asset-proxy-1?expires=9999999999&signature=signed",
+  download_video_url: "/api/v1/clips/clip-1/download/video?expires=9999999999&signature=video",
+  download_subtitle_url: "/api/v1/clips/clip-1/download/subtitle?expires=9999999999&signature=srt",
 };
 
 export const clipDetail: ClipDetailResponse = {

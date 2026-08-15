@@ -59,6 +59,13 @@ class DeliveryStatus(StrEnum):
     FAILED = "failed"
 
 
+class EditPackageStatus(StrEnum):
+    QUEUED = "queued"
+    CREATING = "creating"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class TaskStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -154,6 +161,13 @@ _DELIVERY_TRANSITIONS = {
     DeliveryStatus.SUCCEEDED: frozenset(),
 }
 
+_EDIT_PACKAGE_TRANSITIONS = {
+    EditPackageStatus.QUEUED: frozenset({EditPackageStatus.CREATING, EditPackageStatus.FAILED}),
+    EditPackageStatus.CREATING: frozenset({EditPackageStatus.SUCCEEDED, EditPackageStatus.FAILED}),
+    EditPackageStatus.FAILED: frozenset({EditPackageStatus.QUEUED}),
+    EditPackageStatus.SUCCEEDED: frozenset(),
+}
+
 _TASK_TRANSITIONS = {
     TaskStatus.QUEUED: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED}),
     TaskStatus.RUNNING: frozenset(
@@ -211,6 +225,13 @@ def transition_render(current: RenderStatus, target: RenderStatus) -> RenderStat
 
 def transition_delivery(current: DeliveryStatus, target: DeliveryStatus) -> DeliveryStatus:
     return _transition(current, target, _DELIVERY_TRANSITIONS, resource="Delivery")
+
+
+def transition_edit_package(
+    current: EditPackageStatus,
+    target: EditPackageStatus,
+) -> EditPackageStatus:
+    return _transition(current, target, _EDIT_PACKAGE_TRANSITIONS, resource="EditPackage")
 
 
 def transition_task(current: TaskStatus, target: TaskStatus) -> TaskStatus:

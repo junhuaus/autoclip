@@ -151,6 +151,23 @@ flowchart LR
 
 No ZIP member is reopened by an ordinary pathname after validation. A member or archive endpoint replacement fails publication or recovery; it cannot become a successful Delivery.
 
+## Selective editor handoff
+
+```mermaid
+flowchart LR
+  UI[Owner/editor selects exact current revisions] --> SNAP[SQLite EditPackage snapshot]
+  SNAP --> LEASE[Shared heavy-task lease]
+  LEASE --> LINEAGE[Recheck clean proxy + producer attempt + hashes]
+  LINEAGE --> COPY[Copy pinned MP4/contact sheet]
+  COPY --> META[Write relative SRT + JSON/CSV + guide]
+  META --> VERIFY[Codec/full decode + checksums + ZIP verification]
+  VERIFY --> FENCE[Authority/generation/revision/Asset fence]
+  FENCE --> PUBLISH[Atomic no-replace edit-packages/vNNN]
+  PUBLISH --> DOWNLOAD[Revision-bound individual files or signed ZIP]
+```
+
+`EditPackage` is neither Review nor formal Delivery. It may snapshot pending-review clips, never burns LiveClip text, never changes Project lifecycle/status and never invokes ASR or LLM. The selection keeps its original exact revision even when a later edit makes the old clean proxy stale; queued/creating work fails closed, while an already succeeded version remains an immutable historical handoff.
+
 ## EditPlan execution boundary
 
 ```mermaid
@@ -179,6 +196,7 @@ flowchart TD
   CHANGE[Title/boundary/caption change] --> R2[EditPlan revision 2]
   CHANGE -->|marks| P1S[Proxy/final r1 stale]
   R2 --> P2[Proxy render r2]
+  P2 --> E2[Optional immutable EditPackage r2]
   R2 --> A2[Approval r2]
   A2 --> F2[Validated final r2]
   F2 --> D[Immutable Delivery snapshot]

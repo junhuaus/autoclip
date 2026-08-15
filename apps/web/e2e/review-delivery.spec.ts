@@ -18,6 +18,7 @@ import {
 test("creates, reviews, rerenders and downloads one visible delivery flow", async ({ page }, testInfo) => {
   let created = false;
   let deliveryCreated = false;
+  let editPackageCreated = false;
   let renderPollCount = 0;
   let project: ProjectSnapshot = initialProject;
   let clipDetail: ClipDetailResponse = structuredClone(initialClipDetail);
@@ -88,6 +89,17 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
+    if (path === "/api/v1/edit-packages/package-1/download") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/zip",
+        headers: {
+          "Content-Disposition": 'attachment; filename="liveclip-edit-package-v001.zip"',
+        },
+        body: "PK\u0003\u0004mock-liveclip-edit-package",
+      });
+      return;
+    }
     if (path === "/api/v1/projects" && method === "GET") {
       await route.fulfill({ json: created ? [project] : [] });
       return;
@@ -139,6 +151,57 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     }
     if (path === "/api/v1/projects/project-1/deliveries" && method === "GET") {
       await route.fulfill({ json: deliveryCreated ? [succeededDelivery] : [] });
+      return;
+    }
+    const editPackage = {
+      edit_package: {
+        edit_package_id: "package-1",
+        project_id: "project-1",
+        task_id: "edit-package-task-1",
+        requested_by_user_id: "user-local-admin",
+        version: 1,
+        package_version: "v001",
+        status: "succeeded",
+        clip_count: 1,
+        preset: "clean_editing",
+        content: "full",
+        manifest_asset_id: "edit-package-manifest-1",
+        zip_asset_id: "edit-package-zip-1",
+        include_zip: true,
+        error_code: null,
+        safe_error_message: null,
+        created_at: "2026-08-15T00:00:00Z",
+        completed_at: "2026-08-15T00:00:01Z",
+      },
+      download_url:
+        "/api/v1/edit-packages/package-1/download?expires=9999999999&signature=package-signed",
+    };
+    if (path === "/api/v1/projects/project-1/edit-packages" && method === "GET") {
+      await route.fulfill({ json: editPackageCreated ? [editPackage] : [] });
+      return;
+    }
+    if (path === "/api/v1/projects/project-1/edit-packages" && method === "POST") {
+      expect(request.postDataJSON()).toEqual({
+        items: [{ clip_id: "clip-1", expected_revision: 1 }],
+        preset: "clean_editing",
+        content: "full",
+        include_zip: true,
+      });
+      editPackageCreated = true;
+      await route.fulfill({
+        status: 202,
+        json: {
+          resource_type: "edit_package",
+          resource_id: "package-1",
+          task_id: "edit-package-task-1",
+          status: "queued",
+          status_url: "/api/v1/edit-packages/package-1",
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/edit-packages/package-1" && method === "GET") {
+      await route.fulfill({ json: editPackage });
       return;
     }
     if (path === "/api/v1/projects/project-1/deliveries" && method === "POST") {
@@ -195,6 +258,8 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
           proxy_asset_id: null,
         },
         proxy_media_url: null,
+        download_video_url: null,
+        download_subtitle_url: null,
       };
       await route.fulfill({ json: clipDetail });
       return;
@@ -310,6 +375,29 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   );
   const proxy = page.getByLabel("原始高光标题 审核代理");
   await expect(proxy).toHaveAttribute("src", /signature=signed/);
+  await expect(firstCard.getByRole("link", { name: "下载 MP4" })).toBeVisible();
+  await expect(firstCard.getByRole("link", { name: "下载 SRT" })).toBeVisible();
+
+  await firstCard.getByLabel("选择导出").check();
+  await expect(page.getByText("已选 1 条用于剪辑交接")).toBeVisible();
+  await page.getByRole("button", { name: "生成所选剪辑交接包" }).click();
+  const handoffDownload = page.getByRole("link", { name: "下载剪辑交接 ZIP" });
+  await expect(handoffDownload).toHaveAttribute("href", /signature=package-signed/);
+  const handoffHref = await handoffDownload.getAttribute("href");
+  const handoffArchive = await page.evaluate(async (href) => {
+    const response = await fetch(href);
+    const body = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      disposition: response.headers.get("Content-Disposition"),
+      magic: Array.from(body.slice(0, 2)),
+    };
+  }, handoffHref as string);
+  expect(handoffArchive).toEqual({
+    status: 200,
+    disposition: 'attachment; filename="liveclip-edit-package-v001.zip"',
+    magic: [0x50, 0x4b],
+  });
 
   await page.getByRole("button", { name: "审核和编辑" }).click();
   const editor = page.locator("section.clip-editor");

@@ -13,6 +13,7 @@ import type {
   ClipSummaryResponse,
   BatchReviewRequest,
   DeliveryDetailResponse,
+  EditPackageDetailResponse,
   ProjectMemberCreateRequest,
   ProjectSnapshot,
   RunSnapshot,
@@ -271,6 +272,9 @@ export function ClipCard({
   selected = false,
   onSelectedChange = () => undefined,
   selectionDisabled = false,
+  handoffSelected = false,
+  onHandoffSelectedChange = () => undefined,
+  handoffSelectionDisabled = false,
   openDisabled = false,
 }: {
   item: ClipSummaryResponse;
@@ -278,6 +282,9 @@ export function ClipCard({
   selected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
   selectionDisabled?: boolean;
+  handoffSelected?: boolean;
+  onHandoffSelectedChange?: (selected: boolean) => void;
+  handoffSelectionDisabled?: boolean;
   openDisabled?: boolean;
 }) {
   const { clip } = item;
@@ -330,15 +337,26 @@ export function ClipCard({
         </div>
         <div className="clip-card-body">
           <div className="section-heading compact">
-            <label className="clip-select">
-              <input
-                type="checkbox"
-                checked={selected}
-                disabled={selectionDisabled}
-                onChange={(event) => onSelectedChange(event.target.checked)}
-              />
-              选择批量审核
-            </label>
+            <div className="clip-selection-group">
+              <label className="clip-select">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  disabled={selectionDisabled}
+                  onChange={(event) => onSelectedChange(event.target.checked)}
+                />
+                批量审核
+              </label>
+              <label className="clip-select clip-export-select">
+                <input
+                  type="checkbox"
+                  checked={handoffSelected}
+                  disabled={handoffSelectionDisabled}
+                  onChange={(event) => onHandoffSelectedChange(event.target.checked)}
+                />
+                选择导出
+              </label>
+            </div>
             <StatusBadge status={clip.review_status} />
           </div>
           <span className="eyebrow">revision {clip.edit_plan_revision}</span>
@@ -401,14 +419,26 @@ export function ClipCard({
               {clip.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
             </ul>
           ) : null}
-          <button
-            type="button"
-            className="button button-primary clip-edit-button"
-            disabled={openDisabled}
-            onClick={onOpen}
-          >
-            审核和编辑
-          </button>
+          <div className="clip-card-actions">
+            <button
+              type="button"
+              className="button button-primary clip-edit-button"
+              disabled={openDisabled}
+              onClick={onOpen}
+            >
+              审核和编辑
+            </button>
+            {item.download_video_url ? (
+              <a className="button button-secondary" href={item.download_video_url} download>
+                下载 MP4
+              </a>
+            ) : null}
+            {item.download_subtitle_url ? (
+              <a className="button button-secondary" href={item.download_subtitle_url} download>
+                下载 SRT
+              </a>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -441,6 +471,187 @@ export function ClipCard({
         )}
       </section>
     </article>
+  );
+}
+
+function EditPackageRow({ value }: { value: EditPackageDetailResponse }) {
+  const { edit_package: editPackage } = value;
+  return (
+    <li className="delivery-row edit-package-row">
+      <div>
+        <strong>{editPackage.package_version}</strong>
+        <span>
+          {editPackage.clip_count} 条高光 · {editPackage.content === "full" ? "完整素材" : "仅元数据"}
+        </span>
+      </div>
+      <StatusBadge status={editPackage.status} />
+      {editPackage.safe_error_message ? (
+        <span className="form-error">{editPackage.safe_error_message}</span>
+      ) : null}
+      {value.download_url ? (
+        <a className="button button-primary" href={value.download_url} download>
+          下载剪辑交接 ZIP
+        </a>
+      ) : (
+        <span className="hint">交接包尚不可下载</span>
+      )}
+    </li>
+  );
+}
+
+export function EditPackagePanel({
+  api,
+  project,
+  selectedItems,
+  onClearSelection,
+}: {
+  api: LiveClipApiClient;
+  project: ProjectSnapshot;
+  selectedItems: ClipSummaryResponse[];
+  onClearSelection: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [content, setContent] = useState<"full" | "metadata_only">("full");
+  const [activePackageId, setActivePackageId] = useState<string | null>(null);
+  const packagesQuery = useQuery({
+    queryKey: ["edit-packages", project.project_id],
+    queryFn: () => api.listEditPackages(project.project_id),
+    refetchInterval: (query) => {
+      const values = query.state.data;
+      if (
+        values?.some(
+          ({ edit_package: item }) => item.status === "queued" || item.status === "creating",
+        )
+      ) {
+        return 1_000;
+      }
+      return signedUrlRefreshInterval(values?.map((value) => value.download_url) ?? []);
+    },
+  });
+  const packageQuery = useQuery({
+    queryKey: ["edit-package", activePackageId],
+    queryFn: () => api.getEditPackage(activePackageId as string),
+    enabled: activePackageId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.edit_package.status;
+      return status === "queued" || status === "creating"
+        ? 800
+        : signedUrlRefreshInterval([query.state.data?.download_url]);
+    },
+  });
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createEditPackage(project.project_id, {
+        items: selectedItems.map(({ clip }) => ({
+          clip_id: clip.clip_id,
+          expected_revision: clip.edit_plan_revision,
+        })),
+        preset: "clean_editing",
+        content,
+        include_zip: true,
+      }),
+    onSuccess: (accepted) => {
+      setActivePackageId(accepted.resource_id);
+      onClearSelection();
+      void queryClient.invalidateQueries({
+        queryKey: ["edit-packages", project.project_id],
+      });
+    },
+  });
+
+  useEffect(() => {
+    const status = packageQuery.data?.edit_package.status;
+    if (status === "succeeded" || status === "failed") {
+      void queryClient.invalidateQueries({
+        queryKey: ["edit-packages", project.project_id],
+      });
+    }
+  }, [packageQuery.data?.edit_package.status, project.project_id, queryClient]);
+
+  const canExport = project.allowed_actions.includes("export");
+  const activePackage = packagesQuery.data?.some(
+    ({ edit_package: item }) => item.status === "queued" || item.status === "creating",
+  );
+  const canCreate =
+    canExport &&
+    selectedItems.length > 0 &&
+    !activePackage &&
+    !createMutation.isPending;
+
+  return (
+    <section className="panel edit-package-panel" aria-labelledby="edit-package-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">剪映 / CapCut 交接</p>
+          <h2 id="edit-package-title">剪辑交接包</h2>
+          <p>按你勾选的高光生成干净 MP4、独立 SRT、描述、关键词时间和缩略图。</p>
+        </div>
+        <span className="metric">已选 {selectedItems.length} 条</span>
+      </div>
+      <div className="edit-package-actions">
+        <label>
+          包含内容
+          <select
+            value={content}
+            disabled={!canExport || createMutation.isPending}
+            onChange={(event) =>
+              setContent(event.currentTarget.value as "full" | "metadata_only")
+            }
+          >
+            <option value="full">完整素材：MP4 + SRT + 描述</option>
+            <option value="metadata_only">仅描述与缩略图</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={!canCreate}
+          onClick={() => createMutation.mutate()}
+        >
+          {createMutation.isPending ? "正在提交…" : "生成所选剪辑交接包"}
+        </button>
+        {selectedItems.length > 0 ? (
+          <button type="button" className="button button-ghost" onClick={onClearSelection}>
+            清空导出选择
+          </button>
+        ) : null}
+      </div>
+      {!canCreate ? (
+        <p className="hint disabled-reason">
+          {!canExport
+            ? "只有项目负责人或编辑可以生成剪辑交接包。"
+            : selectedItems.length === 0
+              ? "请在高光时刻中勾选“选择导出”。"
+              : "已有交接任务正在执行，请等待完成。"}
+        </p>
+      ) : null}
+      <p className="hint">
+        ZIP 使用通用 MP4/SRT，不伪造剪映私有草稿格式；剪映专业版可导入视频和同名字幕继续编辑。
+      </p>
+      {packageQuery.data ? (
+        <div className="notice" aria-live="polite">
+          <StatusBadge status={packageQuery.data.edit_package.status} />
+          <span>{packageQuery.data.edit_package.package_version} 状态已更新。</span>
+        </div>
+      ) : null}
+      {createMutation.isError ? <ErrorState error={createMutation.error} /> : null}
+      {packageQuery.isError ? <ErrorState error={packageQuery.error} /> : null}
+      {packagesQuery.isPending ? <LoadingState>正在加载剪辑交接包…</LoadingState> : null}
+      {packagesQuery.isError ? (
+        <ErrorState error={packagesQuery.error} onRetry={() => void packagesQuery.refetch()} />
+      ) : null}
+      {packagesQuery.data?.length === 0 ? <EmptyState title="还没有剪辑交接包" /> : null}
+      {packagesQuery.data && packagesQuery.data.length > 0 ? (
+        <ul className="delivery-list edit-package-list">
+          {packagesQuery.data.map((value) => (
+            <EditPackageRow
+              key={value.edit_package.edit_package_id}
+              value={value}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 
@@ -606,6 +817,7 @@ export function ProjectWorkspace({
   const queryClient = useQueryClient();
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(() => new Set());
+  const [handoffClipIds, setHandoffClipIds] = useState<Set<string>>(() => new Set());
   const [batchRejectReason, setBatchRejectReason] = useState("");
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [dirtyClipIds, setDirtyClipIds] = useState<Set<string>>(() => new Set());
@@ -657,6 +869,22 @@ export function ProjectWorkspace({
       clipsQuery.data?.filter(({ clip }) => selectedClipIds.has(clip.clip_id)) ?? [],
     [clipsQuery.data, selectedClipIds],
   );
+  const handoffItems = useMemo(
+    () =>
+      clipsQuery.data?.filter(({ clip }) => handoffClipIds.has(clip.clip_id)) ?? [],
+    [clipsQuery.data, handoffClipIds],
+  );
+  const exportableItems = useMemo(
+    () =>
+      clipsQuery.data?.filter(
+        ({ clip, download_video_url, download_subtitle_url }) =>
+          !dirtyClipIds.has(clip.clip_id) &&
+          clip.proxy_status === "succeeded" &&
+          Boolean(download_video_url) &&
+          Boolean(download_subtitle_url),
+      ) ?? [],
+    [clipsQuery.data, dirtyClipIds],
+  );
   const selectableItems = useMemo(
     () =>
       clipsQuery.data?.filter(({ clip }) =>
@@ -672,10 +900,18 @@ export function ProjectWorkspace({
       const next = new Set([...current].filter((clipId) => visibleIds.has(clipId)));
       return next.size === current.size ? current : next;
     });
+    setHandoffClipIds((current) => {
+      const next = new Set([...current].filter((clipId) => visibleIds.has(clipId)));
+      return next.size === current.size ? current : next;
+    });
   }, [clipsQuery.data]);
   useEffect(() => {
     if (dirtyClipIds.size === 0) return;
     setSelectedClipIds((current) => {
+      const next = new Set([...current].filter((clipId) => !dirtyClipIds.has(clipId)));
+      return next.size === current.size ? current : next;
+    });
+    setHandoffClipIds((current) => {
       const next = new Set([...current].filter((clipId) => !dirtyClipIds.has(clipId)));
       return next.size === current.size ? current : next;
     });
@@ -763,6 +999,10 @@ export function ProjectWorkspace({
   const canEdit = project.allowed_actions.includes("edit_clip");
   const canReview = project.allowed_actions.includes("review_clip");
   const canRender = project.allowed_actions.includes("render");
+  const canExport = project.allowed_actions.includes("export");
+  const allExportableSelected =
+    exportableItems.length > 0 &&
+    exportableItems.every(({ clip }) => handoffClipIds.has(clip.clip_id));
 
   return (
     <main className="workspace">
@@ -898,18 +1138,54 @@ export function ProjectWorkspace({
                 </p>
               ) : null}
             </div> : null}
+            {canExport ? (
+              <div className="handoff-selection-bar" aria-label="剪辑交接选择">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allExportableSelected}
+                    disabled={exportableItems.length === 0}
+                    onChange={(event) =>
+                      setHandoffClipIds(
+                        event.target.checked
+                          ? new Set(exportableItems.map(({ clip }) => clip.clip_id))
+                          : new Set(),
+                      )
+                    }
+                  />
+                  全选可导出高光
+                </label>
+                <strong>已选 {handoffItems.length} 条用于剪辑交接</strong>
+              </div>
+            ) : null}
             <ol className="highlight-list" aria-label="高光时刻列表">
               {clipsQuery.data.map((item) => (
                 <li key={item.clip.clip_id}>
                   <ClipCard
                     item={item}
                     selected={selectedClipIds.has(item.clip.clip_id)}
+                    handoffSelected={handoffClipIds.has(item.clip.clip_id)}
                     selectionDisabled={
                       !canReview || batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
                     }
                     openDisabled={batchMutation.isPending}
+                    handoffSelectionDisabled={
+                      !canExport ||
+                      dirtyClipIds.has(item.clip.clip_id) ||
+                      item.clip.proxy_status !== "succeeded" ||
+                      !item.download_video_url ||
+                      !item.download_subtitle_url
+                    }
                     onSelectedChange={(selected) =>
                       setSelectedClipIds((current) => {
+                        const next = new Set(current);
+                        if (selected) next.add(item.clip.clip_id);
+                        else next.delete(item.clip.clip_id);
+                        return next;
+                      })
+                    }
+                    onHandoffSelectedChange={(selected) =>
+                      setHandoffClipIds((current) => {
                         const next = new Set(current);
                         if (selected) next.add(item.clip.clip_id);
                         else next.delete(item.clip.clip_id);
@@ -924,6 +1200,15 @@ export function ProjectWorkspace({
           </>
         ) : null}
       </section>
+
+      {contentEnabled ? (
+        <EditPackagePanel
+          api={api}
+          project={project}
+          selectedItems={handoffItems}
+          onClearSelection={() => setHandoffClipIds(new Set())}
+        />
+      ) : null}
 
       {selectedClipId ? (
         <ClipEditor

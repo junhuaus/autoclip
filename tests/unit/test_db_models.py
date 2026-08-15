@@ -70,6 +70,8 @@ def test_schema_contains_every_v1_persistence_entity_and_named_constraints(
         "caption_cues",
         "deliveries",
         "delivery_clips",
+        "edit_package_clips",
+        "edit_packages",
         "edit_plan_revisions",
         "idempotency_records",
         "pipeline_runs",

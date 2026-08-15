@@ -7,6 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from liveclip.application.clips import ClipSummary
 from liveclip.application.deliveries import DeliverySnapshot
+from liveclip.application.edit_packages import (
+    EditPackageItem,
+    EditPackageRequest,
+    EditPackageSnapshot,
+)
 from liveclip.application.identity import ManagedUser
 from liveclip.application.projects import ProjectActivity
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
@@ -125,6 +130,32 @@ class DeliveryCreateRequest(ApiRequestModel):
     include_zip: bool = True
 
 
+class EditPackageItemRequest(ApiRequestModel):
+    clip_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    expected_revision: int = Field(ge=1)
+
+
+class EditPackageCreateRequest(ApiRequestModel):
+    items: tuple[EditPackageItemRequest, ...] = Field(min_length=1, max_length=100)
+    preset: Literal["clean_editing"] = "clean_editing"
+    content: Literal["full", "metadata_only"] = "full"
+    include_zip: bool = True
+
+    def to_domain(self) -> EditPackageRequest:
+        return EditPackageRequest(
+            items=tuple(
+                EditPackageItem(
+                    clip_id=item.clip_id,
+                    expected_revision=item.expected_revision,
+                )
+                for item in self.items
+            ),
+            preset=self.preset,
+            content=self.content,
+            include_zip=self.include_zip,
+        )
+
+
 class ProjectMemberCreateRequest(ApiRequestModel):
     username: str = Field(
         min_length=1,
@@ -222,7 +253,7 @@ class AcceptedTaskResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal["1"] = "1"
-    resource_type: Literal["render", "delivery"]
+    resource_type: Literal["render", "delivery", "edit_package"]
     resource_id: str
     task_id: str
     status: str
@@ -291,6 +322,8 @@ class ClipSummaryResponse(BaseModel):
 
     clip: ClipSummary
     proxy_media_url: str | None
+    download_video_url: str | None = None
+    download_subtitle_url: str | None = None
 
 
 class ClipDetailResponse(BaseModel):
@@ -312,6 +345,13 @@ class DeliveryDetailResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     delivery: DeliverySnapshot
+    download_url: str | None
+
+
+class EditPackageDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    edit_package: EditPackageSnapshot
     download_url: str | None
 
 
