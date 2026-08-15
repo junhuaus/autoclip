@@ -4,11 +4,11 @@ Updated: 2026-08-13 CST
 
 Current product baseline: `0.1.0`
 
-Current milestone: v0.2 V2-M2 core complete in the worktree; checkpoint pending
+Current milestone: v0.2 V2-M3 selective editor handoff starting
 
 Branch: `main` tracking `origin/main`
 
-Latest committed v0.2 checkpoint: `d513abf` (`feat: enforce project capabilities and ownership transfer`)
+Latest committed v0.2 checkpoint: `f12b7f8` (`feat: add professional project lifecycle`)
 
 ## Current user-visible result
 
@@ -58,11 +58,11 @@ The UI displays business lifecycle and technical status separately. A Project ma
 
 - Never stage `.env`, `.env.local`, `OPENROUTER_SETUP.md`, `input/`, SQLite, media, caches, E2E output, deliveries or migration backups.
 - No credential value was read or printed. No source media, Project content, render, Delivery or Provider usage was changed.
-- The worktree contains only the intended tracked/untracked V2-M2 source, migration, tests and documentation before checkpoint. Review with `git diff --check` and `git status --short` before staging.
+- V2-M2 is committed locally at `f12b7f8`. Only the following recovery-document update should remain before its documentation checkpoint.
 
 ## Next concrete task
 
-Review and commit/push the V2-M2 lifecycle checkpoint, then begin V2-M3 by defining the immutable `EditPackage` domain/application contract and migration. Reuse current final/proxy Assets; do not call ASR/LLM or reprocess `7.28`.
+Commit/push this V2-M2 recovery update, then begin V2-M3 by defining the immutable `EditPackage` domain/application contract and migration. Reuse current final/proxy Assets; do not call ASR/LLM or reprocess `7.28`.
 
 ## Resume instructions
 
