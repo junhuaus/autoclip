@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 from urllib.parse import urlparse
@@ -39,6 +39,10 @@ class ReleaseConflict(RuntimeError):
 
 class ReleaseResourceNotFound(LookupError):
     """The requested release item or package does not exist."""
+
+
+MAX_RELEASE_CLOCK_SKEW = timedelta(minutes=5)
+MAX_RELEASE_METRIC_VALUE = (1 << 63) - 1
 
 
 class ReleaseItemCreate(BaseModel):
@@ -176,7 +180,7 @@ class ReleaseStatusCommand(BaseModel):
 
     @model_validator(mode="after")
     def validate_outcome(self) -> ReleaseStatusCommand:
-        _validate_optional_aware(self.published_at, "published time")
+        _validate_observed_at(self.published_at, "published time")
         if self.target is ReleaseItemStatus.PUBLISHED:
             if self.release_package_id is None:
                 raise ValueError("published release requires the exact platform package")
@@ -203,17 +207,17 @@ class ReleaseMetricCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     captured_at: datetime
-    views: int = Field(default=0, ge=0)
-    likes: int = Field(default=0, ge=0)
-    comments: int = Field(default=0, ge=0)
-    shares: int = Field(default=0, ge=0)
-    saves: int = Field(default=0, ge=0)
-    followers_gained: int = Field(default=0, ge=0)
+    views: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
+    likes: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
+    comments: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
+    shares: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
+    saves: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
+    followers_gained: int = Field(default=0, ge=0, le=MAX_RELEASE_METRIC_VALUE)
     notes: str | None = Field(default=None, max_length=1_000)
 
     @model_validator(mode="after")
     def validate_capture(self) -> ReleaseMetricCreate:
-        _validate_optional_aware(self.captured_at, "metric capture time")
+        _validate_observed_at(self.captured_at, "metric capture time")
         return self
 
 
@@ -597,11 +601,31 @@ def release_package_path(work: ReleasePackageWork, project_dir: Path) -> Path:
 
 
 def _validate_optional_aware(value: datetime | None, label: str) -> None:
-    if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+    if value is None:
+        return
+    if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"release {label} must include a timezone")
+    try:
+        value.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError(f"release {label} is outside the supported datetime range") from exc
+
+
+def _validate_observed_at(value: datetime | None, label: str) -> None:
+    _validate_optional_aware(value, label)
+    if value is None:
+        return
+    try:
+        observed_at = value.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError(f"release {label} is outside the supported datetime range") from exc
+    if observed_at > datetime.now(UTC) + MAX_RELEASE_CLOCK_SKEW:
+        raise ValueError(f"release {label} cannot be in the future")
 
 
 __all__ = [
+    "MAX_RELEASE_CLOCK_SKEW",
+    "MAX_RELEASE_METRIC_VALUE",
     "ReleaseApprovalCommand",
     "ReleaseAssignee",
     "ReleaseConflict",

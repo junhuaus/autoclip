@@ -215,7 +215,7 @@ class LiveClipRuntime:
                 clip_query_service,
                 max_retries=settings.max_stage_retries,
             )
-            release_repository = SqlAlchemyReleaseRepository(engine)
+            release_repository = SqlAlchemyReleaseRepository(engine, data_dir=data_dir)
             release_service = ReleaseService(
                 release_repository,
                 max_retries=settings.max_stage_retries,

@@ -1,13 +1,16 @@
 # ruff: noqa: RUF001
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import insert, select, update
-from sqlalchemy.engine import Engine
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.engine import Connection, Engine
 
 from liveclip.application.idempotency import build_idempotency_context
 from liveclip.application.pipeline import (
@@ -26,6 +29,7 @@ from liveclip.application.releases import (
     ReleaseStatusCommand,
 )
 from liveclip.application.reviewing import ClipPatch, ReviewCommand
+from liveclip.db import release_repository as release_repository_module
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import (
@@ -71,6 +75,7 @@ from liveclip.domain.state_transitions import (
     TaskKind,
     TaskStatus,
 )
+from liveclip.media.secure_files import PinnedRegularFile
 from liveclip.renderer.contracts import (
     FFMPEG_RENDERER_CONTRACT_VERSION,
     RENDER_SPEC_SCHEMA_VERSION,
@@ -100,6 +105,7 @@ SPEC_FINGERPRINT = "b" * 64
 class ReleaseFixture:
     engine: Engine
     repository: SqlAlchemyReleaseRepository
+    data_dir: Path
 
 
 @pytest.fixture
@@ -434,7 +440,8 @@ def release_fixture(tmp_path: Path) -> ReleaseFixture:
         )
     fixture = ReleaseFixture(
         engine=engine,
-        repository=SqlAlchemyReleaseRepository(engine),
+        repository=SqlAlchemyReleaseRepository(engine, data_dir=tmp_path),
+        data_dir=tmp_path,
     )
     try:
         yield fixture
@@ -583,6 +590,27 @@ def _complete_test_package(
     item_key = release_item_id[:8]
     manifest_asset_id = f"publication-manifest-{item_key}-{work.version}"
     zip_asset_id = f"publication-zip-{item_key}-{work.version}"
+    base = f"release-packages/{release_item_id}/v{work.version:03d}"
+    artifact_values = (
+        (
+            manifest_asset_id,
+            "release_package_manifest",
+            f"{base}/manifest.json",
+            b'{"schema_version":"liveclip.release-package.v1"}\n',
+        ),
+        (
+            zip_asset_id,
+            "release_package_zip",
+            f"{base}/{release_archive_name(work)}",
+            b"PK\x03\x04release-package-test-bytes",
+        ),
+    )
+    artifact_hashes: dict[str, str] = {}
+    for asset_id, _kind, relative_path, value in artifact_values:
+        path = fixture.data_dir / PROJECT_ID / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(value)
+        artifact_hashes[asset_id] = hashlib.sha256(value).hexdigest()
     with fixture.engine.begin() as connection:
         attempt_id = connection.scalar(
             select(TaskAttemptRow.id).where(
@@ -591,23 +619,8 @@ def _complete_test_package(
             )
         )
         assert attempt_id is not None
-        base = f"release-packages/{release_item_id}/v{work.version:03d}"
-        for asset_id, kind, relative_path, digest, size in (
-            (
-                manifest_asset_id,
-                "release_package_manifest",
-                f"{base}/manifest.json",
-                "2" * 64,
-                2_000,
-            ),
-            (
-                zip_asset_id,
-                "release_package_zip",
-                f"{base}/{release_archive_name(work)}",
-                "3" * 64,
-                20_000,
-            ),
-        ):
+        for asset_id, kind, relative_path, value in artifact_values:
+            digest = artifact_hashes[asset_id]
             connection.execute(
                 insert(AssetRow).values(
                     id=asset_id,
@@ -619,7 +632,7 @@ def _complete_test_package(
                     mime_type=("application/zip" if kind.endswith("zip") else "application/json"),
                     input_fingerprint=work.package_fingerprint,
                     sha256=digest,
-                    size_bytes=size,
+                    size_bytes=len(value),
                     validation_json={
                         "schema_version": "liveclip.release-package.v1",
                         "release_package_id": work.release_package_id,
@@ -637,8 +650,8 @@ def _complete_test_package(
         ReleasePackagePersistence(
             manifest_asset_id=manifest_asset_id,
             zip_asset_id=zip_asset_id,
-            manifest_sha256="2" * 64,
-            zip_sha256="3" * 64,
+            manifest_sha256=artifact_hashes[manifest_asset_id],
+            zip_sha256=artifact_hashes[zip_asset_id],
         ),
     )
     return fixture.repository.get_package(work.release_package_id)
@@ -703,7 +716,7 @@ def test_release_item_full_transaction_flow_and_project_publication(
     )
     assert scheduled.packages[0].release_package_id == package.release_package_id
     assert scheduled.packages[0].current is True
-    published_at = datetime(2026, 8, 16, 12, 5, tzinfo=UTC)
+    published_at = NOW + timedelta(minutes=5)
     published = repository.transition_status(
         created.release_item_id,
         acting_user_id=EDITOR_ID,
@@ -719,7 +732,7 @@ def test_release_item_full_transaction_flow_and_project_publication(
         created.release_item_id,
         acting_user_id=OWNER_ID,
         command=ReleaseMetricCreate(
-            captured_at=published_at + timedelta(days=1),
+            captured_at=published_at + timedelta(minutes=1),
             views=10_000,
             likes=800,
             comments=32,
@@ -732,7 +745,7 @@ def test_release_item_full_transaction_flow_and_project_publication(
     assert published.publication_evidence is not None
     assert published.publication_evidence.release_package_id == package.release_package_id
     assert published.publication_evidence.video_sha256 == "c" * 64
-    assert published.publication_evidence.artifact_sha256 == "3" * 64
+    assert published.publication_evidence.artifact_sha256 == package.zip_sha256
     assert published.packages[0].published_artifact is True
     assert published.packages[0].current is True
     assert measured.metrics[0].views == 10_000
@@ -887,7 +900,7 @@ def test_publication_rejects_changed_committed_zip_evidence(
             update(AssetRow).where(AssetRow.id == package.zip_asset_id).values(**changed_values)
         )
 
-    with pytest.raises(ReleaseConflict, match="artifact evidence"):
+    with pytest.raises(ReleaseConflict, match=r"artifact (?:evidence|bytes)"):
         release_fixture.repository.transition_status(
             ready.release_item_id,
             acting_user_id=EDITOR_ID,
@@ -899,6 +912,237 @@ def test_publication_rejects_changed_committed_zip_evidence(
                 published_at=NOW,
             ),
         )
+
+
+@pytest.mark.parametrize("asset_field", ["manifest_asset_id", "zip_asset_id"])
+def test_publication_rehashes_current_package_bytes_and_rejects_tampering(
+    release_fixture: ReleaseFixture,
+    asset_field: str,
+) -> None:
+    ready = _ready_item(release_fixture)
+    package = _complete_test_package(
+        release_fixture,
+        ready.release_item_id,
+        ready.management_version,
+    )
+    asset_id = getattr(package, asset_field)
+    assert isinstance(asset_id, str)
+    with release_fixture.engine.connect() as connection:
+        relative_path = connection.scalar(
+            select(AssetRow.relative_path).where(AssetRow.id == asset_id)
+        )
+    assert relative_path is not None
+    artifact_path = release_fixture.data_dir / PROJECT_ID / str(relative_path)
+    original = artifact_path.read_bytes()
+    artifact_path.write_bytes(bytes(byte ^ 0x01 for byte in original))
+
+    with pytest.raises(ReleaseConflict, match="artifact bytes changed"):
+        release_fixture.repository.transition_status(
+            ready.release_item_id,
+            acting_user_id=EDITOR_ID,
+            command=ReleaseStatusCommand(
+                expected_management_version=ready.management_version,
+                target=ReleaseItemStatus.PUBLISHED,
+                release_package_id=package.release_package_id,
+                external_id="tampered-local-package",
+                published_at=NOW,
+            ),
+        )
+
+    unchanged = release_fixture.repository.get_item(ready.release_item_id)
+    assert unchanged.status is ReleaseItemStatus.READY
+    assert unchanged.publication_evidence is None
+
+
+def test_publication_pins_bytes_outside_writer_and_rolls_back_interleaved_mutation(
+    release_fixture: ReleaseFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = _ready_item(release_fixture)
+    package = _complete_test_package(
+        release_fixture,
+        ready.release_item_id,
+        ready.management_version,
+    )
+    assert package.manifest_asset_id is not None
+    with release_fixture.engine.connect() as connection:
+        manifest_relative_path = connection.scalar(
+            select(AssetRow.relative_path).where(AssetRow.id == package.manifest_asset_id)
+        )
+        before_project = connection.execute(
+            select(ProjectRow.lifecycle, ProjectRow.management_version).where(
+                ProjectRow.id == PROJECT_ID
+            )
+        ).one()
+        before_audit_count = connection.scalar(select(func.count()).select_from(AuditEventRow))
+    assert manifest_relative_path is not None
+    assert before_audit_count is not None
+    manifest_path = release_fixture.data_dir / PROJECT_ID / str(manifest_relative_path)
+
+    real_begin_immediate = release_repository_module.begin_immediate
+    real_sha256 = PinnedRegularFile.sha256
+    writer_active = False
+    mutation_performed = False
+
+    @contextmanager
+    def tracked_begin_immediate(engine: Engine) -> Iterator[Connection]:
+        nonlocal writer_active
+        with real_begin_immediate(engine) as connection:
+            writer_active = True
+            try:
+                yield connection
+            finally:
+                writer_active = False
+
+    def mutate_after_hash(
+        pinned: PinnedRegularFile,
+        *,
+        block_size: int = 1024 * 1024,
+        cancel_requested: Callable[[], bool] | None = None,
+    ) -> str:
+        nonlocal mutation_performed
+        assert writer_active is False
+        digest = real_sha256(
+            pinned,
+            block_size=block_size,
+            cancel_requested=cancel_requested,
+        )
+        if pinned.path == manifest_path and not mutation_performed:
+            original = manifest_path.read_bytes()
+            manifest_path.write_bytes(bytes(value ^ 0x01 for value in original))
+            mutation_performed = True
+        return digest
+
+    monkeypatch.setattr(
+        release_repository_module,
+        "begin_immediate",
+        tracked_begin_immediate,
+    )
+    monkeypatch.setattr(PinnedRegularFile, "sha256", mutate_after_hash)
+
+    with pytest.raises(ReleaseConflict, match="before publication committed"):
+        release_fixture.repository.transition_status(
+            ready.release_item_id,
+            acting_user_id=EDITOR_ID,
+            command=ReleaseStatusCommand(
+                expected_management_version=ready.management_version,
+                target=ReleaseItemStatus.PUBLISHED,
+                release_package_id=package.release_package_id,
+                external_id="interleaved-mutation-must-roll-back",
+                published_at=NOW,
+            ),
+        )
+
+    assert mutation_performed is True
+    unchanged = release_fixture.repository.get_item(ready.release_item_id)
+    assert unchanged.status is ReleaseItemStatus.READY
+    assert unchanged.management_version == ready.management_version
+    assert unchanged.publication_evidence is None
+    with release_fixture.engine.connect() as connection:
+        after_project = connection.execute(
+            select(ProjectRow.lifecycle, ProjectRow.management_version).where(
+                ProjectRow.id == PROJECT_ID
+            )
+        ).one()
+        after_audit_count = connection.scalar(select(func.count()).select_from(AuditEventRow))
+    assert after_project == before_project
+    assert after_audit_count == before_audit_count
+
+
+def test_publication_rehash_rejects_unsafe_or_linked_artifact_paths(
+    release_fixture: ReleaseFixture,
+) -> None:
+    first = _ready_item(release_fixture)
+    first_package = _complete_test_package(
+        release_fixture,
+        first.release_item_id,
+        first.management_version,
+    )
+    assert first_package.zip_asset_id is not None
+    with release_fixture.engine.begin() as connection:
+        connection.execute(
+            update(AssetRow)
+            .where(AssetRow.id == first_package.zip_asset_id)
+            .values(relative_path="../escaped.zip")
+        )
+    with pytest.raises(ReleaseConflict, match="artifact path is invalid"):
+        release_fixture.repository.transition_status(
+            first.release_item_id,
+            acting_user_id=EDITOR_ID,
+            command=ReleaseStatusCommand(
+                expected_management_version=first.management_version,
+                target=ReleaseItemStatus.PUBLISHED,
+                release_package_id=first_package.release_package_id,
+                external_id="unsafe-path",
+                published_at=NOW,
+            ),
+        )
+
+    second = _ready_item(release_fixture, account_label="副账号")
+    second_package = _complete_test_package(
+        release_fixture,
+        second.release_item_id,
+        second.management_version,
+    )
+    assert second_package.zip_asset_id is not None
+    with release_fixture.engine.connect() as connection:
+        relative_path = connection.scalar(
+            select(AssetRow.relative_path).where(AssetRow.id == second_package.zip_asset_id)
+        )
+    assert relative_path is not None
+    artifact_path = release_fixture.data_dir / PROJECT_ID / str(relative_path)
+    outside = release_fixture.data_dir / "outside-release.zip"
+    outside.write_bytes(artifact_path.read_bytes())
+    artifact_path.unlink()
+    artifact_path.symlink_to(outside)
+    with pytest.raises(ReleaseConflict, match="artifact bytes are missing or unsafe"):
+        release_fixture.repository.transition_status(
+            second.release_item_id,
+            acting_user_id=EDITOR_ID,
+            command=ReleaseStatusCommand(
+                expected_management_version=second.management_version,
+                target=ReleaseItemStatus.PUBLISHED,
+                release_package_id=second_package.release_package_id,
+                external_id="linked-artifact",
+                published_at=NOW,
+            ),
+        )
+
+
+def test_metric_capture_cannot_precede_recorded_publication(
+    release_fixture: ReleaseFixture,
+) -> None:
+    ready = _ready_item(release_fixture)
+    package = _complete_test_package(
+        release_fixture,
+        ready.release_item_id,
+        ready.management_version,
+    )
+    published_at = NOW + timedelta(minutes=5)
+    published = release_fixture.repository.transition_status(
+        ready.release_item_id,
+        acting_user_id=EDITOR_ID,
+        command=ReleaseStatusCommand(
+            expected_management_version=ready.management_version,
+            target=ReleaseItemStatus.PUBLISHED,
+            release_package_id=package.release_package_id,
+            external_id="chronology-test",
+            published_at=published_at,
+        ),
+    )
+
+    with pytest.raises(ReleaseConflict, match="cannot precede publication"):
+        release_fixture.repository.add_metric(
+            ready.release_item_id,
+            acting_user_id=OWNER_ID,
+            command=ReleaseMetricCreate(
+                captured_at=published_at - timedelta(milliseconds=1),
+                views=1,
+            ),
+        )
+
+    assert published.metrics == ()
+    assert release_fixture.repository.get_item(ready.release_item_id).metrics == ()
 
 
 def test_release_idempotency_permissions_and_optimistic_version(

@@ -855,7 +855,7 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                     "target": "published",
                     "release_package_id": "not-yet-created",
                     "external_id": "must-not-skip-workflow",
-                    "published_at": "2026-08-16T12:05:00+08:00",
+                    "published_at": "2026-08-15T08:05:00+00:00",
                 },
             )
             assert illegal_release.status_code == 409
@@ -1028,6 +1028,19 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                     },
                 ).json()
             assert managed_project["lifecycle"] == "ready_to_publish"
+            future_publication = client.post(
+                f"/api/v1/releases/{release_id}/status",
+                headers=auth,
+                json={
+                    "expected_management_version": scheduled_release.json()["management_version"],
+                    "target": "published",
+                    "release_package_id": release_package_id,
+                    "external_id": "future-must-be-rejected",
+                    "published_at": "2100-01-01T00:00:00+00:00",
+                },
+            )
+            assert future_publication.status_code == 422
+            assert future_publication.json()["error"]["code"] == "INVALID_REQUEST"
             published_release = client.post(
                 f"/api/v1/releases/{release_id}/status",
                 headers=auth,
@@ -1037,7 +1050,7 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                     "release_package_id": release_package_id,
                     "external_url": "https://example.com/posts/liveclip-api",
                     "external_id": "external-liveclip-api-001",
-                    "published_at": "2026-08-16T12:05:00+08:00",
+                    "published_at": "2026-08-15T08:05:00+00:00",
                     "result_notes": "已由运营人员在外部平台发布",
                 },
             )
@@ -1052,8 +1065,41 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                 client.get(f"/api/v1/projects/{project_id}", headers=auth).json()["lifecycle"]
                 == "published"
             )
+            early_metric = client.post(
+                f"/api/v1/releases/{release_id}/metrics",
+                headers={**auth, "Idempotency-Key": "api-release-metric-too-early"},
+                json={"captured_at": "1900-01-01T00:00:00+00:00", "views": 1},
+            )
+            assert early_metric.status_code == 409
+            assert early_metric.json()["error"]["code"] == "STATE_CONFLICT"
+            oversized_metric = client.post(
+                f"/api/v1/releases/{release_id}/metrics",
+                headers={**auth, "Idempotency-Key": "api-release-metric-too-large"},
+                json={
+                    "captured_at": "2026-08-15T09:00:00+00:00",
+                    "views": 9_223_372_036_854_775_808,
+                },
+            )
+            assert oversized_metric.status_code == 422
+            assert oversized_metric.json()["error"]["code"] == "INVALID_REQUEST"
+            for index, captured_at in enumerate(
+                (
+                    "9999-12-31T23:59:59-23:00",
+                    "0001-01-01T00:00:00+23:00",
+                )
+            ):
+                out_of_range_metric = client.post(
+                    f"/api/v1/releases/{release_id}/metrics",
+                    headers={
+                        **auth,
+                        "Idempotency-Key": f"api-release-metric-out-of-range-{index}",
+                    },
+                    json={"captured_at": captured_at, "views": 1},
+                )
+                assert out_of_range_metric.status_code == 422
+                assert out_of_range_metric.json()["error"]["code"] == "INVALID_REQUEST"
             metric_body = {
-                "captured_at": "2026-08-17T12:00:00+08:00",
+                "captured_at": "2026-08-15T09:00:00+00:00",
                 "views": 12_345,
                 "likes": 678,
                 "comments": 45,

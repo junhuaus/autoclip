@@ -4,8 +4,10 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
 
 from sqlalchemy import func, insert, select, update
@@ -20,6 +22,7 @@ from liveclip.application.authorization import (
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.application.releases import (
+    MAX_RELEASE_CLOCK_SKEW,
     ReleaseApprovalCommand,
     ReleaseAssignee,
     ReleaseConflict,
@@ -106,6 +109,11 @@ from liveclip.domain.state_transitions import (
     TaskStatus,
     transition_task,
 )
+from liveclip.media.secure_files import (
+    PinnedRegularFile,
+    SecureFileError,
+    open_pinned_regular_file,
+)
 from liveclip.renderer.contracts import (
     has_current_manual_render_contract,
     is_clean_review_proxy,
@@ -165,11 +173,44 @@ class _RenderEvidence:
     revision_epoch: int
 
 
+@dataclass(frozen=True, slots=True)
+class _PinnedPackageArtifact:
+    label: str
+    asset_id: str
+    kind: str
+    relative_path: str
+    path: Path
+    pinned: PinnedRegularFile
+    sha256: str
+    size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class _PackageArtifactHashes:
+    manifest_sha256: str | None
+    zip_sha256: str | None
+    pinned: tuple[_PinnedPackageArtifact, ...] = ()
+
+    def validate_final_binding(self) -> None:
+        for artifact in self.pinned:
+            try:
+                artifact.pinned.validate_at(artifact.path)
+            except (OSError, SecureFileError) as exc:
+                raise ReleaseConflict(
+                    "release package artifact bytes changed before publication committed"
+                ) from exc
+            if artifact.pinned.metadata.st_size != artifact.size_bytes:
+                raise ReleaseConflict(
+                    "release package artifact bytes changed before publication committed"
+                )
+
+
 class SqlAlchemyReleaseRepository:
     """SQLite adapter for auditable release planning and immutable package work."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, data_dir: Path) -> None:
         self._engine = engine
+        self._data_dir = data_dir.resolve(strict=True)
 
     def create_item(
         self,
@@ -551,7 +592,41 @@ class SqlAlchemyReleaseRepository:
         if not isinstance(command, ReleaseStatusCommand):
             raise TypeError("release status command is invalid")
         now = datetime.now(UTC)
-        with begin_immediate(self._engine) as connection:
+        artifact_stack = ExitStack()
+        publication_artifacts: _PackageArtifactHashes | None = None
+        try:
+            if command.target is ReleaseItemStatus.PUBLISHED:
+                if command.release_package_id is None:
+                    raise ReleaseConflict("publication requires the exact platform package")
+                with self._engine.connect() as read_connection:
+                    prepared_item = _item_row(read_connection, release_item_id)
+                    _require_release_actor(
+                        read_connection,
+                        project_id=str(prepared_item.project_id),
+                        user_id=acting_user_id,
+                        approval=False,
+                    )
+                    if int(prepared_item.management_version) != command.expected_management_version:
+                        raise ReleaseConflict("release item management version changed")
+                    try:
+                        transition_release_item(
+                            ReleaseItemStatus(str(prepared_item.status)),
+                            command.target,
+                        )
+                    except ReleaseTransitionError as exc:
+                        raise ReleaseConflict(str(exc)) from exc
+                    _, publication_artifacts = _publication_evidence_from_package(
+                        read_connection,
+                        item=prepared_item,
+                        release_package_id=command.release_package_id,
+                        now=now,
+                        data_dir=self._data_dir,
+                        artifact_stack=artifact_stack,
+                    )
+        except Exception:
+            artifact_stack.close()
+            raise
+        with artifact_stack, begin_immediate(self._engine) as connection:
             row = _item_row(connection, release_item_id)
             _require_release_actor(
                 connection,
@@ -599,11 +674,18 @@ class SqlAlchemyReleaseRepository:
             if command.target is ReleaseItemStatus.PUBLISHED:
                 if command.release_package_id is None:
                     raise ReleaseConflict("publication requires the exact platform package")
-                publication_evidence = _publication_evidence_from_package(
+                if (
+                    command.published_at is None
+                    or _release_observed_utc(command.published_at, "published time")
+                    > now + MAX_RELEASE_CLOCK_SKEW
+                ):
+                    raise ReleaseConflict("published time cannot be in the future")
+                publication_evidence, publication_artifacts = _publication_evidence_from_package(
                     connection,
                     item=row,
                     release_package_id=command.release_package_id,
                     now=now,
+                    expected_artifacts=publication_artifacts,
                 )
             values: dict[str, object | None] = {
                 "status": command.target.value,
@@ -720,7 +802,10 @@ class SqlAlchemyReleaseRepository:
                 correlation_id=correlation_id,
                 now=now,
             )
-            return _get_item(connection, release_item_id)
+            result = _get_item(connection, release_item_id)
+            if publication_artifacts is not None:
+                publication_artifacts.validate_final_binding()
+            return result
 
     def add_metric(
         self,
@@ -759,6 +844,12 @@ class SqlAlchemyReleaseRepository:
                 raise ReleaseConflict("metrics require recorded publication evidence")
             if row.published_at is None:
                 raise ReleaseConflict("metrics require a recorded publication time")
+            captured_at = _release_observed_utc(command.captured_at, "metric capture time")
+            published_at = _release_observed_utc(row.published_at, "published time")
+            if captured_at > now + MAX_RELEASE_CLOCK_SKEW:
+                raise ReleaseConflict("metric capture time cannot be in the future")
+            if captured_at < published_at:
+                raise ReleaseConflict("metric capture time cannot precede publication")
             metric_id = new_id()
             connection.execute(
                 insert(ReleaseMetricSnapshotRow).values(
@@ -2698,7 +2789,7 @@ def _package_snapshot(
     *,
     published_package_id: str | None,
 ) -> ReleasePackageSnapshot:
-    manifest_sha256, zip_sha256 = _package_artifact_hashes(connection, row)
+    artifact_hashes = _package_artifact_hashes(connection, row)
     published_artifact = str(row.id) == published_package_id
     return ReleasePackageSnapshot(
         release_package_id=row.id,
@@ -2717,8 +2808,8 @@ def _package_snapshot(
         manifest_asset_id=row.manifest_asset_id,
         zip_asset_id=row.zip_asset_id,
         video_sha256=_package_video_sha256(row.snapshot_json),
-        manifest_sha256=manifest_sha256,
-        zip_sha256=zip_sha256,
+        manifest_sha256=artifact_hashes.manifest_sha256,
+        zip_sha256=artifact_hashes.zip_sha256,
         include_zip=row.include_zip,
         error_code=row.error_code,
         safe_error_message=row.safe_error_message,
@@ -2769,7 +2860,10 @@ def _publication_evidence_from_package(
     item: Any,
     release_package_id: str,
     now: datetime,
-) -> ReleasePublicationEvidence:
+    data_dir: Path | None = None,
+    artifact_stack: ExitStack | None = None,
+    expected_artifacts: _PackageArtifactHashes | None = None,
+) -> tuple[ReleasePublicationEvidence, _PackageArtifactHashes]:
     package = _release_package_row(connection, release_package_id)
     if (
         str(package.release_item_id) != str(item.id)
@@ -2783,7 +2877,15 @@ def _publication_evidence_from_package(
         item.caption_mode
     ):
         raise ReleaseConflict("publication package does not match the current release settings")
-    manifest_sha256, zip_sha256 = _package_artifact_hashes(connection, package)
+    artifact_hashes = _package_artifact_hashes(
+        connection,
+        package,
+        data_dir=data_dir,
+        artifact_stack=artifact_stack,
+        expected=expected_artifacts,
+    )
+    manifest_sha256 = artifact_hashes.manifest_sha256
+    zip_sha256 = artifact_hashes.zip_sha256
     if manifest_sha256 is None:
         raise ReleaseConflict("publication package manifest evidence is missing")
     if bool(package.include_zip):
@@ -2794,18 +2896,21 @@ def _publication_evidence_from_package(
     else:
         artifact_kind = "manifest"
         artifact_sha256 = manifest_sha256
-    return ReleasePublicationEvidence(
-        release_package_id=str(package.id),
-        package_version=f"v{int(package.version):03d}",
-        release_item_version=int(package.expected_release_item_version),
-        preset_version=str(package.preset_version),
-        caption_mode=ReleaseCaptionMode(str(package.caption_mode)),
-        video_sha256=_package_video_sha256(package.snapshot_json),
-        artifact_kind=artifact_kind,
-        artifact_sha256=artifact_sha256,
-        manifest_sha256=manifest_sha256,
-        zip_sha256=zip_sha256,
-        recorded_at=now,
+    return (
+        ReleasePublicationEvidence(
+            release_package_id=str(package.id),
+            package_version=f"v{int(package.version):03d}",
+            release_item_version=int(package.expected_release_item_version),
+            preset_version=str(package.preset_version),
+            caption_mode=ReleaseCaptionMode(str(package.caption_mode)),
+            video_sha256=_package_video_sha256(package.snapshot_json),
+            artifact_kind=artifact_kind,
+            artifact_sha256=artifact_sha256,
+            manifest_sha256=manifest_sha256,
+            zip_sha256=zip_sha256,
+            recorded_at=now,
+        ),
+        artifact_hashes,
     )
 
 
@@ -2859,7 +2964,17 @@ def _release_package_matches_current_content(
 def _package_artifact_hashes(
     connection: Connection,
     package: Any,
-) -> tuple[str | None, str | None]:
+    *,
+    data_dir: Path | None = None,
+    artifact_stack: ExitStack | None = None,
+    expected: _PackageArtifactHashes | None = None,
+) -> _PackageArtifactHashes:
+    if (data_dir is None) != (artifact_stack is None):
+        raise RuntimeError(
+            "release artifact data directory and pin stack must be provided together"
+        )
+    if expected is not None and data_dir is not None:
+        raise RuntimeError("release artifact verification modes cannot be combined")
     requested: dict[str, tuple[str, str]] = {}
     if package.manifest_asset_id is not None:
         requested[str(package.manifest_asset_id)] = (
@@ -2869,9 +2984,18 @@ def _package_artifact_hashes(
     if package.zip_asset_id is not None:
         requested[str(package.zip_asset_id)] = ("zip", "release_package_zip")
     if not requested:
-        return None, None
+        if expected is not None and expected.pinned:
+            raise ReleaseConflict("release package artifact evidence changed before publication")
+        return _PackageArtifactHashes(manifest_sha256=None, zip_sha256=None)
     rows = connection.execute(
-        select(AssetRow.id, AssetRow.kind, AssetRow.status, AssetRow.sha256).where(
+        select(
+            AssetRow.id,
+            AssetRow.kind,
+            AssetRow.status,
+            AssetRow.sha256,
+            AssetRow.relative_path,
+            AssetRow.size_bytes,
+        ).where(
             AssetRow.id.in_(requested),
             AssetRow.project_id == package.project_id,
         )
@@ -2880,16 +3004,69 @@ def _package_artifact_hashes(
     if set(by_id) != set(requested):
         raise ReleaseConflict("release package artifact evidence is missing")
     hashes: dict[str, str] = {}
+    pinned_artifacts: list[_PinnedPackageArtifact] = []
+    expected_by_id = (
+        {artifact.asset_id: artifact for artifact in expected.pinned}
+        if expected is not None
+        else {}
+    )
+    if expected is not None and set(expected_by_id) != set(requested):
+        raise ReleaseConflict("release package artifact evidence changed before publication")
     for asset_id, (label, kind) in requested.items():
         asset = by_id[asset_id]
         digest = asset.sha256
+        relative_path = str(asset.relative_path)
+        size_bytes = asset.size_bytes
         if (
             asset.status != AssetStatus.COMMITTED.value
             or asset.kind != kind
             or not isinstance(digest, str)
             or re.fullmatch(r"[a-f0-9]{64}", digest) is None
+            or not isinstance(size_bytes, int)
+            or size_bytes <= 0
         ):
             raise ReleaseConflict("release package artifact evidence is invalid")
+        if expected is not None:
+            prior = expected_by_id[asset_id]
+            if (
+                prior.label != label
+                or prior.kind != kind
+                or prior.relative_path != relative_path
+                or prior.sha256 != digest
+                or prior.size_bytes != size_bytes
+            ):
+                raise ReleaseConflict(
+                    "release package artifact evidence changed before publication"
+                )
+        if data_dir is not None:
+            assert artifact_stack is not None
+            path = _release_artifact_path(
+                data_dir,
+                project_id=str(package.project_id),
+                relative_path=relative_path,
+            )
+            try:
+                pinned = artifact_stack.enter_context(open_pinned_regular_file(path))
+                observed_digest = pinned.sha256()
+                observed_size = pinned.metadata.st_size
+            except (OSError, SecureFileError) as exc:
+                raise ReleaseConflict(
+                    "release package artifact bytes are missing or unsafe"
+                ) from exc
+            if observed_digest != digest or observed_size != size_bytes:
+                raise ReleaseConflict("release package artifact bytes changed after completion")
+            pinned_artifacts.append(
+                _PinnedPackageArtifact(
+                    label=label,
+                    asset_id=asset_id,
+                    kind=kind,
+                    relative_path=relative_path,
+                    path=path,
+                    pinned=pinned,
+                    sha256=digest,
+                    size_bytes=size_bytes,
+                )
+            )
         hashes[label] = digest
     manifest_sha256 = hashes.get("manifest")
     zip_sha256 = hashes.get("zip")
@@ -2900,7 +3077,29 @@ def _package_artifact_hashes(
         or (not bool(package.include_zip) and package.zip_sha256 is not None)
     ):
         raise ReleaseConflict("release package artifact evidence changed after completion")
-    return manifest_sha256, zip_sha256
+    return _PackageArtifactHashes(
+        manifest_sha256=manifest_sha256,
+        zip_sha256=zip_sha256,
+        pinned=(expected.pinned if expected is not None else tuple(pinned_artifacts)),
+    )
+
+
+def _release_artifact_path(
+    data_dir: Path,
+    *,
+    project_id: str,
+    relative_path: str,
+) -> Path:
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", project_id) is None or "\\" in relative_path:
+        raise ReleaseConflict("release package artifact path is invalid")
+    relative = PurePosixPath(relative_path)
+    if (
+        not relative_path
+        or relative.is_absolute()
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        raise ReleaseConflict("release package artifact path is invalid")
+    return data_dir / project_id / Path(*relative.parts)
 
 
 def _checklist(value: object) -> ReleaseChecklist:
@@ -3032,6 +3231,13 @@ def _audit_project_publication(
 
 def _timestamp(value: datetime | None) -> str | None:
     return value.astimezone(UTC).isoformat() if value is not None else None
+
+
+def _release_observed_utc(value: datetime, label: str) -> datetime:
+    try:
+        return value.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise ReleaseConflict(f"release {label} is outside the supported datetime range") from exc
 
 
 __all__ = ["SqlAlchemyReleaseRepository"]

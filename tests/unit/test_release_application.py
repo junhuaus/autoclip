@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
 
 from liveclip.application.releases import (
+    MAX_RELEASE_CLOCK_SKEW,
+    MAX_RELEASE_METRIC_VALUE,
     ReleaseItemUpdate,
+    ReleaseMetricCreate,
     ReleasePackageRequest,
     ReleaseStatusCommand,
 )
@@ -53,27 +56,28 @@ def test_release_update_rejects_duplicate_or_naive_schedule() -> None:
 
 
 def test_published_result_requires_https_identity_and_aware_time() -> None:
+    observed_at = datetime.now(UTC) - timedelta(minutes=1)
     with pytest.raises(ValidationError):
         ReleaseStatusCommand(
             expected_management_version=1,
             target=ReleaseItemStatus.PUBLISHED,
             release_package_id="package_1",
             external_url="http://example.test/watch/1",
-            published_at=datetime(2026, 8, 16, 12, tzinfo=UTC),
+            published_at=observed_at,
         )
     with pytest.raises(ValidationError):
         ReleaseStatusCommand(
             expected_management_version=1,
             target=ReleaseItemStatus.PUBLISHED,
             release_package_id="package_1",
-            published_at=datetime(2026, 8, 16, 12, tzinfo=UTC),
+            published_at=observed_at,
         )
     with pytest.raises(ValidationError, match="exact platform package"):
         ReleaseStatusCommand(
             expected_management_version=1,
             target=ReleaseItemStatus.PUBLISHED,
             external_id="external-1",
-            published_at=datetime(2026, 8, 16, 12, tzinfo=UTC),
+            published_at=observed_at,
         )
 
     value = ReleaseStatusCommand(
@@ -81,10 +85,49 @@ def test_published_result_requires_https_identity_and_aware_time() -> None:
         target=ReleaseItemStatus.PUBLISHED,
         release_package_id="package_1",
         external_url="https://example.test/watch/1",
-        published_at=datetime(2026, 8, 16, 12, tzinfo=UTC),
+        published_at=observed_at,
     )
     assert value.external_url == "https://example.test/watch/1"
     assert value.release_package_id == "package_1"
+
+
+def test_observed_release_times_and_metric_values_are_bounded() -> None:
+    too_far_ahead = datetime.now(UTC) + MAX_RELEASE_CLOCK_SKEW + timedelta(minutes=1)
+    with pytest.raises(ValidationError, match="cannot be in the future"):
+        ReleaseStatusCommand(
+            expected_management_version=1,
+            target=ReleaseItemStatus.PUBLISHED,
+            release_package_id="package_1",
+            external_id="external-1",
+            published_at=too_far_ahead,
+        )
+    with pytest.raises(ValidationError, match="cannot be in the future"):
+        ReleaseMetricCreate(captured_at=too_far_ahead)
+    with pytest.raises(ValidationError):
+        ReleaseMetricCreate(
+            captured_at=datetime.now(UTC),
+            views=MAX_RELEASE_METRIC_VALUE + 1,
+        )
+
+    maximum = ReleaseMetricCreate(
+        captured_at=datetime.now(UTC),
+        views=MAX_RELEASE_METRIC_VALUE,
+    )
+    assert maximum.views == MAX_RELEASE_METRIC_VALUE
+
+
+@pytest.mark.parametrize(
+    "outside_range",
+    [
+        datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone(-timedelta(hours=23))),
+        datetime(1, 1, 1, tzinfo=timezone(timedelta(hours=23))),
+    ],
+)
+def test_release_datetimes_reject_utc_conversion_overflow(outside_range: datetime) -> None:
+    with pytest.raises(ValidationError, match="outside the supported datetime range"):
+        ReleaseMetricCreate(captured_at=outside_range)
+    with pytest.raises(ValidationError, match="outside the supported datetime range"):
+        _update(planned_publish_at=outside_range)
 
 
 def test_platform_release_package_is_always_a_complete_zip() -> None:
