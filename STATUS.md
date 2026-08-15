@@ -6,8 +6,8 @@ Current package baseline: `0.1.0`
 
 Current milestone: v0.2 V2-M5 reviewed checkpoint, then staged V2-M6 collaboration work
 
-Branch: `main` tracking `origin/main`; local HEAD `be6d110`, origin was
-`f4d378c` before the pending M5 checkpoint.
+Branch: `main` tracking `origin/main`; reviewed V2-M5 implementation commit is
+`4b51f29`. The last observed origin was `f4d378c` before pushing local checkpoints.
 
 ## Current user-visible result
 
@@ -161,17 +161,17 @@ Demo evidence:
   SQLite/WAL, media, caches, deliveries, E2E results or migration backups.
 - No credential was printed, persisted or staged. M5 validation used Mock/
   isolated fixtures and made no paid ASR/LLM call.
-- The worktree intentionally contains the reviewed M5 implementation and docs;
-  generated/private paths remain ignored and unstaged. `git diff --check`
-  passes. Local `main` is one commit ahead of the last observed `origin/main`
-  because `be6d110` has not yet been pushed with this M5 batch.
+- Reviewed V2-M5 source/tests/docs are committed at `4b51f29`; generated/private
+  paths remain ignored and unstaged. `git diff --check` passes. Push only the
+  reviewed local commits after recording this recovery snapshot.
 
 ## Current work and next concrete task
 
-The independent verifier and all final gates are complete. Audit the exact
-staged set, confirm no credential/input/data/E2E artifact is included, commit
-and push the reviewed V2-M5 batch. Then begin V2-M6 with revision/timecode
-comments before saved views, bulk operations, search or optional PAT work.
+The independent verifier, all final gates and exact staged-set audit are
+complete; V2-M5 implementation is committed at `4b51f29`. Commit this recovery
+snapshot, push the reviewed local commits, then begin V2-M6 with revision/
+timecode comments before saved views, bulk operations, search or optional PAT
+work.
 
 ## Resume instructions
 
@@ -180,5 +180,5 @@ Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 --branch`, `git diff --check`, `git log -5 --oneline`, `.venv/bin/alembic
 current` and `.venv/bin/alembic check`. Preserve the three real Projects, Demo
 evidence and pre-d8 backup. Do not reprocess real inputs or invoke paid
-Providers. If the V2-M5 commit exists, verify its hash and begin the first
-unfinished V2-M6 task; otherwise continue from the exact staged-set audit.
+Providers. Verify commit `4b51f29` and the following STATUS checkpoint are
+present/pushed, then begin the first unfinished V2-M6 task.
