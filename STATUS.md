@@ -1,184 +1,146 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-15 23:40 CST
+Updated: 2026-08-16 08:40 CST
 
 Current package baseline: `0.1.0`
 
-Current milestone: v0.2 V2-M5 reviewed checkpoint, then staged V2-M6 collaboration work
+Current milestone: V2-M6 exact-revision/timecode collaboration comments are
+implemented and reviewed; checkpoint publication is in progress. The next
+slice is server-authorized Project search plus per-user saved views.
 
-Branch: `main` tracking `origin/main`; reviewed V2-M5 implementation commit is
-`4b51f29`. The last observed origin was `f4d378c` before pushing local checkpoints.
+Branch: `main` tracking `origin/main`. Current checked-in head is `10b443f`;
+the comment implementation is still in the working tree until the next local
+milestone commit.
 
 ## Current user-visible result
 
-V2-M0 through V2-M4 are checkpointed. The authenticated editor workspace now
-supports local administrator login and user CRUD/roles, default-private
-Project membership, ownership transfer, a professional editorial lifecycle,
-horizontal high-point review, selective clean MP4/SRT editor handoff, immutable
-formal Delivery, and per-platform release planning/package evidence without
-storing social credentials or claiming uploads.
+V2-M0 through V2-M5 remain checkpointed. LiveClip provides administrator
+login and user/role management, default-private Project membership, ownership
+recovery, professional editorial/release lifecycle, selective clean MP4/SRT
+editor handoff, immutable Delivery, platform release planning and storage
+governance without storing social credentials or claiming external uploads.
 
-V2-M5 adds explicit “项目治理” and “存储管理” administrator pages plus an
-operational CLI. Ordinary Project/API/media routes remain membership-scoped,
-even for administrators. The separate governance context can list all Projects,
-show a disabled owner, transfer ownership to an active user and read sanitized
-audit evidence; it never adds the administrator as a member or grants editorial
-or media access. Inventory
-separates Project data, SQLite/WAL, backups, tracked/stale/invalid/untracked
-artifacts, unknown directories, unsafe entries and pending purge quarantine.
-Routine cleanup only claims terminal attempt worktrees. Archive remains
-reversible. Permanent purge requires an archived idle Project, a fresh scope
-fingerprint, exact Project-name plus `PURGE PROJECT_ID` confirmations, and a
-validated no-clobber recovery point; external SourceMedia is never deleted.
-`liveclip db-backup` captures committed WAL state and `db-restore` validates a
-closed backup into a new non-live path.
+The first V2-M6 collaboration slice adds a “协作批注” panel to each high-point
+editor row:
+
+- owner/editor/reviewer can capture the exact current player time, create a
+  thread, mention active explicit Project members, reply, resolve and reopen;
+- viewer/workspace-visible users can read but not mutate; archived Projects are
+  read-only and a private outsider still receives 404;
+- a thread is bound to one exact EditPlan revision and stores immutable
+  original clip-relative milliseconds plus canonical source milliseconds;
+- historical threads remain truthful after an edit and seek into the current
+  revision only when that source instant still exists;
+- concurrent replies append independently, while resolve/reopen uses an exact
+  optimistic thread version;
+- all POST operations support idempotent retry, list queries are bounded and
+  paginated, and comment text is excluded from audit metadata;
+- comment activity does not approve/reject a clip, change Project lifecycle,
+  create an EditPlan revision, queue rendering or stale existing media.
 
 The three existing real Projects remain intact and were not reprocessed:
 
-- `8.15-1`: Project `67e827b4c0c8493b9804241e517cc5fe`, current run
-  `f0187e64fdbe44cdad62e4ae7afd9bd7`, 15 validated clean proxies.
-- `8.15-2`: Project `4e3bf22ebf2f4b6a81f5ae5a0e552a46`, current run
-  `a4228d3ca597476685c11b52a1202309`, 15 validated clean proxies.
-- `7.28`: Project `f91cb996f7534a6682aa5e5f01374b7b`; unchanged.
+- `8.15-1`: `67e827b4c0c8493b9804241e517cc5fe`, completed generation 2,
+  15 successful clean proxies, `pending_review`.
+- `8.15-2`: `4e3bf22ebf2f4b6a81f5ae5a0e552a46`, completed generation 2,
+  15 successful clean proxies, `pending_review`.
+- `7.28`: `f91cb996f7534a6682aa5e5f01374b7b`, unchanged.
 
-## Completed v0.2 work
+At the user's request, immutable offline-review v001 packages were generated
+for `8.15-1` and `8.15-2`. Each contains 15 clean MP4s, 15 SRTs, 15 per-clip
+descriptions, combined descriptions, manifest/checksums and a file-only HTML
+viewer. Both ZIPs passed archive and per-member SHA-256 validation. They are
+ignored generated data and must never enter Git.
 
-- V2-M0: product/research contract, ADR-014 and phased Living ExecPlan.
-- V2-M1: Argon2id accounts, opaque sessions, CSRF, administrator user
-  management, private Projects, role/capability policy and ownership transfer.
-- V2-M2: business lifecycle separate from Pipeline state, assignment,
-  priority, due date, archive/restore, activity and dashboard filters.
-- V2-M3: signed exact MP4/SRT downloads and immutable selective editor package
-  with clean media, captions, metadata, thumbnails, checksums, guide and ZIP.
-- V2-M4: versioned platform presets; ReleaseItem approval/status/audit/metrics/
-  publication evidence; leased immutable platform ZIP; queue/calendar Web UI.
-- V2-M5 implementation: bounded publication/metric evidence; pinned-byte
-  publication re-hash; safe storage inventory/cleanup/purge; WAL-consistent
-  backup/new-path restore; source/data-root separation; short-transaction
-  inode quarantine; interrupted purge recovery; package lease-handoff safety;
-  explicit administrator Project recovery; and live-authority revocation fences.
+## Current implementation
 
-## M5 correctness decisions
-
-- New API, CLI and shared PipelineService imports reject SourceMedia anywhere
-  below `LIVECLIP_DATA_DIR`; purge still checks all legacy Project/SourceMedia
-  references and never opens the external source for deletion.
-- Recursive verification and deletion occur outside SQLite writer
-  transactions. Short transactions contain only authority/state/source/inode
-  fences and an exact no-replace quarantine rename, preserving Worker
-  heartbeat availability.
-- A retry may adopt exact matching committed package Assets only after moving
-  `producer_attempt_id` to the current attempt. A lost runner never withdraws.
-  Current compensation atomically couples active lease/Asset ownership with an
-  exact directory-inode quarantine and Asset invalidation; recursive cleanup
-  follows commit and is recoverable by the attempt janitor.
-- Deterministically corrupt adopted Edit/Release directories are withdrawn and
-  can be rebuilt. A transient local validation outage preserves the directory
-  for bounded retry.
-- Backup is created and inspected from a system-owned private stable snapshot;
-  restore rejects nonempty WAL/hot-journal sidecars and the configured live
-  database endpoint, and never overwrites a destination.
-- Administrator identity mutations and their post-mutation user lists share one
-  short `BEGIN IMMEDIATE`; a disable/demotion is ordered against every later
-  admin read or write. Long storage scans recheck the current account after
-  filesystem traversal and refuse to return private inventory if authority was
-  revoked mid-scan.
-- Recursive deletion first moves the exact recorded inode to deterministic
-  `.NAME.cleanup`. Process termination may leave that private endpoint, but the
-  next pass resumes only with matching persisted identity. Original+hidden,
-  wrong-inode and SourceMedia-in-hidden-alias cases all fail closed.
+- Domain/application: `src/liveclip/application/comments.py` defines strict
+  thread/message/mention/status commands and DTOs; centralized authorization
+  exposes the `comment` Project capability.
+- Persistence: migration `e92b7c4d1a60` adds append-only comment threads,
+  messages and mentions with exact revision/source anchors, identity snapshots,
+  constraints and indexes. `SqlAlchemyClipCommentRepository` performs every
+  read/write authorization check against live database state.
+- API: authorized list/create/get/reply/status routes use stable 201/200/403/
+  404/409/422 behavior, bounded filters/pagination and `Idempotency-Key` on all
+  POSTs.
+- Web: `ClipComments.tsx` provides time capture/seek, member mentions,
+  reply/resolve/reopen, current/history/resolved filters, paging and exact-key
+  retries. A clip/revision change clears relative-time drafts with an explicit
+  warning so an unsaved anchor cannot silently rebind.
+- Purge: Project purge includes comment rows and Project-scoped comment
+  idempotency records while preserving unrelated idempotency evidence.
+- Documentation: Solution/API/architecture and ADR-017 describe the safety,
+  concurrency and time-coordinate boundary.
 
 ## Real database evidence
 
-- `data/projects/liveclip.sqlite3` remains at Alembic `d8f3a6b1c420 (head)`.
-- WAL-safe pre-d8 recovery point remains
-  `data/projects/migration-backups/liveclip-pre-d8f3a6b1c420-20260815T194643+0800.sqlite3`,
-  SHA-256 `af49cc9219a1444ed6de0b2f83fb179cc6d012e4bf62056167c4723dbec24ace`.
-- Last controlled verification reported `quick_check=ok`, no foreign-key
-  violations and unchanged protected counts: 3 Projects, 3 SourceMedia, 5
-  PipelineRuns, 131 candidates, 55 EditPlan revisions, 60 renders, 365 Assets,
-  353 API usage rows, 1 workspace user and 3 memberships. Release tables were
-  empty. M5 tests and Demo used isolated roots and did not mutate this database.
+- Before migration, `data/projects/liveclip.sqlite3` reported d8,
+  `quick_check=ok`, no foreign-key violations and no active run/task.
+- WAL-safe backup:
+  `data/projects/database-backups/liveclip-pre-comments-bb77061a92444e399100a4fab9160c34.sqlite3`
+- Backup SHA-256:
+  `90dd7356f09d4a1057cedd6bcc1d931389fe536fe5fd704d5a5915a1a082b84d`
+- The live database now reports `e92b7c4d1a60 (head)` and `alembic check`
+  reports no pending operation.
+- Post-migration integrity remains `quick_check=ok`, foreign keys are clean and
+  protected counts remain 3 Projects, 3 SourceMedia, 5 PipelineRuns,
+  131 candidates, 60 renders and 353 API-usage rows. The three comment tables
+  began empty.
 
 ## Latest actual validation
 
-- `make lint`: passed Ruff/format over 215 files, mypy over 132 source files,
-  EditPlan schema verification and TypeScript.
-- `make test`: passed 698 Python tests, 47 Web component tests across 10 files,
-  Mock Google Chrome E2E 1/1, and isolated real Google Chrome + FastAPI + leased
-  Worker + SQLite + FFmpeg E2E 1/1. The real E2E opened “项目治理” and “存储管理”.
-- `make doctor`: READY. Required tools and OpenRouter/Codex readiness passed.
-  Expected warnings: FFmpeg lacks drawtext/subtitles so the tested Pillow
-  overlay fallback is used; VideoToolbox probe failed and actual libx264
-  fallback encoding succeeded.
-- `make demo`: Project `demo_20260815T153549_c87bdfeb` reached `delivered` with
-  3 candidates, valid 1080×1920 H.264/AAC final media, full decode, contact
-  sheet, manifest and an integrity-tested v001 Delivery ZIP.
-- Main Agent viewed the Demo contact sheet and recorded visual inspection: all
-  three frames are clear with no blur background, black/blank frame, aspect
-  error or severe crop; title and Chinese captions are inside the safe area.
-- Main Agent viewed the fresh real-Chrome Project-governance, storage and full
-  delivery screenshots: hierarchy, contrast, tables, audit timeline, retention
-  explanation and controls are readable without clipping.
-- Independent final v0.2 implementation review: PASS, P0=0/P1=0 after the
-  stale-administrator and cleanup-recovery fixes. It independently reproduced
-  the old stale-actor exploit, then confirmed it returns `DENIED`; the full
-  repository gates above contain the final code and added fault tests.
+- `make lint`: passed Ruff/format over 219 files, mypy over 134 source files,
+  EditPlan schema verification and TypeScript typecheck.
+- `make test`: passed 714 Python tests, 52 Web component tests, Mock Google
+  Chrome E2E 1/1 and isolated real FastAPI/SQLite/leased-Worker/FFmpeg Google
+  Chrome E2E 1/1.
+- Independent comment reviewer: final P0=0/P1=0/P2=0 after draft-rebinding,
+  resolver-history, pagination and concurrency/idempotency/purge evidence gaps
+  were fixed and retested.
+- Actual host Chrome viewed the real `8.15-1` editor: the collaboration panel is
+  visible, the subtitle section remains last, and a representative proxy is
+  direct-source 540×960 with no blurred background. The in-app Browser exposed
+  no controllable instance, so MCP-Browser success is not claimed and no
+  extension was installed.
+- `8.15-1` offline-review ZIP: 289 MB,
+  SHA-256 `38c444df0b1ab49c800646bda8debee5b774a2e4c8a1f4040e27ee0bfe2926c8`.
+- `8.15-2` offline-review ZIP: 288 MB,
+  SHA-256 `83ee259de0651c056cb0c4c800e64c19428dde2a36c404b34d5dfbd718262238`.
 
-Demo evidence:
+## Unverified and remaining scope
 
-- Video: `data/demo/projects/demo_20260815T153549_c87bdfeb/renders/final/clip_01_bdc52e84/r002/final.mp4`
-- Contact sheet: `data/demo/projects/demo_20260815T153549_c87bdfeb/renders/final/clip_01_bdc52e84/r002/final-quality/contact-sheet.png`
-- Quality report: `data/demo/projects/demo_20260815T153549_c87bdfeb/renders/final/clip_01_bdc52e84/r002/final-quality/quality-report.json`
-- Delivery ZIP: `data/demo/projects/demo_20260815T153549_c87bdfeb/deliveries/v001/delivery.zip`
-
-## Unverified and known limits
-
-- The current session exposes the in-app Browser skill but not the Chrome
-  extension skill; MCP Chrome success is not claimed and no extension was
-  installed. The separate actual-host Google Chrome Playwright E2E passed and
-  its fresh screenshot was inspected.
-- External Jianying/CapCut Desktop import remains unverified. LiveClip truthfully
-  provides standards-based clean H.264/AAC MP4 + matching UTF-8 SRT and does
-  not claim an undocumented native draft format.
-- Final legacy source defenses inside short cleanup/purge transactions still
-  scan all source rows and resolve paths. Recursive work is outside the lock,
-  but a future canonical-path index is desirable for very large workspaces.
-- Threaded timecode comments, reusable saved views and cross-Project bulk
-  assignment/review/export plus full Project/clip/release search remain staged
-  V2-M6 enhancements, not claimed completed capability.
-- Scoped hashed PAT lifecycle is not implemented or tested. CLI/API migration
-  compatibility still uses the bounded v0.1 Bearer-token bridge; documentation
-  does not claim PAT expiry was exercised.
-- Immediate stage/render handler cleanup does not yet carry persisted
-  `TaskAttempt.temp_identity` through every synchronous cleanup call. Janitor
-  and package-withdrawal paths are inode-fenced; full propagation is a P2 local
-  same-account filesystem hardening item.
+- Reusable personal saved views and full server-authorized Project/clip/release
+  search are next; cross-Project optimistic bulk assignment remains after that.
+- External Jianying/CapCut Desktop import is unverified. LiveClip truthfully
+  provides standards-based H.264/AAC MP4 plus UTF-8 SRT and does not claim an
+  undocumented native draft format.
+- Scoped hashed PAT lifecycle remains deferred until an actual automation
+  consumer needs more than the bounded v0.1 Bearer-token migration bridge.
+- Immediate stage/render cleanup still has the documented P2 task of carrying
+  persisted `TaskAttempt.temp_identity` through every synchronous cleanup call.
 
 ## Security and worktree
 
 - Never stage `.env`, `.env.local`, `OPENROUTER_SETUP.md`, `input/`, `data/`,
-  SQLite/WAL, media, caches, deliveries, E2E results or migration backups.
-- No credential was printed, persisted or staged. M5 validation used Mock/
-  isolated fixtures and made no paid ASR/LLM call.
-- Reviewed V2-M5 source/tests/docs are committed at `4b51f29`; generated/private
-  paths remain ignored and unstaged. `git diff --check` passes. Push only the
-  reviewed local commits after recording this recovery snapshot.
+  SQLite/WAL, media, offline-review packages, browser artifacts or credentials.
+- No paid Provider call or long-video reprocessing occurred in this slice.
+- `git diff --check`, live `alembic current/check` and health checks pass.
+- The working tree intentionally contains the reviewed collaboration code,
+  tests and documentation until its exact staged-set audit and commit.
 
-## Current work and next concrete task
+## Next concrete task
 
-The independent verifier, all final gates and exact staged-set audit are
-complete; V2-M5 implementation is committed at `4b51f29`. Commit this recovery
-snapshot, push the reviewed local commits, then begin V2-M6 with revision/
-timecode comments before saved views, bulk operations, search or optional PAT
-work.
+Audit the exact collaboration staged set, create and push its milestone commit,
+record the resulting hash here, then implement a server-owned Project search
+query and user-scoped saved-view schema/API before changing dashboard UI.
 
 ## Resume instructions
 
 Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 `docs/exec-plans/liveclip-v0.2.md` and this file. Run `git status --short
 --branch`, `git diff --check`, `git log -5 --oneline`, `.venv/bin/alembic
-current` and `.venv/bin/alembic check`. Preserve the three real Projects, Demo
-evidence and pre-d8 backup. Do not reprocess real inputs or invoke paid
-Providers. Verify commit `4b51f29` and the following STATUS checkpoint are
-present/pushed, then begin the first unfinished V2-M6 task.
+current` and `.venv/bin/alembic check`. Preserve all three real Projects, the
+pre-comments database backup and both offline-review packages. Do not reprocess
+real inputs or invoke paid Providers. Finish the collaboration checkpoint, then
+begin the saved-view/search contract from the server authorization boundary.

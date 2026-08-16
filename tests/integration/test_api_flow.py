@@ -216,6 +216,7 @@ def test_workspace_members_only_see_assigned_projects(tmp_path: Path) -> None:
                 "read",
                 "run_pipeline",
                 "edit_clip",
+                "comment",
                 "render",
                 "export",
                 "deliver",

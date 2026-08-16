@@ -11,6 +11,11 @@ import type {
   ApiErrorEnvelope,
   BatchReviewRequest,
   BatchReviewResponse,
+  ClipCommentReplyRequest,
+  ClipCommentStatusRequest,
+  ClipCommentThread,
+  ClipCommentThreadCreateRequest,
+  ClipCommentThreads,
   ClipDetailResponse,
   ClipPatchRequest,
   ClipSummaryResponse,
@@ -406,6 +411,62 @@ export class LiveClipApiClient {
 
   getClip(clipId: string): Promise<ClipDetailResponse> {
     return this.request(`/clips/${encodeURIComponent(clipId)}`);
+  }
+
+  listClipCommentThreads(
+    clipId: string,
+    options: {
+      revision?: "current" | "all";
+      status?: "open" | "resolved" | "all";
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<ClipCommentThreads> {
+    const query = new URLSearchParams({
+      revision: options.revision ?? "all",
+      status: options.status ?? "all",
+      limit: String(options.limit ?? 100),
+      offset: String(options.offset ?? 0),
+    });
+    return this.request(
+      `/clips/${encodeURIComponent(clipId)}/comment-threads?${query.toString()}`,
+    );
+  }
+
+  createClipCommentThread(
+    clipId: string,
+    body: ClipCommentThreadCreateRequest,
+    requestKey = createIdempotencyKey("comment-thread"),
+  ): Promise<ClipCommentThread> {
+    return this.request(`/clips/${encodeURIComponent(clipId)}/comment-threads`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
+    });
+  }
+
+  replyToClipCommentThread(
+    threadId: string,
+    body: ClipCommentReplyRequest,
+    requestKey = createIdempotencyKey("comment-reply"),
+  ): Promise<ClipCommentThread> {
+    return this.request(`/comment-threads/${encodeURIComponent(threadId)}/replies`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
+    });
+  }
+
+  updateClipCommentThreadStatus(
+    threadId: string,
+    body: ClipCommentStatusRequest,
+    requestKey = createIdempotencyKey("comment-status"),
+  ): Promise<ClipCommentThread> {
+    return this.request(`/comment-threads/${encodeURIComponent(threadId)}/status`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
+    });
   }
 
   patchClip(clipId: string, body: ClipPatchRequest): Promise<ClipDetailResponse> {

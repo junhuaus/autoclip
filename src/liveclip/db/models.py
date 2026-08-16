@@ -695,6 +695,101 @@ class ReviewDecisionRow(Base):
     decided_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
 
 
+class ClipCommentThreadRow(Base):
+    __tablename__ = "clip_comment_threads"
+    __table_args__ = (
+        CheckConstraint("source_time_ms >= 0", name="comment_thread_source_time_nonnegative"),
+        CheckConstraint("clip_time_ms >= 0", name="comment_thread_clip_time_nonnegative"),
+        CheckConstraint("version > 0", name="comment_thread_version_positive"),
+        CheckConstraint(
+            "status IN ('open', 'resolved')",
+            name="comment_thread_status_allowed",
+        ),
+        CheckConstraint(
+            "(status = 'open' AND resolved_by_user_id IS NULL "
+            "AND resolved_by_username IS NULL AND resolved_by_display_name IS NULL "
+            "AND resolved_at IS NULL) OR (status = 'resolved' "
+            "AND resolved_by_username IS NOT NULL AND resolved_by_display_name IS NOT NULL "
+            "AND resolved_at IS NOT NULL)",
+            name="comment_thread_resolution_complete",
+        ),
+        Index(
+            "ix_clip_comment_threads_revision_updated",
+            "edit_plan_revision_id",
+            "updated_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    edit_plan_revision_id: Mapped[str] = mapped_column(
+        ForeignKey("edit_plan_revisions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_time_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    clip_time_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    created_by_username: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_by_display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    resolved_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    resolved_by_username: Mapped[str | None] = mapped_column(String(80))
+    resolved_by_display_name: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class ClipCommentRow(Base):
+    __tablename__ = "clip_comments"
+    __table_args__ = (
+        UniqueConstraint("thread_id", "sequence", name="clip_comment_thread_sequence"),
+        CheckConstraint("sequence > 0", name="clip_comment_sequence_positive"),
+        CheckConstraint(
+            "length(trim(body)) > 0 AND length(body) <= 2000",
+            name="clip_comment_body_length",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    thread_id: Mapped[str] = mapped_column(
+        ForeignKey("clip_comment_threads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    author_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    author_username: Mapped[str] = mapped_column(String(80), nullable=False)
+    author_display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class ClipCommentMentionRow(Base):
+    __tablename__ = "clip_comment_mentions"
+    __table_args__ = (
+        UniqueConstraint("comment_id", "user_id", name="clip_comment_mentioned_user"),
+        UniqueConstraint("comment_id", "mention_index", name="clip_comment_mention_index"),
+        CheckConstraint("mention_index >= 0", name="clip_comment_mention_index_nonnegative"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    comment_id: Mapped[str] = mapped_column(
+        ForeignKey("clip_comments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="SET NULL"), index=True
+    )
+    username: Mapped[str] = mapped_column(String(80), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    mention_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class RenderJobRow(Base):
     __tablename__ = "render_jobs"
     __table_args__ = (

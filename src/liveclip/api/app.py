@@ -34,6 +34,9 @@ from liveclip.api.schemas import (
     ApiErrorItem,
     BatchReviewRequest,
     BatchReviewResponse,
+    ClipCommentReplyRequest,
+    ClipCommentStatusRequest,
+    ClipCommentThreadCreateRequest,
     ClipDetailResponse,
     ClipPatchRequest,
     ClipSummaryResponse,
@@ -71,6 +74,11 @@ from liveclip.application.authorization import (
     ProjectAction,
     ProjectActionDenied,
     require_project_action,
+)
+from liveclip.application.comments import (
+    ClipCommentThread,
+    ClipCommentThreads,
+    CommentConflict,
 )
 from liveclip.application.deliveries import (
     DeliveryConflict,
@@ -925,6 +933,138 @@ def create_app(
         return _clip_response(
             security,
             _require_clip_access(_runtime(request), _caller(request), clip_id),
+        )
+
+    @protected.get(
+        "/clips/{clip_id}/comment-threads",
+        response_model=ClipCommentThreads,
+    )
+    def list_clip_comment_threads(
+        clip_id: str,
+        request: Request,
+        revision_scope: Annotated[
+            Literal["current", "all"],
+            Query(alias="revision"),
+        ] = "current",
+        thread_status: Annotated[
+            Literal["open", "resolved", "all"],
+            Query(alias="status"),
+        ] = "all",
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> ClipCommentThreads:
+        caller = _caller(request)
+        active = _runtime(request)
+        actor = active.workspace_service.get_user_by_username(caller.username)
+        return active.clip_comment_service.list_threads(
+            clip_id,
+            acting_user_id=actor.user_id,
+            revision_scope=revision_scope,
+            status_filter=thread_status,
+            limit=limit,
+            offset=offset,
+        )
+
+    @protected.post(
+        "/clips/{clip_id}/comment-threads",
+        status_code=status.HTTP_201_CREATED,
+        response_model=ClipCommentThread,
+    )
+    def create_clip_comment_thread(
+        clip_id: str,
+        body: ClipCommentThreadCreateRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> ClipCommentThread:
+        caller = _caller(request)
+        active = _runtime(request)
+        actor = active.workspace_service.get_user_by_username(caller.username)
+        thread = active.clip_comment_service.create_thread(
+            clip_id,
+            body.to_command(),
+            acting_user_id=actor.user_id,
+            correlation_id=_correlation_id(request),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/clips/:clip_id/comment-threads",
+                payload={"clip_id": clip_id, **body.model_dump(mode="json")},
+            ),
+        )
+        response.headers["Location"] = f"/api/v1/comment-threads/{thread.thread_id}"
+        return thread
+
+    @protected.get(
+        "/comment-threads/{thread_id}",
+        response_model=ClipCommentThread,
+    )
+    def get_clip_comment_thread(
+        thread_id: str,
+        request: Request,
+    ) -> ClipCommentThread:
+        caller = _caller(request)
+        active = _runtime(request)
+        actor = active.workspace_service.get_user_by_username(caller.username)
+        return active.clip_comment_service.get_thread(
+            thread_id,
+            acting_user_id=actor.user_id,
+        )
+
+    @protected.post(
+        "/comment-threads/{thread_id}/replies",
+        status_code=status.HTTP_201_CREATED,
+        response_model=ClipCommentThread,
+    )
+    def reply_to_clip_comment_thread(
+        thread_id: str,
+        body: ClipCommentReplyRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> ClipCommentThread:
+        caller = _caller(request)
+        active = _runtime(request)
+        actor = active.workspace_service.get_user_by_username(caller.username)
+        thread = active.clip_comment_service.reply(
+            thread_id,
+            body.to_command(),
+            acting_user_id=actor.user_id,
+            correlation_id=_correlation_id(request),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/comment-threads/:thread_id/replies",
+                payload={"thread_id": thread_id, **body.model_dump(mode="json")},
+            ),
+        )
+        response.headers["Location"] = f"/api/v1/comment-threads/{thread.thread_id}"
+        return thread
+
+    @protected.post(
+        "/comment-threads/{thread_id}/status",
+        response_model=ClipCommentThread,
+    )
+    def update_clip_comment_thread_status(
+        thread_id: str,
+        body: ClipCommentStatusRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> ClipCommentThread:
+        caller = _caller(request)
+        active = _runtime(request)
+        actor = active.workspace_service.get_user_by_username(caller.username)
+        return active.clip_comment_service.update_status(
+            thread_id,
+            body.to_command(),
+            acting_user_id=actor.user_id,
+            correlation_id=_correlation_id(request),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/comment-threads/:thread_id/status",
+                payload={"thread_id": thread_id, **body.model_dump(mode="json")},
+            ),
         )
 
     @protected.patch("/clips/{clip_id}", response_model=ClipDetailResponse)
@@ -2156,6 +2296,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProjectLifecycleConflict)
     @app.exception_handler(WorkspaceConflict)
     @app.exception_handler(ReviewConflict)
+    @app.exception_handler(CommentConflict)
     @app.exception_handler(RenderConflict)
     @app.exception_handler(DeliveryConflict)
     @app.exception_handler(EditPackageConflict)

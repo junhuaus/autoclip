@@ -19,6 +19,16 @@ export const server = setupServer(
   http.get("/api/v1/projects/:projectId/activity", ({ params }) =>
     HttpResponse.json({ schema_version: "1", project_id: params.projectId, events: [] }),
   ),
+  http.get("/api/v1/clips/:clipId/comment-threads", ({ params }) =>
+    HttpResponse.json({
+      schema_version: "1",
+      clip_id: params.clipId,
+      current_revision: 1,
+      total_count: 0,
+      next_offset: null,
+      threads: [],
+    }),
+  ),
   http.get("/api/v1/projects/:projectId/edit-packages", () => HttpResponse.json([])),
   http.get("/api/v1/projects/:projectId/releases", ({ params }) =>
     HttpResponse.json({

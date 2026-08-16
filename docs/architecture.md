@@ -35,6 +35,7 @@ flowchart LR
   AUTH -->|read only when workspace-visible| PROJECT
   PROJECT --> RUN[Pipeline runs]
   PROJECT --> CLIP[Clips and revisions]
+  CLIP --> COMMENT[Revision/timecode comments]
   PROJECT --> RENDER[Render jobs]
   PROJECT --> DELIVERY[Deliveries]
   OWNER[Project owner] -->|members + lifecycle + assignment| PROJECT
@@ -89,6 +90,22 @@ stateDiagram-v2
 ```
 
 PipelineRun, StageRun, review, Render and Delivery each have separate state machines; the diagram is user flow, not a single status enum.
+
+## Revision-bound collaboration
+
+```mermaid
+flowchart LR
+  PLAYER[Current player time] --> CREATE[Create with expected revision]
+  CREATE --> REV[Immutable EditPlan revision]
+  REV --> THREAD[Thread: original clip ms + source ms]
+  THREAD --> REPLY[Append-only replies]
+  THREAD --> STATUS[Resolve/reopen with version CAS]
+  REV --> EDIT[Later boundary/title/caption edit]
+  EDIT --> NEWREV[New current revision]
+  THREAD -->|preserved history| REBASE[Derived current-player position or outside-range]
+```
+
+Comments never mutate EditPlan, review, Render or lifecycle state. Owner/editor/reviewer writes are authorized again inside the SQLite transaction; viewer/workspace-visible access is read-only and archive freezes the discussion. A reply has no client version fence because valid concurrent messages must both append. Resolve/reopen changes shared state and uses the thread version. Mentions target active explicit Project members, identity is snapshotted for history, and audit metadata excludes bodies.
 
 ## Professional project lifecycle
 

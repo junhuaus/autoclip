@@ -19,6 +19,11 @@ from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings
 from liveclip.db.models import (
     AuditEventRow,
+    CandidateClipRow,
+    ClipCommentRow,
+    ClipCommentThreadRow,
+    EditPlanRevisionRow,
+    IdempotencyRecordRow,
     PipelineRunRow,
     ProjectMemberRow,
     ProjectRow,
@@ -171,6 +176,10 @@ def test_storage_inventory_and_confirmed_archived_project_purge(
     project_id = "a" * 32
     run_id = "b" * 32
     task_id = "c" * 32
+    clip_id = "6" * 32
+    revision_id = "7" * 32
+    comment_thread_id = "8" * 32
+    comment_id = "9" * 32
     now = datetime(2026, 8, 15, tzinfo=UTC)
     try:
         with runtime.engine.begin() as connection:
@@ -272,6 +281,94 @@ def test_storage_inventory_and_confirmed_archived_project_purge(
                     completed_at=now,
                 )
             )
+            connection.execute(
+                insert(CandidateClipRow).values(
+                    id=clip_id,
+                    project_id=project_id,
+                    pipeline_run_id=run_id,
+                    candidate_key="purge-comment-candidate",
+                    source_start_ms=0,
+                    source_end_ms=1_000,
+                    allowed_start_ms=0,
+                    allowed_end_ms=1_000,
+                    transcript_text="待清除批注",
+                    context_before="",
+                    context_after="",
+                    rule_score=80,
+                    reasons_json=["测试"],
+                    segment_ids_json=[],
+                    current_revision=1,
+                    rank=1,
+                    selected_for_review=True,
+                )
+            )
+            connection.execute(
+                insert(EditPlanRevisionRow).values(
+                    id=revision_id,
+                    candidate_clip_id=clip_id,
+                    revision=1,
+                    parent_revision=None,
+                    origin="deterministic",
+                    source_start_ms=0,
+                    source_end_ms=1_000,
+                    score=80,
+                    title="待清除批注",
+                    hook="关键语句",
+                    reason="测试",
+                    layout="center_crop",
+                    caption_template="clean_zh_v1",
+                    effect="none",
+                    risk_flags_json=[],
+                    prompt_version="editing_v1",
+                    model="mock",
+                    degraded=True,
+                    plan_json={"schema_version": "1"},
+                )
+            )
+            connection.execute(
+                insert(ClipCommentThreadRow).values(
+                    id=comment_thread_id,
+                    edit_plan_revision_id=revision_id,
+                    source_time_ms=500,
+                    clip_time_ms=500,
+                    status="open",
+                    version=1,
+                    created_by_user_id=admin_row.id,
+                    created_by_username=admin_row.username,
+                    created_by_display_name=admin_row.display_name,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            connection.execute(
+                insert(ClipCommentRow).values(
+                    id=comment_id,
+                    thread_id=comment_thread_id,
+                    sequence=1,
+                    author_user_id=admin_row.id,
+                    author_username=admin_row.username,
+                    author_display_name=admin_row.display_name,
+                    body="Project purge 必须清理这条批注",
+                    created_at=now,
+                )
+            )
+            for index, resource_id in enumerate((comment_thread_id, "z" * 32), start=1):
+                connection.execute(
+                    insert(IdempotencyRecordRow).values(
+                        id=f"idem{index:028d}",
+                        caller_scope="user:local-admin",
+                        operation_scope=f"POST:/comments/{index}",
+                        key_hash=str(index) * 64,
+                        request_hash=str(index + 2) * 64,
+                        canonical_schema_version="1",
+                        resource_type="clip_comment_thread",
+                        resource_id=resource_id,
+                        status="completed",
+                        response_status_code=201,
+                        created_at=now,
+                        completed_at=now,
+                    )
+                )
         admin = WorkspaceUser(
             user_id=str(admin_row.id),
             username=str(admin_row.username),
@@ -393,6 +490,24 @@ def test_storage_inventory_and_confirmed_archived_project_purge(
                     select(func.count()).select_from(ProjectRow).where(ProjectRow.id == project_id)
                 )
                 == 0
+            )
+            assert connection.scalar(select(func.count(ClipCommentThreadRow.id))) == 0
+            assert connection.scalar(select(func.count(ClipCommentRow.id))) == 0
+            assert (
+                connection.scalar(
+                    select(func.count(IdempotencyRecordRow.id)).where(
+                        IdempotencyRecordRow.resource_id == comment_thread_id
+                    )
+                )
+                == 0
+            )
+            assert (
+                connection.scalar(
+                    select(func.count(IdempotencyRecordRow.id)).where(
+                        IdempotencyRecordRow.resource_id == "z" * 32
+                    )
+                )
+                == 1
             )
             assert (
                 connection.scalar(

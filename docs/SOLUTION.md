@@ -91,6 +91,8 @@ The initial relational model is:
 - EditPlanRevision: immutable validated plan, parent, origin (`ai`, `deterministic`, `human`), prompt/model/degraded metadata.
 - CaptionCue: immutable per-revision structured relative cue; caption edits create a revision.
 - ReviewDecision: append-only decision bound to an exact revision, reason and timestamp.
+- ClipCommentThread: collaboration thread bound to one immutable EditPlan revision with canonical source milliseconds, original clip-relative milliseconds, open/resolved state, optimistic version and creator/resolver identity snapshots.
+- ClipComment/ClipCommentMention: append-only ordered messages and explicit active-Project-member mention snapshots; account rename or removal cannot rewrite history.
 - RenderJob: exact revision, kind, dimensions/spec hash, render state, Asset, quality report/contact sheet.
 - Delivery: unique Project version and immutable status/snapshot metadata.
 - DeliveryClip: ordered immutable snapshot of clip/revision/render/title/bounds/filenames/hash.
@@ -213,6 +215,10 @@ Any current-revision or review-decision change also fails queued/creating Delive
 
 Approval and rejection are append-only decisions on an exact revision. Delivery eligibility requires the current revision, its current approval, and a succeeded validated final RenderJob with the same revision and render-spec hash. Editing after approval never inherits approval.
 
+Timecoded collaboration is deliberately separate from ReviewDecision and Project lifecycle. Creating a thread requires the exact current saved EditPlan revision and an in-range clip-relative millisecond; the repository stores both that original coordinate and the canonical source millisecond. After a boundary revision, the historical anchor never moves. The current-player coordinate is derived from source time only when the new revision still contains it. Threads neither change review status nor stale a RenderJob.
+
+Owner, editor and reviewer have the centralized `comment` capability; viewer and workspace-visible read access are read-only, and archived Projects allow no comment mutation. Every create/reply/status write reacquires `BEGIN IMMEDIATE` and rechecks the active user, current Project membership and lifecycle rather than trusting request-start authorization. Mentions resolve only to active explicit Project members. Replies are append-only and do not carry an optimistic version: SQLite serializes them and assigns unique sequence/thread versions so two valid replies are both retained. Resolve/reopen is state replacement and therefore requires the exact current thread version. All POST operations are idempotency-key capable. Historical author and mention display snapshots survive account rename/removal. The thread row exposes the current resolver snapshot, while each append-only resolve/reopen audit preserves that transition actor's safe identity snapshot; audit events never contain comment bodies or transcript text. ADR-017 records this boundary.
+
 ## Quality verification
 
 Validation is a first-class output. A single pinned output descriptor feeds ffprobe, full decode and frame extraction, so validation cannot silently move to replacement bytes. ffprobe confirms MP4, H.264/AAC, both streams, expected dimensions/orientation and duration tolerance. File size has a conservative floor. FFmpeg performs a full decode to null. The validator extracts start/middle/end samples, calculates simple luminance/variance/edge/aspect heuristics, checks renderer-owned title/caption bounds against safe areas in final mode (and records `not_applicable` for clean proxies), and builds a contact sheet. Heuristics are labeled automatic; only an actual image-viewer observation sets visual status to viewed, with notes and timestamp. Diagnostic argv/stderr is bounded, path-safe and secret-redacted; failure to persist optional diagnostics emits a path-free structured warning rather than disappearing.
@@ -313,3 +319,6 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-012: grounded review metadata and atomic, revision-fenced batch decisions without A/B variants.
 - ADR-013: environment-authenticated workspace identities with server-side Project membership isolation.
 - ADR-014: local accounts, separate authority dimensions, professional business lifecycle and immutable standards-based editor handoff packages.
+- ADR-015: release planning, platform preflight and immutable handoff packages without storing social-platform credentials.
+- ADR-016: storage inventory, recoverable archive, fenced Project purge and WAL-correct backup/restore.
+- ADR-017: exact-revision/timecode collaboration comments with append-only replies and optimistic resolution state.

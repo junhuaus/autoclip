@@ -346,7 +346,15 @@ it("requires an explicit confirmation before transferring project ownership", as
             { ...project.members[0], role: "editor" },
           ],
           current_user_role: "editor",
-          allowed_actions: ["read", "run_pipeline", "edit_clip", "render", "export", "deliver"],
+          allowed_actions: [
+            "read",
+            "run_pipeline",
+            "edit_clip",
+            "comment",
+            "render",
+            "export",
+            "deliver",
+          ],
         };
         return HttpResponse.json({
           schema_version: "1",

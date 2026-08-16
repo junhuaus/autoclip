@@ -1006,6 +1006,7 @@ export function ProjectWorkspace({
   const canRunPipeline = project.allowed_actions.includes("run_pipeline");
   const canEdit = project.allowed_actions.includes("edit_clip");
   const canReview = project.allowed_actions.includes("review_clip");
+  const canComment = project.allowed_actions.includes("comment");
   const canRender = project.allowed_actions.includes("render");
   const canExport = project.allowed_actions.includes("export");
   const allExportableSelected =
@@ -1224,7 +1225,9 @@ export function ProjectWorkspace({
           clipId={selectedClipId}
           canEdit={canEdit}
           canReview={canReview}
+          canComment={canComment}
           canRender={canRender}
+          members={project.members}
           onClose={() => setSelectedClipId(null)}
           onChanged={() => {
             void clipsQuery.refetch();

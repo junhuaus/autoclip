@@ -1,6 +1,10 @@
 import { expect, test, type Route } from "@playwright/test";
 
 import type {
+  ClipCommentReplyRequest,
+  ClipCommentStatusRequest,
+  ClipCommentThread,
+  ClipCommentThreadCreateRequest,
   ClipDetailResponse,
   ClipPatchRequest,
   ClipSummaryResponse,
@@ -25,6 +29,7 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   let project: ProjectSnapshot = initialProject;
   let clipDetail: ClipDetailResponse = structuredClone(initialClipDetail);
   let clipSummary: ClipSummaryResponse = structuredClone(initialClipSummary);
+  let commentThread: ClipCommentThread | null = null;
 
   await page.context().route("**/api/v1/**", async (route: Route) => {
     const request = route.request();
@@ -143,6 +148,98 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
           events: [],
         },
       });
+      return;
+    }
+    if (path === "/api/v1/clips/clip-1/comment-threads" && method === "GET") {
+      const current = commentThread ? structuredClone(commentThread) : null;
+      if (current) {
+        const currentStart = clipDetail.clip.plan.source_start_ms;
+        const currentEnd = clipDetail.clip.plan.source_end_ms;
+        current.current_revision = clipDetail.clip.current_revision;
+        current.is_current_revision =
+          current.edit_plan_revision === clipDetail.clip.current_revision;
+        current.current_clip_time_ms =
+          current.source_time_ms >= currentStart && current.source_time_ms <= currentEnd
+            ? current.source_time_ms - currentStart
+            : null;
+      }
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          clip_id: "clip-1",
+          current_revision: clipDetail.clip.current_revision,
+          total_count: current ? 1 : 0,
+          next_offset: null,
+          threads: current ? [current] : [],
+        },
+      });
+      return;
+    }
+    if (path === "/api/v1/clips/clip-1/comment-threads" && method === "POST") {
+      const body = request.postDataJSON() as ClipCommentThreadCreateRequest;
+      expect(body.expected_revision).toBe(clipDetail.clip.current_revision);
+      const now = "2026-08-15T00:01:00Z";
+      const author = {
+        user_id: "user-local-admin",
+        username: "local-admin",
+        display_name: "本机管理员",
+      };
+      commentThread = {
+        thread_id: "comment-thread-1",
+        project_id: "project-1",
+        clip_id: "clip-1",
+        edit_plan_revision: body.expected_revision,
+        current_revision: body.expected_revision,
+        is_current_revision: true,
+        is_current_generation: true,
+        source_time_ms: clipDetail.clip.plan.source_start_ms + body.clip_time_ms,
+        clip_time_ms: body.clip_time_ms,
+        current_clip_time_ms: body.clip_time_ms,
+        status: "open",
+        version: 1,
+        allowed_actions: ["reply", "resolve"],
+        created_by: author,
+        resolved_by: null,
+        created_at: now,
+        updated_at: now,
+        resolved_at: null,
+        comments: [
+          {
+            comment_id: "comment-1",
+            author,
+            body: body.body,
+            mentions: [],
+            created_at: now,
+          },
+        ],
+      };
+      await route.fulfill({ status: 201, json: commentThread });
+      return;
+    }
+    if (path === "/api/v1/comment-threads/comment-thread-1/replies" && method === "POST") {
+      const body = request.postDataJSON() as ClipCommentReplyRequest;
+      if (!commentThread) throw new Error("reply requires a comment thread");
+      commentThread.version += 1;
+      commentThread.comments.push({
+        comment_id: `comment-${commentThread.comments.length + 1}`,
+        author: commentThread.created_by,
+        body: body.body,
+        mentions: [],
+        created_at: "2026-08-15T00:02:00Z",
+      });
+      await route.fulfill({ status: 201, json: commentThread });
+      return;
+    }
+    if (path === "/api/v1/comment-threads/comment-thread-1/status" && method === "POST") {
+      const body = request.postDataJSON() as ClipCommentStatusRequest;
+      if (!commentThread) throw new Error("status change requires a comment thread");
+      expect(body.expected_thread_version).toBe(commentThread.version);
+      commentThread.version += 1;
+      commentThread.status = body.status;
+      commentThread.allowed_actions = body.status === "resolved" ? ["reopen"] : ["reply", "resolve"];
+      commentThread.resolved_by = body.status === "resolved" ? commentThread.created_by : null;
+      commentThread.resolved_at = body.status === "resolved" ? "2026-08-15T00:03:00Z" : null;
+      await route.fulfill({ json: commentThread });
       return;
     }
     if (path === "/api/v1/projects/project-1/members" && method === "POST") {
@@ -598,11 +695,22 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await page.getByRole("button", { name: "审核和编辑" }).click();
   const editor = page.locator("section.clip-editor");
   await expect(editor).toBeVisible();
+  await expect(editor.getByRole("heading", { name: "协作批注" })).toBeVisible();
+  await editor.getByLabel("片段时间（秒）").fill("0.500");
+  await editor.getByLabel("批注内容").fill("浏览器时间点批注");
+  await editor.getByRole("button", { name: "添加时间点批注" }).click();
+  await expect(editor.getByText("浏览器时间点批注")).toBeVisible();
+  await editor.getByLabel("回复").fill("浏览器协作回复");
+  await editor.getByRole("button", { name: "回复" }).click();
+  await expect(editor.getByText("浏览器协作回复")).toBeVisible();
+  await editor.getByRole("button", { name: "标记已解决" }).click();
+  await expect(editor.locator(".comment-status")).toHaveText("已解决");
   await editor.getByLabel("标题").fill("浏览器审核后的标题");
   await editor.getByLabel("源开始（ms）").fill("1200");
   await editor.getByLabel("文本").fill("浏览器逐 cue 修改字幕");
   await editor.getByRole("button", { name: "保存为新 revision" }).click();
   await expect(editor.getByText(/旧 revision 的 1 个渲染已失效/)).toBeVisible();
+  await expect(editor.getByText("历史 r1")).toBeVisible();
 
   await editor.getByRole("button", { name: "批准" }).click();
   await expect(editor.getByText("已批准")).toBeVisible();

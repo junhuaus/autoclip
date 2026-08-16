@@ -33,8 +33,11 @@ from liveclip.db.models import (
     AssetRow,
     AuditEventRow,
     CandidateClipRow,
+    ClipCommentRow,
+    ClipCommentThreadRow,
     DeliveryRow,
     EditPackageRow,
+    EditPlanRevisionRow,
     IdempotencyRecordRow,
     PipelineRunRow,
     ProjectRow,
@@ -632,6 +635,21 @@ def _project_resource_ids(connection: Connection, project_id: str) -> set[str]:
     queries = (
         select(PipelineRunRow.id).where(PipelineRunRow.project_id == project_id),
         select(CandidateClipRow.id).where(CandidateClipRow.project_id == project_id),
+        select(ClipCommentThreadRow.id)
+        .join(
+            EditPlanRevisionRow,
+            EditPlanRevisionRow.id == ClipCommentThreadRow.edit_plan_revision_id,
+        )
+        .join(CandidateClipRow, CandidateClipRow.id == EditPlanRevisionRow.candidate_clip_id)
+        .where(CandidateClipRow.project_id == project_id),
+        select(ClipCommentRow.id)
+        .join(ClipCommentThreadRow, ClipCommentThreadRow.id == ClipCommentRow.thread_id)
+        .join(
+            EditPlanRevisionRow,
+            EditPlanRevisionRow.id == ClipCommentThreadRow.edit_plan_revision_id,
+        )
+        .join(CandidateClipRow, CandidateClipRow.id == EditPlanRevisionRow.candidate_clip_id)
+        .where(CandidateClipRow.project_id == project_id),
         select(RenderJobRow.id)
         .join(CandidateClipRow, CandidateClipRow.id == RenderJobRow.candidate_clip_id)
         .where(CandidateClipRow.project_id == project_id),

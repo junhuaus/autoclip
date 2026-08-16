@@ -139,6 +139,86 @@ def test_release_planning_migration_round_trip(
 
 
 @pytest.mark.integration
+def test_clip_comment_migration_round_trip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    database_path = tmp_path / "clip-comments.sqlite3"
+    monkeypatch.setenv("LIVECLIP_DATABASE_PATH", str(database_path))
+    config = Config(str(project_root / "alembic.ini"))
+
+    command.upgrade(config, "d8f3a6b1c420")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert not {
+            "clip_comment_threads",
+            "clip_comments",
+            "clip_comment_mentions",
+        }.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose(close=True)
+
+    command.upgrade(config, "head")
+    command.upgrade(config, "head")
+    command.check(config)
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        inspector = inspect(engine)
+        assert {
+            "clip_comment_threads",
+            "clip_comments",
+            "clip_comment_mentions",
+        }.issubset(inspector.get_table_names())
+        thread_columns = {value["name"] for value in inspector.get_columns("clip_comment_threads")}
+        assert {
+            "edit_plan_revision_id",
+            "source_time_ms",
+            "clip_time_ms",
+            "version",
+            "created_by_username",
+            "resolved_by_username",
+        }.issubset(thread_columns)
+        assert "project_id" not in thread_columns
+        assert "candidate_clip_id" not in thread_columns
+        thread_foreign_keys = {
+            (tuple(value["constrained_columns"]), value["options"].get("ondelete"))
+            for value in inspector.get_foreign_keys("clip_comment_threads")
+        }
+        assert (
+            ("edit_plan_revision_id",),
+            "CASCADE",
+        ) in thread_foreign_keys
+        assert (("created_by_user_id",), "SET NULL") in thread_foreign_keys
+        mention_uniques = {
+            tuple(value["column_names"])
+            for value in inspector.get_unique_constraints("clip_comment_mentions")
+        }
+        assert {("comment_id", "user_id"), ("comment_id", "mention_index")}.issubset(
+            mention_uniques
+        )
+        assert inspector.get_indexes("clip_comment_threads")
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    finally:
+        engine.dispose(close=True)
+
+    command.downgrade(config, "d8f3a6b1c420")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert not {
+            "clip_comment_threads",
+            "clip_comments",
+            "clip_comment_mentions",
+        }.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose(close=True)
+    command.upgrade(config, "head")
+    command.check(config)
+
+
+@pytest.mark.integration
 def test_head_repairs_stamped_legacy_asset_scope_columns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

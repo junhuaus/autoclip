@@ -49,6 +49,7 @@ export const project: ProjectSnapshot = {
     "run_pipeline",
     "edit_clip",
     "review_clip",
+    "comment",
     "render",
     "export",
     "deliver",

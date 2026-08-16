@@ -15,6 +15,7 @@ from alembic.config import Config
 from sqlalchemy.engine import Engine
 
 from liveclip.application.clips import ClipQueryService
+from liveclip.application.comments import ClipCommentService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
 from liveclip.application.edit_packages import EditPackageService
@@ -34,6 +35,7 @@ from liveclip.application.workspace import WorkspaceService
 from liveclip.config import Settings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
+from liveclip.db.comment_repository import SqlAlchemyClipCommentRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
 from liveclip.db.engine import create_sqlite_engine
@@ -95,6 +97,7 @@ class LiveClipRuntime:
     task_queue: SQLiteTaskQueue
     stage_runner: StageTaskRunner
     clip_query_service: ClipQueryService
+    clip_comment_service: ClipCommentService
     review_service: ReviewService
     render_service: RenderService
     render_runner: RenderTaskRunner
@@ -207,6 +210,7 @@ class LiveClipRuntime:
                 heartbeat_seconds=settings.worker_heartbeat_seconds,
             )
             clip_query_service = ClipQueryService(SqlAlchemyClipQueryRepository(engine))
+            clip_comment_service = ClipCommentService(SqlAlchemyClipCommentRepository(engine))
             review_service = ReviewService(SqlAlchemyReviewRepository(engine))
             render_repository = SqlAlchemyRenderRepository(engine)
             render_service = RenderService(
@@ -286,6 +290,7 @@ class LiveClipRuntime:
                 task_queue=queue,
                 stage_runner=runner,
                 clip_query_service=clip_query_service,
+                clip_comment_service=clip_comment_service,
                 review_service=review_service,
                 render_service=render_service,
                 render_runner=render_runner,

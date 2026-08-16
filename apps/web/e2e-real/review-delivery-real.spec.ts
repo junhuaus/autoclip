@@ -168,12 +168,44 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await page.getByRole("button", { name: "审核和编辑" }).first().click();
   const editor = page.locator("section.clip-editor");
   await expect(editor).toBeVisible();
+  await expect(editor.getByRole("heading", { name: "协作批注" })).toBeVisible();
+  await editor.getByLabel("片段时间（秒）").fill("0.250");
+  await editor.getByLabel("批注内容").fill("真实 API 时间点批注");
+  const acceptedComment = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/clips\/.+\/comment-threads$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole("button", { name: "添加时间点批注" }).click();
+  expect((await acceptedComment).status()).toBe(201);
+  await expect(editor.getByText("真实 API 时间点批注")).toBeVisible();
+
+  await editor.getByLabel("回复").fill("真实 API 协作回复");
+  const acceptedReply = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/comment-threads\/.+\/replies$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole("button", { name: "回复" }).click();
+  expect((await acceptedReply).status()).toBe(201);
+  await expect(editor.getByText("真实 API 协作回复")).toBeVisible();
+
+  const acceptedResolution = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/v1\/comment-threads\/.+\/status$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole("button", { name: "标记已解决" }).click();
+  expect((await acceptedResolution).status()).toBe(200);
+  await expect(editor.locator(".comment-status")).toHaveText("已解决");
+
   await editor.getByLabel("标题").fill("真实浏览器修订高光");
   await editor.getByLabel("文本").first().fill("真实浏览器逐 cue 修改字幕");
   await editor.getByRole("button", { name: "保存为新 revision" }).click();
-  await expect(editor.getByText(/revision 2/)).toBeVisible();
+  await expect(editor.getByText("高光 #1 · revision 2", { exact: true })).toBeVisible();
   await expect(editor.getByText(/旧 revision 的 1 个渲染已失效/)).toBeVisible();
   await expect(editor.getByText("当前 revision 尚无可播放视频")).toBeVisible();
+  await expect(editor.getByText("历史 r1")).toBeVisible();
 
   await editor.getByRole("button", { name: "批准" }).click();
   await expect(editor.getByText("已批准")).toBeVisible();

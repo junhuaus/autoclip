@@ -6,6 +6,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from liveclip.application.clips import ClipSummary
+from liveclip.application.comments import (
+    MAX_COMMENT_BODY_CHARS,
+    MAX_COMMENT_MENTIONS,
+    CreateClipCommentThread,
+    ReplyToClipCommentThread,
+    UpdateClipCommentThreadStatus,
+)
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.edit_packages import (
     EditPackageItem,
@@ -130,6 +137,49 @@ class BatchReviewRequest(ApiRequestModel):
                 )
                 for item in self.items
             )
+        )
+
+
+class ClipCommentThreadCreateRequest(ApiRequestModel):
+    expected_revision: int = Field(ge=1)
+    clip_time_ms: int = Field(ge=0)
+    body: str = Field(min_length=1, max_length=MAX_COMMENT_BODY_CHARS)
+    mentioned_user_ids: tuple[str, ...] = Field(
+        default=(),
+        max_length=MAX_COMMENT_MENTIONS,
+    )
+
+    def to_command(self) -> CreateClipCommentThread:
+        return CreateClipCommentThread(
+            expected_revision=self.expected_revision,
+            clip_time_ms=self.clip_time_ms,
+            body=self.body,
+            mentioned_user_ids=self.mentioned_user_ids,
+        )
+
+
+class ClipCommentReplyRequest(ApiRequestModel):
+    body: str = Field(min_length=1, max_length=MAX_COMMENT_BODY_CHARS)
+    mentioned_user_ids: tuple[str, ...] = Field(
+        default=(),
+        max_length=MAX_COMMENT_MENTIONS,
+    )
+
+    def to_command(self) -> ReplyToClipCommentThread:
+        return ReplyToClipCommentThread(
+            body=self.body,
+            mentioned_user_ids=self.mentioned_user_ids,
+        )
+
+
+class ClipCommentStatusRequest(ApiRequestModel):
+    expected_thread_version: int = Field(ge=1)
+    status: Literal["open", "resolved"]
+
+    def to_command(self) -> UpdateClipCommentThreadStatus:
+        return UpdateClipCommentThreadStatus(
+            expected_thread_version=self.expected_thread_version,
+            status=self.status,
         )
 
 

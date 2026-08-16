@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { LiveClipApiClient, errorMessage, signedUrlRefreshInterval } from "./api";
+import { ClipComments } from "./ClipComments";
 import type {
   CaptionCue,
   ClipDetailResponse,
   ClipPatchRequest,
   RenderKind,
   RenderSnapshot,
+  WorkspaceMember,
 } from "./types";
 import { EmptyState, ErrorState, LoadingState, StatusBadge, formatMs } from "./ui";
 
@@ -17,6 +19,8 @@ interface ClipEditorProps {
   canEdit?: boolean;
   canReview?: boolean;
   canRender?: boolean;
+  canComment?: boolean;
+  members?: WorkspaceMember[];
   onClose: () => void;
   onChanged: () => void;
   onDirtyChange?: (clipId: string, dirty: boolean) => void;
@@ -109,6 +113,8 @@ export function ClipEditor({
   canEdit = true,
   canReview = true,
   canRender = true,
+  canComment = true,
+  members = [],
   onClose,
   onChanged,
   onDirtyChange = () => undefined,
@@ -174,6 +180,12 @@ export function ClipEditor({
     element.currentTime = Number.isFinite(element.duration)
       ? Math.min(Math.max(0, requestedSeconds), element.duration)
       : Math.max(0, requestedSeconds);
+  };
+
+  const currentVideoTimeMs = () => {
+    const element = videoRef.current;
+    if (!element || !video || !Number.isFinite(element.currentTime)) return null;
+    return Math.max(0, Math.round(element.currentTime * 1_000));
   };
 
   const saveMutation = useMutation({
@@ -392,24 +404,6 @@ export function ClipEditor({
                 <p className="hint">暂无可定位的编辑关键词</p>
               )}
             </section>
-            <section className="clip-captions" aria-labelledby={`editor-captions-${clip.clip_id}`}>
-              <h4 id={`editor-captions-${clip.clip_id}`}>字幕</h4>
-              <ol aria-label="当前切片详情字幕">
-                {clip.captions.map((cue, index) => (
-                  <li key={`${cue.start_ms}-${cue.end_ms}-${index}`}>
-                    <button
-                      type="button"
-                      disabled={!video}
-                      onClick={() => seekTo(cue.start_ms)}
-                      aria-label={`定位到详情字幕 ${formatMs(cue.start_ms)}：${cue.text}`}
-                    >
-                      <time>{formatMs(cue.start_ms)}–{formatMs(cue.end_ms)}</time>
-                      <span>{cue.text}</span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
           </div>
 
           <div className="transcript-card">
@@ -435,6 +429,47 @@ export function ClipEditor({
               <ul>{clip.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
             </details>
           </div>
+
+          <ClipComments
+            api={api}
+            clipId={clip.clip_id}
+            currentRevision={clip.current_revision}
+            durationMs={clip.plan.source_end_ms - clip.plan.source_start_ms}
+            members={members}
+            canCreate={canComment && !dirty}
+            createDisabledReason={
+              dirty
+                ? "请先保存当前编辑草稿；新批注必须绑定一个已保存的 revision。"
+                : null
+            }
+            getCurrentTimeMs={currentVideoTimeMs}
+            onSeek={seekTo}
+          />
+
+          <section
+            className="clip-captions editor-captions-final"
+            aria-labelledby={`editor-captions-${clip.clip_id}`}
+          >
+            <div className="metadata-heading">
+              <h4 id={`editor-captions-${clip.clip_id}`}>字幕</h4>
+              <span>当前 revision · 点击跳转</span>
+            </div>
+            <ol aria-label="当前切片详情字幕">
+              {clip.captions.map((cue, index) => (
+                <li key={`${cue.start_ms}-${cue.end_ms}-${index}`}>
+                  <button
+                    type="button"
+                    disabled={!video}
+                    onClick={() => seekTo(cue.start_ms)}
+                    aria-label={`定位到详情字幕 ${formatMs(cue.start_ms)}：${cue.text}`}
+                  >
+                    <time>{formatMs(cue.start_ms)}–{formatMs(cue.end_ms)}</time>
+                    <span>{cue.text}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </section>
         </div>
 
         <form className="editor-form" onSubmit={(event) => { event.preventDefault(); save(); }}>

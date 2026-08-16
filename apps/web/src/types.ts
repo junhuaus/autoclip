@@ -104,6 +104,7 @@ export type ProjectAction =
   | "run_pipeline"
   | "edit_clip"
   | "review_clip"
+  | "comment"
   | "render"
   | "export"
   | "deliver"
@@ -492,6 +493,70 @@ export interface ClipDetail {
 export interface ClipDetailResponse {
   clip: ClipDetail;
   asset_urls: Record<string, string>;
+}
+
+export interface CommentIdentity {
+  user_id: string | null;
+  username: string;
+  display_name: string;
+}
+
+export interface ClipCommentMessage {
+  comment_id: string;
+  author: CommentIdentity;
+  body: string;
+  mentions: CommentIdentity[];
+  created_at: string;
+}
+
+export type ClipCommentThreadAction = "reply" | "resolve" | "reopen";
+
+export interface ClipCommentThread {
+  thread_id: string;
+  project_id: string;
+  clip_id: string;
+  edit_plan_revision: number;
+  current_revision: number;
+  is_current_revision: boolean;
+  is_current_generation: boolean;
+  source_time_ms: number;
+  clip_time_ms: number;
+  current_clip_time_ms: number | null;
+  status: "open" | "resolved";
+  version: number;
+  allowed_actions: ClipCommentThreadAction[];
+  created_by: CommentIdentity;
+  resolved_by: CommentIdentity | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  comments: ClipCommentMessage[];
+}
+
+export interface ClipCommentThreads {
+  schema_version: "1";
+  clip_id: string;
+  current_revision: number;
+  total_count: number;
+  next_offset: number | null;
+  threads: ClipCommentThread[];
+}
+
+export interface ClipCommentThreadCreateRequest {
+  expected_revision: number;
+  clip_time_ms: number;
+  body: string;
+  mentioned_user_ids: string[];
+}
+
+export interface ClipCommentReplyRequest {
+  body: string;
+  mentioned_user_ids: string[];
+}
+
+export interface ClipCommentStatusRequest {
+  expected_thread_version: number;
+  status: "open" | "resolved";
 }
 
 export interface ClipPatchRequest {
