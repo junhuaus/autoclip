@@ -5,12 +5,11 @@ Updated: 2026-08-16 08:40 CST
 Current package baseline: `0.1.0`
 
 Current milestone: V2-M6 exact-revision/timecode collaboration comments are
-implemented and reviewed; checkpoint publication is in progress. The next
-slice is server-authorized Project search plus per-user saved views.
+implemented, reviewed and committed at `e01820f`. The next slice is
+server-authorized Project search plus per-user saved views.
 
-Branch: `main` tracking `origin/main`. Current checked-in head is `10b443f`;
-the comment implementation is still in the working tree until the next local
-milestone commit.
+Branch: `main` tracking `origin/main`. The reviewed comment implementation is
+checkpointed at `e01820f`; this recovery-note update follows it.
 
 ## Current user-visible result
 
@@ -126,14 +125,14 @@ ignored generated data and must never enter Git.
   SQLite/WAL, media, offline-review packages, browser artifacts or credentials.
 - No paid Provider call or long-video reprocessing occurred in this slice.
 - `git diff --check`, live `alembic current/check` and health checks pass.
-- The working tree intentionally contains the reviewed collaboration code,
-  tests and documentation until its exact staged-set audit and commit.
+- The reviewed collaboration source/tests/docs are committed at `e01820f`;
+  generated/private paths remain ignored and unstaged.
 
 ## Next concrete task
 
-Audit the exact collaboration staged set, create and push its milestone commit,
-record the resulting hash here, then implement a server-owned Project search
-query and user-scoped saved-view schema/API before changing dashboard UI.
+Push the collaboration checkpoint and this recovery-note commit, then implement
+a server-owned Project search query and user-scoped saved-view schema/API before
+changing dashboard UI.
 
 ## Resume instructions
 
@@ -142,5 +141,6 @@ Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 --branch`, `git diff --check`, `git log -5 --oneline`, `.venv/bin/alembic
 current` and `.venv/bin/alembic check`. Preserve all three real Projects, the
 pre-comments database backup and both offline-review packages. Do not reprocess
-real inputs or invoke paid Providers. Finish the collaboration checkpoint, then
-begin the saved-view/search contract from the server authorization boundary.
+real inputs or invoke paid Providers. Verify `e01820f` and its following STATUS
+checkpoint are present/pushed, then begin the saved-view/search contract from
+the server authorization boundary.
