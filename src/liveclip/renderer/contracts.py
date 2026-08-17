@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 RENDER_SPEC_SCHEMA_VERSION = "4"
-FFMPEG_RENDERER_CONTRACT_VERSION = "ffmpeg-renderer-v3.no-blur"
+FFMPEG_RENDERER_CONTRACT_VERSION = "ffmpeg-renderer-v4.av-sync-preroll"
 CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = "edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1"
 
 

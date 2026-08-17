@@ -28,6 +28,11 @@ from liveclip.renderer.quality import (
 )
 from liveclip.renderer.text import TextOverlay
 
+# Input-side seeking keeps long recordings fast, but transport streams can land
+# between HEVC reference frames. Decode a bounded lead-in, then perform the
+# exact cut on the output timeline so audio and video retain one shared clock.
+ACCURATE_SEEK_PREROLL_MS = 10_000
+
 
 @dataclass(frozen=True, slots=True)
 class RenderRequest:
@@ -48,6 +53,14 @@ class RenderRequest:
     @property
     def duration_ms(self) -> int:
         return self.source_end_ms - self.source_start_ms
+
+    @property
+    def seek_preroll_ms(self) -> int:
+        return min(self.source_start_ms, ACCURATE_SEEK_PREROLL_MS)
+
+    @property
+    def input_seek_ms(self) -> int:
+        return self.source_start_ms - self.seek_preroll_ms
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +132,7 @@ def build_ffmpeg_argv(
         "-filter_complex_threads",
         "1" if conservative_threads else "2",
         "-ss",
-        ms_to_ffmpeg(request.source_start_ms),
+        ms_to_ffmpeg(request.input_seek_ms),
         "-i",
         str(request.source_path),
     ]
@@ -127,6 +140,8 @@ def build_ffmpeg_argv(
         # A PNG is a one-frame secondary input. The overlay filter holds that
         # frame explicitly, avoiding several unbounded image2 producers.
         argv.extend(["-i", str(overlay.path)])
+    if request.seek_preroll_ms:
+        argv.extend(["-ss", ms_to_ffmpeg(request.seek_preroll_ms)])
     argv.extend(
         [
             "-t",
@@ -169,15 +184,19 @@ def build_filtergraph(request: RenderRequest) -> str:
     _validate_request(request)
     width = request.width
     height = request.height
+    timeline_offset_ms = request.seek_preroll_ms
     chains: list[str] = []
+    # Do not independently rebase the source streams with STARTPTS. MPEG-TS
+    # carries the synchronization relationship in the relative audio/video
+    # timestamps; resetting each stream separately destroys that relationship.
     chains.append(
-        f"[0:{request.video_stream_index}]setpts=PTS-STARTPTS,scale={width}:{height}:"
+        f"[0:{request.video_stream_index}]scale={width}:{height}:"
         f"force_original_aspect_ratio=increase,crop={width}:{height}[base]"
     )
     previous = "base"
     for index, overlay in enumerate(request.overlays, start=1):
-        relative_start = max(0, overlay.start_ms)
-        relative_end = min(request.duration_ms, overlay.end_ms)
+        relative_start = timeline_offset_ms + max(0, overlay.start_ms)
+        relative_end = timeline_offset_ms + min(request.duration_ms, overlay.end_ms)
         chains.append(f"[{index}:v]format=rgba,setpts=PTS-STARTPTS[overlay{index}]")
         output_label = f"composite{index}"
         chains.append(
@@ -189,21 +208,23 @@ def build_filtergraph(request: RenderRequest) -> str:
         previous = output_label
     if request.effect == Effect.FADE_IN_OUT and request.duration_ms >= 1_000:
         fade_ms = min(300, request.duration_ms // 4)
-        fade_out_start = request.duration_ms - fade_ms
+        fade_in_start = timeline_offset_ms
+        fade_out_start = timeline_offset_ms + request.duration_ms - fade_ms
         chains.append(
-            f"[{previous}]fade=t=in:st=0:d={ms_to_ffmpeg(fade_ms)},"
+            f"[{previous}]fade=t=in:st={ms_to_ffmpeg(fade_in_start)}:"
+            f"d={ms_to_ffmpeg(fade_ms)},"
             f"fade=t=out:st={ms_to_ffmpeg(fade_out_start)}:d={ms_to_ffmpeg(fade_ms)},"
             "format=yuv420p[vout]"
         )
         audio_effects = (
             "loudnorm=I=-16:LRA=11:TP=-1.5,"
-            f"afade=t=in:st=0:d={ms_to_ffmpeg(fade_ms)},"
+            f"afade=t=in:st={ms_to_ffmpeg(fade_in_start)}:d={ms_to_ffmpeg(fade_ms)},"
             f"afade=t=out:st={ms_to_ffmpeg(fade_out_start)}:d={ms_to_ffmpeg(fade_ms)}"
         )
     else:
         chains.append(f"[{previous}]format=yuv420p[vout]")
         audio_effects = "loudnorm=I=-16:LRA=11:TP=-1.5"
-    chains.append(f"[0:{request.audio_stream_index}]asetpts=PTS-STARTPTS,{audio_effects}[aout]")
+    chains.append(f"[0:{request.audio_stream_index}]{audio_effects}[aout]")
     return ";".join(chains)
 
 

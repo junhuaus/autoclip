@@ -22,7 +22,7 @@ def test_clean_pipeline_proxy_requires_versioned_pipeline_contract() -> None:
 def test_clean_manual_proxy_requires_exact_current_text_contract() -> None:
     clean = {
         "schema_version": "4",
-        "renderer": "ffmpeg-renderer-v3.no-blur",
+        "renderer": "ffmpeg-renderer-v4.av-sync-preroll",
         "text_mode": "none",
     }
     assert has_current_manual_render_contract("proxy", clean)

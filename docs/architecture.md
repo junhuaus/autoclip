@@ -267,6 +267,8 @@ flowchart LR
 
 No path, command, layout, filtergraph, SQL, code or script is accepted from the model. The renderer uses one source-video layer and cannot construct a blurred background or duplicated foreground.
 
+For MPEG-TS/long-GOP input, system-owned FFmpeg argv performs a bounded early seek plus accurate output seek. Audio and video keep their relative PTS through the filtergraph; only the muxed result is moved onto the clip timeline. This prevents independent `STARTPTS` resets from hiding undecodable HEVC lead-in frames and creating a permanent lip-sync offset.
+
 Review proxies always use the `none` text mode and expose editorial fields separately. Final renders use `title_and_captions` only for the approved current revision. The text mode participates in the render fingerprint.
 
 ## Revision and invalidation

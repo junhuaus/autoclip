@@ -114,14 +114,53 @@ def test_ffmpeg_argv_is_an_argument_array_with_fixed_mapping(tmp_path: Path) -> 
     assert not any("LiveClip title" in argument for argument in argv)
 
 
+def test_ffmpeg_argv_uses_bounded_preroll_and_output_accurate_seek(tmp_path: Path) -> None:
+    request = replace(
+        make_request(tmp_path),
+        source_start_ms=15_250,
+        source_end_ms=18_250,
+    )
+
+    argv = build_ffmpeg_argv(
+        request,
+        encoder="libx264",
+        temporary_output=tmp_path / "temporary.mp4",
+    )
+    seek_values = [argv[index + 1] for index, value in enumerate(argv) if value == "-ss"]
+
+    assert request.input_seek_ms == 5_250
+    assert request.seek_preroll_ms == 10_000
+    assert seek_values == ["5.250", "10.000"]
+    assert argv.index("-ss", argv.index("-i") + 1) < argv.index("-t")
+
+
+def test_ffmpeg_argv_near_source_start_uses_available_preroll(tmp_path: Path) -> None:
+    request = make_request(tmp_path)
+
+    argv = build_ffmpeg_argv(
+        request,
+        encoder="libx264",
+        temporary_output=tmp_path / "temporary.mp4",
+    )
+    seek_values = [argv[index + 1] for index, value in enumerate(argv) if value == "-ss"]
+
+    assert request.input_seek_ms == 0
+    assert request.seek_preroll_ms == 1_000
+    assert seek_values == ["0.000", "1.000"]
+
+
 def test_filtergraph_contains_only_numeric_windows_and_fixed_templates(tmp_path: Path) -> None:
     graph = build_filtergraph(make_request(tmp_path))
     assert "vertical_blur_background" not in graph
-    assert "between(t,0.000,3.000)" in graph
+    assert "between(t,1.000,4.000)" in graph
     assert "boxblur" not in graph
     assert "split=2" not in graph
     assert "loudnorm" in graph
     assert "eof_action=repeat:repeatlast=1" in graph
+    assert "[0:0]setpts=PTS-STARTPTS" not in graph
+    assert "[0:1]asetpts=PTS-STARTPTS" not in graph
+    assert "fade=t=in:st=1.000:d=0.300" in graph
+    assert "afade=t=in:st=1.000:d=0.300" in graph
 
 
 def test_renderer_rejects_legacy_blurred_background_layout(tmp_path: Path) -> None:
