@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-16 22:42 PDT
+Updated: 2026-08-16 23:24 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -38,6 +38,12 @@ processed `input/8-16-1.ts` through the existing production path:
 The existing `8.15-1`, `8.15-2` and `7.28` Projects remain visible and their
 previous successful proxies remain available. Their prior immutable offline
 review packages remain unchanged and ignored by Git.
+
+The user confirmed the corrected A/V synchronization. Offline review package
+`8-16-1/v001` was then created from the 15 latest v4 proxies at
+`data/projects/953ae56cf15f486cb61ab5b53046ebb5/offline-review-packages/v001`;
+its 159 MiB ZIP, all member hashes, all 15 H.264/AAC 540x960 probes and all 15
+full decodes pass.
 
 ## Implementation checkpoints
 
@@ -85,6 +91,11 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 - Real source spike at 1368 seconds: the old direct seek did not decode video
   until about 2.04 seconds after audio; the v4 path starts video at 40 ms and
   audio at 0 ms while preserving the shared source timeline.
+- Approval investigation: isolated real Google Chrome/FastAPI/Worker/SQLite/
+  FFmpeg E2E passed one content decision, final render, Delivery, release
+  submission and release approval. Fifteen focused Web review tests and 14
+  atomic-review/authorization tests also pass; append-only evidence is under
+  `qa/`.
 - API and Web are running at `127.0.0.1:8765` and `127.0.0.1:5173`.
 
 ## Known observations and remaining scope
@@ -102,6 +113,20 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   handoff truthfully provides standards-based MP4/SRT metadata packages.
 - Persisted `TaskAttempt.temp_identity` propagation through every synchronous
   cleanup call remains the documented cleanup P2.
+- The approval audit found a real workflow gap despite green state-transition
+  tests: content `ReviewDecision` stores status/reason/time but no actor, the
+  API response/UI also has no reviewer identity, and no content-review audit
+  event is written. Real `8-16-1` has only `local-admin` as owner/member, yet
+  rank 1 became approved at `2026-08-17T05:47:10Z`; current persisted evidence
+  cannot identify who performed that action.
+- The real Chrome E2E uses one `local-admin` owner for edit, content approval,
+  release submission and release approval. It does not prove editor-to-reviewer
+  handoff, account switching, decision attribution or transaction-time
+  membership revocation. It also deliberately creates Delivery and approves a
+  release while the Project lifecycle is still `editorial_review`, then moves
+  the lifecycle to `approval` afterward. Therefore the current Project
+  `approval` stage is informational/manual rather than an enforced workflow
+  gate. No approval code or real Project data was changed pending user review.
 
 ## Security and worktree
 
@@ -115,12 +140,13 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Have the user play at least the rank-3 and rank-8 v4 proxies in the `8-16-1`
-Web workspace. If they confirm lip sync, continue human review or create an
-offline review package. Do not rerun ASR/LLM.
+Await the user's decision on the approval-workflow audit. Do not alter approval
+data or product code before approval. The proposed next slice is a separately
+reviewed editor-to-reviewer workflow with decision actor evidence, audit events,
+transaction-time authorization and lifecycle ordering; it must preserve the
+working media Pipeline and the immutable `8-16-1/v001` offline package.
 
-For product development after that confirmation, implement revision-fenced
-cross-Project bulk assignment without changing the working video pipeline.
+Cross-Project optimistic bulk assignment remains queued after this decision.
 
 ## Resume instructions
 
@@ -130,4 +156,6 @@ both Living ExecPlans and this file. Run `git status --short --branch`,
 and confirm API/Web health. Preserve all four real Projects, both database
 backups and existing offline-review packages. Verify `fa395f6` and `0a266f3`
 are present/pushed. Open `8-16-1`, confirm the latest proxy path contains an
-`s-.../t-.../review.mp4` segment and test rank 3 before any new processing.
+`s-.../t-.../review.mp4` segment and preserve offline-review `v001`. Read the
+latest `qa/pipeline.jsonl` and `qa/test-report.md`, then resume only after the
+user chooses whether to repair the documented approval workflow.
