@@ -6,8 +6,9 @@ Package compatibility baseline: `0.1.0`
 
 Current milestone: V2-M6 project discovery/private saved views are implemented
 at `fa395f6`. The transport-stream A/V synchronization correction is implemented
-at `0a266f3`. Branch `main` tracks `origin/main` and is two commits ahead before
-this status checkpoint is pushed.
+at `0a266f3`. Branch `main` tracks `origin/main`; both implementation checkpoints
+and their first recovery snapshot are pushed, and this final note records that
+synced state.
 
 ## Current user-visible result
 
