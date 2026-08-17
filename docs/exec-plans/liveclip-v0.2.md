@@ -13,7 +13,7 @@ The frozen v0.1 baseline is `0f34e2b`; package version remains `0.1.0`. V2-M4 is
 Relevant current locations:
 
 - Identity bridge: `src/liveclip/application/workspace.py`, `src/liveclip/db/workspace_repository.py`, `src/liveclip/api/security.py`.
-- Persistence: `src/liveclip/db/models.py`, code and real-database migration head `d8f3a6b1c420`; the controlled V2-M4 migration preserved every protected row count.
+- Persistence: `src/liveclip/db/models.py`, code and real-database migration head `f3b6d9a2c841`; the controlled saved-view migration preserved every protected row count.
 - API composition: `src/liveclip/api/app.py`, `schemas.py`, `bootstrap.py`.
 - Web shell and Project workspace: `apps/web/src/App.tsx`, `ProjectWorkspace.tsx`, `api.ts`, `types.ts`.
 - Delivery/export patterns: `src/liveclip/application/deliveries.py`, `offline_review.py`, `src/liveclip/delivery/`.
@@ -55,7 +55,7 @@ The existing dependency direction remains unchanged. New application services ow
 - [x] 2026-08-13 Add lifecycle/assignment/due-date/priority/archive/audit schemas, optimistic management version and central transition table.
 - [x] 2026-08-13 Derive processing/attention signals without collapsing Pipeline state into business lifecycle; Delivery remains a separate technical fact and never implies publication.
 - [x] 2026-08-16 Add the append-only Project activity timeline and exact-revision/timecode comment threads with replies, resolution state, mention-ready member identities and historical anchors.
-- [~] Add professional dashboard filters, saved views and bulk assignment. Lifecycle filters, assignee and priority are complete; reusable saved views and cross-Project bulk assignment remain staged.
+- [~] Add professional dashboard filters, saved views and bulk assignment. Server-authorized search, reusable private saved views and Project paging are complete; cross-Project bulk assignment remains staged.
 - [x] 2026-08-13 Cover illegal transitions, concurrent updates, active-run archive refusal, archived write denial, exact restore, activity history, workspace read-only access and assigned-member removal conflict.
 - [x] 2026-08-13 Back up and migrate the real database to `a84e2d7c9f10`; preserve Project `7.28` as private and backfill it to `editorial_review` without paid Provider work or media mutation.
 - [x] 2026-08-13 Pass Ruff/format/mypy/schema/TypeScript, 575 Python tests, 28 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E.
@@ -97,8 +97,9 @@ The existing dependency direction remains unchanged. New application services ow
 ### V2-M6 — Staged professional collaboration extensions
 
 - [x] 2026-08-16 Add revision/timecode-threaded comments with resolution state and mention-ready identities. Comments bind to the exact `EditPlanRevision`, persist both clip-relative and canonical source milliseconds, retain historical threads after a revision change, append concurrent replies, and use optimistic thread versions for resolve/reopen. Full Python/Web/Mock-Chrome/real-Chrome gates pass and the independent re-review reports P0=0/P1=0/P2=0.
-- [ ] Add reusable saved views plus optimistic bulk assignment/review/export.
-- [ ] Add server-authorized search across Project/source/title/Hook/keyword/assignee/lifecycle/platform.
+- [x] 2026-08-16 Add reusable private saved views with idempotent create, version CAS, conflict recovery and confirmed delete.
+- [x] 2026-08-16 Add server-authorized Project search across Project/source/current title/Hook/transcript/assignee/lifecycle/platform with fixed-time keyset paging.
+- [ ] Add optimistic cross-Project bulk assignment/review/export.
 - [ ] Decide and implement scoped hashed PAT lifecycle only if CLI/API automation needs more than the retained v0.1 migration token bridge.
 - [ ] Perform a real Jianying/CapCut Desktop import when that external application is available; do not claim native-draft compatibility.
 
@@ -143,10 +144,11 @@ V2-M6 collaboration implementation order:
 4. Add a collaboration panel to the high-point detail view with current-video time capture, seek controls, explicit Project-member mentions, historical-revision badges and resolved-thread filtering. The final subtitle section remains visually last.
 5. Prove revision preservation, boundary rebasing, invalid/out-of-range anchors, membership revocation, archived denial, mention scope, concurrent reply/resolve conflicts, audit redaction, API isolation and observable Web behavior before review/checkpoint.
 
-The five comment steps above are complete. The next V2-M6 slice starts with a
-server-owned Project search contract and per-user saved-view persistence before
-adding cross-Project bulk assignment; Web filters must consume returned search
-facets/capabilities rather than recreate authorization or lifecycle policy.
+The five comment steps above are complete. The Project-discovery slice then added
+an authorized SQL CTE, current-evidence matching, fixed-time keyset cursors,
+post-hydration consistency fence, private saved-view migration/API and the Web
+search/filter/save/apply/update/confirmed-delete workflow. Cross-Project bulk
+assignment is the next separate slice.
 
 ## Concrete commands and expected observations
 
@@ -218,6 +220,10 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-16: Concurrency/failure tests now exercise two valid replies, reply-versus-resolve ordering, resolve/reopen compare-and-swap, same-key idempotent replay, membership revocation while waiting for the SQLite writer lock, and permanent-Project purge of comment/idempotency data. Independent re-review reports P0=0/P1=0/P2=0.
 - 2026-08-16: The real database was checkpointed to `data/projects/database-backups/liveclip-pre-comments-bb77061a92444e399100a4fab9160c34.sqlite3` (SHA-256 `90dd7356f09d4a1057cedd6bcc1d931389fe536fe5fd704d5a5915a1a082b84d`) and upgraded from d8 to `e92b7c4d1a60`. `quick_check=ok`, the foreign-key check is empty, protected counts remain 3 Projects/3 SourceMedia/5 PipelineRuns/131 candidates/60 renders/353 API-usage rows, and the three new comment tables begin empty.
 - 2026-08-16: Final comment gates pass: Ruff/format over 219 files, mypy over 134 source files, schema/TypeScript, 714 Python tests, 52 Web tests, Mock Chrome E2E and isolated real FastAPI/SQLite/Worker/FFmpeg Chrome E2E. The in-app Browser still exposed no controllable instance; the host Chrome view of the actual `8.15-1` editor showed the comment panel, subtitle section last, and a 540×960 direct-source proxy without a blurred background.
+- 2026-08-16: A first Project-search review found that filtering only returned items after a concurrent revoke still leaked stale counts/cursor, current revision evidence could change after the selection transaction, due paging used a new clock on every page, and disabled assignees disagreed with Project cards. The final implementation repeats the complete bounded selection after hydration, fixes `evaluated_at` in the cursor and treats disabled identities as unassigned; deterministic visibility/revision race tests now return safe 409.
+- 2026-08-16: SQLite JSON text stores Chinese hashtags with escaped Unicode, so direct substring search over the serialized column missed valid labels. A deterministic bounded JSON-to-text UDF now decodes string list members before NFKC/casefold matching. Literal `%`, `_` and backslash search also pass because `instr`, not `LIKE`, defines substring semantics.
+- 2026-08-16: The real database was backed up while services were stopped as `liveclip-pre-project-search-3b1e1c0ad7304d7689452e6ff920c3bd.sqlite3` (SHA-256 `1ed77aca699800797f1a09d3b33004657f6ae1b6ccdb47e0c165913c46883460`) and upgraded from `e92b7c4d1a60` to `f3b6d9a2c841`. `quick_check=ok`, foreign keys are empty, saved views begin empty and protected counts remain 3 Projects/3 SourceMedia/5 runs/131 candidates/60 renders/353 usage rows.
+- 2026-08-16: Final Project-discovery gates pass `make doctor`, `make lint`, 724 Python tests, 57 Web tests, Mock Chrome and isolated real FastAPI/Worker/SQLite/FFmpeg Chrome E2E. The main Agent viewed the actual three-Project dashboard screenshot. The Browser runtime again listed no controllable instance, so only actual host-Chrome evidence is claimed. Independent final review reports P0=0/P1=0/P2=0.
 
 ## Decision Log
 
@@ -239,6 +245,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 - 2026-08-15: Treat administrator authorization as live database state, not a trusted request-start snapshot. Short DB-only operations linearize authority with `BEGIN IMMEDIATE`; long filesystem reads recheck after scanning before returning private inventory.
 - 2026-08-16: Store collaboration anchors in integer milliseconds twice: immutable original clip-relative time for historical truth and canonical source time for safe rebasing into a later revision. Replies are append-only and serialize without a stale-version rejection; only resolve/reopen replaces state and requires optimistic thread version matching.
 - 2026-08-16: Keep comments operationally separate from review and rendering. Creating/replying/resolving a discussion must not approve/reject a clip, change lifecycle, create a revision or stale a Render; comment text remains outside audit metadata.
+- 2026-08-16: Use Project-aggregate server search with NFKC/casefolded parameterized `instr` rather than browser filtering or default FTS5; rationale: private counts and evidence must be authorization-scoped, while short Chinese substring behavior must remain predictable. Only current run/revision evidence participates, and a second selection fence rejects concurrent drift. See ADR-018.
+- 2026-08-16: Keep saved views private to one user with strict criteria schema version, idempotent creation and optimistic update/delete versions; rationale: a filter is personal workspace state, not Project content or a permission grant. Browser retries retain the original create key and refresh after CAS conflicts.
 
 ## Risks and Mitigations
 
@@ -256,8 +264,8 @@ Before each real migration, checkpoint WAL and copy the database to ignored `dat
 
 ## Recovery Notes
 
-V2-M1 through V2-M5 are checkpointed through `4b51f29`; the V2-M6 exact-revision/timecode comment slice is independently reviewed and checkpointed at `e01820f`. Project `7.28` remains unchanged; Projects `8.15-1` and `8.15-2` remain ready for human review. The real database is at `e92b7c4d1a60` after WAL-safe backup `liveclip-pre-comments-bb77061a92444e399100a4fab9160c34.sqlite3` (SHA-256 `90dd7356f09d4a1057cedd6bcc1d931389fe536fe5fd704d5a5915a1a082b84d`); integrity/foreign keys and protected counts are unchanged. Resume by defining the server-owned search/saved-view query contract. Do not reprocess the three real Projects or invoke paid Providers.
+V2-M1 through V2-M5 are checkpointed through `4b51f29`; comments are checkpointed at `e01820f` and the following documentation checkpoint. The Project-discovery/private-saved-view implementation is complete and awaits its local Git checkpoint. The real database is at `f3b6d9a2c841` after verified backup `liveclip-pre-project-search-3b1e1c0ad7304d7689452e6ff920c3bd.sqlite3` (SHA-256 `1ed77aca699800797f1a09d3b33004657f6ae1b6ccdb47e0c165913c46883460`); integrity, foreign keys and protected counts are unchanged, and no paid Provider or long-video processing ran. Resume with the first cross-Project optimistic bulk-operation contract after checking Git/STATUS and rerunning the latest focused discovery tests.
 
 ## Outcomes and Retrospective
 
-V2-M0 through V2-M5 are checkpointed through `4b51f29`, with final gates and independent review at P0=0/P1=0. V2-M4 provides a separate, auditable release-planning and platform-package path without social credentials or false upload claims. M5 adds bounded publication evidence, explicit administrator Project recovery, live-authority fencing, storage/retention visibility, process-crash-resumable cleanup, WAL-correct backup/new-path recovery and lease-safe package compensation. The first V2-M6 slice is checkpointed at `e01820f` and adds exact-revision/timecode collaboration threads, append-safe replies, optimistic resolution, member mentions, history/pagination and capability-driven Web controls without changing review/render state. Both supplied long MPEG-TS inputs remain at `pending_review` with completed real ASR, Codex editing and no-blur proxy rendering. External Jianying/CapCut import, saved views, cross-Project bulk operations, full search and optional PATs remain explicit staged work rather than hidden completion claims.
+V2-M0 through V2-M5 are checkpointed through `4b51f29`, with final gates and independent review at P0=0/P1=0. V2-M4 provides a separate, auditable release-planning and platform-package path without social credentials or false upload claims. M5 adds bounded publication evidence, explicit administrator Project recovery, live-authority fencing, storage/retention visibility, process-crash-resumable cleanup, WAL-correct backup/new-path recovery and lease-safe package compensation. V2-M6 now includes checkpointed exact-revision/timecode collaboration plus completed server-authorized Project discovery and private saved views. The latest slice has P0/P1/P2=0 after 724 Python, 57 Web and both Chrome flows; the actual three-Project dashboard was viewed. Both supplied long MPEG-TS Projects remain `pending_review` and were not reprocessed. External Jianying/CapCut import, cross-Project bulk operations and optional PATs remain explicit staged work rather than hidden completion claims.

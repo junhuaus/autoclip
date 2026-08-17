@@ -26,6 +26,10 @@ import type {
   JobCreateRequest,
   LoginResponse,
   ProjectSnapshot,
+  ProjectSearchCriteria,
+  ProjectSearchPage,
+  SavedProjectView,
+  SavedProjectViewsResponse,
   ProjectManagementRequest,
   ProjectLifecycleRequest,
   ProjectActivityResponse,
@@ -317,6 +321,66 @@ export class LiveClipApiClient {
 
   listProjects(): Promise<ProjectSnapshot[]> {
     return this.request("/projects");
+  }
+
+  searchProjects(
+    criteria: ProjectSearchCriteria,
+    cursor: string | null = null,
+    limit = 20,
+  ): Promise<ProjectSearchPage> {
+    const query = new URLSearchParams();
+    if (criteria.query) query.set("q", criteria.query);
+    for (const value of criteria.lifecycles) query.append("lifecycle", value);
+    for (const value of criteria.priorities) query.append("priority", value);
+    for (const value of criteria.roles) query.append("role", value);
+    for (const value of criteria.visibilities) query.append("visibility", value);
+    for (const value of criteria.platforms) query.append("platform", value);
+    query.set("assignee", criteria.assignee);
+    if (criteria.assignee_user_id) query.set("assignee_user_id", criteria.assignee_user_id);
+    query.set("due", criteria.due);
+    query.set("sort", criteria.sort);
+    query.set("limit", String(limit));
+    if (cursor) query.set("cursor", cursor);
+    return this.request(`/projects/search?${query.toString()}`);
+  }
+
+  listSavedProjectViews(): Promise<SavedProjectViewsResponse> {
+    return this.request("/project-views");
+  }
+
+  createSavedProjectView(
+    name: string,
+    criteria: ProjectSearchCriteria,
+    idempotencyKey = createIdempotencyKey("saved-project-view"),
+  ): Promise<SavedProjectView> {
+    return this.request("/project-views", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ name, criteria }),
+    });
+  }
+
+  updateSavedProjectView(
+    viewId: string,
+    expectedVersion: number,
+    name: string,
+    criteria: ProjectSearchCriteria,
+  ): Promise<SavedProjectView> {
+    return this.request(`/project-views/${encodeURIComponent(viewId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        expected_version: expectedVersion,
+        name,
+        criteria,
+      }),
+    });
+  }
+
+  deleteSavedProjectView(viewId: string, expectedVersion: number): Promise<void> {
+    return this.requestNoContent(
+      `/project-views/${encodeURIComponent(viewId)}?expected_version=${expectedVersion}`,
+      { method: "DELETE" },
+    );
   }
 
   getProject(projectId: string): Promise<ProjectSnapshot> {

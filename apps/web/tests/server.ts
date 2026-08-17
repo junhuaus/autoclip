@@ -1,6 +1,8 @@
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 
+import { projectSearchPage } from "./fixtures";
+
 export const server = setupServer(
   http.get("/api/v1/session", () =>
     HttpResponse.json({
@@ -18,6 +20,10 @@ export const server = setupServer(
   ),
   http.get("/api/v1/projects/:projectId/activity", ({ params }) =>
     HttpResponse.json({ schema_version: "1", project_id: params.projectId, events: [] }),
+  ),
+  http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
+  http.get("/api/v1/project-views", () =>
+    HttpResponse.json({ schema_version: "1", views: [] }),
   ),
   http.get("/api/v1/clips/:clipId/comment-threads", ({ params }) =>
     HttpResponse.json({

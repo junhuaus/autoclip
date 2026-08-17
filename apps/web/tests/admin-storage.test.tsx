@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 
 import { App } from "../src/App";
+import { projectSearchPage } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
@@ -58,7 +59,7 @@ function storageReport() {
 it("shows storage inventory and requires two exact confirmations before project purge", async () => {
   let purgeBody: Record<string, string> | null = null;
   server.use(
-    http.get("/api/v1/projects", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
     http.get("/api/v1/admin/storage", () => HttpResponse.json(storageReport())),
     http.get(`/api/v1/admin/storage/projects/${projectId}/purge-plan`, () =>
       HttpResponse.json({

@@ -81,6 +81,7 @@ def test_schema_contains_every_v1_persistence_entity_and_named_constraints(
         "projects",
         "render_jobs",
         "review_decisions",
+        "saved_project_views",
         "source_media",
         "stage_runs",
         "task_attempts",

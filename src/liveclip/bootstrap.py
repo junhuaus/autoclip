@@ -24,6 +24,7 @@ from liveclip.application.identity import AuthenticationService, UserAdministrat
 from liveclip.application.media_assets import MediaAssetService
 from liveclip.application.offline_review import OfflineReviewPackageService
 from liveclip.application.pipeline import PipelineRunConfig, PipelineService
+from liveclip.application.project_discovery import ProjectDiscoveryService
 from liveclip.application.projects import ProjectManagementService
 from liveclip.application.releases import ReleaseService
 from liveclip.application.render_runner import RenderTaskRunner
@@ -44,6 +45,7 @@ from liveclip.db.identity_repository import SqlAlchemyIdentityRepository
 from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.offline_review_repository import SqlAlchemyOfflineReviewFenceRepository
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
+from liveclip.db.project_discovery_repository import SqlAlchemyProjectDiscoveryRepository
 from liveclip.db.project_repository import SqlAlchemyProjectManagementRepository
 from liveclip.db.release_repository import SqlAlchemyReleaseRepository
 from liveclip.db.render_repository import SqlAlchemyRenderRepository
@@ -93,6 +95,7 @@ class LiveClipRuntime:
     engine: Engine
     pipeline_repository: SqlAlchemyPipelineRepository
     pipeline_service: PipelineService
+    project_discovery_service: ProjectDiscoveryService
     project_management_service: ProjectManagementService
     task_queue: SQLiteTaskQueue
     stage_runner: StageTaskRunner
@@ -151,6 +154,10 @@ class LiveClipRuntime:
             )
             project_management_service = ProjectManagementService(
                 SqlAlchemyProjectManagementRepository(engine)
+            )
+            project_discovery_service = ProjectDiscoveryService(
+                SqlAlchemyProjectDiscoveryRepository(engine),
+                service,
             )
             workspace_service = WorkspaceService(SqlAlchemyWorkspaceRepository(engine))
             workspace_service.ensure_configured_users(
@@ -286,6 +293,7 @@ class LiveClipRuntime:
                 engine=engine,
                 pipeline_repository=repository,
                 pipeline_service=service,
+                project_discovery_service=project_discovery_service,
                 project_management_service=project_management_service,
                 task_queue=queue,
                 stage_runner=runner,

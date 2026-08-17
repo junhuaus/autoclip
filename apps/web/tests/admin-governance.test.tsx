@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 
 import { App } from "../src/App";
 import type { AdminProjectSnapshot } from "../src/types";
+import { projectSearchPage } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
@@ -49,7 +50,7 @@ it("lets an administrator find a private project with a disabled owner and trans
   let requestedTransfer: unknown = null;
   let transferCompleted = false;
   server.use(
-    http.get("/api/v1/projects", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
     http.get("/api/v1/admin/projects", () => HttpResponse.json({
       schema_version: "1",
       projects: [currentProject],

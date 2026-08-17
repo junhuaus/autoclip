@@ -125,6 +125,29 @@ class ProjectMemberRow(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
 
 
+class SavedProjectViewRow(Base):
+    __tablename__ = "saved_project_views"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name_key", name="saved_project_view_user_name"),
+        CheckConstraint("version > 0", name="saved_project_view_version_positive"),
+        Index("ix_saved_project_views_user_updated", "user_id", "updated_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    name_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    criteria_schema_version: Mapped[str] = mapped_column(String(8), nullable=False, default="1")
+    criteria_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
 class AuthSessionRow(Base):
     __tablename__ = "auth_sessions"
     __table_args__ = (CheckConstraint("user_auth_version >= 0", name="auth_version_nonnegative"),)

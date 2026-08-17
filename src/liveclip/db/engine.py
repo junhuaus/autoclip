@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -14,6 +16,30 @@ from sqlalchemy.pool import ConnectionPoolEntry
 
 DEFAULT_BUSY_TIMEOUT_MS = 5_000
 MINIMUM_RETURNING_VERSION = (3, 35, 0)
+
+
+def _normalize_search_text(value: object) -> str:
+    if value is None:
+        return ""
+    return unicodedata.normalize("NFKC", str(value)).casefold()
+
+
+def _path_basename(value: object) -> str:
+    if value is None:
+        return ""
+    return Path(str(value)).name
+
+
+def _json_search_text(value: object) -> str:
+    if value is None:
+        return ""
+    try:
+        decoded = json.loads(str(value))
+    except (TypeError, ValueError):
+        return ""
+    if not isinstance(decoded, list):
+        return ""
+    return " ".join(str(item) for item in decoded if isinstance(item, str))
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +134,24 @@ def create_sqlite_engine(
     ) -> None:
         sqlite_connection = cast(sqlite3.Connection, dbapi_connection)
         sqlite_connection.isolation_level = None
+        sqlite_connection.create_function(
+            "liveclip_normalize",
+            1,
+            _normalize_search_text,
+            deterministic=True,
+        )
+        sqlite_connection.create_function(
+            "liveclip_basename",
+            1,
+            _path_basename,
+            deterministic=True,
+        )
+        sqlite_connection.create_function(
+            "liveclip_json_text",
+            1,
+            _json_search_text,
+            deterministic=True,
+        )
         cursor = sqlite_connection.cursor()
         try:
             cursor.execute("PRAGMA foreign_keys = ON")

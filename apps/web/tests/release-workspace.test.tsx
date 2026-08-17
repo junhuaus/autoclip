@@ -423,7 +423,14 @@ it("switches to calendar view and exposes a completed platform ZIP", async () =>
   expect(screen.getByText("平台安全区预览")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "定位封面帧（1 秒）" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "日历" }));
-  expect(screen.getByRole("heading", { name: /2026年8月16日/ })).toBeInTheDocument();
+  const localCalendarDate = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(readyRelease.planned_publish_at!));
+  expect(
+    screen.getByRole("heading", { name: new RegExp(localCalendarDate) }),
+  ).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "生成平台包" }));
   await waitFor(() => expect(packageCreated).toBe(true));
   const download = await screen.findByRole("link", { name: "下载平台 ZIP" });

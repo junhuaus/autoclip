@@ -162,6 +162,7 @@ def test_clip_comment_migration_round_trip(
     command.upgrade(config, "head")
     command.upgrade(config, "head")
     command.check(config)
+
     engine = create_engine(f"sqlite+pysqlite:///{database_path}")
     try:
         inspector = inspect(engine)
@@ -212,6 +213,65 @@ def test_clip_comment_migration_round_trip(
             "clip_comments",
             "clip_comment_mentions",
         }.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose(close=True)
+    command.upgrade(config, "head")
+    command.check(config)
+
+
+@pytest.mark.integration
+def test_saved_project_view_migration_round_trip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    database_path = tmp_path / "saved-project-views.sqlite3"
+    monkeypatch.setenv("LIVECLIP_DATABASE_PATH", str(database_path))
+    config = Config(str(project_root / "alembic.ini"))
+
+    command.upgrade(config, "e92b7c4d1a60")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert "saved_project_views" not in inspect(engine).get_table_names()
+    finally:
+        engine.dispose(close=True)
+
+    command.upgrade(config, "head")
+    command.upgrade(config, "head")
+    command.check(config)
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        inspector = inspect(engine)
+        assert "saved_project_views" in inspector.get_table_names()
+        assert {
+            "id",
+            "user_id",
+            "name",
+            "name_key",
+            "criteria_schema_version",
+            "criteria_json",
+            "version",
+            "created_at",
+            "updated_at",
+        } == {value["name"] for value in inspector.get_columns("saved_project_views")}
+        assert {
+            tuple(value["column_names"])
+            for value in inspector.get_unique_constraints("saved_project_views")
+        } == {("user_id", "name_key")}
+        assert {
+            tuple(value["constrained_columns"])
+            for value in inspector.get_foreign_keys("saved_project_views")
+        } == {("user_id",)}
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    finally:
+        engine.dispose(close=True)
+
+    command.downgrade(config, "e92b7c4d1a60")
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        assert "saved_project_views" not in inspect(engine).get_table_names()
     finally:
         engine.dispose(close=True)
     command.upgrade(config, "head")

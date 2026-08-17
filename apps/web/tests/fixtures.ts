@@ -2,6 +2,7 @@ import type {
   ClipDetailResponse,
   ClipSummaryResponse,
   DeliveryDetailResponse,
+  ProjectSearchPage,
   ProjectSnapshot,
   RunSnapshot,
   TranscriptSnapshot,
@@ -58,6 +59,70 @@ export const project: ProjectSnapshot = {
   ],
   allowed_lifecycle_transitions: ["changes_requested", "approval", "archived"],
 };
+
+export function projectSearchPage(
+  items: ProjectSnapshot[],
+  visibleProjects: ProjectSnapshot[] = items,
+  nextCursor: string | null = null,
+): ProjectSearchPage {
+  const lifecycleCount = (values: string[]) =>
+    visibleProjects.filter((item) => values.includes(item.lifecycle)).length;
+  const lifecycleCounts = Object.fromEntries(
+    [
+      "draft",
+      "processing",
+      "needs_attention",
+      "editorial_review",
+      "changes_requested",
+      "approval",
+      "ready_to_publish",
+      "published",
+      "archived",
+    ].map((value) => [
+      value,
+      visibleProjects.filter((item) => item.lifecycle === value).length,
+    ]),
+  ) as ProjectSearchPage["summary"]["lifecycle_counts"];
+  const priorityCounts = Object.fromEntries(
+    ["low", "normal", "high", "urgent"].map((value) => [
+      value,
+      visibleProjects.filter((item) => item.priority === value).length,
+    ]),
+  ) as ProjectSearchPage["summary"]["priority_counts"];
+  return {
+    schema_version: "1",
+    criteria: {
+      query: "",
+      lifecycles: [],
+      priorities: [],
+      roles: [],
+      visibilities: [],
+      platforms: [],
+      assignee: "any",
+      assignee_user_id: null,
+      due: "any",
+      sort: "updated_desc",
+    },
+    query_fingerprint: "a".repeat(64),
+    evaluated_at: "2026-08-16T10:00:00+08:00",
+    timezone: "Asia/Shanghai",
+    total_count: items.length,
+    limit: 20,
+    next_cursor: nextCursor,
+    summary: {
+      visible_total: visibleProjects.length,
+      needs_attention: lifecycleCount(["needs_attention", "changes_requested"]),
+      processing: lifecycleCount(["draft", "processing"]),
+      review: lifecycleCount(["editorial_review", "approval"]),
+      publish: lifecycleCount(["ready_to_publish", "published"]),
+      archived: lifecycleCount(["archived"]),
+      overdue: 0,
+      lifecycle_counts: lifecycleCounts,
+      priority_counts: priorityCounts,
+    },
+    items: items.map((item) => ({ project: item, matches: [] })),
+  };
+}
 
 export const completedRun: RunSnapshot = {
   run_id: "run-1",

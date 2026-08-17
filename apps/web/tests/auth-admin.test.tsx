@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 
 import { App } from "../src/App";
+import { projectSearchPage } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
@@ -25,7 +26,7 @@ it("shows login for a signed-out editor and enters the project dashboard", async
       signedIn = true;
       return HttpResponse.json({ schema_version: "1", user: { user_id: "admin-1", username: "admin", display_name: "管理员", system_role: "administrator" }, csrf_token: "csrf-test", expires_at: "2026-08-14T00:00:00Z" });
     }),
-    http.get("/api/v1/projects", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
   );
   const user = userEvent.setup();
   renderWithClient(<App />);
@@ -52,7 +53,7 @@ it("lets an administrator create and disable an editor account", async () => {
       users = users.map((item) => item.user_id === "editor-1" ? { ...item, is_active: body.is_active ?? item.is_active } : item);
       return HttpResponse.json({ schema_version: "1", users });
     }),
-    http.get("/api/v1/projects", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
   );
   const user = userEvent.setup();
   renderWithClient(<App />);

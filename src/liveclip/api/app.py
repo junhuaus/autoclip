@@ -67,6 +67,9 @@ from liveclip.api.schemas import (
     RenderCreateRequest,
     ReviewActionRequest,
     RunCreateRequest,
+    SavedProjectViewCreateRequest,
+    SavedProjectViewsResponse,
+    SavedProjectViewUpdateRequest,
     SessionResponse,
 )
 from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
@@ -107,6 +110,18 @@ from liveclip.application.pipeline import (
     ProjectSnapshot,
     RunSnapshot,
 )
+from liveclip.application.project_discovery import (
+    AssigneeFilter,
+    DueFilter,
+    ProjectDiscoveryConflict,
+    ProjectDiscoveryDenied,
+    ProjectRoleFilter,
+    ProjectSearchCriteria,
+    ProjectSearchPage,
+    ProjectSearchSort,
+    ProjectVisibilityFilter,
+    SavedProjectView,
+)
 from liveclip.application.projects import (
     ProjectLifecycleUpdate,
     ProjectManagementConflict,
@@ -138,7 +153,12 @@ from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
 from liveclip.db.workspace_repository import WorkspaceConflict, WorkspacePermissionDenied
-from liveclip.domain.project_lifecycle import ProjectLifecycleConflict
+from liveclip.domain.project_lifecycle import (
+    ProjectLifecycle,
+    ProjectLifecycleConflict,
+    ProjectPriority,
+)
+from liveclip.domain.releases import ReleasePlatform
 from liveclip.domain.state_transitions import ReviewStatus
 from liveclip.media.ingest import MediaIngestError, resolve_allowed_source
 from liveclip.providers.readiness import (
@@ -590,6 +610,116 @@ def create_app(
         active = _runtime(request)
         workspace_user = active.workspace_service.get_user_by_username(_caller(request).username)
         return list(active.pipeline_service.list_projects_for_user(workspace_user.user_id))
+
+    @protected.get("/projects/search", response_model=ProjectSearchPage)
+    def search_projects(
+        request: Request,
+        search_query: Annotated[str, Query(alias="q", max_length=120)] = "",
+        lifecycles: Annotated[list[ProjectLifecycle] | None, Query(alias="lifecycle")] = None,
+        priorities: Annotated[list[ProjectPriority] | None, Query(alias="priority")] = None,
+        roles: Annotated[list[ProjectRoleFilter] | None, Query(alias="role")] = None,
+        visibilities: Annotated[
+            list[ProjectVisibilityFilter] | None,
+            Query(alias="visibility"),
+        ] = None,
+        platforms: Annotated[list[ReleasePlatform] | None, Query(alias="platform")] = None,
+        assignee: Annotated[AssigneeFilter, Query()] = "any",
+        assignee_user_id: Annotated[
+            str | None,
+            Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+        ] = None,
+        due: Annotated[DueFilter, Query()] = "any",
+        sort_order: Annotated[ProjectSearchSort, Query(alias="sort")] = "updated_desc",
+        limit: Annotated[int, Query(ge=1, le=100)] = 20,
+        cursor: Annotated[str | None, Query(max_length=1_024)] = None,
+    ) -> ProjectSearchPage:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        criteria = ProjectSearchCriteria(
+            query=search_query,
+            lifecycles=tuple(lifecycles or ()),
+            priorities=tuple(priorities or ()),
+            roles=tuple(roles or ()),
+            visibilities=tuple(visibilities or ()),
+            platforms=tuple(platforms or ()),
+            assignee=assignee,
+            assignee_user_id=assignee_user_id,
+            due=due,
+            sort=sort_order,
+        )
+        return active.project_discovery_service.search(
+            actor,
+            criteria,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @protected.get("/project-views", response_model=SavedProjectViewsResponse)
+    def list_saved_project_views(request: Request) -> SavedProjectViewsResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return SavedProjectViewsResponse(
+            views=active.project_discovery_service.list_saved_views(actor)
+        )
+
+    @protected.post(
+        "/project-views",
+        status_code=status.HTTP_201_CREATED,
+        response_model=SavedProjectView,
+    )
+    def create_saved_project_view(
+        body: SavedProjectViewCreateRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> SavedProjectView:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _workspace_user_from_caller(active, caller)
+        return active.project_discovery_service.create_saved_view(
+            actor,
+            body.to_domain(),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/project-views",
+                payload=body.model_dump(mode="json"),
+            ),
+        )
+
+    @protected.patch(
+        "/project-views/{view_id}",
+        response_model=SavedProjectView,
+    )
+    def update_saved_project_view(
+        view_id: str,
+        body: SavedProjectViewUpdateRequest,
+        request: Request,
+    ) -> SavedProjectView:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return active.project_discovery_service.update_saved_view(
+            actor,
+            view_id,
+            body.to_domain(),
+        )
+
+    @protected.delete(
+        "/project-views/{view_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    def delete_saved_project_view(
+        view_id: str,
+        request: Request,
+        expected_version: Annotated[int, Query(ge=1)],
+    ) -> Response:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        active.project_discovery_service.delete_saved_view(
+            actor,
+            view_id,
+            expected_version=expected_version,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @protected.post(
         "/projects/import",
@@ -2219,9 +2349,10 @@ def _install_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ProjectActionDenied)
+    @app.exception_handler(ProjectDiscoveryDenied)
     async def project_action_permission_handler(
         request: Request,
-        _exc: ProjectActionDenied,
+        _exc: ProjectActionDenied | ProjectDiscoveryDenied,
     ) -> JSONResponse:
         return _error_response(
             request,
@@ -2297,6 +2428,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(WorkspaceConflict)
     @app.exception_handler(ReviewConflict)
     @app.exception_handler(CommentConflict)
+    @app.exception_handler(ProjectDiscoveryConflict)
     @app.exception_handler(RenderConflict)
     @app.exception_handler(DeliveryConflict)
     @app.exception_handler(EditPackageConflict)

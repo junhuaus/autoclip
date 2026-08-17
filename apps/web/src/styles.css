@@ -386,6 +386,110 @@ textarea {
   color: var(--accent);
 }
 
+.saved-view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 18, 20, 0.55);
+}
+
+.saved-view-bar > span:first-child {
+  margin-right: 0.25rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.saved-view-chip {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid rgba(159, 202, 199, 0.25);
+  border-radius: 999px;
+}
+
+.saved-view-chip button {
+  border: 0;
+  padding: 0.42rem 0.7rem;
+  color: inherit;
+  background: rgba(17, 43, 45, 0.9);
+  cursor: pointer;
+}
+
+.saved-view-chip button:hover {
+  color: var(--accent);
+}
+
+.saved-view-chip .saved-view-edit {
+  border-left: 1px solid rgba(159, 202, 199, 0.2);
+  padding-inline: 0.55rem;
+  color: var(--muted);
+}
+
+.saved-view-create {
+  margin-left: auto;
+}
+
+.inline-retry {
+  border: 0;
+  color: var(--warning);
+  background: transparent;
+  cursor: pointer;
+}
+
+.saved-view-editor {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(88, 224, 193, 0.28);
+  border-radius: 12px;
+  background: rgba(8, 27, 29, 0.9);
+}
+
+.saved-view-editor label {
+  min-width: min(24rem, 55vw);
+}
+
+.saved-view-editor .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.saved-view-delete-confirmation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--warning);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.project-advanced-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(8rem, 1fr)) auto;
+  align-items: end;
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
+}
+
+.project-advanced-filters label {
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.project-result-count {
+  margin: 0 0 0.8rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .project-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -429,6 +533,38 @@ textarea {
   font-size: 1.2rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-match-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.project-match-list > span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #c6d8d8;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.project-match-list b {
+  display: inline-block;
+  margin-right: 0.45rem;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  color: var(--accent);
+  background: rgba(88, 224, 193, 0.1);
+  font-size: 0.7rem;
+}
+
+.project-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
 }
 
 .project-card-topline,
@@ -1840,6 +1976,25 @@ summary {
   .project-search {
     min-width: 0;
     width: 100%;
+  }
+
+  .project-advanced-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .saved-view-editor {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .saved-view-editor label {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .saved-view-delete-confirmation {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .token-form label {

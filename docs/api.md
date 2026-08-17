@@ -38,6 +38,11 @@ POST   /jobs
 GET    /jobs/{run_id}
 
 GET    /projects
+GET    /projects/search
+GET    /project-views
+POST   /project-views
+PATCH  /project-views/{view_id}
+DELETE /project-views/{view_id}
 POST   /projects/import
 GET    /projects/{project_id}
 GET    /projects/{project_id}/members
@@ -106,6 +111,10 @@ Permanent purge is a two-request workflow. `GET .../purge-plan` returns Project 
 `POST /projects/{id}/members` accepts an existing active `username`, compatibility `display_name`, and role `editor|reviewer|viewer`; it never creates or reactivates an account. Adding an existing member updates its Project role. `DELETE` removes only a non-owner, non-assigned member; removing the current assignee returns 409 until the owner reassigns the Project. `POST /projects/{id}/ownership-transfer` accepts an active member ID, atomically makes that member the unique owner and demotes the former owner to editor. All three operations require the current owner and write correlation-linked audit events.
 
 `PATCH /projects/{id}/management` is owner-only and requires the current `expected_management_version`. It replaces the complete management tuple `visibility`, `assignee_user_id`, `priority`, and timezone-aware `due_at`; the assignee must be an active Project member. A stale version or unchanged request returns 409. `POST /projects/{id}/lifecycle` accepts `expected_management_version`, one server-advertised target, and a required bounded reason. It rejects skipped/illegal transitions, stale clients, and archiving while a current Pipeline run is queued/running. Archive stores the exact previous lifecycle, blocks ordinary writes, and can restore only to that recorded state. `GET /projects/{id}/activity?limit=1..200` returns newest-first sanitized audit events visible to any caller who can read the Project.
+
+`GET /projects/search` is the dashboard query. It accepts `q`, repeated `lifecycle`, `priority`, `role`, `visibility`, and `platform` parameters; `assignee=any|me|unassigned|user` plus a validated `assignee_user_id`; `due=any|overdue|today|next_7_days|unscheduled`; `sort=updated_desc|due_asc|priority_desc|name_asc`; `limit=1..100`; and an opaque `cursor`. Search is always scoped to current authorization, current Pipeline run, selected current clip revisions and current release revisions. Results include canonical criteria, SHA-256 query fingerprint, fixed `evaluated_at`/timezone, authorized dashboard summary, exact filtered count, bounded match evidence and `next_cursor`. A cursor is actor/filter/time/sort bound and is never an authorization token. Concurrent visibility, membership, run/revision or result changes return safe 409 instead of stale private counts/evidence; callers retry the first page.
+
+`GET /project-views` returns only the current user's valid saved filters. `POST /project-views` requires a 1–80 character normalized unique name, strict criteria and supports `Idempotency-Key`; replay returns the same resource and conflicting key reuse returns 409. `PATCH /project-views/{id}` replaces name and criteria with `expected_version`; `DELETE` takes `expected_version` as a query parameter. Both use exact CAS and return 409 after another tab changes the view. Other users and unknown IDs receive 404. The physical limit is 50 views per user, criteria schema version is currently `1`, and deletion never deletes a Project.
 
 `POST /jobs` and `POST /projects/{id}/runs` return safe `503 PROVIDER_NOT_READY` before creating new work when the configured full processing chain is unavailable. A completed identical `Idempotency-Key` replay is resolved first and still returns its original 202 resource after readiness changes; conflicting reuse remains 409. The Web uses the same health contract to disable its start button. The ingest-only import route remains available as a separate operation and does not execute an LLM readiness/version probe; explicit Mock modes are runnable but health labels them with `MOCK_ASR_SELECTED` and/or `MOCK_LLM_SELECTED`.
 

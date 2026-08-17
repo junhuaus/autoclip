@@ -5,16 +5,16 @@ import { describe, expect, it } from "vitest";
 
 import { App } from "../src/App";
 import type { ProjectSnapshot } from "../src/types";
-import { project } from "./fixtures";
+import { project, projectSearchPage } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
 describe("project list states", () => {
   it("shows loading and then a useful empty state", async () => {
     server.use(
-      http.get("/api/v1/projects", async () => {
+      http.get("/api/v1/projects/search", async () => {
         await delay(250);
-        return HttpResponse.json([]);
+        return HttpResponse.json(projectSearchPage([]));
       }),
     );
 
@@ -29,7 +29,7 @@ describe("project list states", () => {
 
   it("renders only the stable safe API error and retry affordance", async () => {
     server.use(
-      http.get("/api/v1/projects", () =>
+      http.get("/api/v1/projects/search", () =>
         HttpResponse.json(
           {
             error: {
@@ -57,9 +57,9 @@ describe("project list states", () => {
   it("keeps the optional Bearer token in memory while sending it to the API", async () => {
     const authorizations: Array<string | null> = [];
     server.use(
-      http.get("/api/v1/projects", ({ request }) => {
+      http.get("/api/v1/projects/search", ({ request }) => {
         authorizations.push(request.headers.get("Authorization"));
-        return HttpResponse.json([]);
+        return HttpResponse.json(projectSearchPage([]));
       }),
     );
     window.localStorage.clear();
@@ -102,7 +102,7 @@ describe("project list states", () => {
           },
         }),
       ),
-      http.get("/api/v1/projects", () => HttpResponse.json([])),
+      http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
     );
 
     const user = userEvent.setup();
@@ -137,7 +137,7 @@ describe("project list states", () => {
           },
         }),
       ),
-      http.get("/api/v1/projects", () => HttpResponse.json([])),
+      http.get("/api/v1/projects/search", () => HttpResponse.json(projectSearchPage([]))),
     );
 
     const user = userEvent.setup();
@@ -169,7 +169,20 @@ describe("project list states", () => {
       ],
     };
     server.use(
-      http.get("/api/v1/projects", () => HttpResponse.json([project, deliveredProject])),
+      http.get("/api/v1/projects/search", ({ request }) => {
+        const url = new URL(request.url);
+        const lifecycles = url.searchParams.getAll("lifecycle");
+        const query = (url.searchParams.get("q") ?? "").toLocaleLowerCase("zh-CN");
+        const allProjects = [project, deliveredProject];
+        const filtered = allProjects.filter((item) => {
+          if (lifecycles.length > 0 && !lifecycles.includes(item.lifecycle)) return false;
+          if (!query) return true;
+          return `${item.name}\n${item.source_filename}`
+            .toLocaleLowerCase("zh-CN")
+            .includes(query);
+        });
+        return HttpResponse.json(projectSearchPage(filtered, allProjects));
+      }),
     );
     const user = userEvent.setup();
 
@@ -184,12 +197,16 @@ describe("project list states", () => {
     expect(within(manager!).getByText("2 位成员")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /发布队列/ }));
-    expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument();
-    expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
+    await waitFor(() => expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument());
+    expect(await within(manager!).findByText("发布会精剪")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "全部" }));
-    await user.type(screen.getByPlaceholderText("项目名、源视频或负责人"), "launch-event");
-    expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument();
-    expect(within(manager!).getByText("发布会精剪")).toBeInTheDocument();
+    await user.type(
+      screen.getByPlaceholderText("项目、源视频、高光内容、执行人或平台"),
+      "launch-event",
+    );
+    await user.click(screen.getByRole("button", { name: "搜索" }));
+    await waitFor(() => expect(within(manager!).queryByText("直播测试项目")).not.toBeInTheDocument());
+    expect(await within(manager!).findByText("发布会精剪")).toBeInTheDocument();
   });
 });

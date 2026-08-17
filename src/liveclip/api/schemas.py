@@ -21,6 +21,19 @@ from liveclip.application.edit_packages import (
 )
 from liveclip.application.governance import AdministrativeAuditEvent, AdminProjectSnapshot
 from liveclip.application.identity import ManagedUser
+from liveclip.application.project_discovery import (
+    MAX_PROJECT_SEARCH_QUERY_CHARS,
+    MAX_SAVED_VIEW_NAME_CHARS,
+    AssigneeFilter,
+    CreateSavedProjectView,
+    DueFilter,
+    ProjectRoleFilter,
+    ProjectSearchCriteria,
+    ProjectSearchSort,
+    ProjectVisibilityFilter,
+    SavedProjectView,
+    UpdateSavedProjectView,
+)
 from liveclip.application.projects import ProjectActivity
 from liveclip.application.releases import (
     ReleaseApprovalCommand,
@@ -305,6 +318,58 @@ class ProjectActivityResponse(BaseModel):
     schema_version: Literal["1"] = "1"
     project_id: str
     events: tuple[ProjectActivity, ...]
+
+
+class ProjectSearchCriteriaRequest(ApiRequestModel):
+    query: str = Field(default="", max_length=MAX_PROJECT_SEARCH_QUERY_CHARS)
+    lifecycles: tuple[ProjectLifecycle, ...] = Field(default=(), max_length=9)
+    priorities: tuple[ProjectPriority, ...] = Field(default=(), max_length=4)
+    roles: tuple[ProjectRoleFilter, ...] = Field(default=(), max_length=4)
+    visibilities: tuple[ProjectVisibilityFilter, ...] = Field(default=(), max_length=2)
+    platforms: tuple[ReleasePlatform, ...] = Field(default=(), max_length=6)
+    assignee: AssigneeFilter = "any"
+    assignee_user_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+    due: DueFilter = "any"
+    sort: ProjectSearchSort = "updated_desc"
+
+    def to_domain(self) -> ProjectSearchCriteria:
+        return ProjectSearchCriteria.model_validate_json(self.model_dump_json())
+
+
+class SavedProjectViewCreateRequest(ApiRequestModel):
+    name: str = Field(min_length=1, max_length=MAX_SAVED_VIEW_NAME_CHARS)
+    criteria: ProjectSearchCriteriaRequest
+
+    def to_domain(self) -> CreateSavedProjectView:
+        return CreateSavedProjectView(
+            name=self.name,
+            criteria=self.criteria.to_domain(),
+        )
+
+
+class SavedProjectViewUpdateRequest(ApiRequestModel):
+    expected_version: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=MAX_SAVED_VIEW_NAME_CHARS)
+    criteria: ProjectSearchCriteriaRequest
+
+    def to_domain(self) -> UpdateSavedProjectView:
+        return UpdateSavedProjectView(
+            expected_version=self.expected_version,
+            name=self.name,
+            criteria=self.criteria.to_domain(),
+        )
+
+
+class SavedProjectViewsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    views: tuple[SavedProjectView, ...]
 
 
 class LoginRequest(ApiRequestModel):

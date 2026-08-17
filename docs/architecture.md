@@ -44,6 +44,25 @@ flowchart LR
 
 The ordinary browser workspace never filters a global Project collection: the API returns explicit memberships plus authenticated read-only access to Projects intentionally marked workspace-visible, and repeats the same policy for every descendant resource. New Projects are private. A separate administrator governance endpoint can list safe metadata for every Project and transfer ownership under an audited same-transaction authority fence; it does not create membership or expose descendant media/export access. Its dedicated DTO includes inactive owners so account disable cannot make an orphaned Project ungovernable. Every administrator DB operation rechecks the live enabled system role in its transaction; long filesystem storage scans recheck again before returning, so a request-start identity snapshot cannot outlive concurrent revocation. SQLite stores Argon2id verifiers and session digests, never plaintext credentials; Provider credentials stay in ignored environment configuration. System administrator, Project role and visibility are independent authority dimensions. API DTOs expose server-derived capabilities, so the Web does not copy the role matrix.
 
+```mermaid
+flowchart LR
+  FILTERS[Dashboard filters] --> DISCOVERY[ProjectDiscoveryService]
+  SAVED[Private saved view] --> FILTERS
+  DISCOVERY --> AUTHSET[Authorized Project SQL CTE]
+  AUTHSET --> CURRENT[Current run + current revision evidence]
+  CURRENT --> PAGE[Stable keyset page]
+  PAGE --> HYDRATE[Authorized Project snapshots]
+  HYDRATE --> RECHECK[Repeat selection fence]
+  RECHECK -->|unchanged| RESULT[Counts + facets + matches]
+  RECHECK -->|changed| RETRY[Safe 409 retry]
+```
+
+Saved views belong to one user and store only strict versioned criteria. Search
+uses NFKC/casefolded parameterized substrings, preserves the first page's clock in
+the cursor, and treats a disabled assignee as operationally unassigned. Neither a
+cursor nor a saved view grants access; every page starts from current server
+authorization.
+
 ## Data flow and cloud boundary
 
 ```mermaid

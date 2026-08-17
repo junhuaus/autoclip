@@ -8,15 +8,18 @@ import type {
   ClipDetailResponse,
   ClipPatchRequest,
   ClipSummaryResponse,
+  ProjectSearchCriteria,
   ProjectSnapshot,
   ReleaseItemSnapshot,
   ReviewActionRequest,
+  SavedProjectView,
 } from "../src/types";
 import {
   clipDetail as initialClipDetail,
   clipSummary as initialClipSummary,
   completedRun,
   project as initialProject,
+  projectSearchPage,
   succeededDelivery,
 } from "../tests/fixtures";
 
@@ -30,6 +33,7 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   let clipDetail: ClipDetailResponse = structuredClone(initialClipDetail);
   let clipSummary: ClipSummaryResponse = structuredClone(initialClipSummary);
   let commentThread: ClipCommentThread | null = null;
+  let savedProjectViews: SavedProjectView[] = [];
 
   await page.context().route("**/api/v1/**", async (route: Route) => {
     const request = route.request();
@@ -121,6 +125,52 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     }
     if (path === "/api/v1/projects" && method === "GET") {
       await route.fulfill({ json: created ? [project] : [] });
+      return;
+    }
+    if (path === "/api/v1/projects/search" && method === "GET") {
+      const query = url.searchParams.get("q") ?? "";
+      const visible = created ? [project] : [];
+      const matched = visible.filter((item) => !query || item.name.includes(query));
+      const page = projectSearchPage(matched, visible);
+      if (query && page.items[0]) {
+        page.items[0].matches = [{
+          scope: "project",
+          text: project.name,
+          clip_id: null,
+          release_item_id: null,
+        }];
+      }
+      await route.fulfill({ json: page });
+      return;
+    }
+    if (path === "/api/v1/project-views" && method === "GET") {
+      await route.fulfill({ json: { schema_version: "1", views: savedProjectViews } });
+      return;
+    }
+    if (path === "/api/v1/project-views" && method === "POST") {
+      expect(request.headers()["idempotency-key"]).toMatch(
+        /^liveclip-web-saved-project-view-/,
+      );
+      const body = request.postDataJSON() as {
+        name: string;
+        criteria: ProjectSearchCriteria;
+      };
+      savedProjectViews = [{
+        view_id: "saved-project-view-1",
+        name: body.name,
+        criteria_schema_version: "1",
+        criteria: body.criteria,
+        version: 1,
+        created_at: "2026-08-16T10:00:00Z",
+        updated_at: "2026-08-16T10:00:00Z",
+      }];
+      await route.fulfill({ status: 201, json: savedProjectViews[0] });
+      return;
+    }
+    if (path === "/api/v1/project-views/saved-project-view-1" && method === "DELETE") {
+      expect(url.searchParams.get("expected_version")).toBe("1");
+      savedProjectViews = [];
+      await route.fulfill({ status: 204 });
       return;
     }
     if (path === "/api/v1/jobs" && method === "POST") {
@@ -749,7 +799,14 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await releaseForm.getByRole("button", { name: "建立发布任务" }).click();
   await expect(page.getByText(/抖音 · 官方主账号/)).toBeVisible();
   await page.getByRole("button", { name: "日历" }).click();
-  await expect(page.getByRole("heading", { name: /2026年8月16日/ })).toBeVisible();
+  const calendarDateLabel = await page.evaluate(() =>
+    new Date("2026-08-16T04:00:00Z").toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }),
+  );
+  await expect(page.getByRole("heading", { name: calendarDateLabel })).toBeVisible();
   await page.getByRole("button", { name: "生成平台包" }).click();
   const releaseDownload = page.getByRole("link", { name: "下载平台 ZIP" });
   await expect(releaseDownload).toHaveAttribute("href", /signature=release-signed/);
@@ -775,5 +832,24 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await expect(page.getByText("发布会精剪")).toHaveCount(0);
   await expect(page.getByText("直播测试项目")).toBeVisible();
   await expect(page.getByText("负责人 本机管理员")).toBeVisible();
+  const projectSearch = page.getByPlaceholder(
+    "项目、源视频、高光内容、执行人或平台",
+  );
+  await projectSearch.fill("直播测试");
+  await page.getByRole("button", { name: "搜索", exact: true }).click();
+  await expect(page.getByLabel("搜索命中位置")).toContainText("直播测试项目");
+  await page.getByRole("button", { name: "＋ 保存当前视图" }).click();
+  await page.getByLabel("视图名称").fill("我的直播视图");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("button", { name: "我的直播视图", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "清除筛选" }).click();
+  await expect(projectSearch).toHaveValue("");
+  await page.getByRole("button", { name: "我的直播视图", exact: true }).click();
+  await expect(projectSearch).toHaveValue("直播测试");
+  await page.getByRole("button", { name: "管理视图 我的直播视图" }).click();
+  await page.getByRole("button", { name: "删除视图" }).click();
+  await expect(page.getByText("确认删除“我的直播视图”？项目不会被删除。")).toBeVisible();
+  await page.getByRole("button", { name: "确认删除" }).click();
+  await expect(page.getByRole("button", { name: "我的直播视图", exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("project-dashboard.png"), fullPage: true });
 });

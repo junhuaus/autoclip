@@ -96,6 +96,86 @@ export interface ProjectSnapshot {
   allowed_lifecycle_transitions: ProjectLifecycle[];
 }
 
+export type ProjectRoleFilter = "owner" | "editor" | "reviewer" | "viewer";
+export type ProjectVisibilityFilter = "private" | "workspace";
+export type ProjectAssigneeFilter = "any" | "me" | "unassigned" | "user";
+export type ProjectDueFilter = "any" | "overdue" | "today" | "next_7_days" | "unscheduled";
+export type ProjectSearchSort = "updated_desc" | "due_asc" | "priority_desc" | "name_asc";
+export interface ProjectSearchCriteria {
+  query: string;
+  lifecycles: ProjectLifecycle[];
+  priorities: ProjectPriority[];
+  roles: ProjectRoleFilter[];
+  visibilities: ProjectVisibilityFilter[];
+  platforms: ReleasePlatform[];
+  assignee: ProjectAssigneeFilter;
+  assignee_user_id: string | null;
+  due: ProjectDueFilter;
+  sort: ProjectSearchSort;
+}
+
+export type ProjectSearchMatchScope =
+  | "project"
+  | "source"
+  | "clip_title"
+  | "clip_hook"
+  | "transcript"
+  | "assignee"
+  | "lifecycle"
+  | "platform";
+
+export interface ProjectSearchMatch {
+  scope: ProjectSearchMatchScope;
+  text: string;
+  clip_id: string | null;
+  release_item_id: string | null;
+}
+
+export interface ProjectSearchItem {
+  project: ProjectSnapshot;
+  matches: ProjectSearchMatch[];
+}
+
+export interface ProjectSearchSummary {
+  visible_total: number;
+  needs_attention: number;
+  processing: number;
+  review: number;
+  publish: number;
+  archived: number;
+  overdue: number;
+  lifecycle_counts: Record<ProjectLifecycle, number>;
+  priority_counts: Record<ProjectPriority, number>;
+}
+
+export interface ProjectSearchPage {
+  schema_version: "1";
+  criteria: ProjectSearchCriteria;
+  query_fingerprint: string;
+  evaluated_at: string;
+  timezone: string;
+  total_count: number;
+  limit: number;
+  next_cursor: string | null;
+  summary: ProjectSearchSummary;
+  items: ProjectSearchItem[];
+}
+
+export interface SavedProjectView {
+  view_id: string;
+  name: string;
+  criteria_schema_version: "1";
+  criteria: ProjectSearchCriteria;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedProjectViewsResponse {
+  schema_version: "1";
+  views: SavedProjectView[];
+}
+
 export type WorkspaceRole = "owner" | "editor" | "reviewer" | "viewer";
 export type ProjectAction =
   | "read"
