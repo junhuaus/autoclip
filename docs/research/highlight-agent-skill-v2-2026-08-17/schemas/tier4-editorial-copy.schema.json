@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "EditorialCopy": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "pattern": "^candidate_[a-f0-9]{16}$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "edited_sentence": {
+          "maxLength": 140,
+          "minLength": 1,
+          "title": "Edited Sentence",
+          "type": "string"
+        },
+        "evidence_quote": {
+          "maxLength": 220,
+          "minLength": 4,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "hook": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "maxLength": 24,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Keywords",
+          "type": "array"
+        },
+        "script_description": {
+          "maxLength": 280,
+          "minLength": 1,
+          "title": "Script Description",
+          "type": "string"
+        },
+        "selection_reason": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Selection Reason",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "title",
+        "hook",
+        "evidence_quote",
+        "edited_sentence",
+        "script_description",
+        "keywords",
+        "selection_reason"
+      ],
+      "title": "EditorialCopy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "copies": {
+      "items": {
+        "$ref": "#/$defs/EditorialCopy"
+      },
+      "maxItems": 20,
+      "title": "Copies",
+      "type": "array"
+    },
+    "selection_summary": {
+      "maxLength": 600,
+      "minLength": 1,
+      "title": "Selection Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "selection_summary",
+    "copies"
+  ],
+  "title": "EditorialCopyBatch",
+  "type": "object"
+}

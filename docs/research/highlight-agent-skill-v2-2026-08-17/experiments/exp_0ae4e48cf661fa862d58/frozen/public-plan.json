@@ -1,0 +1,146 @@
+{
+  "arm_mapping_commitment_sha256": "87dbce9d5215ccb6dde1f4b609a0b105cca2903085815b3819b214bad72b9876",
+  "candidate_order_variants": [
+    "original_frozen_order"
+  ],
+  "execution_design": "Six source/repeat blocks in a fixed seeded random order; exactly three blocks run each opaque arm first, and both arms use the same frozen evidence.",
+  "model": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "medium"
+  },
+  "order_claim_limit": "No candidate-order robustness claim is permitted.",
+  "pipeline_count": 12,
+  "repeats_per_source": 2,
+  "schedule": [
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_e6a75170b1e21ea7",
+      "pair_sequence": 1,
+      "pipelines": [
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_295f8256b10bc1b8",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_3938cd99141f5f57",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_199c8497104d75ba"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_7b964ab0d95e5f6a",
+      "pair_sequence": 2,
+      "pipelines": [
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_f788fc1345b69a3c",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_c3f987491f16e008",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_7bffb2560863e209",
+      "pair_sequence": 3,
+      "pipelines": [
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_1e89ed2e7c066559",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_66bbcb243f0e7961",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_199c8497104d75ba"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_cc66bfe954bcc1aa",
+      "pair_sequence": 4,
+      "pipelines": [
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_432edfabfa91afd1",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_1ce81ff4b6686e6d",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_aaecce3ac79ae487",
+      "pair_sequence": 5,
+      "pipelines": [
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_4ef17e13ad2e3e09",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_4fcdc7cde8946143",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_9224e7bb328c1722",
+      "pair_sequence": 6,
+      "pipelines": [
+        {
+          "arm_id": "arm_7dfabc955ba52ad5",
+          "pipeline_id": "pipeline_bbac23d3ac54f409",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_068d613065ba727a",
+          "pipeline_id": "pipeline_18bfb177ea010f9c",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_4ae8fc713215e94c"
+    }
+  ],
+  "schema_version": "1",
+  "sol_high_policy": "disabled; record deterministic would_escalate only",
+  "study": "fresh-v1-v2-same-model-minimum-matrix",
+  "tier_topology": {
+    "v1": [
+      "single_fresh_generation"
+    ],
+    "v2": [
+      "tier1_batches_max_15",
+      "tier2_topic_inventory",
+      "tier3_deterministic_portfolio",
+      "tier4_editorial_copy",
+      "deterministic_exact_quote_gate"
+    ]
+  },
+  "unique_source_count": 3
+}

@@ -1,0 +1,23 @@
+{
+  "contract_version": "liveclip-highlight-agent-v2.iteration-1",
+  "contracts_sha256": "5668ef9a50eee8f38d76fde170bd3df6b6366b72eff4041abcefc2d7763d296f",
+  "schema_version": "liveclip-highlight-agent-v2-schema-manifest-v1",
+  "schemas": {
+    "tier1-assessment.schema.json": {
+      "sha256": "1c56998d422fcb44566565c8b9a7830d7e101df88edaf5f07a83c06ecad5c212",
+      "size_bytes": 5409
+    },
+    "tier2-topic-inventory.schema.json": {
+      "sha256": "df56f598d66966bf9e73c06200ade0f523e31b86533971259573bb50a875e19a",
+      "size_bytes": 2547
+    },
+    "tier4-editorial-copy.schema.json": {
+      "sha256": "dbe0a54ff9777a1fb97bf824479a60c26df3bfe56df3842365c5111957aff7a6",
+      "size_bytes": 2151
+    },
+    "tier5-independent-audit.schema.json": {
+      "sha256": "c61cf61a2d6086c89d87b222a59494b4482f1bf6fde56d941aeec0605d60de62",
+      "size_bytes": 2014
+    }
+  }
+}

@@ -1,0 +1,244 @@
+{
+  "artifact_index": {
+    "frozen/gates/input_gate.py": {
+      "sha256": "9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73",
+      "size_bytes": 4758
+    },
+    "frozen/inputs/src_199c8497104d75ba.json": {
+      "sha256": "3c46dca758569693b84006179e04708a2586418fc299aed81bce5eacde6c19ec",
+      "size_bytes": 58776
+    },
+    "frozen/inputs/src_4ae8fc713215e94c.json": {
+      "sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec",
+      "size_bytes": 59889
+    },
+    "frozen/inputs/src_7f34cc21eaf6d819.json": {
+      "sha256": "cc035e5eb5764b7b53bd0855fccee5d07334ee3b32abd15bcb957f27b1996936",
+      "size_bytes": 67574
+    },
+    "frozen/public-plan.json": {
+      "sha256": "c1b49068f173566fbdb1fb355b64fe3230baa4fd74ab0cc60f6170aea78c7248",
+      "size_bytes": 4201
+    },
+    "frozen/runtime/v1-skill.md": {
+      "sha256": "aeae5d849f13f656b83d376ba9289313479e11e4d0179e7a09554a129c38eba8",
+      "size_bytes": 2025
+    },
+    "frozen/runtime/v2-tier1-bundle.md": {
+      "sha256": "d44704daa388ba8eb2fad415e4cc489d6dd66bdd8c4cf863bb76d93c98454baa",
+      "size_bytes": 15626
+    },
+    "frozen/runtime/v2-tier2-bundle.md": {
+      "sha256": "8b41bd07d70e329c03034e19b11d73035259c54fe7d3b071950ae7277711e802",
+      "size_bytes": 11436
+    },
+    "frozen/runtime/v2-tier4-bundle.md": {
+      "sha256": "007c67a5598860c5f048a8805cfd0cf7381237628de7861d12af8dc79d831073",
+      "size_bytes": 11543
+    },
+    "frozen/schemas/src_199c8497104d75ba/v1.json": {
+      "sha256": "a1309c45370bbbd121bc2384ade86054c165b81ea992501f0570fd5d8131f25b",
+      "size_bytes": 3958
+    },
+    "frozen/schemas/src_199c8497104d75ba/v2-tier1-b01.json": {
+      "sha256": "724e06ec359bec07fdc4beb7d4b641edef4803783ddf9539c2b998cf55226d6d",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_199c8497104d75ba/v2-tier1-b02.json": {
+      "sha256": "0da12cf8bfd00aeb4e3ffdafa5a4a30398b61b8be6cb69cc726075a35cb80219",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_199c8497104d75ba/v2-tier1-b03.json": {
+      "sha256": "24472570bda2c9c3555ae446f46e6c655cd9e718dc6d8815df1e26be69194f2b",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_199c8497104d75ba/v2-tier2.json": {
+      "sha256": "692a0bb5fa59d3e23c5b9c1a2db6054eb0ea88fdb2207cc536b596719b85e97d",
+      "size_bytes": 4385
+    },
+    "frozen/schemas/src_199c8497104d75ba/v2-tier4.json": {
+      "sha256": "16039c6d92fc9d4f7e2ca129bde27672a04a2a5e8d1cf3150bb58b2ba00a706a",
+      "size_bytes": 3989
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v1.json": {
+      "sha256": "c743225b570bb05872fbe488a913bcdbf1208e3d2f8a6ae7d2671bd07c0072e7",
+      "size_bytes": 3782
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v2-tier1-b01.json": {
+      "sha256": "9524a6b84ebca3e4d2fe79e99c3512a4af80c0fb6ed1c9b93a4d159b2b53fb03",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v2-tier1-b02.json": {
+      "sha256": "68149d09b46199e755fec21cbd904d0e354ea6f8795cb77c4e661f4d409e0479",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v2-tier1-b03.json": {
+      "sha256": "cb552c109969d62ab7ffe001906456f861660cce48929d8d567209f13e054aed",
+      "size_bytes": 5819
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v2-tier2.json": {
+      "sha256": "3ddc4db946e87fff72cc52aa43c1d8c93a904913ee16d5cb6ffb29b59211abda",
+      "size_bytes": 4217
+    },
+    "frozen/schemas/src_4ae8fc713215e94c/v2-tier4.json": {
+      "sha256": "7a52852bc1e350a257f3d5fbd50f1a073daf441660d7cc31ec380adda77b5fa9",
+      "size_bytes": 3821
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v1.json": {
+      "sha256": "1072d85318613d296e47fc5f919ccbb60d20348373b060e8053dfff097219164",
+      "size_bytes": 3958
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v2-tier1-b01.json": {
+      "sha256": "13c0d17ba90a20924573c6f890a5a4220845f399fb394af710483c11a3af36d8",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v2-tier1-b02.json": {
+      "sha256": "c4d29f3e2daeefc7f15f3227fb407fede5de7c5a46cfe5ddae0817612d668658",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v2-tier1-b03.json": {
+      "sha256": "6dc4f93c336a3e50c87cd98dc490fa70ec19bae99d4ade3cda566b26390b07f6",
+      "size_bytes": 5987
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v2-tier2.json": {
+      "sha256": "881b73bcf6474049e8634998bde539f18c4a9608b8a5dcc5ae543143e3ed660c",
+      "size_bytes": 4385
+    },
+    "frozen/schemas/src_7f34cc21eaf6d819/v2-tier4.json": {
+      "sha256": "d03c8dcb4197993a75f82c6eb3e3590d0bdc215b559c31a6cad4f94538d957d6",
+      "size_bytes": 3989
+    },
+    "private/arm-map.private.json": {
+      "sha256": "87dbce9d5215ccb6dde1f4b609a0b105cca2903085815b3819b214bad72b9876",
+      "size_bytes": 2205
+    }
+  },
+  "contract_sha256": "0ae4e48cf661fa862d5866f0409b426de89b755c49c471a5870ecf5ab9f2c610",
+  "experiment_id": "exp_0ae4e48cf661fa862d58",
+  "immutable_contract": {
+    "arm_mapping_commitment_sha256": "87dbce9d5215ccb6dde1f4b609a0b105cca2903085815b3819b214bad72b9876",
+    "codex_cli": {
+      "path": "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+      "version": "codex-cli 0.146.0"
+    },
+    "contracts_sha256": "5668ef9a50eee8f38d76fde170bd3df6b6366b72eff4041abcefc2d7763d296f",
+    "contracts_version": "liveclip-highlight-agent-v2.iteration-1",
+    "input_gate_sha256": "9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73",
+    "input_gate_version": "liveclip-highlight-agent-v2-input-gate-v1",
+    "model": {
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "medium"
+    },
+    "public_plan_sha256": "c1b49068f173566fbdb1fb355b64fe3230baa4fd74ab0cc60f6170aea78c7248",
+    "repair_policy": {
+      "maximum_attempts_per_model_call": 2,
+      "maximum_repairs_per_pipeline": 2,
+      "maximum_repairs_per_tier": 1,
+      "repair_returns_to_same_tier": true
+    },
+    "runner_sha256": "d9ec3a9dcbc5d39c3d42d039250e3212c5c703d7648d8ee20ce35b165d160a10",
+    "runner_version": "liveclip-highlight-v1-v2-runner.iteration-1",
+    "runtime_isolation": {
+      "environment": "allowlist",
+      "ephemeral": true,
+      "ignore_rules": true,
+      "ignore_user_config": true,
+      "sandbox": "read-only",
+      "tools": "disabled",
+      "unsafe_tool_event": "hard_fail"
+    },
+    "schema_version": "1",
+    "selection_configuration": {
+      "maximum_interval_iou": 0.45,
+      "maximum_text_jaccard": 0.65,
+      "minimum_quality": 55.0,
+      "top_n": 12
+    },
+    "sources": [
+      {
+        "candidate_count": 45,
+        "candidate_order_sha256": "81ba5a175ba0defa92fbafe144f32197329bc19929bc9694fd173073e4e21cf8",
+        "case_id": "b1_8_16_2",
+        "evidence_set_sha256": "353ea6caccb055469c0af51f373bd47bef5a35881aa721b63636aad74f90f330",
+        "experiment_input_sha256": "cc035e5eb5764b7b53bd0855fccee5d07334ee3b32abd15bcb957f27b1996936",
+        "input_gate_sha256": "9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73",
+        "input_gate_version": "liveclip-highlight-agent-v2-input-gate-v1",
+        "schema_sha256": {
+          "v1": "1072d85318613d296e47fc5f919ccbb60d20348373b060e8053dfff097219164",
+          "v2-tier1-b01": "13c0d17ba90a20924573c6f890a5a4220845f399fb394af710483c11a3af36d8",
+          "v2-tier1-b02": "c4d29f3e2daeefc7f15f3227fb407fede5de7c5a46cfe5ddae0817612d668658",
+          "v2-tier1-b03": "6dc4f93c336a3e50c87cd98dc490fa70ec19bae99d4ade3cda566b26390b07f6",
+          "v2-tier2": "881b73bcf6474049e8634998bde539f18c4a9608b8a5dcc5ae543143e3ed660c",
+          "v2-tier4": "d03c8dcb4197993a75f82c6eb3e3590d0bdc215b559c31a6cad4f94538d957d6"
+        },
+        "source_id": "src_7f34cc21eaf6d819",
+        "source_sha256": "6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417",
+        "tier1_batch_count": 3,
+        "upstream_frozen_input_sha256": "cc035e5eb5764b7b53bd0855fccee5d07334ee3b32abd15bcb957f27b1996936"
+      },
+      {
+        "candidate_count": 41,
+        "candidate_order_sha256": "69ab45861a10dd8818ae8cf6f745669b27cb0f0606045642b349319058e97ceb",
+        "case_id": "b2_7_28",
+        "evidence_set_sha256": "7d7a7d6755e4134ed865a0be2890f77e0bd5568a945d96ed6c8d4b0b0f62ccae",
+        "experiment_input_sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec",
+        "input_gate_sha256": "9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73",
+        "input_gate_version": "liveclip-highlight-agent-v2-input-gate-v1",
+        "schema_sha256": {
+          "v1": "c743225b570bb05872fbe488a913bcdbf1208e3d2f8a6ae7d2671bd07c0072e7",
+          "v2-tier1-b01": "9524a6b84ebca3e4d2fe79e99c3512a4af80c0fb6ed1c9b93a4d159b2b53fb03",
+          "v2-tier1-b02": "68149d09b46199e755fec21cbd904d0e354ea6f8795cb77c4e661f4d409e0479",
+          "v2-tier1-b03": "cb552c109969d62ab7ffe001906456f861660cce48929d8d567209f13e054aed",
+          "v2-tier2": "3ddc4db946e87fff72cc52aa43c1d8c93a904913ee16d5cb6ffb29b59211abda",
+          "v2-tier4": "7a52852bc1e350a257f3d5fbd50f1a073daf441660d7cc31ec380adda77b5fa9"
+        },
+        "source_id": "src_4ae8fc713215e94c",
+        "source_sha256": "595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03",
+        "tier1_batch_count": 3,
+        "upstream_frozen_input_sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec"
+      },
+      {
+        "candidate_count": 45,
+        "candidate_order_sha256": "a8304be5120fca4bf5a245ec4b770ae9e5e9c15e2c48f784805be5f639bf92eb",
+        "case_id": "b3_8_16_1",
+        "evidence_set_sha256": "e20d197f909a369a8a248d6222bf352a75bc24dcef2dae8c6ad20b30a249e7c3",
+        "experiment_input_sha256": "3c46dca758569693b84006179e04708a2586418fc299aed81bce5eacde6c19ec",
+        "input_gate_sha256": "9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73",
+        "input_gate_version": "liveclip-highlight-agent-v2-input-gate-v1",
+        "schema_sha256": {
+          "v1": "a1309c45370bbbd121bc2384ade86054c165b81ea992501f0570fd5d8131f25b",
+          "v2-tier1-b01": "724e06ec359bec07fdc4beb7d4b641edef4803783ddf9539c2b998cf55226d6d",
+          "v2-tier1-b02": "0da12cf8bfd00aeb4e3ffdafa5a4a30398b61b8be6cb69cc726075a35cb80219",
+          "v2-tier1-b03": "24472570bda2c9c3555ae446f46e6c655cd9e718dc6d8815df1e26be69194f2b",
+          "v2-tier2": "692a0bb5fa59d3e23c5b9c1a2db6054eb0ea88fdb2207cc536b596719b85e97d",
+          "v2-tier4": "16039c6d92fc9d4f7e2ca129bde27672a04a2a5e8d1cf3150bb58b2ba00a706a"
+        },
+        "source_id": "src_199c8497104d75ba",
+        "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+        "tier1_batch_count": 3,
+        "upstream_frozen_input_sha256": "3c46dca758569693b84006179e04708a2586418fc299aed81bce5eacde6c19ec"
+      }
+    ],
+    "v1_base_schema_sha256": "ed327da4074bbac21226da95c602b89c3d5345a339a310f1fc44c661b3d16657",
+    "v1_skill_sha256": "aeae5d849f13f656b83d376ba9289313479e11e4d0179e7a09554a129c38eba8",
+    "v2_skill_package_sha256": {
+      "SKILL.md": "2ba9390dbf8ef3cffeaaedb3bdb15a9967e36138ef1bf5dcd515ffdcf4206157",
+      "references/atomic-scoring.md": "95e10e528d6f462c4c0231d2f118147ed77e450bff4f3a75867a650771e55b8d",
+      "references/risk-and-repair.md": "e6b3ac7cfdf25de0ec6710a63951f7e022fa88f4d47337666ca001087f5fd5a3",
+      "references/tier-1-assessment.md": "d0e38fac0fe7d39d37245ae463e042484308ecf5de8f1d7342dcc5f6cb85fd74",
+      "references/tier-2-topic-inventory.md": "06098ffc8880f6a85306ae1a6f07d58f722ca779db36d4e7e82408da96d21851",
+      "references/tier-4-editorial-copy.md": "8d55fc121d5768210da8c780e59489f9efe40f712c00bfc8164a4f4a116882bf",
+      "references/tier-5-independent-audit.md": "033ef80600b09081fcb3175577ba6fe2c0ffd8ed8521518223ce7e92d747123c"
+    },
+    "v2_tier_reference_paths": {
+      "tier1": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/tier-1-assessment.md",
+      "tier1:atomic-scoring": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/atomic-scoring.md",
+      "tier1:risk-and-repair": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/risk-and-repair.md",
+      "tier2": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/tier-2-topic-inventory.md",
+      "tier2:risk-and-repair": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/risk-and-repair.md",
+      "tier4": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/tier-4-editorial-copy.md",
+      "tier4:risk-and-repair": "docs/research/highlight-agent-skill-v2-2026-08-17/agent-v2/references/risk-and-repair.md"
+    }
+  },
+  "schema_version": "1"
+}

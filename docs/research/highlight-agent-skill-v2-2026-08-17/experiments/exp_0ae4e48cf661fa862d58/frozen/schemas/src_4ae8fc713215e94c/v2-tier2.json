@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ClusterConfidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "ClusterConfidence",
+      "type": "string"
+    },
+    "TopicDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_angle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Canonical Angle",
+          "type": "string"
+        },
+        "cluster_confidence": {
+          "$ref": "#/$defs/ClusterConfidence"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/TopicMember"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "topic_label": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Topic Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_label",
+        "canonical_angle",
+        "cluster_confidence",
+        "members"
+      ],
+      "title": "TopicDraft",
+      "type": "object"
+    },
+    "TopicMember": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "enum": [
+            "candidate_b66177d9d0ec57ef",
+            "candidate_259a47e73cd8edad",
+            "candidate_f14a3fb4d68e51ca",
+            "candidate_349a7ccecf8c6857",
+            "candidate_f501d39592c1669b",
+            "candidate_c393f29d34250a55",
+            "candidate_29b8beefbb32b85b",
+            "candidate_fa0cd44fc3dcaa6b",
+            "candidate_f39a280e9d55f06e",
+            "candidate_f0bbb75c02ac39ed",
+            "candidate_58a59476ab12c657",
+            "candidate_f89ea722be8ee018",
+            "candidate_f49be10488a46e67",
+            "candidate_464b0f2aee1d8a44",
+            "candidate_0c49c6488ae5fe28",
+            "candidate_ecc8f9bdbcef1f0b",
+            "candidate_b97428705eaff8a0",
+            "candidate_9e9054f2deb55202",
+            "candidate_3c92e6847aff0c59",
+            "candidate_b110d906807b06f5",
+            "candidate_373756f54a23ac46",
+            "candidate_c512c4453cde77d1",
+            "candidate_04479a7661739b63",
+            "candidate_0650eee23c06e676",
+            "candidate_bef585871fbac01e",
+            "candidate_6721fcbb3782d23b",
+            "candidate_5b457445f2236f35",
+            "candidate_f3d1b16dd252adfd",
+            "candidate_0c9ab3b5a64030d5",
+            "candidate_2169870825746d02",
+            "candidate_ec5459f102e399ec",
+            "candidate_288c9f1bf0144c80",
+            "candidate_457e1f1bdcf9a2eb",
+            "candidate_45f74801b32ad9cf",
+            "candidate_d5a694fcab37dad8",
+            "candidate_383a43afa92485e7",
+            "candidate_65678839045aab40",
+            "candidate_35a860b83062d6ab",
+            "candidate_f88952d2d3ed4709",
+            "candidate_cba78926f39edb10",
+            "candidate_554c3d7035ba1055"
+          ],
+          "type": "string"
+        },
+        "member_angle": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Member Angle",
+          "type": "string"
+        },
+        "relationship": {
+          "$ref": "#/$defs/TopicRelationship"
+        },
+        "relationship_reason": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Relationship Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "relationship",
+        "member_angle",
+        "relationship_reason"
+      ],
+      "title": "TopicMember",
+      "type": "object"
+    },
+    "TopicRelationship": {
+      "enum": [
+        "core",
+        "same_claim",
+        "alternate_angle"
+      ],
+      "title": "TopicRelationship",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "inventory_summary": {
+      "maxLength": 600,
+      "minLength": 1,
+      "title": "Inventory Summary",
+      "type": "string"
+    },
+    "topics": {
+      "items": {
+        "$ref": "#/$defs/TopicDraft"
+      },
+      "maxItems": 200,
+      "title": "Topics",
+      "type": "array"
+    }
+  },
+  "required": [
+    "inventory_summary",
+    "topics"
+  ],
+  "title": "TopicInventoryDraft",
+  "type": "object"
+}

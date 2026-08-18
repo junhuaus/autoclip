@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "AuditIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "anyOf": [
+            {
+              "pattern": "^candidate_[a-f0-9]{16}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Candidate Id"
+        },
+        "issue_code": {
+          "$ref": "#/$defs/AuditIssueCode"
+        },
+        "reason": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "repair_target": {
+          "$ref": "#/$defs/AuditRepairTarget"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "issue_code",
+        "repair_target",
+        "reason"
+      ],
+      "title": "AuditIssue",
+      "type": "object"
+    },
+    "AuditIssueCode": {
+      "enum": [
+        "evidence_mismatch",
+        "overclaim",
+        "incomplete_standalone",
+        "duplicate_topic",
+        "risk_misclassified",
+        "editorial_copy_weak"
+      ],
+      "title": "AuditIssueCode",
+      "type": "string"
+    },
+    "AuditRepairTarget": {
+      "enum": [
+        "tier_1_assessment",
+        "tier_2_inventory",
+        "tier_4_editorial_copy"
+      ],
+      "title": "AuditRepairTarget",
+      "type": "string"
+    },
+    "AuditVerdict": {
+      "enum": [
+        "pass",
+        "repair",
+        "reject"
+      ],
+      "title": "AuditVerdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/AuditIssue"
+      },
+      "maxItems": 20,
+      "title": "Issues",
+      "type": "array"
+    },
+    "summary": {
+      "maxLength": 600,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "verdict": {
+      "$ref": "#/$defs/AuditVerdict"
+    }
+  },
+  "required": [
+    "verdict",
+    "summary",
+    "issues"
+  ],
+  "title": "IndependentAudit",
+  "type": "object"
+}

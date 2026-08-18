@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "ClusterConfidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "ClusterConfidence",
+      "type": "string"
+    },
+    "TopicDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_angle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Canonical Angle",
+          "type": "string"
+        },
+        "cluster_confidence": {
+          "$ref": "#/$defs/ClusterConfidence"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/TopicMember"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "topic_label": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Topic Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_label",
+        "canonical_angle",
+        "cluster_confidence",
+        "members"
+      ],
+      "title": "TopicDraft",
+      "type": "object"
+    },
+    "TopicMember": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "pattern": "^candidate_[a-f0-9]{16}$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "member_angle": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Member Angle",
+          "type": "string"
+        },
+        "relationship": {
+          "$ref": "#/$defs/TopicRelationship"
+        },
+        "relationship_reason": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Relationship Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "relationship",
+        "member_angle",
+        "relationship_reason"
+      ],
+      "title": "TopicMember",
+      "type": "object"
+    },
+    "TopicRelationship": {
+      "enum": [
+        "core",
+        "same_claim",
+        "alternate_angle"
+      ],
+      "title": "TopicRelationship",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "inventory_summary": {
+      "maxLength": 600,
+      "minLength": 1,
+      "title": "Inventory Summary",
+      "type": "string"
+    },
+    "topics": {
+      "items": {
+        "$ref": "#/$defs/TopicDraft"
+      },
+      "maxItems": 200,
+      "title": "Topics",
+      "type": "array"
+    }
+  },
+  "required": [
+    "inventory_summary",
+    "topics"
+  ],
+  "title": "TopicInventoryDraft",
+  "type": "object"
+}

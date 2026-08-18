@@ -1,16 +1,49 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-17 18:27 PDT
+Updated: 2026-08-17 19:48 PDT
 
 Package compatibility baseline: `0.1.0`
 
-Current activity: product development remains paused at the user's direction.
-The expanded free-discovery benchmark is complete under
+Current activity: production development remains paused, while the
+user-authorized Highlight Agent Skill v2 research/shadow optimization is now
+active. It does not modify the production Pipeline, database, source media,
+renders, reviews or Deliveries. The prior expanded free-discovery benchmark is
+complete under
 `docs/research/model-benchmark-2026-08-17/`: three generator configurations,
 three unique source hashes, nine primary order-perturbed runs, one zero-weight
 evidence diagnostic and two independent blind Judges. No Pipeline, database,
 source media, render or Delivery state changed. Scoped research checkpoint
 `d9f9836` is committed and pushed to `origin/main`.
+
+## Highlight Agent Skill v2 optimization checkpoint
+
+The v2 research package is frozen under
+`docs/research/highlight-agent-skill-v2-2026-08-17/`. It evaluates the same
+`gpt-5.6-sol / medium` model and effort through two arms: a fresh v1 baseline
+and the proposed tiered v2. The primary experiment uses three unique source
+hashes and two repeats per arm, for 12 pipelines. Candidate order is fixed, so
+the repeats measure sampling stability and do not claim order robustness.
+
+The frozen v2 separates candidate assessment, free Topic discovery,
+deterministic portfolio selection and editorial copy. Every outward
+`evidence_quote` must be an exact normalized substring of the bound candidate;
+`edited_sentence` is a separate field. Models cannot provide file paths,
+commands, code, SQL, URLs or executable media instructions. Strict Schemas,
+complete candidate accounting, Topic IDs, risk flags and deterministic x100
+scores are validated locally.
+
+The zero-model v1 evidence audit verified all 343 prior benchmark artifacts.
+Across 263 primary `highlight_sentence` values, 30 are exact candidate quotes
+(11.41%), two occur only in context, one belongs to another candidate and 230
+cannot be bound as a quote. This does not say the edited prose is unusable; it
+proves the old field mixed evidence and rewritten copy and needs the v2 split.
+
+Formal experiment `exp_0ae4e48cf661fa862d58` has immutable contract SHA-256
+`0ae4e48cf661fa862d5866f0409b426de89b755c49c471a5870ecf5ab9f2c610`.
+The contract binds the Runner, Input Gate, Skill package, Schemas, source
+evidence, candidate order, model/effort and opaque arm commitment. Its dry-run
+made zero model calls. The next remote step is a two-pipeline sentinel; no v2
+generation result exists yet.
 
 ## Current user-visible result
 
@@ -157,6 +190,15 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   report generation; report relative-link/content checks; and `git diff --check`.
   Browser runtime setup succeeded but `agent.browsers.list()` returned `[]`, so
   no MCP Chrome visual-pass claim is made.
+- Highlight Agent Skill v2 checkpoint: 88/88 research tests pass; research Ruff,
+  Schema freeze check, Skill Creator quick validation, complete project
+  `make lint` and credential-pattern scan pass. Contracts SHA-256 is
+  `5668ef9a50eee8f38d76fde170bd3df6b6366b72eff4041abcefc2d7763d296f`,
+  Input Gate SHA-256 is
+  `9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73`
+  and Runner SHA-256 is
+  `d9ec3a9dcbc5d39c3d42d039250e3212c5c703d7648d8ee20ce35b165d160a10`.
+  An independent read-only contract reviewer returned PASS with P0=0/P1=0.
 - A final independent read-only verifier returned `PASS` with P0=0 and no
   delivery-blocking P1. It independently recomputed the three macro scores,
   checked all 343 artifact hashes, all 586 Judge cluster memberships, anonymous
@@ -219,15 +261,20 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   blind Judge calls. They wrote only research artifacts; no render was repeated.
 - Source/test/docs checkpoints include `fa395f6`, `0a266f3` and `d9f9836`;
   generated/private paths remain ignored and unstaged.
+- No remote call has yet been made for the new v2 experiment. Its current files
+  are research-only, its model workers are designed as ephemeral/read-only/
+  tool-disabled with an environment allowlist, and the production database and
+  media remain outside the experiment write path.
 
 ## Next concrete task
 
-Keep product development paused. The next concrete task is human review of
-`REPORT.html` and, where needed, the exhaustive `eval-review/REVIEW.html`, then
-the user's decision whether to implement and evaluate the Tiered Skill v2.
-Do not rerun the 50 generator/Judge artifacts: their raw results and hashes are
-complete. If v2 is approved, fix Sol Medium as the first A/B model and compare
-v1/v2 before changing any production default.
+Keep production development paused. Commit and push the new v2 contract,
+offline audit and frozen dry-run as an S2-M0 recovery checkpoint. Then run
+`run_iteration.py --sentinel` for exactly one same-source/repeat v1/v2 pair.
+Verify 2/12 completed pipelines, all Call receipts, zero unsafe tool events and
+all deterministic Gates before resuming the remaining ten pipelines. After all
+12 pipelines finish, build the Skill Creator static viewer before qualitative
+analysis and run two anonymous Judges. Do not change the production default.
 
 The previously requested Web quantity range/minimum-score/manual-score slice
 has not been implemented. The approval-workflow audit and cross-Project bulk
@@ -236,7 +283,8 @@ assignment also remain pending separate user decisions.
 ## Resume instructions
 
 Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
-both Living ExecPlans and this file. Run `git status --short --branch`,
+all Living ExecPlans including `highlight-agent-skill-v2.md`, and this file.
+Run `git status --short --branch`,
 `git log -5 --oneline`, `.venv/bin/alembic current`, `.venv/bin/alembic check`
 and confirm API/Web health. Preserve all four real Projects, both database
 backups and existing offline-review packages. Verify `fa395f6` and `0a266f3`
@@ -247,4 +295,6 @@ latest `qa/pipeline.jsonl`, `qa/test-report.md`, the new benchmark
 `analysis.json` still hashes to
 `fa7029c10b593a987b285132d241fcda7fb102ec26f45da4899c64d46575e2de`
 and do not rerun the remote experiment. Resume implementation only after the
-user accepts a named next slice.
+user accepts a named next slice. For the already accepted v2 research slice,
+verify experiment `exp_0ae4e48cf661fa862d58` and resume its sentinel/full
+matrix without `--force`; never delete a completed Call receipt.

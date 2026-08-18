@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "AssessmentConfidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "AssessmentConfidence",
+      "type": "string"
+    },
+    "AtomicScores": {
+      "additionalProperties": false,
+      "properties": {
+        "content_value": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Content Value",
+          "type": "integer"
+        },
+        "editorial_utility": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Editorial Utility",
+          "type": "integer"
+        },
+        "evidence_fidelity": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Evidence Fidelity",
+          "type": "integer"
+        },
+        "hook_strength": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Hook Strength",
+          "type": "integer"
+        },
+        "standalone_completeness": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Standalone Completeness",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content_value",
+        "hook_strength",
+        "standalone_completeness",
+        "evidence_fidelity",
+        "editorial_utility"
+      ],
+      "title": "AtomicScores",
+      "type": "object"
+    },
+    "CandidateAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_confidence": {
+          "$ref": "#/$defs/AssessmentConfidence"
+        },
+        "assessment_reason": {
+          "maxLength": 260,
+          "minLength": 1,
+          "title": "Assessment Reason",
+          "type": "string"
+        },
+        "candidate_id": {
+          "enum": [
+            "candidate_a0f21643888730a5",
+            "candidate_34558c9f504eca45",
+            "candidate_22d3260a7179c022",
+            "candidate_005f7d0822d40234",
+            "candidate_a4bef74f0779a1e2",
+            "candidate_8cae2aab5bc153ac",
+            "candidate_2716045703db1f3b",
+            "candidate_7c52ff6875a16a62",
+            "candidate_1261f4ebdaaa4ed6",
+            "candidate_e27d41447dbfb889",
+            "candidate_2a81f27ea2fccc4f",
+            "candidate_ec801fd85b29d485",
+            "candidate_7f4a5d4251808e1e",
+            "candidate_f0c88f3966f4c86b",
+            "candidate_260b8f35571eae11"
+          ],
+          "type": "string"
+        },
+        "content_risk_flags": {
+          "items": {
+            "$ref": "#/$defs/ContentRiskFlag"
+          },
+          "maxItems": 8,
+          "title": "Content Risk Flags",
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CandidateDisposition"
+        },
+        "evidence_flags": {
+          "items": {
+            "$ref": "#/$defs/EvidenceFlag"
+          },
+          "maxItems": 4,
+          "title": "Evidence Flags",
+          "type": "array"
+        },
+        "primary_claim": {
+          "anyOf": [
+            {
+              "maxLength": 180,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Primary Claim"
+        },
+        "risk_summary": {
+          "maxLength": 240,
+          "title": "Risk Summary",
+          "type": "string"
+        },
+        "scores": {
+          "$ref": "#/$defs/AtomicScores"
+        },
+        "topic_hypothesis": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Topic Hypothesis"
+        },
+        "uncertainty_flags": {
+          "items": {
+            "$ref": "#/$defs/UncertaintyFlag"
+          },
+          "maxItems": 6,
+          "title": "Uncertainty Flags",
+          "type": "array"
+        },
+        "unusable_reason": {
+          "$ref": "#/$defs/UnusableReason"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "disposition",
+        "unusable_reason",
+        "topic_hypothesis",
+        "primary_claim",
+        "assessment_reason",
+        "assessment_confidence",
+        "uncertainty_flags",
+        "scores",
+        "evidence_flags",
+        "content_risk_flags",
+        "risk_summary"
+      ],
+      "title": "CandidateAssessment",
+      "type": "object"
+    },
+    "CandidateDisposition": {
+      "enum": [
+        "assessable",
+        "unusable"
+      ],
+      "title": "CandidateDisposition",
+      "type": "string"
+    },
+    "ContentRiskFlag": {
+      "enum": [
+        "health_or_safety_claim",
+        "legal_or_financial_claim",
+        "personal_data",
+        "copyright_or_third_party",
+        "reputation_or_defamation",
+        "sponsor_or_advertising",
+        "unsafe_instruction",
+        "sensitive_content"
+      ],
+      "title": "ContentRiskFlag",
+      "type": "string"
+    },
+    "EvidenceFlag": {
+      "enum": [
+        "asr_uncertain",
+        "context_dependency",
+        "incomplete_claim",
+        "visual_verification_required"
+      ],
+      "title": "EvidenceFlag",
+      "type": "string"
+    },
+    "UncertaintyFlag": {
+      "enum": [
+        "asr_ambiguity",
+        "missing_question",
+        "missing_context",
+        "mixed_topics",
+        "visual_dependency",
+        "claim_ambiguity"
+      ],
+      "title": "UncertaintyFlag",
+      "type": "string"
+    },
+    "UnusableReason": {
+      "enum": [
+        "none",
+        "fragment_only",
+        "context_dependent",
+        "asr_unintelligible",
+        "unsafe_to_publish"
+      ],
+      "title": "UnusableReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assessments": {
+      "items": {
+        "$ref": "#/$defs/CandidateAssessment"
+      },
+      "maxItems": 15,
+      "minItems": 1,
+      "title": "Assessments",
+      "type": "array"
+    }
+  },
+  "required": [
+    "assessments"
+  ],
+  "title": "AssessmentBatch",
+  "type": "object"
+}
