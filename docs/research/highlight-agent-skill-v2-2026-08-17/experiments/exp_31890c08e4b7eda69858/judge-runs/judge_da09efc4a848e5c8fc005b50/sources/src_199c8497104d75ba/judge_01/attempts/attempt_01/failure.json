@@ -1,0 +1,5 @@
+{
+  "error": "judge_01/src_199c8497104d75ba/attempt-1 failed with exit 1: Error: Unknown feature flag: skills\n",
+  "failure_kind": "validation_or_invocation",
+  "schema_version": "1"
+}

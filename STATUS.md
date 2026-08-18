@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 00:56 PDT
+Updated: 2026-08-18 02:01 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -75,6 +75,17 @@ Dual-Judge dry-run `judge_da09efc4a848e5c8fc005b50` froze six inputs for Sol
 Max and Terra Max: three sources, two Judges, four opaque generator outputs per
 source. Blind inputs and Schemas contain no arm, Pipeline, Skill/model/effort,
 latency, token or self-score identity data. It made zero Judge model calls.
+
+The first real Judge sentinel then stopped before producing a Judge model
+result. `judge_01/src_199c8497104d75ba` attempt 1 and attempt 2 both failed in
+Codex CLI argument validation with `Unknown feature flag: skills`. The run has
+only the immutable call contract, two prompt hashes and two exact failure
+receipts; no score, cluster or Judge usage result exists. This exposed a Judge
+harness P1: a pre-model configuration error incorrectly consumed the model
+repair budget because this runner lacked the generator runner's zero-model
+compatibility preflight. The failed `judge_da09...` evidence is being preserved;
+the fix must create a new hash-derived Judge-run ID, use only supported tool
+isolation flags and classify bounded pre-model failures separately.
 
 ## Current user-visible result
 

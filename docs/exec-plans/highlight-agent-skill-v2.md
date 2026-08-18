@@ -243,6 +243,16 @@ write `iteration-2` rather than replacing iteration 1.
   dry-run then froze six source/Judge inputs (three sources × two Judges), each
   with four opaque generator outputs. Blind inputs and Schemas contain no arm,
   Pipeline, Skill/model/effort, latency, token or self-score identity fields.
+- 2026-08-18: The first real dual-Judge sentinel stopped before any Judge model
+  result. Both permitted attempts for `judge_01/src_199c8497104d75ba` failed at
+  Codex CLI argument validation with `Unknown feature flag: skills`; only a
+  call contract, prompt hashes and two failure receipts were written. This is a
+  Judge harness P1: unlike the generator runner, it lacked a zero-model
+  compatibility preflight and incorrectly consumed repair slots for a
+  pre-model infrastructure/configuration failure. The failed run
+  `judge_da09efc4a848e5c8fc005b50` remains immutable. A superseding runner must
+  use only current supported isolation flags, classify pre-model failures
+  separately and create a new Judge-run identity before any retry.
 
 ## Decision Log
 
@@ -276,10 +286,13 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the completed 12/12 generator matrix,
-anonymous Viewer and frozen dual-Judge dry-run, then run the two-Judge sentinel
-for the first source. Validate both Judge receipts and complete membership
-before resuming the remaining four Judge calls. If interrupted, read this file and
+Current first task: preserve and commit the failed
+`judge_da09efc4a848e5c8fc005b50` sentinel receipts, then harden the Judge runner
+with a zero-model current-CLI preflight and pre-model failure accounting. The
+changed runner must create a new Judge-run ID rather than resume or overwrite
+the failed run. Run the two-Judge sentinel for the first source, validate both
+Judge receipts and complete membership, then resume the remaining four Judge
+calls. If interrupted, read this file and
 `STATUS.md`, verify the experiment manifest and current source hashes, and
 resume rather than deleting or forcing an artifact. Never rerun the completed
 three-model benchmark or overwrite its artifacts.
