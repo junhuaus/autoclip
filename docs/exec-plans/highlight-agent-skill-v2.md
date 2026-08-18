@@ -365,9 +365,9 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: checkpoint the independently verified, rejected iteration
-1 without rerunning any generator or Judge call. After that, freeze iteration 2
-before any new model output. It must use a
+Iteration 1 is independently verified, committed as `46ff874` and pushed to
+`origin/main` without rerunning any generator or Judge call. Current first task:
+freeze iteration 2 before any new model output. It must use a
 combined all-candidate assessment/free-Topic stage, deterministic
 quality-adaptive selection and one selected-candidate copy stage; no result may
 overwrite iteration 1. If interrupted, read this file and `STATUS.md`, verify

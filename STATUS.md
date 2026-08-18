@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 05:20 PDT
+Updated: 2026-08-18 05:21 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -14,8 +14,9 @@ complete under
 `docs/research/model-benchmark-2026-08-17/`: three generator configurations,
 three unique source hashes, nine primary order-perturbed runs, one zero-weight
 evidence diagnostic and two independent blind Judges. No Pipeline, database,
-source media, render or Delivery state changed. Scoped research checkpoint
-`d9f9836` is committed and pushed to `origin/main`.
+source media, render or Delivery state changed. Expanded-benchmark checkpoint
+`d9f9836` and rejected iteration-1 checkpoint `46ff874` are committed and
+pushed to `origin/main`.
 
 ## Highlight Agent Skill v2 optimization checkpoint
 
@@ -213,6 +214,9 @@ MCP Chrome during this session.
 - `d9f9836`: isolated three-configuration free-discovery benchmark, dual-Judge
   evidence, deterministic analysis, offline HTML reports and Tiered Skill v2
   research proposal.
+- `46ff874`: complete Highlight Agent Skill v2 iteration-1 generator/Judge
+  receipts, deterministic report, independent verification and production
+  rejection decision.
 
 The sync fix is in `src/liveclip/renderer/ffmpeg.py`. It uses an input-side seek
 at `source_start - min(source_start, 10s)`, decodes the preroll, then uses an
@@ -343,7 +347,8 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   database. The expanded benchmark made 28 new tool-disabled generator calls,
   reused two byte/input/Prompt/Schema-identical pilot results, and made 20 new
   blind Judge calls. They wrote only research artifacts; no render was repeated.
-- Source/test/docs checkpoints include `fa395f6`, `0a266f3` and `d9f9836`;
+- Source/test/docs checkpoints include `fa395f6`, `0a266f3`, `d9f9836` and
+  `46ff874`;
   product-generated/private paths remain ignored and unstaged.
 - The v2 iteration-1 experiment made 36 successful tool-disabled generator
   Calls plus two permitted failed model attempts that were repaired, and six
@@ -353,9 +358,9 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Keep production development paused. Checkpoint the rejected, independently
-verified iteration 1, then freeze iteration 2 before producing any new model
-output. Iteration 2 must preserve free Topic discovery and exact evidence, use
+Keep production development paused. Rejected iteration 1 is checkpointed; now
+freeze iteration 2 before producing any new model output. Iteration 2 must
+preserve free Topic discovery and exact evidence, use
 one combined all-candidate assessment/free-Topic stage, deterministic
 quality-adaptive selection of 8–12 highlights and one selected-candidate copy
 stage, with at most two normal model Calls per Pipeline. Freeze explicit 0–4
