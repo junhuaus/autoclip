@@ -6,8 +6,9 @@ The analyzer is deliberately fail closed.  It delegates immutable generator and
 Judge receipt verification to ``run_judges.py`` and does not read the private arm
 map until all six Judge calls have been verified as complete.  Headline metrics
 are source-first: repeats are averaged inside each of the three unique sources,
-then sources receive equal weight.  "Coverage" in this report always means
-coverage relative to the observed selected union, never absolute recall.
+then sources receive equal weight.  Deterministic coverage is relative to the
+observed selected union, never absolute recall; Judge-rated coverage is a
+separate subjective dimension.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote
 
@@ -377,6 +379,98 @@ def _validate_pipeline_completion_binding(
     return summary, completion
 
 
+def _verify_completed_generator_runtime_preflight(
+    experiment_dir: Path,
+) -> None:
+    """Read-only verification of the generator experiment's zero-model preflight."""
+    manifest = _load_json(
+        _regular_file(
+            experiment_dir / "experiment-manifest.json", "generator experiment manifest"
+        )
+    )
+    root = experiment_dir / "infrastructure" / "preflight"
+    checks_root = root / "checks"
+    _expect(
+        root.is_dir() and not root.is_symlink(),
+        "Generator runtime preflight root is invalid",
+    )
+    _expect(
+        checks_root.is_dir() and not checks_root.is_symlink(),
+        "Generator runtime preflight checks root is invalid",
+    )
+    _expect(
+        {child.name for child in root.iterdir()} == {"checks"},
+        "Generator runtime preflight layout drifted",
+    )
+    children = sorted(checks_root.iterdir(), key=lambda path: path.name)
+    _expect(
+        all(
+            child.is_dir() and not child.is_symlink() and child.name.isdigit()
+            for child in children
+        ),
+        "Generator runtime preflight check layout drifted",
+    )
+    numbers = [int(child.name) for child in children]
+    _expect(bool(numbers), "Generator runtime preflight has no checks")
+    _expect(
+        numbers == list(range(1, len(numbers) + 1)),
+        "Generator runtime preflight check sequence drifted",
+    )
+    immutable_contract = manifest.get("immutable_contract")
+    _expect(isinstance(immutable_contract, dict), "generator immutable contract is missing")
+    policy = immutable_contract.get("runtime_preflight")
+    _expect(isinstance(policy, dict), "generator runtime preflight policy is missing")
+    maximum_failed_checks = policy.get("maximum_failed_checks")
+    _expect(
+        isinstance(maximum_failed_checks, int)
+        and not isinstance(maximum_failed_checks, bool)
+        and maximum_failed_checks >= 1,
+        "generator runtime preflight failure limit is invalid",
+    )
+    experiment_id = manifest.get("experiment_id")
+    contract_sha256 = manifest.get("contract_sha256")
+    _expect(isinstance(experiment_id, str) and experiment_id, "generator experiment ID is missing")
+    _expect(
+        isinstance(contract_sha256, str) and contract_sha256,
+        "generator contract SHA-256 is missing",
+    )
+    prepared = SimpleNamespace(
+        experiment_dir=experiment_dir,
+        experiment_id=experiment_id,
+        contract_sha256=contract_sha256,
+        manifest=manifest,
+    )
+    passed: list[int] = []
+    failed_count = 0
+    for number, directory in zip(numbers, children, strict=True):
+        receipt_path = _regular_file(
+            directory / "receipt.json", f"Generator runtime preflight check {number}"
+        )
+        _expect(
+            len(list(directory.iterdir())) == 1,
+            "Generator runtime preflight check has extra artifacts",
+        )
+        receipt = _load_json(receipt_path)
+        try:
+            iteration_harness._validate_preflight_receipt(receipt, prepared, number)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+            raise AnalysisError(
+                f"Generator runtime preflight check {number} drifted: {exc}"
+            ) from exc
+        if receipt.get("status") == "passed":
+            passed.append(number)
+        else:
+            failed_count += 1
+    _expect(
+        len(passed) == 1 and passed[0] == numbers[-1],
+        "Generator runtime preflight pass receipt drifted",
+    )
+    _expect(
+        failed_count < maximum_failed_checks,
+        "Generator runtime preflight failure limit was reached before the pass",
+    )
+
+
 def _verify_completed_runtime_preflight(prepared: Any) -> None:
     """Read-only verification of the Judge run's zero-model runtime preflight."""
     root = prepared.run_dir / "infrastructure" / "preflight"
@@ -441,6 +535,7 @@ def load_verified_experiment(
 ) -> VerifiedExperiment:
     """Verify all public receipts, then (and only then) load private identities."""
     experiment_dir = experiment_dir.resolve(strict=True)
+    _verify_completed_generator_runtime_preflight(experiment_dir)
     try:
         experiment_id, bundles = judge_harness._load_source_bundles(experiment_dir)
     except (judge_harness.GeneratorMatrixIncomplete, judge_harness.IntegrityError) as exc:
@@ -795,8 +890,11 @@ def _quality_analysis(
     )
     return {
         "score_definition": (
-            "Judge system score: discovery 30%, selected-union-relative coverage 20%, "
-            "precision 20%, sampling stability 15%, editorial readiness 15%."
+            "Judge system score: discovery 30%, Judge-assigned coverage 20%, precision 20%, "
+            "sampling stability 15%, editorial readiness 15%. The frozen Judge schema did "
+            "not define 0-4 anchors, and this subjective coverage field is distinct from the "
+            "deterministic selected-union-relative coverage metric. Each system's weighted "
+            "x4 sum is integer-floored via //4 before source-first averaging."
         ),
         "by_judge": by_judge,
         "dual_judge": dual_by_skill,
@@ -1294,7 +1392,24 @@ def _acceptance(
     unbound_repair_cost = efficiency["unbound_repair_cost"]
     ratios_known = elapsed_ratio is not None and token_ratio is not None
     within_efficiency = ratios_known and elapsed_ratio <= 3 and token_ratio <= 3
-    if unbound_repair_cost["present"]:
+    lower_bound_exceeds_efficiency = ratios_known and (elapsed_ratio > 3 or token_ratio > 3)
+    if lower_bound_exceeds_efficiency and quality_delta <= 0:
+        efficiency_status = "failed"
+        efficiency_reason = (
+            "At least one verified successful-artifact lower-bound ratio exceeds 3x "
+            "without a measured quality gain. Unbound failed-repair cost can only increase "
+            "the v2 numerator, so it cannot make this gate pass."
+        )
+    elif lower_bound_exceeds_efficiency and quality_delta > 0:
+        efficiency_status = "conditional_quality_justification_required"
+        efficiency_reason = (
+            "At least one verified successful-artifact lower-bound ratio exceeds 3x; the "
+            f"measured dual-Judge quality gain is {quality_delta:+.3f}/100. This quantified "
+            "gain is the only available quality rationale and requires an explicit product "
+            "trade-off decision; any unbound failed-repair cost would make the actual ratio "
+            "higher."
+        )
+    elif unbound_repair_cost["present"]:
         efficiency_status = "inconclusive_unbound_repair_cost"
         efficiency_reason = (
             "Successful-artifact ratios are lower bounds only. Completion receipts prove "
@@ -1305,16 +1420,12 @@ def _acceptance(
     elif within_efficiency:
         efficiency_status = "passed"
         efficiency_reason = "Both source-first elapsed and reported-token ratios are <=3x."
-    elif quality_delta > 0:
-        efficiency_status = "conditional_quality_justification_required"
-        efficiency_reason = (
-            f"At least one ratio exceeds 3x; the measured dual-Judge quality gain is "
-            f"{quality_delta:+.3f}/100. This quantified gain is the only available quality "
-            "rationale and requires an explicit product trade-off decision."
-        )
+    elif not ratios_known:
+        efficiency_status = "inconclusive_missing_bound_efficiency_evidence"
+        efficiency_reason = "One or more completion-bound efficiency ratios are unavailable."
     else:
         efficiency_status = "failed"
-        efficiency_reason = "At least one ratio exceeds 3x without a measured quality gain."
+        efficiency_reason = "At least one verified ratio exceeds 3x without a measured quality gain."
     gates = {
         "quality_no_worse_than_v1_by_more_than_2": {
             "status": "passed" if quality_pass else "failed",
@@ -1335,7 +1446,7 @@ def _acceptance(
     }
     if not quality_pass or not evidence_pass or efficiency_status == "failed":
         recommendation = "reject_v2_for_production"
-    elif efficiency_status == "inconclusive_unbound_repair_cost":
+    elif efficiency_status.startswith("inconclusive_"):
         recommendation = "inconclusive_v2_pending_bound_efficiency_evidence"
     elif efficiency_status != "passed":
         recommendation = "conditional_v2_requires_efficiency_tradeoff_decision"
@@ -1425,10 +1536,11 @@ def analyze_verified_experiment(verified: VerifiedExperiment) -> dict[str, Any]:
         "limitations": [
             "Only three unique development sources were tested; this is not a genre holdout.",
             "The two repeats use the same fixed candidate order and measure sampling stability only.",
-            "No independent human Topic gold inventory exists; all coverage is relative to the observed selected union, never absolute recall.",
+            "No independent human Topic gold inventory exists; the deterministic coverage metric is relative to the observed selected union, never absolute recall.",
             "Both Judges are model-based; disagreement is reported, but shared family bias may remain.",
+            "The frozen Judge schema bounded each system dimension to 0-4 but did not freeze score anchors. Judge-assigned coverage is subjective and is distinct from the separately computed deterministic selected-union-relative coverage ratio.",
             "v1 exact-quote figures are a shadow audit of mixed editorial/evidence copy and are not directly symmetric with the v2 outward hard gate.",
-            "Failed repair-attempt token/time metadata is not generator-completion-hash-bound; successful-artifact efficiency ratios are lower bounds and repairs make the hard efficiency gate inconclusive.",
+            "Failed repair-attempt token/time metadata is not generator-completion-hash-bound, so successful-artifact efficiency ratios are conservative lower bounds. An already-over-threshold lower bound can still fail the gate; otherwise unbound repair cost prevents an efficiency pass.",
             "No price configuration was frozen, so monetary cost is intentionally not estimated.",
         ],
     }
@@ -1716,7 +1828,7 @@ main{{max-width:1320px;margin:auto;padding:32px}}h1{{font-size:30px;margin:0 0 8
 <p><strong>结论：</strong>{_escape(acceptance["recommendation"])} · v2-v1 双 Judge 质量差 {_escape(quality["v2_minus_v1_x100"])}/100。</p>
 <p class="micro">完整性：12/12 generator receipts，6/6 Judge receipts；全部验证后才解盲。Source-first 宏平均，不按 alias 加权。</p></section>
 <section class="panel"><h2>验收门</h2><ul>{gates_html}</ul></section>
-<section class="panel"><h2>质量总览</h2>{_table(quality_rows, [("skill", "Skill"), ("judge_01", "Judge 01"), ("judge_02", "Judge 02"), ("dual", "双 Judge 平均")])}<h3>双 Judge 原子维度</h3>{_table(dimension_rows, [("skill", "Skill"), ("discovery_x100", "Discovery"), ("coverage_x100", "相对 coverage"), ("precision_x100", "Precision"), ("stability_x100", "Sampling stability"), ("editorial_readiness_x100", "Editorial readiness")])}<h3>按唯一 Source</h3>{_table(source_quality_rows, [("filename", "源文件"), ("source_id", "Source"), ("v1", "v1 双 Judge"), ("v2", "v2 双 Judge"), ("delta", "v2-v1")])}</section>
+<section class="panel"><h2>质量总览</h2><p>{_escape(quality["score_definition"])}</p>{_table(quality_rows, [("skill", "Skill"), ("judge_01", "Judge 01"), ("judge_02", "Judge 02"), ("dual", "双 Judge 平均")])}<h3>双 Judge 原子维度</h3>{_table(dimension_rows, [("skill", "Skill"), ("discovery_x100", "Discovery"), ("coverage_x100", "Judge-rated coverage"), ("precision_x100", "Precision"), ("stability_x100", "Sampling stability"), ("editorial_readiness_x100", "Editorial readiness")])}<h3>按唯一 Source</h3>{_table(source_quality_rows, [("filename", "源文件"), ("source_id", "Source"), ("v1", "v1 双 Judge"), ("v2", "v2 双 Judge"), ("delta", "v2-v1")])}</section>
 <section class="panel"><h2>效率</h2><p><strong>硬门只使用 completion-hash-bound 成功调用；下表是总成本下界。</strong></p>{_table(efficiency_rows, [("skill", "Skill"), ("elapsed", "Source-first 成功耗时下界"), ("tokens", "成功 reported tokens 下界"), ("calls", "绑定成功调用数")])}<p>{_escape(analysis["efficiency"]["unbound_repair_cost"]["reason"])}</p><h3>失败 repair 的非绑定补充观察</h3>{_table(supplemental_rows, [("source_id", "Source"), ("skill", "Skill"), ("repeat", "Repeat"), ("attempt", "Attempt"), ("status", "Status"), ("elapsed", "观察耗时"), ("tokens", "观察 tokens"), ("bound", "Completion bound")])}<p>{_escape(analysis["efficiency"]["cost"]["reason"])}</p></section>
 <section class="panel"><h2>Selected-union 相对 coverage</h2><p>{_escape(analysis["coverage_and_stability"]["definition"])}</p>{_table(source_rows, [("filename", "源文件"), ("source_id", "Source"), ("observed_selected_union_count", "全系统 selected union"), ("v1_selected_union_count", "v1 union"), ("v1_relative_selected_union_coverage", "v1 相对 coverage"), ("v2_selected_union_count", "v2 union"), ("v2_relative_selected_union_coverage", "v2 相对 coverage")])}</section>
 <section class="panel"><h2>Sampling stability</h2><p>两次重复保持相同候选顺序，因此这里只衡量 sampling stability，不证明 order robustness。</p>{_table(stability_rows, [("filename", "源文件"), ("source_id", "Source"), ("skill", "Skill"), ("candidate_jaccard", "候选 Jaccard"), ("interval_f1", "时间区间匹配 F1")])}</section>

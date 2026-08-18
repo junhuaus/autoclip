@@ -419,6 +419,31 @@ def test_unbound_repair_cost_makes_efficiency_gate_inconclusive(
     )
 
 
+def test_over_threshold_lower_bound_fails_despite_unbound_repair_cost(
+    analyzer: ModuleType,
+) -> None:
+    acceptance = analyzer._acceptance(
+        {"v2_minus_v1_x100": -4.917},
+        {"v2_outward_exact_evidence_failure_count": 0},
+        {
+            "successful_artifact_lower_bound_v2_to_v1_ratio": {
+                "elapsed_seconds": 7.413,
+                "reported_total_tokens": 4.746,
+            },
+            "unbound_repair_cost": {
+                "present": True,
+                "completion_bound_repair_attempt_count": 2,
+            },
+        },
+    )
+
+    gate = acceptance["gates"]["efficiency_within_3x_or_quality_justified"]
+    assert gate["status"] == "failed"
+    assert "lower-bound ratio exceeds 3x" in gate["reason"]
+    assert "can only increase the v2 numerator" in gate["reason"]
+    assert acceptance["recommendation"] == "reject_v2_for_production"
+
+
 def test_relative_coverage_stability_topics_and_disagreement(
     analyzer: ModuleType, tmp_path: Path
 ) -> None:
@@ -467,6 +492,9 @@ def test_incomplete_judges_refuse_before_private_map_read(
     monkeypatch.setattr(
         analyzer.judge_harness, "_run_id", lambda _experiment_id, _policy: "judge_gate"
     )
+    monkeypatch.setattr(
+        analyzer, "_verify_completed_generator_runtime_preflight", lambda _path: None
+    )
     run_dir = tmp_path / "judge-runs" / "judge_gate"
     expected = [
         run_dir / "sources" / bundle.source_id / judge_id / "complete.json"
@@ -508,6 +536,9 @@ def test_all_six_receipts_are_verified_before_unblind(
     monkeypatch.setattr(analyzer.judge_harness, "_preflight_policy", lambda: {})
     monkeypatch.setattr(
         analyzer.judge_harness, "_run_id", lambda _experiment_id, _policy: "judge_order"
+    )
+    monkeypatch.setattr(
+        analyzer, "_verify_completed_generator_runtime_preflight", lambda _path: None
     )
     run_dir = tmp_path / "judge-runs" / "judge_order"
     calls = {}
@@ -774,6 +805,59 @@ def test_pipeline_completion_binds_exact_call_inventory_and_identity(
         analyzer._validate_pipeline_completion_binding(tmp_path, pipeline_dir, contract)
 
 
+def test_generator_runtime_preflight_inventory_is_verified_read_only(
+    analyzer: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    experiment_dir = tmp_path / "experiment"
+    checks_root = experiment_dir / "infrastructure" / "preflight" / "checks"
+    receipt_path = checks_root / "001" / "receipt.json"
+    receipt_path.parent.mkdir(parents=True)
+    receipt = {"status": "passed", "check_number": 1}
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    manifest = {
+        "experiment_id": "exp_test",
+        "contract_sha256": "a" * 64,
+        "immutable_contract": {"runtime_preflight": {"maximum_failed_checks": 3}},
+    }
+    (experiment_dir / "experiment-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    validations: list[int] = []
+    monkeypatch.setattr(
+        analyzer.iteration_harness,
+        "_validate_preflight_receipt",
+        lambda _receipt, _prepared, number: validations.append(number),
+    )
+    analyzer._verify_completed_generator_runtime_preflight(experiment_dir)
+    assert validations == [1]
+
+    receipt_path.unlink()
+    with pytest.raises(analyzer.AnalysisError, match="Generator runtime preflight check 1"):
+        analyzer._verify_completed_generator_runtime_preflight(experiment_dir)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    extra_path = receipt_path.parent / "unexpected.json"
+    extra_path.write_text("{}", encoding="utf-8")
+    with pytest.raises(analyzer.AnalysisError, match="has extra artifacts"):
+        analyzer._verify_completed_generator_runtime_preflight(experiment_dir)
+    extra_path.unlink()
+
+    for number, status in ((1, "failed"), (2, "failed"), (3, "passed")):
+        path = checks_root / f"{number:03d}" / "receipt.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"status": status, "check_number": number}),
+            encoding="utf-8",
+        )
+    limited_manifest = copy.deepcopy(manifest)
+    limited_manifest["immutable_contract"]["runtime_preflight"]["maximum_failed_checks"] = 2
+    (experiment_dir / "experiment-manifest.json").write_text(
+        json.dumps(limited_manifest), encoding="utf-8"
+    )
+    with pytest.raises(analyzer.AnalysisError, match="failure limit was reached"):
+        analyzer._verify_completed_generator_runtime_preflight(experiment_dir)
+
+
 def test_runtime_preflight_receipt_inventory_is_verified_read_only(
     analyzer: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -850,6 +934,10 @@ def test_report_escapes_model_text_and_uses_relative_links(
     assert "file://" not in rendered
     assert "../evidence/" in rendered
     assert "Selected-union 相对 coverage" in rendered
+    assert "Judge-rated coverage" in rendered
+    assert "selected-union-relative coverage ratio" in rendered
+    assert "the deterministic coverage metric is relative" in rendered
+    assert "integer-floored via //4" in rendered
     assert "绝对 recall" not in rendered
     assert "generator-real / medium" in rendered
     assert "judge_01: judge-a / max" in rendered

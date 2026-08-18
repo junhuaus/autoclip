@@ -1,15 +1,15 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 02:39 PDT
+Updated: 2026-08-18 05:20 PDT
 
 Package compatibility baseline: `0.1.0`
 
-Current activity: production development remains paused, while the
-user-authorized Highlight Agent Skill v2 research/shadow optimization is now
-active. The user has now authorized autonomous completion without intermediate
-approval prompts. Research still does not modify the production Pipeline,
-database, source media, renders, reviews or Deliveries; production integration
-will proceed only if the frozen blind-comparison gates pass. The prior expanded free-discovery benchmark is
+Current activity: production development remains paused. Highlight Agent Skill
+v2 research iteration 1 is complete, independently verified and rejected for
+production by its frozen gates; no production default changed. The next
+authorized research step is to freeze iteration 2 before any new model output.
+Research does not modify the production Pipeline, database, source media,
+renders, reviews or Deliveries. The prior expanded free-discovery benchmark is
 complete under
 `docs/research/model-benchmark-2026-08-17/`: three generator configurations,
 three unique source hashes, nine primary order-perturbed runs, one zero-weight
@@ -44,8 +44,8 @@ Formal experiment `exp_31890c08e4b7eda69858` has immutable contract SHA-256
 `31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797`.
 The contract binds the Runner, Input Gate, Skill package, Schemas, source
 evidence, candidate order, model/effort and opaque arm commitment. Its dry-run
-made zero model calls before execution. The real sentinel now has exactly 2/12
-completed Pipelines and status `generation_partial`.
+made zero model calls before execution. The full experiment completed all
+12/12 Pipelines and 36/36 successful generator Calls.
 
 The first attempted sentinel used the superseded contract
 `exp_0ae4e48cf661fa862d58`. The outer sandbox denied the local Codex app-server
@@ -85,34 +85,43 @@ only the immutable call contract, two prompt hashes and two exact failure
 receipts; no score, cluster or Judge usage result exists. This exposed a Judge
 harness P1: a pre-model configuration error incorrectly consumed the model
 repair budget because this runner lacked the generator runner's zero-model
-compatibility preflight. The failed `judge_da09...` evidence is being preserved;
-the fix must create a new hash-derived Judge-run ID, use only supported tool
-isolation flags and classify bounded pre-model failures separately.
+compatibility preflight. The failed `judge_da09...` evidence was preserved; the
+required repair had to create a new hash-derived Judge-run ID, use only
+supported tool-isolation flags and classify bounded pre-model failures separately.
 
-Judge runner v2 now implements that repair. It uses a real stdio/EOF zero-model
+Judge runner v2 implements that repair. It uses a real stdio/EOF zero-model
 preflight, the generator's current supported feature-disable list, independent
 bounded pre-model failure receipts, completion-bound receipt inventories and
 two model-only attempt slots. Unsafe tool events persist once and permanently
 fail; model output-read failures are also receipted; progress verifies complete
-artifacts before counting them. Focused tests pass 23/23, existing research
-regressions pass 129/129, and final independent review reports P0/P1/P2 all
-zero. The runner hash creates a new Judge-run ID and cannot resume or overwrite
-the failed `judge_da09...` run.
+artifacts before counting them. The runner hash created new Judge run
+`judge_4ab64f09314583b7212ff934` and did not overwrite failed run
+`judge_da09...`. Its preflight passed without a model attempt, and all 6/6 Sol
+Max/Terra Max calls completed without repair, failure or tool event. For the
+three sources, each Judge covered 44/44, 45/45 and 41/41 anonymous highlights
+exactly once.
 
-The deterministic analyzer and HTML report contract is also frozen. It verifies
-all 12 generator and six Judge receipts before private-arm unblinding, uses
-source-first metrics, recomputes exact-quote evidence and never calls relative
-selected-union coverage absolute recall. Unbound failed-repair cost is only
-supplemental and forces an inconclusive efficiency gate. It renders overall,
-per-source and per-Topic tables plus both Judge verdicts, disagreements,
-strengths, weaknesses and limitations. Analyzer tests pass 22/22 and the full
-research suite passes 151/151; independent final review reports no P0/P1/P2.
-The current new run is `judge_4ab64f09314583b7212ff934`; its real zero-model
-preflight passed with no model attempt. The first-source Sol Max and Terra Max
-sentinel completed 2/6 Judge calls without repair, failure or tool event. Both
-coverage Gates report four systems and 44/44 highlights exactly once. A second
-`--sentinel` invocation retained one preflight receipt and two completions, so
-it made zero new calls. No comparative arm result has been interpreted.
+The deterministic analyzer and HTML report verify all generator/Judge Pipeline,
+Call and preflight receipts before private-arm unblinding, use source-first
+metrics and recompute exact-quote evidence. Independent review corrected one P1
+gate label: the conservative successful-artifact lower bounds already exceed
+the 3x efficiency limit, so unbound failed-repair costs can only make the failure
+worse, not inconclusive. It also closed P2 terminology and generator-preflight
+receipt-validation gaps without a model rerun. Analyzer tests pass 24/24 and the
+full research suite passes 153/153. The report also explicitly discloses that
+each frozen per-system weighted x4 score is integer-floored before source-first
+averaging.
+
+Iteration 1 recommends `reject_v2_for_production`. Dual-Judge quality is 89.000
+for v1 and 84.083 for v2, a -4.917 delta against the allowed -2. v2 improved
+deterministic selected-union coverage from 0.611 to 0.863 and passed all outward
+exact-quote gates, but precision, editorial readiness and repeat stability fell.
+It also used conservative lower bounds of 7.413x elapsed time and 4.746x tokens.
+The final report is under `reports/iteration-1`; SHA-256 is
+`9e1b463eea1e0298a9fb20ed3a9fc31f7f47befdf91001fa97934b973df37bec`
+for `analysis.json` and
+`bf63eca0007ade1c81276ffd80789d0ac5bd9d9caee5910993eeea52cd810b75`
+for `REPORT.html`.
 
 ## Current user-visible result
 
@@ -247,7 +256,9 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   submission and release approval. Fifteen focused Web review tests and 14
   atomic-review/authorization tests also pass; append-only evidence is under
   `qa/`.
-- API and Web are running at `127.0.0.1:8765` and `127.0.0.1:5173`.
+- API, Web and Worker are stopped after the host crash; no related listener or
+  background process remained. Research verification does not require
+  restarting them.
 - Expanded benchmark validation passed: 30/30 generator artifacts, 20/20 blind
   Judge artifacts, 10/10 groups, three unique weighted sources, all anonymous
   mappings and cluster coverage, source-first aggregation and 343 artifact
@@ -259,15 +270,19 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   report generation; report relative-link/content checks; and `git diff --check`.
   Browser runtime setup succeeded but `agent.browsers.list()` returned `[]`, so
   no MCP Chrome visual-pass claim is made.
-- Highlight Agent Skill v2 checkpoint: 114/114 research tests pass; research Ruff,
-  Schema freeze check, Skill Creator quick validation, complete project
-  `make lint` and credential-pattern scan pass. Contracts SHA-256 is
+- Highlight Agent Skill v2 iteration 1: 153/153 research tests and complete
+  project `make lint` pass. Two independent read-only reviewers reconstructed
+  all 12 generator and six Judge receipts plus `analysis.json`/`REPORT.html`
+  byte-for-byte and found no remaining P0/P1/P2. Contracts SHA-256 is
   `5668ef9a50eee8f38d76fde170bd3df6b6366b72eff4041abcefc2d7763d296f`,
   Input Gate SHA-256 is
   `9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73`
   and the current Runner SHA-256 is
   `17d8f7c0711f7426eb581e15fea8281f2d12448750ee970cc2db986071a51c32`.
-  An independent read-only contract reviewer returned PASS with P0=0/P1=0.
+- Alembic remains at `f3b6d9a2c841 (head)` with no pending operation. `make
+  doctor` is intentionally not green: the installed local Codex CLI is now
+  0.147.0 while the production adapter remains pinned to audited 0.146.0. No
+  production compatibility pin was silently relaxed.
 - A final independent read-only verifier returned `PASS` with P0=0 and no
   delivery-blocking P1. It independently recomputed the three macro scores,
   checked all 343 artifact hashes, all 586 Judge cluster memberships, anonymous
@@ -329,19 +344,24 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   reused two byte/input/Prompt/Schema-identical pilot results, and made 20 new
   blind Judge calls. They wrote only research artifacts; no render was repeated.
 - Source/test/docs checkpoints include `fa395f6`, `0a266f3` and `d9f9836`;
-  generated/private paths remain ignored and unstaged.
-- No remote call has yet been made for the new v2 experiment. Its current files
-  are research-only, its model workers are designed as ephemeral/read-only/
-  tool-disabled with an environment allowlist, and the production database and
-  media remain outside the experiment write path.
+  product-generated/private paths remain ignored and unstaged.
+- The v2 iteration-1 experiment made 36 successful tool-disabled generator
+  Calls plus two permitted failed model attempts that were repaired, and six
+  tool-disabled Judge Calls. Recovery and report fixes made no new model call.
+  All artifacts are research-only; the production database and media remained
+  outside the experiment write path.
 
 ## Next concrete task
 
-Keep production development paused. Commit and push the successful 2/12
-sentinel receipts, then run `run_iteration.py` without flags to resume only the
-remaining ten Pipelines. After all
-12 pipelines finish, build the Skill Creator static viewer before qualitative
-analysis and run two anonymous Judges. Do not change the production default.
+Keep production development paused. Checkpoint the rejected, independently
+verified iteration 1, then freeze iteration 2 before producing any new model
+output. Iteration 2 must preserve free Topic discovery and exact evidence, use
+one combined all-candidate assessment/free-Topic stage, deterministic
+quality-adaptive selection of 8–12 highlights and one selected-candidate copy
+stage, with at most two normal model Calls per Pipeline. Freeze explicit 0–4
+Judge anchors and distinguish subjective Judge-rated coverage from the
+deterministic selected-union ratio. Never overwrite iteration-1 artifacts and
+do not change the production default.
 
 The previously requested Web quantity range/minimum-score/manual-score slice
 has not been implemented. The approval-workflow audit and cross-Project bulk
@@ -351,17 +371,22 @@ assignment also remain pending separate user decisions.
 
 Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 all Living ExecPlans including `highlight-agent-skill-v2.md`, and this file.
-Run `git status --short --branch`,
-`git log -5 --oneline`, `.venv/bin/alembic current`, `.venv/bin/alembic check`
-and confirm API/Web health. Preserve all four real Projects, both database
-backups and existing offline-review packages. Verify `fa395f6` and `0a266f3`
+Run `git status --short --branch`, `git log -5 --oneline`, `.venv/bin/alembic
+current` and `.venv/bin/alembic check`. Expect product services to be stopped
+unless a later task explicitly starts them. Preserve all four real Projects,
+both database backups and existing offline-review packages. Verify `fa395f6` and `0a266f3`
 are present/pushed. Open `8-16-1`, confirm the latest proxy path contains an
 `s-.../t-.../review.mp4` segment and preserve offline-review `v001`. Read the
 latest `qa/pipeline.jsonl`, `qa/test-report.md`, the new benchmark
 `REPORT.html`, `analysis.json` and `SKILL-ARCHITECTURE-PROPOSAL.md`. Confirm
 `analysis.json` still hashes to
 `fa7029c10b593a987b285132d241fcda7fb102ec26f45da4899c64d46575e2de`
-and do not rerun the remote experiment. Resume implementation only after the
-user accepts a named next slice. For the already accepted v2 research slice,
-verify experiment `exp_31890c08e4b7eda69858` and resume its sentinel/full
-matrix without `--force`; never delete a completed Call receipt.
+and do not rerun the remote benchmark. For the already accepted v2 research
+slice, verify generator experiment `exp_31890c08e4b7eda69858`, Judge run
+`judge_4ab64f09314583b7212ff934`, 12/12 Pipelines, 36/36 successful generator
+Calls and 6/6 Judge Calls. Confirm iteration-1 `analysis.json` hashes to
+`9e1b463eea1e0298a9fb20ed3a9fc31f7f47befdf91001fa97934b973df37bec`
+and `REPORT.html` to
+`bf63eca0007ade1c81276ffd80789d0ac5bd9d9caee5910993eeea52cd810b75`.
+Never rerun or delete a completed receipt; iteration 2 must use a new experiment
+identity and output directory.

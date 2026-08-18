@@ -1,0 +1,18 @@
+{
+  "artifact_sha256": {
+    "call-metadata.json": "076e74ec1e8807fa460e74e1be2803662f8ada78737b3f33b402540dc0950f71",
+    "events.jsonl": "7160c89b521a78b76aaf371a815dab71d478a5dbbb52f0af2c92d903416345e9",
+    "mapping.disclosed-after-judging.json": "ee22c64b8644c02aadc6f17d15660bdf873cee8faadcc103c607124540508f60",
+    "result.json": "556d8d9e2216d984598e79fc9c0a9fcd749a581e3955b72c4e6498035dcc497d",
+    "result.raw.json": "5b5fee584f0b2939bfda901bc1a7a86de482629a013f165c929f465f554e4e64",
+    "usage.json": "4458666aa3b61aa72acf0c586f6aeea9871869f1c0786bc72b4636e1abeb27d4",
+    "validation.json": "498baf7f97046c8661be400ae947d62c949d3fcd7e2c98a6202d8eda200b7458"
+  },
+  "call_contract_sha256": "0bcdde6d961e3edc31f65ca7f081b861c9585b5d5f23e2f580520c6cfec2e708",
+  "infrastructure_failure_receipts": [],
+  "judge_id": "judge_02",
+  "schema_version": "1",
+  "source_id": "src_7f34cc21eaf6d819",
+  "successful_attempt": 1,
+  "successful_attempt_contract_sha256": "c3c0df22b83e909e606688ca366ded53832ef40534faec1d53be326cb0ebd8cc"
+}

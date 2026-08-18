@@ -105,16 +105,30 @@ same deterministic Gate.
   Sol Medium workers and resumable immutable artifacts.
 - [x] 2026-08-18 Generate the static Skill Creator viewer before qualitative
   interpretation.
-- [ ] Run two anonymous independent Judges per source and validate complete cluster membership.
-- [ ] Aggregate source-first quality, evidence, duplication, coverage, latency and token metrics.
-- [ ] Run independent read-only verification and fix any P0/P1 research-contract defect.
+- [x] 2026-08-18 Run two anonymous independent Judges per source and validate complete cluster membership.
+- [x] 2026-08-18 Aggregate source-first quality, evidence, duplication, coverage, latency and token metrics.
+- [x] 2026-08-18 Run independent read-only verification, fix the one P1
+  efficiency-gate label defect and close the remaining P2 terminology/preflight
+  verification gaps without any model rerun.
 
 ### S2-M2 — Decision and optional production design
 
-- [ ] Present the viewer/report and record the evidence-based decision.
-- [ ] If v2 passes preregistered development gates, freeze it and define a six-source/multi-genre holdout; otherwise revise into iteration 2.
-- [ ] If v2 passes the gates, design and implement the production migration;
-  otherwise keep production unchanged and document the failed gate.
+- [x] 2026-08-18 Generate the viewer/report and record the evidence-based
+  decision: iteration-1 v2 is rejected for production.
+- [x] 2026-08-18 Apply the preregistered gates. v2 failed quality
+  non-inferiority (-4.917 points versus the allowed -2), passed the exact
+  evidence gate, and failed the efficiency gate because the verified
+  successful-artifact lower bounds were already 7.413x elapsed time and 4.746x
+  tokens. The two non-completion-bound failed-repair costs can only increase
+  the v2 numerator and therefore cannot make that gate pass.
+- [ ] Freeze and evaluate an iteration-2 design that preserves free Topic
+  discovery and exact evidence while restoring editorial precision/readiness,
+  using at most two normal model calls per Pipeline and a quality-adaptive
+  8–12 portfolio instead of always selecting 12. Its Judge contract must also
+  freeze explicit 0–4 anchors and keep subjective portfolio coverage distinct
+  from deterministic selected-union-relative coverage.
+- [x] 2026-08-18 Keep production unchanged because iteration-1 failed its
+  preregistered gate.
 
 ## File ownership
 
@@ -161,8 +175,9 @@ accepted recovery method.
   exact-quote failures are zero.
 - v2 must not exceed 3x v1 aggregate elapsed time or token use without a
   separately documented quality justification.
-- With no independent human Topic gold inventory, coverage is explicitly
-  relative selected-union coverage, never absolute recall.
+- With no independent human Topic gold inventory, deterministic coverage is
+  explicitly relative selected-union coverage, never absolute recall;
+  Judge-rated coverage remains a separate subjective dimension.
 - Judge inputs hide system identity/model/effort/self-score/timing/token data.
 - Runtime calls emit no tool event and use only an environment allowlist.
 - The viewer contains both old-skill and with-skill outputs for all three evals.
@@ -269,14 +284,18 @@ write `iteration-2` rather than replacing iteration 1.
   new Judge run had only 1/6 completed calls and before interpreting comparative
   results. It verifies all generator/Judge/Pipeline/Call/preflight hashes and
   inventories before reading private arm identities, aggregates source-first,
-  and labels selected-union coverage as relative. v2 exact quotes are recomputed
+  and labels deterministic selected-union coverage as relative. v2 exact quotes are recomputed
   from source candidates. Failed repair-attempt cost metadata is not bound by
-  the generator completion receipt, so it is reported only as supplemental;
-  any such repair makes the hard efficiency gate inconclusive rather than
-  silently cheap. The HTML includes each source/Topic, both Judge verdicts and
+  the generator completion receipt, so it is reported only as supplemental.
+  An unbound repair prevents the efficiency gate from passing when the verified
+  lower bound is within 3x, but it cannot hide a definite failure when that
+  conservative lower bound already exceeds 3x because the missing cost can only
+  increase the v2 numerator. The HTML includes each source/Topic, both Judge
+  verdicts and
   disagreements, system strengths/weaknesses and limitations. Analyzer tests
-  pass 22/22, the full research suite passes 151/151, and independent review
-  reports no P0/P1; its final empty-preflight/version P2 was also closed.
+  pass 24/24, the full research suite passes 153/153, and independent review
+  reports no remaining P0/P1/P2. Its final generator-preflight receipt and
+  coverage-terminology gaps were also closed.
 - 2026-08-18: New Judge run `judge_4ab64f09314583b7212ff934` passed its real
   stdio/EOF preflight with `model_started=false` and no consumed model attempt.
   The first-source dual-Judge sentinel then completed 2/2 without repair or
@@ -284,6 +303,31 @@ write `iteration-2` rather than replacing iteration 1.
   exactly once across four systems, and both event logs contain only one
   `agent_message`. Re-running the sentinel kept one preflight check and two
   completions, proving receipt-only resume with zero new calls.
+- 2026-08-18: The same Judge run completed all 6/6 calls without repair,
+  failure or tool event. Sol Max and Terra Max covered respectively 44/44,
+  45/45 and 41/41 anonymous highlights for the three sources exactly once.
+  The frozen analyzer reproduced `analysis.json` byte-for-byte and recommends
+  `reject_v2_for_production`: dual-Judge source-first quality is 89.000 for v1
+  and 84.083 for v2. v2 improved relative selected-union coverage from 0.611
+  to 0.863 and discovery from 93.75 to 100, but precision fell from 95.833 to
+  77.084, editorial readiness from 87.5 to 60.417, candidate-Jaccard stability
+  from 0.663 to 0.448 and interval-F1 stability from 0.794 to 0.611. All six
+  v2 runs selected exactly 12, frequently admitting opening/operations/course
+  promotion, question-only or context-dependent material. Its conservative
+  third-person copy also lost the source's rhetorical energy. These are the
+  frozen iteration-2 failure modes; production remains unchanged.
+- 2026-08-18: Independent post-result review found no result-invalidating
+  defect, but did find one P1 gate-label bug and two P2 verification/terminology
+  gaps.
+  The efficiency gate had been called inconclusive despite its verified lower
+  bounds already exceeding 3x; it is now correctly failed. Subjective
+  Judge-assigned coverage is now explicitly distinguished from deterministic
+  selected-union coverage, and the missing frozen 0–4 score anchors are
+  disclosed. The analyzer now also fail-closes on missing generator runtime
+  preflight receipts. Final contract review also made the frozen per-system
+  integer-floor step explicit. All fixes were deterministic analysis/report changes: no model
+  call was repeated, all 12 generator and six Judge receipts remained immutable,
+  and the production-rejection recommendation was unchanged.
 
 ## Decision Log
 
@@ -321,15 +365,25 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the successful 2/6 new Judge-run sentinel
-receipts, then resume the same run without `--sentinel` to populate only the
-remaining four source/Judge calls. Validate all six completions and full
-membership before running the frozen analyzer. If interrupted, read this file and
-`STATUS.md`, verify the experiment manifest and current source hashes, and
-resume rather than deleting or forcing an artifact. Never rerun the completed
-three-model benchmark or overwrite its artifacts.
+Current first task: checkpoint the independently verified, rejected iteration
+1 without rerunning any generator or Judge call. After that, freeze iteration 2
+before any new model output. It must use a
+combined all-candidate assessment/free-Topic stage, deterministic
+quality-adaptive selection and one selected-candidate copy stage; no result may
+overwrite iteration 1. If interrupted, read this file and `STATUS.md`, verify
+both immutable experiment manifests and resume existing receipts rather than
+deleting or forcing artifacts. Never rerun the completed three-model benchmark
+or overwrite iteration-1 artifacts.
 
 ## Outcomes and Retrospective
 
-Not yet complete. This section will record whether v2 beat, tied or lost to v1,
-what caused the outcome, and whether production/holdout work is justified.
+Iteration 1 is complete and rejected. v2 did not meet the frozen
+non-inferiority gate: wider discovery was purchased with too many low-editorial
+value selections, weaker ready-to-publish copy, lower repeat stability and more
+than the allowed resource multiplier. Exact evidence separation is retained as
+a successful design change. Iteration 2 must therefore reduce topology and
+cost, make portfolio size quality-adaptive, harden standalone/editorial filters
+and preserve direct source rhetoric. This development set is already exposed
+to the redesign, so a future improvement on these three sources is a regression
+result rather than an independent generalization claim; production promotion
+still requires new holdout evidence.

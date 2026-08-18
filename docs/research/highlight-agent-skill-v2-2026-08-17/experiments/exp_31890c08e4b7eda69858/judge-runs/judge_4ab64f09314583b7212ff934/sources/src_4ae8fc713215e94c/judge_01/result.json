@@ -1,0 +1,747 @@
+{
+  "limitations": [
+    "仅提供转写片段与候选元数据，无法评价真实画面、音质、表演感染力及精确剪点。",
+    "源转写含“投降/头腔”“古典/鼓点”“原因/元音”等明显错词；依赖语义清洗的候选已降低证据忠实度或可用性评分。",
+    "蹲起、呼吸及发声练习均为讲者经验，评分只评价内容呈现，不验证其医学安全性或训练效果。"
+  ],
+  "overall_verdict": "sys_c9ddce06068081ed43739ed6覆盖了最多高价值且彼此独立的事件，具体动作、适用条件和解决办法保留较完整，整体最适合直接编辑。sys_76d44594bc9e76951e0161df略少一个重要呼吸事件，但证据引用、风险限定和成片结构同样稳定。另两组发现面较广，却更常把具体内容压缩成泛化摘要，并混入不完整或推广语境较重的片段。",
+  "preferred_system_ids": [
+    "sys_c9ddce06068081ed43739ed6",
+    "sys_76d44594bc9e76951e0161df"
+  ],
+  "schema_version": "1",
+  "system_evaluations": [
+    {
+      "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+      "coverage_x4": 3,
+      "discovery_x4": 4,
+      "editorial_readiness_x4": 3,
+      "precision_x4": 3,
+      "stability_x4": 3,
+      "strengths": [
+        "发现范围较广，涵盖呼吸、发声、练习安排及教学方式等多个方向。",
+        "摘要较保守，部分候选避开了转写不稳的具体术语。"
+      ],
+      "weaknesses": [
+        "大量高光被压缩成泛化观点，十个蹲起、具体练习时长等可记忆细节流失。",
+        "盲练和教学方式片段上下文依赖较强，后者还紧邻直播推广。",
+        "“声音异常就医”等话题标签超出对应证据，健康风险标注也有泛化倾向。"
+      ]
+    },
+    {
+      "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+      "coverage_x4": 3,
+      "discovery_x4": 4,
+      "editorial_readiness_x4": 3,
+      "precision_x4": 3,
+      "stability_x4": 3,
+      "strengths": [
+        "独立发现了高音时舌头后缩的排查片段，问题、原因和处理方向较完整。",
+        "Hook普遍明确，并能识别健康建议、推广内容及转写不确定性。"
+      ],
+      "weaknesses": [
+        "遗漏俯身呼吸定位、共鸣认知、自然舌位和跟伴奏等多个强事件。",
+        "高音卡挤候选只有问题铺垫，没有兑现解决办法。",
+        "部分摘要舍弃具体时长和动作，且收录了推广语境较重的教学方式片段。"
+      ]
+    },
+    {
+      "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+      "coverage_x4": 3,
+      "discovery_x4": 4,
+      "editorial_readiness_x4": 4,
+      "precision_x4": 4,
+      "stability_x4": 4,
+      "strengths": [
+        "十个高光均对应清晰、可区分且有实际价值的事件。",
+        "多数句子保留问题、原因和方法，风险限定具体而不过度改变原意。",
+        "标题与Hook具体，反常识技巧和生活化场景兼顾。"
+      ],
+      "weaknesses": [
+        "遗漏“唱歌第一步是吸气”这一强课堂问答事件。",
+        "跟伴奏候选的源区间含课程推广，且“鼓点”依赖对错词的语义清洗。",
+        "部分风险说明较长，正式发布前仍需压缩为简洁字幕。"
+      ]
+    },
+    {
+      "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+      "coverage_x4": 4,
+      "discovery_x4": 4,
+      "editorial_readiness_x4": 4,
+      "precision_x4": 4,
+      "stability_x4": 4,
+      "strengths": [
+        "覆盖了几乎全部高价值事件，包括其他组合遗漏的吸气自测、俯身呼吸定位和自然舌位。",
+        "高光句普遍保留场景、动作、条件与结果，独立成片能力强。",
+        "Hook具体且风险标注克制，整体信息密度和风格一致。"
+      ],
+      "weaknesses": [
+        "连续练唱不超过一小时属于讲者个人建议，但该候选未明确标注个体差异。",
+        "吸气自测和舌根片段均在后续反馈或进一步解法前结束。",
+        "未收录较有价值的高音舌头后缩排查，也未补充各练习环节的具体时间分配。"
+      ]
+    }
+  ],
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "KTV演唱前通过蹲起或高抬腿活动身体",
+      "cluster_id": "topic_014",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "准确概括身体热身，但省略十个蹲起和偷偷离场等最具记忆点的细节。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_d272c6e46454dcad9eefbdbf",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "场景和核心建议准确，表达安全，但具体动作与数量被抽象掉。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_39003d50780533f69d2ac795",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "完整保留KTV、十个蹲起和高抬腿，Hook有反差；需避免把热身包装成真正速成。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_7095f7523d7e2f8de042a0c7",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "动作、数量和离场场景完整，适合作为生活化技巧；发布时应保留身体状况提示。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_3a9ccbd33c7f1353d641aa30",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "四份均命中同一热身事件；保留十个蹲起、高抬腿及KTV情境的版本更具编辑价值，但都需要个体安全限定。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "闭口音高音卡紧时先借开口音再过渡",
+      "cluster_id": "topic_024",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "方法准确，但压缩后缺少问题发生条件和渐进练习的解释力度。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_49f9ccd50d2dad04fc50e970",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "问题与解决方向清楚，Hook解释了组合难点；少量术语仍需对照音频。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_b8cafc1564179e863adaf263",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "完整呈现闭口音与高音叠加的问题及开口音过渡解法，结构可直接成片。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_8d78ddfedda1b9e0e34f81d0",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "问题、原因和两阶段练法闭合，表述贴合证据且具有明确操作性。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_36fabd493d9ecf82f3cf4594",
+          "hook_x4": 4,
+          "usability_x4": 4
+        }
+      ],
+      "topic_assessment": "这是证据最清晰的技巧事件之一；详细版本完整兑现Hook，摘要版本虽准确但削弱了教学过程。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "俯身45度感受腰腹吸气起伏",
+      "cluster_id": "topic_032",
+      "members": [
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "姿势、手位、呼吸动作和目标体感均完整，且正确限定“丹田”为教学体感。",
+          "candidate_id": "candidate_c393f29d34250a55",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_27c0db91961a25e730ef1877",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "准确保留俯身45度、双手触腰和慢吸气三个关键步骤，画面示范潜力强。",
+          "candidate_id": "candidate_c393f29d34250a55",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_4e9bd15a1e859d0540b5717c",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "两份均完整命中动作型教学事件，差异很小；成片需避免把“丹田”解释成精确解剖位置。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "唱歌第一步是吸气并进行基础吸气自测",
+      "cluster_id": "topic_043",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "结论和触胸自测准确，Hook保留课堂反差，但省略鼻吸、慢吸等执行细节。",
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "completeness_x4": 2,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_9b9204e48a69701d95415db1",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "课堂问答式Hook强，能衔接吸气检查，但具体自测步骤仍不够完整。",
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_46b841e117b9ff24cfd5551a",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "保留触胸、鼻吸和慢吸动作，开场反差鲜明；片段结束前尚未给出自测结果解释。",
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_ba3e4357d62c8e36364a0e11",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "事件本身有强课堂互动感，但证据在吸气动作后结束，任何版本都不应暗示已完成对正确呼吸方式的判断。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "普通人没有稀缺天赋也能通过训练改善唱歌",
+      "cluster_id": "topic_054",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "核心鼓励准确、简洁，但省略中音和情感等具体可改善方向。",
+          "candidate_id": "candidate_65678839045aab40",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_a94f345cff306a00b8e1e527",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "把稀缺天赋与个人进步空间对照得很清楚，情绪价值强，细节略少。",
+          "candidate_id": "candidate_65678839045aab40",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_2740b5a1a4f187942ab4f32b",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "保留讲者自身经历和“在自身硬件上做到最好”的落点，情理闭合。",
+          "candidate_id": "candidate_65678839045aab40",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_018eb904c735cd8745299bc3",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "准确提炼普通人定位与个人条件改善，独立成片完整且无需依赖术语。",
+          "candidate_id": "candidate_65678839045aab40",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_656803cb9e2438b5743f38bc",
+          "hook_x4": 4,
+          "usability_x4": 4
+        }
+      ],
+      "topic_assessment": "四份均忠实且具有普遍情绪价值；保留讲者后天改善经历的版本说服力更强。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "练唱重效率并合理分配气息、练声与演唱时间",
+      "cluster_id": "topic_066",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "准确抓住思考和听辨比堆时长重要，但舍弃了连续不超过一小时的具体建议。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_c5fd85408002962d1a5c7642",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "命中同一回答的后半段，指出练声找到状态即可，但摘要未呈现五分钟及十到二十分钟等具体分配。",
+          "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_c4e2625cc39721edae4ab661",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "用“嗓子练哑不等于有效”形成强纠偏Hook，核心忠实，具体时长不足。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_4f53981ca3f9826c754bd872",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "练声作为热身的比喻与分配方向准确，但标题和摘要仍抽象掉最实用的分钟数。",
+          "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_19246b7bfcebf961be068715",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "完整保留不超过一小时、追求效率和带着思考练习，并明确这是个人建议。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_0879b2c0d7fe14716609b171",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "观点、具体时长和效率落点完整，实用性强；应补充个体承受能力差异。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_f02f148e42cad8e69d0442d7",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "两段证据是同一练习时长回答的连续部分：前段的效率纠偏最适合独立成片，后段能补充分配方法，但候选摘要普遍删掉了其具体分钟数。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "简谱不是学唱歌的门槛，但能提高独立学歌效率",
+      "cluster_id": "topic_073",
+      "members": [
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "准确平衡识谱收益和非强制性，音高、节奏及模仿路径均有交代。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_044d9abdb8ca896c41f93537",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "问题、收益和替代学习方式完整，避免把识谱制造成零基础门槛。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_3ff540dcf789b07497a5e7ef",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "分层答案最完整：模仿可入门，追求自主快速学歌则值得识谱，贴合全部上下文。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_3aa7d857fca43eb198c657c8",
+          "hook_x4": 4,
+          "usability_x4": 4
+        }
+      ],
+      "topic_assessment": "三份都准确、完整且可直接作为零基础答疑；分层表达比单纯回答“需要或不需要”更有价值。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "先把歌唱熟，才能腾出注意力听伴奏和节拍",
+      "cluster_id": "topic_083",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "避开错词并保留注意力逻辑，忠实稳妥，但节拍和律动细节较少。",
+          "candidate_id": "candidate_f49be10488a46e67",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_6ba397cb4726c88690593d4f",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "问题、注意力冲突和先唱熟的办法完整；源区间含推广且“鼓点”需核对音频。",
+          "candidate_id": "candidate_6721fcbb3782d23b",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 3,
+          "highlight_id": "hl_7425f252e46e5974596fcc5b",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "因果与解决顺序清楚，Hook直击常见困惑；“鼓点”是合理但仍待音频确认的转写清理。",
+          "candidate_id": "candidate_f49be10488a46e67",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 3,
+          "highlight_id": "hl_61341a1d6deac2c53ed237ae",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "三份都抓住歌曲不熟导致注意力不足的核心；较长版本逻辑完整，但凡使用“鼓点”一词都需要回听确认。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "抬眉是后期微调技巧，零基础应先放松",
+      "cluster_id": "topic_094",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "阶段判断准确，但摘要缺少“画龙点睛”和高音变亮等解释，Hook较平。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_dcba8d185046779549a4c226",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "反常识问题明确，准确区分适用阶段；具体作用和错误后果略有压缩。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_2a46b6c15c84d5ef312fa88b",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "保留阶段、作用和“画龙点睛”比喻，观点鲜明，风险说明也符合讲者经验属性。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_493d6f19887fd2604d80f8a5",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "进阶技巧与初学者建议形成完整对照，结尾“放松就好”提供清晰行动点。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_ad8095725548db5b5fd0120b",
+          "hook_x4": 4,
+          "usability_x4": 4
+        }
+      ],
+      "topic_assessment": "四份都命中同一反常识避坑事件；详细版本解释了抬眉的阶段性作用，因而比仅给结论的摘要更完整。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "不要孤立追逐共鸣，应先建立整体发声通道",
+      "cluster_id": "topic_103",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "准确提炼纠偏观点并避开错词，但“整体唱歌通道”仍缺乏解释。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_8d212f6851ee432c8f103b5b",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "观点、前提和反常识Hook完整，并主动提示“唱歌通道”需要字幕解释。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_c26521d3c4389bd9f15c13e2",
+          "hook_x4": 4,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "忠实保留共鸣会随正确通道出现的核心论点，适合认知纠偏，但术语仍依赖前文。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_7a05adcf98e9d7ca80e0e537",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "三份均忠实命中观点型事件；主要编辑障碍不是内容缺失，而是“唱歌通道”属于讲者自有概念，需要简短释义。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "唱歌时舌头应像说话一样自然，避免向后堵",
+      "cluster_id": "topic_113",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "结论准确且安全简洁，但删除了说话类比、错误示范和舌根紧张的具体表现。",
+          "candidate_id": "candidate_373756f54a23ac46",
+          "completeness_x4": 3,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_fc07fa3e1b8a395a221f445f",
+          "hook_x4": 3,
+          "usability_x4": 3
+        },
+        {
+          "anonymous_system_id": "sys_76d44594bc9e76951e0161df",
+          "assessment": "问答与日常说话类比完整，能在“不要往后堵”处自然收束，独立成片最好。",
+          "candidate_id": "candidate_373756f54a23ac46",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_25669959432566ec5c707ce8",
+          "hook_x4": 4,
+          "usability_x4": 4
+        },
+        {
+          "anonymous_system_id": "sys_c9ddce06068081ed43739ed6",
+          "assessment": "核心类比和错误动作准确，Hook强；若标题承诺彻底放松舌根，现有片段尚未给出后续方法。",
+          "candidate_id": "candidate_373756f54a23ac46",
+          "completeness_x4": 3,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_0d65da7774ef309ee49e9bfa",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "同一事件的最佳剪法是在“自然放、不要后堵”处结束；继续承诺舌根放松解法会超出现有证据。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "零基础不要在方法不明时盲目练唱",
+      "cluster_id": "topic_122",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "盲练警示与寻找合适方法均有证据，但片段从摇滚用嗓讨论中段进入，且话题标签中的“就医”无依据。",
+          "candidate_id": "candidate_35a860b83062d6ab",
+          "completeness_x4": 2,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 3,
+          "highlight_id": "hl_8e2a581228f8876fd0b56b67",
+          "hook_x4": 3,
+          "usability_x4": 2
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "核心观点忠实，Hook能形成入门误区提醒；上下文残缺及无证据的“异常就医”标签降低可用性。",
+          "candidate_id": "candidate_35a860b83062d6ab",
+          "completeness_x4": 2,
+          "editorial_value_x4": 3,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 3,
+          "highlight_id": "hl_8d48d2126d83c6ab7937e33c",
+          "hook_x4": 3,
+          "usability_x4": 2
+        }
+      ],
+      "topic_assessment": "这是有效但泛化的训练观念，源片段边界不理想；只能表达“别盲练”，不能扩展成声带异常或就医建议。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "问题诊断式声乐教学不同于逐句跟唱",
+      "cluster_id": "topic_132",
+      "members": [
+        {
+          "anonymous_system_id": "sys_2d650c572116481d32ead5cc",
+          "assessment": "区分两种教学方式的句子准确，但实际源段很快转入点赞、上麦和课程推广，独立内容较薄。",
+          "candidate_id": "candidate_3c92e6847aff0c59",
+          "completeness_x4": 3,
+          "editorial_value_x4": 2,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_88f7519e7a2922f62c89f8bc",
+          "hook_x4": 3,
+          "usability_x4": 2
+        },
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "概念提炼忠实，问答Hook尚可；需大幅切除直播互动和自我推广才能使用。",
+          "candidate_id": "candidate_3c92e6847aff0c59",
+          "completeness_x4": 3,
+          "editorial_value_x4": 2,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_8ba57a421ce40df74ebd0964",
+          "hook_x4": 3,
+          "usability_x4": 2
+        }
+      ],
+      "topic_assessment": "两份都准确，但源事件本质上兼具直播服务说明和推广目的，编辑价值明显低于具体声乐技巧。"
+    },
+    {
+      "alignment_confidence": "high",
+      "canonical_topic": "高音时舌头后缩应先排查气息和咬字",
+      "cluster_id": "topic_141",
+      "members": [
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "准确保留“只在高音后缩”的判断条件、气息与咬字两项排查以及先处理中音区的路径；需清理首尾直播话语。",
+          "candidate_id": "candidate_f89ea722be8ee018",
+          "completeness_x4": 4,
+          "editorial_value_x4": 4,
+          "event_match_x4": 4,
+          "evidence_fidelity_x4": 4,
+          "highlight_id": "hl_40a4f933ee2329ec52325aab",
+          "hook_x4": 4,
+          "usability_x4": 3
+        }
+      ],
+      "topic_assessment": "这是独立于自然舌位教学的具体故障排查事件，信息链完整，是该组合有价值的独家发现。"
+    },
+    {
+      "alignment_confidence": "medium",
+      "canonical_topic": "零基础高音卡挤、破音的问题铺垫",
+      "cluster_id": "topic_151",
+      "members": [
+        {
+          "anonymous_system_id": "sys_6591cc872d2d24bb4c39f357",
+          "assessment": "Hook准确点出常见痛点，但证据主要是直播问询和未经充分限定的机制解释，没有兑现排查或解决方法。",
+          "candidate_id": "candidate_29b8beefbb32b85b",
+          "completeness_x4": 1,
+          "editorial_value_x4": 2,
+          "event_match_x4": 3,
+          "evidence_fidelity_x4": 3,
+          "highlight_id": "hl_70543e73c38c054829c34496",
+          "hook_x4": 4,
+          "usability_x4": 2
+        }
+      ],
+      "topic_assessment": "该片段只能作为后续教学的开场，不能单独包装成“如何判断”或解决高音卡挤的完整高光。"
+    }
+  ]
+}
