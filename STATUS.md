@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 02:26 PDT
+Updated: 2026-08-18 02:38 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -98,6 +98,18 @@ artifacts before counting them. Focused tests pass 23/23, existing research
 regressions pass 129/129, and final independent review reports P0/P1/P2 all
 zero. The runner hash creates a new Judge-run ID and cannot resume or overwrite
 the failed `judge_da09...` run.
+
+The deterministic analyzer and HTML report contract is also frozen. It verifies
+all 12 generator and six Judge receipts before private-arm unblinding, uses
+source-first metrics, recomputes exact-quote evidence and never calls relative
+selected-union coverage absolute recall. Unbound failed-repair cost is only
+supplemental and forces an inconclusive efficiency gate. It renders overall,
+per-source and per-Topic tables plus both Judge verdicts, disagreements,
+strengths, weaknesses and limitations. Analyzer tests pass 22/22 and the full
+research suite passes 151/151; independent final review reports no P0/P1/P2.
+The current new run is `judge_4ab64f09314583b7212ff934`; its real zero-model
+preflight passed and Sol Max has completed 1/6 Judge calls while Terra Max is
+still running. No comparative arm result has been interpreted.
 
 ## Current user-visible result
 

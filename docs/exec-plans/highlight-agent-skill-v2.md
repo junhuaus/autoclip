@@ -265,6 +265,18 @@ write `iteration-2` rather than replacing iteration 1.
   independent final review reports P0/P1/P2 all zero. Runner hash changes force
   a new Judge-run ID; the failed `judge_da09...` tree remains byte-for-byte
   untouched.
+- 2026-08-18: The deterministic analyzer/report contract was frozen while the
+  new Judge run had only 1/6 completed calls and before interpreting comparative
+  results. It verifies all generator/Judge/Pipeline/Call/preflight hashes and
+  inventories before reading private arm identities, aggregates source-first,
+  and labels selected-union coverage as relative. v2 exact quotes are recomputed
+  from source candidates. Failed repair-attempt cost metadata is not bound by
+  the generator completion receipt, so it is reported only as supplemental;
+  any such repair makes the hard efficiency gate inconclusive rather than
+  silently cheap. The HTML includes each source/Topic, both Judge verdicts and
+  disagreements, system strengths/weaknesses and limitations. Analyzer tests
+  pass 22/22, the full research suite passes 151/151, and independent review
+  reports no P0/P1; its final empty-preflight/version P2 was also closed.
 
 ## Decision Log
 
