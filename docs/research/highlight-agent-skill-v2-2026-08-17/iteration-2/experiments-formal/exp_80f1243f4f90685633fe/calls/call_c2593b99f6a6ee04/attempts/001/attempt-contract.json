@@ -1,0 +1,12 @@
+{
+  "artifact_sha256": {
+    "call-metadata.json": "11a63419971c50996c89db11033cad048d24c5853b854396fa6dd06d905afb70",
+    "events.jsonl": "b7e3910c5e66d13b564f0382ebb2391331afbc3b851e4d254bfbb661964091a1",
+    "failure.json": "44e14e11bc573f76cbd5e2e735b90cb59d35a798d4fefa591a5fcb23b547e987"
+  },
+  "model_attempt_consumed": true,
+  "model_started": true,
+  "prompt_sha256": "bf9ad12aa70cefcd8c80524e134b13fad5455e1a4ac6ef1311be8f78cd5552c3",
+  "schema_version": "2",
+  "status": "terminal_failed"
+}

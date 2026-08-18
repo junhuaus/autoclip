@@ -121,22 +121,51 @@ same deterministic Gate.
   successful-artifact lower bounds were already 7.413x elapsed time and 4.746x
   tokens. The two non-completion-bound failed-repair costs can only increase
   the v2 numerator and therefore cannot make that gate pass.
-- [ ] Freeze and evaluate an iteration-2 design that preserves free Topic
+- [x] 2026-08-18 Freeze and evaluate an iteration-2 design that preserves free Topic
   discovery and exact evidence while restoring editorial precision/readiness,
   using at most two normal model calls per Pipeline and a quality-adaptive
   8–12 portfolio instead of always selecting 12. Its Judge contract must also
   freeze explicit 0–4 anchors and keep subjective portfolio coverage distinct
-  from deterministic selected-union-relative coverage.
+  from deterministic selected-union-relative coverage. The formal attempt was
+  rejected on its first permanent integrity failure before a quality comparison.
 - [x] 2026-08-18 Keep production unchanged because iteration-1 failed its
   preregistered gate.
+
+### S2-M3 — Iteration-2 frozen development regression
+
+- [x] 2026-08-18 Complete independent read-only architecture, harness and
+  evaluation-contract audits before writing iteration-2 runtime code.
+- [x] 2026-08-18 Create a separate `iteration-2/` namespace with a one-call
+  CombinedDiscovery stage, deterministic quality-adaptive selection and a
+  conditional one-call extractive SelectedCopy stage. Iteration-1 bytes remain
+  untouched.
+- [x] 2026-08-18 Implement the strict combined/copy contracts, 60-candidate and
+  128-KiB capacity gates, 65/75 quality gates, 8–12 portfolio selection and
+  adversarial contract tests. The first focused contract pass is 92/92.
+- [x] 2026-08-18 Freeze the complete evaluation contract, including Skill, Schema,
+  generator, dual-Judge rubric/runner, exact-rational analyzer, Viewer, gates,
+  human-feedback waiver and all artifact hashes, before any generator output.
+  The verified contract SHA-256 is
+  `6a0057da8ec357195c354c658994a0ec88330e66b3b05fdd3980c94075a15a4e`.
+- [x] 2026-08-18 Run Schema verification, the complete 323-test iteration-2
+  suite, repository lint/test, and the zero-model Generator dry-run/preflight;
+  independently verify the frozen contract and receipts. Judge dry-run was not
+  started because its frozen input requires a complete 12-Pipeline Generator
+  matrix, which the terminal formal failure made unavailable.
+- [x] 2026-08-18 Only after the preceding freeze succeeded, start the contemporaneous three-source
+  fresh-v1/iteration-2 regression and apply the preregistered result states.
+  The first formal call permanently failed the zero-tool integrity gate, so the
+  outcome is `reject_iteration2`; no retry, Judge run, holdout, or production
+  change is permitted.
 
 ## File ownership
 
 The main Agent exclusively owns this ExecPlan, `STATUS.md`, shared schemas,
-dependencies, migrations and any eventual production integration. Parallel
-agents are read-only for S2-M0: one audits production integration, one audits
-Schema/Gates and one audits the evaluation design. No agent may edit frozen v1
-artifacts or the previous benchmark.
+dependencies, migrations, evaluation freeze and any eventual production
+integration. During S2-M3, parallel writers have explicit non-overlapping
+ownership: generator runner/tests; Judge runner/tests; analyzer/Viewer/tests.
+The main Agent integrates and verifies all outputs. No Agent may edit frozen
+iteration-1 artifacts or the previous benchmark.
 
 ## Concrete commands and expected observations
 
@@ -148,6 +177,9 @@ git status --short --branch
 .venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/run_iteration.py --dry-run
 .venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/run_iteration.py
 .venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/analyze_iteration.py
+.venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/export_schemas.py --check
+.venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/freeze_evaluation.py --check
+.venv/bin/python docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/run_iteration.py --dry-run --output-root docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/experiments-formal
 make lint
 ```
 
@@ -315,7 +347,7 @@ write `iteration-2` rather than replacing iteration 1.
   v2 runs selected exactly 12, frequently admitting opening/operations/course
   promotion, question-only or context-dependent material. Its conservative
   third-person copy also lost the source's rhetorical energy. These are the
-  frozen iteration-2 failure modes; production remains unchanged.
+  frozen iteration-1 failure modes; production remains unchanged.
 - 2026-08-18: Independent post-result review found no result-invalidating
   defect, but did find one P1 gate-label bug and two P2 verification/terminology
   gaps.
@@ -349,6 +381,24 @@ write `iteration-2` rather than replacing iteration 1.
   intermediate approval prompts. Production integration is therefore gated by
   the preregistered evidence and regression tests rather than a separate user
   confirmation; this does not authorize destructive or unrelated changes.
+- 2026-08-18: Iteration 2 replaces the four normal v2 calls with at most two:
+  one all-candidate CombinedDiscovery and one conditional SelectedCopy. It
+  separates assessability, standalone publishability and editorial value, never
+  pads an underfilled portfolio, preserves source voice extractively, removes
+  invalid subjective sampling-stability scoring, and freezes all gates before
+  output. Rationale: iteration 1 failed precision, readiness, stability and
+  efficiency despite passing evidence binding.
+- 2026-08-18: Formal iteration-2 experiment
+  `exp_80f1243f4f90685633fe` is rejected under its frozen integrity gate. Codex
+  0.147.0 emitted a pre-turn `item.completed/error` because the code-mode host
+  was deliberately disabled; no actual command/tool-call item appeared, and a
+  complete model message followed. The frozen parser nevertheless classifies
+  every non-message/reasoning item as unsafe, persisted attempt 1 as
+  `terminal_failed/model_safety_tool_event`, and forbids retry. This is likely a
+  runtime compatibility false positive, but changing that classification after
+  observed output would be post-hoc contract drift. A future evaluation must
+  revise and refreeze both structured-output preflight and event taxonomy under
+  a new identity while retaining this failed receipt.
 
 ## Risks and mitigations
 
@@ -366,14 +416,14 @@ write `iteration-2` rather than replacing iteration 1.
 ## Recovery Notes
 
 Iteration 1 is independently verified, committed as `46ff874` and pushed to
-`origin/main` without rerunning any generator or Judge call. Current first task:
-freeze iteration 2 before any new model output. It must use a
-combined all-candidate assessment/free-Topic stage, deterministic
-quality-adaptive selection and one selected-candidate copy stage; no result may
-overwrite iteration 1. If interrupted, read this file and `STATUS.md`, verify
-both immutable experiment manifests and resume existing receipts rather than
-deleting or forcing artifacts. Never rerun the completed three-model benchmark
-or overwrite iteration-1 artifacts.
+`origin/main` without rerunning any generator or Judge call. Iteration 2 is
+frozen and formally rejected at terminal Generator call
+`call_c2593b99f6a6ee04-a1`. If interrupted, read this file and `STATUS.md`, then
+verify the evaluation contract and preserved terminal receipt; do not resume,
+delete, force, copy to a fresh output root, or start Judges for
+`exp_80f1243f4f90685633fe`. Never rerun the completed three-model benchmark or
+overwrite iteration-1 artifacts. Any compatibility fix and reevaluation belongs
+to a new namespace, a new pre-output freeze, and a new experiment identity.
 
 ## Outcomes and Retrospective
 
@@ -381,9 +431,11 @@ Iteration 1 is complete and rejected. v2 did not meet the frozen
 non-inferiority gate: wider discovery was purchased with too many low-editorial
 value selections, weaker ready-to-publish copy, lower repeat stability and more
 than the allowed resource multiplier. Exact evidence separation is retained as
-a successful design change. Iteration 2 must therefore reduce topology and
-cost, make portfolio size quality-adaptive, harden standalone/editorial filters
-and preserve direct source rhetoric. This development set is already exposed
-to the redesign, so a future improvement on these three sources is a regression
-result rather than an independent generalization claim; production promotion
-still requires new holdout evidence.
+a successful design change. Iteration 2 implemented the intended lower-call,
+quality-adaptive design but was rejected before quality measurement because its
+frozen event classifier terminalized a Codex compatibility diagnostic. The
+failed run is valid integrity evidence, not evidence that iteration 2 is better
+or worse in editorial quality. This development set is already exposed to the
+redesign, so a future improvement on these three sources is a regression result
+rather than an independent generalization claim; production promotion still
+requires new holdout evidence.

@@ -1,0 +1,45 @@
+{
+  "attempt_failure_category": "model_safety_tool_event",
+  "attempt_receipts": [
+    {
+      "attempt": 1,
+      "attempt_contract_sha256": "7393e972ee01bb2b0dc148e1c2236c436b0f4054af44faca3a55dc50c7b8107d",
+      "elapsed_seconds": 289.623,
+      "model_attempt_consumed": true,
+      "model_started": true,
+      "status": "terminal_failed",
+      "usage": {
+        "cached_input_tokens": 27392,
+        "input_tokens": 30114,
+        "output_tokens": 11459,
+        "reasoning_output_tokens": 0,
+        "reported_total_tokens": 41573
+      },
+      "usage_status": "reported"
+    }
+  ],
+  "call_contract_sha256": "d87ad4023f87a910dc41bc3de7061a26a9d29ee5f5320924291f9857e989c3d3",
+  "call_id": "call_c2593b99f6a6ee04",
+  "completion_bound_total_elapsed_seconds": 289.623,
+  "completion_bound_total_usage": {
+    "cached_input_tokens": 27392,
+    "input_tokens": 30114,
+    "output_tokens": 11459,
+    "reasoning_output_tokens": 0,
+    "reported_total_tokens": 41573
+  },
+  "completion_bound_usage_complete": true,
+  "experiment_contract_sha256": "80f1243f4f90685633fe79b796681a4858665f02a591c94c5af92b9d9a7b27dd",
+  "experiment_id": "exp_80f1243f4f90685633fe",
+  "failure_category": "model_safety_tool_event",
+  "failure_sha256": "44e14e11bc573f76cbd5e2e735b90cb59d35a798d4fefa591a5fcb23b547e987",
+  "infrastructure_failure_receipts": [],
+  "pipeline_id": "pipeline_293594598cdcf6e7",
+  "recorded_at": "2026-08-18T21:05:27.920426+00:00",
+  "schema_version": "1",
+  "stage": "v2-combined-discovery",
+  "status": "terminal_failed",
+  "terminal_attempt": 1,
+  "terminal_attempt_contract_sha256": "7393e972ee01bb2b0dc148e1c2236c436b0f4054af44faca3a55dc50c7b8107d",
+  "total_model_attempt_count": 1
+}

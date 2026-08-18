@@ -1,0 +1,5 @@
+{
+  "category": "model_safety_tool_event",
+  "error": "CodexProcessFailure[model_safety_tool_event]: call_c2593b99f6a6ee04-a1 emitted a forbidden tool event",
+  "recorded_at": "2026-08-18T21:05:27.920426+00:00"
+}

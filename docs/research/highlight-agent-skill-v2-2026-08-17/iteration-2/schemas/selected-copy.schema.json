@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "SelectedCopyIteration2": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "pattern": "^candidate_[a-f0-9]{16}$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "evidence_quote": {
+          "maxLength": 260,
+          "minLength": 4,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "hook": {
+          "maxLength": 90,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "maxLength": 24,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Keywords",
+          "type": "array"
+        },
+        "script_description": {
+          "maxLength": 260,
+          "minLength": 1,
+          "title": "Script Description",
+          "type": "string"
+        },
+        "source_sentence": {
+          "maxLength": 180,
+          "minLength": 4,
+          "title": "Source Sentence",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "title",
+        "hook",
+        "evidence_quote",
+        "source_sentence",
+        "script_description",
+        "keywords"
+      ],
+      "title": "SelectedCopyIteration2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "copies": {
+      "items": {
+        "$ref": "#/$defs/SelectedCopyIteration2"
+      },
+      "maxItems": 12,
+      "title": "Copies",
+      "type": "array"
+    },
+    "selection_summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Selection Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "selection_summary",
+    "copies"
+  ],
+  "title": "SelectedCopyBatchIteration2",
+  "type": "object"
+}

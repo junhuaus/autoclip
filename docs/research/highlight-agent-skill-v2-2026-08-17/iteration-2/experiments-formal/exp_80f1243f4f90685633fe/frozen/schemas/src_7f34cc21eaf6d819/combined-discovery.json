@@ -1,0 +1,432 @@
+{
+  "$defs": {
+    "AssessmentConfidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "AssessmentConfidence",
+      "type": "string"
+    },
+    "AtomicScores": {
+      "additionalProperties": false,
+      "properties": {
+        "content_value": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Content Value",
+          "type": "integer"
+        },
+        "editorial_utility": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Editorial Utility",
+          "type": "integer"
+        },
+        "evidence_fidelity": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Evidence Fidelity",
+          "type": "integer"
+        },
+        "hook_strength": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Hook Strength",
+          "type": "integer"
+        },
+        "standalone_completeness": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Standalone Completeness",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content_value",
+        "hook_strength",
+        "standalone_completeness",
+        "evidence_fidelity",
+        "editorial_utility"
+      ],
+      "title": "AtomicScores",
+      "type": "object"
+    },
+    "CandidateAssessmentIteration2": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_confidence": {
+          "$ref": "#/$defs/AssessmentConfidence"
+        },
+        "candidate_id": {
+          "enum": [
+            "candidate_adab5d4da9ab2be6",
+            "candidate_473a7cc73ef551ea",
+            "candidate_bf1aa4701bd6f761",
+            "candidate_368dc549dbba313f",
+            "candidate_729ff8b49cf26f22",
+            "candidate_6b0ae4ac42937611",
+            "candidate_7062f9ba2a253131",
+            "candidate_f12c067f4578931f",
+            "candidate_e7e0739b77ace20a",
+            "candidate_8fac69f83a04a15d",
+            "candidate_db82a842ff2401fa",
+            "candidate_b7730933ffbad510",
+            "candidate_737064038099ef2a",
+            "candidate_de95d7468a7318ca",
+            "candidate_5fc29cf6f9d6fbb3",
+            "candidate_b45014a64a6a9c53",
+            "candidate_0f91c0dab3dbb1a2",
+            "candidate_26500385c10519ef",
+            "candidate_1905cc42552496cb",
+            "candidate_932087bda627a1c6",
+            "candidate_c09a0f37fab1e353",
+            "candidate_159babdbda6acfe6",
+            "candidate_9442184e2836ee47",
+            "candidate_5c57e9b5dd359ae7",
+            "candidate_48324e904b930420",
+            "candidate_4477e0c580eeaf0f",
+            "candidate_2e74bd47f66c76ad",
+            "candidate_995f11a38ef0e583",
+            "candidate_4f46d35f2e2667ca",
+            "candidate_b6ce4961df030128",
+            "candidate_a1d7354902e340e6",
+            "candidate_27e8574669b9e0c2",
+            "candidate_f262b8f87ac47de0",
+            "candidate_59b038f803f24532",
+            "candidate_8e329a9311a36567",
+            "candidate_059b8bf41086721a",
+            "candidate_3f73ee8bb04ee052",
+            "candidate_1d0bcd4f6ed22861",
+            "candidate_84a0a525d56ff5bd",
+            "candidate_374a9f9e7e085c59",
+            "candidate_2e039a3e91689484",
+            "candidate_9d47bf21dc719613",
+            "candidate_eda02f3bbfbc7462",
+            "candidate_8ba2743da2b9cb9e",
+            "candidate_e2c68e2187b0dda3"
+          ],
+          "type": "string"
+        },
+        "content_risk_flags": {
+          "items": {
+            "$ref": "#/$defs/ContentRiskFlag"
+          },
+          "maxItems": 8,
+          "title": "Content Risk Flags",
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CandidateDisposition"
+        },
+        "editorial_value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EditorialValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "editorial_value_reason": {
+          "maxLength": 180,
+          "title": "Editorial Value Reason",
+          "type": "string"
+        },
+        "evidence_flags": {
+          "items": {
+            "$ref": "#/$defs/EvidenceFlag"
+          },
+          "maxItems": 4,
+          "title": "Evidence Flags",
+          "type": "array"
+        },
+        "primary_claim": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Primary Claim"
+        },
+        "publishability_blockers": {
+          "items": {
+            "$ref": "#/$defs/PublishabilityBlocker"
+          },
+          "maxItems": 6,
+          "title": "Publishability Blockers",
+          "type": "array"
+        },
+        "risk_summary": {
+          "maxLength": 220,
+          "title": "Risk Summary",
+          "type": "string"
+        },
+        "scores": {
+          "$ref": "#/$defs/AtomicScores"
+        },
+        "standalone_publishability": {
+          "$ref": "#/$defs/StandalonePublishability"
+        },
+        "unusable_reason": {
+          "$ref": "#/$defs/Iteration2UnusableReason"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "disposition",
+        "unusable_reason",
+        "primary_claim",
+        "assessment_confidence",
+        "standalone_publishability",
+        "publishability_blockers",
+        "editorial_value",
+        "editorial_value_reason",
+        "scores",
+        "evidence_flags",
+        "content_risk_flags",
+        "risk_summary"
+      ],
+      "title": "CandidateAssessmentIteration2",
+      "type": "object"
+    },
+    "CandidateDisposition": {
+      "enum": [
+        "assessable",
+        "unusable"
+      ],
+      "title": "CandidateDisposition",
+      "type": "string"
+    },
+    "ClusterConfidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "ClusterConfidence",
+      "type": "string"
+    },
+    "ContentRiskFlag": {
+      "enum": [
+        "health_or_safety_claim",
+        "legal_or_financial_claim",
+        "personal_data",
+        "copyright_or_third_party",
+        "reputation_or_defamation",
+        "sponsor_or_advertising",
+        "unsafe_instruction",
+        "sensitive_content"
+      ],
+      "title": "ContentRiskFlag",
+      "type": "string"
+    },
+    "EditorialValue": {
+      "enum": [
+        "distinctive",
+        "solid",
+        "thin"
+      ],
+      "title": "EditorialValue",
+      "type": "string"
+    },
+    "EvidenceFlag": {
+      "enum": [
+        "asr_uncertain",
+        "context_dependency",
+        "incomplete_claim",
+        "visual_verification_required"
+      ],
+      "title": "EvidenceFlag",
+      "type": "string"
+    },
+    "Iteration2UnusableReason": {
+      "enum": [
+        "none",
+        "fragment_only",
+        "context_unrecoverable",
+        "asr_unintelligible",
+        "unsafe_or_private"
+      ],
+      "title": "Iteration2UnusableReason",
+      "type": "string"
+    },
+    "PublishabilityBlocker": {
+      "enum": [
+        "fragment_only",
+        "missing_premise_or_question",
+        "unfinished_claim_or_payoff",
+        "asr_unreliable",
+        "essential_visual_missing",
+        "unsafe_or_private"
+      ],
+      "title": "PublishabilityBlocker",
+      "type": "string"
+    },
+    "StandalonePublishability": {
+      "enum": [
+        "ready",
+        "not_ready"
+      ],
+      "title": "StandalonePublishability",
+      "type": "string"
+    },
+    "TopicDraftIteration2": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_angle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Canonical Angle",
+          "type": "string"
+        },
+        "cluster_confidence": {
+          "$ref": "#/$defs/ClusterConfidence"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/TopicMemberIteration2"
+          },
+          "maxItems": 60,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "topic_label": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Topic Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_label",
+        "canonical_angle",
+        "cluster_confidence",
+        "members"
+      ],
+      "title": "TopicDraftIteration2",
+      "type": "object"
+    },
+    "TopicMemberIteration2": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "enum": [
+            "candidate_adab5d4da9ab2be6",
+            "candidate_473a7cc73ef551ea",
+            "candidate_bf1aa4701bd6f761",
+            "candidate_368dc549dbba313f",
+            "candidate_729ff8b49cf26f22",
+            "candidate_6b0ae4ac42937611",
+            "candidate_7062f9ba2a253131",
+            "candidate_f12c067f4578931f",
+            "candidate_e7e0739b77ace20a",
+            "candidate_8fac69f83a04a15d",
+            "candidate_db82a842ff2401fa",
+            "candidate_b7730933ffbad510",
+            "candidate_737064038099ef2a",
+            "candidate_de95d7468a7318ca",
+            "candidate_5fc29cf6f9d6fbb3",
+            "candidate_b45014a64a6a9c53",
+            "candidate_0f91c0dab3dbb1a2",
+            "candidate_26500385c10519ef",
+            "candidate_1905cc42552496cb",
+            "candidate_932087bda627a1c6",
+            "candidate_c09a0f37fab1e353",
+            "candidate_159babdbda6acfe6",
+            "candidate_9442184e2836ee47",
+            "candidate_5c57e9b5dd359ae7",
+            "candidate_48324e904b930420",
+            "candidate_4477e0c580eeaf0f",
+            "candidate_2e74bd47f66c76ad",
+            "candidate_995f11a38ef0e583",
+            "candidate_4f46d35f2e2667ca",
+            "candidate_b6ce4961df030128",
+            "candidate_a1d7354902e340e6",
+            "candidate_27e8574669b9e0c2",
+            "candidate_f262b8f87ac47de0",
+            "candidate_59b038f803f24532",
+            "candidate_8e329a9311a36567",
+            "candidate_059b8bf41086721a",
+            "candidate_3f73ee8bb04ee052",
+            "candidate_1d0bcd4f6ed22861",
+            "candidate_84a0a525d56ff5bd",
+            "candidate_374a9f9e7e085c59",
+            "candidate_2e039a3e91689484",
+            "candidate_9d47bf21dc719613",
+            "candidate_eda02f3bbfbc7462",
+            "candidate_8ba2743da2b9cb9e",
+            "candidate_e2c68e2187b0dda3"
+          ],
+          "type": "string"
+        },
+        "member_angle": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Member Angle",
+          "type": "string"
+        },
+        "relationship": {
+          "$ref": "#/$defs/TopicRelationship"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "relationship",
+        "member_angle"
+      ],
+      "title": "TopicMemberIteration2",
+      "type": "object"
+    },
+    "TopicRelationship": {
+      "enum": [
+        "core",
+        "same_claim",
+        "alternate_angle"
+      ],
+      "title": "TopicRelationship",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assessments": {
+      "items": {
+        "$ref": "#/$defs/CandidateAssessmentIteration2"
+      },
+      "maxItems": 60,
+      "minItems": 1,
+      "title": "Assessments",
+      "type": "array"
+    },
+    "inventory_summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Inventory Summary",
+      "type": "string"
+    },
+    "topics": {
+      "items": {
+        "$ref": "#/$defs/TopicDraftIteration2"
+      },
+      "maxItems": 60,
+      "title": "Topics",
+      "type": "array"
+    }
+  },
+  "required": [
+    "assessments",
+    "inventory_summary",
+    "topics"
+  ],
+  "title": "CombinedDiscovery",
+  "type": "object"
+}

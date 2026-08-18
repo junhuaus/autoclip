@@ -1,0 +1,20 @@
+{
+  "completed_at": "2026-08-18T21:05:27.913820+00:00",
+  "elapsed_seconds": 289.623,
+  "failure_category": "model_safety_tool_event",
+  "label": "call_c2593b99f6a6ee04-a1",
+  "model": "gpt-5.6-sol",
+  "model_started": true,
+  "reasoning_effort": "medium",
+  "request_id": "01a016ad-1c3b-76c2-a8ac-0f363210ba65",
+  "started_at": "2026-08-18T21:00:38.289403+00:00",
+  "unsafe_tool_event": true,
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 27392,
+    "input_tokens": 30114,
+    "output_tokens": 11459,
+    "reasoning_output_tokens": 0
+  },
+  "usage_status": "reported"
+}

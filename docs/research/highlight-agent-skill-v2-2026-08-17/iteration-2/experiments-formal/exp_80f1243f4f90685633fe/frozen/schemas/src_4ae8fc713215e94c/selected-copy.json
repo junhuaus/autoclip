@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "SelectedCopyIteration2": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "enum": [
+            "candidate_b66177d9d0ec57ef",
+            "candidate_259a47e73cd8edad",
+            "candidate_f14a3fb4d68e51ca",
+            "candidate_349a7ccecf8c6857",
+            "candidate_f501d39592c1669b",
+            "candidate_c393f29d34250a55",
+            "candidate_29b8beefbb32b85b",
+            "candidate_fa0cd44fc3dcaa6b",
+            "candidate_f39a280e9d55f06e",
+            "candidate_f0bbb75c02ac39ed",
+            "candidate_58a59476ab12c657",
+            "candidate_f89ea722be8ee018",
+            "candidate_f49be10488a46e67",
+            "candidate_464b0f2aee1d8a44",
+            "candidate_0c49c6488ae5fe28",
+            "candidate_ecc8f9bdbcef1f0b",
+            "candidate_b97428705eaff8a0",
+            "candidate_9e9054f2deb55202",
+            "candidate_3c92e6847aff0c59",
+            "candidate_b110d906807b06f5",
+            "candidate_373756f54a23ac46",
+            "candidate_c512c4453cde77d1",
+            "candidate_04479a7661739b63",
+            "candidate_0650eee23c06e676",
+            "candidate_bef585871fbac01e",
+            "candidate_6721fcbb3782d23b",
+            "candidate_5b457445f2236f35",
+            "candidate_f3d1b16dd252adfd",
+            "candidate_0c9ab3b5a64030d5",
+            "candidate_2169870825746d02",
+            "candidate_ec5459f102e399ec",
+            "candidate_288c9f1bf0144c80",
+            "candidate_457e1f1bdcf9a2eb",
+            "candidate_45f74801b32ad9cf",
+            "candidate_d5a694fcab37dad8",
+            "candidate_383a43afa92485e7",
+            "candidate_65678839045aab40",
+            "candidate_35a860b83062d6ab",
+            "candidate_f88952d2d3ed4709",
+            "candidate_cba78926f39edb10",
+            "candidate_554c3d7035ba1055"
+          ],
+          "type": "string"
+        },
+        "evidence_quote": {
+          "maxLength": 260,
+          "minLength": 4,
+          "title": "Evidence Quote",
+          "type": "string"
+        },
+        "hook": {
+          "maxLength": 90,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "maxLength": 24,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Keywords",
+          "type": "array"
+        },
+        "script_description": {
+          "maxLength": 260,
+          "minLength": 1,
+          "title": "Script Description",
+          "type": "string"
+        },
+        "source_sentence": {
+          "maxLength": 180,
+          "minLength": 4,
+          "title": "Source Sentence",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "title",
+        "hook",
+        "evidence_quote",
+        "source_sentence",
+        "script_description",
+        "keywords"
+      ],
+      "title": "SelectedCopyIteration2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "copies": {
+      "items": {
+        "$ref": "#/$defs/SelectedCopyIteration2"
+      },
+      "maxItems": 12,
+      "title": "Copies",
+      "type": "array"
+    },
+    "selection_summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Selection Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "selection_summary",
+    "copies"
+  ],
+  "title": "SelectedCopyBatchIteration2",
+  "type": "object"
+}

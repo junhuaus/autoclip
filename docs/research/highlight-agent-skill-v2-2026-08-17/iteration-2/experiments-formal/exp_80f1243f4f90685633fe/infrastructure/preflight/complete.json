@@ -1,0 +1,17 @@
+{
+  "experiment_contract_sha256": "80f1243f4f90685633fe79b796681a4858665f02a591c94c5af92b9d9a7b27dd",
+  "experiment_id": "exp_80f1243f4f90685633fe",
+  "passed_check": 2,
+  "policy_version": "codex-local-app-server-preflight-v2",
+  "receipt_sha256": [
+    {
+      "relative_path": "checks/001/receipt.json",
+      "sha256": "da2dd3a8fd3880084f65dea8cab68eeb3b87914e17dd051fadcc0374ea32c55a"
+    },
+    {
+      "relative_path": "checks/002/receipt.json",
+      "sha256": "2019e2449acd9d441341f66f02b9fdf127b6ae29b769bcc4e1342ccc97bb3a59"
+    }
+  ],
+  "schema_version": "1"
+}

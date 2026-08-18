@@ -1,13 +1,15 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 05:21 PDT
+Updated: 2026-08-18 14:12 PDT
 
 Package compatibility baseline: `0.1.0`
 
 Current activity: production development remains paused. Highlight Agent Skill
-v2 research iteration 1 is complete, independently verified and rejected for
-production by its frozen gates; no production default changed. The next
-authorized research step is to freeze iteration 2 before any new model output.
+v2 research iterations 1 and 2 are both formally rejected by their frozen
+gates; no production default changed. After recovering from the host crash,
+iteration 2 resumed at its exact pre-output checkpoint, froze successfully, and
+then stopped on the first Generator call's permanent integrity failure. Its
+receipts are preserved and the failed experiment will not be retried or replaced.
 Research does not modify the production Pipeline, database, source media,
 renders, reviews or Deliveries. The prior expanded free-discovery benchmark is
 complete under
@@ -17,6 +19,58 @@ evidence diagnostic and two independent blind Judges. No Pipeline, database,
 source media, render or Delivery state changed. Expanded-benchmark checkpoint
 `d9f9836` and rejected iteration-1 checkpoint `46ff874` are committed and
 pushed to `origin/main`.
+
+## Highlight Agent Skill v2 iteration-2 rejected checkpoint
+
+Iteration 2 is isolated under
+`docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/`; no iteration-1
+artifact is being overwritten. Three independent read-only audits converged on
+the same minimal topology: one all-candidate CombinedDiscovery call,
+deterministic quality-adaptive 8–12 selection, and one conditional extractive
+SelectedCopy call. Thus a contender Pipeline has at most two normal model calls
+and at most one model repair in total. The exposed three-source set remains
+development regression data and cannot directly justify a production change.
+
+The new shared contracts distinguish assessability, standalone publishability
+and editorial value; cap input at 60 candidates and the exact combined payload
+at 128 KiB; require completeness/evidence and 65-point base quality; never pad a
+weak portfolio; and bind both evidence quote and source-voice sentence to exact
+candidate text. New exported Schemas contain only CombinedDiscovery and
+SelectedCopy. The final iteration-2 suite passed 323/323, `make lint` passed,
+and repository validation passed 726 Python tests, 57 Web tests, the mock browser
+E2E, and the real API/Worker/FFmpeg browser E2E.
+
+The dual-Judge redesign freezes complete 0–4 anchors, replaces the invalid
+subjective sampling-stability field with portfolio coherence, computes semantic
+opportunity coverage/precision from member ratings, preserves each output's
+highlight order, and separates that metric from deterministic relative
+selected-union candidate coverage. Aggregation and gates use exact rational
+arithmetic without the iteration-1 per-system floor. The immutable evaluation
+contract was written before any Generator output and reverified at SHA-256
+`6a0057da8ec357195c354c658994a0ec88330e66b3b05fdd3980c94075a15a4e`.
+
+Formal experiment `exp_80f1243f4f90685633fe` first completed a zero-model
+dry-run. The first sandboxed stdio/EOF preflight was permission-denied with
+`model_started=false`; check 2 passed outside that sandbox with
+`model_started=false`, `model_attempt_consumed=false`, and zero Generator calls.
+The first formal call, `call_c2593b99f6a6ee04-a1`, then emitted a pre-turn Codex
+0.147.0 `item.completed/error` saying that Code Mode was unavailable because its
+host was disabled. The same five-line stream later contained a complete model
+message and completion usage, but the frozen parser intentionally treats every
+non-message/reasoning item as an unsafe event. It therefore completion-bound the
+attempt at 289.623 seconds and 41,573 reported tokens, persisted
+`terminal_failed/model_safety_tool_event`, and prohibited repair or resume.
+
+Independent governance and receipt audits confirmed the preregistered outcome
+is `reject_iteration2`: the integrity gate requires zero tool events and 12/12
+Generator Pipelines, while non-Judge hard-gate failure maps to rejection. The
+runtime diagnostic is a likely compatibility false positive, but post-output
+reclassification, deletion, retry, or a fresh output root would violate the
+frozen contract. No Judge call was started because the Generator matrix was
+incomplete, so this run makes no comparative quality claim about the proposed
+Skill. Production remains unchanged. Any reevaluation requires a revised,
+newly frozen contract and a genuinely new experiment identity that cites this
+failed run.
 
 ## Highlight Agent Skill v2 optimization checkpoint
 

@@ -1,0 +1,262 @@
+{
+  "acceptance_gates": {
+    "deterministic_repeat_stability": {
+      "candidate_jaccard_delta_minimum": "-1/20",
+      "interval_f1_delta_minimum": "-1/20",
+      "judge_sampling_stability_dimension_permitted": false
+    },
+    "efficiency": {
+      "quality_justification_override_permitted": false,
+      "source_first_all_attempt_elapsed_ratio_maximum": "3",
+      "source_first_all_reported_token_ratio_maximum": "3"
+    },
+    "evidence_and_structure": {
+      "all_structure_candidate_time_selection_gates": true,
+      "iteration2_outward_exact_evidence_failures": 0,
+      "normal_iteration2_calls_per_pipeline_maximum": 2,
+      "underfilled_iteration2_portfolios": 0
+    },
+    "integrity_and_safety": {
+      "all_hash_receipt_schema_identity_anonymity_checks": true,
+      "identity_leaks": 0,
+      "required_generator_pipelines": "12/12",
+      "required_judge_calls": "6/6",
+      "tool_events": 0,
+      "unbound_model_started_attempt_costs": 0,
+      "unknown_or_duplicate_candidate_ids": 0
+    },
+    "judge_reliability": {
+      "any_source_arm_score_difference_maximum": "20",
+      "exceeded_outcome": "inconclusive_iteration2",
+      "mean_absolute_pipeline_score_difference_maximum": "10"
+    },
+    "quality": {
+      "editorial_readiness_delta_minimum": "-2",
+      "iteration2_editorial_readiness_minimum": "75",
+      "iteration2_minus_fresh_v1_minimum": "-2",
+      "iteration2_precision_minimum": "75",
+      "precision_delta_minimum": "-2",
+      "worst_unique_source_quality_delta_minimum": "-5"
+    }
+  },
+  "aggregation": {
+    "coverage_metric_names": [
+      "judge_semantic_opportunity_coverage",
+      "deterministic_relative_selected_union_candidate_coverage"
+    ],
+    "display_rounding": "ROUND_HALF_UP_3_DECIMALS_ONLY",
+    "gate_arithmetic": "exact_rational",
+    "headline_score": "equal_macro_mean_over_unique_source_sha256",
+    "intermediate_floor_or_round": false,
+    "source_alias_policy": "deduplicate_by_source_sha256_before_equal_macro_mean",
+    "source_score": "mean_of_two_repeats_and_two_judges_as_exact_fraction",
+    "system_dimensions_and_integer_weights": {
+      "editorial_readiness_x4": 15,
+      "judge_semantic_opportunity_coverage_x4": 20,
+      "portfolio_coherence_x4": 15,
+      "precision_x4": 20,
+      "valuable_discovery_x4": 30
+    },
+    "system_score": "sum(weight*dimension_x4)/4"
+  },
+  "artifacts": {
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/DESIGN.md": {
+      "sha256": "4e608a1d9b9b2087175112dac6ce4fcdf86514b58606f9ccf6d0efb06051c5e8",
+      "size_bytes": 8438
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/agent/SKILL.md": {
+      "sha256": "9331147bd0e78238d552237c7bc4a4f53ddc58721438d386f45f7b5514811f6d",
+      "size_bytes": 4333
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/agent/references/atomic-scoring.md": {
+      "sha256": "1e702a6bde1cc5d8d35adc5d8661890db64bb30399cb133b3ea2ca6b10156a52",
+      "size_bytes": 2885
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/agent/references/combined-discovery.md": {
+      "sha256": "0a5dc4ae5537fa76c40115bd0fd41ec7437d27892e0b9aa27e8420c0f52f5a88",
+      "size_bytes": 5757
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/agent/references/risk-and-repair.md": {
+      "sha256": "89b9c3cb3a980ff6da64acc91cba160c8b1f4995b39df038641daff62a5b5cfc",
+      "size_bytes": 2532
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/agent/references/selected-copy.md": {
+      "sha256": "252e01358c6e383541b015fcd4da9027f9bf353f174e8fb0da4f10a26756e025",
+      "size_bytes": 3304
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/analyze_iteration.py": {
+      "sha256": "d8cf69f293ec4afa81e8401ac1a5b12d3ad852b8b31914151973e479565abef9",
+      "size_bytes": 71588
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/build_eval_view.py": {
+      "sha256": "b66394388cbd429e88dfbd378ee9a976324f7d2cc52940e1cedd35f7192a3fe1",
+      "size_bytes": 45889
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/contracts.py": {
+      "sha256": "58f23963c633ca85d4b32b31d67ea6b033c18f5e155bcd75cf444fd5433d64d4",
+      "size_bytes": 55154
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/export_schemas.py": {
+      "sha256": "e45e5ec39b459dddcbbd0da9925fb5a417e804564668b0f822859a3ebfb4e3ff",
+      "size_bytes": 5986
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/freeze_evaluation.py": {
+      "sha256": "6bae28da61e341504293d0d1eb5db807a0d84d968f3a6cb1aa363b31496d0996",
+      "size_bytes": 16534
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/input_gate.py": {
+      "sha256": "e9045989bad6edd86808168fe8be39ad5acbe884ad96277aa02b62542d0ff994",
+      "size_bytes": 5233
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/judge-rubric.md": {
+      "sha256": "de08a83e5071e9503d25693ebb9eb4c402995c3bb6d81acfede0273beb3bccfe",
+      "size_bytes": 5545
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/run_iteration.py": {
+      "sha256": "868560fbfdf119f75642a2093c4a9e800b185aee83c49eeeb917fdbbef37a2f0",
+      "size_bytes": 198506
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/run_judges.py": {
+      "sha256": "fffa15bda6f7339181bebdf36ee9cd96188ff4b15a9eeeb57932c5d58766c942",
+      "size_bytes": 191136
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/schemas/combined-discovery.schema.json": {
+      "sha256": "ea9ab544cec235bd367a957bfdd37f8c74ce127b6c29c7194147a72fbcc9fe9e",
+      "size_bytes": 8182
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/schemas/manifest.json": {
+      "sha256": "74eafa9bf5ad5599c05df6df93ddd07591b2b1d9d1c2ac0af0f256ba78f4ade1",
+      "size_bytes": 566
+    },
+    "docs/research/highlight-agent-skill-v2-2026-08-17/iteration-2/schemas/selected-copy.schema.json": {
+      "sha256": "846bdf7d6f5e4e67727871c131714544d46c3cd0d408d20a85235b82ee6563fb",
+      "size_bytes": 1998
+    },
+    "docs/research/model-benchmark-2026-08-17/agent-v1/SKILL.md": {
+      "sha256": "aeae5d849f13f656b83d376ba9289313479e11e4d0179e7a09554a129c38eba8",
+      "size_bytes": 2025
+    },
+    "docs/research/model-benchmark-2026-08-17/schemas/highlight-output.schema.json": {
+      "sha256": "ed327da4074bbac21226da95c602b89c3d5345a339a310f1fc44c661b3d16657",
+      "size_bytes": 1553
+    }
+  },
+  "contract_version": "highlight-agent-skill-v2-iteration-2-evaluation-v1",
+  "data_classification": "exposed_development_regression",
+  "future_holdout": {
+    "minimum_content_genres": 3,
+    "minimum_new_unique_source_hashes": 6,
+    "minimum_sources_per_genre": 2,
+    "result_can_directly_change_production": false,
+    "reuse_of_exposed_development_sources_permitted": false,
+    "source_first_then_equal_genre_macro_mean": true
+  },
+  "generator": {
+    "adaptive_portfolio": {
+      "base_minimum_quality": 65,
+      "desired_minimum": 8,
+      "extension_minimum_atomic_score": 3,
+      "maximum_count": 12,
+      "maximum_interval_iou": "9/20",
+      "maximum_text_jaccard": "13/20",
+      "same_claim_second_selection": false
+    },
+    "all_model_started_attempt_costs_completion_hash_bound": true,
+    "arms": [
+      {
+        "arm_id": "v1",
+        "meaning": "fresh_frozen_v1"
+      },
+      {
+        "arm_id": "v2",
+        "meaning": "iteration_2_contender"
+      }
+    ],
+    "candidate_capacity": 60,
+    "candidate_order_fixed_across_repeats": true,
+    "combined_payload_capacity_bytes": 131072,
+    "maximum_model_repair_attempts_per_pipeline": 1,
+    "maximum_model_repair_attempts_per_stage": 1,
+    "model": "gpt-5.6-sol",
+    "normal_calls_per_pipeline": {
+      "v1": 1,
+      "v2_maximum": 2,
+      "v2_selected_copy_skipped_when_empty": true
+    },
+    "production_mutation_permitted": false,
+    "reasoning_effort": "medium",
+    "repeats_per_source_arm": 2,
+    "required_pipeline_count": 12,
+    "sol_high_enabled": false,
+    "sources": [
+      {
+        "candidate_count": 45,
+        "frozen_input_sha256": "cc035e5eb5764b7b53bd0855fccee5d07334ee3b32abd15bcb957f27b1996936",
+        "source_id": "src_7f34cc21eaf6d819",
+        "source_sha256": "6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417"
+      },
+      {
+        "candidate_count": 41,
+        "frozen_input_sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec",
+        "source_id": "src_4ae8fc713215e94c",
+        "source_sha256": "595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03"
+      },
+      {
+        "candidate_count": 45,
+        "frozen_input_sha256": "3c46dca758569693b84006179e04708a2586418fc299aed81bce5eacde6c19ec",
+        "source_id": "src_199c8497104d75ba",
+        "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29"
+      }
+    ],
+    "unique_source_count": 3
+  },
+  "human_feedback_waiver": {
+    "commitment_sha256": "7fa9cfb7102114d9e07e0f5f21c666ae95cd2ea27bbfaef0226c603620b47741",
+    "frozen_before_generator_output": true,
+    "mode": "diagnostic_not_required",
+    "reason": "Human review is diagnostic only for exposed development regression; semantic acceptance uses the frozen dual-Judge contract."
+  },
+  "human_review_mode": "diagnostic_not_required",
+  "iteration_id": "highlight-agent-skill-v2-iteration-2",
+  "judge": {
+    "adaptive_third_judge_permitted": false,
+    "counterbalance_system_order_between_judges": true,
+    "global_unblind_requires_all_calls": true,
+    "global_unblind_requires_human_feedback_commitment_or_frozen_waiver": true,
+    "maximum_same_call_schema_repairs": 1,
+    "models": [
+      {
+        "effort": "max",
+        "judge_id": "judge_01",
+        "model": "gpt-5.6-sol"
+      },
+      {
+        "effort": "max",
+        "judge_id": "judge_02",
+        "model": "gpt-5.6-terra"
+      }
+    ],
+    "preserve_highlight_position_within_system": true,
+    "qualified_semantic_opportunity_predicate": {
+      "editorial_value_x4_minimum": 3,
+      "event_match_x4_minimum": 3,
+      "evidence_fidelity_x4_minimum": 3,
+      "usability_x4_minimum": 2
+    },
+    "required_call_count": 6,
+    "semantic_opportunity_coverage_scope": "observed_selected_union_not_absolute_recall",
+    "source_first": true,
+    "systems_per_call": 4
+  },
+  "outcomes": {
+    "allowed": [
+      "reject_iteration2",
+      "inconclusive_iteration2",
+      "advance_iteration2_to_frozen_holdout"
+    ],
+    "passing_development_outcome": "advance_iteration2_to_frozen_holdout",
+    "production_acceptance_permitted": false
+  },
+  "schema_version": "liveclip-highlight-evaluation-contract.iteration-2.v1",
+  "status": "frozen_before_any_iteration2_generator_output"
+}

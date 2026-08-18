@@ -1,0 +1,80 @@
+{
+  "arm_id_to_skill_version": {
+    "arm_209b5447a5814f87": "v1",
+    "arm_7742eaf58de47170": "v2"
+  },
+  "pipeline_id_to_identity": {
+    "pipeline_293594598cdcf6e7": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 1,
+      "skill_version": "v2",
+      "source_id": "src_199c8497104d75ba"
+    },
+    "pipeline_46738812dba666bd": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 1,
+      "skill_version": "v2",
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    "pipeline_4c4012faff599c66": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 1,
+      "skill_version": "v1",
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    "pipeline_4c5349bd70456321": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 1,
+      "skill_version": "v1",
+      "source_id": "src_199c8497104d75ba"
+    },
+    "pipeline_4e83141b77ee348f": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 2,
+      "skill_version": "v1",
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    "pipeline_5ddbc0ad60c6c6c6": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 2,
+      "skill_version": "v1",
+      "source_id": "src_199c8497104d75ba"
+    },
+    "pipeline_60fc226fdff72059": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 2,
+      "skill_version": "v2",
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    "pipeline_98a279e4e6fe0e9f": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 1,
+      "skill_version": "v2",
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    "pipeline_b75e06b35b4da2bd": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 1,
+      "skill_version": "v1",
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    "pipeline_ca1d17056b452d66": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 2,
+      "skill_version": "v2",
+      "source_id": "src_199c8497104d75ba"
+    },
+    "pipeline_ee93a5cef5575628": {
+      "arm_id": "arm_209b5447a5814f87",
+      "repeat": 2,
+      "skill_version": "v1",
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    "pipeline_f670c285ac17ac0c": {
+      "arm_id": "arm_7742eaf58de47170",
+      "repeat": 2,
+      "skill_version": "v2",
+      "source_id": "src_7f34cc21eaf6d819"
+    }
+  }
+}

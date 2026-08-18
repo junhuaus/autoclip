@@ -1,0 +1,147 @@
+{
+  "arm_mapping_commitment_sha256": "d46dae462c1a8e8c02de9412cf8e8eb8489a09c5890ab22ebba5903f1d03619d",
+  "candidate_order_variants": [
+    "original_frozen_order"
+  ],
+  "execution_design": "Six source/repeat blocks in a fixed seeded random order; exactly three blocks run each opaque arm first, and both arms use the same frozen evidence.",
+  "iteration": 2,
+  "model": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "medium"
+  },
+  "normal_model_call_limit_per_v2_pipeline": 2,
+  "order_claim_limit": "No candidate-order robustness claim is permitted.",
+  "pipeline_count": 12,
+  "pipeline_topology": {
+    "v1": [
+      "single_fresh_generation"
+    ],
+    "v2": [
+      "combined_discovery_all_candidates",
+      "deterministic_adaptive_portfolio",
+      "selected_copy_if_nonempty",
+      "deterministic_exact_quote_and_source_sentence_gate"
+    ]
+  },
+  "repeats_per_source": 2,
+  "schedule": [
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_c81fc8e2a3b9484c",
+      "pair_sequence": 1,
+      "pipelines": [
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_293594598cdcf6e7",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_4c5349bd70456321",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_199c8497104d75ba"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_6d730f62b7113133",
+      "pair_sequence": 2,
+      "pipelines": [
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_98a279e4e6fe0e9f",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_4c4012faff599c66",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_3871476c684f5f42",
+      "pair_sequence": 3,
+      "pipelines": [
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_ca1d17056b452d66",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_5ddbc0ad60c6c6c6",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_199c8497104d75ba"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_a4e560d7303662ac",
+      "pair_sequence": 4,
+      "pipelines": [
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_b75e06b35b4da2bd",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_46738812dba666bd",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 1,
+      "source_id": "src_7f34cc21eaf6d819"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_0b04ec298db05e26",
+      "pair_sequence": 5,
+      "pipelines": [
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_4e83141b77ee348f",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_60fc226fdff72059",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_4ae8fc713215e94c"
+    },
+    {
+      "candidate_order": "original_frozen_order",
+      "pair_id": "pair_ced234375ff35b57",
+      "pair_sequence": 6,
+      "pipelines": [
+        {
+          "arm_id": "arm_209b5447a5814f87",
+          "pipeline_id": "pipeline_ee93a5cef5575628",
+          "within_pair_sequence": 1
+        },
+        {
+          "arm_id": "arm_7742eaf58de47170",
+          "pipeline_id": "pipeline_f670c285ac17ac0c",
+          "within_pair_sequence": 2
+        }
+      ],
+      "repeat": 2,
+      "source_id": "src_7f34cc21eaf6d819"
+    }
+  ],
+  "schema_version": "1",
+  "sol_high_policy": "disabled",
+  "study": "fresh-v1-iteration2-same-model-minimum-matrix",
+  "unique_source_count": 3
+}

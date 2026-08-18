@@ -1,0 +1,16 @@
+{
+  "category": "infrastructure_permission_denied",
+  "check_number": 1,
+  "command_sha256": "afec5693cfa8f323fde5a49f9b6437833c49ca0380a859b7ef4c2e521f322d0c",
+  "experiment_contract_sha256": "80f1243f4f90685633fe79b796681a4858665f02a591c94c5af92b9d9a7b27dd",
+  "experiment_id": "exp_80f1243f4f90685633fe",
+  "model_attempt_consumed": false,
+  "model_started": false,
+  "policy_version": "codex-local-app-server-preflight-v2",
+  "recorded_at": "2026-08-18T15:13:51.418703+00:00",
+  "returncode": 1,
+  "schema_version": "1",
+  "status": "failed",
+  "stderr_tail": "WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize sqlite state runtime under /Users/junhuaxu/.codex: failed to initialize state runtime at /Users/junhuaxu/.codex\n",
+  "stdout_tail": ""
+}

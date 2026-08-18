@@ -1,0 +1,15 @@
+{
+  "contract_version": "liveclip-highlight-agent-v2.iteration-2",
+  "contracts_sha256": "58f23963c633ca85d4b32b31d67ea6b033c18f5e155bcd75cf444fd5433d64d4",
+  "schema_version": "liveclip-highlight-agent-v2-schema-manifest-iteration-2-v1",
+  "schemas": {
+    "combined-discovery.schema.json": {
+      "sha256": "ea9ab544cec235bd367a957bfdd37f8c74ce127b6c29c7194147a72fbcc9fe9e",
+      "size_bytes": 8182
+    },
+    "selected-copy.schema.json": {
+      "sha256": "846bdf7d6f5e4e67727871c131714544d46c3cd0d408d20a85235b82ee6563fb",
+      "size_bytes": 1998
+    }
+  }
+}
