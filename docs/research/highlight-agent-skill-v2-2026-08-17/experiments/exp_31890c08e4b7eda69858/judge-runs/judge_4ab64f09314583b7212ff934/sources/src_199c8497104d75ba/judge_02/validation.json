@@ -1,0 +1,19 @@
+{
+  "computed_system_score_x100": {
+    "sys_35759ff7df9fe5808adfca75": 82,
+    "sys_4d3baa94546ac8827df54d4c": 83,
+    "sys_cfbd8303e7cb5da20d4db948": 87,
+    "sys_f4e8c0f9df31ce55783f9382": 92
+  },
+  "coverage_gate": {
+    "expected_highlight_count": 44,
+    "expected_system_count": 4,
+    "observed_highlight_count": 44,
+    "observed_system_count": 4,
+    "status": "passed"
+  },
+  "judge_input_sha256": "a2f6e4ed8f644b065d011366b5e3f81ce4bf737a6a2f36a85b635c7813814aa6",
+  "schema_sha256": "f9ac612456623bb59e9a816e0d2892d6b609979815b7368904ad96bf02e49ab3",
+  "schema_version": "1",
+  "status": "succeeded"
+}

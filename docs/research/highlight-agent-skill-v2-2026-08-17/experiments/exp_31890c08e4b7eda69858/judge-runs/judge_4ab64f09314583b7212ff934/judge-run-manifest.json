@@ -1,0 +1,75 @@
+{
+  "call_contracts": {
+    "src_199c8497104d75ba/judge_01": {
+      "judge_input_sha256": "24ddf94f6b0bddf1f73df8102a80547a2f36f689aa4402ade23984de7c7c2a4e",
+      "judge_schema_sha256": "86ada557a37f2c99d62f42d7551da3dad874c9e329d0351f1b570c9933a827c6",
+      "post_judgment_binding_commitment_sha256": "d465e83044deb796ab6f1e7ede45b3b0433b4b823f912a88e6c3aced896626a4"
+    },
+    "src_199c8497104d75ba/judge_02": {
+      "judge_input_sha256": "a2f6e4ed8f644b065d011366b5e3f81ce4bf737a6a2f36a85b635c7813814aa6",
+      "judge_schema_sha256": "f9ac612456623bb59e9a816e0d2892d6b609979815b7368904ad96bf02e49ab3",
+      "post_judgment_binding_commitment_sha256": "d1359c416a11ca100556b0b6ee2e78daf6dd2a9f9375a971b44afdbeb321a5ea"
+    },
+    "src_4ae8fc713215e94c/judge_01": {
+      "judge_input_sha256": "a1cf22ee698052afa8fefe4335fe9736662b3a5401cd91a3eece17a0afbd35a3",
+      "judge_schema_sha256": "c71341f4863e36205010329c3186f73a000e3ccc2325caa2449f9cd58c096b72",
+      "post_judgment_binding_commitment_sha256": "42bbfea2efd20f20099b4b3a761f0878cce6e861b5343ea9795fa96a671ce56e"
+    },
+    "src_4ae8fc713215e94c/judge_02": {
+      "judge_input_sha256": "6bd35ae8685b4e68050e57b27ba66657b4fcfd8b88784a056f78b48a7a2e7682",
+      "judge_schema_sha256": "8740a0ad685e05d4b2a92028b68da9e64b92fbb026ba7de2406da2536768fa86",
+      "post_judgment_binding_commitment_sha256": "ddfc03a1bf3f5beb74c6ac951fdad13fd0b37ef8475811de12b202e6047fdfbb"
+    },
+    "src_7f34cc21eaf6d819/judge_01": {
+      "judge_input_sha256": "2213d1116360f89e07119e7f8b5c863194d375e55cec77b8eba56d8557e5092a",
+      "judge_schema_sha256": "90d4d4466c798f746f3a46c70d0340c79aecb626733df34dc0f79a5679f917bc",
+      "post_judgment_binding_commitment_sha256": "158c5b8d29dbca1ec72917a58d627b8c02f3d19a85acaec22a254c9ba69dc520"
+    },
+    "src_7f34cc21eaf6d819/judge_02": {
+      "judge_input_sha256": "ca5f9123f993a2308dab66f4eede7c4f70c2a9801d0f44f64dfaea172936134e",
+      "judge_schema_sha256": "5008ddb3a90bc9ab356884b8354a756a35e072f75fa65d395921166f6c942b20",
+      "post_judgment_binding_commitment_sha256": "8701dba48b72252962611bb676573a3ec25e2e97e12e1887207b4da1648d20db"
+    }
+  },
+  "experiment_id": "exp_31890c08e4b7eda69858",
+  "judge_configuration": {
+    "judge_01": {
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "max"
+    },
+    "judge_02": {
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "max"
+    }
+  },
+  "judge_ids": [
+    "judge_01",
+    "judge_02"
+  ],
+  "protocol": {
+    "anonymous_system_count_per_source": 4,
+    "force_overwrite": false,
+    "free_semantic_clustering": true,
+    "full_membership_coverage_gate": true,
+    "judges_per_source": 2,
+    "maximum_same_tier_repairs": 1,
+    "private_identity_map_access": false,
+    "repeats_per_generator": 2,
+    "source_first": true
+  },
+  "runner_sha256": "cb27502a136f110ebc1ec7ac30a0e771a5dfce6af1e7be34366da6267bcfb95e",
+  "runner_version": "liveclip-anonymous-dual-judge.v2",
+  "runtime_preflight": {
+    "command_sha256": "02329994c8268ddabede784ef4964e8f9ac99b60621eb471b34a5f4081dad104",
+    "maximum_failures": 3,
+    "model_attempt_consumed": false,
+    "policy_version": "codex-local-app-server-preflight-v2",
+    "timeout_seconds": 20
+  },
+  "schema_version": "1",
+  "source_ids": [
+    "src_199c8497104d75ba",
+    "src_4ae8fc713215e94c",
+    "src_7f34cc21eaf6d819"
+  ]
+}

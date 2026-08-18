@@ -1,0 +1,11 @@
+{
+  "artifact_sha256": {
+    "call-metadata.json": "0a66297924c34633baa076e73dc4927d89067cf71c8157148a501d76b6fa8c45",
+    "events.jsonl": "e088ca6b182189fef18064236bf4d2bbfa3bb4e3fe5797a1496405c6776576d3",
+    "prompt.sha256": "2386154bfa3a197e1878090fa959eac978a11378845dfb1604c4ceb5795d5082",
+    "result.raw.txt": "07463529a44f4c100cc78909bda7b11193f6c4fed8cf24960a36fca90bda0c71"
+  },
+  "prompt_sha256": "3e5ddd7de7ac13e85a286accb2006a788f8a36cd2c93d14541d2465336eec02c",
+  "schema_version": "1",
+  "status": "validated"
+}

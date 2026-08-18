@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 02:38 PDT
+Updated: 2026-08-18 02:39 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -108,8 +108,11 @@ per-source and per-Topic tables plus both Judge verdicts, disagreements,
 strengths, weaknesses and limitations. Analyzer tests pass 22/22 and the full
 research suite passes 151/151; independent final review reports no P0/P1/P2.
 The current new run is `judge_4ab64f09314583b7212ff934`; its real zero-model
-preflight passed and Sol Max has completed 1/6 Judge calls while Terra Max is
-still running. No comparative arm result has been interpreted.
+preflight passed with no model attempt. The first-source Sol Max and Terra Max
+sentinel completed 2/6 Judge calls without repair, failure or tool event. Both
+coverage Gates report four systems and 44/44 highlights exactly once. A second
+`--sentinel` invocation retained one preflight receipt and two completions, so
+it made zero new calls. No comparative arm result has been interpreted.
 
 ## Current user-visible result
 

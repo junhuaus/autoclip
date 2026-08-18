@@ -277,6 +277,13 @@ write `iteration-2` rather than replacing iteration 1.
   disagreements, system strengths/weaknesses and limitations. Analyzer tests
   pass 22/22, the full research suite passes 151/151, and independent review
   reports no P0/P1; its final empty-preflight/version P2 was also closed.
+- 2026-08-18: New Judge run `judge_4ab64f09314583b7212ff934` passed its real
+  stdio/EOF preflight with `model_started=false` and no consumed model attempt.
+  The first-source dual-Judge sentinel then completed 2/2 without repair or
+  failure: both Sol Max and Terra Max covered all 44/44 anonymous highlights
+  exactly once across four systems, and both event logs contain only one
+  `agent_message`. Re-running the sentinel kept one preflight check and two
+  completions, proving receipt-only resume with zero new calls.
 
 ## Decision Log
 
@@ -314,10 +321,10 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the reviewed Judge runner v2, run its real
-zero-model preflight and two-Judge sentinel in the new hash-derived run, then validate both
-Judge receipts and complete membership, then resume the remaining four Judge
-calls. If interrupted, read this file and
+Current first task: commit and push the successful 2/6 new Judge-run sentinel
+receipts, then resume the same run without `--sentinel` to populate only the
+remaining four source/Judge calls. Validate all six completions and full
+membership before running the frozen analyzer. If interrupted, read this file and
 `STATUS.md`, verify the experiment manifest and current source hashes, and
 resume rather than deleting or forcing an artifact. Never rerun the completed
 three-model benchmark or overwrite its artifacts.

@@ -1,0 +1,16 @@
+{
+  "category": "ready",
+  "check_number": 1,
+  "command_sha256": "02329994c8268ddabede784ef4964e8f9ac99b60621eb471b34a5f4081dad104",
+  "judge_run_id": "judge_4ab64f09314583b7212ff934",
+  "model_attempt_consumed": false,
+  "model_started": false,
+  "policy_version": "codex-local-app-server-preflight-v2",
+  "recorded_at": "2026-08-18T09:27:32.246262+00:00",
+  "returncode": 0,
+  "runner_sha256": "cb27502a136f110ebc1ec7ac30a0e771a5dfce6af1e7be34366da6267bcfb95e",
+  "schema_version": "1",
+  "status": "passed",
+  "stderr_tail": "",
+  "stdout_tail": ""
+}

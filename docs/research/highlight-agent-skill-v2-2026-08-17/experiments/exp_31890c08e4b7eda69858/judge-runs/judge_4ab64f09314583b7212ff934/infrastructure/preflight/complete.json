@@ -1,0 +1,11 @@
+{
+  "passed_check": 1,
+  "policy_version": "codex-local-app-server-preflight-v2",
+  "receipt_sha256": [
+    {
+      "relative_path": "checks/001/receipt.json",
+      "sha256": "b3cef35cbe062321e96092bad6eb222acf04b1fab2b00aa928617ded1b860d21"
+    }
+  ],
+  "schema_version": "1"
+}
