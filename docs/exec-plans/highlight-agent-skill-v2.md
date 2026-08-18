@@ -97,8 +97,10 @@ same deterministic Gate.
 ### S2-M1 — Three-source v1-v2 development comparison
 
 - [x] 2026-08-17 Freeze eval prompts for the three unique sources and bind all input/Skill/Schema/runner hashes.
-- [ ] Run a sentinel pair, then populate the Skill Creator iteration with fresh
-  v1/v2 Sol Medium outputs (two repeats per source).
+- [x] 2026-08-18 Run and independently receipt-validate one fresh same-source
+  v1/v2 Sol Medium sentinel pair (2/12 pipelines).
+- [ ] Populate the remaining ten fresh v1/v2 Sol Medium pipelines, preserving
+  two repeats per source.
 - [ ] Run all v2 Tier calls with isolated, ephemeral, tool-disabled Sol Medium workers and resumable immutable artifacts.
 - [ ] Generate the static Skill Creator viewer before qualitative interpretation.
 - [ ] Run two anonymous independent Judges per source and validate complete cluster membership.
@@ -218,6 +220,13 @@ write `iteration-2` rather than replacing iteration 1.
   Preflight v2 uses stdio plus immediate EOF; the outer environment returned
   exit 0 with `model_started=false` and `model_attempt_consumed=false` under
   the current formal contract. The integrated suite now contains 114 tests.
+- 2026-08-18: The real sentinel completed 2/12 pipelines with six model calls,
+  no repair, no failure receipt, no unsafe tool event and no Sol High call. v2
+  assessed all 45 candidates, discovered 14 Topics, selected 12 and passed 12/12
+  exact evidence-quote Gates. Fresh v1 selected ten; all ten legacy
+  `highlight_sentence` fields failed the quote-binding shadow audit. A second
+  `--sentinel` invocation resumed both Pipeline receipts with zero new calls.
+  The Viewer and Judge harnesses both refused the intentionally partial matrix.
 
 ## Decision Log
 
@@ -251,13 +260,12 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the infrastructure-recovery, viewer and
-dual-Judge harness checkpoint, then run `run_iteration.py --sentinel` against
-the already frozen `exp_31890c08e4b7eda69858`. The sentinel must finish exactly
-the first paired
-v1/v2 block (2/12 pipelines) and persist `generation_partial`; only after its
-receipts, Gates and isolation events pass may the same command without flags
-resume the remaining ten pipelines. If interrupted, read this file and
+Current first task: commit and push the successful 2/12 sentinel receipts, then
+run `run_iteration.py` without flags against the already frozen
+`exp_31890c08e4b7eda69858`. It must resume the two completed Pipelines without
+new calls and populate only the remaining ten. After 12/12 completion, generate
+the static anonymous Viewer before any qualitative interpretation, then run the
+dual-Judge sentinel. If interrupted, read this file and
 `STATUS.md`, verify the experiment manifest and current source hashes, and
 resume rather than deleting or forcing an artifact. Never rerun the completed
 three-model benchmark or overwrite its artifacts.

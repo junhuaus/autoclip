@@ -1,0 +1,27 @@
+{
+  "arm_id": "arm_068d613065ba727a",
+  "completed_at": "2026-08-18T07:11:45.748538+00:00",
+  "exact_quote_failed_count": 0,
+  "pipeline_id": "pipeline_295f8256b10bc1b8",
+  "repair_budget": {
+    "maximum_repairs": 2,
+    "repairs_used": 0,
+    "used_by_stage": []
+  },
+  "repeat": 1,
+  "selected_count": 12,
+  "source_id": "src_199c8497104d75ba",
+  "tier_call_elapsed_seconds": {
+    "tier1": 246.001,
+    "tier2": 90.864,
+    "tier4": 87.515
+  },
+  "topic_count": 14,
+  "would_escalate": {
+    "actually_escalated": false,
+    "policy_version": "shadow-escalation-v1",
+    "reasons": [],
+    "target_model_if_enabled": "gpt-5.6-sol/high",
+    "would_escalate": false
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "batches": [
+    {
+      "batch_number": 1,
+      "call_metadata": {
+        "completed_at": "2026-08-18T07:05:55.960562+00:00",
+        "elapsed_seconds": 74.674,
+        "label": "call_5871625749e65420-a1",
+        "model": "gpt-5.6-sol",
+        "model_started": true,
+        "reasoning_effort": "medium",
+        "request_id": "01a013af-c778-7770-a29b-61ad4cf25e43",
+        "started_at": "2026-08-18T07:04:41.286876+00:00",
+        "unsafe_tool_event": false,
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 17662,
+          "output_tokens": 3896,
+          "reasoning_output_tokens": 304
+        }
+      },
+      "validation": {
+        "candidate_count": 15,
+        "candidate_order_gate": "passed"
+      }
+    },
+    {
+      "batch_number": 2,
+      "call_metadata": {
+        "completed_at": "2026-08-18T07:07:36.093562+00:00",
+        "elapsed_seconds": 100.119,
+        "label": "call_395200ce81837971-a1",
+        "model": "gpt-5.6-sol",
+        "model_started": true,
+        "reasoning_effort": "medium",
+        "request_id": "01a013b0-ea32-71e1-b49b-08eba626c463",
+        "started_at": "2026-08-18T07:05:55.974827+00:00",
+        "unsafe_tool_event": false,
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 17370,
+          "output_tokens": 3761,
+          "reasoning_output_tokens": 311
+        }
+      },
+      "validation": {
+        "candidate_count": 15,
+        "candidate_order_gate": "passed"
+      }
+    },
+    {
+      "batch_number": 3,
+      "call_metadata": {
+        "completed_at": "2026-08-18T07:08:47.313730+00:00",
+        "elapsed_seconds": 71.208,
+        "label": "call_610372b3968f4c98-a1",
+        "model": "gpt-5.6-sol",
+        "model_started": true,
+        "reasoning_effort": "medium",
+        "request_id": "01a013b2-6fc7-7871-a5f3-d01153068bf2",
+        "started_at": "2026-08-18T07:07:36.105781+00:00",
+        "unsafe_tool_event": false,
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 0,
+          "input_tokens": 17025,
+          "output_tokens": 3623,
+          "reasoning_output_tokens": 224
+        }
+      },
+      "validation": {
+        "candidate_count": 15,
+        "candidate_order_gate": "passed"
+      }
+    }
+  ]
+}

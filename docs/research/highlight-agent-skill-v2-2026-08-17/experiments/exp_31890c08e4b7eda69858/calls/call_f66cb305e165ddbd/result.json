@@ -1,0 +1,392 @@
+{
+  "accounting": {
+    "assessable_count": 43,
+    "excluded_count": 2,
+    "passed": true,
+    "topic_member_count": 43,
+    "unusable_count": 2
+  },
+  "excluded_candidates": [
+    {
+      "candidate_id": "candidate_7d8b0df1b19a1ead",
+      "unusable_reason": "asr_unintelligible"
+    },
+    {
+      "candidate_id": "candidate_a4d112648d50cd3d",
+      "unusable_reason": "fragment_only"
+    }
+  ],
+  "inventory_summary": "本段自然形成十四个话题，核心集中在胸口用力与漏气、舌头和口腔空间、发声通道、呼吸练习、训练次序及嗓音保护，也包含演唱风格、学习边界、课程宣传和直播运营等内容。",
+  "topics": [
+    {
+      "canonical_angle": "胸口过度用力或处理不当可能造成漏气、发紧，并缩短长音的维持时间。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_a0f21643888730a5",
+          "member_angle": "解释胸口用力、气压与声带闭合失衡如何导致漏气。",
+          "relationship": "core",
+          "relationship_reason": "它最完整地串联了胸口发紧、压力过大和漏气这一共同主张。"
+        },
+        {
+          "candidate_id": "candidate_c26a4653242fd277",
+          "member_angle": "从长音很快耗尽切入，建议减少推胸和过度控制。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它讨论同一种过度用力，但补充了长音维持时间这一具体后果。"
+        },
+        {
+          "candidate_id": "candidate_a5c87afa0254618e",
+          "member_angle": "以胸腔处理的对比说明气息可能在演唱过程中漏掉。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它仍围绕胸腔用力与漏气，但用演唱示范区分练气不足和唱时漏气。"
+        },
+        {
+          "candidate_id": "candidate_09125d918b1fac0b",
+          "member_angle": "把压力过大、漏气和长音发虚连成同一原因链。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与核心成员重复胸口过力会导致漏气的解释，并延伸到长音发虚。"
+        },
+        {
+          "candidate_id": "candidate_525a6dcec50a0e42",
+          "member_angle": "直接回答唱歌时胸口发紧可能源于气息处理和胸口压得过重。",
+          "relationship": "same_claim",
+          "relationship_reason": "它是核心解释的较短版本，主要主张没有实质差异。"
+        }
+      ],
+      "topic_id": "topic_97bfef675f1a5bf4",
+      "topic_label": "胸口过力、漏气与长音发虚"
+    },
+    {
+      "canonical_angle": "唱歌时应先让舌头自然放松，并通过合适舌位和口腔空间支持高音，而非刻意压舌或挤舌。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_2efa31efddfe10ed",
+          "member_angle": "给出不要强控舌头以及轻放下牙后方的具体原则。",
+          "relationship": "core",
+          "relationship_reason": "它对舌头自然位置、常见错误和替代做法的说明最集中完整。"
+        },
+        {
+          "candidate_id": "candidate_34558c9f504eca45",
+          "member_angle": "强调不要用力挤舌，并提出扩大舌头与上颚之间的空间。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它与自然舌位原则一致，并补充口腔空间对高音轻松度的影响。"
+        },
+        {
+          "candidate_id": "candidate_8cae2aab5bc153ac",
+          "member_angle": "说明气息和嘴型协调后舌头会自然下凹，内口腔也会打开。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它把舌头状态放进高音通道和内口腔打开的整体关系中。"
+        },
+        {
+          "candidate_id": "candidate_1261f4ebdaaa4ed6",
+          "member_angle": "主张先放松舌头，不要为追求下凹而主动压低。",
+          "relationship": "same_claim",
+          "relationship_reason": "它实质重复核心成员关于避免刻意控制舌头的主张。"
+        },
+        {
+          "candidate_id": "candidate_a7de7d24d9c2d27c",
+          "member_angle": "通过改变舌位对比舌根与上颚空间对高音的影响。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充了舌头抬起可能让声音变紧以及空间拉开的示范角度。"
+        },
+        {
+          "candidate_id": "candidate_523065b25295d83a",
+          "member_angle": "用个人伸舌经历说明如何识别舌尖紧张。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它贡献了从舌头外观和伸出状态判断紧张程度的具体自检角度。"
+        },
+        {
+          "candidate_id": "candidate_915e9f3bd1fce105",
+          "member_angle": "把鼻音和舌根紧张视为整体发声通道未放松的表现。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它仍以舌头放松为基础，但进一步讨论鼻音和整体通道，而非只处理舌位。"
+        }
+      ],
+      "topic_id": "topic_cb1251a9e55849e6",
+      "topic_label": "舌头放松与高音口腔空间"
+    },
+    {
+      "canonical_angle": "流行演唱训练应先建立气息、真声和咬字通道，再逐步进入强混、其他混声与假声。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_2716045703db1f3b",
+          "member_angle": "梳理真声、假声和多类混声，并强调气息基础与渐进顺序。",
+          "relationship": "core",
+          "relationship_reason": "它对技巧分类和从气息、真声到强混的训练路径交代得最系统。"
+        },
+        {
+          "candidate_id": "candidate_005f7d0822d40234",
+          "member_angle": "强调先练真声和咬字通道，再进入强混与假声。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与核心成员共享几乎相同的训练顺序，并同样把漏气视为基础配合未完成的表现。"
+        }
+      ],
+      "topic_id": "topic_15f4902e6c5ea6c9",
+      "topic_label": "从真声到混声的训练次序"
+    },
+    {
+      "canonical_angle": "年龄和先天条件会影响声音状态或职业边界，但兴趣学习仍可通过训练获得改善。",
+      "cluster_confidence": "medium",
+      "members": [
+        {
+          "candidate_id": "candidate_260b8f35571eae11",
+          "member_angle": "区分先天条件对职业边界的影响与普通爱好者可通过技术进步的空间。",
+          "relationship": "core",
+          "relationship_reason": "它最直接地统合了天赋、努力、年龄和学习可能性。"
+        },
+        {
+          "candidate_id": "candidate_7c52ff6875a16a62",
+          "member_angle": "以婴儿声音和青春期变声说明成长会改变声带状态与音色。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充了年龄影响声音的生理发展角度，重点是变声期而非学习资格。"
+        },
+        {
+          "candidate_id": "candidate_a4bef74f0779a1e2",
+          "member_angle": "谈成年后演唱机能变化，并以个人求学经历强调专业指导的价值。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它同时涉及年龄影响和成年求学成本，是同一学习边界话题下的经验性角度。"
+        }
+      ],
+      "topic_id": "topic_5f0cb3f29617fcb9",
+      "topic_label": "年龄、天赋与声乐学习边界"
+    },
+    {
+      "canonical_angle": "音响或后期修音可以美化部分音高表现，却无法替代正确的发声通道和共鸣。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "member_angle": "区分音高修正、音色美化与通道和共鸣问题。",
+          "relationship": "core",
+          "relationship_reason": "该候选独立而明确地构成这一话题，没有其他候选重复同一修音主张。"
+        }
+      ],
+      "topic_id": "topic_a089c0cc0e4fcb6e",
+      "topic_label": "修音无法替代发声基础"
+    },
+    {
+      "canonical_angle": "直播中的学员规模、短期效果和体验故事被用于证明课程价值。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_2a81f27ea2fccc4f",
+          "member_angle": "以大量零基础学员和短期见效宣称课程成效。",
+          "relationship": "core",
+          "relationship_reason": "它最直接地呈现了以学员数量和效果承诺进行课程宣传的主线。"
+        },
+        {
+          "candidate_id": "candidate_d3981771b1792fc6",
+          "member_angle": "讲述学员从怀疑营销动机到试听后继续报名的反转经历。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它同样为课程价值背书，但采用个人见证和态度转变的故事形式。"
+        }
+      ],
+      "topic_id": "topic_2eac9eac1a14891c",
+      "topic_label": "课程成效宣传与学员见证"
+    },
+    {
+      "canonical_angle": "直播间通过介绍教学定位、答疑内容和连麦安排来招募观众参与。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_7f4a5d4251808e1e",
+          "member_angle": "完整介绍声乐教学直播间、互动答疑和连麦教学。",
+          "relationship": "core",
+          "relationship_reason": "它最完整地承担直播开场和参与方式说明。"
+        },
+        {
+          "candidate_id": "candidate_4df4063e46e8084e",
+          "member_angle": "在招呼观众时再次说明直播间定位和连麦咨询方式。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与核心成员重复声乐教学直播和连麦答疑的介绍。"
+        },
+        {
+          "candidate_id": "candidate_765337da95068540",
+          "member_angle": "预告后续将上麦听取并诊断观众问题。",
+          "relationship": "same_claim",
+          "relationship_reason": "其可辨认主旨仍是连麦诊断安排，与核心开场信息高度重合。"
+        },
+        {
+          "candidate_id": "candidate_f0c88f3966f4c86b",
+          "member_angle": "在连麦招募之外预告初学者高音卡顿和破音问题。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于同一直播流程，但补充了即将讲解的具体问题清单。"
+        }
+      ],
+      "topic_id": "topic_bec3ab0ba634f53c",
+      "topic_label": "声乐直播开场与连麦招募"
+    },
+    {
+      "canonical_angle": "训练量应依据个人运动基础调整，增加练习时宜分次完成并避免单次过量。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_4305cfa07f8b1fbf",
+          "member_angle": "给出不同基础的练习量，并强调增加训练时要分开完成。",
+          "relationship": "core",
+          "relationship_reason": "它同时涵盖练习量、分次安排和坚持原则，组织最完整。"
+        },
+        {
+          "candidate_id": "candidate_2e7f0f8e0e88fae2",
+          "member_angle": "按运动基础区分练习量，并建议跟随熟悉歌曲的节奏训练。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它与核心成员采用相同的分级练习量，同时补充了借助歌曲节奏完成训练的方法。"
+        }
+      ],
+      "topic_id": "topic_54e5159281e13a09",
+      "topic_label": "按基础安排练习量"
+    },
+    {
+      "canonical_angle": "零基础气息训练应先建立自然吸气，再选择较温和、较不易练偏的吐气练习。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_b1c6640371e0ceab",
+          "member_angle": "比较小狗哈气与吐气练习，并说明不推荐前者的理由和替代方法。",
+          "relationship": "core",
+          "relationship_reason": "它对练习选择、身体顾虑和替代方案的说明最完整。"
+        },
+        {
+          "candidate_id": "candidate_27095253c085da43",
+          "member_angle": "反对容易练偏的旧方法，推荐更便于自行掌握的吐气练习。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与核心成员使用相同的练习取舍，只额外加入了效果宣传。"
+        },
+        {
+          "candidate_id": "candidate_18e1d7ea47ba32fc",
+          "member_angle": "用气球类比解释吸气时腹部自然外扩，并衔接吐气训练。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充了进行吐气练习之前如何吸好气这一前置步骤。"
+        }
+      ],
+      "topic_id": "topic_6e2099b264c5aea3",
+      "topic_label": "气息练习的选择与基础吸气"
+    },
+    {
+      "canonical_angle": "合适的气息和发声方式不仅用于唱歌，也被认为能减轻长时间说话带来的嗓音负担。",
+      "cluster_confidence": "medium",
+      "members": [
+        {
+          "candidate_id": "candidate_1b8b4323d05c7dd6",
+          "member_angle": "以长时间授课后声音未持续沙哑的个人经历说明通道运用。",
+          "relationship": "core",
+          "relationship_reason": "它最直接地把长时间讲话、疲惫与嗓音保护联系起来。"
+        },
+        {
+          "candidate_id": "candidate_f1d87e3d981d87dc",
+          "member_angle": "以教师讲课和日常喊话为例，说明气息与通道也可用于说话。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复发声方法能让讲话更轻松的主张，并加入现场说话示范。"
+        },
+        {
+          "candidate_id": "candidate_ec801fd85b29d485",
+          "member_angle": "讨论嗓子哑或疲劳时用特定发声练习放松，并夹带教学推广。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它同样关注讲话或用嗓后的疲劳，但贡献的是不适出现后的练习建议。"
+        }
+      ],
+      "topic_id": "topic_043b16ee9b58ecf8",
+      "topic_label": "长时间说话与嗓音保护"
+    },
+    {
+      "canonical_angle": "高音挤卡和气息用不上时，应先建立稳定的发声通道，并避免靠喊叫或模仿他人音色解决。",
+      "cluster_confidence": "medium",
+      "members": [
+        {
+          "candidate_id": "candidate_e3f2a57d5e929402",
+          "member_angle": "把高音挤卡与呼吸、下腹变化和整体发声通道联系起来。",
+          "relationship": "core",
+          "relationship_reason": "它对高音问题、呼吸方式和通道关系的解释最完整。"
+        },
+        {
+          "candidate_id": "candidate_638470bcf20511aa",
+          "member_angle": "强调高音不能只靠喊，要借助腔体、位置和通道。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复核心成员关于高音依赖正确通道而非蛮力的主张。"
+        },
+        {
+          "candidate_id": "candidate_72165688c1b01bb0",
+          "member_angle": "用简短诊断指出高音卡住意味着发音位置或通道尚未建立。",
+          "relationship": "same_claim",
+          "relationship_reason": "它是同一高音通道判断的精简表达，没有增加完整的新机制。"
+        },
+        {
+          "candidate_id": "candidate_8772ddd9d2d66094",
+          "member_angle": "说明高音位置不稳定会让气息难以有效使用。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与核心成员共同强调先找通道，之后气息才用得上。"
+        },
+        {
+          "candidate_id": "candidate_5d3778b0260b9b65",
+          "member_angle": "提醒初学者不要模仿成熟歌者的音色，应先寻找适合自己的通道。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它把通道问题延伸到模仿误区，提供了不同且可独立成立的学习建议。"
+        },
+        {
+          "candidate_id": "candidate_22d3260a7179c022",
+          "member_angle": "从具体演唱中诊断咬字靠后、舌头状态和腰腹支撑不足。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它是同一通道与用力问题的个案诊断，补充了咬字和腰腹支撑两个具体检查点。"
+        }
+      ],
+      "topic_id": "topic_04e2331ef51dcc1f",
+      "topic_label": "高音通道、气息与用力误区"
+    },
+    {
+      "canonical_angle": "不同演唱风格会采用不同的咬字、嘴型和共鸣规模，但仍存在可共用的气息基础。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_a2609c2e30906366",
+          "member_angle": "以美声和流行的传播力差异说明多处共鸣腔体的作用。",
+          "relationship": "core",
+          "relationship_reason": "它最完整地比较了两种唱法所需的共鸣规模和声音传播特点。"
+        },
+        {
+          "candidate_id": "candidate_3c76eb79d4264624",
+          "member_angle": "对比流行、民族和戏曲的咬字嘴型，并指出气息原则相近。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它在同一风格差异话题下补充了咬字变化与气息共性的角度。"
+        }
+      ],
+      "topic_id": "topic_10ee588243d4deab",
+      "topic_label": "不同唱法的咬字、气息与共鸣"
+    },
+    {
+      "canonical_angle": "个人试唱可以用来判断当前低音范围，但本段给出的具体音名并不清晰。",
+      "cluster_confidence": "low",
+      "members": [
+        {
+          "candidate_id": "candidate_45bc9a8fa85d8251",
+          "member_angle": "记录说话者试唱后对自身最低可达音位的判断。",
+          "relationship": "core",
+          "relationship_reason": "该候选独立构成个人低音测试话题，但关键音名存在识别歧义。"
+        }
+      ],
+      "topic_id": "topic_ba6baa1793a52650",
+      "topic_label": "个人低音音域测试"
+    },
+    {
+      "canonical_angle": "教学主播的工作还包括直播布置以及下播后的素材整理、剪辑、沟通和内容发布。",
+      "cluster_confidence": "medium",
+      "members": [
+        {
+          "candidate_id": "candidate_c0638f35973b6082",
+          "member_angle": "列举授课结束后的素材整理、反馈剪辑、对接和内容制作。",
+          "relationship": "core",
+          "relationship_reason": "它最充分地呈现了教学直播之外的幕后工作。"
+        },
+        {
+          "candidate_id": "candidate_835027c32b145c6e",
+          "member_angle": "在开播现场调整灯光并与观众互动。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于直播运营的现场准备角度，与核心成员的下播后工作形成前后台互补。"
+        }
+      ],
+      "topic_id": "topic_f6510b0b7c1e867e",
+      "topic_label": "教学直播的台前幕后"
+    }
+  ]
+}

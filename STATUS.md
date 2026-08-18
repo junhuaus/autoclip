@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-17 23:45 PDT
+Updated: 2026-08-18 00:13 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -42,8 +42,8 @@ Formal experiment `exp_31890c08e4b7eda69858` has immutable contract SHA-256
 `31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797`.
 The contract binds the Runner, Input Gate, Skill package, Schemas, source
 evidence, candidate order, model/effort and opaque arm commitment. Its dry-run
-made zero model calls. The next remote step is a two-pipeline sentinel; no v2
-generation result exists yet.
+made zero model calls before execution. The real sentinel now has exactly 2/12
+completed Pipelines and status `generation_partial`.
 
 The first attempted sentinel used the superseded contract
 `exp_0ae4e48cf661fa862d58`. The outer sandbox denied the local Codex app-server
@@ -58,6 +58,16 @@ preserved and aborted: Codex 0.146 rejects `app-server --listen off` because it
 has no transport. Preflight v2 uses stdio with immediate EOF. Its real outer
 execution for the current formal experiment returned exit 0, status `ready`,
 `model_started=false` and `model_attempt_consumed=false`.
+
+The real sentinel used the first frozen source/repeat block. v2 completed its
+three Tier 1 batches, free Topic inventory and Tier 4 copy in five calls; it
+assessed 45 candidates, discovered 14 Topics, selected 12, used no repair and
+had zero exact-quote failures. Fresh v1 completed in one call, selected ten and
+had ten legacy `highlight_sentence` quote-binding shadow failures. Across all
+six calls there were no failure receipts, no unsafe item type and no Sol High
+call. Re-running `--sentinel` resumed both completed Pipeline receipts without
+new model calls. The Viewer and Judge dry-runs both rejected the partial matrix
+before producing an artifact or Judge call.
 
 ## Current user-visible result
 
@@ -282,11 +292,9 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Keep production development paused. Commit and push the infrastructure recovery,
-anonymous viewer, dual-Judge harness and superseding frozen dry-run. Then run
-`run_iteration.py --sentinel` for exactly one same-source/repeat v1/v2 pair.
-Verify 2/12 completed pipelines, all Call receipts, zero unsafe tool events and
-all deterministic Gates before resuming the remaining ten pipelines. After all
+Keep production development paused. Commit and push the successful 2/12
+sentinel receipts, then run `run_iteration.py` without flags to resume only the
+remaining ten Pipelines. After all
 12 pipelines finish, build the Skill Creator static viewer before qualitative
 analysis and run two anonymous Judges. Do not change the production default.
 

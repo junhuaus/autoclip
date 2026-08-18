@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "candidate_text_sha256": "d5d5e94accdb422ecbeae4cea9c463dd12ab927e0df6fe02e0b389ce7a98fe2b",
+      "normalized_end": 150,
+      "normalized_quote": "你要先找到你的唱歌的这个通道你的音色的通道你不要去模仿那个你在网上看那种大师啊因为他们练了很多年了",
+      "normalized_start": 101,
+      "quote_sha256": "d6fa399d61b20a77628c090fb809c32ba5020c1b8757bfb8e4de4f0f922a6898",
+      "raw_end": 156,
+      "raw_start": 107,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "candidate_text_sha256": "8fccf63bd7e4be22c999e7e0da51f5c0e53eb16d7e8ce2359e953fee1e1db67a",
+      "normalized_end": 164,
+      "normalized_quote": "那有些同学比较敏感他会容易红肿不舒服干痒我自己非常不喜欢这个的练习",
+      "normalized_start": 131,
+      "quote_sha256": "8bafe336bd8e88246dc3a52e5e76bbd396d82f06ae40044093a444d321fbb901",
+      "raw_end": 166,
+      "raw_start": 131,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_523065b25295d83a",
+      "candidate_text_sha256": "614e57788b701d0e3f8e5a4275a99c767d190a1afa48396da841bbc0c662dad7",
+      "normalized_end": 167,
+      "normalized_quote": "因为你唱歌必须的舌头放松咱先不说凹下去必须要先放松你先去找到你舌头出来的时候是放松的感觉",
+      "normalized_start": 123,
+      "quote_sha256": "86d789e14058d28564edb0d92b724eff221cdb28349589980c126f1718da452a",
+      "raw_end": 169,
+      "raw_start": 125,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_a2609c2e30906366",
+      "candidate_text_sha256": "8c817d4220a2951dc2c5c79395c08e200fe6e13874651e23df695a4ed330e4d0",
+      "normalized_end": 117,
+      "normalized_quote": "他把所有的人的这种通道腔体全用上了这每个你看头腔鼻腔口腔胸腔他都是一个小小的小音响啊",
+      "normalized_start": 75,
+      "quote_sha256": "5353c744b925c56979f32a43004c99315231ac45b7241d6788427d4e7ec2d525",
+      "raw_end": 117,
+      "raw_start": 75,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "candidate_text_sha256": "46146a391d3dccf9c210c927d0dd74cebb3b14153baacacd6ad642b35f64e428",
+      "normalized_end": 246,
+      "normalized_quote": "所以我们唱歌漏气的同学你看看你到底是生来不必合还是说胸口这个位置使劲太多了都不可以一定要恰到好处",
+      "normalized_start": 198,
+      "quote_sha256": "f4a49263bbb0348d24171788f89093e38b56a7584f41b42004879e5487a2b2b0",
+      "raw_end": 256,
+      "raw_start": 208,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "candidate_text_sha256": "942049caddb299e359b826bf3c4a83761f1124c62fc0a2e82c60d42baeb8e005",
+      "normalized_end": 184,
+      "normalized_quote": "能学当然能学爱好不分年龄你不是要干嘛出道是不是我要出道我要当明星我要当歌星你就要当个小爱好你什么时候都不晚",
+      "normalized_start": 131,
+      "quote_sha256": "d3c70d83b8a25b4a8b1b0f8e5637dd8e8008285107bfa14459481708d3caf3b9",
+      "raw_end": 184,
+      "raw_start": 131,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "candidate_text_sha256": "33795828e2de2d5b86df6892f689af10fb76e3a8d320a2229bc73e92e8ca3784",
+      "normalized_end": 85,
+      "normalized_quote": "我们唱歌的步骤一定要从真声开始你一定要找到自己真声的咬字位置找到咬字的通道ok我们再过渡到高音的真声",
+      "normalized_start": 35,
+      "quote_sha256": "de92fc613b985012e2cbce6a951982158c45e5739313a8fbd855b1b51f3330d5",
+      "raw_end": 92,
+      "raw_start": 38,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_4305cfa07f8b1fbf",
+      "candidate_text_sha256": "23e9256fe2b895f756c5211b49f1ede21f2674dde411906d4e63c4e4b3df1e9c",
+      "normalized_end": 112,
+      "normalized_quote": "你们千万不要一次做十分钟啊一定要就是说分开做你想进步大就分开做",
+      "normalized_start": 81,
+      "quote_sha256": "9736de688480be75972981e0784629109e8c3bdb1cab40c2f58fe47d67cb0e41",
+      "raw_end": 112,
+      "raw_start": 81,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "candidate_text_sha256": "dbcfdc5f0c2200e65a0089d220e59d92606f54fac0403f3ce4299f1257c08864",
+      "normalized_end": 205,
+      "normalized_quote": "他修的只能去美化但是修不了你们的通道修不了你们的共鸣腔体",
+      "normalized_start": 177,
+      "quote_sha256": "2c69bb39d86337cd402949efa98a09acc1b3d928ffb81d80c58de386a7103017",
+      "raw_end": 207,
+      "raw_start": 179,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_c0638f35973b6082",
+      "candidate_text_sha256": "799784fd217aeae9c719979c2e5e45b9f45f01c8dee699d242e7661f196fe44b",
+      "normalized_end": 232,
+      "normalized_quote": "你们别以为这个我直播就没事了我直播有很多东西要咨询我的我还要跟他们去对接我对完接我明天早上白天我还要拍视频我还要剪视频我还要去导在那个发布",
+      "normalized_start": 163,
+      "quote_sha256": "8953c0a79bf840a2d2e1f1e4566435b4007f22cf1eae74e658fb4b4dbaf90d1c",
+      "raw_end": 232,
+      "raw_start": 163,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_d3981771b1792fc6",
+      "candidate_text_sha256": "7b635e2eb2512a450e41d4277d072f06105efdfc537d11754cb5e84b98bffcf4",
+      "normalized_end": 235,
+      "normalized_quote": "但是我跟你上完一节课之后我发现真的是有进步的接着跟我报了试节课",
+      "normalized_start": 204,
+      "quote_sha256": "95eea4206cd249175e9d84bbbe3a5a93bb74bac90a1c8627a5a659b2f16a3417",
+      "raw_end": 237,
+      "raw_start": 206,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_c26a4653242fd277",
+      "candidate_text_sha256": "ad2e0b7e35aa22f7b96c9cfa4498a2dd2f1591a77d2b9331f274a2854a093d70",
+      "normalized_end": 74,
+      "normalized_quote": "对我知道了啊就是你们长一唱不久还是刚才我说的那个胸腔太用力了你推了",
+      "normalized_start": 41,
+      "quote_sha256": "28c478111d1772e8bc38ec794ccee64ca038c966fb23483a9bc0c49a45e2aa40",
+      "raw_end": 75,
+      "raw_start": 41,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

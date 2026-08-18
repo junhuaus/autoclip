@@ -1,0 +1,566 @@
+{
+  "algorithm_version": "topic-first-portfolio-v2",
+  "configuration": {
+    "maximum_interval_iou": 0.45,
+    "maximum_text_jaccard": 0.65,
+    "minimum_quality": 55.0,
+    "top_n": 12
+  },
+  "ledger": [
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "disposition": "selected",
+      "quality_score_x100": 7125,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    },
+    {
+      "candidate_id": "candidate_34558c9f504eca45",
+      "disposition": "below_threshold",
+      "quality_score_x100": 5375,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_22d3260a7179c022",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4500,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "disposition": "selected",
+      "quality_score_x100": 6625,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_15f4902e6c5ea6c9"
+    },
+    {
+      "candidate_id": "candidate_a4bef74f0779a1e2",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4625,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_5f0cb3f29617fcb9"
+    },
+    {
+      "candidate_id": "candidate_8cae2aab5bc153ac",
+      "disposition": "below_threshold",
+      "quality_score_x100": 5375,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_2716045703db1f3b",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 6625,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_15f4902e6c5ea6c9"
+    },
+    {
+      "candidate_id": "candidate_7c52ff6875a16a62",
+      "disposition": "portfolio_limit",
+      "quality_score_x100": 5500,
+      "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+      "topic_id": "topic_5f0cb3f29617fcb9"
+    },
+    {
+      "candidate_id": "candidate_1261f4ebdaaa4ed6",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4500,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "disposition": "selected",
+      "quality_score_x100": 6000,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_a089c0cc0e4fcb6e"
+    },
+    {
+      "candidate_id": "candidate_2a81f27ea2fccc4f",
+      "disposition": "below_threshold",
+      "quality_score_x100": 3750,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_2eac9eac1a14891c"
+    },
+    {
+      "candidate_id": "candidate_ec801fd85b29d485",
+      "disposition": "below_threshold",
+      "quality_score_x100": 2875,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_043b16ee9b58ecf8"
+    },
+    {
+      "candidate_id": "candidate_7f4a5d4251808e1e",
+      "disposition": "below_threshold",
+      "quality_score_x100": 3750,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_bec3ab0ba634f53c"
+    },
+    {
+      "candidate_id": "candidate_f0c88f3966f4c86b",
+      "disposition": "below_threshold",
+      "quality_score_x100": 3250,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_bec3ab0ba634f53c"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "disposition": "selected",
+      "quality_score_x100": 7125,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_5f0cb3f29617fcb9"
+    },
+    {
+      "candidate_id": "candidate_2e7f0f8e0e88fae2",
+      "disposition": "below_threshold",
+      "quality_score_x100": 5375,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_54e5159281e13a09"
+    },
+    {
+      "candidate_id": "candidate_27095253c085da43",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 5875,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_6e2099b264c5aea3"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4500,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_043b16ee9b58ecf8"
+    },
+    {
+      "candidate_id": "candidate_835027c32b145c6e",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4125,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_f6510b0b7c1e867e"
+    },
+    {
+      "candidate_id": "candidate_c26a4653242fd277",
+      "disposition": "selected",
+      "quality_score_x100": 7000,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    },
+    {
+      "candidate_id": "candidate_a7de7d24d9c2d27c",
+      "disposition": "portfolio_limit",
+      "quality_score_x100": 5750,
+      "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_4305cfa07f8b1fbf",
+      "disposition": "selected",
+      "quality_score_x100": 6625,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_54e5159281e13a09"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 7000,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_1b8b4323d05c7dd6",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4875,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_043b16ee9b58ecf8"
+    },
+    {
+      "candidate_id": "candidate_d3981771b1792fc6",
+      "disposition": "selected",
+      "quality_score_x100": 5500,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_2eac9eac1a14891c"
+    },
+    {
+      "candidate_id": "candidate_3c76eb79d4264624",
+      "disposition": "below_threshold",
+      "quality_score_x100": 5000,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_10ee588243d4deab"
+    },
+    {
+      "candidate_id": "candidate_7d8b0df1b19a1ead",
+      "disposition": "unusable",
+      "quality_score_x100": 375,
+      "reason": "Tier 1 不可用：asr_unintelligible.",
+      "topic_id": null
+    },
+    {
+      "candidate_id": "candidate_a5c87afa0254618e",
+      "disposition": "portfolio_limit",
+      "quality_score_x100": 7000,
+      "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    },
+    {
+      "candidate_id": "candidate_c0638f35973b6082",
+      "disposition": "selected",
+      "quality_score_x100": 5750,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_f6510b0b7c1e867e"
+    },
+    {
+      "candidate_id": "candidate_638470bcf20511aa",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 6625,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_45bc9a8fa85d8251",
+      "disposition": "below_threshold",
+      "quality_score_x100": 2500,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_ba6baa1793a52650"
+    },
+    {
+      "candidate_id": "candidate_09125d918b1fac0b",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 6500,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    },
+    {
+      "candidate_id": "candidate_72165688c1b01bb0",
+      "disposition": "below_threshold",
+      "quality_score_x100": 3250,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "disposition": "selected",
+      "quality_score_x100": 8375,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_6e2099b264c5aea3"
+    },
+    {
+      "candidate_id": "candidate_18e1d7ea47ba32fc",
+      "disposition": "portfolio_limit",
+      "quality_score_x100": 5750,
+      "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+      "topic_id": "topic_6e2099b264c5aea3"
+    },
+    {
+      "candidate_id": "candidate_915e9f3bd1fce105",
+      "disposition": "portfolio_limit",
+      "quality_score_x100": 7000,
+      "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_8772ddd9d2d66094",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4500,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_a4d112648d50cd3d",
+      "disposition": "unusable",
+      "quality_score_x100": 375,
+      "reason": "Tier 1 不可用：fragment_only.",
+      "topic_id": null
+    },
+    {
+      "candidate_id": "candidate_765337da95068540",
+      "disposition": "below_threshold",
+      "quality_score_x100": 3375,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_bec3ab0ba634f53c"
+    },
+    {
+      "candidate_id": "candidate_523065b25295d83a",
+      "disposition": "selected",
+      "quality_score_x100": 7500,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_4df4063e46e8084e",
+      "disposition": "below_threshold",
+      "quality_score_x100": 4125,
+      "reason": "系统计算质量分低于冻结门槛。",
+      "topic_id": "topic_bec3ab0ba634f53c"
+    },
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "disposition": "selected",
+      "quality_score_x100": 9500,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_a2609c2e30906366",
+      "disposition": "selected",
+      "quality_score_x100": 7500,
+      "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+      "topic_id": "topic_10ee588243d4deab"
+    },
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 7500,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_04e2331ef51dcc1f"
+    },
+    {
+      "candidate_id": "candidate_525a6dcec50a0e42",
+      "disposition": "lower_rank_same_topic",
+      "quality_score_x100": 5500,
+      "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    }
+  ],
+  "selected": [
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "canonical_angle": "高音挤卡和气息用不上时，应先建立稳定的发声通道，并避免靠喊叫或模仿他人音色解决。",
+      "content_risk_flags": [],
+      "evidence_flags": [],
+      "quality_score_x100": 9500,
+      "rank": 1,
+      "scores": {
+        "content_value": 4,
+        "editorial_utility": 4,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "topic_id": "topic_04e2331ef51dcc1f",
+      "topic_label": "高音通道、气息与用力误区"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "canonical_angle": "零基础气息训练应先建立自然吸气，再选择较温和、较不易练偏的吐气练习。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [],
+      "quality_score_x100": 8375,
+      "rank": 2,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "topic_id": "topic_6e2099b264c5aea3",
+      "topic_label": "气息练习的选择与基础吸气"
+    },
+    {
+      "candidate_id": "candidate_523065b25295d83a",
+      "canonical_angle": "唱歌时应先让舌头自然放松，并通过合适舌位和口腔空间支持高音，而非刻意压舌或挤舌。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [
+        "visual_verification_required"
+      ],
+      "quality_score_x100": 7500,
+      "rank": 3,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_cb1251a9e55849e6",
+      "topic_label": "舌头放松与高音口腔空间"
+    },
+    {
+      "candidate_id": "candidate_a2609c2e30906366",
+      "canonical_angle": "不同演唱风格会采用不同的咬字、嘴型和共鸣规模，但仍存在可共用的气息基础。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [],
+      "quality_score_x100": 7500,
+      "rank": 4,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_10ee588243d4deab",
+      "topic_label": "不同唱法的咬字、气息与共鸣"
+    },
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "canonical_angle": "胸口过度用力或处理不当可能造成漏气、发紧，并缩短长音的维持时间。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "quality_score_x100": 7125,
+      "rank": 5,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_97bfef675f1a5bf4",
+      "topic_label": "胸口过力、漏气与长音发虚"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "canonical_angle": "年龄和先天条件会影响声音状态或职业边界，但兴趣学习仍可通过训练获得改善。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "quality_score_x100": 7125,
+      "rank": 6,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_5f0cb3f29617fcb9",
+      "topic_label": "年龄、天赋与声乐学习边界"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "canonical_angle": "流行演唱训练应先建立气息、真声和咬字通道，再逐步进入强混、其他混声与假声。",
+      "content_risk_flags": [],
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "quality_score_x100": 6625,
+      "rank": 7,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_15f4902e6c5ea6c9",
+      "topic_label": "从真声到混声的训练次序"
+    },
+    {
+      "candidate_id": "candidate_4305cfa07f8b1fbf",
+      "canonical_angle": "训练量应依据个人运动基础调整，增加练习时宜分次完成并避免单次过量。",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "unsafe_instruction",
+        "sponsor_or_advertising"
+      ],
+      "evidence_flags": [],
+      "quality_score_x100": 6625,
+      "rank": 8,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_54e5159281e13a09",
+      "topic_label": "按基础安排练习量"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "canonical_angle": "音响或后期修音可以美化部分音高表现，却无法替代正确的发声通道和共鸣。",
+      "content_risk_flags": [],
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "quality_score_x100": 6000,
+      "rank": 9,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_id": "topic_a089c0cc0e4fcb6e",
+      "topic_label": "修音无法替代发声基础"
+    },
+    {
+      "candidate_id": "candidate_c0638f35973b6082",
+      "canonical_angle": "教学主播的工作还包括直播布置以及下播后的素材整理、剪辑、沟通和内容发布。",
+      "content_risk_flags": [],
+      "evidence_flags": [],
+      "quality_score_x100": 5750,
+      "rank": 10,
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 1,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_f6510b0b7c1e867e",
+      "topic_label": "教学直播的台前幕后"
+    },
+    {
+      "candidate_id": "candidate_d3981771b1792fc6",
+      "canonical_angle": "直播中的学员规模、短期效果和体验故事被用于证明课程价值。",
+      "content_risk_flags": [
+        "sponsor_or_advertising",
+        "reputation_or_defamation"
+      ],
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "quality_score_x100": 5500,
+      "rank": 11,
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_id": "topic_2eac9eac1a14891c",
+      "topic_label": "课程成效宣传与学员见证"
+    },
+    {
+      "candidate_id": "candidate_c26a4653242fd277",
+      "canonical_angle": "胸口过度用力或处理不当可能造成漏气、发紧，并缩短长音的维持时间。",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "evidence_flags": [],
+      "quality_score_x100": 7000,
+      "rank": 12,
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_id": "topic_97bfef675f1a5bf4",
+      "topic_label": "胸口过力、漏气与长音发虚"
+    }
+  ],
+  "selected_count": 12
+}

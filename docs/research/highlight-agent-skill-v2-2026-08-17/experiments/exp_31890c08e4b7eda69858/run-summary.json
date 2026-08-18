@@ -1,0 +1,57 @@
+{
+  "completed_pipeline_count": 2,
+  "completed_pipelines": [
+    {
+      "arm_id": "arm_068d613065ba727a",
+      "completed_at": "2026-08-18T07:11:45.748538+00:00",
+      "exact_quote_failed_count": 0,
+      "pipeline_id": "pipeline_295f8256b10bc1b8",
+      "repair_budget": {
+        "maximum_repairs": 2,
+        "repairs_used": 0,
+        "used_by_stage": []
+      },
+      "repeat": 1,
+      "selected_count": 12,
+      "source_id": "src_199c8497104d75ba",
+      "tier_call_elapsed_seconds": {
+        "tier1": 246.001,
+        "tier2": 90.864,
+        "tier4": 87.515
+      },
+      "topic_count": 14,
+      "would_escalate": {
+        "actually_escalated": false,
+        "policy_version": "shadow-escalation-v1",
+        "reasons": [],
+        "target_model_if_enabled": "gpt-5.6-sol/high",
+        "would_escalate": false
+      }
+    },
+    {
+      "arm_id": "arm_7dfabc955ba52ad5",
+      "call_elapsed_seconds": 54.569,
+      "completed_at": "2026-08-18T07:12:40.378304+00:00",
+      "pipeline_id": "pipeline_3938cd99141f5f57",
+      "quote_gate_failed_count": 10,
+      "repair_budget": {
+        "maximum_repairs": 2,
+        "repairs_used": 0,
+        "used_by_stage": []
+      },
+      "repeat": 1,
+      "selected_count": 10,
+      "source_id": "src_199c8497104d75ba"
+    }
+  ],
+  "expected_pipeline_count": 12,
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "experiment_id": "exp_31890c08e4b7eda69858",
+  "invocation_scope": "sentinel_pair",
+  "remaining_pipeline_count": 10,
+  "scheduled_pipeline_count_this_invocation": 2,
+  "schema_version": "1",
+  "sol_high_call_count": 0,
+  "status": "generation_partial",
+  "updated_at": "2026-08-18T07:13:02.500579+00:00"
+}

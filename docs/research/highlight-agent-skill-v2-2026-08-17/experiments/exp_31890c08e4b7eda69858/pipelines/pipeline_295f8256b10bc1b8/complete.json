@@ -1,0 +1,39 @@
+{
+  "artifact_sha256": {
+    "repair-budget.json": "6d3d15ddadf78764eb4c04218735deb303a235f316de8efbe06e29d02cae7c57",
+    "result.json": "cbd0d68d7aab845d9350d71a32be200e4a47f2d0c8df2264b9ea159c82a69f0c",
+    "summary.json": "b4ee3f914e80b760050f46543856515aaf94603fb5a9e1f322d88139f949abe8",
+    "tier1-assessments.json": "bdfb0e602e7ff602e7fd39a7292d57d9c3e2a40e72ff9400b10fa220d67fe007",
+    "tier1-validation.json": "8cf07302ec8044bc08b4ab46b2a31b530a08ef916aae7af0e830d49d61227313",
+    "tier2-inventory.json": "d5bb6c6dc1d174f5d40e4e099013bf710d4ff8ff13bbadb716d6ad44ec94384d",
+    "tier2-validation.json": "a3957fc053ba38c585041b5a0528dfaf17e2e89fa17d4597be88b131fb26d8b3",
+    "tier3-portfolio.json": "54125efc1b7279a665482abbfc16a072c0e2bc6132ac6de0077f0d7a0b57e1e0",
+    "validation.json": "ddd9a9d8051e597080a809c24b4624e46b28093fc788af2475f9926cdc78a5bb",
+    "would-escalate.json": "0e302aa3df71d42dbe294a74b3afa263e9ef2e5121ed6310ed2a9c62d0f74a3b"
+  },
+  "call_receipts": [
+    {
+      "call_completion_sha256": "f25ccd9c0e3ed8667ee5254065400b4762f70bbbc6e7fadc4d3379207e7a83b2",
+      "call_id": "call_395200ce81837971"
+    },
+    {
+      "call_completion_sha256": "fbb95d725560044618ca04f4c512073abc5fc8c439ce1a51c86bc0ee59e15159",
+      "call_id": "call_5871625749e65420"
+    },
+    {
+      "call_completion_sha256": "334830595122fbdd21c98bbdb8b2c57bb74e52d388a88bdc615eeab4d0c3ab9f",
+      "call_id": "call_5ed45905a706183d"
+    },
+    {
+      "call_completion_sha256": "71e79e8b849087f1cfa02c590baa4aa0c106a9e773aba413075ccf107daaa134",
+      "call_id": "call_610372b3968f4c98"
+    },
+    {
+      "call_completion_sha256": "8293f762853169d9d02d077bc64956833e063fef1380c9b6ab1e221720e36f31",
+      "call_id": "call_f66cb305e165ddbd"
+    }
+  ],
+  "pipeline_contract_sha256": "308fe5ee3e88e6ce9b9f13ee9917f603070e4998c3190b085ae7b4dd10a4078b",
+  "pipeline_id": "pipeline_295f8256b10bc1b8",
+  "schema_version": "1"
+}

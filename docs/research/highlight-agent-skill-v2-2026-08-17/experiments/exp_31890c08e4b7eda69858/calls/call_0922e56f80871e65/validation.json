@@ -1,0 +1,142 @@
+{
+  "schema_candidate_time_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10,
+  "v2_quote_gate_shadow_audit": {
+    "failed_count": 10,
+    "passed_count": 0,
+    "receipts": [
+      {
+        "candidate_id": "candidate_e27d41447dbfb889",
+        "candidate_text_sha256": "dbcfdc5f0c2200e65a0089d220e59d92606f54fac0403f3ce4299f1257c08864",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "不管是在ktv的音响也好还是专门找调音师修音也好它只能美化但是修不了你们的通道修不了你们的共鸣腔体",
+        "normalized_start": null,
+        "quote_sha256": "62ad4a9724b17b35011df568b2c654548e478515f06914aaebefb07416f690d6",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_260b8f35571eae11",
+        "candidate_text_sha256": "942049caddb299e359b826bf3c4a83761f1124c62fc0a2e82c60d42baeb8e005",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "但是你可以通过技术让你的上限更高让你唱得比现在更好爱好不分年龄你什么时候都不晚",
+        "normalized_start": null,
+        "quote_sha256": "b2f7839ca097a44848f64e8e26660b5cb3b7245aefadcaa2dc74d92a70de29d2",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_2efa31efddfe10ed",
+        "candidate_text_sha256": "d64b69c059e4213b89f4f47b70ebcc0741160eed7b0fa4085b47ff634832c0b3",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你们开始不要去找舌头凹你们找不到你们一找舌头一在乎舌头舌头就发力舌头一发力就会有舌根音",
+        "normalized_start": null,
+        "quote_sha256": "f58714866f8969f016e6abe05640a2aef355fde822b8cbe709e081b3789fcd3d",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_b1c6640371e0ceab",
+        "candidate_text_sha256": "8fccf63bd7e4be22c999e7e0da51f5c0e53eb16d7e8ce2359e953fee1e1db67a",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "小狗哈气有一个弊端就是我们在来回吸气的时候后咽壁和空气直接接触有些同学比较敏感会容易红肿不舒服干痒",
+        "normalized_start": null,
+        "quote_sha256": "0aa181cebfb0993771841ec1a45691f8e53d26e58a604b3c1cf1a51efbd636c7",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_5d3778b0260b9b65",
+        "candidate_text_sha256": "d5d5e94accdb422ecbeae4cea9c463dd12ab927e0df6fe02e0b389ce7a98fe2b",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你不要去模仿网上那种大师因为他们练了很多年了你刻意模仿以为模仿到了其实没有而且会有其他的问题",
+        "normalized_start": null,
+        "quote_sha256": "065ddbbec690e2f28a9a4c106f336912c91822e231a9c241a3d20446bb5779bc",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_f1d87e3d981d87dc",
+        "candidate_text_sha256": "4925d53e0523b978d028b13c17c9c60294899d877da88c39afbe30801d776510",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "因为你知道了我们说话也是有音调的学了这个通道之后又有了气息你说话也会好",
+        "normalized_start": null,
+        "quote_sha256": "2dc779253e747e2114dd5cc38aa1a322af79f990466065af2b59f767109003ed",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_a5c87afa0254618e",
+        "candidate_text_sha256": "3182b02b3432eeacc41abe412a055ea159424a44d11d6bdcd053b04432e4f29e",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你发现我练了那么长时间的气为什么唱歌还是觉得气不够呢是因为你在唱的时候把气漏走了",
+        "normalized_start": null,
+        "quote_sha256": "db03edff7653c65a6014abf5b3a46dbdaa8514177e86fee96a4a02533814a8ed",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_2716045703db1f3b",
+        "candidate_text_sha256": "62fe2dc2e9bc29062b8cbeda70d9a9d9ab271b45061eb91ad547c2e9a49fc078",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "唱歌的步骤一定要从真声开始你一定要找到自己真声的咬字位置找到咬字的通道我们再过渡到高音的真声也就是强混",
+        "normalized_start": null,
+        "quote_sha256": "5b3cef3e552941668ed3de98518362da58efd6694828fde680246834c34da065",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_a2609c2e30906366",
+        "candidate_text_sha256": "8c817d4220a2951dc2c5c79395c08e200fe6e13874651e23df695a4ed330e4d0",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "为什么美声唱法不需要麦克风因为它把人的通道腔体全用上了头腔鼻腔口腔胸腔都是一个个小音响",
+        "normalized_start": null,
+        "quote_sha256": "859a77812f920384e6cec32dfeb06dd534c13d3fa8544e5ad7d5fce4b3610120",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_c26a4653242fd277",
+        "candidate_text_sha256": "ad2e0b7e35aa22f7b96c9cfa4498a2dd2f1591a77d2b9331f274a2854a093d70",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你本来能唱30秒你一推只能唱5秒所以还是要自然发生科学发生不要一会儿想胸一会儿想声带一会儿又想咬字太杂了一样一样地来",
+        "normalized_start": null,
+        "quote_sha256": "04d63b978a6ff64aada9b8e50be4c00b6b88b84ccede1f480569afe1d5165856",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      }
+    ],
+    "selected_count": 10
+  }
+}

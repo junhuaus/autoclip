@@ -1,0 +1,11 @@
+{
+  "accounting": {
+    "assessable_count": 43,
+    "excluded_count": 2,
+    "passed": true,
+    "topic_member_count": 43,
+    "unusable_count": 2
+  },
+  "all_candidate_accounting_gate": "passed",
+  "topic_count": 14
+}
