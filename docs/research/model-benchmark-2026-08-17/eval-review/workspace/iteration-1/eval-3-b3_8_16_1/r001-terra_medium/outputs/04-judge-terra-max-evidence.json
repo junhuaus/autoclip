@@ -1,0 +1,276 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 82.5,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a011e4-45a0-71b2-b0fb-c7a721716a8f"
+  },
+  "limitations": [
+    "仅依据冻结转写评估，无法验证演唱示范、音色变化、口型动作或实际练习效果。",
+    "多处转写存在术语、词语和句法噪音；对无法在可见证据中追溯的改写已从严扣分。",
+    "所有关于嗓音、生理机制和职业用嗓效果的内容都应按主播教学经验处理，不构成医学或普遍效果结论。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "terra_medium",
+    "sol_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "发现了内口腔空间、咬字位置、高音非喊等额外且有价值的话题，整体Hook意识强，覆盖广。",
+    "topic_discovery": 4,
+    "weaknesses": "“练气息前先吸好气”的高光改写未能在可见证据中清楚追溯；咬字片引入“普通话”对照也超出原文，且部分选择依赖示范或噪音转写。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均取自同一候选、同一“高音卡住—呼吸/通道”教学主张。Q7的摘句定义最完整，M4兼具痛点与归因；R2的高光句主要是症状，需依赖后文完成解释。",
+      "canonical_topic": "高音卡顿的呼吸与整体发声通道",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "用完整定义承接高音痛点，概念表达最闭合；应保留其教学比喻属性。",
+          "candidate_id": "candidate_e3f2a57d5e929402",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均围绕“刻意管/压舌头会紧，改为放松或轻抵下牙后”的同一误区和替代动作，可直接互换。",
+      "canonical_topic": "唱歌时的舌头放松与舌位",
+      "cluster_id": "t021",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问题、原因与可立即尝试的动作闭合，文案准确。",
+          "candidate_id": "candidate_2efa31efddfe10ed",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均以教师学员和主播的经验，将发声训练延展到日常或职业说话。共同风险是不能把个案体验剪成普遍功效。",
+      "canonical_topic": "发声训练与职业用嗓/日常说话",
+      "cluster_id": "t031",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "风险提示保留了经验性质，核心结论和应用场景清楚。",
+          "candidate_id": "candidate_f1d87e3d981d87dc",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均回答“练过气息却仍觉得不够”的同一问题，核心解释都是演唱中漏气，并有同句对比示范线索。",
+      "canonical_topic": "练过气息仍不够用的漏气问题",
+      "cluster_id": "t051",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "准确保留“处理不当会漏气”和气息、通道应同步练习的语境。",
+          "candidate_id": "candidate_a5c87afa0254618e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都讲真声、咬字位置/通道、强混再到假声的学习先后，属于同一训练路径需求。Q7突出第一步，M4和R2更完整地呈现后续路径。",
+      "canonical_topic": "混声与流行唱法的训练顺序",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "“别跳步”的切口抓人，但摘句只到真声和咬字位置，代表性略弱于完整路径。",
+          "candidate_id": "candidate_2716045703db1f3b",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均针对初学者强行模仿成熟歌手音色的风险，核心建议和编辑需求完全一致。",
+      "canonical_topic": "初学者模仿高手音色的误区",
+      "cluster_id": "t081",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "标题准确凝练，描述没有把“刻意模仿”的限定丢失。",
+          "candidate_id": "candidate_5d3778b0260b9b65",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均界定KTV音响、调音和修音无法替代演唱者发声与共鸣基础，属于同一反常识认知题。",
+      "canonical_topic": "修音与真实发声基础的能力边界",
+      "cluster_id": "t091",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问句式包装准确，未把概括性教学观点延展成技术绝对论。",
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "两条都来自同一段“狗哈气”练习及鼻吸嘴哈替代法。Q7的高光句改写成泛化的练习顺序，R2则抓住可验证的具体操作，因此归并把握为中等。",
+      "canonical_topic": "“狗哈气”练习的鼻吸嘴哈替代法",
+      "cluster_id": "t101",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "描述保留了证据中的具体替代动作，但高光句、标题和Hook所称的绝对“第一步”在可见转写中没有清楚支撑。",
+          "candidate_id": "candidate_b1c6640371e0ceab",
+          "claim_fidelity": 2,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 2,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段的独立主张是舌头抬起、口腔空间和高音卡紧的关系；它不同于“不要刻意压舌头”的放松建议。",
+      "canonical_topic": "内口腔空间与高音卡紧",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "结果句和标题均有原文依据，但动作效果较依赖原片示范，纯文本下机制不够自足。",
+          "candidate_id": "candidate_a7de7d24d9c2d27c",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段的核心是“高音不是靠喊，而要借助通道、腔体和位置”，与呼吸定位型高音内容不能互换。",
+      "canonical_topic": "高音不是靠喊上去的",
+      "cluster_id": "t121",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心主张清楚、反差强且在完整句中闭合；年龄相关旁支已被风险提示限制。",
+          "candidate_id": "candidate_638470bcf20511aa",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段是对咬字位置靠后导致不清楚的诊断，不能与通道或舌位的一般知识点合并。",
+      "canonical_topic": "唱歌咬字不清与咬字位置靠后",
+      "cluster_id": "t131",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "诊断本体有据可查，但Hook和标题引入“普通话/发音”对照，原文并未明确讨论该对照；转写噪音也降低代表性。",
+          "candidate_id": "candidate_22d3260a7179c022",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h11",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 11,
+  "verdict_reason": "偏好顺序为 R2、Q7、M4。R2在覆盖、证据可追溯性、代表性片段和后期可执行信息之间最均衡；Q7发现主题更广，但有两处关键改写超出可见证据；M4的基础选题稳健，但组合广度与个别片段的文本稳定性略逊。"
+}

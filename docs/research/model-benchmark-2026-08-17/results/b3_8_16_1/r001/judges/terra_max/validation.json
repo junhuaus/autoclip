@@ -1,0 +1,52 @@
+{
+  "atomic_scores_by_model": {
+    "sol_high": {
+      "clip_selection": 4,
+      "editorial_usability": 4,
+      "evidence_fidelity": 4,
+      "portfolio_quality": 4,
+      "topic_discovery": 4
+    },
+    "sol_medium": {
+      "clip_selection": 3,
+      "editorial_usability": 3,
+      "evidence_fidelity": 3,
+      "portfolio_quality": 3,
+      "topic_discovery": 3
+    },
+    "terra_medium": {
+      "clip_selection": 3,
+      "editorial_usability": 3,
+      "evidence_fidelity": 3,
+      "portfolio_quality": 3,
+      "topic_discovery": 4
+    }
+  },
+  "cluster_count": 14,
+  "cluster_coverage_gate": "passed",
+  "computed_total_by_model": {
+    "sol_high": 100.0,
+    "sol_medium": 75.0,
+    "terra_medium": 82.5
+  },
+  "pairwise_semantic_jaccard": {
+    "sol_high__sol_medium": 0.7273,
+    "sol_high__terra_medium": 0.6154,
+    "sol_medium__terra_medium": 0.5385
+  },
+  "preferred_models": [
+    "sol_high",
+    "terra_medium",
+    "sol_medium"
+  ],
+  "semantic_duplicate_rate_by_model": {
+    "sol_high": 0.0,
+    "sol_medium": 0.0,
+    "terra_medium": 0.0
+  },
+  "topic_count_by_model": {
+    "sol_high": 10,
+    "sol_medium": 9,
+    "terra_medium": 11
+  }
+}

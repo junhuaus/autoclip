@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selection_summary", "highlights"],
+  "properties": {
+    "selection_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "highlights": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "topic",
+          "title",
+          "highlight_sentence",
+          "script_description",
+          "score",
+          "hook",
+          "selection_reason",
+          "risk_flags"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^candidate_[a-f0-9]{16}$"},
+          "topic": {"type": "string", "minLength": 1, "maxLength": 40},
+          "title": {"type": "string", "minLength": 1, "maxLength": 40},
+          "highlight_sentence": {"type": "string", "minLength": 1, "maxLength": 120},
+          "script_description": {"type": "string", "minLength": 1, "maxLength": 260},
+          "score": {"type": "number", "minimum": 0, "maximum": 100},
+          "hook": {"type": "string", "minLength": 1, "maxLength": 80},
+          "selection_reason": {"type": "string", "minLength": 1, "maxLength": 220},
+          "risk_flags": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "minLength": 1, "maxLength": 40}
+          }
+        }
+      }
+    }
+  }
+}

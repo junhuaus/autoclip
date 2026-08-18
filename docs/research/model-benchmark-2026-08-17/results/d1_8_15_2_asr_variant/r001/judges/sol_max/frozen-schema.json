@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "clusters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alignment_confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          },
+          "assessment": {
+            "maxLength": 800,
+            "minLength": 1,
+            "type": "string"
+          },
+          "canonical_topic": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "cluster_id": {
+            "pattern": "^t[0-9]{3}$",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "anonymous_system_id": {
+                  "enum": [
+                    "Q7",
+                    "R2",
+                    "M4"
+                  ],
+                  "type": "string"
+                },
+                "assessment": {
+                  "maxLength": 500,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "candidate_id": {
+                  "enum": [
+                    "candidate_27e2e7c3ca5de34b",
+                    "candidate_37a304af261d7cec",
+                    "candidate_3a8dd1c14bb20113",
+                    "candidate_42f16a3fe5990dd7",
+                    "candidate_a3e95c7ba3830ff6",
+                    "candidate_a3f07d95871e34d9",
+                    "candidate_a8bffa142ae34754",
+                    "candidate_bbcf6558cad6606c",
+                    "candidate_c3f71ff545569c02",
+                    "candidate_c9196e5dede3c677",
+                    "candidate_d1de1fbe320a4d19",
+                    "candidate_fc8cd4c0053dc519"
+                  ],
+                  "type": "string"
+                },
+                "claim_fidelity": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "editorial_value": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "expression_completeness": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "highlight_id": {
+                  "enum": [
+                    "h01",
+                    "h02",
+                    "h03",
+                    "h04",
+                    "h05",
+                    "h06",
+                    "h07",
+                    "h08",
+                    "h09",
+                    "h10"
+                  ],
+                  "type": "string"
+                },
+                "hook_strength": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "representative_quality": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title_copy_quality": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "anonymous_system_id",
+                "highlight_id",
+                "candidate_id",
+                "claim_fidelity",
+                "editorial_value",
+                "hook_strength",
+                "expression_completeness",
+                "title_copy_quality",
+                "representative_quality",
+                "assessment"
+              ],
+              "type": "object"
+            },
+            "maxItems": 36,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "canonical_topic",
+          "alignment_confidence",
+          "members",
+          "assessment"
+        ],
+        "type": "object"
+      },
+      "maxItems": 36,
+      "minItems": 1,
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "type": "array"
+    },
+    "preferred_system_ids": {
+      "items": {
+        "enum": [
+          "Q7",
+          "R2",
+          "M4"
+        ],
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "type": "array"
+    },
+    "system_evaluations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymous_system_id": {
+            "enum": [
+              "Q7",
+              "R2",
+              "M4"
+            ],
+            "type": "string"
+          },
+          "clip_selection": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "editorial_usability": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "evidence_fidelity": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "portfolio_quality": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "strengths": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "topic_discovery": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "weaknesses": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "anonymous_system_id",
+          "topic_discovery",
+          "evidence_fidelity",
+          "clip_selection",
+          "editorial_usability",
+          "portfolio_quality",
+          "strengths",
+          "weaknesses"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "verdict_reason": {
+      "maxLength": 1400,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "clusters",
+    "system_evaluations",
+    "preferred_system_ids",
+    "verdict_reason",
+    "limitations"
+  ],
+  "type": "object"
+}

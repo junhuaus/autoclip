@@ -1,0 +1,80 @@
+{
+  "all_highlight_keys": [
+    "M4:h01",
+    "M4:h02",
+    "M4:h03",
+    "M4:h04",
+    "M4:h05",
+    "M4:h06",
+    "M4:h07",
+    "M4:h08",
+    "M4:h09",
+    "M4:h10",
+    "Q7:h01",
+    "Q7:h02",
+    "Q7:h03",
+    "Q7:h04",
+    "Q7:h05",
+    "Q7:h06",
+    "Q7:h07",
+    "Q7:h08",
+    "Q7:h09",
+    "Q7:h10",
+    "R2:h01",
+    "R2:h02",
+    "R2:h03",
+    "R2:h04",
+    "R2:h05",
+    "R2:h06",
+    "R2:h07",
+    "R2:h08",
+    "R2:h09",
+    "R2:h10",
+    "R2:h11"
+  ],
+  "anonymous_system_mapping": {
+    "M4": "sol_medium",
+    "Q7": "terra_medium",
+    "R2": "sol_high"
+  },
+  "highlight_candidate_mapping": {
+    "M4": {
+      "h01": "candidate_554c3d7035ba1055",
+      "h02": "candidate_65678839045aab40",
+      "h03": "candidate_373756f54a23ac46",
+      "h04": "candidate_f89ea722be8ee018",
+      "h05": "candidate_c393f29d34250a55",
+      "h06": "candidate_45f74801b32ad9cf",
+      "h07": "candidate_bef585871fbac01e",
+      "h08": "candidate_f49be10488a46e67",
+      "h09": "candidate_0c49c6488ae5fe28",
+      "h10": "candidate_464b0f2aee1d8a44"
+    },
+    "Q7": {
+      "h01": "candidate_65678839045aab40",
+      "h02": "candidate_fa0cd44fc3dcaa6b",
+      "h03": "candidate_35a860b83062d6ab",
+      "h04": "candidate_259a47e73cd8edad",
+      "h05": "candidate_45f74801b32ad9cf",
+      "h06": "candidate_2169870825746d02",
+      "h07": "candidate_0c49c6488ae5fe28",
+      "h08": "candidate_464b0f2aee1d8a44",
+      "h09": "candidate_bef585871fbac01e",
+      "h10": "candidate_b66177d9d0ec57ef"
+    },
+    "R2": {
+      "h01": "candidate_373756f54a23ac46",
+      "h02": "candidate_65678839045aab40",
+      "h03": "candidate_554c3d7035ba1055",
+      "h04": "candidate_45f74801b32ad9cf",
+      "h05": "candidate_bef585871fbac01e",
+      "h06": "candidate_6721fcbb3782d23b",
+      "h07": "candidate_0c49c6488ae5fe28",
+      "h08": "candidate_464b0f2aee1d8a44",
+      "h09": "candidate_c393f29d34250a55",
+      "h10": "candidate_0650eee23c06e676",
+      "h11": "candidate_b66177d9d0ec57ef"
+    }
+  },
+  "seed_sha256": "b86a0151a49c66fc26ccd54dbba7d45b901549cf0c833c9ed1077ebea695fee0"
+}

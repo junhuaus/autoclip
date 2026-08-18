@@ -1,0 +1,255 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 87.5,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a01257-4562-71f1-a21d-90e069d21114"
+  },
+  "limitations": [
+    "仅依据冻结的文字证据评估，无法确认画面、动作示范、音色差异或实际剪点效果。",
+    "转写含口语与潜在ASR歧义；“唱歌通道”“气沉丹田”等应视为主播教学表述，而非医学结论或唯一标准。",
+    "部分方案只给出核心摘句，完整性评分不等同于原始长上下文的完整性。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 3,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "问题型Hook普遍直接，覆盖换声区和基础吸气等独立议题，绝大多数核心主张忠于证据。",
+    "topic_discovery": 4,
+    "weaknesses": "多条只截取结论或省略限定条件，舌头后缩、乐理、抬眉和KTV热身的代表性较弱；风险标注全缺，降低后期直接可用性。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都回答“没有天赋能否学好唱歌”的焦虑，核心是普通人可在自身条件上持续进步，可直接互换。",
+      "canonical_topic": "无天赋者的声乐进步心态",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心结论忠实、共鸣面广；摘句略少了“天赋稀缺”的前提，代表性稍弱。",
+          "candidate_id": "candidate_65678839045aab40",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均为KTV前用蹲起等动作活动身体的临时热身建议；M4保留的动作信息最完整。",
+      "canonical_topic": "KTV前身体热身",
+      "cluster_id": "t021",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "“十个蹲起”忠于原话且记忆点强，但Hook把避免在包厢做特定练声动作概括成不练声，范围略宽，也缺少身体状况提示。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均是“初学者唱高音不要急于抬眉，应放松并待后期再微调”的同一纠错需求。",
+      "canonical_topic": "初学者高音抬眉误区",
+      "cluster_id": "t031",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "明确抓住“不适合小白、属于后期微调”，但删去了“放松就好”的可执行替代。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均纠正“刻意找共鸣”的思路，主张先按主播所称的唱歌通道发声。",
+      "canonical_topic": "共鸣训练误区与发声通道",
+      "cluster_id": "t041",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心观点准确、反常识Hook有效，但高光本身未解释“唱歌通道”，也未标出其为教学框架。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "三条都能满足“每日练唱时间建议”的编辑需求：M4、Q7强调连续时长上限与效率，R2强调气息、练声、唱歌的时间分配；角度互补而非完全同义。",
+      "canonical_topic": "每日练唱时长、效率与时间分配",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "结论、Hook和标题均忠实直接，适合入门避坑；缺少个体状态的风险边界。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均平衡回答“不会简谱、乐理能否学唱歌”：可通过模仿入门，但识谱有助于更快独立学歌。",
+      "canonical_topic": "简谱乐理与声乐入门",
+      "cluster_id": "t071",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "高光句很好地降低新手焦虑，但未保留“学简谱可加快学歌”的平衡条件，需依赖描述补足。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都解决高音遇闭口音时卡紧的问题，方法一致：先借开口音建立感觉，再逐步过渡。",
+      "canonical_topic": "高音闭口音卡紧的过渡练习",
+      "cluster_id": "t081",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心练法完整，Hook准确指向高音闭口音卡紧，独立剪辑成立。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均针对高音时舌头后缩，主张先在中音区处理气息和咬字，不要以舌头蛮力硬顶。",
+      "canonical_topic": "高音舌头后缩与舌根紧张",
+      "cluster_id": "t091",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "来源观点无误，但高光中的“这两个问题”脱离前句后未被明确命名，实际剪点上下文依赖较高；“舌根紧”也较原文“舌头后缩”更具诊断性。",
+          "candidate_id": "candidate_f89ea722be8ee018",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都回答换声区断层，核心是保持咬字位置和主播所称的唱歌通道一致。",
+      "canonical_topic": "换声区声音位置统一",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "两条原则直接对应断层问题，但未保留高音时不要前冲或后躲的补充，且“通道”未定义。",
+          "candidate_id": "candidate_2169870825746d02",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "仅Q7选择该基础认知：唱歌的第一步是吸气。它与“俯身感知腰腹吸气”是不同编辑需求，未合并。",
+      "canonical_topic": "唱歌前的基础吸气认知",
+      "cluster_id": "t121",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "反差Hook很强，基础原则忠实；所摘句主要是结论，未带入后续鼻吸气和自检方法，独立教学完整度有限。",
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "R2与M4在文本忠实度、选题去重和成片可用性上均处于第一档；R2因对转场、术语和ASR/风险边界的后期备注更可执行，列为微弱首选。M4紧随其后，且拥有高价值的伴奏节拍独立Topic。Q7的议题覆盖不差，但短摘句和缺失风险提示使其整体完成度落后。"
+}

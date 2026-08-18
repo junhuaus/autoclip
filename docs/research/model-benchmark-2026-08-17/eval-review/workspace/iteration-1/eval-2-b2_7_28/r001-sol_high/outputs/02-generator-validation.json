@@ -1,0 +1,91 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 6,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_c393f29d34250a55",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "俯身45度，把手放在腰上，慢慢吸气，你会感觉到这个起伏。",
+      "matched_character_coverage": 0.7083,
+      "position": 1,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_f89ea722be8ee018",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你的舌头后缩不是每个字都后缩的，你只有在唱高音的时候往后缩，那你唱高音现在就是有问题的。你要先在中音区把气息和咬字的问题解决掉。",
+      "matched_character_coverage": 0.6833,
+      "position": 2,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "有天赋的真的很少。大家都是普通人，你要在自己的硬件上让自己做到最好。",
+      "matched_character_coverage": 1.0,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我建议唱歌的同学每天连续不要超过一个小时。唱歌不要追求时间，要追求效率。",
+      "matched_character_coverage": 1.0,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "如果又遇到了高音，又遇到了闭口音，很多小白都会卡紧。先把这个闭口音带一个开口音的字去练，找到感觉之后，再慢慢过渡到闭口音。",
+      "matched_character_coverage": 0.9818,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_bef585871fbac01e",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不会简谱、不会乐理能不能学唱歌？一样可以学唱歌，因为我们唱歌重在模仿。但如果对自己期望比较高，学简谱会让你学歌更快。",
+      "matched_character_coverage": 0.8077,
+      "position": 6,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_f49be10488a46e67",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我识谱，但是拿着谱却跟不上伴奏，为什么？因为你不会听伴奏、跟不上拍，也听不到里面的鼓点。你起码得先把歌熟悉，再去听伴奏。",
+      "matched_character_coverage": 0.5,
+      "position": 7,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的时候可以先出去做十个蹲起，把身上的肌肉活动开；高抬腿、跳两下活动热身也是可以的。",
+      "matched_character_coverage": 0.8205,
+      "position": 8,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_0c49c6488ae5fe28",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "共鸣是一个概念。只要把歌唱在唱歌通道里面，就会有你所谓的共鸣，不要刻意地去练这个共鸣。",
+      "matched_character_coverage": 0.9744,
+      "position": 9,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_464b0f2aee1d8a44",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "很多老师唱歌会让你抬眉，但它是有程度、有阶段的，不适合小白。零基础的同学，眉毛不要抬，放松就好了。",
+      "matched_character_coverage": 0.7857,
+      "position": 10,
+      "status": "failed"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10
+}

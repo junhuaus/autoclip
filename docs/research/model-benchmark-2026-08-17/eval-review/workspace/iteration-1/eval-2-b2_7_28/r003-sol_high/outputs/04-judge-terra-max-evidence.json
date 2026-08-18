@@ -1,0 +1,255 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 88.8,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a01263-531f-76b1-bd1a-a3e5a4f12733"
+  },
+  "limitations": [
+    "仅依据冻结转写评估，无法验证音色、示范动作、面部状态、镜头效果或实际剪辑节奏。",
+    "部分原文存在疑似同音误识别，例如头腔共鸣和鼓点；相关高分依赖方案已明确提出的字幕校正。",
+    "讲者的声乐与热身建议按内容编辑价值评估，未作医学或生理有效性验证。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 3,
+    "strengths": "多数片段从痛点直接切入，问答结构、Hook和字幕修正建议清楚，节奏候选的起点也较干净。",
+    "topic_discovery": 3,
+    "weaknesses": "相较M4遗漏了独立且实操价值高的腰腹呼吸练习；舌根标题增加了原文未直说的因果解释。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均服务于纠正初学者将抬眉当作高音固定动作的需求；R2从面部紧张切入，M4与Q7直接给出阶段性边界。",
+      "canonical_topic": "初学者高音抬眉纠偏",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问题、阶段边界和反常识结论齐全，适合作为独立纠错片段。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都是面向临时演唱场景的身体活动热身建议，核心动作和编辑用途可互换。",
+      "canonical_topic": "唱前身体热身",
+      "cluster_id": "t022",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "生活化场景、具体动作和个人经验限定齐全，文案可直接用于轻实用切片。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均反对脱离整体发声通道去孤立追逐头腔共鸣，属于同一误区纠偏。",
+      "canonical_topic": "共鸣训练误区",
+      "cluster_id": "t033",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留共鸣是概念而非孤立目标的论点；术语仍抽象，需结合示范或字幕解释。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均完整覆盖高音叠加闭口音的卡紧痛点，以及借开口音后再过渡的练习路径。",
+      "canonical_topic": "高音闭口音过渡练习",
+      "cluster_id": "t044",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问答式起点强，解决方案清晰闭合，风险提示针对原文中的比例概括有效。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条回答的是同一个入门问题：简谱和乐理有帮助，但不是开始学唱歌的硬门槛。",
+      "canonical_topic": "简谱乐理与唱歌入门",
+      "cluster_id": "t055",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "高光句本身同时说明识谱价值与非强制性，是本Topic最平衡、最完整的表达。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都反驳练唱越久越有效，并强调效率、听辨与思考。",
+      "canonical_topic": "练唱时长与效率",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "Hook强且结论闭合，风险提示避免将一小时包装成通用医学标准。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均将普通人的目标从天赋或出道转向在自身条件上持续改进。",
+      "canonical_topic": "唱歌天赋焦虑与后天训练",
+      "cluster_id": "t088",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "从天赋稀缺、普通人定位到可提升空间的逻辑完整，适合独立情绪价值内容。",
+          "candidate_id": "candidate_65678839045aab40",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都解释拿谱仍跟不上伴奏的认知负荷问题，并建议先熟歌再听节奏或鼓点。",
+      "canonical_topic": "跟伴奏与熟歌顺序",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "完整呈现问题、原因和学习顺序；鼓点为合理但仍需校正的疑似转写，已在风险中明确。",
+          "candidate_id": "candidate_f49be10488a46e67",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "M4与Q7均以唱歌第一步是吸气为悬念和基础教学结论，区别于具体的腰腹练习或浅吸气自检。",
+      "canonical_topic": "唱歌呼吸入门第一步",
+      "cluster_id": "t122",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "开场悬念自然，答案后直接引向检查吸气方式，独立成片能力强。",
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "M4与Q7均通过说话时舌头的自然状态，纠正唱歌时舌根后堵和过度控制。",
+      "canonical_topic": "舌根放松与自然发声",
+      "cluster_id": "t133",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "高光句忠于自然发声类比，但标题补入了原文未直接明说的过度控制因果，宜收敛表述。",
+          "candidate_id": "candidate_373756f54a23ac46",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "M4以同等强度覆盖Q7的核心主题，并额外选入清晰可跟练的腰腹呼吸内容，且风险与后期处理说明最完整。Q7的单条切入和节奏候选更利落，但组合覆盖少一项独立高价值Topic。R2的主题广度不错，但抬眉项证据边界和整体风险标注拉低了可直接交付性。"
+}

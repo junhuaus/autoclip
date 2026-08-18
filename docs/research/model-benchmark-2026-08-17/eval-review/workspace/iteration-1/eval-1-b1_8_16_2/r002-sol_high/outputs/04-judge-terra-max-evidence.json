@@ -1,0 +1,255 @@
+{
+  "blind_identity_disclosed_after_judging": "R2",
+  "computed_total": 100.0,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a0124c-7a74-76a1-a88a-d79c99105180"
+  },
+  "limitations": [
+    "仅有冻结转写，无法核对声学表现、现场动作示范、画面信息或精确切点前后的语气。",
+    "声乐术语与教学结论只按其与提供文本的一致性及编辑边界评分，未作医学或专业有效性认证。",
+    "代表性只在已提供的候选证据和三套剪法之间比较，不能断言未展示的视频部分不存在更优切点。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 4,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 1,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "R2",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 4,
+    "strengths": "十条覆盖成长、基础纠错、即时诊断、跨唱法、选曲和学习门槛等互不重复需求；多数片段保留了问题、判断和落点，标题、截断建议与风险提示也最可直接交付后期。",
+    "topic_discovery": 4,
+    "weaknesses": "个别声乐框架仍依赖讲者术语或现场示意，“腹部发力”等表述需要继续避免被剪成绝对化专业结论。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "均围绕“先处理当前基础问题，不能跳过纠错步骤直接练进阶技巧”的新手纠错需求。",
+      "canonical_topic": "声乐纠错的训练顺序",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "条件、反例和“具体问题具体分析”都得到保留，是本题中最完整的版本。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都回答学院派/其他唱法的能力为何不能直接迁移到流行演唱；一条给结论，另一条给通道差异解释。",
+      "canonical_topic": "跨唱法转流行不能照搬原有习惯",
+      "cluster_id": "t021",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "直接比较美声、民族与流行的通道及调整需求，目标人群和论证链条都更清楚。",
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "同一段个人经历被剪为“学习者也会有常见问题、可以通过总结改善”的成长叙事，不与“是否有天赋才能开始”混并。",
+      "canonical_topic": "从发声问题到学习进步的个人经历",
+      "cluster_id": "t031",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "同时保留多个痛点、个人转折和逐项总结的方法落点，情绪与信息均较完整。",
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均是对位置偏高、下方支撑不足导致穿透力弱和易疲劳的现场诊断。",
+      "canonical_topic": "声音位置偏高与穿透力、支撑不足",
+      "cluster_id": "t041",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "症状、胸腔支撑诊断和改善结果都被保留，是这一诊断型 Topic 中较完整的剪法。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "均用于纠正把唱歌简单归为腹部发力或胸腹腔发声的误解；其中一条更强调“发力”措辞，其余更强调声带振动来源，因此保留灰区标记。M4 在此 Topic 内选了两条高度重叠内容。",
+      "canonical_topic": "声带振动与“腹部发力”误解",
+      "cluster_id": "t071",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "高光句明确回到声带振动，标题也便于理解；仍需保留“反对简单化理解”而非绝对否定支撑的编辑边界。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都服务于“依据自身音色和擅长曲风选歌、可把歌改成自己的版本”的选曲定位需求。",
+      "canonical_topic": "保留R&B优势的选曲与改编",
+      "cluster_id": "t081",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问题设定更贴近“不适合大嗓歌”的受众困惑，建议与标题均可直接指导后期。",
+          "candidate_id": "candidate_b7730933ffbad510",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均纠正“会腹式呼吸就等于会唱歌”的理解，重点是胸腹式联合呼吸及其在演唱中的应用；这不同于声带发声位置 Topic。",
+      "canonical_topic": "胸腹式联合呼吸不等于会唱歌",
+      "cluster_id": "t091",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "从提问、术语纠正到“要用在唱歌上”均自洽，且风险提示覆盖了主观量化和不宜保留的语气。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均回应普通人是否必须先证明自己有天赋才能学唱歌，属于开始门槛的鼓励内容，而非个人成长复盘。",
+      "canonical_topic": "普通人学唱歌的天赋门槛",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "将原始反问收束为鼓励普通爱好者开始学习，风险提示也明确要求避免挖苦式剪法。",
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段强调发声是否正确不能只看喉咙、舌头的外形，必须回到实际听感判断。",
+      "canonical_topic": "发声动作外形不能替代听感判断",
+      "cluster_id": "t121",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问题具体、回答直接且剪辑收束点清晰；对转写中“舌头不会勾”的不确定性也有提示。",
+          "candidate_id": "candidate_9442184e2836ee47",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段面向练习一段时间仍卡高音的平台期，主张回查气息、共鸣等基础，而非继续堆叠进阶技巧。",
+      "canonical_topic": "高音平台期应回查基础训练",
+      "cluster_id": "t131",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "痛点、回溯判断和避免盲目叠加技巧的建议完整；已标注课程营销和转写术语问题。",
+          "candidate_id": "candidate_de95d7468a7318ca",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "排序为 R2、Q7、M4。R2 的组合在不重复前提下覆盖面最均衡，并更常选到包含问题、原因和建议落点的完整切段。Q7 的发现广度同样强，但若干片段较泛或未选到更完整的同题证据。M4 的主要扣分来自同一发声误解 Topic 的重复入选及较强的术语上下文依赖。"
+}

@@ -1,0 +1,256 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 75.0,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a01260-6df0-74b3-a4ca-6a49b403088c"
+  },
+  "limitations": [
+    "仅有冻结的文字转写，没有视频画面，无法确认动作演示、表情、镜头连续性或字幕所指位置。",
+    "多段候选含明显ASR错误、重复和直播互动；完整性与可剪性评分只能依据给出的时间窗及相邻文本。",
+    "未提供整场直播的完整候选全集，因此代表性判断限于当前证据并集，不能断言没有更优的未展示片段。",
+    "声乐生理及咽部不适等说法这里只评价是否忠于主播原话，不代表科学或医疗有效性确认，发布前仍需专业复核。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "仍发现十个不同Topic，并补充量化练习时长、个案诊断和内口腔空间等其他方案未选角度；多数Hook简洁直接。",
+    "topic_discovery": 3,
+    "weaknesses": "多个窗口直播噪声重或依赖前文，练习时长被泛化、个案标题增加症状、变声片段高估闭合度；舌头与内口腔选题相邻，且风险提示普遍偏薄。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均绑定同一候选，核心都是用小腹起伏与胸口抬起判断吸气方式，并解释高音卡顿。M4的代表句偏形象化，具体自检信息主要留在描述中。",
+      "canonical_topic": "高音卡顿的吸气方式自检",
+      "cluster_id": "t018",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "内容忠于原段，但高光句只保留“头顶到小腹”的形象说法，缺少最有用的小腹/胸口对照，独立表达略弱。",
+          "candidate_id": "candidate_e3f2a57d5e929402",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "candidate_2716与candidate_005是同一训练次序段落的重叠窗口，均主张先练真声咬字与通道，再进入强混和假声，不能拆成两个Topic。",
+      "canonical_topic": "真声、混声与假声的训练顺序",
+      "cluster_id": "t022",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "忠实覆盖真声到强混、假声的路线，候选还带漏气验证；窗口开头略承接前文，但核心方法完整。",
+          "candidate_id": "candidate_005f7d0822d40234",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均从唱歌胸口发紧切入，把原因归为位置过低、胸口压得过重，并延伸到压力过大和漏气。",
+      "canonical_topic": "胸口发紧与过度用力漏气",
+      "cluster_id": "t066",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "问题型开场准确有力，候选代表性高；高光句较短，具体漏气因果主要依赖描述和后续讲解。",
+          "candidate_id": "candidate_a0f21643888730a5",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都强调音响或后期可以修正、美化声音，却不能替代原始发声通道和共鸣基础。",
+      "canonical_topic": "修音无法替代发声与共鸣基础",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "核心引句准确，Hook和标题简洁可用；对复杂后期制作仍能改变音色的边界提醒略少。",
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "三条绑定同一候选的人声生命周期段落。R2、Q7以变声后音色变化为核心，M4以婴儿啼哭最亮作入口；都可服务变声期音色选题，但包装角度存在偏移。",
+      "canonical_topic": "婴儿音色到青春期变声",
+      "cluster_id": "t099",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "婴儿啼哭的开场新鲜且忠于原话，但“机能最好、声音最亮”缺乏必要限定，且称主题闭合过于乐观。",
+          "candidate_id": "candidate_7c52ff6875a16a62",
+          "claim_fidelity": 4,
+          "editorial_value": 2,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都讨论“小狗哈气”可能刺激后咽壁，并提供鼻吸口哈等替代方式，属于同一练声避坑Topic。",
+      "canonical_topic": "小狗哈气练习的适用风险",
+      "cluster_id": "t101",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "准确保留风险和鼻吸口哈的替代思路，但健康提示较笼统，对“方法已淘汰”等个人判断缺少单独限定。",
+          "candidate_id": "candidate_b1c6640371e0ceab",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "三条的共同核心是不要主动控制或硬压舌头，应先放松并让正确发声条件自然形成舌位。M4候选更偏高音与内口腔，故归并把握略低；单纯讲口腔空间的片段另列Topic。",
+      "canonical_topic": "避免刻意压舌及舌根紧张",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "“气息和嘴巴做对后舌头自然下凹”忠于证据，但直播互动较多，解释又在结尾转向内口腔，闭合度和代表性不及另两条。",
+          "candidate_id": "candidate_8cae2aab5bc153ac",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "仅M4选择了针对单个演唱者的综合诊断，核心是气息存在但因咬字靠后、舌根和腰腹支撑问题而无法有效使用，不等同于训练次序Topic。",
+      "canonical_topic": "有气息却用不上的个案诊断",
+      "cluster_id": "t122",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "诊断要点基本忠实，但证据开头严重混乱且高度依赖个案；标题增加“唱不上去”这一原文未明确说出的症状。",
+          "candidate_id": "candidate_22d3260a7179c022",
+          "claim_fidelity": 3,
+          "editorial_value": 2,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "仅M4选择按锻炼基础给出一到三分钟或四到六分钟的量化建议。它针对前文某个具体练习，不能与一般气息方法或续航Topic合并。",
+      "canonical_topic": "特定气息练习的每日时长",
+      "cluster_id": "t133",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "数字和“不要一次练十分钟”均来自证据，Hook很强；但标题泛化成所有气息练习，而具体动作完全依赖前文。",
+          "candidate_id": "candidate_4305cfa07f8b1fbf",
+          "claim_fidelity": 2,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "仅M4选择“舌头与上颚之间空间越大，高音越轻松”的口腔空间主张。其编辑需求是打开内口腔，不等同于避免舌头主动发力。",
+      "canonical_topic": "打开内口腔空间辅助高音",
+      "cluster_id": "t144",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "标题与末尾结论基本一致，但候选绝大部分是直播互动，关键位置表述受ASR干扰且解释要到后文才继续；空风险标记也不足以辅助后期。",
+          "candidate_id": "candidate_34558c9f504eca45",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 3,
+          "representative_quality": 2,
+          "title_copy_quality": 2
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "R2以最广而仍可区分的Topic覆盖、持续准确的证据转述和最完整的风险提示略胜；Q7的阈值与去重同样优秀，长音选题更稳健，差距很小。M4有独特发现，但若干候选边界、上下文依赖和文案泛化降低了直接交付后期的可靠性。"
+}

@@ -1,0 +1,276 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 100.0,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a0125c-f0da-76d0-91c3-e073661fd8e8"
+  },
+  "limitations": [
+    "仅依据冻结的文字转写与片段说明评估，无法核验画面、动作示范、实际发声效果或最终剪辑点。",
+    "多处转写存在疑似同音错字或术语不确定性，尤其是节拍、元音和讲者自定义发声术语，需以原音复核。",
+    "评分衡量证据忠实度与编辑可用性，不构成对声乐训练效果或健康安全性的专业认证。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 4,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 1,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 4,
+    "strengths": "十一条均是可独立剪辑的非重复主题，风险提示具体，覆盖节奏、呼吸、技巧、入门焦虑和生活场景。",
+    "topic_discovery": 4,
+    "weaknesses": "部分内容仍依赖对唱歌通道的补释；天赋片的引句不如更完整版本直接呈现成长空间。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都服务于同一细分教程：高音叠加闭口音时，先借开口音建立感觉，再逐步过渡回闭口音。",
+      "canonical_topic": "高音闭口音的过渡练习",
+      "cluster_id": "t010",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "痛点、过渡方法和适用对象均有原文支持，且已提示元音转写需核对。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条虽绑定不同候选截取，但核心主张相同：先熟悉歌曲以释放注意力，再听伴奏中的节拍信息。",
+      "canonical_topic": "拿着谱仍跟不上伴奏的原因",
+      "cluster_id": "t020",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "因果链和练习顺序完整；鼓点一词存在转写不确定性，但风险旗标已要求复核。",
+          "candidate_id": "candidate_6721fcbb3782d23b",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均纠正初学者把抬眉当作高音基础动作的误区，并保留其仅适用于特定阶段的限定。",
+      "canonical_topic": "初学唱高音不宜急于抬眉",
+      "cluster_id": "t030",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "阶段性限定、初学者建议和放松结论均忠于证据，争议边界也已写入风险。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都回应普通学习者的天赋焦虑，主张不以出道标准衡量自己，而是在自身条件上持续改善。",
+      "canonical_topic": "唱歌天赋焦虑与成长空间",
+      "cluster_id": "t040",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "标题和描述准确传达非出道取向，但引句本身未直接带出各项能力可改善，闭环略弱。",
+          "candidate_id": "candidate_65678839045aab40",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条来自同一日常练唱时长问题：两条强调不拼时长、重效率，另一条给出相应的气息与练声时间分配。",
+      "canonical_topic": "日常练唱时长与效率",
+      "cluster_id": "t050",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "从练哑嗓子的反例转向效率、听辨和判断，观点与行动方向完整。",
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都以日常说话时的自然舌位为参照，处理唱歌时舌根或下巴过度发力、向后堵住的情况。",
+      "canonical_topic": "舌根与下巴放松",
+      "cluster_id": "t060",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "标题的双部位诊断有原文支持，引句也给出自然放置、不要后堵的可执行结论。",
+          "candidate_id": "candidate_373756f54a23ac46",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均反对刻意追逐单一共鸣位置，主张先建立讲者所谓的唱歌通道，再让共鸣自然出现。",
+      "canonical_topic": "不要刻意硬找共鸣位置",
+      "cluster_id": "t070",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "纠偏立场明确且证据支持；唱歌通道未在片内定义，使独立理解仍有门槛。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均为临时去 KTV 前的生活化热身：通过十个蹲起或短暂高抬腿让身体活动开。",
+      "canonical_topic": "KTV 开唱前的身体热身",
+      "cluster_id": "t080",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "十个蹲起与热身目的表达完整，标题有记忆点，风险提示也具体覆盖速成表述与身体限制。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h11",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都给出同一平衡答案：不会简谱和乐理也能以模仿入门，但识谱有助于后续更快自学歌曲。",
+      "canonical_topic": "不会乐理也能开始学唱歌",
+      "cluster_id": "t090",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "入门门槛与识谱价值的描述准确，但引句在模仿观点处略早收束，未完整带出进阶收益。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都是同一可跟练动作：俯身约四十五度、扶腰并慢吸气，以感知腰腹区域的起伏。",
+      "canonical_topic": "俯身感知腰腹呼吸",
+      "cluster_id": "t100",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "目标人群、动作、预期体感均来自证据，且正确提示丹田不是精确解剖术语。",
+          "candidate_id": "candidate_c393f29d34250a55",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段讨论的是先天音色底色与后天发声习惯可改变的边界，不与一般共鸣或高音技巧混并。",
+      "canonical_topic": "先天音色与后天唱歌习惯",
+      "cluster_id": "t110",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "先否定再转折的结构有原文支持，描述也明确区分先天条件与可训练习惯；标题仍可更明确地说成先天底色以避免绝对化。",
+          "candidate_id": "candidate_0650eee23c06e676",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 11,
+  "verdict_reason": "Q7 为首选：其主题覆盖最均衡，绝大多数片段具备问题、结论和可执行方向，风险提示也最能直接服务后期。M4 紧随其后，具体教学片段很强，但组合略窄且有一条诊断型片段的文案衔接不足。R2 的基础覆盖尚可，但浅呼吸片的证据强化和若干泛化文案拉低整体可用性。"
+}

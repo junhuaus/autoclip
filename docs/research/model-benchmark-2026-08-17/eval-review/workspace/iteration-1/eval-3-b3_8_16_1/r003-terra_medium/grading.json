@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "evidence": "schema_and_candidate_gate=passed",
+      "passed": true,
+      "text": "所有 candidate_id 均通过冻结候选白名单校验"
+    },
+    {
+      "evidence": "selected=10, unique=10",
+      "passed": true,
+      "text": "方案选择 1-12 条且 candidate_id 不重复"
+    },
+    {
+      "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+      "passed": true,
+      "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+    },
+    {
+      "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+      "passed": true,
+      "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+    },
+    {
+      "evidence": "未检测到固定短语; 仍需人工抽查",
+      "passed": true,
+      "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+    },
+    {
+      "evidence": "terra_max=75.0, sol_max=75.0; mean=75.0",
+      "passed": false,
+      "text": "双 Judge 平均总分达到 80/100"
+    }
+  ],
+  "summary": {
+    "failed": 1,
+    "pass_rate": 0.8333333333333334,
+    "passed": 5,
+    "total": 6
+  }
+}

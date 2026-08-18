@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "所有 candidate_id 均通过冻结候选白名单校验",
+    "方案选择 1-12 条且 candidate_id 不重复",
+    "所有高光语句通过绑定候选文本的自动追溯启发式检查",
+    "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分",
+    "未出现声称实际看过未提供视频画面的固定短语 (词法检查)",
+    "双 Judge 平均总分达到 80/100"
+  ],
+  "eval_id": 4,
+  "eval_name": "8-15-2-asr-sensitivity",
+  "prompt": "对同一 af88… 视频的旧 ASR/粗候选版本独立运行三模型，用于诊断 Topic 发现对 ASR 证据粒度的敏感性。\n\n本页方案: terra_medium (gpt-5.6-terra / medium); replicate=r001; candidate_order=original。"
+}

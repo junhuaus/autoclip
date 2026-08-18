@@ -1,0 +1,17 @@
+{
+  "benchmark_role": "primary",
+  "candidate_order": "seeded_shuffle",
+  "case_id": "b3_8_16_1",
+  "generator_config": "sol_high",
+  "include_in_primary_aggregate": true,
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "high",
+  "replicate_id": "r003",
+  "source_aliases": [
+    "8-16-1.ts",
+    "8.15-2.ts"
+  ],
+  "source_label": "8-16-1.ts",
+  "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+  "warning": null
+}

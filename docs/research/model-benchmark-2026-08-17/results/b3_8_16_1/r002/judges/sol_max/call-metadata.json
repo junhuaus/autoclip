@@ -1,0 +1,18 @@
+{
+  "completed_at": "2026-08-18T00:56:58.026652+00:00",
+  "elapsed_seconds": 264.183,
+  "label": "b3_8_16_1-r002-sol_max",
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "max",
+  "request_id": "01a0125b-14a4-7e80-b8ce-7af161faa79e",
+  "result_sha256": "56f000fac175f2c77b068d8e7c71352ecdee901d4ac3655cb17e15fa09c78ebd",
+  "started_at": "2026-08-18T00:52:33.841851+00:00",
+  "unsafe_tool_event": false,
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 20642,
+    "output_tokens": 14424,
+    "reasoning_output_tokens": 9446
+  }
+}

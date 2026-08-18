@@ -1,0 +1,17 @@
+{
+  "benchmark_role": "asr_evidence_sensitivity",
+  "candidate_order": "original",
+  "case_id": "d1_8_15_2_asr_variant",
+  "generator_config": "sol_high",
+  "include_in_primary_aggregate": false,
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "high",
+  "replicate_id": "r001",
+  "source_aliases": [
+    "8.15-2.ts",
+    "8-16-1.ts"
+  ],
+  "source_label": "8.15-2.ts（同源旧 ASR 证据）",
+  "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+  "warning": "诊断证据集: 不计入三个唯一 source 的主统计。"
+}

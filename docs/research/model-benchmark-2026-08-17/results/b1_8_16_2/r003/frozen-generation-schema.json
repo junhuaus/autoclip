@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "highlights": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": {
+            "enum": [
+              "candidate_9442184e2836ee47",
+              "candidate_1905cc42552496cb",
+              "candidate_159babdbda6acfe6",
+              "candidate_8e329a9311a36567",
+              "candidate_932087bda627a1c6",
+              "candidate_9d47bf21dc719613",
+              "candidate_84a0a525d56ff5bd",
+              "candidate_48324e904b930420",
+              "candidate_0f91c0dab3dbb1a2",
+              "candidate_7062f9ba2a253131",
+              "candidate_26500385c10519ef",
+              "candidate_473a7cc73ef551ea",
+              "candidate_5fc29cf6f9d6fbb3",
+              "candidate_3f73ee8bb04ee052",
+              "candidate_a1d7354902e340e6",
+              "candidate_bf1aa4701bd6f761",
+              "candidate_f262b8f87ac47de0",
+              "candidate_f12c067f4578931f",
+              "candidate_4f46d35f2e2667ca",
+              "candidate_c09a0f37fab1e353",
+              "candidate_2e039a3e91689484",
+              "candidate_374a9f9e7e085c59",
+              "candidate_737064038099ef2a",
+              "candidate_368dc549dbba313f",
+              "candidate_5c57e9b5dd359ae7",
+              "candidate_6b0ae4ac42937611",
+              "candidate_8fac69f83a04a15d",
+              "candidate_27e8574669b9e0c2",
+              "candidate_b6ce4961df030128",
+              "candidate_8ba2743da2b9cb9e",
+              "candidate_db82a842ff2401fa",
+              "candidate_b45014a64a6a9c53",
+              "candidate_e2c68e2187b0dda3",
+              "candidate_059b8bf41086721a",
+              "candidate_1d0bcd4f6ed22861",
+              "candidate_2e74bd47f66c76ad",
+              "candidate_adab5d4da9ab2be6",
+              "candidate_b7730933ffbad510",
+              "candidate_e7e0739b77ace20a",
+              "candidate_995f11a38ef0e583",
+              "candidate_4477e0c580eeaf0f",
+              "candidate_729ff8b49cf26f22",
+              "candidate_eda02f3bbfbc7462",
+              "candidate_59b038f803f24532",
+              "candidate_de95d7468a7318ca"
+            ],
+            "type": "string"
+          },
+          "highlight_sentence": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "hook": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "risk_flags": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "score": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "script_description": {
+            "maxLength": 260,
+            "minLength": 1,
+            "type": "string"
+          },
+          "selection_reason": {
+            "maxLength": 220,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "topic",
+          "title",
+          "highlight_sentence",
+          "script_description",
+          "score",
+          "hook",
+          "selection_reason",
+          "risk_flags"
+        ],
+        "type": "object"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "type": "array"
+    },
+    "selection_summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "selection_summary",
+    "highlights"
+  ],
+  "type": "object"
+}

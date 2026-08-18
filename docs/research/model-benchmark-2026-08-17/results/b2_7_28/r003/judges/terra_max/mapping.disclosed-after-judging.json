@@ -1,0 +1,82 @@
+{
+  "all_highlight_keys": [
+    "M4:h01",
+    "M4:h02",
+    "M4:h03",
+    "M4:h04",
+    "M4:h05",
+    "M4:h06",
+    "M4:h07",
+    "M4:h08",
+    "M4:h09",
+    "M4:h10",
+    "M4:h11",
+    "Q7:h01",
+    "Q7:h02",
+    "Q7:h03",
+    "Q7:h04",
+    "Q7:h05",
+    "Q7:h06",
+    "Q7:h07",
+    "Q7:h08",
+    "Q7:h09",
+    "Q7:h10",
+    "R2:h01",
+    "R2:h02",
+    "R2:h03",
+    "R2:h04",
+    "R2:h05",
+    "R2:h06",
+    "R2:h07",
+    "R2:h08",
+    "R2:h09",
+    "R2:h10",
+    "R2:h11"
+  ],
+  "anonymous_system_mapping": {
+    "M4": "sol_medium",
+    "Q7": "sol_high",
+    "R2": "terra_medium"
+  },
+  "highlight_candidate_mapping": {
+    "M4": {
+      "h01": "candidate_373756f54a23ac46",
+      "h02": "candidate_f14a3fb4d68e51ca",
+      "h03": "candidate_c393f29d34250a55",
+      "h04": "candidate_65678839045aab40",
+      "h05": "candidate_554c3d7035ba1055",
+      "h06": "candidate_45f74801b32ad9cf",
+      "h07": "candidate_bef585871fbac01e",
+      "h08": "candidate_b66177d9d0ec57ef",
+      "h09": "candidate_0c49c6488ae5fe28",
+      "h10": "candidate_464b0f2aee1d8a44",
+      "h11": "candidate_6721fcbb3782d23b"
+    },
+    "Q7": {
+      "h01": "candidate_554c3d7035ba1055",
+      "h02": "candidate_f14a3fb4d68e51ca",
+      "h03": "candidate_65678839045aab40",
+      "h04": "candidate_45f74801b32ad9cf",
+      "h05": "candidate_464b0f2aee1d8a44",
+      "h06": "candidate_373756f54a23ac46",
+      "h07": "candidate_0c49c6488ae5fe28",
+      "h08": "candidate_bef585871fbac01e",
+      "h09": "candidate_f49be10488a46e67",
+      "h10": "candidate_b66177d9d0ec57ef"
+    },
+    "R2": {
+      "h01": "candidate_f501d39592c1669b",
+      "h02": "candidate_c393f29d34250a55",
+      "h03": "candidate_65678839045aab40",
+      "h04": "candidate_554c3d7035ba1055",
+      "h05": "candidate_b66177d9d0ec57ef",
+      "h06": "candidate_45f74801b32ad9cf",
+      "h07": "candidate_bef585871fbac01e",
+      "h08": "candidate_f49be10488a46e67",
+      "h09": "candidate_2169870825746d02",
+      "h10": "candidate_0c49c6488ae5fe28",
+      "h11": "candidate_f0bbb75c02ac39ed"
+    }
+  },
+  "seed_sha256": "07245eb8cec64fe9f3fbcd9053a8036d6f1053f62610fb15270c73429276965c"
+}

@@ -1,0 +1,213 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 66.2,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a01248-6bac-7691-9197-91dc32e1a0c3"
+  },
+  "limitations": [
+    "评估仅基于冻结的文字转写与方案文案，未观看视频画面或听到实际演唱，无法确认手势、演示、音色变化和剪辑节奏。",
+    "“通道”“上面/下面”等表述依赖主播教学框架，且部分转写存在口语化或识别不清；本评估只判断其与证据的对应及编辑可用性，不验证声乐或生理学正确性。",
+    "风险提示能降低误读，但不能替代后期补充上下文、删去营销导流及对可能绝对化表述的审核。"
+  ],
+  "model_scores": {
+    "clip_selection": 2,
+    "editorial_usability": 2,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 2,
+    "editorial_usability": 2,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "覆盖了多个核心技术 Topic，选题方向基本有效，且多数 Hook 面向明确痛点。",
+    "topic_discovery": 3,
+    "weaknesses": "多条只截取一句结论或反问，导致标题、说明依赖未入选上下文；鼻音、高音、呼吸、穿透力和训练顺序等片段的独立闭合度明显不足，个别 Hook 还增加了原证据未建立的因果。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "medium",
+      "assessment": "candidate_737 的核心是纠正把唱歌简化为“腹部发力”、把发声源误置于腹部的说法；candidate_e7e 补充声带振动与气流控制。二者可服务同一条基础纠偏剪辑，但后者更偏机理说明，故保留中等归并把握。Q7 在此 Topic 内选了两条可替代内容，构成内部重复。",
+      "canonical_topic": "声带振动与“腹部发力”误区",
+      "cluster_id": "t022",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "标题和说明可由绑定证据追溯，但高光正文只剩两个反问，核心解释被截掉，独立成片不闭合。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 1,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都主张咬字问题需要落到具体歌曲、具体字词中校正，而非只理解抽象概念。",
+      "canonical_topic": "逐字、逐歌的咬字校正",
+      "cluster_id": "t033",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "保留了核心方法，但只有一句指令，标题中的“具体反馈”比原句更概括，缺少为何及如何判断的闭环。",
+          "candidate_id": "candidate_1d0bcd4f6ed22861",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 3,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均针对声音偏上、缺少厚度而没有穿透力，给出减少“上面”、增加“下面”支撑的调整方向。",
+      "canonical_topic": "声音穿透力、厚度与位置调整",
+      "cluster_id": "t044",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "只截取抽象的调整结论，未保留声音偏高、缺厚度的诊断；“别只会加力”也比原话多了一层概括。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 3,
+          "representative_quality": 1,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均围绕“腹式呼吸是否等于会唱歌”，提出胸腹式联合呼吸，并强调找到感觉后还要用于演唱。",
+      "canonical_topic": "胸腹式联合呼吸与演唱应用",
+      "cluster_id": "t055",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "只留下术语更正，标题所强调的“不等于会唱歌”没有在高光句中落地，成片解释不足。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 1,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都主张应先处理基础问题，再进入假声、戏腔、真假声转换或强混等后续训练；重点是纠错顺序与个体差异。",
+      "canonical_topic": "声乐纠错的先后顺序",
+      "cluster_id": "t066",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "只保留“步骤重要”这一总论；Hook 将“练得勤”说成声音变挤的原因，绑定证据并未建立该因果。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 2,
+          "editorial_value": 3,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 3,
+          "representative_quality": 1,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都以鼻音偏多导致高音发散为诊断，建议集中声音并调整咬字位置。",
+      "canonical_topic": "鼻音导致高音发散的调整",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "高光句中的“那边”没有可识别指代，未呈现鼻音、发散或咬字调整；标题和描述主要依赖未选入的上下文。",
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "claim_fidelity": 2,
+          "editorial_value": 2,
+          "expression_completeness": 0,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 3,
+          "representative_quality": 1,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都对比美声、民族、流行的不同“通道/位置”，用于解释跨唱法时需要重新调整。",
+      "canonical_topic": "不同唱法的发声通道调整",
+      "cluster_id": "t099",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "仅说美声和流行是不同通道，未保留民族、位置差异及调整理由，无法支撑较完整的标题和说明。",
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段的独立主张是高音卡住或破音与未掌握其所称“通道”有关；它不是跨唱法比较，因此不与 t09 合并。",
+      "canonical_topic": "高音卡破与“通道”概念",
+      "cluster_id": "t101",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "痛点型开场很强，但只给出“通道”这一未解释术语，缺乏可验证的诊断或改善信息。",
+          "candidate_id": "candidate_6b0ae4ac42937611",
+          "claim_fidelity": 3,
+          "editorial_value": 2,
+          "expression_completeness": 1,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 8,
+  "verdict_reason": "R2 的片段最完整、选题最广且去重最好，文本证据与后期说明的衔接也最稳，列为首选。Q7 的单条质量和文案可用性很强，但基础发声 Topic 内部重复，居次。M4 虽覆盖不窄，却频繁以不闭合的短句承载更完整的标题与说明，整体可直接交付度最低。"
+}

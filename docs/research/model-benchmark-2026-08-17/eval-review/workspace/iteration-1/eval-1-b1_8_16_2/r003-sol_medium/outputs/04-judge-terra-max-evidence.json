@@ -1,0 +1,233 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 82.5,
+  "generator_config": "sol_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a01251-d99e-7fa1-b780-6369b16d1b50"
+  },
+  "limitations": [
+    "仅依据冻结转写和候选文本评估，无法验证画面、手势示范、实际音色或剪辑后的听感。",
+    "部分术语、口语指代和ASR转写存在歧义；评分衡量证据忠实度与编辑可用性，不判断声乐观点的科学真伪。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "sol_medium",
+    "portfolio_quality": 3,
+    "strengths": "覆盖面最广，穿透力、呼吸、训练顺序等核心片段完整，并补充了复盘方法和高音停滞这一排错视角。",
+    "topic_discovery": 4,
+    "weaknesses": "录屏片段把课程语境扩展为普遍必要性；少数标题强化了原文未直说的对立或感受，且基础主题间存在一定相邻重复。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都以基础发声状态决定训练先后为核心，均可用于“别跳过基础直接练进阶技巧”的避坑型成片。",
+      "canonical_topic": "练声顺序应匹配基础问题",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "警示性开头、具体条件和个案边界彼此一致，脱离直播仍可理解。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均服务于“声音缺穿透力时的个案诊断”；R2截取更晚，M4和Q7保留了更完整的症状、原因和调整方向。",
+      "canonical_topic": "声音穿透力不足的个案诊断",
+      "cluster_id": "t022",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问题与调整方向形成闭环；上面、下面等位置描述仍需字幕或示范补足。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "三条的共同核心是讲述主播曾有高音紧、舌根紧和漏气等问题；R2略偏向“如何解决”的包装，M4和Q7更偏共鸣故事。",
+      "canonical_topic": "声乐老师也曾有常见发声问题",
+      "cluster_id": "t033",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "标题准确概括经历，具体问题使励志表达不空泛，但结论仍主要依赖后续语境。",
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h07",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均纠正把唱歌简单等同于腹式呼吸的误区，并强调找到呼吸感觉不等于完成歌唱应用。",
+      "canonical_topic": "胸腹式联合呼吸不等于会唱歌",
+      "cluster_id": "t044",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心纠偏准确，但高光句未保留如何把呼吸用于唱歌的后续落点。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都围绕高音发散时的鼻音诊断与声音集中展开；M4和Q7额外带入咬字调整。",
+      "canonical_topic": "高音发散的鼻音与咬字个案诊断",
+      "cluster_id": "t055",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "诊断和风险边界交代充分，但关键位置指代无法仅靠文字独立理解。",
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "sol_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均可满足“发挥R&B优势、不要硬追不适配大嗓”的选曲与风格定位需求。",
+      "canonical_topic": "R&B歌手的选曲与改编定位",
+      "cluster_id": "t066",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心建议有价值，但标题把连麦中的美声比较前置，较原高光句多了一层具体对立。",
+          "candidate_id": "candidate_b7730933ffbad510",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均比较美声、民族与流行的不同通道，用于跨唱法调整的解释型内容。",
+      "canonical_topic": "美声、民族与流行的通道差异",
+      "cluster_id": "t099",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "正文和描述忠于对比关系，但标题中“总觉得不对”是由原话推演出的受众感受。",
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "该片段主打录屏回听的复盘价值；虽同样提到声音前后位置，但不能替代咬字调整本身的教学内容。",
+      "canonical_topic": "练唱录屏回听用于自我复盘",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "录屏能帮助发现问题有文本依据，但标题把课程录屏扩展为“必须自己录”，且商业语境尚需更干净的切点。",
+          "candidate_id": "candidate_26500385c10519ef",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h09",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "该片段面向“练久仍卡住”的排错需求，强调回查气息和基础；它比训练顺序主题更侧重高音瓶颈诊断。",
+      "canonical_topic": "高音长期卡住时回查基础",
+      "cluster_id": "t122",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "现象、基础原因与进阶技巧失效的关系较完整，标题贴合痛点；“前面的东西”仍较笼统。",
+          "candidate_id": "candidate_de95d7468a7318ca",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 9,
+  "verdict_reason": "M4的组合在关键主题上去重明确，优先选到了更完整的诊断证据，并且文案与风险提示最稳定。Q7覆盖更广，但新增复盘与基础瓶颈内容的包装和阈值较弱。R2有多条有效知识点，但中段截取、方法承诺不足和术语罗列使整体可剪性稍逊。"
+}

@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "所有 candidate_id 均通过冻结候选白名单校验",
+    "方案选择 1-12 条且 candidate_id 不重复",
+    "所有高光语句通过绑定候选文本的自动追溯启发式检查",
+    "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分",
+    "未出现声称实际看过未提供视频画面的固定短语 (词法检查)",
+    "双 Judge 平均总分达到 80/100"
+  ],
+  "eval_id": 1,
+  "eval_name": "8-16-2-primary",
+  "prompt": "在 8-16-2.ts 的冻结真实 ASR 粗候选中自由发现高光，不预设 Topic；比较 Terra Medium、Sol Medium、Sol High。\n\n本页方案: sol_medium (gpt-5.6-sol / medium); replicate=r001; candidate_order=original。"
+}

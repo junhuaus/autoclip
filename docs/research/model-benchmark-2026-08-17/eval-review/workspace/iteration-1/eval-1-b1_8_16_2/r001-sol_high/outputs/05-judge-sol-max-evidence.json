@@ -1,0 +1,198 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 88.8,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a01248-6b8b-7450-ac44-c834b51b0d95"
+  },
+  "limitations": [
+    "只有冻结的文字证据，没有视频画面和原始音频，无法确认声线诊断、演唱前后变化、手势所指位置及真实剪辑观感。",
+    "转写存在“声带不闭合”“高音卡紧”等疑似错字或口语断裂；评分依据现有文本，不对声乐观点的科学正确性作外部认证。",
+    "多个候选含较长课程营销、礼物引导或闲聊；方案虽常给出起剪建议，但无法仅凭文本确认实际边界能否剪得自然。",
+    "t07与t11均为连续论证中的相邻子主张，是否拆成两条成片存在编辑灰区，因此归并把握标为medium。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.25,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 3,
+    "strengths": "核心教学片段普遍摘录完整，问答型Hook、标题和风险控制成熟；呼吸、跨唱法及穿透力案例均可直接进入后期脚本。",
+    "topic_discovery": 3,
+    "weaknesses": "在声带发声原理以及普通人成长两个Topic内各选了相邻、近义片段，降低组合去重和广度；同时漏掉鼻音、高音平台期、逐字校正等实用方向。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者绑定同一候选，核心均为先处理闭合不足或声音挤压，再练假声、戏腔和强混。M4仅摘录总论，且“练得越勤反而越挤”的因果未获证据直接支持。",
+      "canonical_topic": "声乐纠错与进阶技巧的训练顺序",
+      "cluster_id": "t017",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "忠实且完整，标题明确限定假声和强混；Hook较平直，但不影响可用性。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者均围绕“腹式呼吸”术语纠偏及找到呼吸感觉不等于会用于演唱。Q7保留的论证最完整，M4只留下术语句。",
+      "canonical_topic": "胸腹式联合呼吸不等于会唱歌",
+      "cluster_id": "t047",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留提问、术语、应用要求和“10%”经验说法，且对比例风险作出明确提示。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "candidate_737强调不要把唱歌等同于腹部硬顶，candidate_e7进一步说明声带振动与气流；二者是同一连续科普论证，可服务同一“真正声源在哪里”的编辑需求，但子重点略有差异。Q7在此Topic内选了两条，存在内部语义重复。",
+      "canonical_topic": "腹部发力误区与声带、气流发声",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留“不能这样唱”的否定前提以及声带位置解释，风险提示也准确处理了嘲讽语气和过度概括。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        },
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "声带、气流速度和胸腹腔字面误解均交代清楚，表达比前一条更闭合，但作为同Topic第二条代表性和组合增量有限。",
+          "candidate_id": "candidate_e7e0739b77ace20a",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者选择同一候选，核心是美声、民族和流行在主播的“通道/位置”框架下需要分别调整。观点清楚，但属于简化且可能有流派争议的教学表述。",
+      "canonical_topic": "不同唱法的发声通道差异",
+      "cluster_id": "t087",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留跨唱法调整的完整对比链，标题更聚焦美声转流行，证据和用途一致。",
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者均选择林俊杰歌曲诊断候选：学员声音偏上、亮度和厚度不足，调整后目标是增强穿透力并减轻用力。技术指示词仍明显依赖现场示范。",
+      "canonical_topic": "声音厚度、位置与穿透力",
+      "cluster_id": "t097",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "问答案例完整，Hook与林俊杰歌曲前提一致；核心处方仍需原声或字幕解释才能避免抽象。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "两条来自同一连续讨论：一条直接否定普通爱好者必须先证明天赋，另一条以教师也曾有多项发声问题说明能力可改善。二者共同满足“普通人也能学习唱歌”的成长型编辑需求，Q7内部存在一定重复。",
+      "canonical_topic": "普通人学唱歌的天赋门槛与可训练性",
+      "cluster_id": "t117",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "观众问题和回答闭合，反问节奏有传播力，且风险提示覆盖冒犯性语气与个人观点属性。",
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        },
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "具体列举教师曾有的问题，忠实且有共鸣；所摘句没有直接说出如何改善，且后续很快转入自我推广，因此代表性略弱。",
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 6,
+  "verdict_reason": "R2在Topic广度、去重、完整证据和后期说明上最均衡，列为首选。Q7的单条完成度很高，但两组相邻近义选段压缩了组合广度，列第二。M4发现方向不少，却大量采用过短或依赖语境的高光句，证据包难以直接指导成片，列第三。"
+}

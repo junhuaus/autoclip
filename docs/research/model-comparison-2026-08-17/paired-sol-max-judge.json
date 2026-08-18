@@ -1,0 +1,311 @@
+{
+  "limitations": [
+    "仅评估一条直播视频的一次运行，结论不能直接外推到其他主播、题材或重复运行的稳定性。",
+    "证据只有 ASR 文本，没有视频画面和原始音频；无法核验示唱效果、语气、动作示范、真实咬字及剪辑听感。",
+    "冻结候选可能截断上下文，时间点和成片切口仅能依据文本判断。",
+    "同一模型完成全部裁判，可能存在一致性偏好和自相关偏差，仍需独立人工或异模型复核。",
+    "内容价值、Hook 和标题判断包含中文短视频编辑层面的主观性。"
+  ],
+  "overall": {
+    "system_a_breakdown": {
+      "editorial_value": 15.6,
+      "evidence_fidelity": 22,
+      "expression_completeness": 11.1,
+      "hook_strength": 11.55,
+      "recommendation_judgment": 8.6,
+      "title_and_script": 11.55
+    },
+    "system_a_total": 80.4,
+    "system_b_breakdown": {
+      "editorial_value": 17.2,
+      "evidence_fidelity": 22.25,
+      "expression_completeness": 12.75,
+      "hook_strength": 13.5,
+      "recommendation_judgment": 8.1,
+      "title_and_script": 12.9
+    },
+    "system_b_total": 86.7
+  },
+  "per_topic": {
+    "articulation": {
+      "assessment": "两者均忠实绑定同一连麦候选。B保留了“不是没有气息，而是用不上”的诊断闭环，Hook、标题和脚本完整性更强；A更聚焦咬字，但信息层次稍少。",
+      "label": "连麦诊断中的咬字位置",
+      "system_a_candidate_id": "candidate_22d3260a7179c022",
+      "system_a_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 8,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 8.6,
+      "system_b_candidate_id": "candidate_22d3260a7179c022",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 9,
+        "hook_strength": 9,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 9,
+      "winner": "B"
+    },
+    "breath_support": {
+      "assessment": "两者使用同一候选，核心引文均有依据。B的Hook、标题和切法更具体；A对“小狗哈气”绝对化建议选择拒绝更审慎，B虽有风险提示，但推荐及82分略显乐观。综合成片能力，B小胜。",
+      "label": "零基础气息支撑与练习避坑",
+      "system_a_candidate_id": "candidate_18e1d7ea47ba32fc",
+      "system_a_scores": {
+        "editorial_value": 7,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 7,
+        "recommendation_judgment": 9,
+        "script_usability": 7,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 7.9,
+      "system_b_candidate_id": "candidate_18e1d7ea47ba32fc",
+      "system_b_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 9,
+        "recommendation_judgment": 7,
+        "script_usability": 8,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 8.3,
+      "winner": "B"
+    },
+    "chest_leak": {
+      "assessment": "A更直接覆盖胸口过度用力，但候选中的生理机制转写混乱，成片处理难度较高。B精准抓住“练过气息仍不够”的疑问，以漏气形成反差，标题与脚本更适合短视频；示唱及因果解释仍需音频和专业复核。",
+      "label": "胸口用力、漏气与气息不够",
+      "system_a_candidate_id": "candidate_a0f21643888730a5",
+      "system_a_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 8,
+        "expression_completeness": 8,
+        "hook_strength": 8,
+        "recommendation_judgment": 8,
+        "script_usability": 7,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 7.9,
+      "system_b_candidate_id": "candidate_a5c87afa0254618e",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 9,
+        "recommendation_judgment": 8,
+        "script_usability": 8,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 8.6,
+      "winner": "B"
+    },
+    "high_pitch": {
+      "assessment": "B从“你就是喊”切入，完整建立喊唱与通道、腔体的对比，并能在年龄话题前闭环。A命中挤嗓痛点且正确警惕绝对化表述，但高光停在“通道只有这一块”，解释和解决方向不够完整。",
+      "label": "高音卡顿：呼吸通道、腔体与避免喊唱",
+      "system_a_candidate_id": "candidate_e3f2a57d5e929402",
+      "system_a_scores": {
+        "editorial_value": 7,
+        "evidence_fidelity": 9,
+        "expression_completeness": 6,
+        "hook_strength": 7,
+        "recommendation_judgment": 9,
+        "script_usability": 6,
+        "title_quality": 7
+      },
+      "system_a_topic_total": 7.3,
+      "system_b_candidate_id": "candidate_638470bcf20511aa",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 9,
+        "recommendation_judgment": 8,
+        "script_usability": 9,
+        "title_quality": 8
+      },
+      "system_b_topic_total": 8.6,
+      "winner": "B"
+    },
+    "imitation": {
+      "assessment": "B保留“先找通道—不要模仿—个人踩坑”的完整链路，推荐判断也比A的整体拒绝更符合候选价值。不过B标题中的“空架子”并不属于绑定候选，且该词出现在另一候选中，必须改写；A标题更稳妥但脚本较短、拒绝偏保守。",
+      "label": "初学者刻意模仿歌手的误区",
+      "system_a_candidate_id": "candidate_5d3778b0260b9b65",
+      "system_a_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 7,
+        "hook_strength": 8,
+        "recommendation_judgment": 6,
+        "script_usability": 8,
+        "title_quality": 9
+      },
+      "system_a_topic_total": 7.9,
+      "system_b_candidate_id": "candidate_5d3778b0260b9b65",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 8,
+        "expression_completeness": 9,
+        "hook_strength": 9,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 6
+      },
+      "system_b_topic_total": 8.4,
+      "winner": "B"
+    },
+    "mixed_voice_sequence": {
+      "assessment": "A覆盖到假声，主题范围更完整，但依赖对“假设、甲瘤”等明显错乱转写的纠正。B主动在可靠文本处收束，Hook和标题更强，牺牲少量范围换来更高证据确定性与剪辑可用性。",
+      "label": "混声训练顺序",
+      "system_a_candidate_id": "candidate_005f7d0822d40234",
+      "system_a_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 8,
+        "expression_completeness": 9,
+        "hook_strength": 8,
+        "recommendation_judgment": 9,
+        "script_usability": 8,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 8.4,
+      "system_b_candidate_id": "candidate_005f7d0822d40234",
+      "system_b_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 9,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 8.7,
+      "winner": "B"
+    },
+    "pitch_correction": {
+      "assessment": "两者均忠实命中修音边界。B进一步加入“能补破音却未必改善音色”的反差，形成自带答案的悬念，标题和脚本明显更有传播力；A准确但包装较概括。",
+      "label": "修音能力与真实音色",
+      "system_a_candidate_id": "candidate_e27d41447dbfb889",
+      "system_a_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 8,
+        "recommendation_judgment": 9,
+        "script_usability": 8,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 8.3,
+      "system_b_candidate_id": "candidate_e27d41447dbfb889",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 9,
+        "hook_strength": 9,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 9,
+      "winner": "B"
+    },
+    "talent_age": {
+      "assessment": "A的Hook和标题谈年龄，但高光主要停留在天赋及职业断言，表达错位；其拒绝判断较稳妥。B补齐职业目标、技术提升与兴趣学习不分年龄，结构显著更完整，但仍推荐含“嗓子嘶哑就不可能出道”的片段，87分偏高。",
+      "label": "天赋、努力与学习年龄",
+      "system_a_candidate_id": "candidate_260b8f35571eae11",
+      "system_a_scores": {
+        "editorial_value": 7,
+        "evidence_fidelity": 9,
+        "expression_completeness": 6,
+        "hook_strength": 7,
+        "recommendation_judgment": 9,
+        "script_usability": 6,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 7.4,
+      "system_b_candidate_id": "candidate_260b8f35571eae11",
+      "system_b_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 9,
+        "hook_strength": 9,
+        "recommendation_judgment": 6,
+        "script_usability": 8,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 8.3,
+      "winner": "B"
+    },
+    "tongue_space": {
+      "assessment": "两者均准确使用同一候选。B从“不是刻意凹”开始，因果链和动作提示更完整，Hook与标题也更直接；A表达稳妥，但对内口腔与舌尖位置的可操作信息利用较少。",
+      "label": "舌头放松与内口腔空间",
+      "system_a_candidate_id": "candidate_2efa31efddfe10ed",
+      "system_a_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 8,
+        "recommendation_judgment": 9,
+        "script_usability": 8,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 8.3,
+      "system_b_candidate_id": "candidate_2efa31efddfe10ed",
+      "system_b_scores": {
+        "editorial_value": 9,
+        "evidence_fidelity": 9,
+        "expression_completeness": 9,
+        "hook_strength": 9,
+        "recommendation_judgment": 9,
+        "script_usability": 9,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 9,
+      "winner": "B"
+    },
+    "voice_use": {
+      "assessment": "A正确把教师效果视为个案并选择拒绝，但高光只保留案例与“说话也有音调”，解释闭环不足。B补入通道和气息的迁移逻辑，标题也做了适度弱化；不过仅凭个案即整体推荐仍略显积极。",
+      "label": "日常说话与科学用嗓",
+      "system_a_candidate_id": "candidate_f1d87e3d981d87dc",
+      "system_a_scores": {
+        "editorial_value": 7,
+        "evidence_fidelity": 9,
+        "expression_completeness": 6,
+        "hook_strength": 8,
+        "recommendation_judgment": 9,
+        "script_usability": 7,
+        "title_quality": 8
+      },
+      "system_a_topic_total": 7.7,
+      "system_b_candidate_id": "candidate_f1d87e3d981d87dc",
+      "system_b_scores": {
+        "editorial_value": 8,
+        "evidence_fidelity": 9,
+        "expression_completeness": 8,
+        "hook_strength": 9,
+        "recommendation_judgment": 7,
+        "script_usability": 8,
+        "title_quality": 9
+      },
+      "system_b_topic_total": 8.3,
+      "winner": "B"
+    }
+  },
+  "recommendation": "建议系统B作为默认脚本生成方案：它在候选选择、Hook、标题、剪辑起止建议和表达闭环上稳定领先。发布链路仍必须执行确定性校验：逐字或对齐核验highlight_sentence只来自绑定candidate_id；禁止跨候选借句或借用特征性措辞；校验时间范围、候选复用和推荐数量汇总；回听原音确认ASR纠错、示唱与动作；拦截绝对化生理、健康、年龄及功效结论；复核recommended与分数、风险标记是否一致。可吸收系统A更保守的风险门控，但不宜用A作为默认成稿器。",
+  "strengths_and_weaknesses": {
+    "system_a": "优势是引文普遍忠实、主题聚焦，对绝对化训练建议、个案效果和职业断言更谨慎。弱点是Hook与标题偏通用，多条高光没有利用候选中的完整闭环，并对模仿误区等可用内容拒绝过度；selection_summary声称“6条推荐、4条不推荐”，实际为5条推荐、5条不推荐，存在确定性计数错误。",
+    "system_b": "优势是选段意识、冲突型Hook、标题传播力和剪辑说明明显更成熟，尤其高音、漏气、修音、年龄四项更完整。弱点是十项全部推荐，低估了训练安全、个案外推及职业判断风险；部分自评分偏高，并且模仿主题标题中的“空架子”未受绑定候选支持，存在跨候选措辞污染风险。"
+  },
+  "verdict": {
+    "confidence": "medium",
+    "summary": "系统B以更强的选段、Hook、标题和脚本闭环胜出；系统A的主要优势是风险判断更保守，但完整性与成片能力不足。由于只有单视频ASR文本且缺少音画复核，结论置信度为中等。",
+    "winner": "B"
+  }
+}

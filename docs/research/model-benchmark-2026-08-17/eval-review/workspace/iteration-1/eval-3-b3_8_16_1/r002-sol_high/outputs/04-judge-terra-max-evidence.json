@@ -1,0 +1,255 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 87.5,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a0125b-14aa-7432-8713-464086b43e48"
+  },
+  "limitations": [
+    "仅基于冻结的文字转写和候选边界评估；未见画面、未听音频，无法判断示范效果、音色、音准或实际剪点。",
+    "原始转写含噪声和术语误转写；评分评估的是包装与给定证据的对应关系，不验证声乐或健康观点的外部科学正确性。",
+    "涉及变声、咽部不适和职业用嗓的内容仍应保留个体差异与医疗边界。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 3,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 3,
+    "strengths": "覆盖高音、练习避坑、年龄、青春期与职业用嗓等不同需求，风险提示总体具体；成年人学唱歌的取材比R2更干净。",
+    "topic_discovery": 4,
+    "weaknesses": "变声期片段只有问题、需接后文才闭合；职业用嗓片中的“科学通道”定义不足，且组合缺少高音通道和练习时长两个实用Topic。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "均服务于“不要跳过真声直接练混声”的入门训练路线；R2保留的步骤最完整，Q7的高光句相对简略。",
+      "canonical_topic": "真声到强混、假声的训练顺序",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_005f7d0822d40234",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都是同一连麦对象的咬字、舌根与腰腹支撑诊断，能够满足真实案例点评的同一编辑需求。",
+      "canonical_topic": "连麦唱歌诊断：有气但用不上",
+      "cluster_id": "t021",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_22d3260a7179c022",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均回答中老年人能否开始学唱歌，M4避开了候选中容易误导的天赋上下限表述。",
+      "canonical_topic": "成年人开始学唱歌并不晚",
+      "cluster_id": "t031",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_260b8f35571eae11",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都纠正刻意控制或压低舌头、导致舌部紧张的误区，并给出下牙齿后方的替代位置。",
+      "canonical_topic": "唱歌时的舌头放松与位置",
+      "cluster_id": "t041",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_2efa31efddfe10ed",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均反驳“靠硬喊上高音”，共同强调通道、腔体和位置的作用；这是与“高音通道及腹式吸气”不同的误区纠正需求。",
+      "canonical_topic": "高音不是靠硬喊",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_638470bcf20511aa",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两个方案均使用同一候选讨论变声期前后的音色困惑。候选主体主要是设问，M4对需要接后文解释的边界交代更准确。",
+      "canonical_topic": "青春期变声与音色变化",
+      "cluster_id": "t071",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_7c52ff6875a16a62",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "sol_high",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都区分修音美化与演唱者本身的发声、共鸣能力；R2和M4的高光句直接落在绑定候选内且信息更完整。",
+      "canonical_topic": "修音不能替代演唱基本功",
+      "cluster_id": "t081",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均围绕是否应练“小狗哈气”、潜在不适及鼻吸口哈或吐丝替代法，满足同一练习避坑需求。",
+      "canonical_topic": "小狗哈气练习的避坑与替代",
+      "cluster_id": "t101",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_b1c6640371e0ceab",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都将唱歌中的发声与气息方法延展到日常说话或职业用嗓。R2的示范和应用情境最完整；Q7的高光句位于所绑候选的紧邻前文，存在候选边界不严的问题。",
+      "canonical_topic": "发声训练用于日常说话与职业用嗓",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_1b8b4323d05c7dd6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "四条的症状入口不同，但都可服务于“气息不够或长音撑不住，可能是胸部过度用力、漏气而非单纯肺活量不足”的编辑需求。Q7在此Topic内选了两条近义内容，构成内部重复。",
+      "canonical_topic": "胸部过度用力、漏气与长音不足",
+      "cluster_id": "t121",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "x",
+          "candidate_id": "candidate_a5c87afa0254618e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "R2首选：它以最少的重复覆盖了最多可独立成片的Topic，并在完整性、证据边界和后期可执行性上最稳定。M4次之，题材广且多数包装可靠，但有两条依赖后续内容。Q7的Hook不弱，但一个核心Topic重复、两处候选边界较松，组合取舍因此落后。"
+}

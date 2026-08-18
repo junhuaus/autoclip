@@ -1,0 +1,60 @@
+{
+  "schema_version": "1",
+  "evidence_sets": {
+    "b1_8_15_1_g002": {
+      "benchmark_role": "primary",
+      "source_path": "input/8.15-1.ts",
+      "source_label": "8-16-2.ts",
+      "source_aliases": ["8.15-1.ts", "8-16-2.ts"],
+      "expected_source_sha256": "6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417",
+      "project_id": "67e827b4c0c8493b9804241e517cc5fe",
+      "run_id": "f0187e64fdbe44cdad62e4ae7afd9bd7",
+      "generation": 2,
+      "transcript_path": "data/projects/67e827b4c0c8493b9804241e517cc5fe/runs/g002/transcript/transcript.json",
+      "rough_candidates_path": "data/projects/67e827b4c0c8493b9804241e517cc5fe/runs/g002/candidates/rough-candidates.json"
+    },
+    "b2_7_28_g003": {
+      "benchmark_role": "primary",
+      "source_path": "input/7.28.mp4",
+      "source_label": "7.28.mp4",
+      "source_aliases": ["7.28.mp4"],
+      "expected_source_sha256": "595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03",
+      "project_id": "f91cb996f7534a6682aa5e5f01374b7b",
+      "run_id": "634c68f9d0b24c99b16ddac8d14ddfd7",
+      "generation": 3,
+      "transcript_path": "data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/transcript/transcript.json",
+      "rough_candidates_path": "data/projects/f91cb996f7534a6682aa5e5f01374b7b/runs/g003/candidates/rough-candidates.json"
+    },
+    "b3_8_16_1_g001": {
+      "benchmark_role": "primary",
+      "source_path": "input/8-16-1.ts",
+      "source_label": "8-16-1.ts",
+      "source_aliases": ["8-16-1.ts", "8.15-2.ts"],
+      "expected_source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+      "project_id": "953ae56cf15f486cb61ab5b53046ebb5",
+      "run_id": "958d370cfabd45b68cfb4748f95a7f8a",
+      "generation": 1,
+      "transcript_path": "data/projects/953ae56cf15f486cb61ab5b53046ebb5/runs/g001/transcript/transcript.json",
+      "rough_candidates_path": "data/projects/953ae56cf15f486cb61ab5b53046ebb5/runs/g001/candidates/rough-candidates.json",
+      "reuse_from": "docs/research/model-comparison-2026-08-17"
+    },
+    "d1_8_15_2_g002": {
+      "benchmark_role": "asr_evidence_sensitivity",
+      "source_path": "input/8.15-2.ts",
+      "source_label": "8.15-2.ts（同源旧 ASR 证据）",
+      "source_aliases": ["8.15-2.ts", "8-16-1.ts"],
+      "expected_source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+      "project_id": "4e3bf22ebf2f4b6a81f5ae5a0e552a46",
+      "run_id": "a4228d3ca597476685c11b52a1202309",
+      "generation": 2,
+      "transcript_path": "data/projects/4e3bf22ebf2f4b6a81f5ae5a0e552a46/runs/g002/transcript/transcript.json",
+      "rough_candidates_path": "data/projects/4e3bf22ebf2f4b6a81f5ae5a0e552a46/runs/g002/candidates/rough-candidates.json"
+    }
+  },
+  "cases": [
+    {"case_id": "b1_8_16_2", "evidence_set": "b1_8_15_1_g002", "include_in_primary_aggregate": true, "replicates": 3},
+    {"case_id": "b2_7_28", "evidence_set": "b2_7_28_g003", "include_in_primary_aggregate": true, "replicates": 3},
+    {"case_id": "b3_8_16_1", "evidence_set": "b3_8_16_1_g001", "include_in_primary_aggregate": true, "replicates": 3},
+    {"case_id": "d1_8_15_2_asr_variant", "evidence_set": "d1_8_15_2_g002", "include_in_primary_aggregate": false, "replicates": 1}
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 1,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_adab5d4da9ab2be6",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。很多同学声带不闭合，上来不能直接唱假声；如果声音本来就很挤，现在就学不了戏腔、真假声转化、强混。每个人问题不一样，具体问题具体分析。",
+      "matched_character_coverage": 0.9868,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "真的要学会腹式呼吸才会唱吗？专业名词叫胸腹式联合呼吸，它不是腹式，也不是胸腔。你只是找到它，才占10%，还要把这个声音用在唱歌上。",
+      "matched_character_coverage": 0.6491,
+      "position": 2,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_48324e904b930420",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "JJ唱的这种歌，爆发力比较强，你会觉得他唱歌有穿透力。你现在就是缺这种穿透力，声音不亮，也缺少厚度。你胸腔支撑太少，位置太靠上；上面的东西少一点，下面的东西多一点，声音会更有穿透力，而且不会那么累。",
+      "matched_character_coverage": 0.931,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_b45014a64a6a9c53",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "最重要的就是通道问题。我唱美声是一个通道，唱流行是一个通道；唱民族和唱流行也不是一个通道。民族的声音靠前，美声靠后，流行正好卡在中间，完全不一样，所以这个要去调整。",
+      "matched_character_coverage": 0.9726,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_737064038099ef2a",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "“腹部发力”，你让任何一个声乐老师听到都得发笑。我们的声带在哪？声带在腹部吗？你说话的时候这个位置是震动的，声带在这儿震动发声。",
+      "matched_character_coverage": 0.9821,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我们都是普通人，只是音乐感比你们好一些。我的技能之前也不好，我之前什么问题都有：高音卡紧、下巴紧、舌根紧、不放松、声音漏气，我全都有。",
+      "matched_character_coverage": 1.0,
+      "position": 6,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_b7730933ffbad510",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我觉得你就唱你喜欢的就行了，抒情歌可以来一点，或者你把抒情歌改成R&B的版本。你以为谁都能唱到R&B吗？",
+      "matched_character_coverage": 0.9783,
+      "position": 7,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "主要是鼻音问题。你的高音会发散，要把这个改掉，集中一点。你现在声音太靠这一块了，需要把声音放在这个通道里面，把咬字往后。",
+      "matched_character_coverage": 1.0,
+      "position": 8,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 8,
+  "unique_candidate_count": 8
+}

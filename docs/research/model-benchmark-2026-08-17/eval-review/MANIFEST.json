@@ -1,0 +1,252 @@
+{
+  "benchmark_role_note": "Only three unique primary source hashes contribute to primary statistics; D1 and filename aliases have zero weight.",
+  "bundled_viewer_limit": "The top summary supports two configurations. It shows Sol Medium versus Sol High; Terra Medium remains in all per-eval tables and outputs.",
+  "generated_at": "2026-08-18T01:08:47.586951+00:00",
+  "generator_run_count": 30,
+  "judge_evidence_view_count": 60,
+  "runs": [
+    {
+      "case_id": "b1_8_16_2",
+      "config": "terra_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b1_8_16_2/r001/generators/terra_medium/result.json",
+      "source_result_sha256": "ebd612748373491241ba45b36113c34d589129765bbaab2cd76ae5232f88525e",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r001-terra_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b1_8_16_2/r001/generators/sol_medium/result.json",
+      "source_result_sha256": "20b25f3c9643d6fb0f69a93e3d13e0cfa51f24dffa9d126c9215d84f1f86d622",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r001-sol_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_high",
+      "replicate_id": "r001",
+      "source_result": "results/b1_8_16_2/r001/generators/sol_high/result.json",
+      "source_result_sha256": "9259213b1ac4e7ed69bf2bf54340cc8ae1aa747d6cce27a9d12d0d0c36a11d81",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r001-sol_high"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "terra_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b1_8_16_2/r002/generators/terra_medium/result.json",
+      "source_result_sha256": "837b2d96fb448d3aff149a5e685917b37b5651a44c8581e5dfa6fb329d3985c4",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r002-terra_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b1_8_16_2/r002/generators/sol_medium/result.json",
+      "source_result_sha256": "cfecd91ca479025dd23b3ca632f6cab8cfb17d42b58efe07e118145576c0be5f",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r002-sol_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_high",
+      "replicate_id": "r002",
+      "source_result": "results/b1_8_16_2/r002/generators/sol_high/result.json",
+      "source_result_sha256": "5b30482af9c86f3d0b0e164a558121f7ed33c58c7c3471fccb5a92be2c279bf8",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r002-sol_high"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "terra_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b1_8_16_2/r003/generators/terra_medium/result.json",
+      "source_result_sha256": "47e7e40e9a1785229f1aa4394fe83d007804ce84eafa487e37a26586c18eeb78",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r003-terra_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b1_8_16_2/r003/generators/sol_medium/result.json",
+      "source_result_sha256": "2579c8c3d9f2a3add7744b81c69e88a3bdc45200623e7cb849552ec1eaf04712",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r003-sol_medium"
+    },
+    {
+      "case_id": "b1_8_16_2",
+      "config": "sol_high",
+      "replicate_id": "r003",
+      "source_result": "results/b1_8_16_2/r003/generators/sol_high/result.json",
+      "source_result_sha256": "70330fa7921f37d7bb0781edc1afd1d25b0bbbd7603b86948b2d20f1e621f93a",
+      "viewer_run": "workspace/iteration-1/eval-1-b1_8_16_2/r003-sol_high"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "terra_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b2_7_28/r001/generators/terra_medium/result.json",
+      "source_result_sha256": "34b2840be244790d8cc87863f32fe817d3c204bc5cca44d0a13ba4e21cb477e8",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r001-terra_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b2_7_28/r001/generators/sol_medium/result.json",
+      "source_result_sha256": "5fee12b13fcc05639b43be012d6bc04c310fee5caaf7019393e502ca1c662712",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r001-sol_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_high",
+      "replicate_id": "r001",
+      "source_result": "results/b2_7_28/r001/generators/sol_high/result.json",
+      "source_result_sha256": "906f8a874a48560be77d335bd18212688935d895d4b9e0600b595810896c77ff",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r001-sol_high"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "terra_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b2_7_28/r002/generators/terra_medium/result.json",
+      "source_result_sha256": "33dea9a11cc0c00cd993a3a457c95546e340a6b04b5f749b0b2dc7bb4d98b2ed",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r002-terra_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b2_7_28/r002/generators/sol_medium/result.json",
+      "source_result_sha256": "ae51b998fe3a8c5263f89f1735cf66848d3d21672c873f23654b8506128b351a",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r002-sol_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_high",
+      "replicate_id": "r002",
+      "source_result": "results/b2_7_28/r002/generators/sol_high/result.json",
+      "source_result_sha256": "2289d2e64d8ea9a815c9d26854f8f3268b5a84d7401b082e2d95e55c50eba66b",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r002-sol_high"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "terra_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b2_7_28/r003/generators/terra_medium/result.json",
+      "source_result_sha256": "a661733ef3ac20e240f024772facf21fdb5ce62a715bd8bf19182855c0d5da94",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r003-terra_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b2_7_28/r003/generators/sol_medium/result.json",
+      "source_result_sha256": "d8ce7e69e1b1c755f9299a74ac15bc1b37a84422786eda076abf190a62e51c5c",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r003-sol_medium"
+    },
+    {
+      "case_id": "b2_7_28",
+      "config": "sol_high",
+      "replicate_id": "r003",
+      "source_result": "results/b2_7_28/r003/generators/sol_high/result.json",
+      "source_result_sha256": "e6170eb88a4ddc2d87e4069bf8e8a48cc529727f0b1abc614af8ac161265a2ba",
+      "viewer_run": "workspace/iteration-1/eval-2-b2_7_28/r003-sol_high"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "terra_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b3_8_16_1/r001/generators/terra_medium/result.json",
+      "source_result_sha256": "b3b7bacd722508ef25ff9ef36c431c35ded84006d7abceb19cfede2a5e28c4c7",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r001-terra_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_medium",
+      "replicate_id": "r001",
+      "source_result": "results/b3_8_16_1/r001/generators/sol_medium/result.json",
+      "source_result_sha256": "18cf5bd8c2a59ed605d2e4faa745c1def523f3265c44acde1ebf7b2d9ed6b85c",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r001-sol_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_high",
+      "replicate_id": "r001",
+      "source_result": "results/b3_8_16_1/r001/generators/sol_high/result.json",
+      "source_result_sha256": "ffd9a04aa2a9fc54fb83a2eb64b3fa65085bdbabd40bc14e031ff64e6d027651",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r001-sol_high"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "terra_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b3_8_16_1/r002/generators/terra_medium/result.json",
+      "source_result_sha256": "f6d056c382940232b0ba19d02d5a41c1ffda8503e0e599e5bad6b7dbe7d1e6db",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r002-terra_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_medium",
+      "replicate_id": "r002",
+      "source_result": "results/b3_8_16_1/r002/generators/sol_medium/result.json",
+      "source_result_sha256": "7f7b8a8629988fa3e669e00684f1f7e8945326eb89cea89ea16515611a640e91",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r002-sol_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_high",
+      "replicate_id": "r002",
+      "source_result": "results/b3_8_16_1/r002/generators/sol_high/result.json",
+      "source_result_sha256": "9d2d536410f1c9466739e0c72ac7dc37b1616258440e903368db0c97667b89d6",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r002-sol_high"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "terra_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b3_8_16_1/r003/generators/terra_medium/result.json",
+      "source_result_sha256": "f448a9d114184c5c72c92d0544056168817b4ef9b21e7a13e74cc8accb7074f3",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r003-terra_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_medium",
+      "replicate_id": "r003",
+      "source_result": "results/b3_8_16_1/r003/generators/sol_medium/result.json",
+      "source_result_sha256": "59ded8f5dffdf6b8d2ced341f97fe1a365290ffe5bb876ed031342ff10049a84",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r003-sol_medium"
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "config": "sol_high",
+      "replicate_id": "r003",
+      "source_result": "results/b3_8_16_1/r003/generators/sol_high/result.json",
+      "source_result_sha256": "4fed812df28ecb2a78392adbaaf6e5de4365d77d11f9ebe5cc275084c4d88bd7",
+      "viewer_run": "workspace/iteration-1/eval-3-b3_8_16_1/r003-sol_high"
+    },
+    {
+      "case_id": "d1_8_15_2_asr_variant",
+      "config": "terra_medium",
+      "replicate_id": "r001",
+      "source_result": "results/d1_8_15_2_asr_variant/r001/generators/terra_medium/result.json",
+      "source_result_sha256": "07f65b8d953c04618cc8e3cafbf1c7a184cffb7bfd4835f2ed00ff4c432a5657",
+      "viewer_run": "workspace/iteration-1/eval-4-d1_8_15_2_asr_variant/r001-terra_medium"
+    },
+    {
+      "case_id": "d1_8_15_2_asr_variant",
+      "config": "sol_medium",
+      "replicate_id": "r001",
+      "source_result": "results/d1_8_15_2_asr_variant/r001/generators/sol_medium/result.json",
+      "source_result_sha256": "c85b2d6f4313ece5dbd8bdd1878cce39279a2ae8fff885664c7dbec7502b1537",
+      "viewer_run": "workspace/iteration-1/eval-4-d1_8_15_2_asr_variant/r001-sol_medium"
+    },
+    {
+      "case_id": "d1_8_15_2_asr_variant",
+      "config": "sol_high",
+      "replicate_id": "r001",
+      "source_result": "results/d1_8_15_2_asr_variant/r001/generators/sol_high/result.json",
+      "source_result_sha256": "092e38b0fc2277aa273ac6f7e284fab90d71f825a60d3601ba5866d18db0d0f7",
+      "viewer_run": "workspace/iteration-1/eval-4-d1_8_15_2_asr_variant/r001-sol_high"
+    }
+  ],
+  "schema_version": "1",
+  "skill_creator_viewer": "/Users/junhuaxu/.codex/plugins/cache/claude-cowork/anthropic-skills/1.0.0/skills/skill-creator/eval-viewer/generate_review.py",
+  "skill_creator_viewer_sha256": "fc9d1b9243fe5ab6012ebd579bd76d0035de1b79fd3b969de114defab26478fb"
+}

@@ -1,0 +1,17 @@
+{
+  "elapsed_seconds": 56.196,
+  "label": "sol-medium",
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "medium",
+  "request_id": "01a00f97-bd44-7723-9a6d-b3de001aeb46",
+  "result_sha256": "18cf5bd8c2a59ed605d2e4faa745c1def523f3265c44acde1ebf7b2d9ed6b85c",
+  "reused": true,
+  "reused_from": "docs/research/model-comparison-2026-08-17/sol-medium.json",
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 24320,
+    "output_tokens": 2863,
+    "reasoning_output_tokens": 726
+  }
+}

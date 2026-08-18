@@ -1,0 +1,60 @@
+{
+  "skill_name": "liveclip-highlight-discovery-v1",
+  "evals": [
+    {
+      "id": 1,
+      "name": "8-16-2-primary",
+      "prompt": "在 8-16-2.ts 的冻结真实 ASR 粗候选中自由发现高光，不预设 Topic；比较 Terra Medium、Sol Medium、Sol High。",
+      "expected_output": "三个相互隔离的严格 JSON 高光方案，以及匿名双 Judge 对语义 Topic 并集的评分。",
+      "files": ["../../cases.json"],
+      "expectations": [
+        "所有 candidate_id 都来自该案例冻结候选",
+        "每个方案选择 1 到 12 条且没有重复 candidate_id",
+        "高光语句可追溯到绑定候选文本",
+        "语义重复 Topic 被盲审识别并计入去重评分",
+        "不声称看过未提供的视频画面"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "7-28-primary",
+      "prompt": "在 7.28.mp4 的冻结真实 ASR 粗候选中自由发现高光，不预设 Topic；比较 Terra Medium、Sol Medium、Sol High。",
+      "expected_output": "三个相互隔离的严格 JSON 高光方案，以及匿名双 Judge 对语义 Topic 并集的评分。",
+      "files": ["../../cases.json"],
+      "expectations": [
+        "所有 candidate_id 都来自该案例冻结候选",
+        "每个方案选择 1 到 12 条且没有重复 candidate_id",
+        "高光语句可追溯到绑定候选文本",
+        "语义重复 Topic 被盲审识别并计入去重评分",
+        "不声称看过未提供的视频画面"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "8-16-1-primary",
+      "prompt": "在 8-16-1.ts 的冻结真实 ASR 粗候选中自由发现高光，不预设 Topic；比较 Terra Medium、Sol Medium、Sol High。",
+      "expected_output": "三个相互隔离的严格 JSON 高光方案，以及匿名双 Judge 对语义 Topic 并集的评分。",
+      "files": ["../../cases.json"],
+      "expectations": [
+        "所有 candidate_id 都来自该案例冻结候选",
+        "每个方案选择 1 到 12 条且没有重复 candidate_id",
+        "高光语句可追溯到绑定候选文本",
+        "语义重复 Topic 被盲审识别并计入去重评分",
+        "不声称看过未提供的视频画面"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "8-15-2-asr-sensitivity",
+      "prompt": "对同一 af88… 视频的旧 ASR/粗候选版本独立运行三模型，用于诊断 Topic 发现对 ASR 证据粒度的敏感性。",
+      "expected_output": "三个严格 JSON 方案和匿名双 Judge；结果只作为证据敏感性诊断，不重复计入主视频样本。",
+      "files": ["../../cases.json"],
+      "expectations": [
+        "诊断结果不纳入三个唯一源的主质量均值",
+        "所有 candidate_id 都来自旧 ASR 证据版本",
+        "高光语句可追溯到绑定候选文本",
+        "报告明确区分模型差异和输入证据差异"
+      ]
+    }
+  ]
+}

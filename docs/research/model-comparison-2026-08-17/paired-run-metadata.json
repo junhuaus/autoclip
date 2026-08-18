@@ -1,0 +1,69 @@
+{
+  "artifact_sha256": {
+    "common_topics": "6a54d9526d025c249dc1fc60c60c0c1004c4fefada0bab135228e2e3ee9ee1bc",
+    "paired_sol_max_judge": "89508a84a960aa100cf57408eaf85514c9a0500192faa9fe9826dfbd520f53a0",
+    "paired_sol_medium": "810118dde09dbef54953428cefabd8ecfade46f49434dc39092cff7f26d6a760",
+    "paired_terra_medium": "38b1193b7077a048a85e7e71d2ac45c72f5142e98e720e65691e5150a61d0682"
+  },
+  "blind_mapping_disclosed_after_judging": {
+    "system_a": "gpt-5.6-terra / medium",
+    "system_b": "gpt-5.6-sol / medium"
+  },
+  "calls": [
+    {
+      "elapsed_seconds": 45.929,
+      "label": "paired-terra-medium",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "request_id": "01a00fa6-2c78-7140-b4ab-e77577bb7e4d",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 24931,
+        "output_tokens": 2349,
+        "reasoning_output_tokens": 247
+      }
+    },
+    {
+      "elapsed_seconds": 65.053,
+      "label": "paired-sol-medium",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "request_id": "01a00fa6-2c77-7301-9fc5-66e01a9a8ea6",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 24929,
+        "output_tokens": 3404,
+        "reasoning_output_tokens": 439
+      }
+    },
+    {
+      "elapsed_seconds": 247.006,
+      "label": "paired-sol-max-judge",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "max",
+      "request_id": "01a00fa7-29f6-7e23-88ce-fae840dec827",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 32514,
+        "output_tokens": 13519,
+        "reasoning_output_tokens": 10358
+      }
+    }
+  ],
+  "generated_at": "2026-08-17T12:20:55.478203+00:00",
+  "method": "fixed-topic-paired-comparison",
+  "schema_version": "1",
+  "source": {
+    "candidate_count": 45,
+    "duration_ms": 5042717,
+    "evidence_note": "Both systems receive this identical ASR-derived evidence; no video frames are supplied.",
+    "filename": "8-16-1.ts",
+    "rough_candidates_sha256": "c27684da7f8d4d03f174d9f3d87783b00d72f24a983897f33732e984ad774229",
+    "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+    "transcript_sha256": "3707a08ec0f2744f62dba3c93b422a9a61545005fcb72409261f26d7cbfa1d97"
+  },
+  "topic_count": 10
+}

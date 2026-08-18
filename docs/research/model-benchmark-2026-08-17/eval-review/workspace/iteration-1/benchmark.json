@@ -1,0 +1,1507 @@
+{
+  "metadata": {
+    "evals_run": [
+      "3 unique sources",
+      "3 order variants",
+      "1 diagnostic"
+    ],
+    "executor_model": "three Codex configurations",
+    "runs_per_configuration": 10,
+    "skill_name": "liveclip-highlight-discovery-v1",
+    "timestamp": "2026-08-17T13:02:18.146360+00:00"
+  },
+  "notes": [
+    "主汇总只按三个唯一 source 先聚合 replicate, 再宏平均; D1 诊断和文件名别名权重为零。",
+    "Bundled Skill Creator viewer 的顶部汇总只渲染两个配置, 因此这里只放 Sol Medium 与 Sol High; Terra Medium 仍完整显示在每个 Eval 的三配置表和 Outputs 中。",
+    "Pass Rate 是 6 项可审计门槛的通过率, 不等同于 Judge 连续质量分; 两名 Judge 的原始分数和 Topic 证据在每个 Output 中。",
+    "Tokens 使用 call metadata 的 input_tokens + output_tokens; reasoning_output_tokens 不重复相加。",
+    "候选顺序每种只调用一次, replicate 反映顺序扰动与采样的合并一致性, 不支持候选顺序的因果结论。"
+  ],
+  "run_summary": {
+    "delta": {
+      "pass_rate": "-0.04"
+    },
+    "sol_high": {
+      "pass_rate": {
+        "max": 0.888888888888889,
+        "mean": 0.851851851851852,
+        "min": 0.8333333333333334,
+        "stddev": 0.026189140043946218
+      },
+      "time_seconds": {
+        "max": 83.653,
+        "mean": 71.17044444444444,
+        "min": 62.01733333333333,
+        "stddev": 9.141094692258667
+      },
+      "tokens": {
+        "max": 30937.0,
+        "mean": 28910.666666666668,
+        "min": 27519.0,
+        "stddev": 1465.783597791828
+      }
+    },
+    "sol_medium": {
+      "pass_rate": {
+        "max": 0.9444444444444445,
+        "mean": 0.888888888888889,
+        "min": 0.8333333333333334,
+        "stddev": 0.04536092116265147
+      },
+      "time_seconds": {
+        "max": 55.239,
+        "mean": 53.141999999999996,
+        "min": 51.474333333333334,
+        "stddev": 1.5666150582516227
+      },
+      "tokens": {
+        "max": 29188.333333333332,
+        "mean": 27904.11111111111,
+        "min": 27165.333333333332,
+        "stddev": 911.5058900820774
+      }
+    }
+  },
+  "runs": [
+    {
+      "configuration": "terra_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=8, unique=8",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=8, duplicate_rate=0.0, sol_max: topics=8, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=66.2, sol_max=73.8; mean=70.0",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 41.295,
+        "tokens": 28584,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=9, unique=9",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=9, duplicate_rate=0.0, sol_max: topics=9, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 51.83,
+        "tokens": 29136,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=8, unique=8",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=7, duplicate_rate=0.125, sol_max: topics=6, duplicate_rate=0.25",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=83.8, sol_max=88.8; mean=86.3",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 76.714,
+        "tokens": 30552,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=8, unique=8",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=7, duplicate_rate=0.125, sol_max: topics=7, duplicate_rate=0.125",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=66.2, sol_max=76.2; mean=71.2",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 33.79,
+        "tokens": 28196,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=86.2, sol_max=86.2; mean=86.2",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 51.904,
+        "tokens": 29159,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 73.428,
+        "tokens": 30372,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=8, unique=8",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=4; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=8, duplicate_rate=0.0, sol_max: topics=8, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=75.0, sol_max=80.0; mean=77.5",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 2,
+        "pass_rate": 0.6666666666666666,
+        "passed": 4,
+        "time_seconds": 42.566,
+        "tokens": 28700,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=9, unique=9",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=9, duplicate_rate=0.0, sol_max: topics=9, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=82.5, sol_max=96.2; mean=89.3",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 54.404,
+        "tokens": 29270,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 1,
+      "eval_name": "8-16-2-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=8, unique=8",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=8, duplicate_rate=0.0, sol_max: topics=8, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 100.817,
+        "tokens": 31887,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=87.5, sol_max=75.0; mean=81.2",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 37.173,
+        "tokens": 26438,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=2; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=96.2; mean=98.1",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 49.293,
+        "tokens": 27252,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=6; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 70.521,
+        "tokens": 28459,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=75.0, sol_max=75.0; mean=75.0",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 2,
+        "pass_rate": 0.6666666666666666,
+        "passed": 4,
+        "time_seconds": 44.33,
+        "tokens": 26978,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=3; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=92.5, sol_max=100.0; mean=96.2",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 53.13,
+        "tokens": 27483,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=4; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=95.0; mean=97.5",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 74.824,
+        "tokens": 28673,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=2; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=86.2, sol_max=82.5; mean=84.3",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 38.845,
+        "tokens": 26658,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=5; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 52.0,
+        "tokens": 27341,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 2,
+      "eval_name": "7-28-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=4; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=88.8, sol_max=92.5; mean=90.7",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 58.178,
+        "tokens": 27696,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=82.5, sol_max=82.5; mean=82.5",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 49.217,
+        "tokens": 26846,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=9, unique=9",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=9, duplicate_rate=0.0, sol_max: topics=9, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=75.0, sol_max=88.8; mean=81.9",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 56.196,
+        "tokens": 27183,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=95.0; mean=97.5",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 65.833,
+        "tokens": 27757,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=2; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=9, duplicate_rate=0.1, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=71.2, sol_max=75.0; mean=73.1",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 2,
+        "pass_rate": 0.6666666666666666,
+        "passed": 4,
+        "time_seconds": 42.699,
+        "tokens": 26395,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 57.195,
+        "tokens": 27288,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=2; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=87.5, sol_max=83.8; mean=85.7",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 56.733,
+        "tokens": 27249,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 2
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=75.0, sol_max=75.0; mean=75.0",
+          "passed": false,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 35.504,
+        "tokens": 26084,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=96.2, sol_max=95.0; mean=95.6",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 52.326,
+        "tokens": 27025,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 3,
+      "eval_name": "8-16-1-primary",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=11, unique=11",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=2; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=11, duplicate_rate=0.0, sol_max: topics=11, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=95.0; mean=97.5",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 63.486,
+        "tokens": 27551,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 3
+    },
+    {
+      "configuration": "terra_medium",
+      "eval_id": 4,
+      "eval_name": "8-15-2-asr-sensitivity",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=4; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=91.2, sol_max=82.5; mean=86.8",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 40.782,
+        "tokens": 28501,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_medium",
+      "eval_id": 4,
+      "eval_name": "8-15-2-asr-sensitivity",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=0; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": true,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=100.0, sol_max=100.0; mean=100.0",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "passed": 6,
+        "time_seconds": 51.603,
+        "tokens": 29106,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    },
+    {
+      "configuration": "sol_high",
+      "eval_id": 4,
+      "eval_name": "8-15-2-asr-sensitivity",
+      "expectations": [
+        {
+          "evidence": "schema_and_candidate_gate=passed",
+          "passed": true,
+          "text": "所有 candidate_id 均通过冻结候选白名单校验"
+        },
+        {
+          "evidence": "selected=10, unique=10",
+          "passed": true,
+          "text": "方案选择 1-12 条且 candidate_id 不重复"
+        },
+        {
+          "evidence": "failed_quote_count=1; 该启发式不是人工逐字核验, 高相似编辑句可能仍需复查",
+          "passed": false,
+          "text": "所有高光语句通过绑定候选文本的自动追溯启发式检查"
+        },
+        {
+          "evidence": "terra_max: topics=10, duplicate_rate=0.0, sol_max: topics=10, duplicate_rate=0.0",
+          "passed": true,
+          "text": "两名盲审 Judge 均完成 Topic 聚类、去重和该方案评分"
+        },
+        {
+          "evidence": "未检测到固定短语; 仍需人工抽查",
+          "passed": true,
+          "text": "未出现声称实际看过未提供视频画面的固定短语 (词法检查)"
+        },
+        {
+          "evidence": "terra_max=95.0, sol_max=100.0; mean=97.5",
+          "passed": true,
+          "text": "双 Judge 平均总分达到 80/100"
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 1,
+        "pass_rate": 0.8333333333333334,
+        "passed": 5,
+        "time_seconds": 63.656,
+        "tokens": 29437,
+        "tool_calls": 0,
+        "total": 6
+      },
+      "run_number": 1
+    }
+  ]
+}

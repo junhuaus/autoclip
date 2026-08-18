@@ -1,0 +1,205 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 66.2,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a0124c-7a74-76a1-a88a-d79c99105180"
+  },
+  "limitations": [
+    "仅有冻结转写，无法核对声学表现、现场动作示范、画面信息或精确切点前后的语气。",
+    "声乐术语与教学结论只按其与提供文本的一致性及编辑边界评分，未作医学或专业有效性认证。",
+    "代表性只在已提供的候选证据和三套剪法之间比较，不能断言未展示的视频部分不存在更优切点。"
+  ],
+  "model_scores": {
+    "clip_selection": 2,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 2,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.125,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 2,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 2,
+    "strengths": "发声位置、呼吸、鼻音和普通人学习门槛等基础题材具备可传播性，且多数片段提供了剪短和术语复核提示。",
+    "topic_discovery": 3,
+    "weaknesses": "同一“腹部发力／声带振动”需求内同时选入两条高度重叠片段，压缩了组合广度；“二号通道”等片段上下文依赖强，部分标题的绝对化程度高于稳妥编辑表达。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "均围绕“先处理当前基础问题，不能跳过纠错步骤直接练进阶技巧”的新手纠错需求。",
+      "canonical_topic": "声乐纠错的训练顺序",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "建议明确，但高光句省略了部分条件和进阶技巧举例，闭合度略弱。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均是对位置偏高、下方支撑不足导致穿透力弱和易疲劳的现场诊断。",
+      "canonical_topic": "声音位置偏高与穿透力、支撑不足",
+      "cluster_id": "t041",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "具备现象、原因和调整方向，但术语依赖现场示范，脱离上下文仍不够直观。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两者均聚焦同一类个案：鼻音偏重时高音发散，应让声音更集中；并非泛指所有口音或所有歌手。",
+      "canonical_topic": "鼻音偏重与高音发散的个案诊断",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "诊断和调整方向均有依据，但“先解决鼻音”比原始个案结论更像普遍处方。",
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "均用于纠正把唱歌简单归为腹部发力或胸腹腔发声的误解；其中一条更强调“发力”措辞，其余更强调声带振动来源，因此保留灰区标记。M4 在此 Topic 内选了两条高度重叠内容。",
+      "canonical_topic": "声带振动与“腹部发力”误解",
+      "cluster_id": "t071",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "聚焦发声位置和气流关系，表述比单纯反驳“腹部发力”更精确，且剪辑边界有提示。",
+          "candidate_id": "candidate_e7e0739b77ace20a",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        },
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "反常识开头有吸引力，但与同方案另一条几乎服务同一编辑需求，且“唱歌不是腹部发力”容易被剪成过度绝对化结论。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 4,
+          "editorial_value": 2,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均纠正“会腹式呼吸就等于会唱歌”的理解，重点是胸腹式联合呼吸及其在演唱中的应用；这不同于声带发声位置 Topic。",
+      "canonical_topic": "胸腹式联合呼吸不等于会唱歌",
+      "cluster_id": "t091",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "面向新手的纠错明确，但高光版本未像 R2 一样充分保留“落实到唱歌”的应用落点。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均回应普通人是否必须先证明自己有天赋才能学唱歌，属于开始门槛的鼓励内容，而非个人成长复盘。",
+      "canonical_topic": "普通人学唱歌的天赋门槛",
+      "cluster_id": "t111",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "受众面广、标题明确，但原话的反问语气较强，且“有天赋者很少”不是可验证的普遍结论。",
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段的核心是流行唱法内部的通道与混声技巧地图，不等同于“不同唱法能否直接迁移”的跨唱法比较。",
+      "canonical_topic": "流行唱法的通道与混声技巧体系",
+      "cluster_id": "t141",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "技巧词密度高但“二号通道”依赖前文定义，缺少一个可独立理解的解释，且术语需要复核。",
+          "candidate_id": "candidate_4477e0c580eeaf0f",
+          "claim_fidelity": 4,
+          "editorial_value": 2,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 3,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 7,
+  "verdict_reason": "排序为 R2、Q7、M4。R2 的组合在不重复前提下覆盖面最均衡，并更常选到包含问题、原因和建议落点的完整切段。Q7 的发现广度同样强，但若干片段较泛或未选到更完整的同题证据。M4 的主要扣分来自同一发声误解 Topic 的重复入选及较强的术语上下文依赖。"
+}

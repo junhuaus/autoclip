@@ -1,0 +1,348 @@
+{
+  "benchmark_role": "primary",
+  "case_id": "b1_8_16_2",
+  "completed_at": "2026-08-18T00:36:36.941454+00:00",
+  "generator_validation": {
+    "sol_high": {
+      "exact_quote_count": 0,
+      "exact_quote_rate": 0.0,
+      "failed_quote_count": 1,
+      "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+      "quote_alignment": [
+        {
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。很多同学声带不闭合，上来不能直接唱假声；如果声音本来就很挤，现在就学不了戏腔、真假声转化和强混。每个人问题不一样，具体问题具体分析。",
+          "matched_character_coverage": 0.974,
+          "position": 1,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "真的要学会腹式呼吸才会唱吗？它专业名词不是腹式，它不是胸腔，它叫胸腹式联合呼吸。很抽象，但是我们会用一套方法让你把这个声音用在唱歌上，这才是OK的。你只是找到了它，只是才占10%。",
+          "matched_character_coverage": 1.0,
+          "position": 2,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我们的气息问题，包括我们的通道问题，最重要的就是通道问题。我唱美声是一个通道，我唱流行是一个通道；唱民族和唱流行也不是一个通道。唱民族的声音是靠前的，美声是靠后的，流行就正好卡在中间，完全不一样，所以这个要去调整。",
+          "matched_character_coverage": 0.9792,
+          "position": 3,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_737064038099ef2a",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我们唱歌是不能这样子的。腹部发力，你让任何一个声乐老师听到他都得发笑。你腹部怎么发力啊？我们声带在哪？我们声带在腹部吗？我们声带在这儿震动发声。",
+          "matched_character_coverage": 1.0,
+          "position": 4,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_48324e904b930420",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "JJ唱的这种歌，它的爆发力是比较强的，你会觉得他唱歌有穿透力。那你现在就是缺这种穿透力，声音不亮，你缺少这个厚度。上面的东西再少一点，下面的东西再多一点，其实你的声音会穿透力更强，而且你这会儿没有那么累。",
+          "matched_character_coverage": 0.9674,
+          "position": 5,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "老师，我想学唱歌，不知道自身有没有音乐条件。你要条件干嘛？要出道吗？要当大学老师抢老师饭碗吗？都是普通人，有天赋的人非常少。",
+          "matched_character_coverage": 1.0,
+          "position": 6,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我们都是普通人，我们只是音乐感比你们好一些。我的机能之前也不好，我之前什么问题都有：高音卡紧、下巴紧、舌根紧、不放松，然后声音漏气，我全都有。",
+          "matched_character_coverage": 0.9836,
+          "position": 7,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_e7e0739b77ace20a",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "震动发声在这儿，不是胸腔发声，不是腹腔发声，你的声带不会钻到肚子里面。但是有一个点很重要，就是我们怎么让声带震动：气体经过这个地方，它是不是就震动了？气体过快也不行，过慢也不行。",
+          "matched_character_coverage": 0.8481,
+          "position": 8,
+          "status": "failed"
+        }
+      ],
+      "schema_and_candidate_gate": "passed",
+      "selected_count": 8,
+      "unique_candidate_count": 8
+    },
+    "sol_medium": {
+      "exact_quote_count": 0,
+      "exact_quote_rate": 0.0,
+      "failed_quote_count": 1,
+      "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+      "quote_alignment": [
+        {
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。很多同学声带不闭合，上来不能直接唱假声；如果声音本来就很挤，现在也学不了戏腔、真假声转化和强混。每个人问题不一样，具体问题具体分析。",
+          "matched_character_coverage": 0.961,
+          "position": 1,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_737064038099ef2a",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我们唱歌追求的是什么？腹部发力——你让任何一个声乐老师听到，他都得发笑。我们声带在哪？我们声带在腹部吗？声带在这儿震动发声。",
+          "matched_character_coverage": 1.0,
+          "position": 2,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "真的要学会腹式呼吸才会唱吗？它专业名词不是腹式，也不是胸腔，叫做胸腹式联合呼吸。你只是找到了它，只是才占10%。",
+          "matched_character_coverage": 0.7347,
+          "position": 3,
+          "status": "failed"
+        },
+        {
+          "candidate_id": "candidate_48324e904b930420",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "JJ唱的这种歌爆发力比较强，你会觉得他唱歌有穿透力。你现在就是缺这种穿透力，声音不亮，也缺少厚度。上面的东西再少一点，下面的东西再多一点，声音会穿透力更强，而且不会那么累。",
+          "matched_character_coverage": 0.961,
+          "position": 4,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "主要是鼻音问题，你的高音会发散。要把这个改掉，集中一点。你现在声音太靠这一块了，需要把声音放在这个通道里面；我要把它的咬字往后。",
+          "matched_character_coverage": 1.0,
+          "position": 5,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我唱美声是一个通道，我唱流行是一个通道；唱民族和唱流行也不是一个通道。唱民族的声音靠前，美声靠后，流行就正好卡在中间，完全不一样，所以这个要去调整。",
+          "matched_character_coverage": 0.9697,
+          "position": 6,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_26500385c10519ef",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "你会去听自己的声音，我到底是靠前还是靠后。你们现在在视频上刷到很多视频，有人说靠前，有人说靠后，我到底是靠哪里？每个人问题不一样。如果你的声音紧，那你的咬字就要靠后一点。",
+          "matched_character_coverage": 1.0,
+          "position": 7,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_1d0bcd4f6ed22861",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "你这种就得逐字去改，按歌去改。你多练几首歌，差不多就能知道，就有概念了：我这个咬字要往哪咬。你可能不明确，不知道自己对不对。",
+          "matched_character_coverage": 0.963,
+          "position": 8,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_de95d7468a7318ca",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "所有唱法没有气息，你的高音非常难进步，你的基础非常不牢固。你学任何强混、学任何东西，效果不是很好。你学了一段时间，高音依然卡，但是一两个月之后没有再进步，就说明前面的东西其实是有问题的。",
+          "matched_character_coverage": 0.9639,
+          "position": 9,
+          "status": "high_similarity"
+        }
+      ],
+      "schema_and_candidate_gate": "passed",
+      "selected_count": 9,
+      "unique_candidate_count": 9
+    },
+    "terra_medium": {
+      "exact_quote_count": 4,
+      "exact_quote_rate": 0.5,
+      "failed_quote_count": 0,
+      "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+      "quote_alignment": [
+        {
+          "candidate_id": "candidate_6b0ae4ac42937611",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "你知道高音为什么卡你吗？因为你没有掌握到唱歌的通道。",
+          "matched_character_coverage": 0.9583,
+          "position": 1,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_737064038099ef2a",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "我们声带在哪？我们声带在腹部吗？",
+          "matched_character_coverage": 1.0,
+          "position": 2,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "它专业名词不是腹式，它不是胸腔，它叫胸腹式联合呼吸。",
+          "matched_character_coverage": 1.0,
+          "position": 3,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "exact_normalized_substring": true,
+          "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。",
+          "matched_character_coverage": 1.0,
+          "position": 4,
+          "status": "exact"
+        },
+        {
+          "candidate_id": "candidate_48324e904b930420",
+          "exact_normalized_substring": false,
+          "highlight_sentence": "上面东西再少一点，下面东西再多一点，其实你的声音会穿透力更强，而且你会没有那么累。",
+          "matched_character_coverage": 1.0,
+          "position": 5,
+          "status": "high_similarity"
+        },
+        {
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "exact_normalized_substring": true,
+          "highlight_sentence": "你唱歌有一种高音，你会更往那边走。",
+          "matched_character_coverage": 1.0,
+          "position": 6,
+          "status": "exact"
+        },
+        {
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "exact_normalized_substring": true,
+          "highlight_sentence": "我唱美声是一个通道，我唱流行是一个通道。",
+          "matched_character_coverage": 1.0,
+          "position": 7,
+          "status": "exact"
+        },
+        {
+          "candidate_id": "candidate_1d0bcd4f6ed22861",
+          "exact_normalized_substring": true,
+          "highlight_sentence": "你这种就得去逐字去改，按歌去改。",
+          "matched_character_coverage": 1.0,
+          "position": 8,
+          "status": "exact"
+        }
+      ],
+      "schema_and_candidate_gate": "passed",
+      "selected_count": 8,
+      "unique_candidate_count": 8
+    }
+  },
+  "include_in_primary_aggregate": true,
+  "judge_validation": {
+    "sol_max": {
+      "atomic_scores_by_model": {
+        "sol_high": {
+          "clip_selection": 4,
+          "editorial_usability": 4,
+          "evidence_fidelity": 4,
+          "portfolio_quality": 3,
+          "topic_discovery": 3
+        },
+        "sol_medium": {
+          "clip_selection": 4,
+          "editorial_usability": 4,
+          "evidence_fidelity": 4,
+          "portfolio_quality": 4,
+          "topic_discovery": 4
+        },
+        "terra_medium": {
+          "clip_selection": 2,
+          "editorial_usability": 2,
+          "evidence_fidelity": 3,
+          "portfolio_quality": 3,
+          "topic_discovery": 4
+        }
+      },
+      "cluster_count": 11,
+      "cluster_coverage_gate": "passed",
+      "computed_total_by_model": {
+        "sol_high": 88.8,
+        "sol_medium": 100.0,
+        "terra_medium": 73.8
+      },
+      "pairwise_semantic_jaccard": {
+        "sol_high__sol_medium": 0.5,
+        "sol_high__terra_medium": 0.5556,
+        "sol_medium__terra_medium": 0.7
+      },
+      "preferred_models": [
+        "sol_medium",
+        "sol_high",
+        "terra_medium"
+      ],
+      "semantic_duplicate_rate_by_model": {
+        "sol_high": 0.25,
+        "sol_medium": 0.0,
+        "terra_medium": 0.0
+      },
+      "topic_count_by_model": {
+        "sol_high": 6,
+        "sol_medium": 9,
+        "terra_medium": 8
+      }
+    },
+    "terra_max": {
+      "atomic_scores_by_model": {
+        "sol_high": {
+          "clip_selection": 3,
+          "editorial_usability": 4,
+          "evidence_fidelity": 4,
+          "portfolio_quality": 3,
+          "topic_discovery": 3
+        },
+        "sol_medium": {
+          "clip_selection": 4,
+          "editorial_usability": 4,
+          "evidence_fidelity": 4,
+          "portfolio_quality": 4,
+          "topic_discovery": 4
+        },
+        "terra_medium": {
+          "clip_selection": 2,
+          "editorial_usability": 2,
+          "evidence_fidelity": 3,
+          "portfolio_quality": 3,
+          "topic_discovery": 3
+        }
+      },
+      "cluster_count": 12,
+      "cluster_coverage_gate": "passed",
+      "computed_total_by_model": {
+        "sol_high": 83.8,
+        "sol_medium": 100.0,
+        "terra_medium": 66.2
+      },
+      "pairwise_semantic_jaccard": {
+        "sol_high__sol_medium": 0.4545,
+        "sol_high__terra_medium": 0.5,
+        "sol_medium__terra_medium": 0.7
+      },
+      "preferred_models": [
+        "sol_medium",
+        "sol_high",
+        "terra_medium"
+      ],
+      "semantic_duplicate_rate_by_model": {
+        "sol_high": 0.125,
+        "sol_medium": 0.0,
+        "terra_medium": 0.0
+      },
+      "topic_count_by_model": {
+        "sol_high": 7,
+        "sol_medium": 9,
+        "terra_medium": 8
+      }
+    }
+  },
+  "replicate_id": "r001"
+}

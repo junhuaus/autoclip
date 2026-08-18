@@ -1,0 +1,257 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 75.0,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a0125b-14a4-7e80-b8ce-7af161faa79e"
+  },
+  "limitations": [
+    "仅有冻结的文本证据，无法核验声音示范差异、口型动作、画面配合、实际剪点或听感效果。",
+    "转写中存在“强混”“吐丝”“舌根”等疑似错字；本评估只能按上下文理解，不能声称已由音频确认。",
+    "练习时长候选没有在本段说明具体练习，变声期候选主体也未完成原因解释，因此相关完整性评分从严。",
+    "胸口发紧、练气仍不够和长音硬推在漏气机制上相邻；因入口问题和编辑用途不同而拆为三个Topic，边界把握标为中等。",
+    "声乐机理、咽部反应及年龄范围多为讲者经验性表述；忠实度高不代表这些观点已得到医学或声学验证。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "十条内容均有明确痛点，标题短促，覆盖高音、舌头、修音、训练顺序、练习安排和长音续航等多个方向。",
+    "topic_discovery": 3,
+    "weaknesses": "多条高光句只摘取结论的一半，闭环依赖描述；风险提示重复且笼统，日常说话描述混入相邻案例，变声期描述又略超出主体片段已经完成的解释。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均绑定同一候选，核心都是先练真声与咬字、通道，再进入强混和假声。M4、R2保留完整递进，Q7的高光句只呈现第一步，闭环更多依赖描述。",
+      "canonical_topic": "真声到混声、假声的训练顺序",
+      "cluster_id": "t017",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "忠实概括训练起点，标题和Hook有效，但高光句未呈现后续递进关系。",
+          "candidate_id": "candidate_005f7d0822d40234",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均以同一候选区分后期美化与演唱者自身发声、共鸣能力。M4和R2保留的因果与反问更完整，Q7更适合作为短促金句。",
+      "canonical_topic": "修音不能替代发声与共鸣基础",
+      "cluster_id": "t027",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "金句忠实且易传播，但单句没有展开修音能做什么、不能做什么。",
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均纠正刻意压舌或寻找舌头凹陷的做法，并指向放松及轻放下牙齿后的替代动作。M4、R2的高光句直接包含动作建议。",
+      "canonical_topic": "唱歌时的舌头放松与舌尖位置",
+      "cluster_id": "t037",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "反直觉因果抓取得准，但动作方案只出现在描述而不在高光句中。",
+          "candidate_id": "candidate_2efa31efddfe10ed",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "虽然M4使用个人连续授课案例，Q7和R2使用教师及日常喊话示范，但核心编辑需求相同：发声方法也可用于日常或职业说话。R2所选候选的场景、解释和示范最完整。",
+      "canonical_topic": "把声乐发声方法用于日常及职业说话",
+      "cluster_id": "t047",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "候选本身有教师案例和喊话示范，但所摘高光句指代含混；描述还混入相邻个人案例的信息。",
+          "candidate_id": "candidate_f1d87e3d981d87dc",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条绑定同一候选，均以硬喊和借助通道、腔体、位置形成对比。观点有强传播性，但没有给出具体训练动作，教学深度有限。",
+      "canonical_topic": "高音不能靠蛮力硬喊",
+      "cluster_id": "t057",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心观点简洁有力、脱离直播仍成立，但操作信息较少。",
+          "candidate_id": "candidate_638470bcf20511aa",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "两条均绑定胸口发紧候选，回答胸口过度用力与漏气的关系。它与“练气仍不够”和“长音硬推”在机制上相邻，但入口问题不同，故单列。",
+      "canonical_topic": "唱歌胸口发紧与过度用力漏气",
+      "cluster_id": "t067",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "痛点与因果均忠实，但高光句只给出“太往下落”，完整机理依赖描述补足。",
+          "candidate_id": "candidate_a0f21643888730a5",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均从高音卡顿、嗓子疼切入讲者所谓的头顶至小腹“通道”和小腹吸气感。R2保留问题、解释及动作定位，闭合度更高。",
+      "canonical_topic": "高音卡顿与发声、呼吸通道",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "标题和描述准确抓到痛点及自检点，但高光句单独看只是抽象定义，且风险提示较笼统。",
+          "candidate_id": "candidate_e3f2a57d5e929402",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均提供按运动基础区分的时长，并强调分散、碎片化练习。候选没有在本段交代具体练习名称，因此都存在独立成片的信息缺口。",
+      "canonical_topic": "气息练习的时长与频率安排",
+      "cluster_id": "t087",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "时长与分练建议实用，但直接命名为气息练习仍依赖前文，且未提示成片需补充练习名称。",
+          "candidate_id": "candidate_4305cfa07f8b1fbf",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均围绕男女大致变声年龄及变声后音色变化。候选主体在提出原因问题后即结束，完整解释只在后续上下文开始出现，因此不宜包装成已经完成的科普答案。",
+      "canonical_topic": "青春期变声与音色变化",
+      "cluster_id": "t097",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "年龄信息忠实且受众明确，但描述称已解释声带变化，超过主体片段实际完成度。",
+          "candidate_id": "candidate_7c52ff6875a16a62",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "该单条专门回答长音很快发虚，以三十秒对五秒说明硬推会加速耗气。它与其他漏气片段相关，但“长音续航”是不同的用户问题和剪辑入口。",
+      "canonical_topic": "长音唱不久与过度硬推",
+      "cluster_id": "t147",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "数字对比形成强Hook且忠于证据，但解决方向仅是自然发声和逐项练习，操作闭环偏弱，原候选还带有较多停顿与笑声。",
+          "candidate_id": "candidate_c26a4653242fd277",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "R2以最广的非重复Topic覆盖、较完整的证据表达和具体风险提示居首。M4的文案与后期指引同样出色，但部分候选完整性及组合覆盖稍弱。Q7选题仍具传播价值，不过摘句更短、风险处理较泛，且有少量描述超前或跨相邻证据概括的情况。"
+}

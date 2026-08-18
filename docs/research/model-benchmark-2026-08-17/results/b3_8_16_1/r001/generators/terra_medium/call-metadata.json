@@ -1,0 +1,17 @@
+{
+  "elapsed_seconds": 49.217,
+  "label": "terra-medium",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "medium",
+  "request_id": "01a00f97-bd44-7371-84ea-e72825e47c11",
+  "result_sha256": "b3b7bacd722508ef25ff9ef36c431c35ded84006d7abceb19cfede2a5e28c4c7",
+  "reused": true,
+  "reused_from": "docs/research/model-comparison-2026-08-17/terra-medium.json",
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 24320,
+    "output_tokens": 2526,
+    "reasoning_output_tokens": 400
+  }
+}

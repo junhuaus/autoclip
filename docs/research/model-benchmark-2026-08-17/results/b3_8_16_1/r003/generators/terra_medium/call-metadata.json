@@ -1,0 +1,19 @@
+{
+  "completed_at": "2026-08-18T00:30:26.251858+00:00",
+  "elapsed_seconds": 35.504,
+  "label": "b3_8_16_1-r003-terra_medium",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "medium",
+  "request_id": "01a01246-47e6-7190-8ba9-43f28c534647",
+  "result_sha256": "f448a9d114184c5c72c92d0544056168817b4ef9b21e7a13e74cc8accb7074f3",
+  "reused": false,
+  "started_at": "2026-08-18T00:29:50.747675+00:00",
+  "unsafe_tool_event": false,
+  "usage": {
+    "cache_write_input_tokens": 0,
+    "cached_input_tokens": 0,
+    "input_tokens": 24342,
+    "output_tokens": 1742,
+    "reasoning_output_tokens": 35
+  }
+}

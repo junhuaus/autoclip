@@ -1,0 +1,99 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 2,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不管是在KTV的音响也好，还是专门找调音师修音也好，它只能美化，但是修不了你们的通道，修不了你们的共鸣腔体。",
+      "matched_character_coverage": 0.9592,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的时候胸口发紧是为什么？那就说明你太往下落了。很多同学气息不够，是太用这个位置唱、太用这个地方压。",
+      "matched_character_coverage": 0.9783,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2716045703db1f3b",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的步骤一定要从真声开始。你一定要找到自己真声的咬字位置，找到咬字的通道，再过渡到高音的真声。",
+      "matched_character_coverage": 1.0,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你不要去模仿网上那些大师，因为他们练了很多年。你刻意模仿我们，这个位置会加紧；你以为模仿到了，其实没有，而且会有其他问题。",
+      "matched_character_coverage": 0.963,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你们一找舌头、一在乎舌头，舌头就发力；舌头一发力，就会有舌根音。放松，怎么说话就怎么唱歌。",
+      "matched_character_coverage": 0.9474,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "如果你吸气的时候，肚脐下面三指的位置能感受到起伏，那么你的气息通道是对的；如果是胸口往上抬，那你的高音一定会卡。",
+      "matched_character_coverage": 0.8235,
+      "position": 6,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "小狗哈气有一个弊端，就是我们来回吸气的时候，后咽壁和空气直接接触，有些同学比较敏感，容易红肿、不舒服、干痒。",
+      "matched_character_coverage": 1.0,
+      "position": 7,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我们说话也是有音调的。你学了这个通道之后，又有了气息，你说话也会好。",
+      "matched_character_coverage": 0.9333,
+      "position": 8,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_a5c87afa0254618e",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你发现我练了那么长时间的气，为什么唱歌还是觉得气不够呢？是因为你在唱的时候把气漏走了。",
+      "matched_character_coverage": 1.0,
+      "position": 9,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_7c52ff6875a16a62",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "为什么我在变声期前面唱歌挺亮，变声期后面声音就没有之前好听了呢？",
+      "matched_character_coverage": 0.6667,
+      "position": 10,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你可以通过技术让你的上限更高，让你唱得比现在更好。爱好不分年龄，你不是要出道，当个小爱好，什么时候都不晚。",
+      "matched_character_coverage": 0.9787,
+      "position": 11,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 11,
+  "unique_candidate_count": 11
+}

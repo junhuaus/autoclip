@@ -1,0 +1,256 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 75.0,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a0125c-f0c3-7841-8755-98aac145c700"
+  },
+  "limitations": [
+    "仅有冻结的文字证据，没有视频画面或可试听音频；无法验证动作示范、音高/音色效果、实际停顿点及字幕所需的ASR纠错。",
+    "“唱歌通道”“气沉丹田”“共鸣”等表述属于讲者的教学框架；本评估只判断方案是否忠于证据，不认可其为精确生理或医学结论。",
+    "candidate_f49be10488a46e67与candidate_6721fcbb3782d23b来源区间高度重叠，按同一 Topic 归并；其“鼓点”仍需回听原音确认。",
+    "练习时长、运动热身和发声动作存在个体差异；文字证据不足以评价安全性或实际训练效果。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "十个 Topic 无内部重复，抓到了分项练习时长、换声区和KTV场景等差异化内容；共享强候选上的标题与摘句普遍简洁、有钩子。",
+    "topic_discovery": 3,
+    "weaknesses": "呼吸片把证据扩大到高音卡顿并用“胸口别乱动”的绝对化文案，KTV片把身体活动近似为快速开嗓；科学发声片较空泛。风险提示多为空或模板化，不能充分指导复核、截断和术语处理。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都围绕“不要刻意找共鸣，先建立讲者所谓的唱歌通道”这一纠偏主张。M4保留前提与结论最完整；Q7、R2更利落，但对自定义术语的独立解释较少。",
+      "canonical_topic": "共鸣不必硬找，先建立发声通道",
+      "cluster_id": "t017",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心结论准确、开门见山，但摘句省略了共鸣概念及全部前提，且风险提示较通用。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均主张抬眉是有阶段的辅助动作，不适合零基础一开始模仿。核心主张可互换，差异主要在摘句长度和风险交代。",
+      "canonical_topic": "初学者不宜过早用抬眉辅助高音",
+      "cluster_id": "t037",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "反常识钩子强且阶段限定准确；“声音不会再有其他进步”虽来自原文，但表述偏绝对，风险提示没有专门约束这一点。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都回答“不会简谱或乐理能否学唱歌”，并区分入门可模仿与识谱有助于提高自主学歌效率。M4、Q7在摘句内完整呈现两面结论，R2主要靠描述补足后半面。",
+      "canonical_topic": "乐理不是唱歌入门门槛，但有助于自学",
+      "cluster_id": "t047",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "高度忠实且浓缩得当，两层结论完整，标题可直接使用；风险栏为空不影响本题，但少了对“重在模仿”仅属入门简化的提醒。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均针对高音叠加闭口音时容易卡紧，给出先借开口音、再渐进过渡回闭口音的同一训练方法。",
+      "canonical_topic": "高音闭口音卡紧的渐进过渡练习",
+      "cluster_id": "t097",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "浓缩准确、节奏利落，适合作为单点教程；描述称“解释原因”稍显拔高，原证据主要说明组合难点和方法。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均回应天赋焦虑：普通学习者无需以出道为标准，应在自身先天条件上持续改善。M4摘句最完整，Q7和R2更短。",
+      "canonical_topic": "没天赋也可在自身条件上进步",
+      "cluster_id": "t107",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心立场忠实且鼓励性强，但“没天赋还能学好吗”的回答主要靠“做到最好”间接收束，摘句未保留“不必出道”的重要边界。",
+          "candidate_id": "candidate_65678839045aab40",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片回答气息、练声和唱歌在一小时左右训练中的具体时间分配，重点是短时热身后进入唱歌；与泛化的“重效率不重时长”不是同一核心主张。",
+      "canonical_topic": "每日气息、练声与唱歌的时长分配",
+      "cluster_id": "t117",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "具体数字和热身逻辑具有收藏价值，摘句基本闭合；标题“别超过这一小时”有证据支撑，但没有突出真正更独特的分项时长信息。",
+          "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都以KTV临时开唱为场景，建议用十个蹲起或高抬腿做身体热身。Q7把身体热身写成“快速开嗓”略有扩大，R2界定更准确。",
+      "canonical_topic": "KTV开唱前用简单运动热身",
+      "cluster_id": "t127",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "场景和动作有强画面感，但候选只证明活动身体，钩子“快速开嗓”容易让人理解为直接完成嗓音热身；风险提示也未区分两者。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片以胸口明显起伏诊断吸气偏浅，并引出讲者的“气沉丹田”教学说法；它不是俯身练习本身，故单列。",
+      "canonical_topic": "用胸口明显起伏识别浅呼吸",
+      "cluster_id": "t137",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "浅呼吸诊断忠于证据，但钩子擅自绑定“唱高音总卡”，标题“胸口别乱动”也比“明显起伏说明偏浅”更绝对；且没有给出完整纠正动作，独立实用性一般。",
+          "candidate_id": "candidate_259a47e73cd8edad",
+          "claim_fidelity": 2,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片专门回答换声区声音断层，主张统一咬字位置并维持讲者所谓的唱歌通道，与其他高音舌根或闭口音问题不可互换。",
+      "canonical_topic": "换声区不断层需统一咬字位置",
+      "cluster_id": "t147",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心原则来自候选且标题直击问题；钩子中的“硬顶”并非原段明确措辞，“唱歌通道”也缺少解释，仍需要示范或前置定义才能降低抽象度。",
+          "candidate_id": "candidate_2169870825746d02",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片是面向零基础的原则性提醒：不要盲练所谓偏门技巧，应寻找科学、可持续的发声方法。",
+      "canonical_topic": "零基础应优先采用可持续的发声方法",
+      "cluster_id": "t157",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "摘句忠实且短促，但“科学方法”没有给出判定标准或具体行动，单独传播的实用增量有限；描述把“邪门外道”解释成高风险技巧略有概括性扩展。",
+          "candidate_id": "candidate_35a860b83062d6ab",
+          "claim_fidelity": 3,
+          "editorial_value": 2,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "首选M4：它虽不是数量最多，但强候选命中率、摘句完整度和后期文案可执行性最稳定。R2以更广的Topic覆盖和最佳风险提示紧随其后，但部分短摘句及两项较弱选题降低选片质量。Q7有若干差异化发现，却在呼吸与KTV片出现主张扩张，且风险提示明显不够定制化。"
+}

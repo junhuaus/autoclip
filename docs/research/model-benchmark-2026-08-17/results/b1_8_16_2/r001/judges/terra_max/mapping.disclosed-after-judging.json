@@ -1,0 +1,68 @@
+{
+  "all_highlight_keys": [
+    "M4:h01",
+    "M4:h02",
+    "M4:h03",
+    "M4:h04",
+    "M4:h05",
+    "M4:h06",
+    "M4:h07",
+    "M4:h08",
+    "Q7:h01",
+    "Q7:h02",
+    "Q7:h03",
+    "Q7:h04",
+    "Q7:h05",
+    "Q7:h06",
+    "Q7:h07",
+    "Q7:h08",
+    "R2:h01",
+    "R2:h02",
+    "R2:h03",
+    "R2:h04",
+    "R2:h05",
+    "R2:h06",
+    "R2:h07",
+    "R2:h08",
+    "R2:h09"
+  ],
+  "anonymous_system_mapping": {
+    "M4": "terra_medium",
+    "Q7": "sol_high",
+    "R2": "sol_medium"
+  },
+  "highlight_candidate_mapping": {
+    "M4": {
+      "h01": "candidate_6b0ae4ac42937611",
+      "h02": "candidate_737064038099ef2a",
+      "h03": "candidate_2e74bd47f66c76ad",
+      "h04": "candidate_adab5d4da9ab2be6",
+      "h05": "candidate_48324e904b930420",
+      "h06": "candidate_5fc29cf6f9d6fbb3",
+      "h07": "candidate_b45014a64a6a9c53",
+      "h08": "candidate_1d0bcd4f6ed22861"
+    },
+    "Q7": {
+      "h01": "candidate_adab5d4da9ab2be6",
+      "h02": "candidate_2e74bd47f66c76ad",
+      "h03": "candidate_b45014a64a6a9c53",
+      "h04": "candidate_737064038099ef2a",
+      "h05": "candidate_48324e904b930420",
+      "h06": "candidate_473a7cc73ef551ea",
+      "h07": "candidate_159babdbda6acfe6",
+      "h08": "candidate_e7e0739b77ace20a"
+    },
+    "R2": {
+      "h01": "candidate_adab5d4da9ab2be6",
+      "h02": "candidate_737064038099ef2a",
+      "h03": "candidate_2e74bd47f66c76ad",
+      "h04": "candidate_48324e904b930420",
+      "h05": "candidate_5fc29cf6f9d6fbb3",
+      "h06": "candidate_b45014a64a6a9c53",
+      "h07": "candidate_26500385c10519ef",
+      "h08": "candidate_1d0bcd4f6ed22861",
+      "h09": "candidate_de95d7468a7318ca"
+    }
+  },
+  "seed_sha256": "f928b3edeb08f2eb5ce1b961fc4294a4efb2690326c718884521b3be8ba42aa7"
+}

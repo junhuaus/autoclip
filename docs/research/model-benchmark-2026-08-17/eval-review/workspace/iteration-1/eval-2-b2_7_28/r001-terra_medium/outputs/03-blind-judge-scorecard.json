@@ -1,0 +1,19 @@
+{
+  "blind_judge_mean": 81.25,
+  "blind_judge_range": [
+    75.0,
+    87.5
+  ],
+  "generator_config": "terra_medium",
+  "judge_scores": {
+    "sol_max": {
+      "rank": 3,
+      "total": 75.0
+    },
+    "terra_max": {
+      "rank": 3,
+      "total": 87.5
+    }
+  },
+  "quality_threshold": 80.0
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "overall", "per_topic", "strengths_and_weaknesses", "recommendation", "limitations"],
+  "properties": {
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["winner", "confidence", "summary"],
+      "properties": {
+        "winner": {"type": "string", "enum": ["A", "B", "tie"]},
+        "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_a_total", "system_b_total", "system_a_breakdown", "system_b_breakdown"],
+      "properties": {
+        "system_a_total": {"type": "number", "minimum": 0, "maximum": 100},
+        "system_b_total": {"type": "number", "minimum": 0, "maximum": 100},
+        "system_a_breakdown": {"$ref": "#/$defs/overallBreakdown"},
+        "system_b_breakdown": {"$ref": "#/$defs/overallBreakdown"}
+      }
+    },
+    "per_topic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["high_pitch", "tongue_space", "breath_support", "mixed_voice_sequence", "pitch_correction", "imitation", "chest_leak", "voice_use", "articulation", "talent_age"],
+      "properties": {
+        "high_pitch": {"$ref": "#/$defs/topicComparison"},
+        "tongue_space": {"$ref": "#/$defs/topicComparison"},
+        "breath_support": {"$ref": "#/$defs/topicComparison"},
+        "mixed_voice_sequence": {"$ref": "#/$defs/topicComparison"},
+        "pitch_correction": {"$ref": "#/$defs/topicComparison"},
+        "imitation": {"$ref": "#/$defs/topicComparison"},
+        "chest_leak": {"$ref": "#/$defs/topicComparison"},
+        "voice_use": {"$ref": "#/$defs/topicComparison"},
+        "articulation": {"$ref": "#/$defs/topicComparison"},
+        "talent_age": {"$ref": "#/$defs/topicComparison"}
+      }
+    },
+    "strengths_and_weaknesses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_a", "system_b"],
+      "properties": {
+        "system_a": {"type": "string", "minLength": 1, "maxLength": 1400},
+        "system_b": {"type": "string", "minLength": 1, "maxLength": 1400}
+      }
+    },
+    "recommendation": {"type": "string", "minLength": 1, "maxLength": 1800},
+    "limitations": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string", "minLength": 1, "maxLength": 350}}
+  },
+  "$defs": {
+    "overallBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_fidelity", "editorial_value", "hook_strength", "expression_completeness", "title_and_script", "recommendation_judgment"],
+      "properties": {
+        "evidence_fidelity": {"type": "number", "minimum": 0, "maximum": 25},
+        "editorial_value": {"type": "number", "minimum": 0, "maximum": 20},
+        "hook_strength": {"type": "number", "minimum": 0, "maximum": 15},
+        "expression_completeness": {"type": "number", "minimum": 0, "maximum": 15},
+        "title_and_script": {"type": "number", "minimum": 0, "maximum": 15},
+        "recommendation_judgment": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "topicScores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_fidelity", "editorial_value", "hook_strength", "expression_completeness", "title_quality", "script_usability", "recommendation_judgment"],
+      "properties": {
+        "evidence_fidelity": {"type": "number", "minimum": 0, "maximum": 10},
+        "editorial_value": {"type": "number", "minimum": 0, "maximum": 10},
+        "hook_strength": {"type": "number", "minimum": 0, "maximum": 10},
+        "expression_completeness": {"type": "number", "minimum": 0, "maximum": 10},
+        "title_quality": {"type": "number", "minimum": 0, "maximum": 10},
+        "script_usability": {"type": "number", "minimum": 0, "maximum": 10},
+        "recommendation_judgment": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "topicComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "system_a_candidate_id", "system_b_candidate_id", "system_a_scores", "system_b_scores", "system_a_topic_total", "system_b_topic_total", "winner", "assessment"],
+      "properties": {
+        "label": {"type": "string", "minLength": 1, "maxLength": 100},
+        "system_a_candidate_id": {"type": "string"},
+        "system_b_candidate_id": {"type": "string"},
+        "system_a_scores": {"$ref": "#/$defs/topicScores"},
+        "system_b_scores": {"$ref": "#/$defs/topicScores"},
+        "system_a_topic_total": {"type": "number", "minimum": 0, "maximum": 10},
+        "system_b_topic_total": {"type": "number", "minimum": 0, "maximum": 10},
+        "winner": {"type": "string", "enum": ["A", "B", "tie"]},
+        "assessment": {"type": "string", "minLength": 1, "maxLength": 850}
+      }
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "exact_quote_count": 2,
+  "exact_quote_rate": 0.1818,
+  "failed_quote_count": 4,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_373756f54a23ac46",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你说话的时候舌头怎么放，你有思考过这个问题吗？那就是自然地放就好了，你不要往后去堵。",
+      "matched_character_coverage": 0.7632,
+      "position": 1,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我们不是要出道，你要在你自己的硬件上让自己做到最好。",
+      "matched_character_coverage": 0.9167,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "我们唱歌不要去追求时间，你要追求效率；我们在唱歌的时候，动着脑子去思考着去唱。",
+      "matched_character_coverage": 1.0,
+      "position": 3,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "如果你又遇到了高音，又遇到了一个闭口音，那这个高音很多小白就会卡紧。怎么办？先把这个闭口音带一个开口音的字去练，找到感觉之后，慢慢再过渡到闭口音上。",
+      "matched_character_coverage": 1.0,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_bef585871fbac01e",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你说老师，我不会简谱、不会乐理，能不能学唱歌？一样可以学唱歌，因为我们唱歌重在一个模仿。",
+      "matched_character_coverage": 0.8947,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_6721fcbb3782d23b",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "拿着谱却跟不上伴奏，为什么？因为你不会听伴奏、跟不上拍。你得把这个歌先搞熟了，才有精力去听伴奏里面的鼓点。",
+      "matched_character_coverage": 0.7872,
+      "position": 6,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_0c49c6488ae5fe28",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "我们只要把唱歌唱在唱歌通道里面去，你就会有你所谓的共鸣。你不要刻意地去练这个共鸣。",
+      "matched_character_coverage": 1.0,
+      "position": 7,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_464b0f2aee1d8a44",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "很多老师唱歌会让你抬眉，但它是有程度、有阶段的，不适合小白。眉毛什么的都不要抬，就放松就好了。",
+      "matched_character_coverage": 1.0,
+      "position": 8,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_c393f29d34250a55",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "怎么去找我们的丹田点？你可以站起来，俯身45度，把手掐紧腰，慢慢地吸气，你会感觉到这个起伏。",
+      "matched_character_coverage": 0.8,
+      "position": 9,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_0650eee23c06e676",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "正常来说，我们的音色是改不了的，因为音色取决于声带，这是爸妈给的；但我能通过技术去改变你的唱歌习惯、唱歌通道。",
+      "matched_character_coverage": 0.6531,
+      "position": 10,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "怎么办？我教你一个方法：你在唱歌的时候可以先出去做蹲起，先做十个蹲起，把自己的肌肉、身上活动开。",
+      "matched_character_coverage": 0.9286,
+      "position": 11,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 11,
+  "unique_candidate_count": 11
+}

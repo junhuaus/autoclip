@@ -1,0 +1,84 @@
+{
+  "aggregation_rule": "Macro-average three unique source SHA-256 values. The ASR evidence sensitivity case and filename aliases have zero primary statistical weight.",
+  "artifact_sha256": {
+    "cases": "29827b87b49c0f787d4ccb630904eda7c52d68dbf8b03df82f5555d3c3e8e917",
+    "generation_schema": "ed327da4074bbac21226da95c602b89c3d5345a339a310f1fc44c661b3d16657",
+    "judge_prompt": "0218c7801779b2529448ff63edf59f1734a83b6b03e8c24f6f51461976511d9b",
+    "judge_schema": "be746db893336fc73980b027fb17b2539703196d248c0cb5eab845ed821d8449",
+    "runtime_agent_skill": "aeae5d849f13f656b83d376ba9289313479e11e4d0179e7a09554a129c38eba8"
+  },
+  "benchmark_name": "LiveClip three-model free-discovery benchmark",
+  "candidate_order_variants": [
+    "original",
+    "reverse",
+    "seeded_shuffle"
+  ],
+  "cases": [
+    {
+      "case_id": "b1_8_16_2",
+      "evidence_set": "b1_8_15_1_g002",
+      "include_in_primary_aggregate": true,
+      "replicates": 3
+    },
+    {
+      "case_id": "b2_7_28",
+      "evidence_set": "b2_7_28_g003",
+      "include_in_primary_aggregate": true,
+      "replicates": 3
+    },
+    {
+      "case_id": "b3_8_16_1",
+      "evidence_set": "b3_8_16_1_g001",
+      "include_in_primary_aggregate": true,
+      "replicates": 3
+    },
+    {
+      "case_id": "d1_8_15_2_asr_variant",
+      "evidence_set": "d1_8_15_2_g002",
+      "include_in_primary_aggregate": false,
+      "replicates": 1
+    }
+  ],
+  "codex_cli": {
+    "path": "/opt/homebrew/bin/codex",
+    "version": "codex-cli 0.146.0"
+  },
+  "created_at": "2026-08-17T13:02:18.146360+00:00",
+  "diagnostic_case_count": 1,
+  "generator_models": {
+    "sol_high": {
+      "effort": "high",
+      "model": "gpt-5.6-sol"
+    },
+    "sol_medium": {
+      "effort": "medium",
+      "model": "gpt-5.6-sol"
+    },
+    "terra_medium": {
+      "effort": "medium",
+      "model": "gpt-5.6-terra"
+    }
+  },
+  "generator_replicates_per_primary_case": 3,
+  "judge_models": {
+    "sol_max": {
+      "effort": "max",
+      "model": "gpt-5.6-sol"
+    },
+    "terra_max": {
+      "effort": "max",
+      "model": "gpt-5.6-terra"
+    }
+  },
+  "primary_case_count": 3,
+  "runtime_isolation": {
+    "environment": "allowlist",
+    "ephemeral": true,
+    "ignore_rules": true,
+    "ignore_user_config": true,
+    "sandbox": "read-only",
+    "tools": "disabled"
+  },
+  "schema_version": "1",
+  "unique_source_count": 3
+}

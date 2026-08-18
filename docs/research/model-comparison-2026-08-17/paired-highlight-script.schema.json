@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selection_summary", "topics"],
+  "properties": {
+    "selection_summary": {"type": "string", "minLength": 1, "maxLength": 700},
+    "topics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "high_pitch",
+        "tongue_space",
+        "breath_support",
+        "mixed_voice_sequence",
+        "pitch_correction",
+        "imitation",
+        "chest_leak",
+        "voice_use",
+        "articulation",
+        "talent_age"
+      ],
+      "properties": {
+        "high_pitch": {"$ref": "#/$defs/topicScript"},
+        "tongue_space": {"$ref": "#/$defs/topicScript"},
+        "breath_support": {"$ref": "#/$defs/topicScript"},
+        "mixed_voice_sequence": {"$ref": "#/$defs/topicScript"},
+        "pitch_correction": {"$ref": "#/$defs/topicScript"},
+        "imitation": {"$ref": "#/$defs/topicScript"},
+        "chest_leak": {"$ref": "#/$defs/topicScript"},
+        "voice_use": {"$ref": "#/$defs/topicScript"},
+        "articulation": {"$ref": "#/$defs/topicScript"},
+        "talent_age": {"$ref": "#/$defs/topicScript"}
+      }
+    }
+  },
+  "$defs": {
+    "topicScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recommended", "candidate_id", "score", "title", "highlight_sentence", "hook", "script_description", "selection_reason", "risk_flags"],
+      "properties": {
+        "recommended": {"type": "boolean"},
+        "candidate_id": {"type": "string", "pattern": "^candidate_[a-f0-9]{16}$"},
+        "score": {"type": "number", "minimum": 0, "maximum": 100},
+        "title": {"type": "string", "minLength": 1, "maxLength": 40},
+        "highlight_sentence": {"type": "string", "minLength": 1, "maxLength": 140},
+        "hook": {"type": "string", "minLength": 1, "maxLength": 90},
+        "script_description": {"type": "string", "minLength": 1, "maxLength": 300},
+        "selection_reason": {"type": "string", "minLength": 1, "maxLength": 260},
+        "risk_flags": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 50}}
+      }
+    }
+  }
+}

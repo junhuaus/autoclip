@@ -1,0 +1,56 @@
+{
+  "schema_version": "1",
+  "source": "Normalized union of the anonymous exploratory A/B selections",
+  "topics": [
+    {
+      "topic_id": "high_pitch",
+      "label": "高音卡顿：呼吸通道、腔体与避免喊唱",
+      "scope": "高音唱不上去、挤嗓或喊唱，以及呼吸通道、腔体和位置的纠正"
+    },
+    {
+      "topic_id": "tongue_space",
+      "label": "舌头放松与内口腔空间",
+      "scope": "刻意压舌、抬舌、舌根发力和内口腔空间对发声的影响"
+    },
+    {
+      "topic_id": "breath_support",
+      "label": "零基础气息支撑与练习避坑",
+      "scope": "零基础吸气、气息支撑、吐丝练习和小狗哈气等训练方法"
+    },
+    {
+      "topic_id": "mixed_voice_sequence",
+      "label": "混声训练顺序",
+      "scope": "真声、强混、假声等技巧的学习顺序和基础要求"
+    },
+    {
+      "topic_id": "pitch_correction",
+      "label": "修音能力与真实音色",
+      "scope": "KTV 或后期修音能改善什么，以及不能替代的发声和共鸣能力"
+    },
+    {
+      "topic_id": "imitation",
+      "label": "初学者刻意模仿歌手的误区",
+      "scope": "尚未建立自身发声方法时刻意模仿成熟歌手音色的风险"
+    },
+    {
+      "topic_id": "chest_leak",
+      "label": "胸口用力、漏气与气息不够",
+      "scope": "胸口发紧、过度用力、气压与漏气，以及练过气息仍不够用"
+    },
+    {
+      "topic_id": "voice_use",
+      "label": "日常说话与科学用嗓",
+      "scope": "声乐训练对教师、主播等长时间说话和职业用嗓场景的帮助"
+    },
+    {
+      "topic_id": "articulation",
+      "label": "连麦诊断中的咬字位置",
+      "scope": "连麦演唱中的咬字不清、位置靠后以及针对性诊断"
+    },
+    {
+      "topic_id": "talent_age",
+      "label": "天赋、努力与学习年龄",
+      "scope": "年龄、先天条件、努力、职业目标和兴趣学习之间的关系"
+    }
+  ]
+}

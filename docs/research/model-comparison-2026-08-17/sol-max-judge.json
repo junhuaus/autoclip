@@ -1,0 +1,347 @@
+{
+  "limitations": [
+    "本实验只有一个视频和一次生成，不能代表所有直播类型或两个系统的总体表现。",
+    "冻结证据只有 ASR 文本，没有视频帧及可试听音频，无法验证口型、发声对比、视觉 Hook、音质和实际切点效果。",
+    "原始转写包含明显错词和破碎句；本评测只能判断方案是否忠于冻结证据，不能确认主播声乐观点的科学正确性。",
+    "topic 合并边界及传播价值评分仍包含中文短视频编辑判断。"
+  ],
+  "overall": {
+    "system_a_breakdown": {
+      "coverage_and_deduplication": 8.6,
+      "editorial_value": 17.0,
+      "evidence_fidelity": 21.9,
+      "expression_completeness": 12.5,
+      "hook_strength": 13.1,
+      "title_and_script": 12.5
+    },
+    "system_a_total": 85.6,
+    "system_b_breakdown": {
+      "coverage_and_deduplication": 8.8,
+      "editorial_value": 17.7,
+      "evidence_fidelity": 23.1,
+      "expression_completeness": 12.9,
+      "hook_strength": 13.4,
+      "title_and_script": 13.5
+    },
+    "system_b_total": 89.4
+  },
+  "per_topic": [
+    {
+      "assessment": "A 的“高音不是喊上去的”Hook 很强，但两段都以通道、腔体解决高音卡顿，语义高度相近，且第二段后半转入年龄与机能。B 只保留一段，信息更集中、去重更好。",
+      "system_a_candidate_ids": [
+        "candidate_e3f2a57d5e929402",
+        "candidate_638470bcf20511aa"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 6.0,
+        "editorial_value": 9.0,
+        "evidence_fidelity": 9.4,
+        "expression_completeness": 8.3,
+        "hook_strength": 9.3,
+        "script_usability": 8.8,
+        "title_quality": 9.2
+      },
+      "system_a_topic_total": 8.6,
+      "system_b_candidate_ids": [
+        "candidate_e3f2a57d5e929402"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 8.8,
+        "editorial_value": 8.7,
+        "evidence_fidelity": 9.3,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.9,
+        "script_usability": 8.8,
+        "title_quality": 9.0
+      },
+      "system_b_topic_total": 8.9,
+      "topic": "高音卡顿：呼吸通道、腔体与避免喊唱",
+      "winner": "B"
+    },
+    {
+      "assessment": "A 的第二段带有发声示范价值，但与第一段都在讲刻意压舌或抬舌导致发紧，且第二段止于新动作的设置处。B 留下误区、原因和替代动作均闭合的一段，编辑效率更高。",
+      "system_a_candidate_ids": [
+        "candidate_2efa31efddfe10ed",
+        "candidate_a7de7d24d9c2d27c"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 5.5,
+        "editorial_value": 8.8,
+        "evidence_fidelity": 9.3,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.8,
+        "script_usability": 8.8,
+        "title_quality": 8.6
+      },
+      "system_a_topic_total": 8.3,
+      "system_b_candidate_ids": [
+        "candidate_2efa31efddfe10ed"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.1,
+        "editorial_value": 8.7,
+        "evidence_fidelity": 9.5,
+        "expression_completeness": 9.0,
+        "hook_strength": 8.7,
+        "script_usability": 9.0,
+        "title_quality": 9.1
+      },
+      "system_b_topic_total": 9.0,
+      "topic": "舌头放松与内口腔空间",
+      "winner": "B"
+    },
+    {
+      "assessment": "A 覆盖了吐司练习和“小狗哈气”避坑，但高光句“首先唱歌的第一步一定是吸好气”不在所绑定的 candidate_b1c6640371e0ceab 内，实际出现在 candidate_18e1d7ea47ba32fc，构成明显的跨候选错配；标题也未准确突出本段主体。B 的零分仅表示未覆盖该主题，不代表原候选质量为零。",
+      "system_a_candidate_ids": [
+        "candidate_b1c6640371e0ceab"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 8.8,
+        "editorial_value": 7.8,
+        "evidence_fidelity": 5.0,
+        "expression_completeness": 8.2,
+        "hook_strength": 8.2,
+        "script_usability": 6.4,
+        "title_quality": 6.5
+      },
+      "system_a_topic_total": 7.3,
+      "system_b_candidate_ids": [],
+      "system_b_scores": {
+        "distinctiveness": 0.0,
+        "editorial_value": 0.0,
+        "evidence_fidelity": 0.0,
+        "expression_completeness": 0.0,
+        "hook_strength": 0.0,
+        "script_usability": 0.0,
+        "title_quality": 0.0
+      },
+      "system_b_topic_total": 0.0,
+      "topic": "零基础气息支撑与练习避坑",
+      "winner": "A"
+    },
+    {
+      "assessment": "两方均忠实提取真声、强混再到后续技巧的学习顺序。B 的标题更直接，并明确提示术语体系差异和“甲瘤”等转写错误，对实际剪辑更有帮助。",
+      "system_a_candidate_ids": [
+        "candidate_2716045703db1f3b"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 8.8,
+        "editorial_value": 8.5,
+        "evidence_fidelity": 9.3,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.6,
+        "script_usability": 8.7,
+        "title_quality": 8.8
+      },
+      "system_a_topic_total": 8.7,
+      "system_b_candidate_ids": [
+        "candidate_2716045703db1f3b"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.0,
+        "editorial_value": 8.6,
+        "evidence_fidelity": 9.4,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.8,
+        "script_usability": 9.0,
+        "title_quality": 8.9
+      },
+      "system_b_topic_total": 8.9,
+      "topic": "混声训练顺序",
+      "winner": "B"
+    },
+    {
+      "assessment": "两方都准确保留了“能美化但不能替代发声与共鸣”的观点。B 的高光句更完整，标题直接落在“为何修不出歌手音色”，比 A 的悬念式标题更具体、更利于独立传播。",
+      "system_a_candidate_ids": [
+        "candidate_e27d41447dbfb889"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 9.2,
+        "editorial_value": 8.9,
+        "evidence_fidelity": 9.3,
+        "expression_completeness": 8.4,
+        "hook_strength": 8.8,
+        "script_usability": 8.6,
+        "title_quality": 8.2
+      },
+      "system_a_topic_total": 8.8,
+      "system_b_candidate_ids": [
+        "candidate_e27d41447dbfb889"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.2,
+        "editorial_value": 9.1,
+        "evidence_fidelity": 9.5,
+        "expression_completeness": 8.6,
+        "hook_strength": 9.1,
+        "script_usability": 9.2,
+        "title_quality": 9.3
+      },
+      "system_b_topic_total": 9.1,
+      "topic": "修音能力与真实音色",
+      "winner": "B"
+    },
+    {
+      "assessment": "A 准确保留了“刻意”这一限定词，标题简洁且不过度升级风险。B 的“最危险的误区之一”并非原文表述，略显夸张；其余解释仍基本忠实。",
+      "system_a_candidate_ids": [
+        "candidate_5d3778b0260b9b65"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 9.0,
+        "editorial_value": 8.8,
+        "evidence_fidelity": 9.5,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.9,
+        "script_usability": 8.9,
+        "title_quality": 9.1
+      },
+      "system_a_topic_total": 9.0,
+      "system_b_candidate_ids": [
+        "candidate_5d3778b0260b9b65"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.0,
+        "editorial_value": 8.8,
+        "evidence_fidelity": 8.9,
+        "expression_completeness": 8.5,
+        "hook_strength": 8.7,
+        "script_usability": 8.8,
+        "title_quality": 9.0
+      },
+      "system_b_topic_total": 8.8,
+      "topic": "初学者刻意模仿歌手的误区",
+      "winner": "A"
+    },
+    {
+      "assessment": "两段 B 内容都沿着胸口使用不当或压力过大导致漏气的因果链，故合并评价。B 增加了“胸口发紧”的强痛点，但与已有漏气段重复，且新增片段的声带机制转写较破碎；A 单段含问题、对比示范和结论，更紧凑。",
+      "system_a_candidate_ids": [
+        "candidate_a5c87afa0254618e"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 8.5,
+        "editorial_value": 9.1,
+        "evidence_fidelity": 9.6,
+        "expression_completeness": 8.9,
+        "hook_strength": 9.3,
+        "script_usability": 9.0,
+        "title_quality": 9.3
+      },
+      "system_a_topic_total": 9.1,
+      "system_b_candidate_ids": [
+        "candidate_a5c87afa0254618e",
+        "candidate_a0f21643888730a5"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 6.5,
+        "editorial_value": 9.2,
+        "evidence_fidelity": 9.2,
+        "expression_completeness": 8.5,
+        "hook_strength": 9.4,
+        "script_usability": 9.1,
+        "title_quality": 9.3
+      },
+      "system_b_topic_total": 8.7,
+      "topic": "胸口用力、漏气与气息不够",
+      "winner": "A"
+    },
+    {
+      "assessment": "两方都忠于教师用嗓案例。B 用“可能”限定效果，并把教师、主播等受众场景写得更清楚；A 的标题更接近普遍效果承诺，虽有风险提示但仍稍显绝对。",
+      "system_a_candidate_ids": [
+        "candidate_f1d87e3d981d87dc"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 9.1,
+        "editorial_value": 8.5,
+        "evidence_fidelity": 9.0,
+        "expression_completeness": 8.1,
+        "hook_strength": 8.3,
+        "script_usability": 8.5,
+        "title_quality": 8.7
+      },
+      "system_a_topic_total": 8.6,
+      "system_b_candidate_ids": [
+        "candidate_f1d87e3d981d87dc"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.1,
+        "editorial_value": 8.7,
+        "evidence_fidelity": 9.2,
+        "expression_completeness": 8.3,
+        "hook_strength": 8.5,
+        "script_usability": 8.9,
+        "title_quality": 8.9
+      },
+      "system_b_topic_total": 8.8,
+      "topic": "日常说话与科学用嗓",
+      "winner": "B"
+    },
+    {
+      "assessment": "A 的核心诊断忠实且题材有区分度，但片头转写噪音明显，判断依赖观众听到被诊断者的演唱，片段内也缺少具体纠正步骤；“不是普通话的问题”是原文未明说的对比。B 的零分仅表示覆盖缺失，不代表原候选质量为零。",
+      "system_a_candidate_ids": [
+        "candidate_22d3260a7179c022"
+      ],
+      "system_a_scores": {
+        "distinctiveness": 9.1,
+        "editorial_value": 7.7,
+        "evidence_fidelity": 8.3,
+        "expression_completeness": 6.8,
+        "hook_strength": 8.2,
+        "script_usability": 7.9,
+        "title_quality": 7.6
+      },
+      "system_a_topic_total": 7.9,
+      "system_b_candidate_ids": [],
+      "system_b_scores": {
+        "distinctiveness": 0.0,
+        "editorial_value": 0.0,
+        "evidence_fidelity": 0.0,
+        "expression_completeness": 0.0,
+        "hook_strength": 0.0,
+        "script_usability": 0.0,
+        "title_quality": 0.0
+      },
+      "system_b_topic_total": 0.0,
+      "topic": "连麦诊断中的咬字位置",
+      "winner": "A"
+    },
+    {
+      "assessment": "B 准确提取了年龄与学习目标的讨论，并在脚本中区分职业出道和兴趣改善，避免把金句直接包装成绝对标准；候选后半段转向方言闲聊，仍需及时收尾。A 的零分仅表示未覆盖该主题，不代表原候选质量为零。",
+      "system_a_candidate_ids": [],
+      "system_a_scores": {
+        "distinctiveness": 0.0,
+        "editorial_value": 0.0,
+        "evidence_fidelity": 0.0,
+        "expression_completeness": 0.0,
+        "hook_strength": 0.0,
+        "script_usability": 0.0,
+        "title_quality": 0.0
+      },
+      "system_a_topic_total": 0.0,
+      "system_b_candidate_ids": [
+        "candidate_260b8f35571eae11"
+      ],
+      "system_b_scores": {
+        "distinctiveness": 9.5,
+        "editorial_value": 8.9,
+        "evidence_fidelity": 9.2,
+        "expression_completeness": 8.4,
+        "hook_strength": 9.0,
+        "script_usability": 9.1,
+        "title_quality": 9.2
+      },
+      "system_b_topic_total": 9.0,
+      "topic": "天赋、努力与学习年龄",
+      "winner": "B"
+    }
+  ],
+  "recommendation": "建议 LiveClip 在本样本中选择 B 作为默认高光脚本方案，主要依据是候选绑定更可靠、标题更明确、脚本可执行性和去重更稳定。若采用两阶段流程，可借鉴 A 的候选召回广度，但应增加逐字引语与 candidate_id 时间段校验、语义相似去重以及片尾跑题检测。",
+  "strengths_and_weaknesses": {
+    "system_a": "优势是题材发现较广，“高音不是喊”“练了气息仍漏气”“别刻意模仿”等 Hook 很强，多数引语忠实。弱点是高音与舌位各有近重复，咬字段依赖上下文，修音标题略空泛；最严重的问题是气息练习项把另一候选的句子绑定到 candidate_b1c6640371e0ceab，削弱了可追溯性和直接剪辑能力。",
+    "system_b": "优势是选择更克制，常见主题的标题、描述和风险提示普遍更具体，新增的学习年龄主题兼具传播性与独立价值；同源对比中多数脚本略优于 A。弱点是胸口发紧与漏气两段仍有重复，模仿误区的“最危险”略标题党，若干“通道”及年龄观点仍属于主播个人教学体系，不能当作普遍科学定论。"
+  },
+  "verdict": {
+    "confidence": "high",
+    "summary": "在该冻结样本内，B 的标题与脚本更具体，风险界定和去重更稳，且没有 A 在气息练习项中的跨候选引语错配。A 在模仿误区、漏气示范和表面覆盖上有局部优势。overall breakdown 为按 25/20/15/15/15/10 权重折算后的贡献分。",
+    "winner": "B"
+  }
+}

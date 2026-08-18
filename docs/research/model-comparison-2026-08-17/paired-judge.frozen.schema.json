@@ -1,0 +1,921 @@
+{
+  "$defs": {
+    "overallBreakdown": {
+      "additionalProperties": false,
+      "properties": {
+        "editorial_value": {
+          "maximum": 20,
+          "minimum": 0,
+          "type": "number"
+        },
+        "evidence_fidelity": {
+          "maximum": 25,
+          "minimum": 0,
+          "type": "number"
+        },
+        "expression_completeness": {
+          "maximum": 15,
+          "minimum": 0,
+          "type": "number"
+        },
+        "hook_strength": {
+          "maximum": 15,
+          "minimum": 0,
+          "type": "number"
+        },
+        "recommendation_judgment": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "title_and_script": {
+          "maximum": 15,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "evidence_fidelity",
+        "editorial_value",
+        "hook_strength",
+        "expression_completeness",
+        "title_and_script",
+        "recommendation_judgment"
+      ],
+      "type": "object"
+    },
+    "topicComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "maxLength": 850,
+          "minLength": 1,
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "system_a_candidate_id": {
+          "type": "string"
+        },
+        "system_a_scores": {
+          "$ref": "#/$defs/topicScores"
+        },
+        "system_a_topic_total": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "system_b_candidate_id": {
+          "type": "string"
+        },
+        "system_b_scores": {
+          "$ref": "#/$defs/topicScores"
+        },
+        "system_b_topic_total": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "winner": {
+          "enum": [
+            "A",
+            "B",
+            "tie"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "system_a_candidate_id",
+        "system_b_candidate_id",
+        "system_a_scores",
+        "system_b_scores",
+        "system_a_topic_total",
+        "system_b_topic_total",
+        "winner",
+        "assessment"
+      ],
+      "type": "object"
+    },
+    "topicScores": {
+      "additionalProperties": false,
+      "properties": {
+        "editorial_value": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "evidence_fidelity": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "expression_completeness": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "hook_strength": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "recommendation_judgment": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "script_usability": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        },
+        "title_quality": {
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "evidence_fidelity",
+        "editorial_value",
+        "hook_strength",
+        "expression_completeness",
+        "title_quality",
+        "script_usability",
+        "recommendation_judgment"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "limitations": {
+      "items": {
+        "maxLength": 350,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "type": "array"
+    },
+    "overall": {
+      "additionalProperties": false,
+      "properties": {
+        "system_a_breakdown": {
+          "$ref": "#/$defs/overallBreakdown"
+        },
+        "system_a_total": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "system_b_breakdown": {
+          "$ref": "#/$defs/overallBreakdown"
+        },
+        "system_b_total": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "system_a_total",
+        "system_b_total",
+        "system_a_breakdown",
+        "system_b_breakdown"
+      ],
+      "type": "object"
+    },
+    "per_topic": {
+      "additionalProperties": false,
+      "properties": {
+        "articulation": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "连麦诊断中的咬字位置"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_22d3260a7179c022"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_22d3260a7179c022"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "breath_support": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "零基础气息支撑与练习避坑"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_18e1d7ea47ba32fc"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_18e1d7ea47ba32fc"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "chest_leak": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "胸口用力、漏气与气息不够"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_a0f21643888730a5"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_a5c87afa0254618e"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "high_pitch": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "高音卡顿：呼吸通道、腔体与避免喊唱"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_e3f2a57d5e929402"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_638470bcf20511aa"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "imitation": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "初学者刻意模仿歌手的误区"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_5d3778b0260b9b65"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_5d3778b0260b9b65"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "mixed_voice_sequence": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "混声训练顺序"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_005f7d0822d40234"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_005f7d0822d40234"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "pitch_correction": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "修音能力与真实音色"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_e27d41447dbfb889"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_e27d41447dbfb889"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "talent_age": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "天赋、努力与学习年龄"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_260b8f35571eae11"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_260b8f35571eae11"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "tongue_space": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "舌头放松与内口腔空间"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_2efa31efddfe10ed"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_2efa31efddfe10ed"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        },
+        "voice_use": {
+          "additionalProperties": false,
+          "properties": {
+            "assessment": {
+              "maxLength": 850,
+              "minLength": 1,
+              "type": "string"
+            },
+            "label": {
+              "enum": [
+                "日常说话与科学用嗓"
+              ],
+              "type": "string"
+            },
+            "system_a_candidate_id": {
+              "enum": [
+                "candidate_f1d87e3d981d87dc"
+              ],
+              "type": "string"
+            },
+            "system_a_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_a_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "system_b_candidate_id": {
+              "enum": [
+                "candidate_f1d87e3d981d87dc"
+              ],
+              "type": "string"
+            },
+            "system_b_scores": {
+              "$ref": "#/$defs/topicScores"
+            },
+            "system_b_topic_total": {
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "winner": {
+              "enum": [
+                "A",
+                "B",
+                "tie"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "system_a_candidate_id",
+            "system_b_candidate_id",
+            "system_a_scores",
+            "system_b_scores",
+            "system_a_topic_total",
+            "system_b_topic_total",
+            "winner",
+            "assessment"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "high_pitch",
+        "tongue_space",
+        "breath_support",
+        "mixed_voice_sequence",
+        "pitch_correction",
+        "imitation",
+        "chest_leak",
+        "voice_use",
+        "articulation",
+        "talent_age"
+      ],
+      "type": "object"
+    },
+    "recommendation": {
+      "maxLength": 1800,
+      "minLength": 1,
+      "type": "string"
+    },
+    "strengths_and_weaknesses": {
+      "additionalProperties": false,
+      "properties": {
+        "system_a": {
+          "maxLength": 1400,
+          "minLength": 1,
+          "type": "string"
+        },
+        "system_b": {
+          "maxLength": 1400,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "system_a",
+        "system_b"
+      ],
+      "type": "object"
+    },
+    "verdict": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "winner": {
+          "enum": [
+            "A",
+            "B",
+            "tie"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "winner",
+        "confidence",
+        "summary"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "verdict",
+    "overall",
+    "per_topic",
+    "strengths_and_weaknesses",
+    "recommendation",
+    "limitations"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,138 @@
+{
+  "selection_summary": "10 个固定 topic 已逐一匹配；6 条达到推荐阈值，4 条因绝对化表述、个人经验或证据不足而保留为不推荐。候选未复用。",
+  "topics": {
+    "articulation": {
+      "candidate_id": "candidate_22d3260a7179c022",
+      "highlight_sentence": "你现在有一个问题，就是你的咬字不清楚，发现了吗？你太去找这个通道了，它往后抠了，你的咬字位置太靠后了。",
+      "hook": "咬字不清，不一定是字没练够。",
+      "recommended": true,
+      "risk_flags": [],
+      "score": 82,
+      "script_description": "连麦诊断切片：先点出咬字不清，再明确“位置太靠后”，适合保留诊断—原因的完整链路。",
+      "selection_reason": "唯一直接针对连麦演唱咬字位置的候选，问题与判断都清晰。",
+      "title": "咬字不清，可能是位置太靠后"
+    },
+    "breath_support": {
+      "candidate_id": "candidate_18e1d7ea47ba32fc",
+      "highlight_sentence": "首先唱歌的第一步一定是吸好气，吸好气了之后我们才能去练气息。好，那我们怎么去练？不要练狗哈气，我刚才说了不要练狗哈气，直接练吐丝。",
+      "hook": "零基础练气息，先别急着上强度。",
+      "recommended": false,
+      "risk_flags": [
+        "练习建议主要是主播个人教学观点，缺少适用边界与专业依据",
+        "“不要练狗哈气”的否定较绝对"
+      ],
+      "score": 70,
+      "script_description": "从吸气基础过渡到练习选择，主题匹配度高；剪辑时避免把单一练习法包装成普适结论。",
+      "selection_reason": "最完整覆盖零基础吸气、练习顺序与小狗哈气避坑，但建议表述较绝对。",
+      "title": "零基础练气息：先把气吸对"
+    },
+    "chest_leak": {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "highlight_sentence": "所以我们唱歌漏气的同学，你看看你到底是声带闭不闭合，还是说胸口这个位置使劲太多了，都不可以，一定要恰到好处。",
+      "hook": "胸口一紧、气就漏，可能不是气不够。",
+      "recommended": true,
+      "risk_flags": [
+        "包含简化的发声生理机制解释"
+      ],
+      "score": 80,
+      "script_description": "以胸口发紧提问开场，落到过度用力与漏气的关系，问题—解释—提醒完整。",
+      "selection_reason": "直接命中胸口用力、气压与漏气，且开头具备明确痛点。",
+      "title": "胸口太用力，为什么会漏气？"
+    },
+    "high_pitch": {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "highlight_sentence": "唱歌的通道很多，小白你会觉得我唱歌声音高音卡起，高音唱不上去，我感觉我的声音都在上面，感觉这好多声音啊，都感觉这好好挤啊，嗓子疼，为啥？因为你现在通道只有这一块。",
+      "hook": "高音卡住、挤嗓子，问题可能在通道。",
+      "recommended": false,
+      "risk_flags": [
+        "“高音一定卡机、百分之百卡机”等绝对化表述存在于候选后段",
+        "发声机制为教学观点，不宜包装为科学定论"
+      ],
+      "score": 73,
+      "script_description": "痛点密集且解释方向明确，适合做高音挤卡的认知切片；应避开后段绝对化判断。",
+      "selection_reason": "最直接覆盖高音唱不上去、挤与通道，但整体证据含绝对化说法，未达推荐标准。",
+      "title": "高音卡住，不要只靠挤"
+    },
+    "imitation": {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "highlight_sentence": "你不要去模仿那个你在网上看那种大师啊，因为他们练了很多年了。你刻意地模仿我们，就是说你的这个位置会加紧；你以为模仿到了，其实没有，而且会有其他的问题。",
+      "hook": "别急着复制歌手的音色。",
+      "recommended": false,
+      "risk_flags": [
+        "“会有其他的问题”缺少具体边界与证据",
+        "以主播个人经历和教学观点为主"
+      ],
+      "score": 72,
+      "script_description": "从成熟歌手的训练基础切入，提醒初学者不要刻意模仿位置与音色。",
+      "selection_reason": "唯一完整直指刻意模仿风险的候选，但论证较概括。",
+      "title": "初学者别急着模仿歌手音色"
+    },
+    "mixed_voice_sequence": {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "highlight_sentence": "它是有步骤的，我们唱歌的步骤一定要从真声开始。你一定要找到自己真声的咬字位置，找到咬字的通道，OK，我们再过渡到高音的真声，高音的真声就叫强混，找到强混的位置，OK，真声、强混再到假声。",
+      "hook": "混声不是一上来就练。",
+      "recommended": true,
+      "risk_flags": [
+        "训练顺序属于主播教学体系，不应宣称为唯一标准"
+      ],
+      "score": 84,
+      "script_description": "明确给出真声、强混、假声的递进顺序，结构天然适合短视频字幕分段。",
+      "selection_reason": "训练顺序清楚、主题集中、信息密度高，是本 topic 的最佳候选。",
+      "title": "混声训练，先真声再强混"
+    },
+    "pitch_correction": {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "highlight_sentence": "你不管是在KTV的那个音响也好，还是你专门去调音师的那个就是调音修音也好，它修的只能去美化，但是修不了你们的通道，修不了你们的共鸣腔体。",
+      "hook": "修音能修准音，不等于修出好音色。",
+      "recommended": true,
+      "risk_flags": [
+        "“修不了通道、共鸣腔体”为概括性教学表述"
+      ],
+      "score": 81,
+      "script_description": "对比 KTV 音响与后期修音的边界，核心观点集中，适合做“修音不能替代什么”的高光。",
+      "selection_reason": "直接回答修音能做什么、不能替代什么，表达完整且易懂。",
+      "title": "修音不能替代真实发声能力"
+    },
+    "talent_age": {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "highlight_sentence": "天赋决定了你的下限，努力决定了你的上限。如果说你跑调或者你本来嗓子嘶哑的那种嗓子，你不可能出道，但是你可以通过技术让你的上限更高，让你唱得比现在更好。",
+      "hook": "年龄大了还能学唱歌吗？",
+      "recommended": false,
+      "risk_flags": [
+        "对先天条件、职业可能性的判断过于绝对",
+        "不宜将主播观点包装为能力评估结论"
+      ],
+      "score": 66,
+      "script_description": "候选同时谈天赋、努力、职业目标和兴趣学习，但含有不宜直接放大的绝对化判断。",
+      "selection_reason": "覆盖面最接近固定 topic，但核心表述存在明显过度断言。",
+      "title": "学唱歌：兴趣学习不分年龄"
+    },
+    "tongue_space": {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "highlight_sentence": "你们开始不要去找舌头凹，你们找不到。你们一找舌头，一在乎舌头，你们舌头就发力，舌头一发力，你就会有舌根音。那就完了，放松怎么说话怎么唱歌。",
+      "hook": "越刻意管舌头，越容易紧。",
+      "recommended": true,
+      "risk_flags": [
+        "“舌根音”等术语未作解释"
+      ],
+      "score": 80,
+      "script_description": "以“不要刻意找舌头凹”打破常见误区，完整说明刻意控制导致发力的逻辑。",
+      "selection_reason": "主题最聚焦舌头放松，开头反常识、表达紧凑。",
+      "title": "舌头越刻意，越容易发力"
+    },
+    "voice_use": {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "highlight_sentence": "老师这个职业的，他说跟我学完这个几节课之后，在学校给学生讲课的时候嗓子都觉得轻松了。因为什么呢？因为你知道了我们说话也是有音调的。",
+      "hook": "老师讲一天课，嗓子也能更轻松？",
+      "recommended": false,
+      "risk_flags": [
+        "效果来自个案转述，不能视为普遍效果",
+        "不构成医疗或职业用嗓建议"
+      ],
+      "score": 71,
+      "script_description": "以教师学员的主观反馈切入，说到说话也有音调；可作为经验分享，不宜作功效承诺。",
+      "selection_reason": "最贴近日常说话与教师职业用嗓场景，但仅有个案体验支撑。",
+      "title": "声乐训练，也能用在日常说话"
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 4,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_adab5d4da9ab2be6",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。很多同学声带不闭合，上来不能直接唱假声；每个人问题不一样，具体问题具体分析。",
+      "matched_character_coverage": 0.9808,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "“腹式呼吸”专业名词叫胸腹式联合呼吸；找到它只是占10%，还要用一套方法把这个声音用在唱歌上。",
+      "matched_character_coverage": 0.7805,
+      "position": 2,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_729ff8b49cf26f22",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你下边这个东西太少了，胸腔支撑太少，位置太靠上面了。上面东西少一点，下面东西多一点，你的声音会穿透力更强，而且不会那么累。",
+      "matched_character_coverage": 0.9815,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_995f11a38ef0e583",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "主要是鼻音问题。你的高音会发散，要把这个改掉，集中一点。",
+      "matched_character_coverage": 1.0,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_b7730933ffbad510",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你就唱你喜欢的就行了，抒情歌可以来一点，或者把抒情歌改成R&B的版本。你不用去唱那些不适合自己的大嗓歌。",
+      "matched_character_coverage": 0.8723,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_4477e0c580eeaf0f",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "流行通道要在二号通道里走，里面会细分强混、弱混、真假声转化、平衡混等技巧。",
+      "matched_character_coverage": 0.8438,
+      "position": 6,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我之前什么问题都有：高音卡紧、下巴紧、舌根紧、不放松、漏气。我总结出了怎么让声带更快闭合、怎么改善漏气和发声问题。",
+      "matched_character_coverage": 0.8367,
+      "position": 7,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_26500385c10519ef",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "每个人问题不一样：如果你的声音紧，咬字就要靠后一点。你要去听自己的声音，到底是靠前还是靠后。",
+      "matched_character_coverage": 0.7561,
+      "position": 8,
+      "status": "failed"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 8,
+  "unique_candidate_count": 8
+}

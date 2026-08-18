@@ -1,0 +1,22 @@
+{
+  "benchmark_role": "asr_evidence_sensitivity",
+  "candidate_order": "original",
+  "candidate_order_sha256": "8c8628b66daa382de13c1be5c4cfda15f05e7f14684f06b6b4252f1982c34f94",
+  "case_id": "d1_8_15_2_asr_variant",
+  "evidence_key": "d1_8_15_2_g002",
+  "generation": 2,
+  "generation_schema_sha256": "c4a4d0ed0d6506a2a238ffbcdc61c1eb5918b59bdb1aeb70dc87affe038dded4",
+  "include_in_primary_aggregate": false,
+  "project_id": "4e3bf22ebf2f4b6a81f5ae5a0e552a46",
+  "replicate_id": "r001",
+  "rough_candidates_sha256": "e7f961effb9cdf76f942f128816e14e92fcb0fb5df78b11dce1f4ee394a71217",
+  "run_id": "a4228d3ca597476685c11b52a1202309",
+  "runtime_agent_sha256": "cd7169c2f013c19d81388e49bb8af83c2991b19b02e82198e154b64cbd68b9ef",
+  "source_aliases": [
+    "8.15-2.ts",
+    "8-16-1.ts"
+  ],
+  "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+  "transcript_segment_count": 210,
+  "transcript_sha256": "ca08673bbdf702e160a91aac0920b11bfe935d18c0b5d90177834b6cbe5d1df4"
+}

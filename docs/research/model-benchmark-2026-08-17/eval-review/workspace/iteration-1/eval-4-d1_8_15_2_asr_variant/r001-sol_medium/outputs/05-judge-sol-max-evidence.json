@@ -1,0 +1,256 @@
+{
+  "blind_identity_disclosed_after_judging": "Q7",
+  "computed_total": 100.0,
+  "generator_config": "sol_medium",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a01261-ec79-7d00-b6a0-27b5e3aad75d"
+  },
+  "limitations": [
+    "仅有冻结的文字转写，没有视频画面，也无法实际判断演唱示范、音质对比、语气和视觉 Hook。",
+    "候选存在明显 ASR 错误与口语残缺，例如“头发黑”“卡机”等；评分按可恢复的语义进行，但成片字幕仍需人工听校。",
+    "嗓音恢复、缺氧、横膈肌、共鸣和唱法分类等专业说法未获独立医学或声乐资料验证；忠实度只表示忠于主播证据，不表示观点正确。",
+    "代表性只能在给出的12条候选证据之间判断，不能据此断言它们是整场约84分钟直播中的全局最优时刻。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 4,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "Q7",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_medium",
+    "portfolio_quality": 4,
+    "strengths": "选中了与R2相同的一组较强候选，主题广度好；修音、唱法分类和KTV片段的标题及风险说明尤其准确，后期指令细致。",
+    "topic_discovery": 4,
+    "weaknesses": "模仿片段用“最危险”提升了原文严重程度，漏气高光句省略胸腔处理前提；吐丝标题也把“没必要”强化成“千万别”。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三套方案均绑定同一候选，核心主张都是反驳“高音等于好听”，并以强弱、层次和情感建立替代标准，完全满足同一审美观点型编辑需求。",
+      "canonical_topic": "高音不等于音乐表现力",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "反问开场、核心论据和收束均忠实完整；标题凝练，且风险提示能帮助剪除后续贬损性比喻。",
+          "candidate_id": "candidate_a8bffa142ae34754",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都讨论修音能美化声音，却不能替代真实发声通道和共鸣。差异主要在标题的概括强度，不构成独立 Topic。",
+      "canonical_topic": "修音无法替代发声通道与共鸣",
+      "cluster_id": "t022",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "“修不出歌手质感”准确限定了原文结论，比笼统宣称修音不能改变音色更严谨，包装可直接使用。",
+          "candidate_id": "candidate_a3f07d95871e34d9",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均以“天赋决定下限、努力决定上限”为引子，最终落在爱好学习不受年龄限制，属于同一鼓励型 Topic。",
+      "canonical_topic": "天赋、努力与学唱年龄",
+      "cluster_id": "t033",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留技术提升与“什么时候都不晚”的完整落点，并明确提示删去职业条件的绝对化表述。",
+          "candidate_id": "candidate_c3f71ff545569c02",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都警告初学者不要刻意模仿成熟歌手的音色或位置，并以挤压、舌根音等后果作为依据。",
+      "canonical_topic": "初学者盲目模仿歌手音色",
+      "cluster_id": "t044",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "核心建议忠实，但“最危险的捷径之一”增加了原文没有的严重程度；高光句只说“其他问题”，闭合度稍弱。",
+          "candidate_id": "candidate_d1de1fbe320a4d19",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均解释练气后仍感到气不够的一种原因：胸腔色彩处理不当造成漏气。不存在仅因同属气息大类而误并的问题。",
+      "canonical_topic": "胸腔处理不当造成漏气",
+      "cluster_id": "t055",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "结论和问题钩子准确，但高光句省略了胸腔处理这一关键前提，需依靠描述才能恢复完整因果。",
+          "candidate_id": "candidate_42f16a3fe5990dd7",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都针对“小狗哈气”，主张敏感人群可能不适并建议谨慎选择，属于同一训练避坑需求。",
+      "canonical_topic": "“小狗哈气”练习的适用风险",
+      "cluster_id": "t066",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "保留“部分敏感者”这一重要限定，也明确这是个人教学经验；争议性生理解释使实际传播价值略受限制。",
+          "candidate_id": "candidate_37a304af261d7cec",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条共同纠正吐丝练习并非追求排空气或肺活量，并涉及过度用力、缺氧样不适，能够服务同一误区纠正与安全提醒需求。",
+      "canonical_topic": "吐丝训练目的与过度用力",
+      "cluster_id": "t077",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "“不必吐完”和训练目的表达闭合，但“千万别”比原文的“没必要”更绝对；钩子实用但冲击力中等。",
+          "candidate_id": "candidate_c9196e5dede3c677",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h06",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "Q7、R2直接回答练习时鼻吸与演唱时口鼻同吸；M4包含同一结论，但标题和前半段转向高音卡顿及“气息通道”。仍可服务吸气方式教学，但编辑主轴并非完全一致。",
+      "canonical_topic": "练习鼻吸与演唱口鼻同吸",
+      "cluster_id": "t088",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "准确区分找感受与实际演唱两种场景，问题—答案结构清晰，并提示剪除相邻的绝对化高音判断。",
+          "candidate_id": "candidate_a3e95c7ba3830ff6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "Q7、R2均围绕 KTV 喊高音后声音下不来，并转述主播用气泡音恢复的建议，属于同一场景型护嗓 Topic。",
+      "canonical_topic": "KTV喊唱后沙哑与气泡音建议",
+      "cluster_id": "t099",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "场景、错误发声判断和恢复建议均有原文依据，医疗风险提示充分；标题新增“先别继续硬唱”，方向安全但不是原文明确指令。",
+          "candidate_id": "candidate_27e2e7c3ca5de34b",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "Q7、R2都复述主播将美声、民族、流行列为三类，并将通俗、民谣和摇滚置于该框架中，核心是分类关系而非发声差异。",
+      "canonical_topic": "美声、民族、流行的分类框架",
+      "cluster_id": "t100",
+      "members": [
+        {
+          "anonymous_system_id": "Q7",
+          "assessment": "疑问式钩子能直接解决民谣、摇滚是否独立分类的问题，且明确标注这只是简化框架；候选前后闲聊和未完尾句使代表性略受影响。",
+          "candidate_id": "candidate_fc8cd4c0053dc519",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "首选R2：它与Q7的候选组合同样强，但在漏气、吐丝和模仿三个 Topic 上保留的核心因果更完整，标题严重程度也整体更克制。Q7非常接近，并在修音与唱法分类文案上更精准。M4发现了两个独有方向，但替换片段的上下文依赖、风险标注和文字校验明显较弱，因此列第三。"
+}

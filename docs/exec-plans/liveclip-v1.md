@@ -221,6 +221,18 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-13 Inspect the latest host-Chrome dashboard and delivered-workspace screenshots. The dashboard hierarchy, filters and Project card are visually coherent; strict in-app Browser discovery still returns no registered browser (`[]`), so no MCP-control claim is made.
 - [x] 2026-08-13 Create scoped M14 implementation checkpoint `d40ec81` without secrets, input, database, generated media or screenshots; publish it and the following status checkpoint to `origin/main`.
 
+### Research checkpoint — Three-configuration highlight Agent benchmark
+
+- [x] 2026-08-17 Inventory every `input/` video and prove five filenames are three unique source SHA-256 values; assign aliases and the alternate evidence chain zero primary weight.
+- [x] 2026-08-17 Freeze an independent runtime highlighter Skill, strict generator/Judge Schemas, three primary candidate-order variants and ephemeral tool-disabled execution; never provide generators a fixed Topic list or another configuration's output.
+- [x] 2026-08-18 Complete 30 generator outputs for Terra Medium, Sol Medium and Sol High, including two exact reused pilot outputs and 28 new calls; validate Schema, candidate IDs, isolation events, metadata and hashes.
+- [x] 2026-08-18 Complete 20 independent anonymous Judge outputs with Terra Max and Sol Max; validate every highlight appears in exactly one Topic cluster and disclose model mappings only after each successful Judge.
+- [x] 2026-08-18 Aggregate replicate → source → three-source macro results, exclude D1, verify 343 artifact hashes and pass seven analyzer tests, Ruff, `py_compile`, JSON parsing, credential scan and repository `make lint`.
+- [x] 2026-08-18 Generate the self-contained `REPORT.html` with model/source/pair/Judge/Topic/diagnostic/efficiency/Skill tables and the Skill Creator `eval-review/REVIEW.html` with all 30 outputs and 60 Judge evidence views.
+- [x] 2026-08-18 Record a non-production Tier 0–5 Skill v2 proposal: Sol Medium default evaluation route, conditional Sol High escalation, exact evidence/copy separation, free Topic inventory before portfolio selection, deterministic totals and no unsupported genre branch.
+- [x] 2026-08-18 Complete independent read-only verification with `PASS`, P0=0 and no delivery-blocking P1 after correcting one stale proposal sentence; independently confirm scores, anonymization, cluster coverage, 343 hashes and report reconstruction.
+- [ ] Visually inspect both HTML reports in MCP Chrome. Browser runtime discovery returned `[]`; parser, relative-link and content validation pass, but no visual-pass claim is allowed until the plugin connection is restored.
+
 ## Work breakdown and file ownership
 
 The main agent exclusively edits shared schemas, dependencies/locks, Alembic head, `AGENTS.md`, `STATUS.md`, `.agent/PLANS.md`, this plan, `docs/SOLUTION.md` and cross-module integration. Read-only reviewers never edit. Parallel implementation, when used, receives disjoint directories and may not edit these shared files.
@@ -435,6 +447,38 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Surprises and Discoveries
 
+- 2026-08-18: The expanded free-discovery benchmark has 30 generator outputs
+  and 20 anonymous dual-Judge outputs over ten groups. Five filenames contain
+  only three unique source hashes: `8-16-2.ts` equals `8.15-1.ts`, and
+  `8-16-1.ts` equals `8.15-2.ts`; aliases therefore have zero extra weight.
+  Three primary sources each use original, reversed and seeded-shuffled
+  candidate order, while one alternate transcript/candidate evidence chain is
+  diagnostic-only. Source-first dual-Judge totals are Sol High 95.0111, Sol
+  Medium 94.1556 and Terra Medium 76.6556. High is more stable than Medium but
+  leads by only 0.8555, less than the 4.0741 Judge total MAE; it is about 34%
+  slower, uses about 3.5 times the reasoning tokens and has more heuristic quote
+  failures. The engineering recommendation is Medium default with conditional
+  High escalation, not an always-High production change. The evidence supports
+  a Tier 0–5 task architecture—deterministic evidence, candidate assessment,
+  free Topic inventory/dedup, portfolio selection, editorial copy and audit—but
+  not genre-specific Skills because every source is singing instruction. The
+  authoritative offline report, exhaustive viewer, analyzer and proposal are
+  under `docs/research/model-benchmark-2026-08-17/`. All 343 recorded artifact
+  hashes pass. Browser discovery returned no registered browser, so the HTML is
+  parser/link/content checked but not visually confirmed in MCP Chrome.
+
+- 2026-08-17: Independent free-discovery `terra / medium` and
+  `sol / medium` runs on the same `8-16-1.ts` transcript selected 11 versus 9
+  clips with no predefined topic list. A blind `sol / max` Judge normalized
+  different names by semantic meaning: seven shared topics, two `terra`-only,
+  one `sol`-only, semantic Jaccard 70%. The Judge scored `sol` 89.4 versus
+  `terra` 85.6. Both models emitted semantic duplicates and `terra` attached
+  one quote from another candidate. The user correctly rejected a later
+  fixed-topic diagnostic because it removes discovery from the test; it is
+  non-authoritative. The formal report and evidence are in
+  `docs/research/model-comparison-2026-08-17/`. No product data or behavior was
+  changed, and one text-only sample is insufficient to change the default.
+
 - 2026-08-12: The real editorial model had already produced a useful Hook for all 15 current `7.28` revisions, but the list DTO omitted it and the Web exposed only grounded keywords. A summary DTO field closes the UX gap without schema migration, model rerun or N+1 detail requests.
 
 - 2026-08-12: M10 correctly placed actionable subtitles and keywords beneath each video but left the older full-livestream transcript panel in the workspace. Removing the component also removes one large, redundant transcript fetch per Project view; the backend/API contract does not need to change.
@@ -613,6 +657,23 @@ M12 implementation is complete at checkpoint `4e81d6c` on `origin/main`. Project
 Before resuming, read the five files listed in `AGENTS.md`, run `git status --short --branch` and inspect the last five commits. Verify the most recent command recorded in `STATUS.md`; do not repeat completed discovery.
 
 ## Outcomes and Retrospective
+
+The 2026-08-17/18 expanded Codex benchmark is complete as a research
+checkpoint. It evaluates three configurations over three unique text-evidence
+sources with three order/sampling perturbations each, plus one zero-weight
+evidence diagnostic. Generators are mutually isolated from development Skills
+and each other; Terra Max and Sol Max independently perform anonymous Topic
+clustering and scoring. The 30 generator, 20 Judge and 343 hash-manifest
+artifacts pass deterministic aggregation. Sol High has the highest mean score
+and stability, but its +0.86 over Sol Medium is smaller than Judge disagreement
+and accompanied by materially higher latency/reasoning use and quote drift.
+The outcome therefore recommends Sol Medium as the next v2 default experiment
+and Sol High as a conditional escalation/audit configuration. Topic discovery
+remains free; exact evidence and edited copy must be split, inventory/dedup must
+precede Top-N, and deterministic code must own Gates and totals. This does not
+authorize or implement a production model or Skill change. A final independent
+read-only verification returned `PASS` with P0=0 and no delivery-blocking P1;
+the report retains the next-round harness and human-ground-truth limitations.
 
 M0 is complete at commit `136d8bd`. M1 is complete at commit `cfc8889`: two bounded subagent implementations integrated, 70 tests pass, two real Demos reached `delivered`, the first final was fully decoded and actually viewed, its immutable ZIP/hash/state were inspected, and the independent Reviewer returned PASS. M2 is complete at commit `09a6f10` with independent `PASS`: Alembic and the persistent six-stage pipeline are real, foreground/Worker ownership is shared and fenced, cancellation terminates subprocess groups, Asset authority is database-derived, RenderJob failures are durable, and 204 tests pass. M3 is complete at commit `f707e90` with independent `PASS`: FastAPI, Web, complete review/render/delivery CLI, signed Range media, atomic revision/decision invalidation and immutable Delivery are integrated; 233 Python tests, 11 Web tests and host Chrome E2E pass. The remaining mocked-API browser-composition P2 is explicitly assigned to M6. M4 is complete at commit `476ad89`: pinned real OpenAI adapters, strict cloud contracts, immutable caches, bounded retry/usage/cancellation evidence, no-Mock smoke validation and renderer reliability hardening passed both independent reviews, 328 Python tests, 11 Web tests and an actually viewed post-fix Demo. Real cloud entitlement remains honestly `not_run`.
 

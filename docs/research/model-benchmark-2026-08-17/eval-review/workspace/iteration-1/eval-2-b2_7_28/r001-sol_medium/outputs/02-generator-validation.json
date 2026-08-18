@@ -1,0 +1,91 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 2,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你先做十个蹲起，先把自己的肌肉、身上活动开。",
+      "matched_character_coverage": 0.8947,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "气息其实就用零碎的时间去练就可以了，五分钟以内就可以了；练声我个人建议是在十分钟到二十分钟左右。",
+      "matched_character_coverage": 0.9333,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "大家都是普通人，包括我也是普通人。你要做的是在自己的硬件上让自己做到最好。",
+      "matched_character_coverage": 1.0,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_0c49c6488ae5fe28",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不要刻意地去找这个头腔共鸣，你都没有找到通道，就找不到头腔共鸣；所有共鸣的前提是你在唱歌通道里面。",
+      "matched_character_coverage": 0.9111,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "先把这个闭口音带一个开口音的字去练，找到这个感觉之后，慢慢地再过渡到闭口音上。",
+      "matched_character_coverage": 0.9722,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_c393f29d34250a55",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "俯身四十五度，把手放在腰上，慢慢地吸气，你会感觉到这个起伏。",
+      "matched_character_coverage": 0.5769,
+      "position": 6,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_464b0f2aee1d8a44",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "抬眉属于画龙点睛的那一笔，不适合小白；这个眉毛什么的都不要抬，放松就好了。",
+      "matched_character_coverage": 0.8788,
+      "position": 7,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_f89ea722be8ee018",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "先在中音把气息和咬字两个问题解决掉，你的高音才会好一些；要学会借力，而不是用舌头的蛮力。",
+      "matched_character_coverage": 0.875,
+      "position": 8,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_bef585871fbac01e",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "简谱会把音高和节奏给出来，你学歌就会快；但这个不是强制的，不会简谱、不会乐理，一样可以学唱歌。",
+      "matched_character_coverage": 0.8049,
+      "position": 9,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_2169870825746d02",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "咬字位置统一，你的声音就会统一；你要一直保持在唱歌通道上，不能一到高音就往前或者往后躲。",
+      "matched_character_coverage": 1.0,
+      "position": 10,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10
+}

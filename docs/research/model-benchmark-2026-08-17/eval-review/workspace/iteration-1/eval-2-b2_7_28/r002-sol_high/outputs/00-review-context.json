@@ -1,0 +1,16 @@
+{
+  "benchmark_role": "primary",
+  "candidate_order": "reverse",
+  "case_id": "b2_7_28",
+  "generator_config": "sol_high",
+  "include_in_primary_aggregate": true,
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "high",
+  "replicate_id": "r002",
+  "source_aliases": [
+    "7.28.mp4"
+  ],
+  "source_label": "7.28.mp4",
+  "source_sha256": "595cc75a65fe8d9faa3b41ba9f5b58b307d1b0a41236f7fc6016c0c1ae8acd03",
+  "warning": null
+}

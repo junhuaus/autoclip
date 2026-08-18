@@ -1,0 +1,67 @@
+{
+  "artifact_sha256": {
+    "frozen_input": "3c46dca758569693b84006179e04708a2586418fc299aed81bce5eacde6c19ec",
+    "sol_max_judge": "70ca416c9cd4d55b5327e750ec36c8cee9864b662a71e4c497e66285031cfa75",
+    "sol_medium": "18cf5bd8c2a59ed605d2e4faa745c1def523f3265c44acde1ebf7b2d9ed6b85c",
+    "terra_medium": "b3b7bacd722508ef25ff9ef36c431c35ded84006d7abceb19cfede2a5e28c4c7"
+  },
+  "blind_mapping_disclosed_after_judging": {
+    "system_a": "gpt-5.6-terra / medium",
+    "system_b": "gpt-5.6-sol / medium"
+  },
+  "calls": [
+    {
+      "elapsed_seconds": 49.217,
+      "label": "terra-medium",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "request_id": "01a00f97-bd44-7371-84ea-e72825e47c11",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 24320,
+        "output_tokens": 2526,
+        "reasoning_output_tokens": 400
+      }
+    },
+    {
+      "elapsed_seconds": 56.196,
+      "label": "sol-medium",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "request_id": "01a00f97-bd44-7723-9a6d-b3de001aeb46",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 24320,
+        "output_tokens": 2863,
+        "reasoning_output_tokens": 726
+      }
+    },
+    {
+      "elapsed_seconds": 409.244,
+      "label": "sol-max-judge",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "max",
+      "request_id": "01a00f98-988c-7f73-83e3-2bc209a8664c",
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "input_tokens": 28757,
+        "output_tokens": 22537,
+        "reasoning_output_tokens": 19212
+      }
+    }
+  ],
+  "generated_at": "2026-08-17T12:07:42.999999+00:00",
+  "schema_version": "1",
+  "source": {
+    "candidate_count": 45,
+    "duration_ms": 5042717,
+    "evidence_note": "Both systems receive this identical ASR-derived evidence; no video frames are supplied.",
+    "filename": "8-16-1.ts",
+    "rough_candidates_sha256": "c27684da7f8d4d03f174d9f3d87783b00d72f24a983897f33732e984ad774229",
+    "source_sha256": "af88f7fe27cbdfc05e68b32684c558bb1877dbc7dd025b12726dd21b5e7e7d29",
+    "transcript_sha256": "3707a08ec0f2744f62dba3c93b422a9a61545005fcb72409261f26d7cbfa1d97"
+  }
+}

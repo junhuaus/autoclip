@@ -1,0 +1,254 @@
+{
+  "blind_identity_disclosed_after_judging": "R2",
+  "computed_total": 95.0,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a01261-ec99-7632-89af-30492a070c22"
+  },
+  "limitations": [
+    "仅依据冻结转写和方案文案评估，未提供可复听音频或视频画面，无法验证演唱示范、实际剪点和声学效果。",
+    "涉及嗓音健康、生理机制和声乐流派的内容，只评估其是否被如实呈现与标注风险，不构成医学或专业声乐复核。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 4,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_medium",
+    "sol_high",
+    "terra_medium"
+  ],
+  "rank": 2,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "R2",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 3,
+    "generator_config": "sol_high",
+    "portfolio_quality": 4,
+    "strengths": "覆盖广且没有假重复，多数片段保留完整的问题—解释—结论链；对健康、分类框架和绝对化教学话术的边界提示具体。",
+    "topic_discovery": 4,
+    "weaknesses": "漏气片把“练后仍觉得气不够”强化为“气息够用”，并加入肺活量对比；少数标题或描述也比原文的直接表述更进一步。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "均围绕吐丝练习的目标、不要把气吐尽及用力过度信号；与“小狗哈气”是不同训练动作，不能合并。",
+      "canonical_topic": "吐丝练习的目的与过度吐气",
+      "cluster_id": "t010",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "同时交代目的、错误动作与不适信号，问题型标题准确且能独立成立。",
+          "candidate_id": "candidate_c9196e5dede3c677",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者的可替代核心都是区分找感觉时的鼻吸与实际演唱时的口鼻同吸；Q7增加高音痛点，但没有改变主问题。",
+      "canonical_topic": "演唱换气方式：鼻吸与口鼻同吸",
+      "cluster_id": "t020",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问答结构、核心结论和标题高度一致，风险项也明确限制了原文的流派术语与绝对断言。",
+          "candidate_id": "candidate_a3e95c7ba3830ff6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均在纠正初学者刻意模仿成熟歌者音色或位置的误区，可满足同一条避坑型剪辑需求。",
+      "canonical_topic": "刻意模仿歌手音色的误区",
+      "cluster_id": "t030",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问题普遍、结论清楚，描述没有脱离原证据，并提示不要切断后续个人案例。",
+          "candidate_id": "candidate_d1de1fbe320a4d19",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都以 KTV 喊高音后嗓音异常为场景，并引出气泡音建议；属于同一护嗓提醒 Topic。",
+      "canonical_topic": "KTV喊高音后的嗓音异常与处理",
+      "cluster_id": "t040",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "结论紧凑并有充分医疗边界提示；标题同样把原文建议延伸为停唱提示，存在轻微编辑性补充。",
+          "candidate_id": "candidate_27e2e7c3ca5de34b",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都采用说话人的三分法，解释美声、民族、流行与通俗、民谣、摇滚的归属关系。",
+      "canonical_topic": "唱法基础分类：美声、民族、流行与通俗",
+      "cluster_id": "t050",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "以流行与通俗的关系切入，结论与原文一致，且风险项清楚限定了三分法的适用性。",
+          "candidate_id": "candidate_fc8cd4c0053dc519",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h09",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均反驳高音等于唱得好的单一标准，转向强弱、层次和情感表达。",
+      "canonical_topic": "高音不等于唱得好：音乐表达审美",
+      "cluster_id": "t060",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "核心反问到情感落点闭合完整，标题简洁准确，剪辑风险提示具体可执行。",
+          "candidate_id": "candidate_a8bffa142ae34754",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "均将天赋、努力与学习年龄放在一起，最终服务于爱好者何时学唱歌都不晚的鼓励需求。",
+      "canonical_topic": "天赋、努力与学习年龄",
+      "cluster_id": "t070",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "原文的鼓励主张保留充分，风险项也识别了职业条件表述的边界；作为爱好学习内容可独立传播。",
+          "candidate_id": "candidate_c3f71ff545569c02",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都讨论是否建议练小狗哈气及敏感人群的不适风险；与吐丝要领虽相关，但主张和动作不同。",
+      "canonical_topic": "小狗哈气练习的风险与替代方向",
+      "cluster_id": "t080",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "用较克制的“并非人人适合”准确对应敏感人群限定；未保留替代练习，代表性略低于完整原段。",
+          "candidate_id": "candidate_37a304af261d7cec",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都在界定修音与真实发声通道、共鸣能力之间的边界。",
+      "canonical_topic": "修音的边界与发声共鸣",
+      "cluster_id": "t090",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "对照链条完整、标题具体；“修准音”是对修音功能的常识性概括，但原句更直接说的是美化和破音垫补。",
+          "candidate_id": "candidate_a3f07d95871e34d9",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都解释练气后仍觉得气不够的一种可能：演唱中漏气，并关联胸腔共鸣处理。",
+      "canonical_topic": "演唱漏气造成的气息不足感",
+      "cluster_id": "t100",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "高光本身完整保留原文因果；标题的“气息够用”和描述中的肺活量对比，比证据所说的“练后仍觉得不够”更强。",
+          "candidate_id": "candidate_42f16a3fe5990dd7",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "M4在同等广度下，证据与剪辑风险的对应最稳定，整体文案可直接交给后期；R2的片段完整度很高，但漏气等处有更明显的表述强化；Q7的选题有实用性和传播性，但若干片段的证据边界与风险处理不够严谨。"
+}

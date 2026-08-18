@@ -1,0 +1,214 @@
+{
+  "blind_identity_disclosed_after_judging": "R2",
+  "computed_total": 100.0,
+  "generator_config": "sol_high",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a01251-d99e-7391-b123-1e10aefa3423"
+  },
+  "limitations": [
+    "仅有冻结的文字转写，没有视频画面或音频，无法验证手势所指位置、前后演唱示范、音色、鼻音、穿透力等听感判断。",
+    "转写存在“声带不必合”“公英卡解”等明显疑似识别错误；评分依据上下文作语义判断，不能替代专业术语复核。",
+    "部分候选时间窗混有课程销售、连麦引导和闲聊；本评估考虑了可剪核心及上下文污染，但无法确认实际成片切点是否干净。",
+    "代表性仅相对于所给候选证据判断，不能证明这些片段是整场直播中的全局最佳画面。"
+  ],
+  "model_scores": {
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 4,
+    "topic_discovery": 4
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 1,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "R2",
+    "clip_selection": 4,
+    "editorial_usability": 4,
+    "evidence_fidelity": 4,
+    "generator_config": "sol_high",
+    "portfolio_quality": 4,
+    "strengths": "八个Topic互不重复，多数选择包含问题、原因和调整方向的完整候选；标题具体，个案化、手势依赖和术语简化等风险说明也较到位。",
+    "topic_discovery": 4,
+    "weaknesses": "“腹部发力”条目把发声源与呼吸支撑的讨论简化得过头，且原表达带嘲讽；鼻音和穿透力两条仍依赖无法核验的听感与现场示范。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者均围绕“先判断发声状态，再决定训练顺序”。R2保留的适用条件最充分；Q7标题中的“越练越难”略强于原证据；M4摘句有所压缩。",
+      "canonical_topic": "练声顺序与个体纠错",
+      "cluster_id": "t015",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问题、两类发声状态、错误训练项目和个体化结论均在片段内，标题也没有超出候选。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条是同一问答型科普：术语应为胸腹式联合呼吸，找到呼吸感觉不等于会用于演唱。M4与R2保留了后半结论，闭环优于Q7。",
+      "canonical_topic": "胸腹式联合呼吸：找到感觉不等于会唱",
+      "cluster_id": "t026",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问答、正确术语和“感觉不等于应用”均保留，且风险提示准确指出10%并非严格量化。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均是同一次“唱JJ缺少穿透力和厚度”的个案诊断。Q7和R2选择了包含歌手参照与完整诊断的候选；M4只取后半段，代表性明显较弱。",
+      "canonical_topic": "演唱JJ歌曲的穿透力、厚度与位置",
+      "cluster_id": "t037",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "保留JJ参照、不亮不厚、胸腔支撑不足和调整效果，是本Topic最完整的表达之一；手势依赖仍限制独立传播。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "Q7与R2均准确选中美声、民族和流行之间的通道差异，属于跨唱法调整内容，不与M4的“流行内部技巧清单”合并。",
+      "canonical_topic": "美声、民族、流行的发声通道差异",
+      "cluster_id": "t048",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "核心比较完整、受众明确，标题与问句可直接使用；价值受限于主播框架的简化性质。",
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均建议R&B学员发挥适配曲风、用R&B改编抒情歌，而非以不擅长的“大嗓”路线竞争。M4把个案建议泛化为R&B歌手普遍规则，忠实度略低。",
+      "canonical_topic": "R&B歌手的曲风定位与选歌",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "准确保留个人风格、抒情歌改编和R&B优势，标题既有传播性也维持了个案语境。",
+          "candidate_id": "candidate_b7730933ffbad510",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_high",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条来自同一次鼻音与高音发散诊断。Q7和R2选中更长的调整段；M4的候选较短且夹有地域口音讨论，但摘出的核心更少依赖手势。",
+      "canonical_topic": "鼻音导致高音发散及咬字调整",
+      "cluster_id": "t072",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "诊断和调整方向完整，Hook清楚，风险提示也覆盖转写杂音、手势依赖及个案限制。",
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "sol_high",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都用主播自身经历说明声乐老师也曾有常见发声问题。Q7与R2把它定位为共鸣故事；M4用“怎么破”承诺方法，但候选没有真正展开方法。",
+      "canonical_topic": "声乐老师也经历常见发声问题",
+      "cluster_id": "t083",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "准确定位为老师自身的进步经历，具体痛点带来共鸣，同时没有虚构候选中缺失的解决步骤。",
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该条以声带振动解释发声源头，单独回应“腹部发力”误区，不能与胸腹式联合呼吸Topic合并。",
+      "canonical_topic": "声带是发声源：腹部发力误区",
+      "cluster_id": "t127",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "声带而非腹部产生声音的核心有证据，争议式Hook很强；标题把原话改成“声音憋在肚子里”，且内容容易混淆发声源与呼吸支撑，科普价值有限。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 3,
+          "editorial_value": 2,
+          "expression_completeness": 3,
+          "generator_config": "sol_high",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 8,
+  "verdict_reason": "首选R2：整体阈值最稳，强Topic覆盖、完整候选和去重表现兼顾，只有“腹部发力”一条明显偏弱。Q7非常接近，覆盖与风险管理最好，但两条商业语境较重的扩展内容拉低组合阈值。M4整体仍较忠实，却在代表候选、标题兑现度和强Topic取舍上落后一档。"
+}

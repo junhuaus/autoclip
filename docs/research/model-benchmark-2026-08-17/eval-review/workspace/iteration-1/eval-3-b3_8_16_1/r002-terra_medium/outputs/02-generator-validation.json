@@ -1,0 +1,91 @@
+{
+  "exact_quote_count": 6,
+  "exact_quote_rate": 0.6,
+  "failed_quote_count": 2,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "唱歌的时候胸口发紧是为什么？那就说明你太往下落了。",
+      "matched_character_coverage": 1.0,
+      "position": 1,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "头顶到我们的小腹，这整个都是我们唱歌的通道。",
+      "matched_character_coverage": 1.0,
+      "position": 2,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你们一找舌头、一在乎舌头，你们舌头就发力，舌头一发力，你就会有舌根音。",
+      "matched_character_coverage": 0.9667,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_c26a4653242fd277",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "你本来能唱30秒，你一推，你只能唱5秒。",
+      "matched_character_coverage": 1.0,
+      "position": 4,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "我们唱歌的步骤一定要从真声开始。",
+      "matched_character_coverage": 1.0,
+      "position": 5,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_638470bcf20511aa",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "你必须借助你的通道、腔体、位置，你才能唱到这个地方的高音。",
+      "matched_character_coverage": 1.0,
+      "position": 6,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我不只是用在唱歌上，我说话也是这样子的。",
+      "matched_character_coverage": 0.6111,
+      "position": 7,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "修音修不了通道，它只能修你的音。",
+      "matched_character_coverage": 0.7857,
+      "position": 8,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_4305cfa07f8b1fbf",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "你们千万不要一次做十分钟啊，一定要就是说分开做。",
+      "matched_character_coverage": 1.0,
+      "position": 9,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_7c52ff6875a16a62",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "男孩子的话在初一初二是处于一个变声期，女生的话会早一点，小学五六年级。",
+      "matched_character_coverage": 0.9688,
+      "position": 10,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10
+}

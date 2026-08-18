@@ -1,0 +1,75 @@
+{
+  "exact_quote_count": 4,
+  "exact_quote_rate": 0.5,
+  "failed_quote_count": 0,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_6b0ae4ac42937611",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你知道高音为什么卡你吗？因为你没有掌握到唱歌的通道。",
+      "matched_character_coverage": 0.9583,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_737064038099ef2a",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我们声带在哪？我们声带在腹部吗？",
+      "matched_character_coverage": 1.0,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "它专业名词不是腹式，它不是胸腔，它叫胸腹式联合呼吸。",
+      "matched_character_coverage": 1.0,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_adab5d4da9ab2be6",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "唱歌的步骤很重要，你改错的步骤也很重要。",
+      "matched_character_coverage": 1.0,
+      "position": 4,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_48324e904b930420",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "上面东西再少一点，下面东西再多一点，其实你的声音会穿透力更强，而且你会没有那么累。",
+      "matched_character_coverage": 1.0,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "你唱歌有一种高音，你会更往那边走。",
+      "matched_character_coverage": 1.0,
+      "position": 6,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_b45014a64a6a9c53",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "我唱美声是一个通道，我唱流行是一个通道。",
+      "matched_character_coverage": 1.0,
+      "position": 7,
+      "status": "exact"
+    },
+    {
+      "candidate_id": "candidate_1d0bcd4f6ed22861",
+      "exact_normalized_substring": true,
+      "highlight_sentence": "你这种就得去逐字去改，按歌去改。",
+      "matched_character_coverage": 1.0,
+      "position": 8,
+      "status": "exact"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 8,
+  "unique_candidate_count": 8
+}

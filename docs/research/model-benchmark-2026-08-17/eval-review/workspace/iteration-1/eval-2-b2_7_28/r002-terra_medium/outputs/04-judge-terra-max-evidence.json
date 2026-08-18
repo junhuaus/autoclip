@@ -1,0 +1,255 @@
+{
+  "blind_identity_disclosed_after_judging": "R2",
+  "computed_total": 75.0,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a0125c-f0da-76d0-91c3-e073661fd8e8"
+  },
+  "limitations": [
+    "仅依据冻结的文字转写与片段说明评估，无法核验画面、动作示范、实际发声效果或最终剪辑点。",
+    "多处转写存在疑似同音错字或术语不确定性，尤其是节拍、元音和讲者自定义发声术语，需以原音复核。",
+    "评分衡量证据忠实度与编辑可用性，不构成对声乐训练效果或健康安全性的专业认证。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "R2",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 3,
+    "strengths": "闭口音、换声区、乐理、热身等基础需求覆盖清楚，多数标题和问题式 Hook 直接。",
+    "topic_discovery": 3,
+    "weaknesses": "浅呼吸片存在标题与 Hook 超出证据、方法不完整的问题；科学发声片过泛，且风险提示多为通用模板。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都服务于同一细分教程：高音叠加闭口音时，先借开口音建立感觉，再逐步过渡回闭口音。",
+      "canonical_topic": "高音闭口音的过渡练习",
+      "cluster_id": "t010",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "去除了冗余后仍保留完整的难点与两步练法，标题直接可用。",
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均纠正初学者把抬眉当作高音基础动作的误区，并保留其仅适用于特定阶段的限定。",
+      "canonical_topic": "初学唱高音不宜急于抬眉",
+      "cluster_id": "t030",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "反常识 Hook 清晰，原话支持不宜一开始抬眉；描述保留了后期微调的边界。",
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都回应普通学习者的天赋焦虑，主张不以出道标准衡量自己，而是在自身条件上持续改善。",
+      "canonical_topic": "唱歌天赋焦虑与成长空间",
+      "cluster_id": "t040",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "有明确的受众回应与现实定位，但引句以天赋稀缺开场，需依赖描述补足鼓励性结论。",
+          "candidate_id": "candidate_65678839045aab40",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条来自同一日常练唱时长问题：两条强调不拼时长、重效率，另一条给出相应的气息与练声时间分配。",
+      "canonical_topic": "日常练唱时长与效率",
+      "cluster_id": "t050",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "时长分配很具体且与原文一致，但标题的绝对语气未保留这是个人建议和约一小时的条件。",
+          "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均反对刻意追逐单一共鸣位置，主张先建立讲者所谓的唱歌通道，再让共鸣自然出现。",
+      "canonical_topic": "不要刻意硬找共鸣位置",
+      "cluster_id": "t070",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "问题与结论自洽，风险也承认术语流派差异；核心术语仍需后期补一句解释。",
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均为临时去 KTV 前的生活化热身：通过十个蹲起或短暂高抬腿让身体活动开。",
+      "canonical_topic": "KTV 开唱前的身体热身",
+      "cluster_id": "t080",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "补入高抬腿使方法更完整；但快速开嗓比原文的身体热身更强，风险提示也较泛。",
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h10",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都给出同一平衡答案：不会简谱和乐理也能以模仿入门，但识谱有助于后续更快自学歌曲。",
+      "canonical_topic": "不会乐理也能开始学唱歌",
+      "cluster_id": "t090",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "把非硬门槛和提高学歌效率两面都讲完整，适合零基础收藏。",
+          "candidate_id": "candidate_bef585871fbac01e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h09",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段的独立主张是零基础应避免偏门、建立可持续的科学发声，而非具体的呼吸或高音动作教程。",
+      "canonical_topic": "零基础应避免偏门发声法",
+      "cluster_id": "t120",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "立场和可持续目标忠于原文，适合短观点口播；但科学方法没有被定义或落到具体行动。",
+          "candidate_id": "candidate_35a860b83062d6ab",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段只做浅胸式吸气的诊断并引出气沉丹田，与俯身四十五度的具体体感练习是不同编辑需求，故单列。",
+      "canonical_topic": "明显胸口起伏与浅呼吸诊断",
+      "cluster_id": "t130",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "原文只支持明显胸口起伏代表气浅、支撑不足；标题将其推成胸口不要动，Hook 又加入高音卡紧，均有明显强化，且没有给出完整方法。",
+          "candidate_id": "candidate_259a47e73cd8edad",
+          "claim_fidelity": 2,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 3,
+          "representative_quality": 2,
+          "title_copy_quality": 2
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "该片段针对换声区断层，核心是咬字位置统一并持续保持唱歌通道，不能与泛泛的共鸣纠偏互换。",
+      "canonical_topic": "换声区声音位置统一",
+      "cluster_id": "t140",
+      "members": [
+        {
+          "anonymous_system_id": "R2",
+          "assessment": "换声区痛点、位置统一原则和高音前冲或后躲的反例均有证据支持，表达可独立使用。",
+          "candidate_id": "candidate_2169870825746d02",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 10,
+  "verdict_reason": "Q7 为首选：其主题覆盖最均衡，绝大多数片段具备问题、结论和可执行方向，风险提示也最能直接服务后期。M4 紧随其后，具体教学片段很强，但组合略窄且有一条诊断型片段的文案衔接不足。R2 的基础覆盖尚可，但浅呼吸片的证据强化和若干泛化文案拉低整体可用性。"
+}

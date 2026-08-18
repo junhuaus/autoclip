@@ -1,0 +1,206 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 76.2,
+  "generator_config": "terra_medium",
+  "judge": {
+    "judge_config": "sol_max",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "max",
+    "request_id": "01a0124c-7a74-7c90-9086-6bc100e11ca2"
+  },
+  "limitations": [
+    "评估只依据冻结转写和候选上下文，没有音频或视频画面，无法确认语气、示范动作、实际声效及画面可剪性。",
+    "转写存在“不必合”“共英卡解”和否定词缺失等明显错误；仅在上下文高度明确时按合理语义评估，不能视作听辨确认。",
+    "claim_fidelity衡量方案是否忠于候选，不代表其中声乐术语、比例或教学主张已经得到外部专业验证。",
+    "多个候选混有销售、打赏互动、地域泛化或身份闲聊；评分采纳了方案提出的紧剪设想，但现有数据没有精确到成片入出点。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "portfolio_quality": 2,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "sol_medium",
+    "terra_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.125,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 4,
+    "generator_config": "terra_medium",
+    "portfolio_quality": 2,
+    "strengths": "多数文案贴近候选，呼吸、训练顺序、支撑和天赋门槛等共同Topic选择稳定，标题整体简洁。",
+    "topic_discovery": 3,
+    "weaknesses": "把同一段“腹部发力—声带振动”拆成两条，8条高光实际只有7个Topic；流行技巧片依赖未定义的“二号通道”，多处风险提示仅写“术语需复核”，缺少更具体的泛化、语气和剪切边界。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三者绑定同一候选，核心都是“应依据当前发声问题安排纠错顺序”。R2保留两类错误路径及“具体问题具体分析”，代表性最强。",
+      "canonical_topic": "声乐纠错与训练顺序",
+      "cluster_id": "t013",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "核心建议准确，开头直接；高光语句只保留闭合不足这一例，另一类错误主要依赖描述补齐。",
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h05",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都在纠正“腹式呼吸等于会唱歌”，并引出胸腹式联合呼吸及实际应用；R2保留的信息链最完整。",
+      "canonical_topic": "胸腹式联合呼吸不等于演唱应用",
+      "cluster_id": "t023",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "问答清楚且忠实，但标题较泛，高光未保留“把声音用在唱歌上”这一关键闭环。",
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h06",
+          "hook_strength": 3,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "“腹部发力误区”和“声带才是振动声源”可略作拆分，但Q7、R2均将二者组成同一科普链，M4则把相邻内容拆成两条，构成系统内重复。",
+      "canonical_topic": "腹部发声误区与声带振动原理",
+      "cluster_id": "t034",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "反常识开头强，但“唱歌不是腹部发力”容易把支撑与声源混为一谈，且只截取了整段论证的一半。",
+          "candidate_id": "candidate_737064038099ef2a",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        },
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "声带振动和气流关系基本忠实，但解释很快被直播互动打断，并与本系统h01满足同一编辑需求。",
+          "candidate_id": "candidate_e7e0739b77ace20a",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 2,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均绑定同一现场诊断：位置过高、下方或胸腔支撑不足，导致穿透力弱且费力。差异主要在保留诊断链的完整程度。",
+      "canonical_topic": "声音位置、胸腔支撑与穿透力",
+      "cluster_id": "t043",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "保留现象、位置问题及调整结果，结构较完整，但空间指代仍需字幕解释。",
+          "candidate_id": "candidate_48324e904b930420",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条都来自同一次学员诊断，核心是鼻音偏重与高音发散、声音集中度之间的关系。",
+      "canonical_topic": "鼻音偏重与高音发散",
+      "cluster_id": "t052",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "包含集中声音和咬字靠后的方向，信息更全；标题“先解决鼻音”比单一个案证据更具普遍性。",
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "terra_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条绑定同一候选，均回答普通爱好者是否必须先具备天赋或专业条件。",
+      "canonical_topic": "普通人学唱歌的天赋门槛",
+      "cluster_id": "t082",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "核心鼓励方向准确，受众面和情绪钩子都强；标题较常规，未充分体现原话的喜剧反问。",
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "terra_medium",
+          "highlight_id": "h08",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "medium",
+      "assessment": "三条都可服务于“不同唱法能力不能直接迁移”的编辑需求，但Q7重在争议结论，M4重在流行技巧分类，R2才完整比较美声、民族和流行通道。",
+      "canonical_topic": "美声、民族与流行唱法的通道差异",
+      "cluster_id": "t093",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "强混、弱混等技巧名称有证据，但“二号通道”依赖前文定义，“技巧地图”也比现有枚举更完整化。",
+          "candidate_id": "candidate_4477e0c580eeaf0f",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 2,
+          "generator_config": "terra_medium",
+          "highlight_id": "h07",
+          "hook_strength": 2,
+          "representative_quality": 2,
+          "title_copy_quality": 3
+        }
+      ]
+    }
+  ],
+  "topic_count": 7,
+  "verdict_reason": "R2在共同Topic中更常保留完整论证，同时新增两个实用且不重复的Topic，组合最稳。Q7发现面同样广、风险意识较好，但若干片段偏短或有文案扩张，列第二。M4整体忠实，却存在明确的内部语义重复、覆盖较窄和上下文依赖，列第三。"
+}

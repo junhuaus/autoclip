@@ -1,0 +1,78 @@
+{
+  "all_highlight_keys": [
+    "M4:h01",
+    "M4:h02",
+    "M4:h03",
+    "M4:h04",
+    "M4:h05",
+    "M4:h06",
+    "M4:h07",
+    "M4:h08",
+    "M4:h09",
+    "M4:h10",
+    "Q7:h01",
+    "Q7:h02",
+    "Q7:h03",
+    "Q7:h04",
+    "Q7:h05",
+    "Q7:h06",
+    "Q7:h07",
+    "Q7:h08",
+    "Q7:h09",
+    "Q7:h10",
+    "Q7:h11",
+    "R2:h01",
+    "R2:h02",
+    "R2:h03",
+    "R2:h04",
+    "R2:h05",
+    "R2:h06",
+    "R2:h07",
+    "R2:h08",
+    "R2:h09"
+  ],
+  "anonymous_system_mapping": {
+    "M4": "sol_high",
+    "Q7": "terra_medium",
+    "R2": "sol_medium"
+  },
+  "highlight_candidate_mapping": {
+    "M4": {
+      "h01": "candidate_e27d41447dbfb889",
+      "h02": "candidate_260b8f35571eae11",
+      "h03": "candidate_2efa31efddfe10ed",
+      "h04": "candidate_a5c87afa0254618e",
+      "h05": "candidate_5d3778b0260b9b65",
+      "h06": "candidate_b1c6640371e0ceab",
+      "h07": "candidate_2716045703db1f3b",
+      "h08": "candidate_c26a4653242fd277",
+      "h09": "candidate_f1d87e3d981d87dc",
+      "h10": "candidate_e3f2a57d5e929402"
+    },
+    "Q7": {
+      "h01": "candidate_e3f2a57d5e929402",
+      "h02": "candidate_2efa31efddfe10ed",
+      "h03": "candidate_b1c6640371e0ceab",
+      "h04": "candidate_2716045703db1f3b",
+      "h05": "candidate_638470bcf20511aa",
+      "h06": "candidate_e27d41447dbfb889",
+      "h07": "candidate_5d3778b0260b9b65",
+      "h08": "candidate_a5c87afa0254618e",
+      "h09": "candidate_a7de7d24d9c2d27c",
+      "h10": "candidate_f1d87e3d981d87dc",
+      "h11": "candidate_22d3260a7179c022"
+    },
+    "R2": {
+      "h01": "candidate_a5c87afa0254618e",
+      "h02": "candidate_e27d41447dbfb889",
+      "h03": "candidate_a0f21643888730a5",
+      "h04": "candidate_5d3778b0260b9b65",
+      "h05": "candidate_2efa31efddfe10ed",
+      "h06": "candidate_260b8f35571eae11",
+      "h07": "candidate_e3f2a57d5e929402",
+      "h08": "candidate_f1d87e3d981d87dc",
+      "h09": "candidate_2716045703db1f3b"
+    }
+  },
+  "seed_sha256": "232fa63b000b2af436015bdf7cc86f5428bd66b5c4849dab991c40eedef78c11"
+}

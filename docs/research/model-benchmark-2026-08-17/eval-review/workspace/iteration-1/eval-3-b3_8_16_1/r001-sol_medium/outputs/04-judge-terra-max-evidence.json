@@ -1,0 +1,234 @@
+{
+  "blind_identity_disclosed_after_judging": "M4",
+  "computed_total": 75.0,
+  "generator_config": "sol_medium",
+  "judge": {
+    "judge_config": "terra_max",
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "max",
+    "request_id": "01a011e4-45a0-71b2-b0fb-c7a721716a8f"
+  },
+  "limitations": [
+    "仅依据冻结转写评估，无法验证演唱示范、音色变化、口型动作或实际练习效果。",
+    "多处转写存在术语、词语和句法噪音；对无法在可见证据中追溯的改写已从严扣分。",
+    "所有关于嗓音、生理机制和职业用嗓效果的内容都应按主播教学经验处理，不构成医学或普遍效果结论。"
+  ],
+  "model_scores": {
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "portfolio_quality": 3,
+    "topic_discovery": 3
+  },
+  "preferred_generator_configs": [
+    "sol_high",
+    "terra_medium",
+    "sol_medium"
+  ],
+  "rank": 3,
+  "semantic_duplicate_rate": 0.0,
+  "system_evaluation": {
+    "anonymous_system_id": "M4",
+    "clip_selection": 3,
+    "editorial_usability": 3,
+    "evidence_fidelity": 3,
+    "generator_config": "sol_medium",
+    "portfolio_quality": 3,
+    "strengths": "高频新手痛点抓取得准，多数标题、描述和风险提示清晰，九条均有可独立成片的核心主张。",
+    "topic_discovery": 3,
+    "weaknesses": "覆盖面较窄，且高音、呼吸和漏气的相邻主题占比较高；胸口发紧和混声路径的转写/概括风险削弱了证据与成片稳定性。"
+  },
+  "topic_clusters": [
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均取自同一候选、同一“高音卡住—呼吸/通道”教学主张。Q7的摘句定义最完整，M4兼具痛点与归因；R2的高光句主要是症状，需依赖后文完成解释。",
+      "canonical_topic": "高音卡顿的呼吸与整体发声通道",
+      "cluster_id": "t011",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "痛点和归因均可追溯；“这一块”有指代依赖。",
+          "candidate_id": "candidate_e3f2a57d5e929402",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h07",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均围绕“刻意管/压舌头会紧，改为放松或轻抵下牙后”的同一误区和替代动作，可直接互换。",
+      "canonical_topic": "唱歌时的舌头放松与舌位",
+      "cluster_id": "t021",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "误区、因果和替代动作齐全，Hook略偏说明性。",
+          "candidate_id": "candidate_2efa31efddfe10ed",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h05",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均以教师学员和主播的经验，将发声训练延展到日常或职业说话。共同风险是不能把个案体验剪成普遍功效。",
+      "canonical_topic": "发声训练与职业用嗓/日常说话",
+      "cluster_id": "t031",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "受众定位明确，但“减少长时间讲话负担”比原始个案表述更强。",
+          "candidate_id": "candidate_f1d87e3d981d87dc",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h08",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "这是“胸口发紧、过度下压/用力并可能漏气”的单独诊断型需求，不与“练气仍气不够”的漏气问答合并。",
+      "canonical_topic": "胸口发紧与过度用力导致的漏气",
+      "cluster_id": "t041",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "问题型开头有力，但原转写中的受力、气息和压强链条较混乱，文案中的“不是气不够”不宜说得过满。",
+          "candidate_id": "candidate_a0f21643888730a5",
+          "claim_fidelity": 3,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h03",
+          "hook_strength": 4,
+          "representative_quality": 3,
+          "title_copy_quality": 3
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均回答“练过气息却仍觉得不够”的同一问题，核心解释都是演唱中漏气，并有同句对比示范线索。",
+      "canonical_topic": "练过气息仍不够用的漏气问题",
+      "cluster_id": "t051",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "疑问、答案和对比示范的编辑方向都与证据相符，独立传播性强。",
+          "candidate_id": "candidate_a5c87afa0254618e",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h01",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条都讲真声、咬字位置/通道、强混再到假声的学习先后，属于同一训练路径需求。Q7突出第一步，M4和R2更完整地呈现后续路径。",
+      "canonical_topic": "混声与流行唱法的训练顺序",
+      "cluster_id": "t061",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "顺序主体忠于原文，但描述把“先建立气息”概括得比原句更强；已识别术语和转写风险。",
+          "candidate_id": "candidate_2716045703db1f3b",
+          "claim_fidelity": 3,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h09",
+          "hook_strength": 3,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "两条均用“天赋—技术—兴趣学习”的框架回应中老年或成年学习焦虑。必须保留职业出道与兴趣提升的边界。",
+      "canonical_topic": "年龄、天赋与声乐学习",
+      "cluster_id": "t071",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "金句传播力高，描述补足了目标边界；金句本身仍是主播观点。",
+          "candidate_id": "candidate_260b8f35571eae11",
+          "claim_fidelity": 4,
+          "editorial_value": 3,
+          "expression_completeness": 3,
+          "generator_config": "sol_medium",
+          "highlight_id": "h06",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均针对初学者强行模仿成熟歌手音色的风险，核心建议和编辑需求完全一致。",
+      "canonical_topic": "初学者模仿高手音色的误区",
+      "cluster_id": "t081",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "劝诫、原因和个人经历均有来源支撑，成片闭合。",
+          "candidate_id": "candidate_5d3778b0260b9b65",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h04",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    },
+    {
+      "alignment_confidence": "high",
+      "assessment": "三条均界定KTV音响、调音和修音无法替代演唱者发声与共鸣基础，属于同一反常识认知题。",
+      "canonical_topic": "修音与真实发声基础的能力边界",
+      "cluster_id": "t091",
+      "members": [
+        {
+          "anonymous_system_id": "M4",
+          "assessment": "“美化能做、通道和共鸣不能代替”的边界清楚，标题有讨论度。",
+          "candidate_id": "candidate_e27d41447dbfb889",
+          "claim_fidelity": 4,
+          "editorial_value": 4,
+          "expression_completeness": 4,
+          "generator_config": "sol_medium",
+          "highlight_id": "h02",
+          "hook_strength": 4,
+          "representative_quality": 4,
+          "title_copy_quality": 4
+        }
+      ]
+    }
+  ],
+  "topic_count": 9,
+  "verdict_reason": "偏好顺序为 R2、Q7、M4。R2在覆盖、证据可追溯性、代表性片段和后期可执行信息之间最均衡；Q7发现主题更广，但有两处关键改写超出可见证据；M4的基础选题稳健，但组合广度与个别片段的文本稳定性略逊。"
+}

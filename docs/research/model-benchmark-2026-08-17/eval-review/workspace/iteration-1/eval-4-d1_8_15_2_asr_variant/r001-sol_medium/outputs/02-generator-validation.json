@@ -1,0 +1,91 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 0,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_a8bffa142ae34754",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱高音就是美吗？音乐什么时候被判定为唱得越高越好？你的音乐理解能力到了吗？强弱变化做出来了吗？层次有吗？情感融进去了吗？",
+      "matched_character_coverage": 0.963,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_a3f07d95871e34d9",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "修音只能去美化，但是修不了你们的通道，修不了你们的共鸣腔体。破音可以给我垫上去，但是音色也没有歌手好听，因为歌手是在通道里的，是有共鸣腔体的。",
+      "matched_character_coverage": 0.9844,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_c3f71ff545569c02",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "天赋决定了你的下限，努力决定了你的上限。你可以通过技术让你的上限更高，让你唱得比现在更好。爱好不分年龄，你什么时候学都不晚。",
+      "matched_character_coverage": 0.9643,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_37a304af261d7cec",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我不建议学员练小狗哈气，因为来回吸气的时候，后咽壁和空气直接接触，有些比较敏感的同学容易红肿、不舒服、干痒。我自己非常不喜欢这个练习，因为我有更好的方法。",
+      "matched_character_coverage": 0.9275,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_d1de1fbe320a4d19",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不要去模仿网上那种大师，因为他们练了很多年。你刻意模仿，以为模仿到了，其实没有，而且会有其他问题。",
+      "matched_character_coverage": 1.0,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_c9196e5dede3c677",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "吐丝的时候，很多同学想把气都吐完，没必要。因为我们练的不是肺活量，练的是横膈肌的弹性。你要搞懂我们练的目的是什么。",
+      "matched_character_coverage": 0.902,
+      "position": 6,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_a3e95c7ba3830ff6",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "找通道的时候，用鼻子慢吸气；在唱歌的时候，其实是口鼻同吸，嘴巴为主、鼻子为辅。",
+      "matched_character_coverage": 1.0,
+      "position": 7,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_42f16a3fe5990dd7",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "为什么练了那么长时间的气，唱歌还是觉得气不够？是因为你在唱的时候把气漏走了。",
+      "matched_character_coverage": 0.9143,
+      "position": 8,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_fc8cd4c0053dc519",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "所有唱法分三种：美声、民族、流行，括号通俗，流行就是通俗。民谣、摇滚这些，都是流行唱法里面细分的一些东西。",
+      "matched_character_coverage": 1.0,
+      "position": 9,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_27e2e7c3ca5de34b",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "很多同学在KTV的时候喊上去了，会发现喊着喊着声音就下不来了。因为正常唱歌不是喊；如果确实没控制住，嗓子哑了，可以做气泡音。",
+      "matched_character_coverage": 0.9643,
+      "position": 10,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10
+}

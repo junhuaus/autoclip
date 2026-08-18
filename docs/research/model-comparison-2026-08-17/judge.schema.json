@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "overall", "per_topic", "strengths_and_weaknesses", "recommendation", "limitations"],
+  "properties": {
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["winner", "confidence", "summary"],
+      "properties": {
+        "winner": {"type": "string", "enum": ["A", "B", "tie"]},
+        "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 800}
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_a_total", "system_b_total", "system_a_breakdown", "system_b_breakdown"],
+      "properties": {
+        "system_a_total": {"type": "number", "minimum": 0, "maximum": 100},
+        "system_b_total": {"type": "number", "minimum": 0, "maximum": 100},
+        "system_a_breakdown": {"$ref": "#/$defs/overallBreakdown"},
+        "system_b_breakdown": {"$ref": "#/$defs/overallBreakdown"}
+      }
+    },
+    "per_topic": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "system_a_candidate_ids", "system_b_candidate_ids", "system_a_scores", "system_b_scores", "system_a_topic_total", "system_b_topic_total", "winner", "assessment"],
+        "properties": {
+          "topic": {"type": "string", "minLength": 1, "maxLength": 80},
+          "system_a_candidate_ids": {"type": "array", "items": {"type": "string"}},
+          "system_b_candidate_ids": {"type": "array", "items": {"type": "string"}},
+          "system_a_scores": {"$ref": "#/$defs/topicScores"},
+          "system_b_scores": {"$ref": "#/$defs/topicScores"},
+          "system_a_topic_total": {"type": "number", "minimum": 0, "maximum": 10},
+          "system_b_topic_total": {"type": "number", "minimum": 0, "maximum": 10},
+          "winner": {"type": "string", "enum": ["A", "B", "tie"]},
+          "assessment": {"type": "string", "minLength": 1, "maxLength": 700}
+        }
+      }
+    },
+    "strengths_and_weaknesses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_a", "system_b"],
+      "properties": {
+        "system_a": {"type": "string", "minLength": 1, "maxLength": 1200},
+        "system_b": {"type": "string", "minLength": 1, "maxLength": 1200}
+      }
+    },
+    "recommendation": {"type": "string", "minLength": 1, "maxLength": 1600},
+    "limitations": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string", "minLength": 1, "maxLength": 300}}
+  },
+  "$defs": {
+    "overallBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_fidelity", "editorial_value", "hook_strength", "expression_completeness", "title_and_script", "coverage_and_deduplication"],
+      "properties": {
+        "evidence_fidelity": {"type": "number", "minimum": 0, "maximum": 100},
+        "editorial_value": {"type": "number", "minimum": 0, "maximum": 100},
+        "hook_strength": {"type": "number", "minimum": 0, "maximum": 100},
+        "expression_completeness": {"type": "number", "minimum": 0, "maximum": 100},
+        "title_and_script": {"type": "number", "minimum": 0, "maximum": 100},
+        "coverage_and_deduplication": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "topicScores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_fidelity", "editorial_value", "hook_strength", "expression_completeness", "title_quality", "script_usability", "distinctiveness"],
+      "properties": {
+        "evidence_fidelity": {"type": "number", "minimum": 0, "maximum": 10},
+        "editorial_value": {"type": "number", "minimum": 0, "maximum": 10},
+        "hook_strength": {"type": "number", "minimum": 0, "maximum": 10},
+        "expression_completeness": {"type": "number", "minimum": 0, "maximum": 10},
+        "title_quality": {"type": "number", "minimum": 0, "maximum": 10},
+        "script_usability": {"type": "number", "minimum": 0, "maximum": 10},
+        "distinctiveness": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    }
+  }
+}

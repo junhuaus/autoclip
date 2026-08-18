@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LiveClip 8-16-1.ts 自由高光发现模型对比</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #18212f;
+        --muted: #667085;
+        --line: #dfe4ea;
+        --soft: #f5f7fa;
+        --paper: #ffffff;
+        --navy: #183153;
+        --blue: #2563eb;
+        --blue-soft: #eff6ff;
+        --green: #047857;
+        --green-soft: #ecfdf5;
+        --amber: #a15c00;
+        --amber-soft: #fff8e8;
+        --red: #b42318;
+        --red-soft: #fff1f0;
+        --terra: #7c3aed;
+        --sol: #0f766e;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: #edf1f5;
+        line-height: 1.65;
+      }
+
+      a { color: var(--blue); }
+
+      .page {
+        width: min(1440px, calc(100% - 32px));
+        margin: 24px auto 56px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 0 18px 54px rgb(16 24 40 / 8%);
+        overflow: hidden;
+      }
+
+      header {
+        padding: 42px 48px 34px;
+        color: white;
+        background: linear-gradient(125deg, #13243c 0%, #1d4f6f 58%, #0f766e 100%);
+      }
+
+      header h1 {
+        margin: 10px 0 12px;
+        font-size: clamp(28px, 4vw, 46px);
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+
+      header p { margin: 0; max-width: 980px; color: #dceaf4; }
+
+      .eyebrow {
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #a7f3d0;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 20px;
+      }
+
+      .pill {
+        padding: 6px 11px;
+        border: 1px solid rgb(255 255 255 / 25%);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 9%);
+        font-size: 13px;
+      }
+
+      main { padding: 36px 48px 48px; }
+
+      section { margin: 0 0 42px; scroll-margin-top: 18px; }
+
+      h2 {
+        margin: 0 0 18px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--line);
+        font-size: 25px;
+        line-height: 1.3;
+      }
+
+      h3 { margin: 26px 0 12px; font-size: 19px; }
+
+      p { margin: 10px 0; }
+
+      .notice {
+        margin: 0 0 28px;
+        padding: 16px 18px;
+        border-left: 5px solid var(--red);
+        border-radius: 9px;
+        color: #7a271a;
+        background: var(--red-soft);
+      }
+
+      .notice strong { display: block; margin-bottom: 3px; }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin: 22px 0 28px;
+      }
+
+      .card {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+      }
+
+      .card .label { font-size: 13px; color: var(--muted); }
+      .card .value { margin-top: 6px; font-size: 28px; font-weight: 780; line-height: 1.15; }
+      .card .sub { margin-top: 5px; font-size: 12px; color: var(--muted); }
+
+      .winner { color: var(--green); }
+      .terra { color: var(--terra); font-weight: 700; }
+      .sol { color: var(--sol); font-weight: 700; }
+
+      .table-wrap {
+        margin: 14px 0 24px;
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        font-size: 14px;
+      }
+
+      caption {
+        padding: 12px 14px;
+        text-align: left;
+        font-weight: 700;
+        color: var(--navy);
+        background: var(--soft);
+      }
+
+      th, td {
+        padding: 11px 13px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        white-space: nowrap;
+        color: #344054;
+        background: #f8fafc;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+
+      tbody tr:last-child td { border-bottom: 0; }
+      tbody tr:hover td { background: #fbfdff; }
+
+      .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .quote { min-width: 300px; color: #344054; }
+      .assessment { min-width: 330px; }
+
+      .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .tag.shared { color: #075985; background: #e0f2fe; }
+      .tag.a-only { color: #6d28d9; background: #f3e8ff; }
+      .tag.b-only { color: #047857; background: #d1fae5; }
+      .tag.warn { color: var(--amber); background: var(--amber-soft); }
+
+      .score-row {
+        display: grid;
+        grid-template-columns: 170px 1fr 60px 1fr 60px;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .score-row:last-child { border-bottom: 0; }
+
+      .bar {
+        height: 9px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: #e8edf3;
+      }
+
+      .bar > span { display: block; height: 100%; width: var(--w); border-radius: inherit; }
+      .bar.terra-bar > span { background: var(--terra); }
+      .bar.sol-bar > span { background: var(--sol); }
+
+      .callout {
+        padding: 16px 18px;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        background: var(--blue-soft);
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .panel {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+      }
+
+      .panel h3 { margin-top: 0; }
+      ul, ol { padding-left: 22px; }
+      li { margin: 7px 0; }
+
+      .toc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 30px;
+      }
+
+      .toc a {
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--navy);
+        background: white;
+        text-decoration: none;
+        font-size: 13px;
+      }
+
+      code {
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: #eef2f6;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9em;
+      }
+
+      footer {
+        padding: 20px 48px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        background: var(--soft);
+        font-size: 13px;
+      }
+
+      @media (max-width: 920px) {
+        .page { width: 100%; margin: 0; border: 0; border-radius: 0; }
+        header, main, footer { padding-left: 22px; padding-right: 22px; }
+        .cards, .grid-2 { grid-template-columns: 1fr 1fr; }
+        .score-row { grid-template-columns: 1fr 60px; }
+        .score-row .bar { display: none; }
+      }
+
+      @media (max-width: 560px) {
+        .cards, .grid-2 { grid-template-columns: 1fr; }
+        header { padding-top: 30px; }
+        main { padding-top: 26px; }
+      }
+
+      @media print {
+        body { background: white; }
+        .page { width: 100%; margin: 0; border: 0; box-shadow: none; }
+        .toc { display: none; }
+        section { break-inside: auto; }
+        tr { break-inside: avoid; }
+        a { color: inherit; text-decoration: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="page">
+      <header>
+        <div class="eyebrow">LiveClip · Model Evaluation</div>
+        <h1>`8-16-1.ts` 自由高光发现模型对比</h1>
+        <p>terra/medium 与 sol/medium 独立自由发现高光，由 sol/max 对匿名结果进行语义归并和盲审。</p>
+        <div class="meta">
+          <span class="pill">2026-08-17</span>
+          <span class="pill">01:24:02.717</span>
+          <span class="pill">45 个粗候选</span>
+          <span class="pill">无固定 topic</span>
+          <span class="pill">文本证据</span>
+        </div>
+      </header>
+
+      <main>
+        <nav class="toc" aria-label="报告导航">
+          <a href="#summary">结论</a>
+          <a href="#method">测试方法</a>
+          <a href="#overlap">Topic 重合</a>
+          <a href="#scores">综合评分</a>
+          <a href="#topics">逐 Topic 评价</a>
+          <a href="#terra-script">Terra 脚本</a>
+          <a href="#sol-script">Sol 脚本</a>
+          <a href="#skill">Skill 评价</a>
+          <a href="#artifacts">复核文件</a>
+        </nav>
+
+        <div class="notice">
+          <strong>测试口径更正</strong>
+          固定 topic 会移除模型的发现能力，因此该方法已作废。本报告只使用两模型彼此独立、完全自由发现 topic 的第一轮结果。
+        </div>
+
+        <section id="summary">
+          <h2>结论</h2>
+          <div class="cards">
+            <div class="card">
+              <div class="label">盲审胜者</div>
+              <div class="value winner">sol / medium</div>
+              <div class="sub">89.4 vs 85.6</div>
+            </div>
+            <div class="card">
+              <div class="label">语义 Topic 重合率</div>
+              <div class="value">70%</div>
+              <div class="sub">7 个共同 / 10 个并集</div>
+            </div>
+            <div class="card">
+              <div class="label">独立发现结果</div>
+              <div class="value">11 vs 9</div>
+              <div class="sub">terra 片段 vs sol 片段</div>
+            </div>
+            <div class="card">
+              <div class="label">共同核心 Topic</div>
+              <div class="value">7</div>
+              <div class="sub">名称不同也按语义归并</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <caption>模型结果摘要</caption>
+              <thead><tr><th>方案</th><th class="num">输出片段</th><th class="num">语义 Topic</th><th class="num">盲审总分</th><th>结论</th></tr></thead>
+              <tbody>
+                <tr><td class="terra">terra / medium</td><td class="num">11</td><td class="num">9</td><td class="num">85.6</td><td>召回较广，但重复更多，并有一次引语错配</td></tr>
+                <tr><td class="sol">sol / medium</td><td class="num">9</td><td class="num">8</td><td class="num"><strong>89.4</strong></td><td><strong>标题、脚本与证据绑定总体更好</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>当前 Skill 已能稳定发现共同核心内容，但边缘 topic 召回、语义去重和证据绑定仍需加强。单视频、单次运行不足以直接更改生产默认模型。</p>
+        </section>
+
+        <section id="method">
+          <h2>测试方法</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3>保持相同</h3>
+              <ul>
+                <li>同一个 <code>8-16-1.ts</code> 派生转写</li>
+                <li>同一批 45 个粗候选</li>
+                <li>同一个高光发现 Prompt 与严格 Schema</li>
+                <li>同为 <code>medium</code> 推理强度</li>
+                <li>相同的 8–12 条目标与质量规则</li>
+              </ul>
+            </div>
+            <div class="panel">
+              <h3>保持独立</h3>
+              <ul>
+                <li>不提供固定 topic 或分类名称</li>
+                <li>两个模型并行执行，互相看不到输出</li>
+                <li>每个模型自行决定发现和保留什么</li>
+                <li>盲审只看到匿名方案 A/B</li>
+                <li>盲审按语义归并，不要求名称相同</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <caption>实际调用数据</caption>
+              <thead><tr><th>调用</th><th class="num">耗时</th><th class="num">输入 tokens</th><th class="num">输出 tokens</th><th class="num">推理 tokens</th></tr></thead>
+              <tbody>
+                <tr><td>terra / medium</td><td class="num">49.217 秒</td><td class="num">24,320</td><td class="num">2,526</td><td class="num">400</td></tr>
+                <tr><td>sol / medium</td><td class="num">56.196 秒</td><td class="num">24,320</td><td class="num">2,863</td><td class="num">726</td></tr>
+                <tr><td>sol / max 盲审</td><td class="num">409.244 秒</td><td class="num">28,757</td><td class="num">22,537</td><td class="num">19,212</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout"><strong>能力边界：</strong>模型没有观看 TS 画面，也没有重新听音频；它们分析同一 TS 经 ASR 得到的文本证据。因此本报告不评价视觉 Hook、动作、表情、真实示唱和最终切点听感。</div>
+        </section>
+
+        <section id="overlap">
+          <h2>语义 Topic 重合</h2>
+          <div class="cards">
+            <div class="card"><div class="label">共同</div><div class="value">7</div><div class="sub">双方都发现</div></div>
+            <div class="card"><div class="label">Terra 单边</div><div class="value">2</div><div class="sub">气息练习、咬字诊断</div></div>
+            <div class="card"><div class="label">Sol 单边</div><div class="value">1</div><div class="sub">天赋、努力与年龄</div></div>
+            <div class="card"><div class="label">精确候选 Jaccard</div><div class="value">53.8%</div><div class="sub">语义相同可选择不同时间段</div></div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <caption>盲审按“是否在讲同一件事情”归并</caption>
+              <thead><tr><th>归一后的语义 Topic</th><th>Terra</th><th>Sol</th><th>状态</th></tr></thead>
+              <tbody>
+                <tr><td>高音卡顿、通道、腔体与避免喊唱</td><td>2 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span> Terra 重复</td></tr>
+                <tr><td>舌头放松与内口腔空间</td><td>2 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span> Terra 重复</td></tr>
+                <tr><td>混声训练顺序</td><td>1 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span></td></tr>
+                <tr><td>修音能力与真实音色</td><td>1 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span></td></tr>
+                <tr><td>初学者刻意模仿歌手</td><td>1 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span></td></tr>
+                <tr><td>胸口用力、漏气与气息不够</td><td>1 个片段</td><td>2 个片段</td><td><span class="tag shared">共同</span> Sol 重复</td></tr>
+                <tr><td>日常说话与科学用嗓</td><td>1 个片段</td><td>1 个片段</td><td><span class="tag shared">共同</span></td></tr>
+                <tr><td>零基础气息支撑与练习避坑</td><td>1 个片段</td><td>—</td><td><span class="tag a-only">Terra 单边</span></td></tr>
+                <tr><td>连麦诊断中的咬字位置</td><td>1 个片段</td><td>—</td><td><span class="tag a-only">Terra 单边</span></td></tr>
+                <tr><td>天赋、努力与学习年龄</td><td>—</td><td>1 个片段</td><td><span class="tag b-only">Sol 单边</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p><strong>一致性指标：</strong>语义 Jaccard 70%；Terra topic 被 Sol 覆盖 77.8%；Sol topic 被 Terra 覆盖 87.5%。这衡量跨模型一致性，不是绝对召回率，因为没有人工真值 topic 清单。</p>
+        </section>
+
+        <section id="scores">
+          <h2>综合盲审评分</h2>
+          <div class="score-row"><strong>证据忠实度（25）</strong><div class="bar terra-bar"><span style="--w:87.6%"></span></div><span class="num">21.9</span><div class="bar sol-bar"><span style="--w:92.4%"></span></div><span class="num"><strong>23.1</strong></span></div>
+          <div class="score-row"><strong>内容价值（20）</strong><div class="bar terra-bar"><span style="--w:85%"></span></div><span class="num">17.0</span><div class="bar sol-bar"><span style="--w:88.5%"></span></div><span class="num"><strong>17.7</strong></span></div>
+          <div class="score-row"><strong>Hook（15）</strong><div class="bar terra-bar"><span style="--w:87.3%"></span></div><span class="num">13.1</span><div class="bar sol-bar"><span style="--w:89.3%"></span></div><span class="num"><strong>13.4</strong></span></div>
+          <div class="score-row"><strong>表达完整性（15）</strong><div class="bar terra-bar"><span style="--w:83.3%"></span></div><span class="num">12.5</span><div class="bar sol-bar"><span style="--w:86%"></span></div><span class="num"><strong>12.9</strong></span></div>
+          <div class="score-row"><strong>标题与脚本（15）</strong><div class="bar terra-bar"><span style="--w:83.3%"></span></div><span class="num">12.5</span><div class="bar sol-bar"><span style="--w:90%"></span></div><span class="num"><strong>13.5</strong></span></div>
+          <div class="score-row"><strong>覆盖与去重（10）</strong><div class="bar terra-bar"><span style="--w:86%"></span></div><span class="num">8.6</span><div class="bar sol-bar"><span style="--w:88%"></span></div><span class="num"><strong>8.8</strong></span></div>
+          <div class="score-row"><strong>总分（100）</strong><div class="bar terra-bar"><span style="--w:85.6%"></span></div><span class="num"><strong>85.6</strong></span><div class="bar sol-bar"><span style="--w:89.4%"></span></div><span class="num"><strong>89.4</strong></span></div>
+        </section>
+
+        <section id="topics">
+          <h2>逐 Topic 盲审</h2>
+          <div class="table-wrap">
+            <table>
+              <caption>0 分表示该模型没有发现该 topic，不代表原始候选质量为 0</caption>
+              <thead><tr><th>语义 Topic</th><th class="num">Terra</th><th class="num">Sol</th><th>胜者</th><th class="assessment">盲审评价</th></tr></thead>
+              <tbody>
+                <tr><td>高音卡顿：通道、腔体与避免喊唱</td><td class="num">8.6</td><td class="num"><strong>8.9</strong></td><td class="sol">Sol</td><td class="assessment">Terra 的 Hook 强，但两段语义重复且一段后半跑题；Sol 保留一段，更集中。</td></tr>
+                <tr><td>舌头放松与内口腔空间</td><td class="num">8.3</td><td class="num"><strong>9.0</strong></td><td class="sol">Sol</td><td class="assessment">Terra 两段接近，第二段止于动作设置；Sol 一段覆盖误区、原因和替代动作。</td></tr>
+                <tr><td>零基础气息支撑与练习避坑</td><td class="num"><strong>7.3</strong></td><td class="num">0</td><td class="terra">Terra</td><td class="assessment"><span class="tag warn">证据错误</span> Terra 发现 topic，但高光语句来自另一个候选，不能直接剪辑。</td></tr>
+                <tr><td>混声训练顺序</td><td class="num">8.7</td><td class="num"><strong>8.9</strong></td><td class="sol">Sol</td><td class="assessment">双方都发现相同核心；Sol 标题更直接，对术语和转写风险说明更完整。</td></tr>
+                <tr><td>修音能力与真实音色</td><td class="num">8.8</td><td class="num"><strong>9.1</strong></td><td class="sol">Sol</td><td class="assessment">双方判断一致；Sol 引语更完整，标题更具体，更适合独立传播。</td></tr>
+                <tr><td>初学者刻意模仿歌手</td><td class="num"><strong>9.0</strong></td><td class="num">8.8</td><td class="terra">Terra</td><td class="assessment">Terra 准确保留“刻意”限定；Sol 的“最危险”不是原文强度，略标题党。</td></tr>
+                <tr><td>胸口用力、漏气与气息不够</td><td class="num"><strong>9.1</strong></td><td class="num">8.7</td><td class="terra">Terra</td><td class="assessment">Sol 选择两个同因果链片段；Terra 单段包含问题、示范和结论，更紧凑。</td></tr>
+                <tr><td>日常说话与科学用嗓</td><td class="num">8.6</td><td class="num"><strong>8.8</strong></td><td class="sol">Sol</td><td class="assessment">Sol 对效果使用“可能”，受众场景更清楚；Terra 略接近普遍效果承诺。</td></tr>
+                <tr><td>连麦诊断中的咬字位置</td><td class="num"><strong>7.9</strong></td><td class="num">0</td><td class="terra">Terra</td><td class="assessment">Terra 独立发现，但片头噪音和上下文依赖较强，片段内缺少具体纠正步骤。</td></tr>
+                <tr><td>天赋、努力与学习年龄</td><td class="num">0</td><td class="num"><strong>9.0</strong></td><td class="sol">Sol</td><td class="assessment">Sol 独立发现并区分职业出道和兴趣改善；候选后半跑题，需提前收尾。</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="terra-script">
+          <h2><span class="terra">terra / medium</span> 自由发现脚本</h2>
+          <div class="table-wrap">
+            <table>
+              <caption>11 条原始选择；盲审归并为 9 个语义 topic</caption>
+              <thead><tr><th>时间</th><th class="num">分数</th><th>Topic</th><th>标题</th><th class="quote">高光语句 / 核验说明</th></tr></thead>
+              <tbody>
+                <tr><td class="time">00:09:50–00:11:05</td><td class="num">89</td><td>高音与气息通道</td><td>高音总卡住，先检查你的呼吸位置</td><td class="quote">唱歌的通道到底是在哪？它其实是从头顶开始的，头顶到我们的小腹，这整个都是我们唱歌的通道。</td></tr>
+                <tr><td class="time">00:17:07–00:17:53</td><td class="num">87</td><td>舌头放松</td><td>别刻意压舌头：高音更紧的常见原因</td><td class="quote">你们一找舌头，一在乎舌头，你们舌头就发力，舌头一发力，你就会有舌根音。</td></tr>
+                <tr><td class="time">00:23:36–00:24:50</td><td class="num">85</td><td>气息练习</td><td>练气息前，先把吸气做对</td><td class="quote"><span class="tag warn">不可用</span> 输出句来自另一候选，与绑定时间段不一致。</td></tr>
+                <tr><td class="time">00:58:18–00:59:24</td><td class="num">84</td><td>混声训练路径</td><td>混声练习别跳步：先找真声位置</td><td class="quote">我们唱歌的步骤一定要从真声开始，你一定要找到自己真声的咬字位置，找到咬字的通道。</td></tr>
+                <tr><td class="time">01:01:03–01:01:56</td><td class="num">83</td><td>高音发声</td><td>高音不是喊上去的</td><td class="quote">你必须借助你的通道、腔体、位置，你才能唱到这个地方的高音。</td></tr>
+                <tr><td class="time">01:21:52–01:22:47</td><td class="num">82</td><td>修音与音色</td><td>修音能美化，但修不了什么？</td><td class="quote">修的只能去美化，但是修不了你们的通道，修不了你们的共鸣腔体。</td></tr>
+                <tr><td class="time">00:48:43–00:50:01</td><td class="num">80</td><td>模仿误区</td><td>学唱歌，别急着模仿歌手</td><td class="quote">不要刻意模仿别人，刻意模仿别人这个也是我之前上学的一个误区。</td></tr>
+                <tr><td class="time">00:08:43–00:09:50</td><td class="num">79</td><td>漏气与共鸣</td><td>为什么练了气息还是不够用？</td><td class="quote">你发现我练了那么长时间的气，为什么我唱歌还是觉得气不够呢？是因为你在唱的时候把气漏走了。</td></tr>
+                <tr><td class="time">00:18:38–00:19:32</td><td class="num">77</td><td>内口腔空间</td><td>高音卡紧，试试别把舌头抬高</td><td class="quote">如果说你舌头抬起来，那不行，这个声音是非常难听的，而且高音也卡紧。</td></tr>
+                <tr><td class="time">01:07:09–01:08:17</td><td class="num">76</td><td>科学用嗓</td><td>唱歌的通道，也能让说话更省嗓</td><td class="quote">你知道了我们说话也是有音调的，你学了这个通道之后，你说话也会好。</td></tr>
+                <tr><td class="time">00:46:54–00:47:56</td><td class="num">74</td><td>咬字位置</td><td>唱歌咬字不清，先别只怪发音</td><td class="quote">你的咬字不清楚，发现了吗？你太去找这个通道了，它往后抠了，你的咬字位置太靠后了。</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="sol-script">
+          <h2><span class="sol">sol / medium</span> 自由发现脚本</h2>
+          <div class="table-wrap">
+            <table>
+              <caption>9 条原始选择；盲审归并为 8 个语义 topic</caption>
+              <thead><tr><th>时间</th><th class="num">分数</th><th>Topic</th><th>标题</th><th class="quote">高光语句</th></tr></thead>
+              <tbody>
+                <tr><td class="time">00:08:43–00:09:50</td><td class="num">88</td><td>漏气与气息运用</td><td>练了气息，为什么唱歌还是气不够？</td><td class="quote">你发现我练了那么长时间的气，为什么我唱歌还是觉得气不够呢？是因为你在唱的时候把气漏走了。</td></tr>
+                <tr><td class="time">01:21:52–01:22:47</td><td class="num">87</td><td>修音与真实唱功</td><td>修音为什么修不出歌手的音色？</td><td class="quote">不管是在 KTV 的音响也好，还是专门找调音师修音也好，它只能美化，但是修不了你们的通道，修不了你们的共鸣腔体。</td></tr>
+                <tr><td class="time">00:21:20–00:22:18</td><td class="num">86</td><td>胸口发紧与漏气</td><td>唱歌胸口发紧，是哪里用错力了？</td><td class="quote">唱歌的时候胸口发紧是为什么？那就说明你太往下落了，气息不够，太用这个位置唱了，胸口这个位置使劲太多了。</td></tr>
+                <tr><td class="time">00:48:43–00:50:01</td><td class="num">85</td><td>初学者模仿误区</td><td>别急着模仿高手的音色</td><td class="quote">你不要去模仿网上那种大师，因为他们练了很多年了。你刻意模仿，以为模仿到了，其实没有，而且会有其他的问题。</td></tr>
+                <tr><td class="time">00:17:07–00:17:53</td><td class="num">84</td><td>舌头放松与舌位</td><td>唱歌时别刻意把舌头压下去</td><td class="quote">你们一找舌头、一在乎舌头，舌头就发力；舌头一发力，就会有舌根音。</td></tr>
+                <tr><td class="time">01:19:56–01:21:03</td><td class="num">82</td><td>天赋、努力与学习年龄</td><td>学唱歌，什么时候开始都不晚</td><td class="quote">天赋决定了你的下限，努力决定了你的上限。你可以通过技术让你的上限更高，让你唱得比现在更好。</td></tr>
+                <tr><td class="time">00:09:50–00:11:05</td><td class="num">81</td><td>高音与呼吸通道</td><td>高音一唱就卡，先检查你的呼吸</td><td class="quote">很多小白会觉得高音卡、唱不上去，声音都挤在上面，嗓子疼。为什么？因为你现在的通道只有这一块。</td></tr>
+                <tr><td class="time">01:07:09–01:08:17</td><td class="num">79</td><td>日常说话与科学用嗓</td><td>声乐训练也能帮你更轻松地说话</td><td class="quote">我们说话也是有音调的。学了这个通道之后，又有了气息，你说话也会好。</td></tr>
+                <tr><td class="time">00:58:18–00:59:24</td><td class="num">77</td><td>声乐技巧学习顺序</td><td>混声训练应该从哪一步开始？</td><td class="quote">唱歌的步骤一定要从真声开始，先找到自己真声的咬字位置和通道，再过渡到高音的真声，也就是强混。</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="skill">
+          <h2>Agent Skill 评价与改进</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3>已验证的优点</h3>
+              <ul>
+                <li>无固定 topic 时仍发现 7 个共同核心主题。</li>
+                <li>覆盖高音、舌位、混声、修音、模仿、漏气和职业用嗓。</li>
+                <li>能生成标题、Hook、高光语句、编辑描述与风险标签。</li>
+                <li>语义重合率 70%，说明核心发现具备一定稳定性。</li>
+              </ul>
+            </div>
+            <div class="panel">
+              <h3>当前缺口</h3>
+              <ul>
+                <li>Terra 11 条归并成 9 个 topic，存在两组重复。</li>
+                <li>Sol 9 条归并成 8 个 topic，也存在一组重复。</li>
+                <li>3 个边缘 topic 只被一方发现。</li>
+                <li>Terra 有一次跨候选引语错配。</li>
+                <li>模型自评分不能直接替代统一阈值。</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>正确的改进方式：保持自由发现</h3>
+          <ol>
+            <li>每个 Agent 先独立建立本视频的 topic inventory，再自由选择高光；不由外部固定 topic。</li>
+            <li>每条已选内容必须说明相对已有 topic 的新增信息，降低同义重复。</li>
+            <li>默认每个语义 topic 只保留一个最佳片段；确需两个时说明内容增量。</li>
+            <li>高光语句附候选 ID 和证据范围，由系统做确定性文本对齐。</li>
+            <li>分开评估 topic 发现、片段选择、脚本质量和风险判断。</li>
+            <li>盲审继续做语义归并，不要求 topic 名称字面一致。</li>
+          </ol>
+
+          <p>下一轮基准应覆盖访谈、带货、知识讲解和娱乐直播，并重复多次，报告语义 Jaccard、单向覆盖率、重复率、证据对齐率和盲审质量分。</p>
+        </section>
+
+        <section id="artifacts">
+          <h2>复核文件与局限</h2>
+          <div class="grid-2">
+            <div class="panel">
+              <h3>原始证据</h3>
+              <ul>
+                <li><a href="generation-prompt.md">自由发现高光 Skill / Prompt</a></li>
+                <li><a href="frozen-input.json">冻结输入 JSON</a></li>
+                <li><a href="terra-medium.json">Terra 完整结果</a></li>
+                <li><a href="sol-medium.json">Sol 完整结果</a></li>
+                <li><a href="sol-max-judge.json">Sol/max 盲审结果</a></li>
+                <li><a href="run-metadata.json">调用元数据与 SHA-256</a></li>
+                <li><a href="REPORT.md">Markdown 版本</a></li>
+              </ul>
+            </div>
+            <div class="panel">
+              <h3>局限</h3>
+              <ul>
+                <li>只有一个声乐教学视频和一次运行。</li>
+                <li>没有人工真值 topic，70% 是一致性而非绝对召回率。</li>
+                <li>裁判也是 Sol，可能存在同模型风格偏好。</li>
+                <li>没有视频帧和原音，无法评价视听高光。</li>
+                <li>ASR 有错词和破碎句。</li>
+                <li>批量看到 45 个候选，与生产逐候选调用不完全相同。</li>
+              </ul>
+            </div>
+          </div>
+          <p><span class="tag warn">不计入结论</span> 目录中的 <code>paired-*</code> 和 <code>common-topics.json</code> 是被否定的固定-topic诊断，不参与任何正式分数。</p>
+        </section>
+      </main>
+
+      <footer>
+        LiveClip model comparison · formal result uses independent free discovery only · generated 2026-08-17
+      </footer>
+    </article>
+  </body>
+</html>

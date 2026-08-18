@@ -1,0 +1,99 @@
+{
+  "exact_quote_count": 0,
+  "exact_quote_rate": 0.0,
+  "failed_quote_count": 1,
+  "note": "Skill v1 has one edited highlight_sentence field, so exact matching is measured but not used to silently repair or discard output.",
+  "quote_alignment": [
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "很多小白会觉得高音卡、唱不上去，嗓子疼，因为你现在的通道只有这一块。唱歌的通道其实是从头顶到小腹，整个都是我们唱歌的通道。",
+      "matched_character_coverage": 0.9818,
+      "position": 1,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_a0f21643888730a5",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌的时候胸口发紧是为什么？那就说明你太往下落了。很多同学气息不够，是太用这个位置唱了，胸口这个位置使劲太多了也不可以，一定要恰到好处。",
+      "matched_character_coverage": 0.9677,
+      "position": 2,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不要去找舌头凹，你们一找舌头、一在乎舌头，舌头就发力。你说话的时候有在意过舌头吗？没有吧。实在不知道放哪，就放在下牙齿后面一点点，不要刻意使劲挤。",
+      "matched_character_coverage": 0.9688,
+      "position": 3,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我不建议学员练小狗哈气，因为来回吸气的时候，后咽壁和空气直接接触，有些同学比较敏感，容易红肿、不舒服、干痒。如果实在想练，就用鼻子吸、嘴巴哈。",
+      "matched_character_coverage": 0.9508,
+      "position": 4,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_4305cfa07f8b1fbf",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "有锻炼基础的同学四到六分钟，没有锻炼基础的同学一到三分钟。千万不要一次做十分钟，一定要分开做；想进步快，就早上、中午、晚上分开做。",
+      "matched_character_coverage": 0.8596,
+      "position": 5,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_22d3260a7179c022",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你现在有一个问题，就是你的咬字不清楚。你太去找这个通道了，它往后抠了，你的咬字位置太靠后；再一个就是舌根问题，你的腰腹支撑还是用得少。你不是没有气息，你有气息，但是你用不上。",
+      "matched_character_coverage": 0.974,
+      "position": 6,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "唱歌是有步骤的，一定要从真声开始，先找到真声的咬字位置和通道，再过渡到高音的真声，也就是强混；真声、强混再到假声。",
+      "matched_character_coverage": 0.86,
+      "position": 7,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_638470bcf20511aa",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "你就是喊，喊破喉咙也只能喊到这个位置。你必须借助通道、腔体和位置，才能唱到更高的音，而不是硬喊上去。",
+      "matched_character_coverage": 0.9091,
+      "position": 8,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "我们说话也是有音调的。没有学通道的时候，你可能会这样喊“开门”；学了通道、用上气息之后，说话也会轻松。",
+      "matched_character_coverage": 0.814,
+      "position": 9,
+      "status": "failed"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "天赋决定了你的下限，努力决定了你的上限。你可以通过技术让自己的上限更高，让你唱得比现在更好。爱好不分年龄，你什么时候学都不晚。",
+      "matched_character_coverage": 0.8947,
+      "position": 10,
+      "status": "high_similarity"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "exact_normalized_substring": false,
+      "highlight_sentence": "不管是KTV音响还是调音、修音，它只能美化，但是修不了你们的通道，修不了你们的共鸣腔体。破音可以给你修上去，但音色为什么还是没有歌手好听？",
+      "matched_character_coverage": 0.871,
+      "position": 11,
+      "status": "high_similarity"
+    }
+  ],
+  "schema_and_candidate_gate": "passed",
+  "selected_count": 11,
+  "unique_candidate_count": 11
+}

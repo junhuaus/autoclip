@@ -1,0 +1,126 @@
+{
+  "highlights": [
+    {
+      "candidate_id": "candidate_f501d39592c1669b",
+      "highlight_sentence": "如果你的胸口有非常明显的起伏，说明你的气太浅了；你唱歌就用不到气息。",
+      "hook": "吸气时胸口起伏很大？你的气可能吸浅了。",
+      "risk_flags": [],
+      "score": 88,
+      "script_description": "从常见的错误吸气表现切入，明确指出浅呼吸会让唱歌缺少气息支持，适合剪成基础呼吸自检技巧。",
+      "selection_reason": "问题、判断和后果完整，零基础观众能立刻对照自查。",
+      "title": "胸口起伏大，可能是气吸浅了",
+      "topic": "唱歌呼吸自检"
+    },
+    {
+      "candidate_id": "candidate_c393f29d34250a55",
+      "highlight_sentence": "你可以站起来，俯身45度，把手掐紧你的腰，慢慢吸气，去感受一下这个起伏。",
+      "hook": "找不到丹田？试试俯身45度。",
+      "risk_flags": [],
+      "score": 86,
+      "script_description": "给出找腰腹呼吸感受的具体站姿、角度和手部动作，具备直接跟练价值。",
+      "selection_reason": "动作指令清晰，可独立传播，实用性强。",
+      "title": "俯身45度，找到腰腹吸气感",
+      "topic": "腰腹呼吸练习"
+    },
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "highlight_sentence": "我们不是要出道，你要在自己的硬件上让自己做到最好。",
+      "hook": "没唱歌天赋，还能学好吗？",
+      "risk_flags": [],
+      "score": 89,
+      "script_description": "回应普通人对天赋的焦虑，核心观点是把注意力放在后天改善与发挥自身条件上，情绪鼓励和观点闭合兼具。",
+      "selection_reason": "问题普遍、回应直接，具有很强的情绪共鸣和传播完整度。",
+      "title": "普通人学唱歌，不必先问天赋",
+      "topic": "唱歌天赋焦虑"
+    },
+    {
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "highlight_sentence": "唱歌不要去追求时间，你要追求效率。",
+      "hook": "每天练得越久，唱歌进步越快吗？",
+      "risk_flags": [],
+      "score": 91,
+      "script_description": "针对练习时长误区，建议连续练习不超过一小时，并强调带着思考和听辨练习，而非盲目练到嗓子哑。",
+      "selection_reason": "反常识开头明确，建议可执行，结论完整。",
+      "title": "练唱别拼时长，要拼效率",
+      "topic": "每日练习时长"
+    },
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "highlight_sentence": "你在唱歌的时候，先去做十个蹲起，先把身上的肌肉活动开。",
+      "hook": "去KTV前，别在朋友面前练声。",
+      "risk_flags": [],
+      "score": 87,
+      "script_description": "面向临时KTV演唱场景，提供低门槛的热身方法：蹲起或高抬腿活动身体后再唱。",
+      "selection_reason": "场景具体、开头有趣、建议简单，适合短视频切片。",
+      "title": "KTV开唱前，先做10个蹲起",
+      "topic": "唱前热身"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "highlight_sentence": "高音遇到闭口音，很多小白都会卡紧；先带一个开口音的字去练，找到感觉后再慢慢过渡。",
+      "hook": "为什么高音一遇到闭口音就卡？",
+      "risk_flags": [],
+      "score": 88,
+      "script_description": "解释闭口音叠加高音时容易紧的原因，并给出以开口音过渡练习的明确路径。",
+      "selection_reason": "痛点聚焦，解决方案前后闭合，面向初学者有明确价值。",
+      "title": "高音闭口音卡紧，怎么练？",
+      "topic": "闭口音高音练习"
+    },
+    {
+      "candidate_id": "candidate_bef585871fbac01e",
+      "highlight_sentence": "你不会简谱、不会乐理，一样可以学唱歌，因为我们唱歌重在一个模仿。",
+      "hook": "不会乐理，能学唱歌吗？",
+      "risk_flags": [],
+      "score": 86,
+      "script_description": "解答零基础是否必须学乐理：简谱会提升学歌效率，但并非开始学唱歌的硬性门槛。",
+      "selection_reason": "问答结构完整，降低新手进入门槛，同时保留进阶建议。",
+      "title": "不会乐理，也能学唱歌吗？",
+      "topic": "乐理与学唱歌"
+    },
+    {
+      "candidate_id": "candidate_f49be10488a46e67",
+      "highlight_sentence": "你的脑子只能办一件事情：要不想音高，要不听节奏；你起码得先把歌搞熟。",
+      "hook": "拿着谱还是跟不上伴奏，问题在哪？",
+      "risk_flags": [],
+      "score": 87,
+      "script_description": "解释跟不上伴奏不一定是识谱问题，而是注意力被音高和节奏同时占用；先熟悉歌曲才能腾出精力听伴奏。",
+      "selection_reason": "因果解释清楚，适合有跟拍困难的学习者。",
+      "title": "为什么拿着谱也跟不上伴奏？",
+      "topic": "节奏与伴奏"
+    },
+    {
+      "candidate_id": "candidate_2169870825746d02",
+      "highlight_sentence": "声音位置统一，咬字位置统一，你的声音就会统一。",
+      "hook": "换声区断层，先检查声音位置。",
+      "risk_flags": [],
+      "score": 85,
+      "script_description": "围绕换声区不断层，强调统一咬字位置并持续保持在唱歌通道中，避免高音前冲或后躲。",
+      "selection_reason": "聚焦明确技术问题，结论简洁，并有可理解的错误对照。",
+      "title": "换声区不断层的关键",
+      "topic": "换声区衔接"
+    },
+    {
+      "candidate_id": "candidate_0c49c6488ae5fe28",
+      "highlight_sentence": "所有共鸣的前提，是你在唱歌通道里面。",
+      "hook": "别再刻意找头腔共鸣了。",
+      "risk_flags": [],
+      "score": 89,
+      "script_description": "纠正刻意追求头腔共鸣的误区，说明共鸣建立在正确唱歌通道上，并用升高说话音调作直观解释。",
+      "selection_reason": "反误区观点鲜明，表达自洽，具有较强短视频标题和传播潜力。",
+      "title": "共鸣不是硬找出来的",
+      "topic": "共鸣误区"
+    },
+    {
+      "candidate_id": "candidate_f0bbb75c02ac39ed",
+      "highlight_sentence": "初学者唱歌，眉毛什么的都不要抬，就放松就好了。",
+      "hook": "唱高音时总爱抬眉？小白先别这么做。",
+      "risk_flags": [],
+      "score": 84,
+      "script_description": "解释上台表情扭曲与紧张、发力失效的关联，指出抬眉属于后期点睛技巧，不适合作为初学者的固定动作。",
+      "selection_reason": "针对常见可见习惯给出清晰纠偏，观点有阶段性。",
+      "title": "初学者唱高音，先别抬眉",
+      "topic": "高音表情与紧张"
+    }
+  ],
+  "selection_summary": "精选11段：覆盖呼吸、热身、练习安排、乐理、节奏、发声通道与高音技巧，均尽量避开重复话题及强依赖直播上下文的片段。"
+}
