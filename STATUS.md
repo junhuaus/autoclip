@@ -1,13 +1,15 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 02:01 PDT
+Updated: 2026-08-18 02:26 PDT
 
 Package compatibility baseline: `0.1.0`
 
 Current activity: production development remains paused, while the
 user-authorized Highlight Agent Skill v2 research/shadow optimization is now
-active. It does not modify the production Pipeline, database, source media,
-renders, reviews or Deliveries. The prior expanded free-discovery benchmark is
+active. The user has now authorized autonomous completion without intermediate
+approval prompts. Research still does not modify the production Pipeline,
+database, source media, renders, reviews or Deliveries; production integration
+will proceed only if the frozen blind-comparison gates pass. The prior expanded free-discovery benchmark is
 complete under
 `docs/research/model-benchmark-2026-08-17/`: three generator configurations,
 three unique source hashes, nine primary order-perturbed runs, one zero-weight
@@ -86,6 +88,16 @@ repair budget because this runner lacked the generator runner's zero-model
 compatibility preflight. The failed `judge_da09...` evidence is being preserved;
 the fix must create a new hash-derived Judge-run ID, use only supported tool
 isolation flags and classify bounded pre-model failures separately.
+
+Judge runner v2 now implements that repair. It uses a real stdio/EOF zero-model
+preflight, the generator's current supported feature-disable list, independent
+bounded pre-model failure receipts, completion-bound receipt inventories and
+two model-only attempt slots. Unsafe tool events persist once and permanently
+fail; model output-read failures are also receipted; progress verifies complete
+artifacts before counting them. Focused tests pass 23/23, existing research
+regressions pass 129/129, and final independent review reports P0/P1/P2 all
+zero. The runner hash creates a new Judge-run ID and cannot resume or overwrite
+the failed `judge_da09...` run.
 
 ## Current user-visible result
 

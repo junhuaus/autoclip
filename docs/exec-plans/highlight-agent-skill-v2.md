@@ -111,9 +111,10 @@ same deterministic Gate.
 
 ### S2-M2 — Decision and optional production design
 
-- [ ] Present the viewer/report and obtain user feedback.
+- [ ] Present the viewer/report and record the evidence-based decision.
 - [ ] If v2 passes preregistered development gates, freeze it and define a six-source/multi-genre holdout; otherwise revise into iteration 2.
-- [ ] Design production migration only after v1-v2 evidence and explicit user approval.
+- [ ] If v2 passes the gates, design and implement the production migration;
+  otherwise keep production unchanged and document the failed gate.
 
 ## File ownership
 
@@ -253,6 +254,17 @@ write `iteration-2` rather than replacing iteration 1.
   `judge_da09efc4a848e5c8fc005b50` remains immutable. A superseding runner must
   use only current supported isolation flags, classify pre-model failures
   separately and create a new Judge-run identity before any retry.
+- 2026-08-18: Judge runner v2 closes the failed-sentinel defect. It reuses the
+  generator's current supported feature-disable profile, runs a stdio/EOF
+  zero-model preflight, gives pre-model failures their own bounded immutable
+  receipts and budget, hash-binds their complete inventory, and reserves the
+  two attempts solely for model-started output/validation work. Unsafe tool
+  events persist once and hard-fail forever; output-read failures after a turn
+  are also receipted. Progress validates each completion before counting it.
+  Focused tests pass 23/23, existing research regressions pass 129/129 and an
+  independent final review reports P0/P1/P2 all zero. Runner hash changes force
+  a new Judge-run ID; the failed `judge_da09...` tree remains byte-for-byte
+  untouched.
 
 ## Decision Log
 
@@ -270,6 +282,10 @@ write `iteration-2` rather than replacing iteration 1.
 - 2026-08-17: Keep Sol High out of the primary comparison and only record frozen
   `would_escalate` signals. Rationale: otherwise model escalation confounds the
   Skill v1/v2 effect.
+- 2026-08-18: The user authorized autonomous completion without further
+  intermediate approval prompts. Production integration is therefore gated by
+  the preregistered evidence and regression tests rather than a separate user
+  confirmation; this does not authorize destructive or unrelated changes.
 
 ## Risks and mitigations
 
@@ -286,11 +302,8 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: preserve and commit the failed
-`judge_da09efc4a848e5c8fc005b50` sentinel receipts, then harden the Judge runner
-with a zero-model current-CLI preflight and pre-model failure accounting. The
-changed runner must create a new Judge-run ID rather than resume or overwrite
-the failed run. Run the two-Judge sentinel for the first source, validate both
+Current first task: commit and push the reviewed Judge runner v2, run its real
+zero-model preflight and two-Judge sentinel in the new hash-derived run, then validate both
 Judge receipts and complete membership, then resume the remaining four Judge
 calls. If interrupted, read this file and
 `STATUS.md`, verify the experiment manifest and current source hashes, and

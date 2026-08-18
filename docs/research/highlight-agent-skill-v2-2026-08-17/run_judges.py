@@ -20,15 +20,20 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 ITERATION_DIR = Path(__file__).resolve().parent
 DEFAULT_EXPERIMENTS_ROOT = ITERATION_DIR / "experiments"
-RUNNER_VERSION = "liveclip-anonymous-dual-judge.v1"
+RUNNER_VERSION = "liveclip-anonymous-dual-judge.v2"
 SCHEMA_VERSION = "1"
 PROTOCOL_SEED = "liveclip-v2-judge-protocol-2026-08-17"
 MAX_ATTEMPTS = 2
+PREFLIGHT_POLICY_VERSION = "codex-local-app-server-preflight-v2"
+MAX_PREFLIGHT_FAILURES = 3
+MAX_CALL_INFRASTRUCTURE_FAILURES = 3
+PREFLIGHT_TIMEOUT_SECONDS = 20
 
 JUDGES: dict[str, dict[str, str]] = {
     "judge_01": {"model": "gpt-5.6-sol", "reasoning_effort": "max"},
@@ -40,28 +45,56 @@ SAFE_ENV_KEYS = {
     "HOME",
     "LANG",
     "LC_ALL",
-    "LC_CTYPE",
     "LOGNAME",
     "PATH",
-    "SHELL",
-    "SSH_AUTH_SOCK",
-    "TERM",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
     "TMPDIR",
     "USER",
-    "XDG_CACHE_HOME",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
 }
 
 DISABLED_FEATURES = (
     "apps",
-    "collaboration_modes",
-    "connectors",
+    "artifact",
+    "auth_elicitation",
+    "browser_use",
+    "browser_use_external",
+    "browser_use_full_cdp_access",
+    "code_mode",
+    "code_mode_buffered_exec",
+    "code_mode_host",
+    "code_mode_only",
+    "computer_use",
+    "default_mode_request_user_input",
+    "deferred_executor",
+    "deferred_tool_world_state",
+    "enable_mcp_apps",
+    "exec_permission_approvals",
+    "executor_capability_discovery",
+    "external_agent_memory_import",
+    "goals",
+    "guardian_approval",
+    "hooks",
     "image_generation",
+    "in_app_browser",
+    "mcp_2026_07_28",
     "memories",
+    "multi_agent",
+    "network_proxy",
+    "plugin_sharing",
     "plugins",
-    "skills",
-    "web_search",
+    "realtime_conversation",
+    "remote_plugin",
+    "request_permissions_tool",
+    "shell_snapshot",
+    "shell_tool",
+    "skill_mcp_dependency_install",
+    "skill_search",
+    "standalone_web_search",
+    "tool_call_mcp_elicitation",
+    "tool_suggest",
+    "unified_exec",
+    "workspace_dependencies",
 )
 
 FORBIDDEN_INPUT_KEY_PARTS = {
@@ -106,6 +139,33 @@ class UnsafeToolEvent(JudgeHarnessError):
     """Raised when a supposedly tool-free judge attempts a tool action."""
 
 
+class CodexInfrastructureUnavailable(JudgeHarnessError):
+    """Raised after a hash-bound zero-model infrastructure failure is saved."""
+
+
+class CodexProcessFailure(JudgeHarnessError):
+    """A classified Codex failure with explicit model-start evidence."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str,
+        model_started: bool,
+        returncode: int | None,
+        stdout: str = "",
+        stderr: str = "",
+        events: Sequence[Mapping[str, Any]] = (),
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.model_started = model_started
+        self.returncode = returncode
+        self.stdout_tail = _redact(stdout)[-3000:]
+        self.stderr_tail = _redact(stderr)[-3000:]
+        self.events = [dict(event) for event in events]
+
+
 @dataclass(frozen=True)
 class SourceBundle:
     source_id: str
@@ -140,6 +200,10 @@ class PreparedJudgeRun:
 InvokeJudge = Callable[
     [str, str, Path, Mapping[str, str]],
     tuple[str, dict[str, Any], list[dict[str, Any]]],
+]
+RunPreflight = Callable[
+    [Sequence[str], Path, dict[str, str]],
+    subprocess.CompletedProcess[str],
 ]
 
 
@@ -1184,6 +1248,312 @@ def _safe_environment() -> dict[str, str]:
     return {key: value for key, value in os.environ.items() if key in SAFE_ENV_KEYS}
 
 
+def _disabled_feature_args() -> list[str]:
+    return [value for name in DISABLED_FEATURES for value in ("--disable", name)]
+
+
+def _codex_preflight_command() -> list[str]:
+    """Initialize the local app-server and exit on EOF without a model turn."""
+
+    executable = shutil.which("codex")
+    if executable is None:
+        raise CodexInfrastructureUnavailable("codex CLI is unavailable")
+    return [
+        executable,
+        "--ask-for-approval",
+        "never",
+        "--sandbox",
+        "read-only",
+        *_disabled_feature_args(),
+        "--config",
+        "features.shell_tool=false",
+        "--config",
+        "features.unified_exec=false",
+        "--config",
+        "features.multi_agent=false",
+        "--config",
+        'web_search="disabled"',
+        "app-server",
+        "--listen",
+        "stdio://",
+        "--strict-config",
+    ]
+
+
+def _codex_command(schema_path: Path, output_path: Path, config: Mapping[str, str]) -> list[str]:
+    executable = shutil.which("codex")
+    if executable is None:
+        raise CodexProcessFailure(
+            "codex CLI is unavailable",
+            category="infrastructure_spawn_failure",
+            model_started=False,
+            returncode=None,
+        )
+    return [
+        executable,
+        "--ask-for-approval",
+        "never",
+        *_disabled_feature_args(),
+        "exec",
+        "--ephemeral",
+        "--ignore-user-config",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "--strict-config",
+        "--sandbox",
+        "read-only",
+        "--config",
+        "features.shell_tool=false",
+        "--config",
+        "features.unified_exec=false",
+        "--config",
+        "features.multi_agent=false",
+        "--config",
+        'web_search="disabled"',
+        "--config",
+        f'model_reasoning_effort="{config["reasoning_effort"]}"',
+        "--model",
+        config["model"],
+        "--output-schema",
+        str(schema_path),
+        "--output-last-message",
+        str(output_path),
+        "--json",
+        "--color",
+        "never",
+        "-",
+    ]
+
+
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+
+
+def _classify_pre_model_failure(stderr: str, *, fallback: str) -> str:
+    normalized = stderr.casefold()
+    if "unknown feature flag" in normalized or (
+        "config" in normalized and ("invalid" in normalized or "error" in normalized)
+    ):
+        return "infrastructure_configuration"
+    if "operation not permitted" in normalized or "permission denied" in normalized:
+        return "infrastructure_permission_denied"
+    if "failed to initialize in-process app-server" in normalized:
+        return "infrastructure_app_server_initialization"
+    if "failed to initialize sqlite state runtime" in normalized:
+        return "infrastructure_state_initialization"
+    return fallback
+
+
+def _run_preflight_process(
+    command: Sequence[str], cwd: Path, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        list(command),
+        input="",
+        text=True,
+        capture_output=True,
+        cwd=cwd,
+        env=env,
+        timeout=PREFLIGHT_TIMEOUT_SECONDS,
+        check=False,
+        shell=False,
+    )
+
+
+def _preflight_policy() -> dict[str, Any]:
+    command = _codex_preflight_command()
+    return {
+        "policy_version": PREFLIGHT_POLICY_VERSION,
+        "command_sha256": _sha256_bytes(_canonical_bytes(command)),
+        "maximum_failures": MAX_PREFLIGHT_FAILURES,
+        "timeout_seconds": PREFLIGHT_TIMEOUT_SECONDS,
+        "model_attempt_consumed": False,
+    }
+
+
+def _validate_preflight_receipt(
+    receipt: Mapping[str, Any], prepared: PreparedJudgeRun, check_number: int
+) -> None:
+    required = {
+        "schema_version",
+        "policy_version",
+        "judge_run_id",
+        "runner_sha256",
+        "check_number",
+        "status",
+        "category",
+        "command_sha256",
+        "returncode",
+        "model_started",
+        "model_attempt_consumed",
+        "stdout_tail",
+        "stderr_tail",
+        "recorded_at",
+    }
+    policy = prepared.manifest["runtime_preflight"]
+    if (
+        set(receipt) != required
+        or receipt.get("schema_version") != SCHEMA_VERSION
+        or receipt.get("policy_version") != PREFLIGHT_POLICY_VERSION
+        or receipt.get("judge_run_id") != prepared.run_dir.name
+        or receipt.get("runner_sha256") != prepared.manifest["runner_sha256"]
+        or receipt.get("check_number") != check_number
+        or receipt.get("command_sha256") != policy["command_sha256"]
+        or receipt.get("model_started") is not False
+        or receipt.get("model_attempt_consumed") is not False
+        or receipt.get("status") not in {"passed", "failed"}
+    ):
+        raise IntegrityError("Codex judge preflight receipt drift")
+
+
+def _preflight_receipt_inventory(
+    existing: Sequence[tuple[int, Path]],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "relative_path": f"checks/{number:03d}/receipt.json",
+            "sha256": _sha256_file(directory / "receipt.json"),
+        }
+        for number, directory in existing
+    ]
+
+
+def _complete_or_validate_preflight(
+    prepared: PreparedJudgeRun,
+    existing: Sequence[tuple[int, Path]],
+    passed_number: int,
+    passed_receipt: dict[str, Any],
+) -> dict[str, Any]:
+    completion_path = prepared.run_dir / "infrastructure" / "preflight" / "complete.json"
+    completion = {
+        "schema_version": SCHEMA_VERSION,
+        "policy_version": PREFLIGHT_POLICY_VERSION,
+        "passed_check": passed_number,
+        "receipt_sha256": _preflight_receipt_inventory(existing),
+    }
+    if completion_path.exists() or completion_path.is_symlink():
+        if completion_path.is_symlink() or not completion_path.is_file():
+            raise IntegrityError("invalid Codex judge preflight completion receipt")
+        if _load_json(completion_path) != completion:
+            raise IntegrityError("Codex judge preflight completion receipt drift")
+    else:
+        _atomic_write_new(completion_path, _pretty_bytes(completion))
+    return passed_receipt
+
+
+def _ensure_runtime_preflight(
+    prepared: PreparedJudgeRun,
+    run_process: RunPreflight,
+) -> dict[str, Any]:
+    """Run at most one new zero-model readiness check per invocation."""
+
+    checks_dir = prepared.run_dir / "infrastructure" / "preflight" / "checks"
+    existing: list[tuple[int, Path]] = []
+    if checks_dir.exists() or checks_dir.is_symlink():
+        if checks_dir.is_symlink() or not checks_dir.is_dir():
+            raise IntegrityError("invalid Codex judge preflight receipt root")
+        for path in checks_dir.iterdir():
+            if path.is_symlink() or not path.is_dir() or not path.name.isdigit():
+                raise IntegrityError("Codex judge preflight receipt layout drift")
+            existing.append((int(path.name), path))
+        existing.sort()
+        if [number for number, _ in existing] != list(range(1, len(existing) + 1)):
+            raise IntegrityError("Codex judge preflight receipt sequence drift")
+
+    failed_count = 0
+    passed_receipt: dict[str, Any] | None = None
+    passed_number: int | None = None
+    for check_number, directory in existing:
+        children = list(directory.iterdir())
+        if len(children) != 1 or children[0].name != "receipt.json":
+            raise IntegrityError(f"incomplete Codex judge preflight receipt: {directory}")
+        receipt_path = children[0]
+        if receipt_path.is_symlink() or not receipt_path.is_file():
+            raise IntegrityError(f"unsafe Codex judge preflight receipt: {receipt_path}")
+        receipt = _load_json(receipt_path)
+        _validate_preflight_receipt(receipt, prepared, check_number)
+        if receipt["status"] == "passed":
+            if passed_receipt is not None:
+                raise IntegrityError("multiple passed Codex judge preflight receipts")
+            passed_receipt = receipt
+            passed_number = check_number
+        else:
+            failed_count += 1
+    if passed_receipt is not None:
+        if passed_number != len(existing):
+            raise IntegrityError("Codex judge preflight has receipts after readiness passed")
+        assert passed_number is not None
+        return _complete_or_validate_preflight(prepared, existing, passed_number, passed_receipt)
+    if failed_count >= MAX_PREFLIGHT_FAILURES:
+        raise CodexInfrastructureUnavailable(
+            "Codex judge preflight failure limit reached; preserve this immutable run"
+        )
+
+    command = _codex_preflight_command()
+    policy = prepared.manifest["runtime_preflight"]
+    if _sha256_bytes(_canonical_bytes(command)) != policy["command_sha256"]:
+        raise IntegrityError("Codex judge preflight command drift")
+    check_number = len(existing) + 1
+    recorded_at = datetime.now(UTC).isoformat()
+    with tempfile.TemporaryDirectory(prefix="liveclip-judge-preflight-") as temporary:
+        try:
+            completed = run_process(command, Path(temporary), _safe_environment())
+            stdout = completed.stdout
+            stderr = completed.stderr
+            returncode: int | None = completed.returncode
+            passed = completed.returncode == 0
+            category = (
+                "ready"
+                if passed
+                else _classify_pre_model_failure(
+                    stderr,
+                    fallback="infrastructure_preflight_process_failure",
+                )
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = _as_text(exc.stdout)
+            stderr = _as_text(exc.stderr)
+            returncode = None
+            passed = False
+            category = "infrastructure_preflight_timeout"
+        except OSError as exc:
+            stdout = ""
+            stderr = str(exc)
+            returncode = None
+            passed = False
+            category = "infrastructure_preflight_spawn_failure"
+    receipt = {
+        "schema_version": SCHEMA_VERSION,
+        "policy_version": PREFLIGHT_POLICY_VERSION,
+        "judge_run_id": prepared.run_dir.name,
+        "runner_sha256": prepared.manifest["runner_sha256"],
+        "check_number": check_number,
+        "status": "passed" if passed else "failed",
+        "category": category,
+        "command_sha256": policy["command_sha256"],
+        "returncode": returncode,
+        "model_started": False,
+        "model_attempt_consumed": False,
+        "stdout_tail": _redact(stdout)[-3000:],
+        "stderr_tail": _redact(stderr)[-3000:],
+        "recorded_at": recorded_at,
+    }
+    receipt_path = checks_dir / f"{check_number:03d}" / "receipt.json"
+    _atomic_write_new(receipt_path, _pretty_bytes(receipt))
+    if not passed:
+        raise CodexInfrastructureUnavailable(
+            f"Codex judge preflight failed ({category}); receipt: {receipt_path}"
+        )
+    return _complete_or_validate_preflight(
+        prepared,
+        [*existing, (check_number, receipt_path.parent)],
+        check_number,
+        receipt,
+    )
+
+
 def _events_safe(events: Sequence[Mapping[str, Any]]) -> None:
     unsafe_fragments = (
         "tool_call",
@@ -1208,6 +1578,21 @@ def _events_safe(events: Sequence[Mapping[str, Any]]) -> None:
             "reasoning",
         }:
             raise UnsafeToolEvent(f"judge emitted a forbidden item event: {haystack}")
+
+
+def _parse_event_lines(stdout: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            parsed = {"type": "unparsed_stdout", "text": _redact(stripped)}
+        if isinstance(parsed, dict):
+            events.append(parsed)
+    return events
 
 
 def _usage_from_events(events: Sequence[Mapping[str, Any]]) -> dict[str, int]:
@@ -1243,50 +1628,7 @@ def _invoke_codex(
 ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     with tempfile.TemporaryDirectory(prefix="liveclip-judge-codex-") as temporary:
         output_path = Path(temporary) / "last-message.json"
-        executable = shutil.which("codex")
-        if executable is None:
-            raise JudgeHarnessError("codex CLI is unavailable")
-        command = [
-            executable,
-            "--ask-for-approval",
-            "never",
-        ]
-        for feature in DISABLED_FEATURES:
-            command.extend(("--disable", feature))
-        command.extend(
-            [
-                "exec",
-                "--ephemeral",
-                "--ignore-user-config",
-                "--ignore-rules",
-                "--skip-git-repo-check",
-                "--strict-config",
-                "--sandbox",
-                "read-only",
-                "--config",
-                "features.shell_tool=false",
-                "--config",
-                "features.unified_exec=false",
-                "--config",
-                "features.multi_agent=false",
-                "--model",
-                config["model"],
-                "--output-schema",
-                str(schema_path),
-                "--output-last-message",
-                str(output_path),
-                "--config",
-                f'model_reasoning_effort="{config["reasoning_effort"]}"',
-                "--config",
-                'web_search="disabled"',
-                "--config",
-                "project_doc_max_bytes=0",
-                "--json",
-                "--color",
-                "never",
-                "-",
-            ]
-        )
+        command = _codex_command(schema_path, output_path, config)
         try:
             completed = subprocess.run(
                 command,
@@ -1300,34 +1642,108 @@ def _invoke_codex(
                 timeout=3600,
             )
         except subprocess.TimeoutExpired as exc:
-            raise JudgeHarnessError(f"{label} exceeded the one-hour timeout") from exc
-        events: list[dict[str, Any]] = []
-        for line in completed.stdout.splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                parsed = {"type": "unparsed_stdout", "text": _redact(stripped)}
-            if isinstance(parsed, dict):
-                events.append(parsed)
-        _events_safe(events)
+            stdout = _as_text(exc.stdout)
+            stderr = _as_text(exc.stderr)
+            events = _parse_event_lines(stdout)
+            model_started = any(event.get("type") == "turn.started" for event in events)
+            raise CodexProcessFailure(
+                f"{label} exceeded the one-hour timeout",
+                category=(
+                    "model_process_timeout" if model_started else "infrastructure_process_timeout"
+                ),
+                model_started=model_started,
+                returncode=None,
+                stdout=stdout,
+                stderr=stderr,
+                events=events,
+            ) from exc
+        except OSError as exc:
+            raise CodexProcessFailure(
+                f"{label} could not start the Codex process",
+                category="infrastructure_spawn_failure",
+                model_started=False,
+                returncode=None,
+                stderr=str(exc),
+            ) from exc
+        events = _parse_event_lines(completed.stdout)
+        model_started = any(event.get("type") == "turn.started" for event in events)
+        try:
+            _events_safe(events)
+        except UnsafeToolEvent as exc:
+            raise CodexProcessFailure(
+                str(exc),
+                category="model_safety_tool_event",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                events=events,
+            ) from exc
         if completed.returncode != 0:
-            raise JudgeHarnessError(
+            category = (
+                "model_process_failure"
+                if model_started
+                else _classify_pre_model_failure(
+                    completed.stderr,
+                    fallback="infrastructure_pre_model_process_failure",
+                )
+            )
+            raise CodexProcessFailure(
                 f"{label} failed with exit {completed.returncode}: "
-                f"{_redact(completed.stderr)[-2000:]}"
+                f"{_redact(completed.stderr)[-2000:]}",
+                category=category,
+                model_started=model_started,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                events=events,
+            )
+        if not model_started:
+            raise CodexProcessFailure(
+                f"{label} exited without a model turn",
+                category="infrastructure_no_model_turn",
+                model_started=False,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                events=events,
             )
         if not output_path.is_file():
-            raise JudgeHarnessError(f"{label} did not produce an output message")
-        if not any(event.get("type") == "turn.started" for event in events):
-            raise JudgeHarnessError(f"{label} exited without a model turn")
-        raw = output_path.read_text(encoding="utf-8")
+            raise CodexProcessFailure(
+                f"{label} did not produce an output message",
+                category="model_output_missing",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                events=events,
+            )
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise CodexProcessFailure(
+                f"{label} could not read the output message",
+                category="model_output_read_failure",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=f"{completed.stderr}\n{exc}",
+                events=events,
+            ) from exc
+        request_id = next(
+            (
+                event["thread_id"]
+                for event in events
+                if event.get("type") == "thread.started" and isinstance(event.get("thread_id"), str)
+            ),
+            None,
+        )
         metadata = {
             "schema_version": SCHEMA_VERSION,
             "label": label,
             "model": config["model"],
             "reasoning_effort": config["reasoning_effort"],
+            "request_id": request_id,
             "returncode": completed.returncode,
             "stderr": _redact(completed.stderr),
             "command_policy": {
@@ -1356,24 +1772,66 @@ def _write_attempt(
     error: str | None,
     failure_kind: str | None = None,
 ) -> None:
-    files: dict[str, bytes] = {
+    artifacts: dict[str, bytes] = {
         "prompt.sha256": (_sha256_bytes(prompt.encode("utf-8")) + "\n").encode(),
     }
     if raw is not None:
-        files["result.raw.txt"] = raw.encode("utf-8")
+        artifacts["result.raw.txt"] = raw.encode("utf-8")
     if metadata is not None:
-        files["call-metadata.json"] = _pretty_bytes(metadata)
+        artifacts["call-metadata.json"] = _pretty_bytes(metadata)
     if events is not None:
-        files["events.jsonl"] = b"".join(_canonical_bytes(item) for item in events)
+        artifacts["events.jsonl"] = b"".join(_canonical_bytes(item) for item in events)
     if error is not None:
-        files["failure.json"] = _pretty_bytes(
+        artifacts["failure.json"] = _pretty_bytes(
             {
                 "schema_version": SCHEMA_VERSION,
                 "failure_kind": failure_kind or "validation_or_invocation",
                 "error": _redact(error),
             }
         )
+    status = (
+        "safety_failed"
+        if failure_kind == "unsafe_tool_event"
+        else "failed"
+        if error is not None
+        else "validated"
+    )
+    contract = {
+        "schema_version": SCHEMA_VERSION,
+        "status": status,
+        "prompt_sha256": _sha256_bytes(prompt.encode("utf-8")),
+        "artifact_sha256": {
+            relative: _sha256_bytes(payload) for relative, payload in sorted(artifacts.items())
+        },
+    }
+    files = {"attempt-contract.json": _pretty_bytes(contract), **artifacts}
     _atomic_create_dir(path, files)
+
+
+def _validate_attempt(path: Path, prompt: str) -> dict[str, Any]:
+    contract = _load_json(path / "attempt-contract.json")
+    _require_exact_keys(
+        contract,
+        {"schema_version", "status", "prompt_sha256", "artifact_sha256"},
+        f"judge attempt {path.name}",
+    )
+    if (
+        contract["schema_version"] != SCHEMA_VERSION
+        or contract["status"] not in {"validated", "failed", "safety_failed"}
+        or contract["prompt_sha256"] != _sha256_bytes(prompt.encode("utf-8"))
+    ):
+        raise IntegrityError(f"judge attempt contract drift: {path}")
+    artifact_map = _verify_artifact_map(
+        path, contract["artifact_sha256"], f"judge attempt {path.name}"
+    )
+    actual_files = {
+        child.name
+        for child in path.iterdir()
+        if child.is_file() and child.name != "attempt-contract.json"
+    }
+    if set(artifact_map) != actual_files:
+        raise IntegrityError(f"judge attempt artifact set drift: {path}")
+    return contract
 
 
 def _call_contract(call: PreparedJudgeCall) -> dict[str, Any]:
@@ -1385,10 +1843,12 @@ def _call_contract(call: PreparedJudgeCall) -> dict[str, Any]:
         "judge_input_sha256": call.input_sha256,
         "judge_schema_sha256": call.schema_sha256,
         "post_judgment_binding_commitment_sha256": call.binding_sha256,
+        "runner_sha256": _sha256_file(Path(__file__).resolve()),
         "model": config["model"],
         "reasoning_effort": config["reasoning_effort"],
         "maximum_attempts": MAX_ATTEMPTS,
         "maximum_same_tier_repairs": 1,
+        "maximum_infrastructure_failures": MAX_CALL_INFRASTRUCTURE_FAILURES,
         "isolation": {
             "ephemeral": True,
             "sandbox": "read-only",
@@ -1396,6 +1856,110 @@ def _call_contract(call: PreparedJudgeCall) -> dict[str, Any]:
             "environment_allowlist": sorted(SAFE_ENV_KEYS),
         },
     }
+
+
+def _validated_call_infrastructure_failure_count(call_dir: Path, call: PreparedJudgeCall) -> int:
+    failures_dir = call_dir / "infrastructure-failures"
+    existing: list[tuple[int, Path]] = []
+    if failures_dir.exists() or failures_dir.is_symlink():
+        if failures_dir.is_symlink() or not failures_dir.is_dir():
+            raise IntegrityError("invalid judge call infrastructure receipt root")
+        for path in failures_dir.iterdir():
+            if path.is_symlink() or not path.is_dir() or not path.name.isdigit():
+                raise IntegrityError("judge call infrastructure receipt layout drift")
+            existing.append((int(path.name), path))
+        existing.sort()
+        if [number for number, _ in existing] != list(range(1, len(existing) + 1)):
+            raise IntegrityError("judge call infrastructure receipt sequence drift")
+
+    required = {
+        "schema_version",
+        "source_id",
+        "judge_id",
+        "failure_number",
+        "category",
+        "returncode",
+        "model_started",
+        "model_attempt_consumed",
+        "call_contract_sha256",
+        "stdout_tail",
+        "stderr_tail",
+        "recorded_at",
+    }
+    contract_sha256 = _sha256_file(call_dir / "call-contract.json")
+    for failure_number, directory in existing:
+        children = list(directory.iterdir())
+        if len(children) != 1 or children[0].name != "receipt.json":
+            raise IntegrityError("judge call infrastructure receipt directory set drift")
+        receipt_path = children[0]
+        if receipt_path.is_symlink() or not receipt_path.is_file():
+            raise IntegrityError("unsafe judge call infrastructure receipt")
+        receipt = _load_json(receipt_path)
+        _require_exact_keys(
+            receipt,
+            required,
+            f"judge call infrastructure receipt {failure_number}",
+        )
+        if (
+            receipt.get("schema_version") != SCHEMA_VERSION
+            or receipt.get("source_id") != call.source_id
+            or receipt.get("judge_id") != call.judge_id
+            or receipt.get("failure_number") != failure_number
+            or receipt.get("model_started") is not False
+            or receipt.get("model_attempt_consumed") is not False
+            or receipt.get("call_contract_sha256") != contract_sha256
+        ):
+            raise IntegrityError(f"judge call infrastructure receipt binding drift: {receipt_path}")
+    return len(existing)
+
+
+def _call_infrastructure_failure_inventory(
+    call_dir: Path, call: PreparedJudgeCall
+) -> list[dict[str, str]]:
+    count = _validated_call_infrastructure_failure_count(call_dir, call)
+    return [
+        {
+            "relative_path": f"infrastructure-failures/{number:03d}/receipt.json",
+            "sha256": _sha256_file(call_dir / f"infrastructure-failures/{number:03d}/receipt.json"),
+        }
+        for number in range(1, count + 1)
+    ]
+
+
+def _assert_call_infrastructure_budget(call_dir: Path, call: PreparedJudgeCall) -> int:
+    count = _validated_call_infrastructure_failure_count(call_dir, call)
+    if count >= MAX_CALL_INFRASTRUCTURE_FAILURES:
+        raise CodexInfrastructureUnavailable(
+            f"judge {call.judge_id}/{call.source_id} reached its pre-model failure limit"
+        )
+    return count
+
+
+def _persist_call_infrastructure_failure(
+    call_dir: Path,
+    call: PreparedJudgeCall,
+    failure: CodexProcessFailure,
+) -> Path:
+    if failure.model_started:
+        raise IntegrityError("model-started failure cannot use an infrastructure receipt")
+    failure_number = _assert_call_infrastructure_budget(call_dir, call) + 1
+    receipt = {
+        "schema_version": SCHEMA_VERSION,
+        "source_id": call.source_id,
+        "judge_id": call.judge_id,
+        "failure_number": failure_number,
+        "category": failure.category,
+        "returncode": failure.returncode,
+        "model_started": False,
+        "model_attempt_consumed": False,
+        "call_contract_sha256": _sha256_file(call_dir / "call-contract.json"),
+        "stdout_tail": failure.stdout_tail,
+        "stderr_tail": failure.stderr_tail,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+    receipt_path = call_dir / "infrastructure-failures" / f"{failure_number:03d}" / "receipt.json"
+    _atomic_write_new(receipt_path, _pretty_bytes(receipt))
+    return receipt_path
 
 
 def _final_artifacts(
@@ -1422,7 +1986,16 @@ def _verify_completed_call(call_dir: Path, call: PreparedJudgeCall) -> None:
     completion = _load_json(call_dir / "complete.json")
     _require_exact_keys(
         completion,
-        {"schema_version", "source_id", "judge_id", "call_contract_sha256", "artifact_sha256"},
+        {
+            "schema_version",
+            "source_id",
+            "judge_id",
+            "call_contract_sha256",
+            "successful_attempt",
+            "successful_attempt_contract_sha256",
+            "artifact_sha256",
+            "infrastructure_failure_receipts",
+        },
         f"judge completion {call.source_id}/{call.judge_id}",
     )
     if completion["source_id"] != call.source_id or completion["judge_id"] != call.judge_id:
@@ -1432,6 +2005,35 @@ def _verify_completed_call(call_dir: Path, call: PreparedJudgeCall) -> None:
         raise IntegrityError("judge call contract hash drifted")
     if _load_json(contract_path) != _call_contract(call):
         raise IntegrityError("judge call contract no longer matches prepared input")
+    expected_infrastructure = _call_infrastructure_failure_inventory(call_dir, call)
+    if completion["infrastructure_failure_receipts"] != expected_infrastructure:
+        raise IntegrityError("judge call infrastructure receipt inventory drift")
+    attempt_number = completion["successful_attempt"]
+    if isinstance(attempt_number, bool) or not isinstance(attempt_number, int):
+        raise IntegrityError("judge call successful attempt receipt is invalid")
+    attempt_path = _attempt_dir(call_dir, attempt_number)
+    attempt_contract_path = attempt_path / "attempt-contract.json"
+    if (
+        not attempt_contract_path.is_file()
+        or attempt_contract_path.is_symlink()
+        or _sha256_file(attempt_contract_path) != completion["successful_attempt_contract_sha256"]
+    ):
+        raise IntegrityError("judge call successful attempt contract drift")
+    attempt_contract = _load_json(attempt_contract_path)
+    if attempt_contract.get("status") != "validated":
+        raise IntegrityError("judge call successful attempt is not validated")
+    attempt_artifacts = _verify_artifact_map(
+        attempt_path,
+        attempt_contract.get("artifact_sha256"),
+        "judge successful attempt",
+    )
+    if set(attempt_artifacts) != {
+        "prompt.sha256",
+        "result.raw.txt",
+        "call-metadata.json",
+        "events.jsonl",
+    }:
+        raise IntegrityError("judge successful attempt artifact set drift")
     artifact_map = _verify_artifact_map(
         call_dir, completion["artifact_sha256"], "completed judge call"
     )
@@ -1446,6 +2048,13 @@ def _verify_completed_call(call_dir: Path, call: PreparedJudgeCall) -> None:
     }
     if set(artifact_map) != required:
         raise IntegrityError("completed judge call has an unexpected artifact set")
+    for final_name, attempt_name in (
+        ("result.raw.json", "result.raw.txt"),
+        ("call-metadata.json", "call-metadata.json"),
+        ("events.jsonl", "events.jsonl"),
+    ):
+        if (call_dir / final_name).read_bytes() != (attempt_path / attempt_name).read_bytes():
+            raise IntegrityError(f"judge final artifact does not match attempt: {final_name}")
     binding = _load_json(call_dir / "mapping.disclosed-after-judging.json")
     if _sha256_bytes(_canonical_bytes(binding)) != call.binding_sha256:
         raise IntegrityError("post-judgment binding commitment failed")
@@ -1466,6 +2075,8 @@ def _finalize_call(
     call_dir: Path,
     call: PreparedJudgeCall,
     artifacts: Mapping[str, bytes],
+    attempt_number: int,
+    attempt_path: Path,
 ) -> None:
     _atomic_write_new(call_dir / "call-contract.json", _pretty_bytes(_call_contract(call)))
     for relative, payload in artifacts.items():
@@ -1476,7 +2087,10 @@ def _finalize_call(
         "source_id": call.source_id,
         "judge_id": call.judge_id,
         "call_contract_sha256": _sha256_file(call_dir / "call-contract.json"),
+        "successful_attempt": attempt_number,
+        "successful_attempt_contract_sha256": _sha256_file(attempt_path / "attempt-contract.json"),
         "artifact_sha256": artifact_sha256,
+        "infrastructure_failure_receipts": _call_infrastructure_failure_inventory(call_dir, call),
     }
     _atomic_write_new(call_dir / "complete.json", _pretty_bytes(completion))
     _verify_completed_call(call_dir, call)
@@ -1493,6 +2107,19 @@ def _run_one_call(
         return "resumed"
     call_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_new(call_dir / "call-contract.json", _pretty_bytes(_call_contract(call)))
+    attempts_root = call_dir / "attempts"
+    if attempts_root.exists() or attempts_root.is_symlink():
+        if attempts_root.is_symlink() or not attempts_root.is_dir():
+            raise IntegrityError("invalid judge attempts root")
+        expected_names = {f"attempt_{number:02d}" for number in range(1, MAX_ATTEMPTS + 1)}
+        observed_numbers: list[int] = []
+        for child in attempts_root.iterdir():
+            if child.is_symlink() or not child.is_dir() or child.name not in expected_names:
+                raise IntegrityError(f"unexpected judge attempt artifact: {child}")
+            observed_numbers.append(int(child.name.removeprefix("attempt_")))
+        observed_numbers.sort()
+        if observed_numbers != list(range(1, len(observed_numbers) + 1)):
+            raise IntegrityError("judge attempt sequence drift")
     schema_path = prepared.run_dir / "schemas" / call.source_id / f"{call.judge_id}.json"
     prompt = _judge_prompt(call)
     previous_raw = ""
@@ -1500,10 +2127,11 @@ def _run_one_call(
     for attempt in range(1, MAX_ATTEMPTS + 1):
         attempt_path = _attempt_dir(call_dir, attempt)
         if attempt_path.exists():
+            attempt_contract = _validate_attempt(attempt_path, prompt)
             raw_path = attempt_path / "result.raw.txt"
             previous_raw = raw_path.read_text(encoding="utf-8") if raw_path.exists() else ""
             failure_path = attempt_path / "failure.json"
-            if not failure_path.exists():
+            if attempt_contract["status"] == "validated":
                 metadata_path = attempt_path / "call-metadata.json"
                 events_path = attempt_path / "events.jsonl"
                 if (
@@ -1529,12 +2157,23 @@ def _run_one_call(
                     metadata,
                     call.binding,
                 )
-                _finalize_call(call_dir, call, artifacts)
+                _finalize_call(call_dir, call, artifacts, attempt, attempt_path)
                 return "resumed"
+            if not failure_path.is_file():
+                raise IntegrityError(f"failed judge attempt has no receipt: {attempt_path}")
             failure = _load_json(failure_path)
+            _require_exact_keys(
+                failure,
+                {"schema_version", "failure_kind", "error"},
+                f"judge attempt failure {attempt_path.name}",
+            )
             previous_error = str(failure.get("error", "previous attempt failed"))
-            if failure.get("failure_kind") == "unsafe_tool_event":
+            if attempt_contract["status"] == "safety_failed":
+                if failure.get("failure_kind") != "unsafe_tool_event":
+                    raise IntegrityError(f"judge safety receipt drift: {attempt_path}")
                 raise UnsafeToolEvent(previous_error)
+            if attempt_contract["status"] != "failed":
+                raise IntegrityError(f"unknown judge attempt state: {attempt_path}")
             if attempt == MAX_ATTEMPTS:
                 raise JudgeValidationError(
                     f"judge {call.judge_id}/{call.source_id} exhausted its repair budget: "
@@ -1545,6 +2184,7 @@ def _run_one_call(
         raw: str | None = None
         metadata: dict[str, Any] | None = None
         events: list[dict[str, Any]] | None = None
+        _assert_call_infrastructure_budget(call_dir, call)
         try:
             raw, metadata, events = invoke(
                 f"{call.judge_id}/{call.source_id}/attempt-{attempt}",
@@ -1555,6 +2195,48 @@ def _run_one_call(
             _events_safe(events)
             parsed = json.loads(raw)
             normalized, validation = _validate_judge_result(parsed, call)
+        except CodexProcessFailure as exc:
+            if not exc.model_started:
+                receipt_path = _persist_call_infrastructure_failure(call_dir, call, exc)
+                raise CodexInfrastructureUnavailable(
+                    f"judge {call.judge_id}/{call.source_id} stopped before a model turn "
+                    f"({exc.category}); receipt: {receipt_path}"
+                ) from exc
+            events = exc.events
+            metadata = {
+                "schema_version": SCHEMA_VERSION,
+                "category": exc.category,
+                "model_started": True,
+                "returncode": exc.returncode,
+            }
+            previous_error = _redact(f"CodexProcessFailure[{exc.category}]: {exc}")[:2000]
+            if exc.category == "model_safety_tool_event":
+                _write_attempt(
+                    attempt_path,
+                    prompt=prompt,
+                    raw=raw,
+                    metadata=metadata,
+                    events=events,
+                    error=previous_error,
+                    failure_kind="unsafe_tool_event",
+                )
+                raise UnsafeToolEvent(previous_error) from exc
+            _write_attempt(
+                attempt_path,
+                prompt=prompt,
+                raw=raw,
+                metadata=metadata,
+                events=events,
+                error=previous_error,
+                failure_kind="model_process_or_output",
+            )
+            if attempt == MAX_ATTEMPTS:
+                raise JudgeValidationError(
+                    f"judge {call.judge_id}/{call.source_id} exhausted its repair budget: "
+                    f"{previous_error}"
+                ) from exc
+            prompt = _repair_prompt(call, raw or "", previous_error)
+            continue
         except UnsafeToolEvent as exc:
             _write_attempt(
                 attempt_path,
@@ -1566,7 +2248,7 @@ def _run_one_call(
                 failure_kind="unsafe_tool_event",
             )
             raise
-        except (json.JSONDecodeError, JudgeValidationError, JudgeHarnessError) as exc:
+        except (json.JSONDecodeError, JudgeValidationError) as exc:
             previous_raw = raw or ""
             previous_error = str(exc)
             _write_attempt(
@@ -1576,7 +2258,7 @@ def _run_one_call(
                 metadata=metadata,
                 events=events,
                 error=previous_error,
-                failure_kind="validation_or_invocation",
+                failure_kind="model_output_validation",
             )
             if attempt == MAX_ATTEMPTS:
                 raise JudgeValidationError(
@@ -1584,6 +2266,24 @@ def _run_one_call(
                     f"{previous_error}"
                 ) from exc
             prompt = _repair_prompt(call, previous_raw, previous_error)
+            continue
+        except JudgeHarnessError as exc:
+            previous_error = str(exc)
+            _write_attempt(
+                attempt_path,
+                prompt=prompt,
+                raw=raw,
+                metadata=metadata,
+                events=events,
+                error=previous_error,
+                failure_kind="model_invocation_failure",
+            )
+            if attempt == MAX_ATTEMPTS:
+                raise JudgeValidationError(
+                    f"judge {call.judge_id}/{call.source_id} exhausted its repair budget: "
+                    f"{previous_error}"
+                ) from exc
+            prompt = _repair_prompt(call, raw or "", previous_error)
             continue
         assert raw is not None and metadata is not None and events is not None
         _write_attempt(
@@ -1602,7 +2302,7 @@ def _run_one_call(
             metadata,
             call.binding,
         )
-        _finalize_call(call_dir, call, artifacts)
+        _finalize_call(call_dir, call, artifacts, attempt, attempt_path)
         return "completed"
     raise AssertionError("unreachable")
 
@@ -1613,6 +2313,7 @@ def _run_manifest(
     calls: Mapping[tuple[str, str], PreparedJudgeCall],
 ) -> dict[str, Any]:
     code_sha256 = _sha256_file(Path(__file__).resolve())
+    preflight_policy = _preflight_policy()
     return {
         "schema_version": SCHEMA_VERSION,
         "runner_version": RUNNER_VERSION,
@@ -1621,6 +2322,7 @@ def _run_manifest(
         "source_ids": list(source_ids),
         "judge_ids": list(JUDGES),
         "judge_configuration": JUDGES,
+        "runtime_preflight": preflight_policy,
         "call_contracts": {
             f"{source_id}/{judge_id}": {
                 "judge_input_sha256": calls[(source_id, judge_id)].input_sha256,
@@ -1646,12 +2348,13 @@ def _run_manifest(
     }
 
 
-def _run_id(experiment_id: str) -> str:
+def _run_id(experiment_id: str, preflight_policy: Mapping[str, Any]) -> str:
     payload = {
         "runner_version": RUNNER_VERSION,
         "runner_sha256": _sha256_file(Path(__file__).resolve()),
         "experiment_id": experiment_id,
         "judges": JUDGES,
+        "preflight_policy": dict(preflight_policy),
         "protocol_seed_sha256": _sha256_bytes(PROTOCOL_SEED.encode()),
     }
     return "judge_" + _sha256_bytes(_canonical_bytes(payload))[:24]
@@ -1666,7 +2369,7 @@ def prepare_judge_run(experiment_dir: Path) -> PreparedJudgeRun:
             calls[(bundle.source_id, judge_id)] = _build_blind_call(bundle, judge_id)
     source_ids = tuple(bundle.source_id for bundle in bundles)
     manifest = _run_manifest(experiment_id, source_ids, calls)
-    run_dir = experiment_dir / "judge-runs" / _run_id(experiment_id)
+    run_dir = experiment_dir / "judge-runs" / _run_id(experiment_id, manifest["runtime_preflight"])
     files: dict[str, bytes] = {"judge-run-manifest.json": _pretty_bytes(manifest)}
     for (source_id, judge_id), call in calls.items():
         files[f"inputs/{source_id}/{judge_id}.json"] = _pretty_bytes(call.input_payload)
@@ -1697,7 +2400,11 @@ def _write_progress(prepared: PreparedJudgeRun) -> None:
         for judge_id in JUDGES:
             key = f"{source_id}/{judge_id}"
             call_dir = prepared.run_dir / "sources" / source_id / judge_id
-            (completed if (call_dir / "complete.json").is_file() else pending).append(key)
+            if (call_dir / "complete.json").is_file():
+                _verify_completed_call(call_dir, prepared.calls[(source_id, judge_id)])
+                completed.append(key)
+            else:
+                pending.append(key)
     progress = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": prepared.experiment_id,
@@ -1718,10 +2425,12 @@ def run_judges(
     sentinel: bool = False,
     dry_run: bool = False,
     invoke: InvokeJudge = _invoke_codex,
+    preflight: RunPreflight = _run_preflight_process,
 ) -> PreparedJudgeRun:
     prepared = prepare_judge_run(experiment_dir)
     if dry_run:
         return prepared
+    _ensure_runtime_preflight(prepared, preflight)
     source_ids = prepared.source_ids[:1] if sentinel else prepared.source_ids
     for source_id in source_ids:
         for judge_id in JUDGES:

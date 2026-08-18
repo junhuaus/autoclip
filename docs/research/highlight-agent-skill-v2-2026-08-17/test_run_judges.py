@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -348,6 +349,45 @@ def _mock_invoke(
     return invoke
 
 
+def _passing_preflight(
+    counter: list[int] | None = None,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    def run(command: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        del cwd, env
+        if counter is not None:
+            counter.append(1)
+        assert "app-server" in command
+        assert "skills" not in command
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    return run
+
+
+def _tree_hashes(root: Path) -> dict[str, str]:
+    return {
+        str(path.relative_to(root)): _sha(path.read_bytes())
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _pre_model_failure_invoke(
+    harness: ModuleType, counter: list[int]
+) -> Callable[..., tuple[str, dict[str, Any], list[dict[str, Any]]]]:
+    def invoke(*args: Any, **kwargs: Any) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+        del args, kwargs
+        counter.append(1)
+        raise harness.CodexProcessFailure(
+            "Error: Unknown feature flag: stale_flag",
+            category="infrastructure_configuration",
+            model_started=False,
+            returncode=1,
+            stderr="Error: Unknown feature flag: stale_flag",
+        )
+
+    return invoke
+
+
 def test_blind_inputs_strip_all_generator_identity_and_bind_after_filter(
     tmp_path: Path, harness: ModuleType
 ) -> None:
@@ -379,6 +419,281 @@ def test_blind_inputs_strip_all_generator_identity_and_bind_after_filter(
         )
 
 
+def test_old_judge_run_is_immutable_and_runner_change_uses_new_id(
+    tmp_path: Path, harness: ModuleType
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    old_run = experiment_dir / "judge-runs" / "judge_da09efc4a848e5c8fc005b50"
+    _write_json(old_run / "judge-run-manifest.json", {"runner_sha256": "old"})
+    (old_run / "sources" / "old" / "failure.txt").parent.mkdir(parents=True)
+    (old_run / "sources" / "old" / "failure.txt").write_text(
+        "Unknown feature flag: skills\n", encoding="utf-8"
+    )
+    before = _tree_hashes(old_run)
+
+    prepared = harness.prepare_judge_run(experiment_dir)
+
+    assert prepared.run_dir.name != old_run.name
+    assert prepared.run_dir.is_dir()
+    assert _tree_hashes(old_run) == before
+
+
+def test_unknown_feature_preflight_is_zero_model_then_resumes_at_attempt_one(
+    tmp_path: Path, harness: ModuleType
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    model_counter: list[int] = []
+    preflight_counter: list[int] = []
+
+    def unknown_feature(
+        command: list[str], cwd: Path, env: dict[str, str]
+    ) -> subprocess.CompletedProcess[str]:
+        del cwd, env
+        preflight_counter.append(1)
+        assert "skills" not in command
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr="Error: Unknown feature flag: stale_flag\n",
+        )
+
+    with pytest.raises(
+        harness.CodexInfrastructureUnavailable,
+        match="infrastructure_configuration",
+    ):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_mock_invoke(model_counter),
+            preflight=unknown_feature,
+        )
+    prepared = harness.prepare_judge_run(experiment_dir)
+    receipt = json.loads(
+        (
+            prepared.run_dir / "infrastructure" / "preflight" / "checks" / "001" / "receipt.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert receipt["category"] == "infrastructure_configuration"
+    assert receipt["model_started"] is False
+    assert receipt["model_attempt_consumed"] is False
+    assert model_counter == []
+    assert not (prepared.run_dir / "sources").exists()
+
+    harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=_mock_invoke(model_counter),
+        preflight=_passing_preflight(preflight_counter),
+    )
+    assert model_counter == [1, 1]
+    assert preflight_counter == [1, 1]
+    for judge_id in harness.JUDGES:
+        call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / judge_id
+        assert (call_dir / "attempts" / "attempt_01").is_dir()
+        assert not (call_dir / "attempts" / "attempt_02").exists()
+
+    def preflight_must_resume(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError(f"passed preflight must resume: {args!r} {kwargs!r}")
+
+    harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=_mock_invoke(model_counter),
+        preflight=preflight_must_resume,
+    )
+    assert model_counter == [1, 1]
+
+
+def test_pre_model_call_failure_has_independent_receipt_and_resumes_attempt_one(
+    tmp_path: Path, harness: ModuleType
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    process_counter: list[int] = []
+    with pytest.raises(harness.CodexInfrastructureUnavailable, match="before a model turn"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_pre_model_failure_invoke(harness, process_counter),
+            preflight=_passing_preflight(),
+        )
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    receipt_path = call_dir / "infrastructure-failures" / "001" / "receipt.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["model_attempt_consumed"] is False
+    assert not (call_dir / "attempts").exists()
+
+    model_counter: list[int] = []
+    harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=_mock_invoke(model_counter),
+        preflight=_passing_preflight(),
+    )
+    assert (call_dir / "attempts" / "attempt_01").is_dir()
+    assert not (call_dir / "attempts" / "attempt_02").exists()
+    completion = json.loads((call_dir / "complete.json").read_text(encoding="utf-8"))
+    assert completion["infrastructure_failure_receipts"] == [
+        {
+            "relative_path": "infrastructure-failures/001/receipt.json",
+            "sha256": _sha(receipt_path.read_bytes()),
+        }
+    ]
+    assert process_counter == [1]
+
+
+def test_pre_model_call_failure_budget_is_bounded_without_attempts(
+    tmp_path: Path, harness: ModuleType
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    process_counter: list[int] = []
+    invoke = _pre_model_failure_invoke(harness, process_counter)
+    preflight = _passing_preflight()
+    for _ in range(harness.MAX_CALL_INFRASTRUCTURE_FAILURES):
+        with pytest.raises(harness.CodexInfrastructureUnavailable):
+            harness.run_judges(
+                experiment_dir,
+                sentinel=True,
+                invoke=invoke,
+                preflight=preflight,
+            )
+    with pytest.raises(harness.CodexInfrastructureUnavailable, match="failure limit"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=invoke,
+            preflight=preflight,
+        )
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    assert process_counter == [1] * harness.MAX_CALL_INFRASTRUCTURE_FAILURES
+    assert not (call_dir / "attempts").exists()
+    assert sorted(path.name for path in (call_dir / "infrastructure-failures").iterdir()) == [
+        "001",
+        "002",
+        "003",
+    ]
+
+
+@pytest.mark.parametrize("mutation", ["tamper", "delete", "extra"])
+def test_passed_preflight_receipt_tamper_delete_or_extra_fails_closed(
+    tmp_path: Path, harness: ModuleType, mutation: str
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    model_counter: list[int] = []
+    prepared = harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=_mock_invoke(model_counter),
+        preflight=_passing_preflight(),
+    )
+    receipt_path = (
+        prepared.run_dir / "infrastructure" / "preflight" / "checks" / "001" / "receipt.json"
+    )
+    if mutation == "tamper":
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["stderr_tail"] = "tampered after readiness"
+        _write_json(receipt_path, receipt)
+    elif mutation == "delete":
+        receipt_path.unlink()
+    else:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt.update(
+            {
+                "check_number": 2,
+                "status": "failed",
+                "category": "infrastructure_configuration",
+                "returncode": 1,
+                "stderr_tail": "late extra receipt",
+                "recorded_at": "2026-08-18T00:00:00Z",
+            }
+        )
+        _write_json(
+            prepared.run_dir / "infrastructure" / "preflight" / "checks" / "002" / "receipt.json",
+            receipt,
+        )
+    before = len(model_counter)
+
+    with pytest.raises(harness.IntegrityError, match="preflight"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_mock_invoke(model_counter),
+            preflight=_passing_preflight(),
+        )
+    assert len(model_counter) == before
+
+
+def test_attempt_sequence_hole_fails_before_invocation(tmp_path: Path, harness: ModuleType) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    _write_json(
+        call_dir / "attempts" / "attempt_02" / "attempt-contract.json",
+        {"invalid": True},
+    )
+    model_counter: list[int] = []
+
+    with pytest.raises(harness.IntegrityError, match="sequence"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_mock_invoke(model_counter),
+            preflight=_passing_preflight(),
+        )
+    assert model_counter == []
+    assert not (call_dir / "attempts" / "attempt_01").exists()
+
+
+@pytest.mark.parametrize("mutation", ["tamper", "delete", "extra"])
+def test_completed_judge_binds_all_call_infrastructure_receipts(
+    tmp_path: Path, harness: ModuleType, mutation: str
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    process_counter: list[int] = []
+    with pytest.raises(harness.CodexInfrastructureUnavailable):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_pre_model_failure_invoke(harness, process_counter),
+            preflight=_passing_preflight(),
+        )
+    model_counter: list[int] = []
+    prepared = harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=_mock_invoke(model_counter),
+        preflight=_passing_preflight(),
+    )
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    receipt_path = call_dir / "infrastructure-failures" / "001" / "receipt.json"
+    if mutation == "tamper":
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["stderr_tail"] = "tampered after completion"
+        _write_json(receipt_path, receipt)
+    elif mutation == "delete":
+        receipt_path.unlink()
+    else:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["failure_number"] = 2
+        receipt["recorded_at"] = "2026-08-18T00:00:00Z"
+        _write_json(
+            call_dir / "infrastructure-failures" / "002" / "receipt.json",
+            receipt,
+        )
+    before = len(model_counter)
+
+    with pytest.raises(harness.IntegrityError, match="infrastructure"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=_mock_invoke(model_counter),
+            preflight=_passing_preflight(),
+        )
+    assert len(model_counter) == before
+
+
 def test_incomplete_generator_matrix_refuses_before_any_model_call(
     tmp_path: Path, harness: ModuleType
 ) -> None:
@@ -387,7 +702,11 @@ def test_incomplete_generator_matrix_refuses_before_any_model_call(
     counter: list[int] = []
 
     with pytest.raises(harness.GeneratorMatrixIncomplete, match="no judge calls"):
-        harness.run_judges(experiment_dir, invoke=_mock_invoke(counter))
+        harness.run_judges(
+            experiment_dir,
+            invoke=_mock_invoke(counter),
+            preflight=_passing_preflight(),
+        )
 
     assert counter == []
     assert not (experiment_dir / "judge-runs").exists()
@@ -460,7 +779,12 @@ def test_partial_refusal_gets_only_one_same_tier_repair(
             )
         return valid(*args, **kwargs)
 
-    prepared = harness.run_judges(experiment_dir, sentinel=True, invoke=refuse_once)
+    prepared = harness.run_judges(
+        experiment_dir,
+        sentinel=True,
+        invoke=refuse_once,
+        preflight=_passing_preflight(),
+    )
 
     assert len(counter) == 3
     first_call = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
@@ -496,18 +820,21 @@ def test_sentinel_resume_then_full_run_and_receipt_tamper_detection(
     counter: list[int] = []
     invoke = _mock_invoke(counter)
 
-    prepared = harness.run_judges(experiment_dir, sentinel=True, invoke=invoke)
+    preflight_counter: list[int] = []
+    preflight = _passing_preflight(preflight_counter)
+    prepared = harness.run_judges(experiment_dir, sentinel=True, invoke=invoke, preflight=preflight)
     assert len(counter) == 2
-    harness.run_judges(experiment_dir, sentinel=True, invoke=invoke)
+    harness.run_judges(experiment_dir, sentinel=True, invoke=invoke, preflight=preflight)
     assert len(counter) == 2
-    harness.run_judges(experiment_dir, invoke=invoke)
+    harness.run_judges(experiment_dir, invoke=invoke, preflight=preflight)
     assert len(counter) == 6
+    assert len(preflight_counter) == 1
 
     first_call = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
     events_path = first_call / "events.jsonl"
     events_path.write_bytes(events_path.read_bytes() + b"\n")
     with pytest.raises(harness.IntegrityError, match="hash mismatch"):
-        harness.run_judges(experiment_dir, sentinel=True, invoke=invoke)
+        harness.run_judges(experiment_dir, sentinel=True, invoke=invoke, preflight=preflight)
     assert len(counter) == 6
 
 
@@ -529,13 +856,152 @@ def test_unsafe_tool_event_hard_fails_without_repair(tmp_path: Path, harness: Mo
             experiment_dir,
             sentinel=True,
             invoke=_mock_invoke(counter, add_unsafe_event),
+            preflight=_passing_preflight(),
         )
 
     assert len(counter) == 1
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    assert (call_dir / "attempts" / "attempt_01" / "events.jsonl").is_file()
+    assert (call_dir / "attempts" / "attempt_01" / "call-metadata.json").is_file()
+    assert not (call_dir / "attempts" / "attempt_02").exists()
     with pytest.raises(harness.UnsafeToolEvent):
         harness.run_judges(
             experiment_dir,
             sentinel=True,
             invoke=_mock_invoke(counter, add_unsafe_event),
+            preflight=_passing_preflight(),
         )
     assert len(counter) == 1
+
+
+def test_real_invoke_unsafe_event_is_persisted_and_resume_never_invokes(
+    tmp_path: Path, harness: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    process_counter: list[int] = []
+
+    def unsafe_process(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        process_counter.append(1)
+        stdout = "\n".join(
+            (
+                json.dumps({"type": "thread.started", "thread_id": "unsafe-thread"}),
+                json.dumps({"type": "turn.started"}),
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {"type": "command_execution", "command": "forbidden"},
+                    }
+                ),
+            )
+        )
+        return subprocess.CompletedProcess(args[0], 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(harness.shutil, "which", lambda _: "/usr/bin/codex")
+    monkeypatch.setattr(harness.subprocess, "run", unsafe_process)
+    with pytest.raises(harness.UnsafeToolEvent):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=harness._invoke_codex,
+            preflight=_passing_preflight(),
+        )
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    events_path = call_dir / "attempts" / "attempt_01" / "events.jsonl"
+    assert "command_execution" in events_path.read_text(encoding="utf-8")
+    assert (call_dir / "attempts" / "attempt_01" / "call-metadata.json").is_file()
+    assert not (call_dir / "attempts" / "attempt_02").exists()
+
+    with pytest.raises(harness.UnsafeToolEvent):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=harness._invoke_codex,
+            preflight=_passing_preflight(),
+        )
+    assert process_counter == [1]
+    assert not (call_dir / "attempts" / "attempt_02").exists()
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected_started", "expected_category"),
+    [
+        ("", False, "infrastructure_process_timeout"),
+        ('{"type":"turn.started"}\n', True, "model_process_timeout"),
+    ],
+)
+def test_invoke_timeout_is_classified_by_turn_started(
+    tmp_path: Path,
+    harness: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: str,
+    expected_started: bool,
+    expected_category: str,
+) -> None:
+    def timeout(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise subprocess.TimeoutExpired(
+            cmd="codex",
+            timeout=3600,
+            output=stdout,
+            stderr="",
+        )
+
+    monkeypatch.setattr(harness.shutil, "which", lambda _: "/usr/bin/codex")
+    monkeypatch.setattr(harness.subprocess, "run", timeout)
+    with pytest.raises(harness.CodexProcessFailure) as caught:
+        harness._invoke_codex(
+            "timeout-test",
+            "prompt",
+            tmp_path / "schema.json",
+            harness.JUDGES["judge_01"],
+        )
+    assert caught.value.model_started is expected_started
+    assert caught.value.category == expected_category
+
+
+def test_model_output_read_failure_is_receipted_as_model_attempt(
+    tmp_path: Path,
+    harness: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    experiment_dir, _ = _make_experiment(tmp_path)
+    process_counter: list[int] = []
+
+    def invalid_output_process(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        command = args[0]
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_bytes(b"\xff")
+        process_counter.append(1)
+        stdout = "\n".join(
+            (
+                json.dumps({"type": "thread.started", "thread_id": "read-failure-thread"}),
+                json.dumps({"type": "turn.started"}),
+                json.dumps({"type": "turn.completed", "usage": {}}),
+            )
+        )
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(harness.shutil, "which", lambda _: "/usr/bin/codex")
+    monkeypatch.setattr(harness.subprocess, "run", invalid_output_process)
+    with pytest.raises(harness.JudgeValidationError, match="exhausted its repair budget"):
+        harness.run_judges(
+            experiment_dir,
+            sentinel=True,
+            invoke=harness._invoke_codex,
+            preflight=_passing_preflight(),
+        )
+
+    prepared = harness.prepare_judge_run(experiment_dir)
+    call_dir = prepared.run_dir / "sources" / prepared.source_ids[0] / next(iter(harness.JUDGES))
+    for attempt in ("attempt_01", "attempt_02"):
+        receipt = json.loads(
+            (call_dir / "attempts" / attempt / "failure.json").read_text(encoding="utf-8")
+        )
+        assert receipt["failure_kind"] == "model_process_or_output"
+        assert "model_output_read_failure" in receipt["error"]
+        assert (call_dir / "attempts" / attempt / "events.jsonl").is_file()
+    assert process_counter == [1, 1]
