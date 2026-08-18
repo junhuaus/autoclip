@@ -231,6 +231,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-18 Generate the self-contained `REPORT.html` with model/source/pair/Judge/Topic/diagnostic/efficiency/Skill tables and the Skill Creator `eval-review/REVIEW.html` with all 30 outputs and 60 Judge evidence views.
 - [x] 2026-08-18 Record a non-production Tier 0–5 Skill v2 proposal: Sol Medium default evaluation route, conditional Sol High escalation, exact evidence/copy separation, free Topic inventory before portfolio selection, deterministic totals and no unsupported genre branch.
 - [x] 2026-08-18 Complete independent read-only verification with `PASS`, P0=0 and no delivery-blocking P1 after correcting one stale proposal sentence; independently confirm scores, anonymization, cluster coverage, 343 hashes and report reconstruction.
+- [x] 2026-08-18 Create and push scoped research checkpoint `d9f9836` to private `origin/main`; no input video, product database, credentials or generated product media are included.
 - [ ] Visually inspect both HTML reports in MCP Chrome. Browser runtime discovery returned `[]`; parser, relative-link and content validation pass, but no visual-pass claim is allowed until the plugin connection is restored.
 
 ## Work breakdown and file ownership

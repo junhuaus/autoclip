@@ -9,8 +9,8 @@ The expanded free-discovery benchmark is complete under
 `docs/research/model-benchmark-2026-08-17/`: three generator configurations,
 three unique source hashes, nine primary order-perturbed runs, one zero-weight
 evidence diagnostic and two independent blind Judges. No Pipeline, database,
-source media, render or Delivery state changed. Branch `main` remains based on
-pushed checkpoint `5a156d6` until this research checkpoint is committed.
+source media, render or Delivery state changed. Scoped research checkpoint
+`d9f9836` is committed and pushed to `origin/main`.
 
 ## Current user-visible result
 
@@ -99,6 +99,9 @@ MCP Chrome during this session.
 - `0a266f3`: bounded accurate transport-stream seek, shared A/V timeline,
   renderer contract `ffmpeg-renderer-v4.av-sync-preroll`, regression tests and
   ADR-019.
+- `d9f9836`: isolated three-configuration free-discovery benchmark, dual-Judge
+  evidence, deterministic analysis, offline HTML reports and Tiered Skill v2
+  research proposal.
 
 The sync fix is in `src/liveclip/renderer/ffmpeg.py`. It uses an input-side seek
 at `source_start - min(source_start, 10s)`, decodes the preroll, then uses an
@@ -214,8 +217,8 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   database. The expanded benchmark made 28 new tool-disabled generator calls,
   reused two byte/input/Prompt/Schema-identical pilot results, and made 20 new
   blind Judge calls. They wrote only research artifacts; no render was repeated.
-- Source/test/docs commits are `fa395f6` and `0a266f3`; generated/private paths
-  remain ignored and unstaged.
+- Source/test/docs checkpoints include `fa395f6`, `0a266f3` and `d9f9836`;
+  generated/private paths remain ignored and unstaged.
 
 ## Next concrete task
 
