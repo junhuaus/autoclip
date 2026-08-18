@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "limitations": {
+      "items": {
+        "maxLength": 400,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "type": "array"
+    },
+    "overall_verdict": {
+      "maxLength": 1600,
+      "minLength": 1,
+      "type": "string"
+    },
+    "preferred_system_ids": {
+      "items": {
+        "enum": [
+          "sys_77e2260f12a5f94167346748",
+          "sys_8634b4e0e0a27105684dda00",
+          "sys_aa08c7553b84ac47fc55f3b4",
+          "sys_df12562489f6c0a9f5d67ceb"
+        ],
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "enum": [
+        "1"
+      ],
+      "type": "string"
+    },
+    "system_evaluations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymous_system_id": {
+            "enum": [
+              "sys_77e2260f12a5f94167346748",
+              "sys_8634b4e0e0a27105684dda00",
+              "sys_aa08c7553b84ac47fc55f3b4",
+              "sys_df12562489f6c0a9f5d67ceb"
+            ],
+            "type": "string"
+          },
+          "coverage_x4": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discovery_x4": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "editorial_readiness_x4": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "precision_x4": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stability_x4": {
+            "maximum": 4,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "strengths": {
+            "items": {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "weaknesses": {
+            "items": {
+              "maxLength": 300,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "anonymous_system_id",
+          "discovery_x4",
+          "coverage_x4",
+          "precision_x4",
+          "stability_x4",
+          "editorial_readiness_x4",
+          "strengths",
+          "weaknesses"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "topic_clusters": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alignment_confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "canonical_topic": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "cluster_id": {
+            "pattern": "^topic_[0-9]{3}$",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "anonymous_system_id": {
+                  "enum": [
+                    "sys_77e2260f12a5f94167346748",
+                    "sys_8634b4e0e0a27105684dda00",
+                    "sys_aa08c7553b84ac47fc55f3b4",
+                    "sys_df12562489f6c0a9f5d67ceb"
+                  ],
+                  "type": "string"
+                },
+                "assessment": {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "candidate_id": {
+                  "enum": [
+                    "candidate_159babdbda6acfe6",
+                    "candidate_1d0bcd4f6ed22861",
+                    "candidate_26500385c10519ef",
+                    "candidate_2e74bd47f66c76ad",
+                    "candidate_368dc549dbba313f",
+                    "candidate_3f73ee8bb04ee052",
+                    "candidate_4477e0c580eeaf0f",
+                    "candidate_473a7cc73ef551ea",
+                    "candidate_48324e904b930420",
+                    "candidate_4f46d35f2e2667ca",
+                    "candidate_6b0ae4ac42937611",
+                    "candidate_737064038099ef2a",
+                    "candidate_8ba2743da2b9cb9e",
+                    "candidate_9442184e2836ee47",
+                    "candidate_995f11a38ef0e583",
+                    "candidate_adab5d4da9ab2be6",
+                    "candidate_b45014a64a6a9c53",
+                    "candidate_b6ce4961df030128",
+                    "candidate_b7730933ffbad510",
+                    "candidate_bf1aa4701bd6f761",
+                    "candidate_c09a0f37fab1e353"
+                  ],
+                  "type": "string"
+                },
+                "completeness_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "editorial_value_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "event_match_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "evidence_fidelity_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "highlight_id": {
+                  "enum": [
+                    "hl_01718ce979becdd8d4e5b40f",
+                    "hl_0d76f931668b8386b37ef6fe",
+                    "hl_141066695524e41b35b91492",
+                    "hl_1e0c549797546b96d5fe5a29",
+                    "hl_22c9c1c3c6d884e22584017a",
+                    "hl_245adbca890835ba958e0943",
+                    "hl_27220469cbcfe8847c3ac399",
+                    "hl_2a0ebf54281b721f89f3ab58",
+                    "hl_2a53f02e7e4f8c1b43f77b4c",
+                    "hl_2c9025976eb8ce2313106172",
+                    "hl_3297d9d4342554257b89f466",
+                    "hl_349d4ae959914ce989d3bcaf",
+                    "hl_34a17415d2e8146ec2aabe62",
+                    "hl_3925e8c34c4c5a900e890067",
+                    "hl_3dbf24a37c8960d932c95192",
+                    "hl_56c798b707a8afaababd3fd1",
+                    "hl_6431b15ea5bb3ff49b6823a8",
+                    "hl_754f691bf1e3f8e280a4f2f2",
+                    "hl_7baf96e07909ab68434e9d73",
+                    "hl_81ced57fd47c303b1abe1675",
+                    "hl_825602dfcf6804115684199d",
+                    "hl_8f666cc2c8cea744799fe51e",
+                    "hl_8fdd5d931ec58c108725e7af",
+                    "hl_b7019f329823f142425bec3b",
+                    "hl_b895a381def05ff86ec5615a",
+                    "hl_bc2030e832c65a408496cddc",
+                    "hl_c1462038e402ad849028428c",
+                    "hl_c43e1f4ffa3f6a8db4790094",
+                    "hl_cace1471b1824c6c22d34cc6",
+                    "hl_d12fe8f3e031133dcd709f1a",
+                    "hl_d1ee006ec115b038a6b34697",
+                    "hl_d3f36d57e5c5492e5e963ea9",
+                    "hl_d4866a17096209a4421288fb",
+                    "hl_e2817bb115513b34361ff77b",
+                    "hl_e758f9eda0988ad7a7f88aab",
+                    "hl_ec6408556cfdf5d7c6bd8f47",
+                    "hl_ec6b1270394c090a9f9faa0c",
+                    "hl_ed589ebf89cbeb56e16d51fc",
+                    "hl_eeaee6b4fc4c99cfe297086b",
+                    "hl_f4bc257f121edfeccde883fa",
+                    "hl_fdef1584a0f49adc2b7da9b1"
+                  ],
+                  "type": "string"
+                },
+                "hook_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "usability_x4": {
+                  "maximum": 4,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "anonymous_system_id",
+                "highlight_id",
+                "candidate_id",
+                "event_match_x4",
+                "editorial_value_x4",
+                "hook_x4",
+                "completeness_x4",
+                "evidence_fidelity_x4",
+                "usability_x4",
+                "assessment"
+              ],
+              "type": "object"
+            },
+            "maxItems": 41,
+            "minItems": 1,
+            "type": "array"
+          },
+          "topic_assessment": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "canonical_topic",
+          "alignment_confidence",
+          "members",
+          "topic_assessment"
+        ],
+        "type": "object"
+      },
+      "maxItems": 41,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "topic_clusters",
+    "system_evaluations",
+    "preferred_system_ids",
+    "overall_verdict",
+    "limitations"
+  ],
+  "type": "object"
+}

@@ -99,10 +99,12 @@ same deterministic Gate.
 - [x] 2026-08-17 Freeze eval prompts for the three unique sources and bind all input/Skill/Schema/runner hashes.
 - [x] 2026-08-18 Run and independently receipt-validate one fresh same-source
   v1/v2 Sol Medium sentinel pair (2/12 pipelines).
-- [ ] Populate the remaining ten fresh v1/v2 Sol Medium pipelines, preserving
-  two repeats per source.
-- [ ] Run all v2 Tier calls with isolated, ephemeral, tool-disabled Sol Medium workers and resumable immutable artifacts.
-- [ ] Generate the static Skill Creator viewer before qualitative interpretation.
+- [x] 2026-08-18 Populate the remaining ten fresh v1/v2 Sol Medium pipelines,
+  preserving two repeats per source; receipt-only resume performed zero calls.
+- [x] 2026-08-18 Run all v2 Tier calls with isolated, ephemeral, tool-disabled
+  Sol Medium workers and resumable immutable artifacts.
+- [x] 2026-08-18 Generate the static Skill Creator viewer before qualitative
+  interpretation.
 - [ ] Run two anonymous independent Judges per source and validate complete cluster membership.
 - [ ] Aggregate source-first quality, evidence, duplication, coverage, latency and token metrics.
 - [ ] Run independent read-only verification and fix any P0/P1 research-contract defect.
@@ -227,6 +229,20 @@ write `iteration-2` rather than replacing iteration 1.
   `highlight_sentence` fields failed the quote-binding shadow audit. A second
   `--sentinel` invocation resumed both Pipeline receipts with zero new calls.
   The Viewer and Judge harnesses both refused the intentionally partial matrix.
+- 2026-08-18: The full generator matrix completed 12/12 Pipelines and 36
+  successful Call receipts. Six v2 Pipelines each selected 12 highlights and
+  ended with zero outward exact-quote failures. Two first attempts required the
+  single permitted same-Tier repair: one Tier 4 exact-quote mismatch and one
+  Tier 2 duplicate primary-Topic membership; both repaired attempts passed.
+  No unsafe tool event and no Sol High call occurred. Fresh v1 selected 8–11
+  highlights per run and its legacy quote-binding shadow Gate failed 7–11 per
+  run. A full-matrix resume accepted all immutable receipts and made zero new
+  model calls.
+- 2026-08-18: The anonymous static Viewer was generated at
+  `eval-review/iteration-1` before semantic result inspection. The dual-Judge
+  dry-run then froze six source/Judge inputs (three sources × two Judges), each
+  with four opaque generator outputs. Blind inputs and Schemas contain no arm,
+  Pipeline, Skill/model/effort, latency, token or self-score identity fields.
 
 ## Decision Log
 
@@ -260,12 +276,10 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the successful 2/12 sentinel receipts, then
-run `run_iteration.py` without flags against the already frozen
-`exp_31890c08e4b7eda69858`. It must resume the two completed Pipelines without
-new calls and populate only the remaining ten. After 12/12 completion, generate
-the static anonymous Viewer before any qualitative interpretation, then run the
-dual-Judge sentinel. If interrupted, read this file and
+Current first task: commit and push the completed 12/12 generator matrix,
+anonymous Viewer and frozen dual-Judge dry-run, then run the two-Judge sentinel
+for the first source. Validate both Judge receipts and complete membership
+before resuming the remaining four Judge calls. If interrupted, read this file and
 `STATUS.md`, verify the experiment manifest and current source hashes, and
 resume rather than deleting or forcing an artifact. Never rerun the completed
 three-model benchmark or overwrite its artifacts.

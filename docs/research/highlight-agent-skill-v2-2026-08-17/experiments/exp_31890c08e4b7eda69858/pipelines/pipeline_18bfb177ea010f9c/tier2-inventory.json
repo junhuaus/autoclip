@@ -1,0 +1,347 @@
+{
+  "accounting": {
+    "assessable_count": 41,
+    "excluded_count": 0,
+    "passed": true,
+    "topic_member_count": 41,
+    "unusable_count": 0
+  },
+  "excluded_candidates": [],
+  "inventory_summary": "本段声乐直播自然形成了十一组话题，主要涵盖呼吸支撑、高音与发声通道、舌根放松、开嗓和练习安排、闭口音、识谱与伴奏、声音诊断、天赋观念及嗓音健康。",
+  "topics": [
+    {
+      "canonical_angle": "唱歌应先建立合适的吸气方式和较低位置的气息支撑，而不能只依赖胸口浅呼吸或把练气简单理解为吸气。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_f14a3fb4d68e51ca",
+          "member_angle": "以胸口变化自测吸气方式，承担唱歌呼吸入门的核心讲解。",
+          "relationship": "core",
+          "relationship_reason": "该成员完整提出唱歌第一步是吸气，并给出观察胸口变化的自测方式。"
+        },
+        {
+          "candidate_id": "candidate_259a47e73cd8edad",
+          "member_angle": "通过俯身姿势寻找较低的呼吸支撑位置。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "同样讨论胸口浅呼吸，但进一步提供了感受较低呼吸位置的姿势方法。"
+        },
+        {
+          "candidate_id": "candidate_f501d39592c1669b",
+          "member_angle": "用胸口明显起伏判断气息过浅。",
+          "relationship": "same_claim",
+          "relationship_reason": "其主要判断与核心成员的胸口变化自测实质相同，只是表达更重复且未讲完。"
+        },
+        {
+          "candidate_id": "candidate_c393f29d34250a55",
+          "member_angle": "把腰部呼吸起伏与整体唱歌通道联系起来。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "除俯身扶腰感受气息外，还扩展到共鸣区域和气息支撑构成的整体通道。"
+        },
+        {
+          "candidate_id": "candidate_58a59476ab12c657",
+          "member_angle": "强调胸口起伏代表气息浅，应寻找更低的支撑感。",
+          "relationship": "same_claim",
+          "relationship_reason": "与核心成员重复同一呼吸判断，并以气沉丹田概括方向。"
+        },
+        {
+          "candidate_id": "candidate_f88952d2d3ed4709",
+          "member_angle": "澄清气息是基础动力，但不能单独解决所有发声问题。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "仍属于气息基础教学，但补充了练气不等于单纯吸气、也不是万能解法的边界。"
+        }
+      ],
+      "topic_id": "topic_38cd3fd3e7123db3",
+      "topic_label": "唱歌吸气与气息支撑"
+    },
+    {
+      "canonical_angle": "零基础高音卡挤可能来自发声习惯、气息支撑或技术位置，也需要与声带异常等特殊情况区分。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_29b8beefbb32b85b",
+          "member_angle": "概括零基础常见的高音卡挤、破音和大白嗓问题。",
+          "relationship": "core",
+          "relationship_reason": "该成员以明确痛点统领高音卡挤话题，并对不当发声作出原因解释。"
+        },
+        {
+          "candidate_id": "candidate_f39a280e9d55f06e",
+          "member_angle": "强调起始发声步骤处理不当会加重高音卡挤。",
+          "relationship": "same_claim",
+          "relationship_reason": "重复高音卡挤与基础步骤错误有关的主张，但教学内容没有完整展开。"
+        },
+        {
+          "candidate_id": "candidate_0c9ab3b5a64030d5",
+          "member_angle": "从腰腹支撑不足和嗓子代偿解释高音卡挤与疲劳。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "针对同一高音痛点，增加了气息支撑不足及唱后疲劳这一具体机制角度。"
+        },
+        {
+          "candidate_id": "candidate_5b457445f2236f35",
+          "member_angle": "区分可训练的高音技术问题与需要另行处理的声带异常。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "同样回答高音卡挤原因，但补充个人条件、技术改善空间和声带状况的边界。"
+        }
+      ],
+      "topic_id": "topic_e70db68c40c85ba9",
+      "topic_label": "高音卡挤的原因排查"
+    },
+    {
+      "canonical_angle": "保持统一的咬字位置和唱歌通道，是处理换声、高音、共鸣及多余面部用力的共同基础。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_2169870825746d02",
+          "member_angle": "以统一咬字位置和发声通道解决换声区断层。",
+          "relationship": "core",
+          "relationship_reason": "该成员最清楚地提出位置统一原则，并用高音前挤后躲解释声音断层。"
+        },
+        {
+          "candidate_id": "candidate_b97428705eaff8a0",
+          "member_angle": "用说话般的咬字感保持高音通道稳定。",
+          "relationship": "same_claim",
+          "relationship_reason": "与核心成员都强调高音不能前挤后躲，应保持稳定的咬字和发声位置。"
+        },
+        {
+          "candidate_id": "candidate_383a43afa92485e7",
+          "member_angle": "解释唱歌中的说话感必须位于发声通道之内。",
+          "relationship": "same_claim",
+          "relationship_reason": "它对核心成员所说的咬字位置作概念说明，没有形成不同的解决方向。"
+        },
+        {
+          "candidate_id": "candidate_0c49c6488ae5fe28",
+          "member_angle": "主张先建立整体通道，再让共鸣自然出现。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "共享唱歌通道这一基础，但将问题转向不应孤立追求头腔共鸣。"
+        },
+        {
+          "candidate_id": "candidate_f0bbb75c02ac39ed",
+          "member_angle": "从紧张引起的面部和舌根代偿解释高音失控。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "围绕同一高音通道问题，补充舞台紧张和多余身体动作的影响。"
+        },
+        {
+          "candidate_id": "candidate_464b0f2aee1d8a44",
+          "member_angle": "说明抬眉只是后期细节，初学者应先保持面部放松。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它把面部动作进一步细化为阶段性技巧，为零基础学习者提供不同的适用判断。"
+        }
+      ],
+      "topic_id": "topic_8dc2d34ff749cdc0",
+      "topic_label": "高音位置与发声通道统一"
+    },
+    {
+      "canonical_angle": "舌根和下巴紧张应优先从自然咬字、气息及发声习惯排查，非常规辅助练习不能被盲目模仿。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_373756f54a23ac46",
+          "member_angle": "以日常说话作类比，说明舌头应自然放置并避免向后堵。",
+          "relationship": "core",
+          "relationship_reason": "该成员最完整地呈现舌根与下巴紧张的表现、原因和基础纠正原则。"
+        },
+        {
+          "candidate_id": "candidate_f89ea722be8ee018",
+          "member_angle": "建议先在中音区排查气息和咬字，再处理高音舌头后缩。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "同属舌根紧张问题，但增加了按音区和原因逐步排查的路径。"
+        },
+        {
+          "candidate_id": "candidate_0650eee23c06e676",
+          "member_angle": "区分先天音色与可通过舌根、通道和习惯改善的实际声音。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "以音色变化为结果，说明舌根和发声习惯属于可调整部分。"
+        },
+        {
+          "candidate_id": "candidate_ecc8f9bdbcef1f0b",
+          "member_angle": "提及一种非常规舌部辅助练习，并明确不建议盲目尝试。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它仍服务于舌根问题，但焦点是非常规辅助练习及其谨慎使用边界。"
+        },
+        {
+          "candidate_id": "candidate_457e1f1bdcf9a2eb",
+          "member_angle": "强调先纠正气息和咬字，辅助练习只能谨慎使用。",
+          "relationship": "same_claim",
+          "relationship_reason": "与前一成员围绕同一种辅助思路，重复了不能盲目操作、基础训练优先的结论。"
+        },
+        {
+          "candidate_id": "candidate_d5a694fcab37dad8",
+          "member_angle": "以个人经历说明舌部紧张可以后天改善。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充舌头紧张的外在表现和个人训练经历，但涉及的自行操作并未完整说明。"
+        }
+      ],
+      "topic_id": "topic_81069440437cabd7",
+      "topic_label": "舌根紧张与谨慎放松"
+    },
+    {
+      "canonical_angle": "唱歌前的开嗓和身体热身应结合个人习惯与具体场景选择。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_04479a7661739b63",
+          "member_angle": "列举常见开嗓方式，并强调按个人方案选择。",
+          "relationship": "core",
+          "relationship_reason": "该成员直接回答唱前如何开嗓，既给出例子又说明个体差异。"
+        },
+        {
+          "candidate_id": "candidate_b66177d9d0ec57ef",
+          "member_angle": "提供适合临时演唱场景的身体活动热身思路。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "同样讨论唱前准备，但从发声练习转向先活动身体的快速热身场景。"
+        }
+      ],
+      "topic_id": "topic_fcf52c3d3201de83",
+      "topic_label": "唱歌前的个性化热身"
+    },
+    {
+      "canonical_angle": "有效练唱应合理分配气息、练声和演唱时间，重视聆听与思考，而不是把嗓子练哑。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_554c3d7035ba1055",
+          "member_angle": "强调控制连续练习量，并以效率和听辨取代盲目苦练。",
+          "relationship": "core",
+          "relationship_reason": "该成员完整回答每日练习安排，并清楚说明追求时长和练到嘶哑的误区。"
+        },
+        {
+          "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+          "member_angle": "具体区分气息练习、练声和正式唱歌的时间分配。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "与核心成员共享控制练习量的主张，同时提供了不同训练环节的细分安排。"
+        }
+      ],
+      "topic_id": "topic_3c93f0df2b92acef",
+      "topic_label": "练唱时长与训练效率"
+    },
+    {
+      "canonical_angle": "闭口音训练应先理解字音结构，再借助开口音感觉逐步过渡，尤其要避免高音时卡紧。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_45f74801b32ad9cf",
+          "member_angle": "给出从开口音逐步过渡到闭口音的完整练习思路。",
+          "relationship": "core",
+          "relationship_reason": "该成员既说明高音闭口音的难点，也提供循序渐进的解决方法。"
+        },
+        {
+          "candidate_id": "candidate_9e9054f2deb55202",
+          "member_angle": "从辅音、元音和字例解释闭口音的基础概念。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于同一教学主题，但承担的是练习前的概念识别，而非具体过渡方法。"
+        },
+        {
+          "candidate_id": "candidate_b110d906807b06f5",
+          "member_angle": "铺垫闭口音所涉及的辅音与元音结构。",
+          "relationship": "same_claim",
+          "relationship_reason": "与上一成员重复同一概念铺垫，且在具体方法展开前结束。"
+        }
+      ],
+      "topic_id": "topic_6e8ed0b3fded322b",
+      "topic_label": "闭口音的识别与渐进练习"
+    },
+    {
+      "canonical_angle": "识谱能提高独立学歌能力，但跟上伴奏还需要先熟悉歌曲，并把注意力分配给节奏和律动。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_bef585871fbac01e",
+          "member_angle": "说明简谱能提升学歌速度，但不会识谱仍可通过模仿学习。",
+          "relationship": "core",
+          "relationship_reason": "该成员完整界定了识谱的价值、非强制性和对独立学习的帮助。"
+        },
+        {
+          "candidate_id": "candidate_c512c4453cde77d1",
+          "member_angle": "回答零基础是否需要学习识谱和乐理。",
+          "relationship": "same_claim",
+          "relationship_reason": "与核心成员共享识谱有帮助但并非学习唱歌硬门槛的结论。"
+        },
+        {
+          "candidate_id": "candidate_6721fcbb3782d23b",
+          "member_angle": "解释拿着谱仍跟不上伴奏，是歌曲熟悉度和注意力分配的问题。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "从识谱价值延伸到实际合伴奏，增加音高、节奏和律动无法同时兼顾的具体困难。"
+        },
+        {
+          "candidate_id": "candidate_f49be10488a46e67",
+          "member_angle": "建议先把歌曲唱熟，再集中聆听伴奏节奏。",
+          "relationship": "same_claim",
+          "relationship_reason": "与前一成员实质重复跟不上伴奏的原因和先熟悉歌曲的解决方向。"
+        }
+      ],
+      "topic_id": "topic_001211a054301b5e",
+      "topic_label": "识谱、学歌与跟伴奏"
+    },
+    {
+      "canonical_angle": "声音问题需要先听到实际发声再作针对性诊断，而直播教学的重点是分析问题并提供解决思路。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_3c92e6847aff0c59",
+          "member_angle": "区分问题诊断式教学与逐句带唱。",
+          "relationship": "core",
+          "relationship_reason": "该成员最清楚地说明直播教学模式及其以问题分析为中心的定位。"
+        },
+        {
+          "candidate_id": "candidate_f3d1b16dd252adfd",
+          "member_angle": "强调声音诊断必须先通过连麦听到实际声音。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复诊断需要真实声音输入的原则，主要差别是更侧重连麦流程。"
+        },
+        {
+          "candidate_id": "candidate_349a7ccecf8c6857",
+          "member_angle": "为连麦声音诊断调整设备和画面。",
+          "relationship": "same_claim",
+          "relationship_reason": "同属连麦诊断流程，但内容主要是设备准备，没有新增诊断方法。"
+        }
+      ],
+      "topic_id": "topic_650b47f786e1f45f",
+      "topic_label": "连麦声音诊断的教学方式"
+    },
+    {
+      "canonical_angle": "普通人不必先证明自己有天赋，只要在个人嗓音条件内持续学习，仍能取得改善。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_65678839045aab40",
+          "member_angle": "完整回答没有天赋能否学唱歌，并把目标落在个人条件内进步。",
+          "relationship": "core",
+          "relationship_reason": "该成员直接给出清晰、完整且鼓励性的核心结论。"
+        },
+        {
+          "candidate_id": "candidate_288c9f1bf0144c80",
+          "member_angle": "从个别发声诊断转入没有唱歌天赋能否学好的疑问。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它提出同一主题的观众问题并体现个体诊断需求，但没有在本段完成回答。"
+        }
+      ],
+      "topic_id": "topic_ca50dc5ee57943df",
+      "topic_label": "普通人学唱歌需要天赋吗"
+    },
+    {
+      "canonical_angle": "科学发声和正确用嗓有助于降低持续演唱风险，出现长期嘶哑或疑似声带异常时应转向正规检查。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_35a860b83062d6ab",
+          "member_angle": "提醒零基础避免盲练，优先建立更科学的发声方式。",
+          "relationship": "core",
+          "relationship_reason": "该成员以简明原则统领科学训练与可持续演唱这一主题。"
+        },
+        {
+          "candidate_id": "candidate_ec5459f102e399ec",
+          "member_angle": "比较不同发声方式对长期嗓音状态的潜在影响。",
+          "relationship": "same_claim",
+          "relationship_reason": "与核心成员共享科学发声有助于长期演唱的主张，但加入了唱法比较。"
+        },
+        {
+          "candidate_id": "candidate_cba78926f39edb10",
+          "member_angle": "以声音嘶哑和声带异常为例，强调相关问题应及时就医。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "从日常训练原则推进到异常症状的处理边界，明确唱歌老师不能替代医疗处理。"
+        }
+      ],
+      "topic_id": "topic_43624ca9ef10afd2",
+      "topic_label": "科学用嗓与声带异常就医"
+    }
+  ]
+}

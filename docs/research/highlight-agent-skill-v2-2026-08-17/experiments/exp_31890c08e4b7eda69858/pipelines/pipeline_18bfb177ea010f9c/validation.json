@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_bef585871fbac01e",
+      "candidate_text_sha256": "ae8cfcb085733f1354dc9ba98cdcbe4eed7903ef02adaedabd28e4adbab6c1de",
+      "normalized_end": 158,
+      "normalized_quote": "它简谱有一个好处就是它会让你的就怎么说呢就是一种感觉音乐的感觉把他的这个音高就能给唱出来再加上他的节奏你学歌他就是会快但是这个不是强制的",
+      "normalized_start": 90,
+      "quote_sha256": "3d5d8c788a93562887776b34a209506180ca697d7fccf92ddec96b5881fb4de1",
+      "raw_end": 158,
+      "raw_start": 90,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "candidate_text_sha256": "940ae1fca056d3e09fd46da398d996b05fe46a12545b156527732b5d965bf073",
+      "normalized_end": 246,
+      "normalized_quote": "大家都是普通人包括我也是普通人我之前有很多问题我都不是后期练出来的同学们那你要做的是什么呢我都是后续练出来的同学们那你要做的是什么呢包括你想改善的是什么呢你要在你自己的这个硬件上让自己做到最好",
+      "normalized_start": 150,
+      "quote_sha256": "fed32ac64bb2ea19d5a747df67908bc65eec5d6b81b1e70ef5ab6ed52c859569",
+      "raw_end": 246,
+      "raw_start": 150,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "candidate_text_sha256": "9ec0ea7ffb3ecfa93f2bf75e663949ddae09f6528479f37dd0da8a000e720dac",
+      "normalized_end": 180,
+      "normalized_quote": "我们唱歌不要去追求时间你要追求效率我们在唱歌的时候动着脑子去思考着去唱",
+      "normalized_start": 145,
+      "quote_sha256": "526cbb1064aacdc7095568b2c02124a0fad12006b86ce8bef34fd9faea5fae19",
+      "raw_end": 180,
+      "raw_start": 145,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_464b0f2aee1d8a44",
+      "candidate_text_sha256": "7f0a41196127ba553578fdd21fd515cefd05404c0342d083c045f0d6d602787d",
+      "normalized_end": 45,
+      "normalized_quote": "很多老师唱歌会让你抬眉我也会让我的学生抬眉但是它是有这个程度的有阶段的不适合小白",
+      "normalized_start": 5,
+      "quote_sha256": "8630634b4d51aafa59c4d3296712a7625d808588d3a88c0b6f19c5e3ed204d0c",
+      "raw_end": 45,
+      "raw_start": 5,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "candidate_text_sha256": "3ccc6dc9dab7d35c22ed31873908353f77d48f114e585077ad10295e59544d82",
+      "normalized_end": 250,
+      "normalized_quote": "先把自己的這個肌肉啊身上活動開你像我之前上課的時候我老師會讓我幹嘛會讓我做那個高抬腿就這樣就开始先跳两下活动热身也是可以的",
+      "normalized_start": 189,
+      "quote_sha256": "1572069f8410f9ab61082edd3f9e5db53affbeb20012901541bcc5b15f1932c7",
+      "raw_end": 250,
+      "raw_start": 189,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "candidate_text_sha256": "4e87042bd0ea6e819e80336c8f761f2731cc52a1ee0222cf0162c60e62f6fb24",
+      "normalized_end": 268,
+      "normalized_quote": "那我们闭口音确实是比较难尤其是如果你又遇到了高音又遇到了一个闭口音那你这个高音很多小白就会卡紧",
+      "normalized_start": 221,
+      "quote_sha256": "986338741c7d9b687ac7c28e0c4fb95f7053754311a3f29fee13ca7c3bfe3761",
+      "raw_end": 268,
+      "raw_start": 221,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_f14a3fb4d68e51ca",
+      "candidate_text_sha256": "5ae014852ad4817303557921d9cb66c0629a799b27179c52d84f3efbb0d49fb1",
+      "normalized_end": 207,
+      "normalized_quote": "那其实第一步是干嘛第一步是吸气啊同学们第一步是吸氣有沒有毛病沒毛病吧你不吸完氣你怎麼唱你不吸完氣你怎麼說話",
+      "normalized_start": 154,
+      "quote_sha256": "e8f573ac90dcb77274143168a7b933a6c286ce68ff8f3cfcc3718cac6f6d4802",
+      "raw_end": 207,
+      "raw_start": 154,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_29b8beefbb32b85b",
+      "candidate_text_sha256": "5514056919fda447852e8fa472f5ad23a27ea6caa4b0a49bce131445fe8f0d86",
+      "normalized_end": 88,
+      "normalized_quote": "零基础小白你们会有一个什么问题呢来第一个高音卡挤有没有这样的问题扣一下一高音卡挤高音唱不上去一到高音就破音",
+      "normalized_start": 35,
+      "quote_sha256": "87eed008cda3ed683a95ef03b5cd156af3bde6af2d81282b1f652ba205093178",
+      "raw_end": 88,
+      "raw_start": 35,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_f89ea722be8ee018",
+      "candidate_text_sha256": "d169674d5e890eabd3135415f096a47f2cf1e2f70df306d36120bc15f4d7da85",
+      "normalized_end": 218,
+      "normalized_quote": "那什麼問題呢是氣息沒用上還是咬字的問題對不對是有问题的那什么问题呢是气息没用上还是咬字的问题对不对你要先去在你中阴去把这两个问题解决掉了之后你的高音才会好一些",
+      "normalized_start": 139,
+      "quote_sha256": "bf8432405742a47aec55d5505dce2c4925096fe741ab624c824601083e695283",
+      "raw_end": 218,
+      "raw_start": 139,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_35a860b83062d6ab",
+      "candidate_text_sha256": "ff3e5e2d8c9335f9ffb61723bd803a0835f4a178c0d81b130b39578371bf1b8c",
+      "normalized_end": 121,
+      "normalized_quote": "咱不要去找一种什么邪门外道什么就开始在那练不知道练什么就开始在那练了找到一个科学的方法同学们",
+      "normalized_start": 75,
+      "quote_sha256": "4513d9a6d287b493aeed54b41ca572c253372ddc82c78e6ba353d59965c15718",
+      "raw_end": 121,
+      "raw_start": 75,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_3c92e6847aff0c59",
+      "candidate_text_sha256": "136c28b3b0f6375c088a5d0e49f972d0ddba83757db464f7b034685475ce4a92",
+      "normalized_end": 127,
+      "normalized_quote": "我教学不是我一句你一句的唱那叫学唱直播间很细分的我们这个赛道很卷的我是听你的问题我告诉你怎么去解决",
+      "normalized_start": 78,
+      "quote_sha256": "21fc21c672a805a2231586c99ea33aefb78143ce552340f711a21146676a7d48",
+      "raw_end": 127,
+      "raw_start": 78,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+      "candidate_text_sha256": "0097004e31c22c29e356319ffa9623720c3dcf9b3e79d110b2290f9c67a52bf2",
+      "normalized_end": 129,
+      "normalized_quote": "那我们在练声的时候需要练多长时间呢我们练声是干嘛相当于我们跑步去热身一样不需要特别长你如果特别长的时间你唱歌的时候会累了",
+      "normalized_start": 69,
+      "quote_sha256": "46beeb0c45a1e87664e766caa7044559d631f61ad5ab6f0f438130f2c4e09b89",
+      "raw_end": 129,
+      "raw_start": 69,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

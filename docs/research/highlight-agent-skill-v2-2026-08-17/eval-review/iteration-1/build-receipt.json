@@ -1,0 +1,14 @@
+{
+  "anonymous_projection": true,
+  "artifact_sha256": {
+    "review.html": "69ac5955e4bb67027132defe9f7f29edadf15f7d8adc88a1d895fb5f31538602",
+    "review.json": "869a08e5549a2dd6844144b2aa8e2695126db53b4af28f6355ef0741e74fa557"
+  },
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "review_id": "review_5d5bae6e0f2b501e",
+  "review_protocol": "liveclip-highlight-source-first-blind-review-v1",
+  "schema_version": "1",
+  "verified_input_set_sha256": "841897b95b235bbdd538cfe6c621f37451a6d69dd0c588345ffef8131436418d",
+  "verified_pipeline_count": 12,
+  "verified_source_count": 3
+}

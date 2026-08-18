@@ -1,0 +1,15 @@
+{
+  "artifact_sha256": {
+    "call-metadata.json": "8e16b3197004cda8a6bff9962e3eca16e941283e671830a161e5b91ff9ac033a",
+    "events.jsonl": "d9cc644d14b3a53ba28ee2e6fdc4b05817dfc20d49b271952ab6baa72959f190",
+    "result.json": "c582f21b06a950ea2b756cb95d9dd7655e68200fccfce5f6bea212270aca0357",
+    "result.raw.json": "9796f97fa2b9710c3ad52edece8493fa12088c76cc2861a87c217354a63d4611",
+    "validation.json": "7fbf596857379a10dde48a099e80ff2a2620946f0787990f8c633078e2f6af2d"
+  },
+  "call_contract_sha256": "fb3643ff2f2179431ab5e3022e5fc51fbd6bdfe0e4ed8f26addd9bde80a49f58",
+  "call_id": "call_ddabd65e75f50438",
+  "infrastructure_failure_receipts": [],
+  "schema_version": "1",
+  "successful_attempt": 1,
+  "successful_attempt_contract_sha256": "038cca35e7df4868d33a3a9790a865a90d4660c259124ac11307b4072b42af5e"
+}

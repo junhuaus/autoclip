@@ -1,0 +1,7 @@
+{
+  "maximum_repairs": 2,
+  "repairs_used": 1,
+  "used_by_stage": [
+    "v2-tier4-copy"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "actually_escalated": false,
+  "policy_version": "shadow-escalation-v1",
+  "reasons": [
+    {
+      "code": "TIER3_THRESHOLD_SENSITIVITY",
+      "observed": 12,
+      "threshold": ">=25% within +/-3 points"
+    }
+  ],
+  "target_model_if_enabled": "gpt-5.6-sol/high",
+  "would_escalate": true
+}

@@ -1,0 +1,15 @@
+{
+  "arm_id": "arm_7dfabc955ba52ad5",
+  "conditional_call_ids": {},
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "fresh_generation": true,
+  "input_sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec",
+  "pipeline_id": "pipeline_bbac23d3ac54f409",
+  "repeat": 1,
+  "required_call_ids": [
+    "call_559b873288fa1b75"
+  ],
+  "schema_version": "1",
+  "skill_version": "v1",
+  "source_id": "src_4ae8fc713215e94c"
+}

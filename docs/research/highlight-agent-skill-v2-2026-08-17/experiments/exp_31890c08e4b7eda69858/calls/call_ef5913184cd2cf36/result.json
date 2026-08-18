@@ -1,0 +1,392 @@
+{
+  "assessments": [
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选从胸口过度用力切入，解释气流、声带振动与漏气之间的关系，并给出力度应适中的结论；核心教学链条清楚，但个别术语受转写影响。",
+      "candidate_id": "candidate_a0f21643888730a5",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "唱歌时胸口发紧和漏气可能与胸口过度用力、气流压力失衡有关。",
+      "risk_summary": "包含关于发声器官、气流压力及漏气成因的生理性解释，且个别术语转写不清。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "胸口发紧与唱歌漏气的原因",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选包含舌头和口腔空间的技巧观点，但大量篇幅用于欢迎观众、索赞和连麦说明，开头所指的具体动作还依赖前文。",
+      "candidate_id": "candidate_34558c9f504eca45",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "唱歌时不应刻意挤压舌头，舌头与上颚之间更大的空间有助于高音演唱。",
+      "risk_summary": "开头动作的指代依赖前文，且候选夹有明显的直播互动和引流内容。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "舌头位置、口腔空间与高音",
+      "uncertainty_flags": [
+        "missing_context",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "后半段能够辨认出对咬字位置、舌头和腰腹支撑的具体诊断，但开头转写严重混乱，判断还部分依赖未提供的演唱表现。",
+      "candidate_id": "candidate_22d3260a7179c022",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "visual_verification_required"
+      ],
+      "primary_claim": "这次演唱的问题包括咬字位置过于靠后、舌头处理不当，以及腰腹支撑不足。",
+      "risk_summary": "开头转写混乱，且对演唱问题的诊断部分依赖未提供的现场表现。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "咬字位置与腰腹支撑诊断",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选明确提出从真声、咬字通道到高音和假声的渐进训练顺序，并用漏气现象说明基础配合的重要性；多处声乐术语存在同音误转。",
+      "candidate_id": "candidate_005f7d0822d40234",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "流行演唱训练应先建立真声和咬字通道，再逐步过渡到高音及假声，否则容易出现漏气等问题。",
+      "risk_summary": "多个关键声乐术语可能被同音误转，影响表述精确度。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "流行演唱技巧的渐进训练顺序",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选前部谈年龄与嗓音机能，后部转为连麦、课程价值和个人求学经历，能够形成关于学习投入的表达，但主题跳转较多且首句逻辑不够清楚。",
+      "candidate_id": "candidate_a4bef74f0779a1e2",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "年龄可能影响嗓音机能，而专业指导具有较高学习成本，因此直播中的免费交流机会值得把握。",
+      "risk_summary": "包含未经展开的年龄与嗓音机能判断，也带有课程价值和连麦机会的推广表达。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "年龄、嗓音机能与声乐学习投入",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "claim_ambiguity",
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选在直播互动内容之外，较完整地说明了舌头下凹、打开内口腔和高音通道之间的教学关系，观点容易提取但论证较简略。",
+      "candidate_id": "candidate_8cae2aab5bc153ac",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "气息和嘴形正确时舌头会自然下凹，而打开内口腔有助于建立高音通道。",
+      "risk_summary": "包含关于口腔与高音发声关系的身体技巧主张，并夹有粉丝牌、点赞和连麦推广。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "打开内口腔与高音通道",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选列出多种发声类型，并强调气息培养和从真声到高音的训练步骤，具有明确教学价值；若干核心术语被转写成不准确的同音字。",
+      "candidate_id": "candidate_2716045703db1f3b",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "流行唱法技巧虽多，但训练应重视气息基础，并从真声和咬字通道逐步过渡到高音。",
+      "risk_summary": "关键声乐术语存在转写歧义，同时以学员进步速度为自身教学方法背书。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "气息基础与流行唱法训练步骤",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选以婴儿和青春期为例讨论声带变化，清楚提出男生和女生变声期存在差异；结尾提出变声后音色变化的问题，但答案留在候选之外。",
+      "candidate_id": "candidate_7c52ff6875a16a62",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "声音机能会随成长和变声期发生变化，男生与女生进入变声期的时间和变化程度可能不同。",
+      "risk_summary": "包含关于声带发育和变声期的生理性判断，且结尾问题未在候选内得到解释。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "成长与变声期对声音的影响",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选能够提取出先放松舌头、再让正确气息和嘴形带动舌头自然下凹的观点，但前部转写不稳，中段又插入较长的直播推广。",
+      "candidate_id": "candidate_1261f4ebdaaa4ed6",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "唱高音时不宜刻意控制舌头，应先保持舌头放松，并通过正确气息和嘴形让其自然下凹。",
+      "risk_summary": "舌头状态的部分描述转写不清，同时包含身体技巧主张和连麦推广内容。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "高音演唱中的舌头放松",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选后半段形成了鲜明且完整的观点：修音可以修正或美化音高，却不能替代歌唱者自身的发声通道和共鸣；开头试音部分略显混乱。",
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "音响或后期修音只能美化和修正声音，不能替代歌唱者自身的发声通道与共鸣。",
+      "risk_summary": "开头试音和场景描述存在少量转写混乱。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "修音无法替代发声通道和共鸣",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选主要用零基础学员数量、短期见效和绝对成功率来证明教学效果，核心营销主张可辨认，但开头语句破损且缺乏候选内证据支持。",
+      "candidate_id": "candidate_2a81f27ea2fccc4f",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "讲述者声称其大量零基础学员能够在很短时间内见效，并以此证明教学成效。",
+      "risk_summary": "包含缺少候选内佐证的短期见效和绝对成功率宣传，部分表述也存在转写歧义。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "零基础声乐教学效果宣传",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选混合了音频反馈引流、嗓子疲劳处理、腹部练习和学员展示等内容；可辨认出关于嗓子状态的建议，但缺乏完整解释且主题十分分散。",
+      "candidate_id": "candidate_ec801fd85b29d485",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "候选认可通过发气发音来缓解嗓子哑和嗓子累的说法，同时推广音频反馈和教学服务。",
+      "risk_summary": "包含未经说明的嗓音不适处理建议以及教学服务引流，相关主张没有完整展开。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "嗓音疲劳建议与教学服务推广",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选是一段可理解的直播开场，说明直播间提供声乐教学、问题互动和连麦，但几乎没有独立的知识观点，且有少量重复和转写杂音。",
+      "candidate_id": "candidate_7f4a5d4251808e1e",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "该直播间提供声乐教学，并邀请观众提交音乐问题或参与连麦。",
+      "risk_summary": "内容主要是直播间介绍和互动推广，且部分重复语句转写不稳。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声乐教学直播间开场介绍",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选说明将讨论音乐初学者常见的高音卡顿和破音问题，但尚未给出原因或解决办法；其余部分主要是欢迎观众和连麦安排。",
+      "candidate_id": "candidate_f0c88f3966f4c86b",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "讲述者准备讲解音乐初学者常见的高音卡顿和破音问题。",
+      "risk_summary": "内容带有粉丝牌和连麦推广，且对初学者问题只完成了引题、没有展开解答。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "初学者常见的高音问题预告",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选以天赋和努力的对照形成直接观点，并明确区分职业出道与个人爱好，能够独立传达鼓励学习的信息；末段转向方言和说话位置，稍显离题。",
+      "candidate_id": "candidate_260b8f35571eae11",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "天赋会限制职业发展的基础条件，但技术和努力仍能提升演唱水平，作为爱好学习唱歌不受年龄限制。",
+      "risk_summary": "包含关于嗓音条件、年龄和职业可能性的概括性身体与能力判断。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "天赋、努力与不同年龄学习唱歌",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    }
+  ]
+}

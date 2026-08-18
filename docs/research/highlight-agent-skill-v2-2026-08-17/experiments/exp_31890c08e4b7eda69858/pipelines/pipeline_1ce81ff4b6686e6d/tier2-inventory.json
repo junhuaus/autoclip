@@ -1,0 +1,379 @@
+{
+  "accounting": {
+    "assessable_count": 45,
+    "excluded_count": 0,
+    "passed": true,
+    "topic_member_count": 45,
+    "unusable_count": 0
+  },
+  "excluded_candidates": [],
+  "inventory_summary": "本段自然形成十三个话题，主要围绕个体声乐诊断、课程形式、发声通道、呼吸与声带机制、三次连麦演唱及其反馈，以及直播运营和个人教学经历展开。",
+  "topics": [
+    {
+      "canonical_angle": "声乐改进应先听取个人声音、判断具体问题，再决定纠正顺序和练习方向。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_adab5d4da9ab2be6",
+          "member_angle": "依据声带闭合、声音挤压等基础问题安排纠错顺序。",
+          "relationship": "core",
+          "relationship_reason": "该成员最完整地提出了因人而异、按步骤纠正的核心主张。"
+        },
+        {
+          "candidate_id": "candidate_a1d7354902e340e6",
+          "member_angle": "通过连麦先判断问题，再说明针对性的改法。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复了先诊断个人问题、再按步骤纠正的主张。"
+        },
+        {
+          "candidate_id": "candidate_7062f9ba2a253131",
+          "member_angle": "让学员先练熟歌曲，再用短段演唱判断基础。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充了实际诊断所需的演唱材料和快速听辨方式。"
+        },
+        {
+          "candidate_id": "candidate_9442184e2836ee47",
+          "member_angle": "发声是否正确应听实际声音，不能只看口腔外形。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它从判断依据上补充了听声诊断的重要性。"
+        }
+      ],
+      "topic_id": "topic_9f418674927610ea",
+      "topic_label": "先听声诊断再安排纠错"
+    },
+    {
+      "canonical_angle": "普通爱好者不必先证明自己天赋出众，也可以把目标放在逐步唱得更好。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_473a7cc73ef551ea",
+          "member_angle": "反问普通学习者为何需要出道级天赋，并强调明显有天赋者很少。",
+          "relationship": "core",
+          "relationship_reason": "该成员独立且直接地讨论了普通人学唱歌是否必须有天赋。"
+        }
+      ],
+      "topic_id": "topic_ddae90b35bbe917b",
+      "topic_label": "普通人学唱歌是否需要天赋"
+    },
+    {
+      "canonical_angle": "直播中的课程宣传围绕一对一指导、线上授课、录屏复盘、录播课局限和效果承诺展开。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_26500385c10519ef",
+          "member_angle": "介绍一对一授课、课后录屏复盘和按个人问题调整的方法。",
+          "relationship": "core",
+          "relationship_reason": "它较完整地呈现了课程流程、个性化纠正和案例推广三项共同内容。"
+        },
+        {
+          "candidate_id": "candidate_bf1aa4701bd6f761",
+          "member_angle": "说明一对一技术课的定价，并宣称其效果优于录播课。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于同一课程推广话题，但增加了价格定位与效果比较。"
+        },
+        {
+          "candidate_id": "candidate_db82a842ff2401fa",
+          "member_angle": "反对零基础学习者购买录播课，转而推荐线上一对一课程。",
+          "relationship": "same_claim",
+          "relationship_reason": "它实质重复了指导型课程优于录播课的宣传主张。"
+        },
+        {
+          "candidate_id": "candidate_932087bda627a1c6",
+          "member_angle": "认为线上或线下不是关键，教师经验和判断力更重要。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它把课程选择问题转向教师质量，提供了不同的比较维度。"
+        },
+        {
+          "candidate_id": "candidate_4f46d35f2e2667ca",
+          "member_angle": "以教学经验和方法解释课程价值，并提出未进步退费。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它增加了教师方法与效果承诺这一商业角度。"
+        },
+        {
+          "candidate_id": "candidate_b6ce4961df030128",
+          "member_angle": "比较线下成本、线上指导和录播课效果，并提出退费承诺。",
+          "relationship": "same_claim",
+          "relationship_reason": "它集中复述了线上指导更合算、录播帮助有限的课程销售论点。"
+        },
+        {
+          "candidate_id": "candidate_1d0bcd4f6ed22861",
+          "member_angle": "主张咬字问题需要逐字按歌指导，并介绍课程录屏。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它用需要精细纠正的具体学员说明一对一指导相对录播课的价值。"
+        }
+      ],
+      "topic_id": "topic_e6982a4be749a2ef",
+      "topic_label": "一对一、线上与录播课程比较"
+    },
+    {
+      "canonical_angle": "美声、民族和流行演唱被描述为不同发声通道，学习者需要按目标唱法调整，而不能直接套用同一方式。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_b45014a64a6a9c53",
+          "member_angle": "直接比较美声、民族和流行唱法的通道与声音位置。",
+          "relationship": "core",
+          "relationship_reason": "它最明确、完整地概括了不同唱法使用不同通道的共同主题。"
+        },
+        {
+          "candidate_id": "candidate_368dc549dbba313f",
+          "member_angle": "指出美声唱得好不等于能唱好流行，并强调流行演唱的天赋因素。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它从能力不可直接迁移的角度说明美声与流行的差异。"
+        },
+        {
+          "candidate_id": "candidate_8fac69f83a04a15d",
+          "member_angle": "认为美声可能掩盖部分音准问题，同时降低普通爱好者的职业化要求。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它补充了训练差异可能带来的判断偏差和业余学习目标。"
+        },
+        {
+          "candidate_id": "candidate_1905cc42552496cb",
+          "member_angle": "把美声称为专业通道，并介绍从零学习流行唱法。",
+          "relationship": "same_claim",
+          "relationship_reason": "它沿用了美声与流行分属不同通道的分类框架，但展开有限。"
+        },
+        {
+          "candidate_id": "candidate_c09a0f37fab1e353",
+          "member_angle": "把流行通道进一步分成多种混声与转换技巧。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它在唱法通道差异之上增加了流行技巧的内部分类。"
+        },
+        {
+          "candidate_id": "candidate_4477e0c580eeaf0f",
+          "member_angle": "说明声音过白可能造成疲累，并主张转入适合流行唱法的通道。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它提供了通道使用不合适时可能出现的实际演唱负担。"
+        },
+        {
+          "candidate_id": "candidate_5c57e9b5dd359ae7",
+          "member_angle": "一名配音学习者认为自己的流行发声通道需要教师纠正。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它以学习者的实际诉求呈现了跨领域转向流行唱法时的通道问题。"
+        }
+      ],
+      "topic_id": "topic_35d12849b42c89c3",
+      "topic_label": "美声、民族与流行通道差异"
+    },
+    {
+      "canonical_angle": "高音卡住或破音被归因于沿用说话通道或气息等基础尚未建立，而非只需直接练高阶技巧。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_6b0ae4ac42937611",
+          "member_angle": "把高音卡顿和破音归因于缺少技巧及合适的发声通道。",
+          "relationship": "core",
+          "relationship_reason": "它以明确问题和原因构成了该话题最完整的组织主张。"
+        },
+        {
+          "candidate_id": "candidate_2e039a3e91689484",
+          "member_angle": "指出直接沿用日常说话通道可能限制高音。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复并具体化了通道不合适导致高音受阻的观点。"
+        },
+        {
+          "candidate_id": "candidate_de95d7468a7318ca",
+          "member_angle": "认为气息基础薄弱可能使高音训练长期停滞。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它为同一高音问题补充了基础气息训练这一成因角度。"
+        }
+      ],
+      "topic_id": "topic_8cab49a0feaf5e77",
+      "topic_label": "高音卡顿与基础通道"
+    },
+    {
+      "canonical_angle": "唱歌的直接振动来自声带，呼吸和身体支撑的作用是让气流以合适方式参与发声，而不是简单憋气或笼统地腹部发力。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_737064038099ef2a",
+          "member_angle": "用卧推憋气作反例，并以声带和纸张振动解释发声。",
+          "relationship": "core",
+          "relationship_reason": "它同时涵盖错误发力对比、声带位置和振动机制，最适合作为组织成员。"
+        },
+        {
+          "candidate_id": "candidate_e7e0739b77ace20a",
+          "member_angle": "强调声音由声带振动产生，气流经过声带的状态需要合适。",
+          "relationship": "same_claim",
+          "relationship_reason": "它直接重复了声带振动与气流配合的核心机制。"
+        },
+        {
+          "candidate_id": "candidate_2e74bd47f66c76ad",
+          "member_angle": "说明胸腹式联合呼吸只是基础，还要转化为支撑和实际演唱。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它增加了呼吸感觉如何进入发声通道和歌曲应用的训练角度。"
+        },
+        {
+          "candidate_id": "candidate_eda02f3bbfbc7462",
+          "member_angle": "通过吸气和呼气示范观察气流与腹部状态变化。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它提供了同一呼吸机制的现场示范角度，但结论尚未完全展开。"
+        }
+      ],
+      "topic_id": "topic_5431e7b97e66bf5c",
+      "topic_label": "声带振动、气流与呼吸支撑"
+    },
+    {
+      "canonical_angle": "一名演唱者在歌曲展示后被指出声音缺少厚度和穿透力，后续建议集中在调整偏高的位置感和增加下部支撑。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_8ba2743da2b9cb9e",
+          "member_angle": "从歌曲展示过渡到缺少厚度、穿透力及鼻腔挂位后难发力的诊断。",
+          "relationship": "core",
+          "relationship_reason": "它同时包含演唱依据、核心问题和演唱者感受，最能组织整次反馈。"
+        },
+        {
+          "candidate_id": "candidate_48324e904b930420",
+          "member_angle": "建议减少过高的位置感并增加下部支撑，以改善厚度和穿透力。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它承接核心诊断并给出了更完整的调整方向。"
+        },
+        {
+          "candidate_id": "candidate_729ff8b49cf26f22",
+          "member_angle": "重复强调声音位置偏高、胸腔支撑不足及调整后的可能效果。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与前一反馈实质相同，属于同一次诊断的重复片段。"
+        },
+        {
+          "candidate_id": "candidate_59b038f803f24532",
+          "member_angle": "呈现接受诊断前的歌曲演唱内容。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于同一次连麦事件，并提供了教师作出穿透力判断前的演唱依据。"
+        }
+      ],
+      "topic_id": "topic_3bae882d16684660",
+      "topic_label": "厚度与穿透力的连麦诊断"
+    },
+    {
+      "canonical_angle": "一名川渝演唱者完成歌曲后，被进一步指出鼻音习惯可能让高音发散，需要从咬字和声音集中度入手调整。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_995f11a38ef0e583",
+          "member_angle": "将地方口音中的鼻音习惯与高音发散联系起来，并提出调整咬字。",
+          "relationship": "core",
+          "relationship_reason": "它最完整地呈现了地域线索、鼻音诊断和调整方向。"
+        },
+        {
+          "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+          "member_angle": "继续说明鼻音偏多、声音发散以及咬字位置的调整。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复并延续了同一次连麦中的鼻音诊断。"
+        },
+        {
+          "candidate_id": "candidate_059b8bf41086721a",
+          "member_angle": "完成歌曲演唱后获得整体尚可的反馈，并进入川渝口音判断。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它提供了后续地域与鼻音分析所依据的演唱和对话起点。"
+        },
+        {
+          "candidate_id": "candidate_27e8574669b9e0c2",
+          "member_angle": "演唱者追加唱几句，希望验证唱歌状态与说话状态的差别。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它属于同一诊断过程，增加了通过再次演唱复核问题的环节。"
+        },
+        {
+          "candidate_id": "candidate_8e329a9311a36567",
+          "member_angle": "主播先缓解演唱者的紧张，再让其开始演唱。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它呈现了同一次连麦演唱开始前的互动与表演入口。"
+        }
+      ],
+      "topic_id": "topic_ff39240e55040854",
+      "topic_label": "川渝演唱者的鼻音与咬字"
+    },
+    {
+      "canonical_angle": "一名偏好节奏布鲁斯的演唱者展示歌曲后，被鼓励发挥自身音色和曲风优势，不必迎合不适合的大嗓或美声炫技路线。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_b7730933ffbad510",
+          "member_angle": "建议继续选择适合自身音色的节奏布鲁斯和抒情路线。",
+          "relationship": "core",
+          "relationship_reason": "它给出了这次演唱交流最明确的风格判断和结论。"
+        },
+        {
+          "candidate_id": "candidate_f262b8f87ac47de0",
+          "member_angle": "呈现演唱结尾、教师肯定及对外出演唱经历的询问。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它为风格建议提供了演唱表现和经历交流的直接背景。"
+        },
+        {
+          "candidate_id": "candidate_84a0a525d56ff5bd",
+          "member_angle": "呈现关系疏离主题的主要演唱段落。",
+          "relationship": "same_claim",
+          "relationship_reason": "它与其他演唱成员属于同一首歌、同一次展示的连续内容。"
+        },
+        {
+          "candidate_id": "candidate_9d47bf21dc719613",
+          "member_angle": "呈现该次歌曲展示的较短开头。",
+          "relationship": "same_claim",
+          "relationship_reason": "它是同一次演唱的重复片段，没有增加独立教学结论。"
+        }
+      ],
+      "topic_id": "topic_f43c655f0ec40914",
+      "topic_label": "节奏布鲁斯路线与音色适配"
+    },
+    {
+      "canonical_angle": "直播间通过开场介绍、连麦规则、灯牌互动和学员反馈来组织声乐教学与观众参与。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_3f73ee8bb04ee052",
+          "member_angle": "完整介绍连麦方式，并承诺快速指出观众的声乐问题。",
+          "relationship": "core",
+          "relationship_reason": "它最集中地说明了直播教学形式、参与方式和互动目标。"
+        },
+        {
+          "candidate_id": "candidate_0f91c0dab3dbb1a2",
+          "member_angle": "邀请观众连麦并介绍付费教学，同时点评现有学员。",
+          "relationship": "same_claim",
+          "relationship_reason": "它重复了连麦教学和课程招募的直播运营主线。"
+        },
+        {
+          "candidate_id": "candidate_f12c067f4578931f",
+          "member_angle": "调整直播画面并让助理重新介绍声乐教学直播间。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它增加了直播开场和幕后画面组织的角度。"
+        },
+        {
+          "candidate_id": "candidate_374a9f9e7e085c59",
+          "member_angle": "以学员反馈、灯牌互动和未完成的练习提问维持直播节奏。",
+          "relationship": "alternate_angle",
+          "relationship_reason": "它展示了直播运营中学员案例、互动催促和教学提问的混合方式。"
+        }
+      ],
+      "topic_id": "topic_152348f46237eab2",
+      "topic_label": "声乐直播的开场与连麦运营"
+    },
+    {
+      "canonical_angle": "主播以自己曾经的高音紧、舌根紧和漏气经历，解释其教学方法如何由个人学习与总结形成。",
+      "cluster_confidence": "high",
+      "members": [
+        {
+          "candidate_id": "candidate_159babdbda6acfe6",
+          "member_angle": "回顾自身发声问题、进修投入以及后来总结出的纠正方法。",
+          "relationship": "core",
+          "relationship_reason": "该成员独立构成从个人困难到教学方法形成的完整经历。"
+        }
+      ],
+      "topic_id": "topic_b3919446b8189a73",
+      "topic_label": "从个人发声问题形成教学方法"
+    },
+    {
+      "canonical_angle": "主播把适度锻炼与成年人肌肉和身体机能变化联系起来，鼓励观众保持日常运动。",
+      "cluster_confidence": "medium",
+      "members": [
+        {
+          "candidate_id": "candidate_e2c68e2187b0dda3",
+          "member_angle": "从提胸和健身互动转向年龄变化与适度锻炼建议。",
+          "relationship": "core",
+          "relationship_reason": "该成员是唯一集中讨论年龄、身体机能和锻炼建议的候选。"
+        }
+      ],
+      "topic_id": "topic_1f123e088a9ab44c",
+      "topic_label": "年龄变化与适度锻炼"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 00:13 PDT
+Updated: 2026-08-18 00:56 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -59,15 +59,22 @@ has no transport. Preflight v2 uses stdio with immediate EOF. Its real outer
 execution for the current formal experiment returned exit 0, status `ready`,
 `model_started=false` and `model_attempt_consumed=false`.
 
-The real sentinel used the first frozen source/repeat block. v2 completed its
-three Tier 1 batches, free Topic inventory and Tier 4 copy in five calls; it
-assessed 45 candidates, discovered 14 Topics, selected 12, used no repair and
-had zero exact-quote failures. Fresh v1 completed in one call, selected ten and
-had ten legacy `highlight_sentence` quote-binding shadow failures. Across all
-six calls there were no failure receipts, no unsafe item type and no Sol High
-call. Re-running `--sentinel` resumed both completed Pipeline receipts without
-new model calls. The Viewer and Judge dry-runs both rejected the partial matrix
-before producing an artifact or Judge call.
+The formal generator matrix is now complete: 12/12 Pipeline receipts and 36/36
+successful Call receipts across three unique sources, two arms and two repeats.
+All six v2 Pipelines selected 12 highlights and have zero outward exact-quote
+failures. Two first attempts needed the permitted single same-Tier repair: one
+Tier 4 exact-quote mismatch and one Tier 2 duplicate primary-Topic membership;
+both repaired attempts passed. There was no unsafe tool event and no Sol High
+call. Fresh v1 selected 8–11 highlights per run and recorded 7–11 legacy
+quote-binding shadow failures per run. A receipt-only full resume accepted all
+12 Pipelines without a new call.
+
+The source-first static Viewer was generated before qualitative interpretation
+at `docs/research/highlight-agent-skill-v2-2026-08-17/eval-review/iteration-1`.
+Dual-Judge dry-run `judge_da09efc4a848e5c8fc005b50` froze six inputs for Sol
+Max and Terra Max: three sources, two Judges, four opaque generator outputs per
+source. Blind inputs and Schemas contain no arm, Pipeline, Skill/model/effort,
+latency, token or self-score identity data. It made zero Judge model calls.
 
 ## Current user-visible result
 

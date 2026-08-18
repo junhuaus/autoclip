@@ -1,0 +1,28 @@
+{
+  "arm_id": "arm_068d613065ba727a",
+  "conditional_call_ids": {
+    "nonempty_portfolio": "call_6aa157c5170bfa1b"
+  },
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "fresh_generation": true,
+  "input_sha256": "1b7d77e407657adceaed7bd8e28fe286cfac1732e0a7784680053c3ccad331ec",
+  "pipeline_id": "pipeline_18bfb177ea010f9c",
+  "repeat": 1,
+  "required_call_ids": [
+    "call_9441685a1b8e2459",
+    "call_af0908e4a1cd8071",
+    "call_4c31215257938276",
+    "call_2fc1147dcb0678c5"
+  ],
+  "schema_version": "1",
+  "selection_configuration": {
+    "maximum_interval_iou": 0.45,
+    "maximum_text_jaccard": 0.65,
+    "minimum_quality": 55.0,
+    "top_n": 12
+  },
+  "skill_version": "v2",
+  "sol_high_execution": false,
+  "source_id": "src_4ae8fc713215e94c",
+  "tier1_batch_size": 15
+}

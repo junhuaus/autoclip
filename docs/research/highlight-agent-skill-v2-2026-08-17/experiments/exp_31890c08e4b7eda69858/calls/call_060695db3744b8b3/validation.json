@@ -1,0 +1,142 @@
+{
+  "schema_candidate_time_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10,
+  "v2_quote_gate_shadow_audit": {
+    "failed_count": 10,
+    "passed_count": 0,
+    "receipts": [
+      {
+        "candidate_id": "candidate_e27d41447dbfb889",
+        "candidate_text_sha256": "dbcfdc5f0c2200e65a0089d220e59d92606f54fac0403f3ce4299f1257c08864",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "调音修音只能美化但是修不了你们的通道修不了你们的共鸣腔体",
+        "normalized_start": null,
+        "quote_sha256": "81e3891027e7bdac20e6e1d6f7cc3ca771435a745d7069488a28c6bf2ce2f95b",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_260b8f35571eae11",
+        "candidate_text_sha256": "942049caddb299e359b826bf3c4a83761f1124c62fc0a2e82c60d42baeb8e005",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你可以通过技术让你的上限更高让你唱得比现在更好爱好不分年龄你什么时候学都不晚",
+        "normalized_start": null,
+        "quote_sha256": "7ae68affff575f78bae289c446ef829296b50f53e9bcdc46a2dc22c06708716a",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_2efa31efddfe10ed",
+        "candidate_text_sha256": "d64b69c059e4213b89f4f47b70ebcc0741160eed7b0fa4085b47ff634832c0b3",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你们一找舌头一在乎舌头舌头就发力舌头一发力就会有舌根音",
+        "normalized_start": null,
+        "quote_sha256": "70fd000c3471d19773ebbcc1405aa42629ac3441ee7e6e4375f4f34090cbbddb",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_a5c87afa0254618e",
+        "candidate_text_sha256": "3182b02b3432eeacc41abe412a055ea159424a44d11d6bdcd053b04432e4f29e",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你发现我练了那么长时间的气为什么唱歌还是觉得气不够呢是因为你在唱的时候把气漏走了",
+        "normalized_start": null,
+        "quote_sha256": "db03edff7653c65a6014abf5b3a46dbdaa8514177e86fee96a4a02533814a8ed",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_2716045703db1f3b",
+        "candidate_text_sha256": "62fe2dc2e9bc29062b8cbeda70d9a9d9ab271b45061eb91ad547c2e9a49fc078",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我们唱歌的步骤一定要从真声开始你一定要找到自己真声的咬字位置找到咬字的通道再过渡到高音的真声",
+        "normalized_start": null,
+        "quote_sha256": "d2a0c663fe5c5993ecbf591dab17ac49cbfbd1f033f29254c464ddffa80901a4",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_638470bcf20511aa",
+        "candidate_text_sha256": "31b67165fbf195f66029bd127fd1714aaed53518648e38a3fca8fac54f2ac045",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你必须借助你的通道腔体位置你才能唱到这个地方的高音而不是让你去喊上去",
+        "normalized_start": null,
+        "quote_sha256": "82e5d61963ab90c7e73caab2cb7f8e1d2370b67f72b5260fab8c6cb6f56f8af4",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_22d3260a7179c022",
+        "candidate_text_sha256": "9ae97525986006f916c926c8cd6a36c6fd85444f16afedb581d0a172c11268b5",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你现在有一个问题就是你的咬字不清楚你太去找这个通道了它往后抠了你的咬字位置太靠后了",
+        "normalized_start": null,
+        "quote_sha256": "e8db1f2cad5185c69df6d43f2585571876eac1076747e619c4c836ed01051817",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_4305cfa07f8b1fbf",
+        "candidate_text_sha256": "23e9256fe2b895f756c5211b49f1ede21f2674dde411906d4e63c4e4b3df1e9c",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "有锻炼基础的同学四到六分钟没有锻炼基础的同学一到三分钟千万不要一次做十分钟一定要分开做",
+        "normalized_start": null,
+        "quote_sha256": "0f964602ff7796d309b551552d137ff2100fbf37dd966dd061d75eb88baea658",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_5d3778b0260b9b65",
+        "candidate_text_sha256": "d5d5e94accdb422ecbeae4cea9c463dd12ab927e0df6fe02e0b389ce7a98fe2b",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你不要去模仿网上那种大师因为他们练了很多年了你以为模仿到了其实没有而且会有其他的问题",
+        "normalized_start": null,
+        "quote_sha256": "a49ea5d64d320aa0f8bc8bad73e50a993dd22ab53af0dd1e4b3e36142a9e88d0",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_f1d87e3d981d87dc",
+        "candidate_text_sha256": "4925d53e0523b978d028b13c17c9c60294899d877da88c39afbe30801d776510",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "因为你知道了我们说话也是有音调的你学了这个通道之后你会让气息参与说话也会好",
+        "normalized_start": null,
+        "quote_sha256": "c74e06ae77cfbcedfcaaa88f8bb5761eecfd178d442197057590299a1314d9ac",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      }
+    ],
+    "selected_count": 10
+  }
+}

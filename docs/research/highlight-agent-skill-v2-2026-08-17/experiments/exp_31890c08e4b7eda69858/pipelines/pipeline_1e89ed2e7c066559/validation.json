@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "candidate_text_sha256": "d5d5e94accdb422ecbeae4cea9c463dd12ab927e0df6fe02e0b389ce7a98fe2b",
+      "normalized_end": 150,
+      "normalized_quote": "你要先找到你的唱歌的这个通道你的音色的通道你不要去模仿那个你在网上看那种大师啊因为他们练了很多年了",
+      "normalized_start": 101,
+      "quote_sha256": "d6fa399d61b20a77628c090fb809c32ba5020c1b8757bfb8e4de4f0f922a6898",
+      "raw_end": 156,
+      "raw_start": 107,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_a5c87afa0254618e",
+      "candidate_text_sha256": "3182b02b3432eeacc41abe412a055ea159424a44d11d6bdcd053b04432e4f29e",
+      "normalized_end": 118,
+      "normalized_quote": "如果说我加上胸腔像我第一个像我叹下去的时候我的气就已经走了",
+      "normalized_start": 89,
+      "quote_sha256": "b14dd50252e4f4d5d5112d26e56a17d5c9b1b3de6758e71a618ca1218fd1fd31",
+      "raw_end": 118,
+      "raw_start": 89,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "candidate_text_sha256": "8fccf63bd7e4be22c999e7e0da51f5c0e53eb16d7e8ce2359e953fee1e1db67a",
+      "normalized_end": 164,
+      "normalized_quote": "有些同学比较敏感他会容易红肿不舒服干痒我自己非常不喜欢这个的练习",
+      "normalized_start": 132,
+      "quote_sha256": "5b2fb14592cc535c438047ec0cb7ffd6c565f350bfa440c9d57304f4929ef4c3",
+      "raw_end": 166,
+      "raw_start": 132,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "candidate_text_sha256": "942049caddb299e359b826bf3c4a83761f1124c62fc0a2e82c60d42baeb8e005",
+      "normalized_end": 143,
+      "normalized_quote": "但是你可以通过技术让你的上限更高让你唱的比现在更好这就是现在很多小白说老师我都60多了50多了是吧能不能学能学当然能学爱好不分年龄",
+      "normalized_start": 78,
+      "quote_sha256": "5bbb9d2f20234fc4e10bd23c3a46d34deb9fdd9d9af81f29a4a9c9e49a371b57",
+      "raw_end": 143,
+      "raw_start": 78,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "candidate_text_sha256": "6455738b0904a87af93424df50d26e770f019e222ee66267fe2bc5ecaf6f37e1",
+      "normalized_end": 242,
+      "normalized_quote": "肚脐下面三指我们可以在我们吸气的时候感受到这个位置的一个起伏那么ok你的气息通道是对的",
+      "normalized_start": 199,
+      "quote_sha256": "df8ba8722250d00fb7b4d410b7daf2f69c61353d80f93bcc2f52fd2884cb737d",
+      "raw_end": 243,
+      "raw_start": 200,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "candidate_text_sha256": "d64b69c059e4213b89f4f47b70ebcc0741160eed7b0fa4085b47ff634832c0b3",
+      "normalized_end": 172,
+      "normalized_quote": "如果说你现在实在是老师我不知道在哪放了同学怎么办放在下牙齿后面地住他在的你看你不能这样唱抵住下牙齿后面一点点不要刻意使劲挤",
+      "normalized_start": 111,
+      "quote_sha256": "eadc59b92a3734cc1105b8ccf4f9e73040e2eef69e17702307bf1c5a0cc270f6",
+      "raw_end": 184,
+      "raw_start": 119,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "candidate_text_sha256": "dbcfdc5f0c2200e65a0089d220e59d92606f54fac0403f3ce4299f1257c08864",
+      "normalized_end": 205,
+      "normalized_quote": "他修的只能去美化但是修不了你们的通道修不了你们的共鸣腔体",
+      "normalized_start": 177,
+      "quote_sha256": "2c69bb39d86337cd402949efa98a09acc1b3d928ffb81d80c58de386a7103017",
+      "raw_end": 207,
+      "raw_start": 179,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_2e7f0f8e0e88fae2",
+      "candidate_text_sha256": "3d8127eecbfe33b71e94183ea0503da85a29e9a4f5f2a3ac925ec37a4f9484a5",
+      "normalized_end": 184,
+      "normalized_quote": "它是有节奏的你听它是有个你看这你就跟着这个鼓点",
+      "normalized_start": 161,
+      "quote_sha256": "97aa373396a580927ec0958a78fa333f03ba74d365d33af678a6e9c0f71ee278",
+      "raw_end": 185,
+      "raw_start": 162,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "candidate_text_sha256": "33795828e2de2d5b86df6892f689af10fb76e3a8d320a2229bc73e92e8ca3784",
+      "normalized_end": 85,
+      "normalized_quote": "我们唱歌的步骤一定要从真声开始你一定要找到自己真声的咬字位置找到咬字的通道ok我们再过渡到高音的真声",
+      "normalized_start": 35,
+      "quote_sha256": "de92fc613b985012e2cbce6a951982158c45e5739313a8fbd855b1b51f3330d5",
+      "raw_end": 92,
+      "raw_start": 38,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "candidate_text_sha256": "4925d53e0523b978d028b13c17c9c60294899d877da88c39afbe30801d776510",
+      "normalized_end": 57,
+      "normalized_quote": "他说跟我学完这个几节课之后哎在学校给学生讲课的时候嗓子都觉得轻松了",
+      "normalized_start": 24,
+      "quote_sha256": "06ff2071a12ed21d4e78791a7e1d32a66f6872890170785c12bdf33b5cd242cc",
+      "raw_end": 57,
+      "raw_start": 24,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_c0638f35973b6082",
+      "candidate_text_sha256": "799784fd217aeae9c719979c2e5e45b9f45f01c8dee699d242e7661f196fe44b",
+      "normalized_end": 104,
+      "normalized_quote": "我上完课我要把你们的视频拷贝下来",
+      "normalized_start": 88,
+      "quote_sha256": "f5fcbb94d670f68327f8718aa1aac26d8ecd0be5417e0c2665df20f1413af4d7",
+      "raw_end": 104,
+      "raw_start": 88,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_d3981771b1792fc6",
+      "candidate_text_sha256": "7b635e2eb2512a450e41d4277d072f06105efdfc537d11754cb5e84b98bffcf4",
+      "normalized_end": 235,
+      "normalized_quote": "但是我跟你上完一节课之后我发现真的是有进步的接着跟我报了试节课",
+      "normalized_start": 204,
+      "quote_sha256": "95eea4206cd249175e9d84bbbe3a5a93bb74bac90a1c8627a5a659b2f16a3417",
+      "raw_end": 237,
+      "raw_start": 206,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

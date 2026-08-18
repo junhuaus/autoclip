@@ -1,0 +1,1504 @@
+{
+  "contract_version": "liveclip-highlight-agent-v2.iteration-1",
+  "highlights": [
+    {
+      "candidate_id": "candidate_26500385c10519ef",
+      "edited_sentence": "一对一课程保留录屏，便于课后回听并根据个人问题调整声音位置。",
+      "evidence_quote": "我们全程是有课程的录屏的我每次下课会把这个录屏发给你这个录屏特别好你会去看到自己身上的问题你会去听你会去听你会去听自己的这个声音我到底是靠前还是靠后",
+      "evidence_receipt": {
+        "candidate_text_sha256": "3eae25a766a5fef38c6bbbae9772122b17f0356e32e5736c1db115ee3a8e4753",
+        "normalized_end": 272,
+        "normalized_quote": "我们全程是有课程的录屏的我每次下课会把这个录屏发给你这个录屏特别好你会去看到自己身上的问题你会去听你会去听你会去听自己的这个声音我到底是靠前还是靠后",
+        "normalized_start": 198,
+        "quote_sha256": "03e9b1be5794aad6a9d76864b9a129cff7cbea8745da8de5e0bc24678c02c398",
+        "raw_end": 272,
+        "raw_start": 198,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "声音该靠前还是靠后？先从自己的课程录屏里找问题。",
+      "keywords": [
+        "一对一教学",
+        "课程录屏",
+        "声音位置",
+        "个性化调整",
+        "课后复盘"
+      ],
+      "quality_score_x100": 7875,
+      "risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段介绍课程录屏的复盘价值，并指出声音位置不能套用统一答案，应结合个人问题判断。兼具实用观点与课程推广属性，相关训练建议宜经专业复核。",
+      "selection_reason": "它以录屏回听连接个人诊断与针对性调整，完整代表个体化声乐纠错话题。",
+      "source_end_ms": 2639680,
+      "source_start_ms": 2577550,
+      "title": "用课程录屏复盘声音问题",
+      "topic": "个体诊断与声乐纠错顺序",
+      "topic_id": "topic_c3ab6aeeff810e6e"
+    },
+    {
+      "candidate_id": "candidate_737064038099ef2a",
+      "edited_sentence": "发声的直接来源是声带振动，唱歌不能简单照搬力量训练时憋气和胸部发力的方式。",
+      "evidence_quote": "我们声带在哪啊我们声带在腹部吗我们声带在哪来 给大家指一下你用手给大家指声带OK你就不用管在哪就在这儿你肯定是知道吧你说话的时候这个位置它是震动的你能感受到吗同学们声带在这儿震动发声",
+      "evidence_receipt": {
+        "candidate_text_sha256": "034cb67227a9f1037d7d7183e8d25c2ab8d6f5557665614a4660dc85f0d854b7",
+        "normalized_end": 302,
+        "normalized_quote": "我们声带在哪啊我们声带在腹部吗我们声带在哪来给大家指一下你用手给大家指声带ok你就不用管在哪就在这儿你肯定是知道吧你说话的时候这个位置它是震动的你能感受到吗同学们声带在这儿震动发声",
+        "normalized_start": 212,
+        "quote_sha256": "3afebe7436a83798012cb7124fccd2b7ced0b22a894071f52227ae323f0109a6",
+        "raw_end": 306,
+        "raw_start": 215,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "唱歌发力和健身推举，为什么不能用同一套逻辑？",
+      "keywords": [
+        "声带振动",
+        "唱歌发力",
+        "憋气",
+        "胸部发力",
+        "发声原理"
+      ],
+      "quality_score_x100": 7500,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段用力量训练时的憋气作对照，解释唱歌发力不能被简单理解为胸腹部直接发声，并把重点落到声带振动。身体位置与动作示范需要结合画面核验。",
+      "selection_reason": "它用鲜明类比切入错误发力，再提出声带振动这一核心解释，代表性和进入感都较强。",
+      "source_end_ms": 598520,
+      "source_start_ms": 539690,
+      "title": "唱歌发力不是健身推举",
+      "topic": "声带振动、气流与错误发力",
+      "topic_id": "topic_125cbb47045026c4"
+    },
+    {
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "edited_sentence": "从高音卡紧、下巴和舌根紧到声音漏气，这些个人经历推动了教学方法的总结。",
+      "evidence_quote": "我之前什么问题都有高音卡紧然后那个高音卡紧下巴紧舌根紧不放松然后声音漆漆漏气我全都有所以我现在进步为什么这么大我的学员为什么进步这么大我会把自己的这个问题我当时真的没有抖音这些东西完全是自己研究找大师上课",
+      "evidence_receipt": {
+        "candidate_text_sha256": "74daabc2264d7e740002660ddb55596a8611c20ba0dcfab3eb96899eeb95c8f1",
+        "normalized_end": 140,
+        "normalized_quote": "我之前什么问题都有高音卡紧然后那个高音卡紧下巴紧舌根紧不放松然后声音漆漆漏气我全都有所以我现在进步为什么这么大我的学员为什么进步这么大我会把自己的这个问题我当时真的没有抖音这些东西完全是自己研究找大师上课",
+        "normalized_start": 38,
+        "quote_sha256": "d145b02907f3bbdacef02d76d97430642585959044b59b06dbe846ba56faa59c",
+        "raw_end": 140,
+        "raw_start": 38,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "教学方法从哪里来？先看讲述者自己经历过哪些发声困扰。",
+      "keywords": [
+        "高音卡紧",
+        "舌根紧",
+        "声音漏气",
+        "学习经历",
+        "教学方法"
+      ],
+      "quality_score_x100": 7375,
+      "risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段以个人曾经面对的多种发声问题为起点，讲述通过自行研究和专业学习形成方法的过程。个人经历清楚，但延伸出的教学效果仍带有推广性质。",
+      "selection_reason": "它提供了从亲身困扰到方法形成的叙事链条，为教学理念补充了个人来源。",
+      "source_end_ms": 1699420,
+      "source_start_ms": 1644260,
+      "title": "从发声困扰到教学方法",
+      "topic": "从发声困扰到教学方法",
+      "topic_id": "topic_b3919446b8189a73"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "edited_sentence": "更准确的说法是胸腹式联合呼吸，而找到这种感觉只是把它用于唱歌的起点。",
+      "evidence_quote": "叫做胸腹式联合呼吸它专业名词它不是腹式它不是胸腔它叫胸腹式联合呼吸很抽象但是我们会用一套方法让你把这个声音用在唱歌上这才是OK的你只是找到了它只是才占10%",
+      "evidence_receipt": {
+        "candidate_text_sha256": "053e0f138bdb42389f2ca361d751c23dff5f91e72c28205f229ab5a6a246a881",
+        "normalized_end": 298,
+        "normalized_quote": "叫做胸腹式联合呼吸它专业名词它不是腹式它不是胸腔它叫胸腹式联合呼吸很抽象但是我们会用一套方法让你把这个声音用在唱歌上这才是ok的你只是找到了它只是才占10",
+        "normalized_start": 221,
+        "quote_sha256": "2d96901f1bc921139cce6b5061ac6c9fdaca4904ad17aaa811ebe2510c9f94c6",
+        "raw_end": 298,
+        "raw_start": 221,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "只会“腹式呼吸”就会唱歌吗？这段给出更具体的说法。",
+      "keywords": [
+        "胸腹式联合呼吸",
+        "气息支撑",
+        "呼吸训练",
+        "实际演唱"
+      ],
+      "quality_score_x100": 7375,
+      "risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段纠正单称“腹式呼吸”的表述，强调胸腹式联合呼吸还需进一步落实到演唱中。观点明确，但比例和训练效果属于讲述者主张，发布前宜复核。",
+      "selection_reason": "它直接回应常见呼吸疑问，并区分“找到感觉”与“用于演唱”，完整呈现该话题的关键层次。",
+      "source_end_ms": 2374040,
+      "source_start_ms": 2296270,
+      "title": "呼吸感觉只是演唱起点",
+      "topic": "胸腹式联合呼吸与气息支撑",
+      "topic_id": "topic_a9974436dcc19564"
+    },
+    {
+      "candidate_id": "candidate_4f46d35f2e2667ca",
+      "edited_sentence": "讲述者把教学经验和方法视为课程价值，并作出一定课次后无进步可退费的承诺。",
+      "evidence_quote": "你像我们这边十节课没有进步直接退费现在没有一个同学这种你包括还有同行的老师会跟着我去上课是的明显有进步所以还是说老师选的好老师的方法经验是最重要的一环",
+      "evidence_receipt": {
+        "candidate_text_sha256": "15f5f06ae38b45b57d9b7c2ba7b06b61449ceb1219bc226170a04ffbb2534b05",
+        "normalized_end": 75,
+        "normalized_quote": "你像我们这边十节课没有进步直接退费现在没有一个同学这种你包括还有同行的老师会跟着我去上课是的明显有进步所以还是说老师选的好老师的方法经验是最重要的一环",
+        "normalized_start": 0,
+        "quote_sha256": "9421bd5bb4ac9a1f54cb2a80e34d1c024b0cc6462cb368a3ef31ce8f1bb07729",
+        "raw_end": 75,
+        "raw_start": 0,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "课程价值如何证明？这段把方法、经验与退费承诺放在一起。",
+      "keywords": [
+        "声乐课程",
+        "退费承诺",
+        "教学经验",
+        "教学方法",
+        "课程效果"
+      ],
+      "quality_score_x100": 7125,
+      "risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这是一段集中的课程价值陈述，以教师经验、教学方法和退费承诺支撑购买理由。商业信息清晰，但效果与退费条件需要编辑另行核实。",
+      "selection_reason": "它集中呈现课程定价背后的价值论述和效果承诺，是商业课程话题的典型表达。",
+      "source_end_ms": 2521740,
+      "source_start_ms": 2465470,
+      "title": "教学方法与退费承诺",
+      "topic": "一对一课程定价与效果承诺",
+      "topic_id": "topic_cc0bc3f067246e64"
+    },
+    {
+      "candidate_id": "candidate_48324e904b930420",
+      "edited_sentence": "这次诊断认为声音位置偏上、下方支撑不足，调整后或可增加厚度与穿透力。",
+      "evidence_quote": "你下边这个东西太少了你胸腔胸腔支撑这种太少了哎呀哎呀太在这了其实你其实就位置太靠这了上面了对对对上面东西再少一点下面东西再多一点其实你的声音会穿透力更强",
+      "evidence_receipt": {
+        "candidate_text_sha256": "0fd4691fd39f816ab4ac4c654498326d2dd50359c4f4c4d67ad7b6cc47aee0dd",
+        "normalized_end": 163,
+        "normalized_quote": "你下边这个东西太少了你胸腔胸腔支撑这种太少了哎呀哎呀太在这了其实你其实就位置太靠这了上面了对对对上面东西再少一点下面东西再多一点其实你的声音会穿透力更强",
+        "normalized_start": 87,
+        "quote_sha256": "3ecc5343fb820bf25e35c1e1f0bd9794315936a2be5e88ecbcb2e839fb697c5d",
+        "raw_end": 163,
+        "raw_start": 87,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "声音不够厚、不够有穿透力，问题可能出在位置与支撑的配合。",
+      "keywords": [
+        "声音厚度",
+        "穿透力",
+        "声音位置",
+        "胸腔支撑",
+        "演唱诊断"
+      ],
+      "quality_score_x100": 6750,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段针对一位演唱者给出位置与支撑方面的诊断，把声音偏上、下方支撑不足与穿透力联系起来。大量指示性用语依赖现场声音和动作，需结合原始视听材料复核。",
+      "selection_reason": "它把抽象的穿透力问题落到声音位置和支撑关系上，提供了具体但需要核验的诊断角度。",
+      "source_end_ms": 3143690,
+      "source_start_ms": 3088810,
+      "title": "穿透力与声音支撑",
+      "topic": "穿透力、声音厚度与支撑",
+      "topic_id": "topic_3bae882d16684660"
+    },
+    {
+      "candidate_id": "candidate_b6ce4961df030128",
+      "edited_sentence": "讲述者认为线上学习可降低线下出行和课程成本，并以退费承诺回应效果顾虑。",
+      "evidence_quote": "一个是我线下价格肯定是要比线上贵的贵两倍甚至贵两倍再一个就是我现在是在山东你们来一趟光飞机票两三千没必要你如果说线上咱们没进步我直接退费了",
+      "evidence_receipt": {
+        "candidate_text_sha256": "32d0d76b5e8bbc61d0f0b575cb5349bf3f7c51dadcb0a8b2c881785c63585174",
+        "normalized_end": 69,
+        "normalized_quote": "一个是我线下价格肯定是要比线上贵的贵两倍甚至贵两倍再一个就是我现在是在山东你们来一趟光飞机票两三千没必要你如果说线上咱们没进步我直接退费了",
+        "normalized_start": 0,
+        "quote_sha256": "81132116caec11edd440dcb77f1df2f2944cbed345e93df7dbbd7447d207d083",
+        "raw_end": 69,
+        "raw_start": 0,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "录播、线上一对一还是线下？先看成本与保障如何被比较。",
+      "keywords": [
+        "线上课程",
+        "线下课程",
+        "录播课",
+        "学习成本",
+        "退费保障"
+      ],
+      "quality_score_x100": 6750,
+      "risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段从价格、出行成本和退费承诺比较线上与线下学习，随后表达对录播课效果的强烈质疑。适合作为课程选择争议的入口，但价格、概率和承诺均需核实。",
+      "selection_reason": "它同时覆盖成本、保障与课程形式选择，清楚呈现零基础学习者可能面对的决策维度。",
+      "source_end_ms": 2291600,
+      "source_start_ms": 2239550,
+      "title": "线上与线下课程怎么选",
+      "topic": "录播、线上与线下课程选择",
+      "topic_id": "topic_0c7a4d29114ef0c9"
+    },
+    {
+      "candidate_id": "candidate_b7730933ffbad510",
+      "edited_sentence": "一位医药专业的学员正在跨行业尝试原创音乐，并得到继续加油的鼓励。",
+      "evidence_quote": "我其实我自己还有另一个身份 我我自己是做原创的啊 你会编曲吗你会编曲吗会一点你是学这个的吗没有 我学医药的哇塞 你就直接跨行业了从小就梦想但在我家里面我都希望我学医药",
+      "evidence_receipt": {
+        "candidate_text_sha256": "66a1aceb28c788912211f9baa166e24b14a05a7cb18ebbc17089701891840cbb",
+        "normalized_end": 285,
+        "normalized_quote": "我其实我自己还有另一个身份我我自己是做原创的啊你会编曲吗你会编曲吗会一点你是学这个的吗没有我学医药的哇塞你就直接跨行业了从小就梦想但在我家里面我都希望我学医药",
+        "normalized_start": 206,
+        "quote_sha256": "f448f7d4a0e6a7c47dc4bb46e4df83550f86c2f8830449c70680f8f552f7ff29",
+        "raw_end": 303,
+        "raw_start": 220,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "学医药，却从小怀着原创音乐梦想：一次跨行业选择浮出水面。",
+      "keywords": [
+        "原创音乐",
+        "跨专业",
+        "医药专业",
+        "音乐梦想",
+        "编曲"
+      ],
+      "quality_score_x100": 6250,
+      "risk_flags": [
+        "context_dependency"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段从曲风交流转入学员的个人故事：本科学习方向与原创音乐兴趣不同，却仍在尝试创作。它为技术密集的内容组合补充了轻松、有人物感的梦想叙事。",
+      "selection_reason": "它以真实对话呈现跨专业追求原创音乐的 distinct 角度，并延伸了“选择适合自己的道路”这一主题。",
+      "source_end_ms": 3574460,
+      "source_start_ms": 3515280,
+      "title": "医药专业的原创音乐梦",
+      "topic": "适合的曲风与跨专业音乐梦想",
+      "topic_id": "topic_8dadc2cb3e2c4605"
+    },
+    {
+      "candidate_id": "candidate_c09a0f37fab1e353",
+      "edited_sentence": "讲述者认为声音过白容易造成疲劳，并把流行技巧归入需要继续细分训练的发声通道。",
+      "evidence_quote": "声音很白唱了几首歌这种一定会累嗓子一定会痛的那我们流行通道要在二号通道里走再给我两分钟当然二号通道我们又会细分很多的技巧",
+      "evidence_receipt": {
+        "candidate_text_sha256": "75d0db7c58ecce3529e052171bc07b21ab94a9053f3463f13b417da512454c69",
+        "normalized_end": 69,
+        "normalized_quote": "声音很白唱了几首歌这种一定会累嗓子一定会痛的那我们流行通道要在二号通道里走再给我两分钟当然二号通道我们又会细分很多的技巧",
+        "normalized_start": 9,
+        "quote_sha256": "03d806718f1e79693fe3ce848bc6bde206241a06fbf27ef8668059a9dedf5324",
+        "raw_end": 69,
+        "raw_start": 9,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "从声音过白到流行技巧，发声通道为什么还要继续细分？",
+      "keywords": [
+        "声音过白",
+        "流行唱法",
+        "发声通道",
+        "嗓音疲劳",
+        "技巧训练"
+      ],
+      "quality_score_x100": 6125,
+      "risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "script_description": "这段把声音过白与演唱疲劳联系起来，并介绍其对流行技巧和专业通道的分类思路。观点具有教学框架感，但嗓音不适与分类方法都宜由专业人员复核。",
+      "selection_reason": "它将嗓音疲劳问题与唱法通道分类相连，为不同唱法的训练差异提供了明确入口。",
+      "source_end_ms": 1922250,
+      "source_start_ms": 1865230,
+      "title": "声音过白与唱法通道",
+      "topic": "美声、民族与流行通道差异",
+      "topic_id": "topic_154dcc0a7bc6ddc4"
+    },
+    {
+      "candidate_id": "candidate_473a7cc73ef551ea",
+      "edited_sentence": "普通人学习唱歌不必先证明自己有突出天赋，顶尖职业目标才更强调先天条件。",
+      "evidence_quote": "老师我想学唱歌不知道自身有没有音乐条件你要条件干嘛要出道吗你要出道吗你要来当大学老师抢老师饭碗吗你要干嘛你要上天吗你要干嘛你要一步登天成为这个音乐界的李承飞吗你要干嘛你要这么好的条件干嘛都是普通人有天赋的人非常少非常少",
+      "evidence_receipt": {
+        "candidate_text_sha256": "ba42aa94111357c525b8e7b8f2e35793de1287e0469db8958e1006c24a34477c",
+        "normalized_end": 240,
+        "normalized_quote": "老师我想学唱歌不知道自身有没有音乐条件你要条件干嘛要出道吗你要出道吗你要来当大学老师抢老师饭碗吗你要干嘛你要上天吗你要干嘛你要一步登天成为这个音乐界的李承飞吗你要干嘛你要这么好的条件干嘛都是普通人有天赋的人非常少非常少",
+        "normalized_start": 131,
+        "quote_sha256": "f3498a7a302077654b6adbfa95b21e043674ca37538331c16c275c171b38a346",
+        "raw_end": 240,
+        "raw_start": 131,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "没有音乐天赋，还能不能学唱歌？这段用反问给出直接回应。",
+      "keywords": [
+        "音乐天赋",
+        "普通人学唱歌",
+        "零基础",
+        "职业目标"
+      ],
+      "quality_score_x100": 5875,
+      "risk_flags": [
+        "incomplete_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "script_description": "这段回应学习者对音乐条件的担忧，区分普通兴趣学习与职业化目标，以连续反问形成鲜明节奏。前部夹有直播招揽，练习观点也未展开，宜截取完整问答核心。",
+      "selection_reason": "它抓住“学唱歌是否需要天赋”的普遍焦虑，以明确态度形成易传播的争议点。",
+      "source_end_ms": 1619560,
+      "source_start_ms": 1558080,
+      "title": "普通人学唱歌需要天赋吗",
+      "topic": "普通人学唱歌与流行天赋",
+      "topic_id": "topic_26b58fe1a27b4b4f"
+    },
+    {
+      "candidate_id": "candidate_6b0ae4ac42937611",
+      "edited_sentence": "讲述者把高音受阻和破音归因于缺少唱歌技巧，以及尚未掌握合适的发声通道。",
+      "evidence_quote": "你知道为什么打不上去吗你知道为什么吗你知道高音为什么砍你吗小助理你不知道你是托吗这个人说别说我阴阳谁阴阳你为什么唱不上去因为你没有唱歌的技巧技术没有没有爆技术课我刚想说没有爆技术课因为你没有掌握到唱歌的通道",
+      "evidence_receipt": {
+        "candidate_text_sha256": "6d7b8b2e7e49feacbb76a864a7e5b32c216a8bc4ed94eb104b1ada192c7c4f8c",
+        "normalized_end": 237,
+        "normalized_quote": "你知道为什么打不上去吗你知道为什么吗你知道高音为什么砍你吗小助理你不知道你是托吗这个人说别说我阴阳谁阴阳你为什么唱不上去因为你没有唱歌的技巧技术没有没有爆技术课我刚想说没有爆技术课因为你没有掌握到唱歌的通道",
+        "normalized_start": 134,
+        "quote_sha256": "daa9f65212333147a2ebccfb4faa2800c6959bad2ced3e834b6272c6670f8c71",
+        "raw_end": 237,
+        "raw_start": 134,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "高音唱不上去、容易破音，讲述者把原因指向“发声通道”。",
+      "keywords": [
+        "高音困难",
+        "破音",
+        "发声技巧",
+        "发声通道",
+        "嗓音不适"
+      ],
+      "quality_score_x100": 5875,
+      "risk_flags": [
+        "incomplete_claim",
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "script_description": "这段以高音受阻、破音等常见困扰切入，将原因解释为技巧与发声通道尚未掌握。问题入口直接，但通道概念没有在候选内完整展开，且相关健康判断需要复核。",
+      "selection_reason": "它用常见痛点快速建立关注，并为“大白嗓通道”话题提供清楚的前置问题。",
+      "source_end_ms": 166440,
+      "source_start_ms": 113970,
+      "title": "高音受阻与发声通道",
+      "topic": "高音困难与大白嗓通道",
+      "topic_id": "topic_59a4cbbf3fcd2a5d"
+    },
+    {
+      "candidate_id": "candidate_9442184e2836ee47",
+      "edited_sentence": "判断发声是否正确，不能只追求喉咙或舌头的形状，还要先听实际声音。",
+      "evidence_quote": "老师我想问一下喉咙打开但是舌头不会勾撞发声正确吗我得听声音我要刻意追求它的形状是靠听感听上你最好能上麦上麦我听一下",
+      "evidence_receipt": {
+        "candidate_text_sha256": "cf94b4df12fa758091a391fb645fee4553b6313a65273672ae037ddfe4582065",
+        "normalized_end": 186,
+        "normalized_quote": "老师我想问一下喉咙打开但是舌头不会勾撞发声正确吗我得听声音我要刻意追求它的形状是靠听感听上你最好能上麦上麦我听一下",
+        "normalized_start": 129,
+        "quote_sha256": "a43eaa5a7137563664a08899ba5e65c2e7eedd2550a4377d249074c2cbfe7427",
+        "raw_end": 186,
+        "raw_start": 129,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "喉咙打开、舌头保持某种形状，就能判断发声正确吗？",
+      "keywords": [
+        "发声判断",
+        "喉咙状态",
+        "舌头形状",
+        "实际声音",
+        "听感"
+      ],
+      "quality_score_x100": 5750,
+      "risk_flags": [
+        "incomplete_claim",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "script_description": "这段面对具体姿态问题，没有仅凭口腔形状下结论，而是要求先听实际声音。它提供了谨慎的评估原则，但后续试唱与诊断结果不在候选中。",
+      "selection_reason": "它强调姿态观察必须结合听感，为声乐诊断提供了区别于单看动作的独立原则。",
+      "source_end_ms": 3829470,
+      "source_start_ms": 3763420,
+      "title": "发声姿态要结合听感",
+      "topic": "发声姿态必须结合听感判断",
+      "topic_id": "topic_ae68ef2a3bc511ed"
+    }
+  ],
+  "portfolio": {
+    "algorithm_version": "topic-first-portfolio-v2",
+    "configuration": {
+      "maximum_interval_iou": 0.45,
+      "maximum_text_jaccard": 0.65,
+      "minimum_quality": 55.0,
+      "top_n": 12
+    },
+    "ledger": [
+      {
+        "candidate_id": "candidate_adab5d4da9ab2be6",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7500,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_c3ab6aeeff810e6e"
+      },
+      {
+        "candidate_id": "candidate_473a7cc73ef551ea",
+        "disposition": "selected",
+        "quality_score_x100": 5875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_26b58fe1a27b4b4f"
+      },
+      {
+        "candidate_id": "candidate_bf1aa4701bd6f761",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5875,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_cc0bc3f067246e64"
+      },
+      {
+        "candidate_id": "candidate_368dc549dbba313f",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5000,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_26b58fe1a27b4b4f"
+      },
+      {
+        "candidate_id": "candidate_729ff8b49cf26f22",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5000,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3bae882d16684660"
+      },
+      {
+        "candidate_id": "candidate_6b0ae4ac42937611",
+        "disposition": "selected",
+        "quality_score_x100": 5875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_59a4cbbf3fcd2a5d"
+      },
+      {
+        "candidate_id": "candidate_7062f9ba2a253131",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_1378eed6bd8c9881"
+      },
+      {
+        "candidate_id": "candidate_f12c067f4578931f",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4625,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_1378eed6bd8c9881"
+      },
+      {
+        "candidate_id": "candidate_e7e0739b77ace20a",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 6125,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_125cbb47045026c4"
+      },
+      {
+        "candidate_id": "candidate_8fac69f83a04a15d",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_26b58fe1a27b4b4f"
+      },
+      {
+        "candidate_id": "candidate_db82a842ff2401fa",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5500,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_0c7a4d29114ef0c9"
+      },
+      {
+        "candidate_id": "candidate_b7730933ffbad510",
+        "disposition": "selected",
+        "quality_score_x100": 6250,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_8dadc2cb3e2c4605"
+      },
+      {
+        "candidate_id": "candidate_737064038099ef2a",
+        "disposition": "selected",
+        "quality_score_x100": 7500,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_125cbb47045026c4"
+      },
+      {
+        "candidate_id": "candidate_de95d7468a7318ca",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5000,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_cc0bc3f067246e64"
+      },
+      {
+        "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_ff39240e55040854"
+      },
+      {
+        "candidate_id": "candidate_b45014a64a6a9c53",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5625,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_154dcc0a7bc6ddc4"
+      },
+      {
+        "candidate_id": "candidate_0f91c0dab3dbb1a2",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4125,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_1378eed6bd8c9881"
+      },
+      {
+        "candidate_id": "candidate_26500385c10519ef",
+        "disposition": "selected",
+        "quality_score_x100": 7875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_c3ab6aeeff810e6e"
+      },
+      {
+        "candidate_id": "candidate_1905cc42552496cb",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_154dcc0a7bc6ddc4"
+      },
+      {
+        "candidate_id": "candidate_932087bda627a1c6",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5875,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_0c7a4d29114ef0c9"
+      },
+      {
+        "candidate_id": "candidate_c09a0f37fab1e353",
+        "disposition": "selected",
+        "quality_score_x100": 6125,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_154dcc0a7bc6ddc4"
+      },
+      {
+        "candidate_id": "candidate_159babdbda6acfe6",
+        "disposition": "selected",
+        "quality_score_x100": 7375,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_b3919446b8189a73"
+      },
+      {
+        "candidate_id": "candidate_9442184e2836ee47",
+        "disposition": "selected",
+        "quality_score_x100": 5750,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_ae68ef2a3bc511ed"
+      },
+      {
+        "candidate_id": "candidate_5c57e9b5dd359ae7",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_154dcc0a7bc6ddc4"
+      },
+      {
+        "candidate_id": "candidate_48324e904b930420",
+        "disposition": "selected",
+        "quality_score_x100": 6750,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_3bae882d16684660"
+      },
+      {
+        "candidate_id": "candidate_4477e0c580eeaf0f",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5625,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_154dcc0a7bc6ddc4"
+      },
+      {
+        "candidate_id": "candidate_2e74bd47f66c76ad",
+        "disposition": "selected",
+        "quality_score_x100": 7375,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_a9974436dcc19564"
+      },
+      {
+        "candidate_id": "candidate_995f11a38ef0e583",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5500,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_ff39240e55040854"
+      },
+      {
+        "candidate_id": "candidate_4f46d35f2e2667ca",
+        "disposition": "selected",
+        "quality_score_x100": 7125,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_cc0bc3f067246e64"
+      },
+      {
+        "candidate_id": "candidate_b6ce4961df030128",
+        "disposition": "selected",
+        "quality_score_x100": 6750,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_0c7a4d29114ef0c9"
+      },
+      {
+        "candidate_id": "candidate_a1d7354902e340e6",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5750,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_c3ab6aeeff810e6e"
+      },
+      {
+        "candidate_id": "candidate_27e8574669b9e0c2",
+        "disposition": "below_threshold",
+        "quality_score_x100": 2875,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_ff39240e55040854"
+      },
+      {
+        "candidate_id": "candidate_f262b8f87ac47de0",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_5078968766188ac7"
+      },
+      {
+        "candidate_id": "candidate_59b038f803f24532",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3bae882d16684660"
+      },
+      {
+        "candidate_id": "candidate_8e329a9311a36567",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4250,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_ff39240e55040854"
+      },
+      {
+        "candidate_id": "candidate_059b8bf41086721a",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5750,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_ff39240e55040854"
+      },
+      {
+        "candidate_id": "candidate_3f73ee8bb04ee052",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5500,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_1378eed6bd8c9881"
+      },
+      {
+        "candidate_id": "candidate_1d0bcd4f6ed22861",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 6250,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_0c7a4d29114ef0c9"
+      },
+      {
+        "candidate_id": "candidate_84a0a525d56ff5bd",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_5078968766188ac7"
+      },
+      {
+        "candidate_id": "candidate_374a9f9e7e085c59",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_1378eed6bd8c9881"
+      },
+      {
+        "candidate_id": "candidate_2e039a3e91689484",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4125,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_59a4cbbf3fcd2a5d"
+      },
+      {
+        "candidate_id": "candidate_9d47bf21dc719613",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_5078968766188ac7"
+      },
+      {
+        "candidate_id": "candidate_eda02f3bbfbc7462",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5375,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_a9974436dcc19564"
+      },
+      {
+        "candidate_id": "candidate_8ba2743da2b9cb9e",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 6125,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_3bae882d16684660"
+      },
+      {
+        "candidate_id": "candidate_e2c68e2187b0dda3",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5500,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_1f123e088a9ab44c"
+      }
+    ],
+    "selected": [
+      {
+        "candidate_id": "candidate_26500385c10519ef",
+        "canonical_angle": "声乐训练应先听辨个人基础问题，再按合适顺序进行针对性纠正和复盘。",
+        "content_risk_flags": [
+          "health_or_safety_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7875,
+        "rank": 1,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_c3ab6aeeff810e6e",
+        "topic_label": "个体诊断与声乐纠错顺序"
+      },
+      {
+        "candidate_id": "candidate_737064038099ef2a",
+        "canonical_angle": "发声的直接来源是声带振动，唱歌时的用力和气流不能简单等同于胸腹部发声。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 7500,
+        "rank": 2,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_125cbb47045026c4",
+        "topic_label": "声带振动、气流与错误发力"
+      },
+      {
+        "candidate_id": "candidate_159babdbda6acfe6",
+        "canonical_angle": "讲述者以自己解决高音紧、舌根紧和漏气等经历解释教学方法的形成。",
+        "content_risk_flags": [
+          "health_or_safety_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7375,
+        "rank": 3,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_b3919446b8189a73",
+        "topic_label": "从发声困扰到教学方法"
+      },
+      {
+        "candidate_id": "candidate_2e74bd47f66c76ad",
+        "canonical_angle": "胸腹式联合呼吸及气息支撑需要被正确找到，并进一步用于实际演唱。",
+        "content_risk_flags": [
+          "health_or_safety_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7375,
+        "rank": 4,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_a9974436dcc19564",
+        "topic_label": "胸腹式联合呼吸与气息支撑"
+      },
+      {
+        "candidate_id": "candidate_4f46d35f2e2667ca",
+        "canonical_angle": "讲述者以价格、教学方法和进步承诺说明其一对一课程的商业价值。",
+        "content_risk_flags": [
+          "legal_or_financial_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7125,
+        "rank": 5,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_cc0bc3f067246e64",
+        "topic_label": "一对一课程定价与效果承诺"
+      },
+      {
+        "candidate_id": "candidate_48324e904b930420",
+        "canonical_angle": "同一学员的演唱展示和后续反馈共同指向声音厚度、穿透力与支撑不足的问题。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 6750,
+        "rank": 6,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 2,
+          "evidence_fidelity": 2,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_3bae882d16684660",
+        "topic_label": "穿透力、声音厚度与支撑"
+      },
+      {
+        "candidate_id": "candidate_b6ce4961df030128",
+        "canonical_angle": "零基础学习者应如何在录播、线上一对一和线下课程之间作出选择。",
+        "content_risk_flags": [
+          "legal_or_financial_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 6750,
+        "rank": 7,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_0c7a4d29114ef0c9",
+        "topic_label": "录播、线上与线下课程选择"
+      },
+      {
+        "candidate_id": "candidate_b7730933ffbad510",
+        "canonical_angle": "学员应选择适合自己的抒情或节奏布鲁斯风格，并继续跨专业追求原创音乐。",
+        "content_risk_flags": [],
+        "evidence_flags": [
+          "context_dependency"
+        ],
+        "quality_score_x100": 6250,
+        "rank": 8,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_8dadc2cb3e2c4605",
+        "topic_label": "适合的曲风与跨专业音乐梦想"
+      },
+      {
+        "candidate_id": "candidate_c09a0f37fab1e353",
+        "canonical_angle": "美声、民族与流行唱法被视为不同发声通道，转唱流行时需要重新调整声音位置和技巧。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 6125,
+        "rank": 9,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 2,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 2
+        },
+        "topic_id": "topic_154dcc0a7bc6ddc4",
+        "topic_label": "美声、民族与流行通道差异"
+      },
+      {
+        "candidate_id": "candidate_473a7cc73ef551ea",
+        "canonical_angle": "普通学习者是否需要天赋，与流行演唱对天赋的依赖程度，是这组内容的共同争议。",
+        "content_risk_flags": [
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [
+          "incomplete_claim"
+        ],
+        "quality_score_x100": 5875,
+        "rank": 10,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 2
+        },
+        "topic_id": "topic_26b58fe1a27b4b4f",
+        "topic_label": "普通人学唱歌与流行天赋"
+      },
+      {
+        "candidate_id": "candidate_6b0ae4ac42937611",
+        "canonical_angle": "高音受阻或破音被归因于仍在使用偏说话式的大白嗓通道。",
+        "content_risk_flags": [
+          "health_or_safety_claim",
+          "sponsor_or_advertising"
+        ],
+        "evidence_flags": [
+          "incomplete_claim"
+        ],
+        "quality_score_x100": 5875,
+        "rank": 11,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 2
+        },
+        "topic_id": "topic_59a4cbbf3fcd2a5d",
+        "topic_label": "高音困难与大白嗓通道"
+      },
+      {
+        "candidate_id": "candidate_9442184e2836ee47",
+        "canonical_angle": "判断发声是否正确不能只观察喉咙或舌头形状，还必须听实际声音。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "incomplete_claim"
+        ],
+        "quality_score_x100": 5750,
+        "rank": 12,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 4,
+          "hook_strength": 2,
+          "standalone_completeness": 2
+        },
+        "topic_id": "topic_ae68ef2a3bc511ed",
+        "topic_label": "发声姿态必须结合听感判断"
+      }
+    ],
+    "selected_count": 12
+  },
+  "schema_version": "2",
+  "selection_summary": "这组内容覆盖个体诊断、呼吸与声带原理、唱法通道、课程选择及音乐梦想，既有可独立成段的教学观点，也包含个人经历和商业表达。涉及嗓音健康、效果宣传、价格及退费承诺的片段，发布前均需专业或事实核验。",
+  "topic_inventory": {
+    "accounting": {
+      "assessable_count": 45,
+      "excluded_count": 0,
+      "passed": true,
+      "topic_member_count": 45,
+      "unusable_count": 0
+    },
+    "excluded_candidates": [],
+    "inventory_summary": "本段自然形成了声乐纠错流程、天赋争议、课程选择与宣传、发声通道、呼吸和声带原理、连麦诊断、具体学员试唱点评及音乐道路选择等话题。",
+    "topics": [
+      {
+        "canonical_angle": "声乐训练应先听辨个人基础问题，再按合适顺序进行针对性纠正和复盘。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_adab5d4da9ab2be6",
+            "member_angle": "强调错误的纠正顺序会影响训练，并主张因人而异地从基础问题改起。",
+            "relationship": "core",
+            "relationship_reason": "该成员最完整地提出了个体诊断与纠错顺序这一共同主张。"
+          },
+          {
+            "candidate_id": "candidate_26500385c10519ef",
+            "member_angle": "补充用课堂记录复盘个人声音位置，并根据紧或松等具体问题调整。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "同样强调个性化纠正，但新增了课程录屏和课后复盘的实施角度。"
+          },
+          {
+            "candidate_id": "candidate_a1d7354902e340e6",
+            "member_angle": "介绍通过连麦先判断问题，再说明可能采用的纠正步骤。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它把个体诊断与纠错顺序落实到直播连麦的评估流程中。"
+          }
+        ],
+        "topic_id": "topic_c3ab6aeeff810e6e",
+        "topic_label": "个体诊断与声乐纠错顺序"
+      },
+      {
+        "canonical_angle": "普通学习者是否需要天赋，与流行演唱对天赋的依赖程度，是这组内容的共同争议。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_473a7cc73ef551ea",
+            "member_angle": "提出普通人学唱歌不必先证明自己拥有出众天赋。",
+            "relationship": "core",
+            "relationship_reason": "该成员以直接问答方式建立了普通人学习唱歌是否需要天赋的核心问题。"
+          },
+          {
+            "candidate_id": "candidate_368dc549dbba313f",
+            "member_angle": "认为唱好美声不等于唱好流行，并强调流行演唱较依赖天赋。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从美声与流行能力差异切入，对天赋问题给出更具争议的判断。"
+          },
+          {
+            "candidate_id": "candidate_8fac69f83a04a15d",
+            "member_angle": "重复流行演唱依赖天赋的判断，并称美声表现可能掩盖音准问题。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与前一成员实质重复流行天赋及美声能力不能直接代表流行能力的主张。"
+          }
+        ],
+        "topic_id": "topic_26b58fe1a27b4b4f",
+        "topic_label": "普通人学唱歌与流行天赋"
+      },
+      {
+        "canonical_angle": "讲述者以价格、教学方法和进步承诺说明其一对一课程的商业价值。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_bf1aa4701bd6f761",
+            "member_angle": "集中说明一对一课程的价格区间、效果宣传和后续调价计划。",
+            "relationship": "core",
+            "relationship_reason": "该成员最完整地呈现了课程定价、授课形式和效果承诺。"
+          },
+          {
+            "candidate_id": "candidate_4f46d35f2e2667ca",
+            "member_angle": "把课程效果归因于教师经验和方法，并提出无进步退费。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复强化了一对一课程效果与退费保障的商业主张。"
+          },
+          {
+            "candidate_id": "candidate_de95d7468a7318ca",
+            "member_angle": "以气息基础和既有学习停滞解释课程价值，同时宣传退款承诺。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它仍在论证课程效果，但增加了基础训练缺失和学习停滞的解释。"
+          }
+        ],
+        "topic_id": "topic_cc0bc3f067246e64",
+        "topic_label": "一对一课程定价与效果承诺"
+      },
+      {
+        "canonical_angle": "零基础学习者应如何在录播、线上一对一和线下课程之间作出选择。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_db82a842ff2401fa",
+            "member_angle": "比较录播、线上一对一和线下教学，主张零基础者选择线上指导。",
+            "relationship": "core",
+            "relationship_reason": "该成员直接覆盖了三种课程形式及其成本和适用性。"
+          },
+          {
+            "candidate_id": "candidate_b6ce4961df030128",
+            "member_angle": "强调线下成本较高、线上可提供保障，并贬低录播课效果。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复线上课程优于高成本线下课和低效录播课的主要判断。"
+          },
+          {
+            "candidate_id": "candidate_932087bda627a1c6",
+            "member_angle": "认为线上或线下不是决定质量的唯一因素，教师能力更重要。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它把课程形式选择进一步转向教师经验、判断力和教学质量。"
+          },
+          {
+            "candidate_id": "candidate_1d0bcd4f6ed22861",
+            "member_angle": "针对具体学员主张逐字按歌纠正，并介绍课堂记录和进步保障。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从个案需求说明录播的局限，并补充线上课程的具体服务方式。"
+          }
+        ],
+        "topic_id": "topic_0c7a4d29114ef0c9",
+        "topic_label": "录播、线上与线下课程选择"
+      },
+      {
+        "canonical_angle": "同一学员的演唱展示和后续反馈共同指向声音厚度、穿透力与支撑不足的问题。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_48324e904b930420",
+            "member_angle": "完整指出声音位置偏高、下方支撑不足，并给出增强穿透力的方向。",
+            "relationship": "core",
+            "relationship_reason": "该成员最集中地呈现了学员问题和对应调整思路。"
+          },
+          {
+            "candidate_id": "candidate_729ff8b49cf26f22",
+            "member_angle": "重复声音位置偏高、下方支撑不足以及调整后可减轻疲劳的反馈。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与核心成员实质上是同一诊断和建议的重叠表达。"
+          },
+          {
+            "candidate_id": "candidate_8ba2743da2b9cb9e",
+            "member_angle": "保留演唱片段、穿透力不足的初步诊断及学员对鼻部位置的困惑。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它为同一诊断补充了学员试唱和主观发力感受。"
+          },
+          {
+            "candidate_id": "candidate_59b038f803f24532",
+            "member_angle": "呈现接受穿透力与支撑点评之前的歌曲演唱。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "该演唱是同一连麦评估的表现材料，为后续诊断提供现场背景。"
+          }
+        ],
+        "topic_id": "topic_3bae882d16684660",
+        "topic_label": "穿透力、声音厚度与支撑"
+      },
+      {
+        "canonical_angle": "高音受阻或破音被归因于仍在使用偏说话式的大白嗓通道。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_6b0ae4ac42937611",
+            "member_angle": "以高音卡住、破音和唱后不适引出缺少发声技巧与合适通道的问题。",
+            "relationship": "core",
+            "relationship_reason": "该成员清楚建立了高音困难与发声通道之间的核心联系。"
+          },
+          {
+            "candidate_id": "candidate_2e039a3e91689484",
+            "member_angle": "把直接使用说话位置的大白嗓列为容易限制高音的第一种通道。",
+            "relationship": "same_claim",
+            "relationship_reason": "它延续并具体化了核心成员尚未展开的大白嗓通道解释。"
+          }
+        ],
+        "topic_id": "topic_59a4cbbf3fcd2a5d",
+        "topic_label": "高音困难与大白嗓通道"
+      },
+      {
+        "canonical_angle": "直播间通过互动和连麦招募观众，以现场判断演唱问题或提供教学。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_3f73ee8bb04ee052",
+            "member_angle": "完整介绍连麦参与方式，并承诺快速指出和解决演唱问题。",
+            "relationship": "core",
+            "relationship_reason": "该成员最集中地说明了直播连麦教学的形式与参与引导。"
+          },
+          {
+            "candidate_id": "candidate_f12c067f4578931f",
+            "member_angle": "介绍声乐教学直播，并邀请观众在互动区提出音乐问题。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复承担直播定位和观众提问引导的开场功能。"
+          },
+          {
+            "candidate_id": "candidate_0f91c0dab3dbb1a2",
+            "member_angle": "邀请观众连麦或参与指定教学互动，并展示现有学员。",
+            "relationship": "same_claim",
+            "relationship_reason": "它同样以连麦参与和教学服务推广为主要内容。"
+          },
+          {
+            "candidate_id": "candidate_7062f9ba2a253131",
+            "member_angle": "在结束学员点评后建议练熟歌曲，并说明短暂演唱也可初步评估基础。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它属于同一连麦教学场景，但增加了上麦前练歌与快速评估的建议。"
+          },
+          {
+            "candidate_id": "candidate_374a9f9e7e085c59",
+            "member_angle": "点评在读学员的提升空间，并穿插连麦和直播互动引导。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它以学员学习反馈展示连麦教学，同时延续直播参与推广。"
+          }
+        ],
+        "topic_id": "topic_1378eed6bd8c9881",
+        "topic_label": "直播连麦教学与参与引导"
+      },
+      {
+        "canonical_angle": "发声的直接来源是声带振动，唱歌时的用力和气流不能简单等同于胸腹部发声。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_737064038099ef2a",
+            "member_angle": "用力量训练憋气作对比，强调唱歌不能照搬胸部用力，声音来自声带振动。",
+            "relationship": "core",
+            "relationship_reason": "该成员以完整对比和演示建立了声带振动与错误发力方式的区别。"
+          },
+          {
+            "candidate_id": "candidate_e7e0739b77ace20a",
+            "member_angle": "进一步说明气流经过声带会引发振动，而且气流速度需要适度。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它延续声带振动原理，并补充气流如何参与发声的角度。"
+          }
+        ],
+        "topic_id": "topic_125cbb47045026c4",
+        "topic_label": "声带振动、气流与错误发力"
+      },
+      {
+        "canonical_angle": "美声、民族与流行唱法被视为不同发声通道，转唱流行时需要重新调整声音位置和技巧。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_b45014a64a6a9c53",
+            "member_angle": "直接比较美声、民族和流行唱法的声音位置与通道差异。",
+            "relationship": "core",
+            "relationship_reason": "该成员覆盖的唱法类型最完整，最能组织这组通道差异内容。"
+          },
+          {
+            "candidate_id": "candidate_1905cc42552496cb",
+            "member_angle": "区分流行与美声训练通道，并回应零基础者可以学习流行唱法。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复了美声和流行不能使用同一训练通道的基本判断。"
+          },
+          {
+            "candidate_id": "candidate_c09a0f37fab1e353",
+            "member_angle": "指出声音过白和演唱疲劳，并介绍流行通道内的混声技巧。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从嗓音感受和具体技巧层面说明流行通道如何继续细分。"
+          },
+          {
+            "candidate_id": "candidate_4477e0c580eeaf0f",
+            "member_angle": "针对声音过白和疲劳提出先调整流行通道，再训练不同混声技巧。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与前一成员重复同一问题判断和训练方向。"
+          },
+          {
+            "candidate_id": "candidate_5c57e9b5dd359ae7",
+            "member_angle": "配音学习者自述转练流行唱法时需要教师帮助纠正通道。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它以具体学习者的需求呈现不同声音工作转向流行唱法时的通道问题。"
+          }
+        ],
+        "topic_id": "topic_154dcc0a7bc6ddc4",
+        "topic_label": "美声、民族与流行通道差异"
+      },
+      {
+        "canonical_angle": "同一川渝学员的试唱与复唱被用于判断鼻音、高音发散和咬字位置问题。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_995f11a38ef0e583",
+            "member_angle": "把地域口音与较重鼻音联系起来，并建议调整咬字和高音集中度。",
+            "relationship": "core",
+            "relationship_reason": "该成员最完整地连接了地域判断、鼻音诊断和调整方向。"
+          },
+          {
+            "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+            "member_angle": "继续指出鼻音导致高音发散，并示范把咬字位置后移。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复并延伸了核心成员对鼻音、高音和咬字位置的诊断。"
+          },
+          {
+            "candidate_id": "candidate_059b8bf41086721a",
+            "member_angle": "呈现试唱、音准评价以及老师对学员来自川渝地区的判断。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它提供同一诊断发生前的演唱表现和地域判断入口。"
+          },
+          {
+            "candidate_id": "candidate_8e329a9311a36567",
+            "member_angle": "用玩笑缓解紧张后开始同一首歌的现场试唱。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它记录了同一连麦评估的试唱开端和人物互动。"
+          },
+          {
+            "candidate_id": "candidate_27e8574669b9e0c2",
+            "member_angle": "学员回应日常说话习惯并再次演唱，以便继续核对鼻音位置。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它是同一问题下的复唱验证环节，补充了说话习惯这一可能影响因素。"
+          }
+        ],
+        "topic_id": "topic_ff39240e55040854",
+        "topic_label": "川渝口音、鼻音与高音发散"
+      },
+      {
+        "canonical_angle": "胸腹式联合呼吸及气息支撑需要被正确找到，并进一步用于实际演唱。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_2e74bd47f66c76ad",
+            "member_angle": "纠正单说腹式呼吸的表述，强调胸腹式联合呼吸只是应用于唱歌的起点。",
+            "relationship": "core",
+            "relationship_reason": "该成员明确给出呼吸方法名称、作用和训练边界。"
+          },
+          {
+            "candidate_id": "candidate_eda02f3bbfbc7462",
+            "member_angle": "通过吸气和呼气示范，引导观察气流与腹部动作的关系。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它以动作演示呈现同一呼吸主题，但尚未完成最终结论。"
+          }
+        ],
+        "topic_id": "topic_a9974436dcc19564",
+        "topic_label": "胸腹式联合呼吸与气息支撑"
+      },
+      {
+        "canonical_angle": "讲述者以自己解决高音紧、舌根紧和漏气等经历解释教学方法的形成。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_159babdbda6acfe6",
+            "member_angle": "从个人发声问题、研究和付费学习讲到后来总结出的纠正方法。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立构成一条从自身困难到教学经验形成的完整人物线。"
+          }
+        ],
+        "topic_id": "topic_b3919446b8189a73",
+        "topic_label": "从发声困扰到教学方法"
+      },
+      {
+        "canonical_angle": "判断发声是否正确不能只观察喉咙或舌头形状，还必须听实际声音。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_9442184e2836ee47",
+            "member_angle": "面对关于喉咙和舌头状态的提问，坚持先听试唱再作判断。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立而明确地提出了发声评估不能脱离听感的原则。"
+          }
+        ],
+        "topic_id": "topic_ae68ef2a3bc511ed",
+        "topic_label": "发声姿态必须结合听感判断"
+      },
+      {
+        "canonical_angle": "学员应选择适合自己的抒情或节奏布鲁斯风格，并继续跨专业追求原创音乐。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_b7730933ffbad510",
+            "member_angle": "从曲风选择谈到学医药的学员跨行业从事原创音乐，并给予鼓励。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立连接了适配曲风和跨专业音乐梦想两个紧密的人物角度。"
+          }
+        ],
+        "topic_id": "topic_8dadc2cb3e2c4605",
+        "topic_label": "适合的曲风与跨专业音乐梦想"
+      },
+      {
+        "canonical_angle": "同一位具有音乐经历的学员完成试唱后得到肯定，并被询问从业背景。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_f262b8f87ac47de0",
+            "member_angle": "包含试唱结尾、老师的积极反馈及对线下助唱和音乐经历的追问。",
+            "relationship": "core",
+            "relationship_reason": "该成员同时覆盖表演结果和从业背景询问，最适合作为组织成员。"
+          },
+          {
+            "candidate_id": "candidate_84a0a525d56ff5bd",
+            "member_angle": "呈现同一学员较完整的关系疏离主题歌曲演唱。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与核心成员中的试唱内容明显重叠，主要贡献是更完整的表演段落。"
+          },
+          {
+            "candidate_id": "candidate_9d47bf21dc719613",
+            "member_angle": "记录老师邀请学员继续唱以及同一表演的开端。",
+            "relationship": "same_claim",
+            "relationship_reason": "它是同一次试唱的较短重叠片段，没有形成独立的新观点。"
+          }
+        ],
+        "topic_id": "topic_5078968766188ac7",
+        "topic_label": "音乐从业学员的试唱与评价"
+      },
+      {
+        "canonical_angle": "成年人是否会随年龄出现机能下降，以及是否应通过适度锻炼应对。",
+        "cluster_confidence": "medium",
+        "members": [
+          {
+            "candidate_id": "candidate_e2c68e2187b0dda3",
+            "member_angle": "提出特定年龄后的肌肉或机能退化判断，并建议平时适度锻炼。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立形成年龄、身体机能与锻炼建议这一话题，但相关断言缺少展开。"
+          }
+        ],
+        "topic_id": "topic_1f123e088a9ab44c",
+        "topic_label": "年龄、身体机能与锻炼建议"
+      }
+    ]
+  }
+}

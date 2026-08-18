@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_65678839045aab40",
+      "candidate_text_sha256": "940ae1fca056d3e09fd46da398d996b05fe46a12545b156527732b5d965bf073",
+      "normalized_end": 362,
+      "normalized_quote": "它每一塊它都是有上升空間的你要在自己條件上做到一個最好",
+      "normalized_start": 335,
+      "quote_sha256": "3d2a0844dca1981c23890c96dc058c7f5082d78e8fa36e2756e4131c35e009ad",
+      "raw_end": 362,
+      "raw_start": 335,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "candidate_text_sha256": "9ec0ea7ffb3ecfa93f2bf75e663949ddae09f6528479f37dd0da8a000e720dac",
+      "normalized_end": 180,
+      "normalized_quote": "我们唱歌不要去追求时间你要追求效率我们在唱歌的时候动着脑子去思考着去唱",
+      "normalized_start": 145,
+      "quote_sha256": "526cbb1064aacdc7095568b2c02124a0fad12006b86ce8bef34fd9faea5fae19",
+      "raw_end": 180,
+      "raw_start": 145,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_0c49c6488ae5fe28",
+      "candidate_text_sha256": "710dc9bc76948eaf5dd4e72f9237cac30851a3b2e177a651eb0b12c4fa3f39b9",
+      "normalized_end": 73,
+      "normalized_quote": "你不要刻意地去练这个共鸣",
+      "normalized_start": 61,
+      "quote_sha256": "7a82d410f5016ed6716e009f42970b4f6bad948d488a7854aab348483819124a",
+      "raw_end": 73,
+      "raw_start": 61,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b66177d9d0ec57ef",
+      "candidate_text_sha256": "3ccc6dc9dab7d35c22ed31873908353f77d48f114e585077ad10295e59544d82",
+      "normalized_end": 204,
+      "normalized_quote": "你就先做十個蹲起先把自己的這個肌肉啊身上活動開",
+      "normalized_start": 181,
+      "quote_sha256": "9e5d37a813bb10d52d51acd949496c6343fad4fd956736b79b01fe647367934b",
+      "raw_end": 204,
+      "raw_start": 181,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_f14a3fb4d68e51ca",
+      "candidate_text_sha256": "5ae014852ad4817303557921d9cb66c0629a799b27179c52d84f3efbb0d49fb1",
+      "normalized_end": 197,
+      "normalized_quote": "第一步是吸氣有沒有毛病沒毛病吧你不吸完氣你怎麼唱",
+      "normalized_start": 173,
+      "quote_sha256": "ade562e424e99a75d377a1b18bd15f941b390d715092d3a573610616cbb1b8f6",
+      "raw_end": 197,
+      "raw_start": 173,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_464b0f2aee1d8a44",
+      "candidate_text_sha256": "7f0a41196127ba553578fdd21fd515cefd05404c0342d083c045f0d6d602787d",
+      "normalized_end": 45,
+      "normalized_quote": "我也会让我的学生抬眉但是它是有这个程度的有阶段的不适合小白",
+      "normalized_start": 16,
+      "quote_sha256": "7b5742928fca37a0f8eb2c78a57443afa6fabed54de176301ec7c2beb404be43",
+      "raw_end": 45,
+      "raw_start": 16,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_373756f54a23ac46",
+      "candidate_text_sha256": "5e269389b511e34ea888b4733a160d475500a525ef4275bd5af4f34d73dc9298",
+      "normalized_end": 175,
+      "normalized_quote": "你說話的時候舌頭怎麼放你有思考過這個問題嗎对吧那就是自然的方就好了",
+      "normalized_start": 142,
+      "quote_sha256": "04fbbfd081a7d97d93985b93c3137ac57796093bb99bc7680813a9d54deb04e3",
+      "raw_end": 175,
+      "raw_start": 142,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_f49be10488a46e67",
+      "candidate_text_sha256": "8927273db6e7e5d9801a29524dfb7751e0364c602ddc572a81a0d961e672314f",
+      "normalized_end": 148,
+      "normalized_quote": "你得把这个歌先搞熟了你在听这个伴奏的时候你才有精力的去听这个伴奏",
+      "normalized_start": 116,
+      "quote_sha256": "4859de468bc39e0265128c04fd4b85ecb6ee0f967baaa2148d7eb0e3d2935ef9",
+      "raw_end": 148,
+      "raw_start": 116,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "candidate_text_sha256": "4e87042bd0ea6e819e80336c8f761f2731cc52a1ee0222cf0162c60e62f6fb24",
+      "normalized_end": 320,
+      "normalized_quote": "先把这个闭口音你去带一个开口音的一个字你先去练找到这个感觉之后慢慢的再过渡到闭口音上",
+      "normalized_start": 278,
+      "quote_sha256": "017c35b1b3fd2c0c0e592286d2934d0df47e6fab33b606102daff5c4ff468d27",
+      "raw_end": 321,
+      "raw_start": 279,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_3c92e6847aff0c59",
+      "candidate_text_sha256": "136c28b3b0f6375c088a5d0e49f972d0ddba83757db464f7b034685475ce4a92",
+      "normalized_end": 98,
+      "normalized_quote": "我教学不是我一句你一句的唱那叫学唱直播间",
+      "normalized_start": 78,
+      "quote_sha256": "590fe9afe70899333f25700b7b2c1ee72d96580a3595f02c391e1de3a8674581",
+      "raw_end": 98,
+      "raw_start": 78,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_35a860b83062d6ab",
+      "candidate_text_sha256": "ff3e5e2d8c9335f9ffb61723bd803a0835f4a178c0d81b130b39578371bf1b8c",
+      "normalized_end": 109,
+      "normalized_quote": "你们零基础的同学们咱不要去找一种什么邪门外道什么就开始在那练不知道练什么就开始在那练了",
+      "normalized_start": 66,
+      "quote_sha256": "297b599bc876182d7ccdd207350c8b51875c1f90a44a461e58791f364df18faa",
+      "raw_end": 109,
+      "raw_start": 66,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_fa0cd44fc3dcaa6b",
+      "candidate_text_sha256": "0097004e31c22c29e356319ffa9623720c3dcf9b3e79d110b2290f9c67a52bf2",
+      "normalized_end": 129,
+      "normalized_quote": "我们练声是干嘛相当于我们跑步去热身一样不需要特别长你如果特别长的时间你唱歌的时候会累了",
+      "normalized_start": 86,
+      "quote_sha256": "ab210f823576334698486f036ebe99f4681318c2ad3800e4077a6593d1e4f0aa",
+      "raw_end": 129,
+      "raw_start": 86,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

@@ -1,0 +1,30 @@
+{
+  "call_id": "call_c50e2e3d3ecaad84",
+  "dependency_sha256": {
+    "batch_input": "954a936abb86780c6acedee13483f445c943d6736d58872de03768febf737cb6",
+    "runtime_bundle": "d44704daa388ba8eb2fad415e4cc489d6dd66bdd8c4cf863bb76d93c98454baa",
+    "source_input": "cc035e5eb5764b7b53bd0855fccee5d07334ee3b32abd15bcb957f27b1996936"
+  },
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "experiment_id": "exp_31890c08e4b7eda69858",
+  "isolation": {
+    "environment": "allowlist",
+    "ephemeral": true,
+    "ignore_rules": true,
+    "ignore_user_config": true,
+    "sandbox": "read-only",
+    "tools": "disabled",
+    "unsafe_tool_event": "hard_fail"
+  },
+  "maximum_attempts": 2,
+  "model": {
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "medium"
+  },
+  "pipeline_id": "pipeline_1ce81ff4b6686e6d",
+  "prompt_sha256": "a5b9e54de88ba344d94789078a6828d8e5126c71a1814ba7d4209b7e415063e9",
+  "schema_relative_path": "frozen/schemas/src_7f34cc21eaf6d819/v2-tier1-b03.json",
+  "schema_sha256": "6dc4f93c336a3e50c87cd98dc490fa70ec19bae99d4ade3cda566b26390b07f6",
+  "schema_version": "1",
+  "stage": "v2-tier1-b03"
+}

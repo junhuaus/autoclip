@@ -1,0 +1,7 @@
+{
+  "actually_escalated": false,
+  "policy_version": "shadow-escalation-v1",
+  "reasons": [],
+  "target_model_if_enabled": "gpt-5.6-sol/high",
+  "would_escalate": false
+}

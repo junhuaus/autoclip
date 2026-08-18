@@ -1,0 +1,4 @@
+{
+  "error": "ValueError: editorial evidence quote failed exact gate: [{\"candidate_id\": \"candidate_26500385c10519ef\", \"failure_code\": \"EVIDENCE_QUOTE_NOT_IN_CANDIDATE\"}, {\"candidate_id\": \"candidate_737064038099ef2a\", \"failure_code\": \"EVIDENCE_QUOTE_NOT_IN_CANDIDATE\"}, {\"candidate_id\": \"candidate_473a7cc73ef551ea\", \"failure_code\": \"EVIDENCE_QUOTE_NOT_IN_CANDIDATE\"}]",
+  "recorded_at": "2026-08-18T07:21:14.970290+00:00"
+}

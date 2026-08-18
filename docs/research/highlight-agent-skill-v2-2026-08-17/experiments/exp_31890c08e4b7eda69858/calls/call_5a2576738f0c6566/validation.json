@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_adab5d4da9ab2be6",
+      "candidate_text_sha256": "1c1e0d5bf66ce3a69a2ae47b3a7cba481738cdc75dc60e4a015aa9a3e289f24a",
+      "normalized_end": 122,
+      "normalized_quote": "我要从头给你改每个人问题不一样具体问题具体分析是这样子的",
+      "normalized_start": 94,
+      "quote_sha256": "9b0e546dda3c9c0e7583c63120458e53a81098491b7e470afde2d8585fca2ac5",
+      "raw_end": 122,
+      "raw_start": 94,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_26500385c10519ef",
+      "candidate_text_sha256": "3eae25a766a5fef38c6bbbae9772122b17f0356e32e5736c1db115ee3a8e4753",
+      "normalized_end": 272,
+      "normalized_quote": "我每次下课会把这个录屏发给你这个录屏特别好你会去看到自己身上的问题你会去听你会去听你会去听自己的这个声音我到底是靠前还是靠后",
+      "normalized_start": 210,
+      "quote_sha256": "7f1933e2b38b7bd203934e3a192ea21e04e91bcda367c6fd6db516778469311d",
+      "raw_end": 272,
+      "raw_start": 210,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "candidate_text_sha256": "74daabc2264d7e740002660ddb55596a8611c20ba0dcfab3eb96899eeb95c8f1",
+      "normalized_end": 80,
+      "normalized_quote": "我之前什么问题都有高音卡紧然后那个高音卡紧下巴紧舌根紧不放松然后声音漆漆漏气我全都有",
+      "normalized_start": 38,
+      "quote_sha256": "794c19ed68627593cd8fff8064df9fca4d7605dfeb2a7220e3aff4443bdc58eb",
+      "raw_end": 80,
+      "raw_start": 38,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_4477e0c580eeaf0f",
+      "candidate_text_sha256": "bb4f4bcd449f6f4a5792664ef0346087b7880e21e711107300efafd16e59b6b8",
+      "normalized_end": 68,
+      "normalized_quote": "声音很白唱了几首歌这种一定会累嗓子一定会痛的",
+      "normalized_start": 46,
+      "quote_sha256": "cbac54e56c2012e48fe5afb0ffade99e940764ef2d19fc79b4fc1c7626a33201",
+      "raw_end": 68,
+      "raw_start": 46,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_6b0ae4ac42937611",
+      "candidate_text_sha256": "6d7b8b2e7e49feacbb76a864a7e5b32c216a8bc4ed94eb104b1ada192c7c4f8c",
+      "normalized_end": 237,
+      "normalized_quote": "为什么唱不上去因为你没有唱歌的技巧技术没有没有爆技术课我刚想说没有爆技术课因为你没有掌握到唱歌的通道",
+      "normalized_start": 187,
+      "quote_sha256": "e4396c26675335c7dcd3455f583bb09b40becae39f5268fe83b16dd0c70c228c",
+      "raw_end": 237,
+      "raw_start": 187,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_737064038099ef2a",
+      "candidate_text_sha256": "034cb67227a9f1037d7d7183e8d25c2ab8d6f5557665614a4660dc85f0d854b7",
+      "normalized_end": 91,
+      "normalized_quote": "推的时候他会憋一口气憋在这个胸口这个位置然后开始推去找胸部发力的这个感觉那我们在唱歌是不能这样子的",
+      "normalized_start": 42,
+      "quote_sha256": "551b1392f16146efd50d8b9961d1bc4dc6aadd97ae856362059bd4f6ef8b3998",
+      "raw_end": 91,
+      "raw_start": 42,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_8ba2743da2b9cb9e",
+      "candidate_text_sha256": "a2cd6f8b4a2f50079c85f51d8a1073fbe4851e5749064cf9c1fca6df450e8128",
+      "normalized_end": 148,
+      "normalized_quote": "你现在就是缺这种穿透力不亮声音就是不亮他也不能说亮厚实你缺少这个厚度老师我是往鼻子上挂位置然后挂完我就感觉我使不上劲",
+      "normalized_start": 90,
+      "quote_sha256": "02b8e50685e659fc2ac4c3abcf49e3c39c4c66b7695d55975e24e918f5050d95",
+      "raw_end": 148,
+      "raw_start": 90,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_3f73ee8bb04ee052",
+      "candidate_text_sha256": "9829bf3ee0a0b20f2cb404399ea3bbfa88a3e3096bbb6d6fb33a14277800f27f",
+      "normalized_end": 90,
+      "normalized_quote": "今天是以上麦教学为主有音乐上的问题不知道自己唱歌现在什么问题的东西直接上麦",
+      "normalized_start": 53,
+      "quote_sha256": "ef3967c73154d72e8fb1b1edb535eb424cd050748f00c33759eff373adbc81ed",
+      "raw_end": 90,
+      "raw_start": 53,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_1d0bcd4f6ed22861",
+      "candidate_text_sha256": "b4aba54e9cd86f5b78d08ab92748f430164a8998f829b28e2d1dab817275f02e",
+      "normalized_end": 67,
+      "normalized_quote": "你这种就得去逐字去改按歌去改你多来几首歌你差不多你就能知道你有概念了就我知道我这个咬字我要往哪咬了",
+      "normalized_start": 18,
+      "quote_sha256": "c2414d0cd5ad74277b2470b803b2054ea2746db7ae5fd4955362ed5b15b30dc7",
+      "raw_end": 67,
+      "raw_start": 18,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "candidate_text_sha256": "053e0f138bdb42389f2ca361d751c23dff5f91e72c28205f229ab5a6a246a881",
+      "normalized_end": 298,
+      "normalized_quote": "它叫胸腹式联合呼吸很抽象但是我们会用一套方法让你把这个声音用在唱歌上这才是ok的你只是找到了它只是才占10",
+      "normalized_start": 245,
+      "quote_sha256": "5f44fb688ef40705f1772d370588c1097c0c88dd10c61a313976cd0244f13fa6",
+      "raw_end": 298,
+      "raw_start": 245,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_bf1aa4701bd6f761",
+      "candidate_text_sha256": "f30224104b9b8247812086737e4b7fd77df7af929bf7c4b5d6c96af5ffe11f74",
+      "normalized_end": 172,
+      "normalized_quote": "根据你的问题不同我们的价格也不同我单节课的价格打下来是160到380价格不一样因为技术课对是一对一我主要主推一对一",
+      "normalized_start": 115,
+      "quote_sha256": "317eadf713b25bd26d019a62c10ad955a8a8b81142d654ec5e1973060b5b9a63",
+      "raw_end": 172,
+      "raw_start": 115,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_48324e904b930420",
+      "candidate_text_sha256": "0fd4691fd39f816ab4ac4c654498326d2dd50359c4f4c4d67ad7b6cc47aee0dd",
+      "normalized_end": 173,
+      "normalized_quote": "上面东西再少一点下面东西再多一点其实你的声音会穿透力更强而且你这会没有那么累",
+      "normalized_start": 135,
+      "quote_sha256": "83e6aa6047c97f08f1a179abf0fae2514822b12d9603fab2cd02c36f4c2ceea9",
+      "raw_end": 173,
+      "raw_start": 135,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

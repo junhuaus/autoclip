@@ -1,0 +1,151 @@
+{
+  "exact_quote_gate": "passed",
+  "receipt_count": 12,
+  "receipts": [
+    {
+      "candidate_id": "candidate_26500385c10519ef",
+      "candidate_text_sha256": "3eae25a766a5fef38c6bbbae9772122b17f0356e32e5736c1db115ee3a8e4753",
+      "normalized_end": 272,
+      "normalized_quote": "我们全程是有课程的录屏的我每次下课会把这个录屏发给你这个录屏特别好你会去看到自己身上的问题你会去听你会去听你会去听自己的这个声音我到底是靠前还是靠后",
+      "normalized_start": 198,
+      "quote_sha256": "03e9b1be5794aad6a9d76864b9a129cff7cbea8745da8de5e0bc24678c02c398",
+      "raw_end": 272,
+      "raw_start": 198,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_737064038099ef2a",
+      "candidate_text_sha256": "034cb67227a9f1037d7d7183e8d25c2ab8d6f5557665614a4660dc85f0d854b7",
+      "normalized_end": 302,
+      "normalized_quote": "我们声带在哪啊我们声带在腹部吗我们声带在哪来给大家指一下你用手给大家指声带ok你就不用管在哪就在这儿你肯定是知道吧你说话的时候这个位置它是震动的你能感受到吗同学们声带在这儿震动发声",
+      "normalized_start": 212,
+      "quote_sha256": "3afebe7436a83798012cb7124fccd2b7ced0b22a894071f52227ae323f0109a6",
+      "raw_end": 306,
+      "raw_start": 215,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "candidate_text_sha256": "74daabc2264d7e740002660ddb55596a8611c20ba0dcfab3eb96899eeb95c8f1",
+      "normalized_end": 140,
+      "normalized_quote": "我之前什么问题都有高音卡紧然后那个高音卡紧下巴紧舌根紧不放松然后声音漆漆漏气我全都有所以我现在进步为什么这么大我的学员为什么进步这么大我会把自己的这个问题我当时真的没有抖音这些东西完全是自己研究找大师上课",
+      "normalized_start": 38,
+      "quote_sha256": "d145b02907f3bbdacef02d76d97430642585959044b59b06dbe846ba56faa59c",
+      "raw_end": 140,
+      "raw_start": 38,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "candidate_text_sha256": "053e0f138bdb42389f2ca361d751c23dff5f91e72c28205f229ab5a6a246a881",
+      "normalized_end": 298,
+      "normalized_quote": "叫做胸腹式联合呼吸它专业名词它不是腹式它不是胸腔它叫胸腹式联合呼吸很抽象但是我们会用一套方法让你把这个声音用在唱歌上这才是ok的你只是找到了它只是才占10",
+      "normalized_start": 221,
+      "quote_sha256": "2d96901f1bc921139cce6b5061ac6c9fdaca4904ad17aaa811ebe2510c9f94c6",
+      "raw_end": 298,
+      "raw_start": 221,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_4f46d35f2e2667ca",
+      "candidate_text_sha256": "15f5f06ae38b45b57d9b7c2ba7b06b61449ceb1219bc226170a04ffbb2534b05",
+      "normalized_end": 75,
+      "normalized_quote": "你像我们这边十节课没有进步直接退费现在没有一个同学这种你包括还有同行的老师会跟着我去上课是的明显有进步所以还是说老师选的好老师的方法经验是最重要的一环",
+      "normalized_start": 0,
+      "quote_sha256": "9421bd5bb4ac9a1f54cb2a80e34d1c024b0cc6462cb368a3ef31ce8f1bb07729",
+      "raw_end": 75,
+      "raw_start": 0,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_48324e904b930420",
+      "candidate_text_sha256": "0fd4691fd39f816ab4ac4c654498326d2dd50359c4f4c4d67ad7b6cc47aee0dd",
+      "normalized_end": 163,
+      "normalized_quote": "你下边这个东西太少了你胸腔胸腔支撑这种太少了哎呀哎呀太在这了其实你其实就位置太靠这了上面了对对对上面东西再少一点下面东西再多一点其实你的声音会穿透力更强",
+      "normalized_start": 87,
+      "quote_sha256": "3ecc5343fb820bf25e35c1e1f0bd9794315936a2be5e88ecbcb2e839fb697c5d",
+      "raw_end": 163,
+      "raw_start": 87,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b6ce4961df030128",
+      "candidate_text_sha256": "32d0d76b5e8bbc61d0f0b575cb5349bf3f7c51dadcb0a8b2c881785c63585174",
+      "normalized_end": 69,
+      "normalized_quote": "一个是我线下价格肯定是要比线上贵的贵两倍甚至贵两倍再一个就是我现在是在山东你们来一趟光飞机票两三千没必要你如果说线上咱们没进步我直接退费了",
+      "normalized_start": 0,
+      "quote_sha256": "81132116caec11edd440dcb77f1df2f2944cbed345e93df7dbbd7447d207d083",
+      "raw_end": 69,
+      "raw_start": 0,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_b7730933ffbad510",
+      "candidate_text_sha256": "66a1aceb28c788912211f9baa166e24b14a05a7cb18ebbc17089701891840cbb",
+      "normalized_end": 285,
+      "normalized_quote": "我其实我自己还有另一个身份我我自己是做原创的啊你会编曲吗你会编曲吗会一点你是学这个的吗没有我学医药的哇塞你就直接跨行业了从小就梦想但在我家里面我都希望我学医药",
+      "normalized_start": 206,
+      "quote_sha256": "f448f7d4a0e6a7c47dc4bb46e4df83550f86c2f8830449c70680f8f552f7ff29",
+      "raw_end": 303,
+      "raw_start": 220,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_c09a0f37fab1e353",
+      "candidate_text_sha256": "75d0db7c58ecce3529e052171bc07b21ab94a9053f3463f13b417da512454c69",
+      "normalized_end": 69,
+      "normalized_quote": "声音很白唱了几首歌这种一定会累嗓子一定会痛的那我们流行通道要在二号通道里走再给我两分钟当然二号通道我们又会细分很多的技巧",
+      "normalized_start": 9,
+      "quote_sha256": "03d806718f1e79693fe3ce848bc6bde206241a06fbf27ef8668059a9dedf5324",
+      "raw_end": 69,
+      "raw_start": 9,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_473a7cc73ef551ea",
+      "candidate_text_sha256": "ba42aa94111357c525b8e7b8f2e35793de1287e0469db8958e1006c24a34477c",
+      "normalized_end": 240,
+      "normalized_quote": "老师我想学唱歌不知道自身有没有音乐条件你要条件干嘛要出道吗你要出道吗你要来当大学老师抢老师饭碗吗你要干嘛你要上天吗你要干嘛你要一步登天成为这个音乐界的李承飞吗你要干嘛你要这么好的条件干嘛都是普通人有天赋的人非常少非常少",
+      "normalized_start": 131,
+      "quote_sha256": "f3498a7a302077654b6adbfa95b21e043674ca37538331c16c275c171b38a346",
+      "raw_end": 240,
+      "raw_start": 131,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_6b0ae4ac42937611",
+      "candidate_text_sha256": "6d7b8b2e7e49feacbb76a864a7e5b32c216a8bc4ed94eb104b1ada192c7c4f8c",
+      "normalized_end": 237,
+      "normalized_quote": "你知道为什么打不上去吗你知道为什么吗你知道高音为什么砍你吗小助理你不知道你是托吗这个人说别说我阴阳谁阴阳你为什么唱不上去因为你没有唱歌的技巧技术没有没有爆技术课我刚想说没有爆技术课因为你没有掌握到唱歌的通道",
+      "normalized_start": 134,
+      "quote_sha256": "daa9f65212333147a2ebccfb4faa2800c6959bad2ced3e834b6272c6670f8c71",
+      "raw_end": 237,
+      "raw_start": 134,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    },
+    {
+      "candidate_id": "candidate_9442184e2836ee47",
+      "candidate_text_sha256": "cf94b4df12fa758091a391fb645fee4553b6313a65273672ae037ddfe4582065",
+      "normalized_end": 186,
+      "normalized_quote": "老师我想问一下喉咙打开但是舌头不会勾撞发声正确吗我得听声音我要刻意追求它的形状是靠听感听上你最好能上麦上麦我听一下",
+      "normalized_start": 129,
+      "quote_sha256": "a43eaa5a7137563664a08899ba5e65c2e7eedd2550a4377d249074c2cbfe7427",
+      "raw_end": 186,
+      "raw_start": 129,
+      "status": "passed",
+      "validator_version": "normalized-exact-substring-v2"
+    }
+  ],
+  "selected_order_gate": "passed"
+}

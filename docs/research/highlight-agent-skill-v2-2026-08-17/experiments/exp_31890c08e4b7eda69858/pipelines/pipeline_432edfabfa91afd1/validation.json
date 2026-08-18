@@ -1,0 +1,129 @@
+{
+  "schema_candidate_time_gate": "passed",
+  "selected_count": 9,
+  "unique_candidate_count": 9,
+  "v2_quote_gate_shadow_audit": {
+    "failed_count": 9,
+    "passed_count": 0,
+    "receipts": [
+      {
+        "candidate_id": "candidate_737064038099ef2a",
+        "candidate_text_sha256": "034cb67227a9f1037d7d7183e8d25c2ab8d6f5557665614a4660dc85f0d854b7",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我们唱歌追求的是什么腹部发力你让任何一个声乐老师听到他都得发笑我们声带在哪我们声带在腹部吗",
+        "normalized_start": null,
+        "quote_sha256": "b624ccc8c2a282a23d17a9a67cf57330269ba5481d71b4ebd953a179c856a1aa",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_2e74bd47f66c76ad",
+        "candidate_text_sha256": "053e0f138bdb42389f2ca361d751c23dff5f91e72c28205f229ab5a6a246a881",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "真的要学会腹式呼吸才会唱吗你看你这个问题说得很业余叫做胸腹式联合呼吸它专业名词不是腹式它不是胸腔它叫胸腹式联合呼吸",
+        "normalized_start": null,
+        "quote_sha256": "10864912e03d1ecb6abb5988351a4f41724a5a3e1369b88b80f183d3f86486df",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_adab5d4da9ab2be6",
+        "candidate_text_sha256": "1c1e0d5bf66ce3a69a2ae47b3a7cba481738cdc75dc60e4a015aa9a3e289f24a",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "唱歌的步骤很重要你改错的步骤也很重要很多同学声带不闭合上来不能直接唱假声如果声音本来就很挤现在就学不了戏腔真假声转化和强混我要从头给你改每个人问题不一样具体问题具体分析",
+        "normalized_start": null,
+        "quote_sha256": "312836852fa9e1a09ae36e0964085e638e00c97e6598a4baff9563a2c3cdcb61",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_b45014a64a6a9c53",
+        "candidate_text_sha256": "d49e4fa24d62024b3d908ad35c3a3108e6b59362b870cce66fcfe07ba56bd74f",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我唱美声是一个通道我唱流行是一个通道唱民族和唱流行也不是一个通道唱民族的声音靠前美声靠后流行就正好卡在中间完全不一样所以这个要去调整",
+        "normalized_start": null,
+        "quote_sha256": "5060d81bbdf8d5cb54451f73efbbe591e96b86366dd418c5285a4aadfd4132ba",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_48324e904b930420",
+        "candidate_text_sha256": "0fd4691fd39f816ab4ac4c654498326d2dd50359c4f4c4d67ad7b6cc47aee0dd",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "jj唱的这种歌爆发力比较强你会觉得他唱歌有穿透力你现在就是缺这种穿透力声音不亮也缺少厚度你位置太靠上面了上面的东西再少一点下面的东西再多一点声音会穿透力更强而且不会那么累",
+        "normalized_start": null,
+        "quote_sha256": "519141c135507fdda7b87215e5842178c72f5ab29175365100c39e18f2c53cdc",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_995f11a38ef0e583",
+        "candidate_text_sha256": "550571034000368e01478d6b21b6d99976cc1f77a42e9699ee8c645880bc58cb",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你们那边说话会有鼻音特别重东北四川重庆广西广东还有台湾那边也会有你的高音会发散主要是鼻音问题要把它改得集中一点往后咬字",
+        "normalized_start": null,
+        "quote_sha256": "a3a4f68acd6cf4c9dd0b83f4768d6db0769a6d5da2fbdb8a9b6bd90a49f9864a",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_473a7cc73ef551ea",
+        "candidate_text_sha256": "ba42aa94111357c525b8e7b8f2e35793de1287e0469db8958e1006c24a34477c",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我想学唱歌不知道自身有没有音乐条件你要条件干嘛要出道吗都是普通人有天赋的人非常少",
+        "normalized_start": null,
+        "quote_sha256": "5984f58396fe71af87ea8def088539ead926cc10cf544b36150c99065b0e1050",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_26500385c10519ef",
+        "candidate_text_sha256": "3eae25a766a5fef38c6bbbae9772122b17f0356e32e5736c1db115ee3a8e4753",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "你会去听自己的声音我到底是靠前还是靠后你们现在在视频上刷到很多视频有老师说靠前有老师说靠后我到底是靠哪里每个人问题不一样如果你的声音紧那你的咬字就要靠后一点",
+        "normalized_start": null,
+        "quote_sha256": "de55e2eef273ff2efd39b20394ff05d4dc20938cdaf41626628d023ca4ab24f5",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_368dc549dbba313f",
+        "candidate_text_sha256": "8abde01794e8ece5624347fd2d1d08e8744e8870ad86484ad6e10e72ceb2bd86",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "唱流行歌我觉得甚至85靠天赋我认识很多美声老师他自己唱歌跑调美声唱好的人不一定能唱好流行",
+        "normalized_start": null,
+        "quote_sha256": "1e2c3998cd75f00115e4519c28c966c60b85d1b249393df94fe9ec7302426bea",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      }
+    ],
+    "selected_count": 9
+  }
+}

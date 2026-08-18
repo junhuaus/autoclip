@@ -1,0 +1,15 @@
+{
+  "arm_id": "arm_7dfabc955ba52ad5",
+  "call_elapsed_seconds": 59.987,
+  "completed_at": "2026-08-18T07:23:32.681053+00:00",
+  "pipeline_id": "pipeline_c3f987491f16e008",
+  "quote_gate_failed_count": 7,
+  "repair_budget": {
+    "maximum_repairs": 2,
+    "repairs_used": 0,
+    "used_by_stage": []
+  },
+  "repeat": 1,
+  "selected_count": 8,
+  "source_id": "src_7f34cc21eaf6d819"
+}

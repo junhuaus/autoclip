@@ -1,0 +1,1174 @@
+{
+  "assessments": [
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "核心观点清楚地说明了声乐纠错需要按基础问题和个体情况安排顺序，但后半段转入连麦与课程招揽，削弱了完整性和短视频聚焦度。",
+      "candidate_id": "candidate_adab5d4da9ab2be6",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "声乐训练不能直接套用假声、戏腔或强混等技巧，应先依据个人的声带与发声问题安排纠错步骤。",
+      "risk_summary": "后半段包含课程体验、插队教学和连麦招揽等推广内容。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "声乐纠错的训练顺序与个体差异",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "关于普通学习者是否需要天赋的观点有直接提问和鲜明回答，具备一定吸引力；但开头的练习话题没有展开，中间夹有灯牌招揽和重复反问。",
+      "candidate_id": "candidate_473a7cc73ef551ea",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "普通人学习唱歌不必先证明自己有出众的音乐天赋，除非目标是成为顶尖职业歌手。",
+      "risk_summary": "候选包含粉丝灯牌招揽，且开头对发声练习教学正确性的判断没有继续解释。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "普通人学唱歌是否需要天赋",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "价格、授课形式和进步承诺都表达得明确，能够形成完整的商业主张；但大量绝对化效果对比缺少候选文本内的支撑，作为独立内容更像销售话术。",
+      "candidate_id": "candidate_bf1aa4701bd6f761",
+      "content_risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "讲述者主推不同价位的一对一技术课，并声称其效果显著优于录播课且后续可能涨价。",
+      "risk_summary": "内容涉及具体收费、课程效果和涨价信息，并包含缺乏佐证的绝对化进步承诺。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "一对一声乐课的定价与效果宣传",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选提出了美声能力不等于流行演唱能力的鲜明观点，具有争议性和传播钩子；但开头杂乱，天赋比例反复变化，对其他教师的概括也缺乏论证。",
+      "candidate_id": "candidate_368dc549dbba313f",
+      "content_risk_flags": [
+        "reputation_or_defamation"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "唱好美声不代表能唱好流行歌曲，讲述者认为流行演唱在很大程度上依赖天赋。",
+      "risk_summary": "候选以贬损性措辞评价部分美声教师的流行演唱和音准，存在声誉风险；开头转写也较混乱。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "美声能力、流行演唱与天赋的关系",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "对声音位置、胸腔支撑和穿透力的反馈可以恢复出明确教学意图，但多次使用“这里、上面、下面”等指示语，离开画面后难以准确理解；结尾评价还有明显转写歧义。",
+      "candidate_id": "candidate_729ff8b49cf26f22",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "visual_verification_required"
+      ],
+      "primary_claim": "该学员的声音位置偏高、下方支撑不足，调整后可能增强穿透力并减少疲劳。",
+      "risk_summary": "关键发声位置依赖未提供的手势或画面，且结尾的能力评价存在明显转写歧义。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "通过声音位置和支撑改善穿透力",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "通过高音唱不上去、破音和唱后不适等常见问题形成了直接入口，并给出缺少发声技巧与通道概念的解释；但内容重复较多，具体通道尚未在候选内展开。",
+      "candidate_id": "candidate_6b0ae4ac42937611",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "高音受阻、破音或唱后嗓子不适，可能与没有掌握合适的发声技巧和发声通道有关。",
+      "risk_summary": "内容涉及嗓音不适和发声原因判断，并夹有技术课程推广，但尚未完整解释所称的发声通道。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "高音困难与发声通道",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选包含少量可恢复的观点，例如练熟歌曲、几句即可初步判断基础，但主体是结束点评、重复称赞和灯牌互动，信息密度与独立完整性较弱。",
+      "candidate_id": "candidate_7062f9ba2a253131",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "context_dependency"
+      ],
+      "primary_claim": "学员应先把歌曲练熟再接受教学评估，讲述者认为短暂演唱也能初步判断其声乐基础。",
+      "risk_summary": "内容主要夹杂课程和粉丝灯牌招揽，部分能力评价的转写含义不清，并依赖前一段学员表现。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "连麦学员的练歌建议与基础评价",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "missing_context",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选可以独立识别为直播开场与互动引导，表达清楚但几乎没有声乐知识或故事内容，主要价值是节目介绍而非高价值观点。",
+      "candidate_id": "candidate_f12c067f4578931f",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "这是一个声乐教学直播，观众可以在互动区提出音乐问题。",
+      "risk_summary": "",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 4,
+        "hook_strength": 1,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "声乐教学直播的开场介绍",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选明确说明声音由声带振动产生，并提出气流经过声带时速度需要适度；纸张类比具有可讲解性，但论证未完全展开，后半段大量转为礼物和课程引导。",
+      "candidate_id": "candidate_e7e0739b77ace20a",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim",
+        "visual_verification_required"
+      ],
+      "primary_claim": "发声来自声带振动，气流需要经过声带且速度不宜过快或过慢。",
+      "risk_summary": "候选涉及发声器官和气流控制的教学判断，演示依赖未提供的画面，后半段包含礼物与课程招揽。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声带振动与气流控制",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "美声可能掩盖音准问题以及流行演唱依赖天赋的观点表达直接，具有争议性；但依据仅是个人观察，后半段迅速转入无关生活与互动内容。",
+      "candidate_id": "candidate_8fac69f83a04a15d",
+      "content_risk_flags": [
+        "reputation_or_defamation"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "讲述者认为美声表现可能掩盖部分音准问题，而流行演唱更依赖个人天赋。",
+      "risk_summary": "内容概括部分美声教师存在跑调问题，可能对相关从业者群体造成声誉影响。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "美声训练对音准问题的遮蔽与流行天赋",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选能够恢复出线上一对一课程比录播课更适合零基础者的商业主张，也说明了线下成本和退款承诺；但价格转写明显损坏，场景插话较多，效果判断缺少支撑。",
+      "candidate_id": "candidate_db82a842ff2401fa",
+      "content_risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "讲述者认为零基础学习者更适合线上一对一指导，而非昂贵录播课或成本更高的线下课。",
+      "risk_summary": "内容包含价格比较、退款承诺和课程招揽，且金额相关转写明显不可靠。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "录播课、线上一对一与线下课的选择",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "从曲风建议自然过渡到学员跨专业做原创音乐的个人经历，形成了鼓励坚持兴趣的轻故事；对话有一定跳跃和重复，但主线仍可辨认。",
+      "candidate_id": "candidate_b7730933ffbad510",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "学员可以继续选择适合自己的抒情或节奏布鲁斯风格，并坚持跨专业从事原创音乐的梦想。",
+      "risk_summary": "曲风建议部分依赖前文对学员音色和演唱表现的判断。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "选择适合的曲风与跨专业音乐梦想",
+      "uncertainty_flags": [
+        "missing_context",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选用健身憋气与唱歌作对比，并借声带位置和纸张振动解释发声，具备具体教学结构；但部分判断过于绝对，关键示范依赖动作和实物画面。",
+      "candidate_id": "candidate_737064038099ef2a",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "visual_verification_required"
+      ],
+      "primary_claim": "唱歌不应照搬力量训练时憋气和胸部用力的方式，发声的直接来源是声带振动。",
+      "risk_summary": "内容涉及憋气、身体发力和声带位置等健康相关教学，纸张与身体位置示范需要画面核验。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "唱歌发力与声带振动的区别",
+      "uncertainty_flags": [
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选把课程退款承诺、气息基础和学习停滞原因连成了一套推销论述，主要观点可以辨认；但多处专业词转写不清，部分因果判断绝对化，结尾也没有完整收束。",
+      "candidate_id": "candidate_de95d7468a7318ca",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "primary_claim": "讲述者认为气息是声乐学习的重要基础，长期没有进步可能说明早期训练存在问题，并以退款承诺推广自己的课程。",
+      "risk_summary": "内容包含发声训练与学习停滞的健康相关判断、退款承诺和课程推广，且若干关键术语转写不清、结尾未完成。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "气息基础、学习停滞与课程效果承诺",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选可恢复出鼻音过重导致高音发散以及需要调整咬字和声音位置的反馈，但开头转写混乱，大量“这边、通道”等表达依赖现场示范，调整方法也没有充分解释。",
+      "candidate_id": "candidate_5fc29cf6f9d6fbb3",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "visual_verification_required"
+      ],
+      "primary_claim": "学员唱歌时鼻音偏重且高音容易发散，需要调整咬字位置并让声音更集中。",
+      "risk_summary": "内容涉及发声问题和调整方法，关键位置依赖未提供的现场示范，开头及部分术语转写不清。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "鼻音、高音发散与咬字位置调整",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选先有较长的连麦寒暄和重复语气词，随后明确比较美声、民族与流行唱法的发声通道，并指出需要针对性调整；核心观点可恢复，但内容混杂且部分术语受口语表达影响。",
+      "candidate_id": "candidate_b45014a64a6a9c53",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "美声、民族与流行唱法使用的发声通道不同，学习者需要依据自身唱法和声音位置进行调整。",
+      "risk_summary": "涉及可能影响嗓音使用的教学判断，并包含引导上课的推广表达。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "不同唱法的发声通道差异",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选主要由连麦招呼、课程插队方式、直播间定位和对学员进步空间的评价组成，信息可以理解，但重复较多且主要服务于直播互动和课程推广。",
+      "candidate_id": "candidate_0f91c0dab3dbb1a2",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "直播间提供声乐教学连麦，并邀请观众通过指定互动方式参与或接受教学。",
+      "risk_summary": "内容包含明确的课程与直播互动推广。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 4,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声乐直播连麦与课程推广",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选清楚说明一对一课程、课程录屏和因人而异的声音调整思路，也穿插用学员前后对比吸引新报名的商业表述；信息较完整，但推广色彩明显。",
+      "candidate_id": "candidate_26500385c10519ef",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "一对一课程会提供课程录屏供学员复盘，而声音位置的调整应根据每个人的具体问题决定。",
+      "risk_summary": "包含嗓音训练建议、学员案例营销和课程报名推广。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "一对一声乐课的录屏复盘与个性化调整",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选提出流行与美声属于不同训练通道，并回应零基础学习需求，但中段被同行进入直播间的话题打断，末尾的问题缺少后续回答。",
+      "candidate_id": "candidate_1905cc42552496cb",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "流行唱法和美声训练被区分为不同通道，零基础学习者也可以从流行唱法开始学习。",
+      "risk_summary": "课程能力宣传清晰，但关于行业内部情况的话题在候选内没有展开。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "流行与美声训练通道及零基础学习",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选表达了选择教师时应关注经验、音乐判断力和教学质量，而不能简单认为线下一定优于线上；不过论证依赖自我比较，并夹杂直播互动和贬低式对比。",
+      "candidate_id": "candidate_932087bda627a1c6",
+      "content_risk_flags": [
+        "reputation_or_defamation",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "课程质量不由线上或线下形式单独决定，教师的经验、判断力和教学能力更重要。",
+      "risk_summary": "含自我课程推广，并以笼统方式贬低经验较少的教师群体。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "线上线下声乐课与教师选择",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选明确描述声音过白可能带来疲劳，并把流行技巧与美声通道区分开来；后半段转入直播间同行互动，使教学观点的收束变弱。",
+      "candidate_id": "candidate_c09a0f37fab1e353",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "声音过白可能导致演唱疲劳，流行唱法中的不同技巧应在相应发声通道内继续训练。",
+      "risk_summary": "涉及嗓音疲劳与发声训练判断，发布前宜由专业人员复核。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声音过白与流行唱法通道训练",
+      "uncertainty_flags": [
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选以自身曾有高音紧、舌根紧和漏气等问题为例，说明其通过研究和付费学习总结教学方法；个人经历清楚，但从自身进步延伸到学员快速改善带有推广性质。",
+      "candidate_id": "candidate_159babdbda6acfe6",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "讲述者曾经历多种发声问题，并称自己通过持续研究和专业学习总结出改善这些问题的教学方法。",
+      "risk_summary": "包含嗓音改善主张和对自身教学效果的推广。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "从个人发声问题到教学方法的形成",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选围绕学员提出的喉咙和舌头状态问题，教师明确表示不能只看形状判断，必须先听实际声音；随后进入试唱准备，诊断尚未发生。",
+      "candidate_id": "candidate_9442184e2836ee47",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "判断某种发声状态是否正确不能只依据口腔形状，需要先听到实际声音。",
+      "risk_summary": "涉及发声安全判断，且候选只完成了评估原则，未包含实际听辨结果。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "发声姿态不能脱离实际声音判断",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选是关于配音声线、外貌称赞和后续学习流行唱法的简短对话，最后清楚提出需要教师帮助调整发声通道；内容可理解但较薄。",
+      "candidate_id": "candidate_5c57e9b5dd359ae7",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "说话者正在练习流行唱法，并认为自己需要教师帮助纠正发声通道问题。",
+      "risk_summary": "包含对后续付费或课程学习的潜在推广语境。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "配音学习者寻求流行唱法通道调整",
+      "uncertainty_flags": [
+        "missing_context",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选给出针对某位演唱者的具体诊断，认为声音缺少厚度和穿透力，并建议减少过高位置、增加下方支撑；核心方向明确，但多次使用指示性口语，无法从纯文本确认所指位置和声音表现。",
+      "candidate_id": "candidate_48324e904b930420",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "visual_verification_required"
+      ],
+      "primary_claim": "该演唱者的声音位置偏高、下方支撑不足，调整声音厚度与支撑可能增强穿透力并减轻疲劳。",
+      "risk_summary": "嗓音诊断依赖未提供的声音或动作展示，且建议可能影响发声安全。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "通过声音位置与支撑改善穿透力",
+      "uncertainty_flags": [
+        "visual_dependency",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选以讲述者的美声学习背景为依据，解释声音过白、唱后疲劳以及流行唱法中不同混声技巧的训练方向；开头承接前文，结尾也略显截断。",
+      "candidate_id": "candidate_4477e0c580eeaf0f",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "声音过白并容易唱后疲劳时，需要重新调整流行唱法的发声通道，再细分训练不同混声技巧。",
+      "risk_summary": "涉及嗓音疲劳和训练建议，同时以个人资历强化教学推广。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声音过白时的流行唱法通道调整",
+      "uncertainty_flags": [
+        "missing_context"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选先用学员反馈说明气息支撑的作用，随后纠正“腹式呼吸”的说法，强调胸腹式联合呼吸只是唱歌训练的一部分；观点具体，但夹有课程进步宣传和无关互动。",
+      "candidate_id": "candidate_2e74bd47f66c76ad",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "唱歌所需的呼吸配合更准确地说是胸腹式联合呼吸，而找到这种感觉只是把它用于演唱的起点。",
+      "risk_summary": "涉及呼吸和发声训练主张，并穿插对课程效果的推广。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "胸腹式联合呼吸在唱歌中的作用",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选把不同地区口音与鼻音倾向联系起来，并据此诊断学员高音发散、建议调整咬字；核心对话可恢复，但部分语句明显受识别错误影响，且对地域群体和第三方的概括需要谨慎。",
+      "candidate_id": "candidate_995f11a38ef0e583",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "reputation_or_defamation",
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "讲述者认为该学员的地域口音带来较重鼻音，并建议调整咬字和声音集中度来改善高音发散。",
+      "risk_summary": "部分文字识别不清；内容涉及嗓音训练，并对地域群体及可识别第三方作概括性评价。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "地域口音、鼻音与高音集中度",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选明确宣传课程进步与退费承诺，并把效果归因于教师经验和方法；主张容易理解且结构集中，但缺少支持其普遍性和退费条件的细节。",
+      "candidate_id": "candidate_4f46d35f2e2667ca",
+      "content_risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "讲述者声称其课程重视教师经验和教学方法，并承诺一定课次后没有进步可以退费。",
+      "risk_summary": "包含课程效果宣传及需要核实具体条件的退费承诺。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "声乐课程效果与退费承诺",
+      "uncertainty_flags": [
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选比较线上与线下学习成本，给出线上无进步退费的承诺，并断言录播课对绝大多数人效果很低；观点完整、进入直接，但概率说法和商业承诺缺少候选内证据。",
+      "candidate_id": "candidate_b6ce4961df030128",
+      "content_risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "讲述者认为线上课程成本更低且可提供退费保障，并声称录播课对绝大多数学习者的效果有限。",
+      "risk_summary": "包含价格比较、退费承诺和缺少依据的课程效果概率宣传。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "线上声乐课成本、退费与录播课效果",
+      "uncertainty_flags": [
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选清楚说明直播间采用连麦诊断，并会针对学员问题给出大致改进思路；核心信息完整，但开场口误、闲聊和互动催促较多，削弱了短视频节奏。",
+      "candidate_id": "candidate_a1d7354902e340e6",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "主播会通过连麦判断学员当前的演唱问题，并说明可能采用的纠正步骤。",
+      "risk_summary": "内容包含对直播教学和连麦参与方式的推广，需要按宣传内容审看。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 1,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "声乐连麦诊断与纠正流程",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选保留了学员关于说话习惯的回应和一小段演唱，能作为演唱展示，但候选内部没有完成明确诊断，理解其与高音、鼻音问题的关系依赖前后对话。",
+      "candidate_id": "candidate_27e8574669b9e0c2",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency",
+        "incomplete_claim"
+      ],
+      "primary_claim": "学员认为自己的日常说话方式可能与演唱状态有关，并应要求继续试唱。",
+      "risk_summary": "诊断意图依赖相邻对话，且候选含有歌曲演唱内容，发布前需核查第三方作品使用。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "说话习惯与演唱位置的连麦试唱",
+      "uncertainty_flags": [
+        "missing_context",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选由一段演唱转入老师的正面评价和对学员从业情况的询问，具有现场反馈感，但评价非常简略，且部分转写词义不明。",
+      "candidate_id": "candidate_f262b8f87ac47de0",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "老师对学员刚才的演唱给予肯定，并询问其是否有线下助唱或音乐相关经历。",
+      "risk_summary": "部分关键用词疑似转写失真，且演唱段落涉及第三方歌曲内容。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "学员演唱展示与从业经历询问",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选基本是一段连续歌曲演唱，能够构成独立的表演片段，但没有教学解释或清晰的非歌词观点，且多处歌词转写可能失真。",
+      "candidate_id": "candidate_59b038f803f24532",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "候选呈现了一段以情感冲突为核心的歌曲演唱。",
+      "risk_summary": "歌词转写存在不确定性，发布演唱片段前需核查第三方作品使用。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "情感歌曲演唱片段",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "开头以跑调纪录的玩笑缓解学员紧张，随后进入演唱，具有轻微人物互动和表演价值；不过歌词转写较乱，演唱也未形成明确收束。",
+      "candidate_id": "candidate_8e329a9311a36567",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "主播用自己曾遇到严重跑调学员的趣事安慰当前学员，随后学员开始演唱。",
+      "risk_summary": "演唱歌词疑有转写错误，并涉及第三方歌曲内容。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "缓解紧张后的现场试唱",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选包含较完整的演唱段落以及老师的即时反馈：音准没有明显问题，并准确问出学员来自重庆。现场互动有看点，但关于地域与发声特点的解释尚未在候选内展开。",
+      "candidate_id": "candidate_059b8bf41086721a",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "老师认为学员这段演唱的音准没有明显问题，并从其声音特点判断其来自川渝地区。",
+      "risk_summary": "候选对声音特点的解释尚未完成，演唱段落也涉及第三方歌曲内容。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "试唱后的音准评价与地域口音判断",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选明确介绍直播间以连麦教学为主，并承诺快速指出音乐问题，信息容易理解；但大量点赞、关注和灯牌引导占据篇幅，教学内容仅停留在招募阶段。",
+      "candidate_id": "candidate_3f73ee8bb04ee052",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "观众可以参与连麦，让主播快速指出其演唱问题并帮助改进。",
+      "risk_summary": "内容以引导关注、加入粉丝互动和参与直播服务为主，带有明显推广性质。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 2,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "连麦声乐教学的直播招募",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选提出针对该学员应逐字、按歌曲纠正咬字，而非只看录播，并介绍课程录屏和进步退费承诺。方法主张明确，但销售表述和效果承诺需要审慎核验。",
+      "candidate_id": "candidate_1d0bcd4f6ed22861",
+      "content_risk_flags": [
+        "legal_or_financial_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "对于这名学员，逐字并按歌曲接受针对性纠正比观看录播更有效，线上课程还会提供课堂记录和进步保障。",
+      "risk_summary": "内容推广付费课程并包含进步退费承诺，具体条件和效果需要核实；对教学方案的判断也依赖此前诊断。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "逐字纠正咬字与线上课程推介",
+      "uncertainty_flags": [
+        "missing_context"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选是一段较连续的歌曲演唱，可作为表演素材，但没有教学点评或独立观点；若干歌词明显不顺，降低了文本证据的可靠性。",
+      "candidate_id": "candidate_84a0a525d56ff5bd",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "候选呈现了一段围绕关系疏离与自我掩饰的歌曲演唱。",
+      "risk_summary": "歌词存在转写不确定性，且演唱内容涉及第三方作品。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "关系疏离主题的歌曲演唱",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选先评价学员第二节课后的演唱仍有较大提升空间，随后转为连麦、灯牌和助理互动，最后抛出狗喘气练习时长问题但没有回答。可识别多个编辑单元，但主题分散且核心问题未闭合。",
+      "candidate_id": "candidate_374a9f9e7e085c59",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "老师认为学员经过第二节课后仍有较大提升空间，并建议继续循序学习。",
+      "risk_summary": "候选包含直播互动推广，且关于狗喘气练习标准的问题没有在本段得到回答。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "学员进步评价与直播互动闲聊",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选试图解释高音受限与大白嗓、说话通道有关，但句子重复且解释未完成，很快转入助理和灯牌互动。核心观点仍可辨认，因此可评分但需要较多整理。",
+      "candidate_id": "candidate_2e039a3e91689484",
+      "content_risk_flags": [
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "primary_claim": "老师将直接使用说话位置的大白嗓视为一种容易造成高音受限的发声通道。",
+      "risk_summary": "发声解释因重复转写和中途转题而不完整，后半段还包含直播互动推广。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "高音受限与大白嗓通道",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选主要是一小段歌曲演唱，前置提问可提供有限开场，但没有后续评价或完整交流。歌词中存在疑似识别错误。",
+      "candidate_id": "candidate_9d47bf21dc719613",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "学员应要求再次演唱了一段歌曲。",
+      "risk_summary": "歌曲文本存在转写不确定性，发布演唱片段前需核查第三方作品使用。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "连麦学员再次试唱",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选通过吸气、呼气示范引出演唱时气流和腹部变化的教学问题，结构基本可懂；但关键结论尚未在候选内说出，示范效果也依赖未提供的画面。",
+      "candidate_id": "candidate_eda02f3bbfbc7462",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim",
+        "visual_verification_required"
+      ],
+      "primary_claim": "老师用吸气和呼气示范，引导观众观察演唱时气流变化与腹部动作的关系。",
+      "risk_summary": "教学结论在本段尚未完成，而且动作是否正确需要结合未提供的画面确认。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "演唱呼吸与腹部动作示范",
+      "uncertainty_flags": [
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "歌曲片段后紧接具体诊断：学员声音缺少穿透力和厚度，并自述将声音挂在鼻部后使不上劲。问题与感受都较明确，但候选没有给出完整解决方案。",
+      "candidate_id": "candidate_8ba2743da2b9cb9e",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "老师认为学员的声音缺少穿透力和厚度，而学员表示自己采用偏鼻部的位置后难以发力。",
+      "risk_summary": "诊断后的解决办法尚未在候选中完成，开头演唱也涉及第三方歌曲内容。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声音穿透力不足与发声位置困扰",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选提出人在特定年龄后肌肉或机能会退化，并据此劝观众锻炼，核心观点清楚且带有直接行动号召；但年龄界线表述绝对、依据未说明，且末尾有明显转写损坏。",
+      "candidate_id": "candidate_e2c68e2187b0dda3",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "主播认为成年人随着年龄增长会出现肌肉或机能下降，因此平时应适度锻炼。",
+      "risk_summary": "内容包含未经候选文本支持的具体年龄退化说法，属于需核验的健康主张；末尾部分转写也不可靠。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "年龄相关身体退化与日常锻炼建议",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    }
+  ]
+}

@@ -1,0 +1,385 @@
+{
+  "assessments": [
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "文本可辨认出说话者在测试自己的低音下限，随后转入地点、食物和直播互动，主题跳跃且部分音名识别不清，但仍有可评分的声域讨论单元。",
+      "candidate_id": "candidate_45bc9a8fa85d8251",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "primary_claim": "说话者自测后认为自己的低音只能到某个较低音级，无法到达更低的目标音。",
+      "risk_summary": "音名及关键表述疑似识别有误，声域结论也未得到完整说明。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "个人低音下限测试与直播闲聊",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选较完整地用声带薄片和气流压强解释漏气，并把胸口过度用力与长音易虚联系起来；中间玩笑和思考停顿略削弱节奏，部分生理解释需审慎复核。",
+      "candidate_id": "candidate_09125d918b1fac0b",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "唱歌时压强和胸口用力过度可能导致漏气，也会让长音难以维持。",
+      "risk_summary": "包含有关声带、气流压强和发声问题成因的身体机制判断，发布前宜由专业人士复核。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "漏气与长音易虚的发声原因",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "可辨认的主要观点是高音卡顿源于未找到合适发声通道，但内容很快转向外貌调侃、减脂安排和下播预告，整体混杂且独立价值有限。",
+      "candidate_id": "candidate_72165688c1b01bb0",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "说话者认为高音容易卡顿，是因为没有找到合适的发声通道和位置。",
+      "risk_summary": "",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "高音发声通道与直播收尾闲聊",
+      "uncertainty_flags": [
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选先说明小狗哈气练习可能带来的咽部不适，再给出只用嘴呼气、用鼻吸气的替代方式，并表达更推荐吐丝练习；建议明确，但涉及身体风险且末尾没有真正讲完吐丝做法。",
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "说话者不建议敏感者反复练小狗哈气，认为可能引起咽部不适，并更推荐吐丝练习。",
+      "risk_summary": "包含特定呼吸练习可能造成咽部红肿、干痒的健康判断，且替代练习的具体说明未完成。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "气息支撑练习及小狗哈气的弊端",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "文本以气球作比解释吸气时腹部应向外变化，并强调先吸好气再练吐丝，逻辑基本完整；中间有口误和点赞插话，削弱流畅性。",
+      "candidate_id": "candidate_18e1d7ea47ba32fc",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "唱歌吸气时腹部应像气球充气一样向外变化，先建立正确吸气状态，再用吐丝练习气息。",
+      "risk_summary": "包含呼吸和肌肉状态的身体训练建议，且个别关键句存在明显识别或口误。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "唱歌吸气时的腹部变化与吐丝练习",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选清楚提出鼻音可能与方言、鼻部状态和舌根紧张有关，也强调发声通道需要整体协调；后半转入欢迎、点赞和读取新问题，造成主题分散。",
+      "candidate_id": "candidate_915e9f3bd1fce105",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "鼻音问题可能与舌根紧张及整体发声通道不协调有关，不能只孤立处理舌头。",
+      "risk_summary": "包含鼻音成因和身体状态的判断，部分有关鼻部状态的措辞识别不清。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "鼻音、舌根紧张与整体发声通道",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "文本能够恢复出先找发声通道、再使用气息的核心教学观点，但开头夹有难以理解的词句，而且多次依赖说话者指示身体位置，纯文本无法确认具体位置。",
+      "candidate_id": "candidate_8772ddd9d2d66094",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "visual_verification_required"
+      ],
+      "primary_claim": "练高音时应先确定正确的发声通道和方向，否则气息难以有效使用。",
+      "risk_summary": "开头识别混乱，且关于发声方向和抬起位置的说明依赖未提供的画面。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "先找发声通道再运用气息",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "内容主要由调灯、简短互动和残缺歌词组成，没有形成可可靠概括的独立观点或完整表演段落。",
+      "candidate_id": "candidate_a4d112648d50cd3d",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "unusable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "primary_claim": null,
+      "risk_summary": "候选包含疑似第三方歌曲片段，且歌词识别残缺，无法形成可靠的独立单元。",
+      "scores": {
+        "content_value": 0,
+        "editorial_utility": 0,
+        "evidence_fidelity": 1,
+        "hook_strength": 0,
+        "standalone_completeness": 0
+      },
+      "topic_hypothesis": "调灯互动与残缺演唱片段",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "missing_context"
+      ],
+      "unusable_reason": "fragment_only"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "开头演唱内容识别严重混乱，但后半段可以辨认出直播将设置连麦诊断环节以及欢迎、致谢等互动信息，因此仍可作为低价值直播公告评分。",
+      "candidate_id": "candidate_765337da95068540",
+      "content_risk_flags": [
+        "copyright_or_third_party"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "主播宣布稍后会安排连麦，并为上麦者提供问题诊断。",
+      "risk_summary": "前半包含难以辨认的疑似第三方歌曲内容，主要可用信息仅来自后半直播公告。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "直播连麦诊断环节预告",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "mixed_topics"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "说话者用自身经历说明舌尖用力的外在表现，并给出先寻找舌头伸出时放松感觉的建议；内容具体、可独立理解，但部分词语识别有误。",
+      "candidate_id": "candidate_523065b25295d83a",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "visual_verification_required"
+      ],
+      "primary_claim": "练唱时应先找到舌头自然伸出且不额外用力的感觉，再处理更具体的舌位。",
+      "risk_summary": "包含舌部训练建议，且对舌形和动作的判断依赖未提供的示范画面，部分用词也有识别误差。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "通过舌头外形识别并缓解舌部用力",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "内容主要是抱怨平台流量、反复强调直播间属于声乐教学并招呼观众互动，能够理解但缺少具体知识或完整故事。",
+      "candidate_id": "candidate_4df4063e46e8084e",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "主播介绍这是提供声乐教学和连麦答疑的直播间，并呼吁观众参与互动。",
+      "risk_summary": "个别关于连麦方式的词句识别不清。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声乐教学直播间介绍与观众召集",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选完整解释了为什么不应刻意模仿资深歌者的音色：基础通道未建立时，模仿会变成错误挤压并产生其他问题；还用个人学习误区作补充，虽然结尾示范略突兀。",
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "visual_verification_required"
+      ],
+      "primary_claim": "初学者应先找到自己的发声和音色通道，不要刻意模仿资深歌者，否则容易错误用力并带来其他发声问题。",
+      "risk_summary": "包含错误用力可能导致发声问题的身体训练判断，部分通道方向说明依赖手势或画面。",
+      "scores": {
+        "content_value": 4,
+        "editorial_utility": 4,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "topic_hypothesis": "初学者不应刻意模仿他人音色",
+      "uncertainty_flags": [
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "说话者以美声无需麦克风和自己在家不敢夜间演唱为例，解释充分共鸣能够增强传播，并提醒初学者不要只追求空架子；例子生动，但对专业唱法的概括较绝对。",
+      "candidate_id": "candidate_a2609c2e30906366",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "有支撑的美声会综合运用多个共鸣腔体来增强声音传播，初学者不应只模仿缺少内部支撑的外在音色。",
+      "risk_summary": "包含共鸣腔体和声音传播机制的发声教学判断，部分表述较为绝对。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "美声共鸣、声音传播与空架子误区",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选从高音挤、嗓子疼切入，给出从头顶到小腹的通道概念和腹部起伏检查方法，结构清晰且有直接痛点；但把胸口抬起与高音必然卡顿直接等同，确定性过强。",
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "visual_verification_required"
+      ],
+      "primary_claim": "说话者认为高音挤压和卡顿常与呼吸方式及整体发声通道不协调有关，并建议通过下腹起伏检查吸气状态。",
+      "risk_summary": "涉及嗓子疼、呼吸位置和高音问题的身体训练建议，结论带有绝对化表达，位置示范也需画面确认。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "高音卡顿与呼吸通道检查",
+      "uncertainty_flags": [
+        "visual_dependency"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选以明确问题开场，并将唱歌时胸口发紧归因于气息下落和胸口位置过度用力，随后引出先吸气的底层逻辑；观点清楚，但解释在下一段才会继续。",
+      "candidate_id": "candidate_525a6dcec50a0e42",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "唱歌时胸口发紧可能是因为气息处理和用力位置不当，尤其是胸口过度施力。",
+      "risk_summary": "包含胸口发紧成因和呼吸方式的身体健康相关判断，且论证在候选结尾尚未完成。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "唱歌时胸口发紧的用力原因",
+      "uncertainty_flags": [
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "schema_candidate_time_gate": "passed",
+  "selected_count": 10,
+  "unique_candidate_count": 10,
+  "v2_quote_gate_shadow_audit": {
+    "failed_count": 10,
+    "passed_count": 0,
+    "receipts": [
+      {
+        "candidate_id": "candidate_554c3d7035ba1055",
+        "candidate_text_sha256": "9ec0ea7ffb3ecfa93f2bf75e663949ddae09f6528479f37dd0da8a000e720dac",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我建议我们唱歌的同学每天连续不要超过一个小时我们唱歌不要去追求时间要追求效率在唱歌的时候动着脑子去思考着去唱",
+        "normalized_start": null,
+        "quote_sha256": "8b169b069f92fa2e86bf701d3a1868d88e30df9e54ed69de5e090e51380fa432",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_65678839045aab40",
+        "candidate_text_sha256": "940ae1fca056d3e09fd46da398d996b05fe46a12545b156527732b5d965bf073",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "有天赋的真的很少大家都是普通人包括我也是普通人我之前有很多问题都是后期练出来的你要在自己的硬件上让自己做到最好",
+        "normalized_start": null,
+        "quote_sha256": "7119235866740621f2d07241e3932aa1fb3625fef3826ddd3cb721bee1f59ed1",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_45f74801b32ad9cf",
+        "candidate_text_sha256": "4e87042bd0ea6e819e80336c8f761f2731cc52a1ee0222cf0162c60e62f6fb24",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "如果又遇到了高音又遇到了一个闭口音那这个高音很多小白就会卡紧怎么办先把这个闭口音带一个开口音的字去练找到这个感觉之后慢慢地再过渡到闭口音上",
+        "normalized_start": null,
+        "quote_sha256": "e231b6c736f427a678aedfa5716c7f1c94b4d3fc843853e54557cd4baf05f333",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_0c49c6488ae5fe28",
+        "candidate_text_sha256": "710dc9bc76948eaf5dd4e72f9237cac30851a3b2e177a651eb0b12c4fa3f39b9",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "共鸣它是一个概念我们只要把唱歌唱在唱歌通道里面去你就会有你所谓的共鸣你不要刻意地去练这个共鸣所有的共鸣的前提是你在唱歌通道里面",
+        "normalized_start": null,
+        "quote_sha256": "14a623e774bf247b079bbb5d301f2216fb9f0990ea492eb799936f3fcb87961a",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_464b0f2aee1d8a44",
+        "candidate_text_sha256": "7f0a41196127ba553578fdd21fd515cefd05404c0342d083c045f0d6d602787d",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "很多老师唱歌会让你抬眉我也会让我的学生抬眉但是它有程度有阶段不适合小白它属于画龙点睛的那一笔可以让你在后期的时候高音再亮一些你不能上来就把这根线给拽起来",
+        "normalized_start": null,
+        "quote_sha256": "274fdbc0fcc34fd6f0b7b52250a6ac2f360f366d6c2a33d034954dd6b0036f30",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_6721fcbb3782d23b",
+        "candidate_text_sha256": "210640b313bfe1378ae8a7108847244d8ef8539a8c6682cb9039ba20c0a90413",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "拿着谱却跟不上伴奏为什么因为你不会听伴奏你跟不上拍你的脑子只能办一件事情要不然想这个音高要不然听这个节奏你起码得熟一样得把这个歌先搞熟了才有精力去听伴奏",
+        "normalized_start": null,
+        "quote_sha256": "9d6137e47750c702de6bc12f1ef290adb915b5f34ce97566a93d45cf44abbe89",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_bef585871fbac01e",
+        "candidate_text_sha256": "ae8cfcb085733f1354dc9ba98cdcbe4eed7903ef02adaedabd28e4adbab6c1de",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "简谱有一个好处就是它会让你把音高唱出来再加上节奏你学歌就会快但是这个不是强制的你不会简谱不会乐理一样可以学唱歌因为我们唱歌重在一个模仿",
+        "normalized_start": null,
+        "quote_sha256": "393e02a8d2ef3a4f9d25e9934e3ac98678f217c21519ccff010c9c89c0598046",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_c393f29d34250a55",
+        "candidate_text_sha256": "6d0e0cdc2589a9e8d2fa13fbb6eb5560a0da0f1b137843b06e7e969ae8262fd8",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "怎么去找丹田的点你可以站起来俯身45度把手放在腰上慢慢地吸气你会感觉到这个起伏这个是我们最重要的第一步把气息吸到位置上",
+        "normalized_start": null,
+        "quote_sha256": "a54908ed7ff5379fb96841e3891ccf17161be93e13d0a1052ac79e736a182a13",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_373756f54a23ac46",
+        "candidate_text_sha256": "5e269389b511e34ea888b4733a160d475500a525ef4275bd5af4f34d73dc9298",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "我们唱歌是一个非常自然的过程你说话的时候能感觉到自己舌头的存在吗很多同学说唱歌的时候舌头应该怎么放你说话的时候舌头怎么放你有思考过这个问题吗那就是自然地放就好了不要往后去堵",
+        "normalized_start": null,
+        "quote_sha256": "0b10034b344e2a0bf982b8326c9abab704a0e5930457a0ddd700737ceb08592b",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      {
+        "candidate_id": "candidate_b66177d9d0ec57ef",
+        "candidate_text_sha256": "3ccc6dc9dab7d35c22ed31873908353f77d48f114e585077ad10295e59544d82",
+        "failure_code": "EVIDENCE_QUOTE_NOT_IN_CANDIDATE",
+        "normalized_end": null,
+        "normalized_quote": "如果说我们小白想速成要去ktv唱歌了我教你一个方法你可以先出去做十个蹲起先把身上的肌肉活动开像我之前上课的时候老师会让我做高抬腿活动热身也是可以的",
+        "normalized_start": null,
+        "quote_sha256": "d7ec85b4e73949aa7512fb395cfa3bc0153d32e0d6cf8538a79f3d4d165a872f",
+        "raw_end": null,
+        "raw_start": null,
+        "status": "failed",
+        "validator_version": "normalized-exact-substring-v2"
+      }
+    ],
+    "selected_count": 10
+  }
+}

@@ -1,0 +1,1483 @@
+{
+  "contract_version": "liveclip-highlight-agent-v2.iteration-1",
+  "highlights": [
+    {
+      "candidate_id": "candidate_5d3778b0260b9b65",
+      "edited_sentence": "先找到自己的发声与音色通道，再考虑声音风格，初学阶段不要刻意模仿资深歌者。",
+      "evidence_quote": "你要先找到你的唱歌的这个通道你的音色的通道你不要去模仿那个你在网上看那种大师啊因为他们练了很多年了",
+      "evidence_receipt": {
+        "candidate_text_sha256": "d5d5e94accdb422ecbeae4cea9c463dd12ab927e0df6fe02e0b389ce7a98fe2b",
+        "normalized_end": 150,
+        "normalized_quote": "你要先找到你的唱歌的这个通道你的音色的通道你不要去模仿那个你在网上看那种大师啊因为他们练了很多年了",
+        "normalized_start": 101,
+        "quote_sha256": "d6fa399d61b20a77628c090fb809c32ba5020c1b8757bfb8e4de4f0f922a6898",
+        "raw_end": 156,
+        "raw_start": 107,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "为什么越努力模仿高手，声音反而越容易用错力？",
+      "keywords": [
+        "发声通道",
+        "音色",
+        "模仿误区",
+        "初学者"
+      ],
+      "quality_score_x100": 9500,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 4,
+        "editorial_utility": 4,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "script_description": "这段从发声通道尚未建立的问题切入，提醒初学者不要只复制资深歌者的外在音色。观点清楚，也带有个人学习反思；涉及身体用力的判断仍需专业复核。",
+      "selection_reason": "它集中代表了“通道、共鸣与模仿误区”这一话题，核心提醒明确，适合作为基础观念类内容。",
+      "source_end_ms": 3001650,
+      "source_start_ms": 2923480,
+      "title": "别急着模仿高手的音色",
+      "topic": "唱法差异、共鸣与模仿误区",
+      "topic_id": "topic_09d79f7c7691d6bf"
+    },
+    {
+      "candidate_id": "candidate_a5c87afa0254618e",
+      "edited_sentence": "说话者认为，胸腔共鸣处理不当时，气息可能在演唱过程中提前漏掉。",
+      "evidence_quote": "如果说我加上胸腔像我第一个像我叹下去的时候我的气就已经走了",
+      "evidence_receipt": {
+        "candidate_text_sha256": "3182b02b3432eeacc41abe412a055ea159424a44d11d6bdcd053b04432e4f29e",
+        "normalized_end": 118,
+        "normalized_quote": "如果说我加上胸腔像我第一个像我叹下去的时候我的气就已经走了",
+        "normalized_start": 89,
+        "quote_sha256": "b14dd50252e4f4d5d5112d26e56a17d5c9b1b3de6758e71a618ca1218fd1fd31",
+        "raw_end": 118,
+        "raw_start": 89,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "明明练过气息，为什么唱歌时还是觉得气不够？",
+      "keywords": [
+        "胸腔共鸣",
+        "漏气",
+        "气息",
+        "发声通道"
+      ],
+      "quality_score_x100": 7875,
+      "risk_flags": [
+        "health_or_safety_claim",
+        "copyright_or_third_party"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段用两种唱法对比解释演唱中的漏气现象，并把“气不够”的感受与共鸣处理联系起来。例子直观，但具体训练判断及歌曲引用需进一步审核。",
+      "selection_reason": "它以具体对比呈现胸腔使用与漏气的关系，是该话题中较容易被观众理解的解释角度。",
+      "source_end_ms": 590365,
+      "source_start_ms": 523950,
+      "title": "气息可能漏在了哪里",
+      "topic": "胸口用力、漏气与长音易虚",
+      "topic_id": "topic_97bfef675f1a5bf4"
+    },
+    {
+      "candidate_id": "candidate_b1c6640371e0ceab",
+      "edited_sentence": "说话者提醒，部分敏感练习者反复进行小狗哈气时，可能出现咽部不适。",
+      "evidence_quote": "有些同学比较敏感他会容易红肿不舒服 干痒 我自己非常不喜欢这个的练习",
+      "evidence_receipt": {
+        "candidate_text_sha256": "8fccf63bd7e4be22c999e7e0da51f5c0e53eb16d7e8ce2359e953fee1e1db67a",
+        "normalized_end": 164,
+        "normalized_quote": "有些同学比较敏感他会容易红肿不舒服干痒我自己非常不喜欢这个的练习",
+        "normalized_start": 132,
+        "quote_sha256": "5b2fb14592cc535c438047ec0cb7ffd6c565f350bfa440c9d57304f4929ef4c3",
+        "raw_end": 166,
+        "raw_start": 132,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "常见的气息练习，也可能并不适合每一个人。",
+      "keywords": [
+        "小狗哈气",
+        "咽部不适",
+        "气息支撑",
+        "吐丝练习"
+      ],
+      "quality_score_x100": 7875,
+      "risk_flags": [
+        "incomplete_claim",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段比较小狗哈气与其他气息练习，重点提示敏感者可能出现的不适。风险意识具有编辑价值，但属于健康与训练建议，替代练习也未在本段完整展开。",
+      "selection_reason": "它为吸气与支撑训练提供了风险辨识角度，使该话题不只停留在练习方法介绍。",
+      "source_end_ms": 1490370,
+      "source_start_ms": 1416670,
+      "title": "小狗哈气并非人人适合",
+      "topic": "吸气方法与吐丝练习",
+      "topic_id": "topic_6e2099b264c5aea3"
+    },
+    {
+      "candidate_id": "candidate_260b8f35571eae11",
+      "edited_sentence": "技术和努力可以帮助人唱得比现在更好；如果只是出于爱好，学习不必受年龄限制。",
+      "evidence_quote": "但是你可以通过技术让你的上限更高让你唱的比现在更好这就是现在很多小白说老师我都60多了50多了是吧能不能学能学当然能学爱好不分年龄",
+      "evidence_receipt": {
+        "candidate_text_sha256": "942049caddb299e359b826bf3c4a83761f1124c62fc0a2e82c60d42baeb8e005",
+        "normalized_end": 143,
+        "normalized_quote": "但是你可以通过技术让你的上限更高让你唱的比现在更好这就是现在很多小白说老师我都60多了50多了是吧能不能学能学当然能学爱好不分年龄",
+        "normalized_start": 78,
+        "quote_sha256": "5bbb9d2f20234fc4e10bd23c3a46d34deb9fdd9d9af81f29a4a9c9e49a371b57",
+        "raw_end": 143,
+        "raw_start": 78,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "不以职业出道为目标，什么时候开始学唱歌算晚？",
+      "keywords": [
+        "年龄",
+        "唱歌学习",
+        "技术提升",
+        "兴趣爱好"
+      ],
+      "quality_score_x100": 7500,
+      "risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段区分职业发展与兴趣学习，强调技术训练仍可能带来进步，并鼓励不同年龄的爱好者开始学习。关于身体条件和职业可能性的概括需要谨慎处理。",
+      "selection_reason": "它从学习动机切入年龄与嗓音条件话题，提供了积极且相对完整的爱好学习视角。",
+      "source_end_ms": 4863420,
+      "source_start_ms": 4796900,
+      "title": "把职业门槛与唱歌爱好分开",
+      "topic": "年龄、嗓音变化与学习可能",
+      "topic_id": "topic_5f0cb3f29617fcb9"
+    },
+    {
+      "candidate_id": "candidate_e3f2a57d5e929402",
+      "edited_sentence": "说话者建议在吸气时观察肚脐下方是否有起伏，以检查其所说的气息状态。",
+      "evidence_quote": "肚脐下面三指我们可以在我们吸气的时候感受到这个位置的一个起伏那么OK你的气息通道是对的",
+      "evidence_receipt": {
+        "candidate_text_sha256": "6455738b0904a87af93424df50d26e770f019e222ee66267fe2bc5ecaf6f37e1",
+        "normalized_end": 242,
+        "normalized_quote": "肚脐下面三指我们可以在我们吸气的时候感受到这个位置的一个起伏那么ok你的气息通道是对的",
+        "normalized_start": 199,
+        "quote_sha256": "df8ba8722250d00fb7b4d410b7daf2f69c61353d80f93bcc2f52fd2884cb737d",
+        "raw_end": 243,
+        "raw_start": 200,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "高音总觉得挤，问题可能不只出在嗓子上。",
+      "keywords": [
+        "高音",
+        "呼吸",
+        "气息通道",
+        "腹部起伏"
+      ],
+      "quality_score_x100": 7500,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 3,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段把高音挤压与呼吸、整体发声通道联系起来，并给出腹部起伏的自查说法。痛点直接，但位置示范依赖画面，身体训练结论也需专业审核。",
+      "selection_reason": "它代表了高音问题中的呼吸配合角度，并提供了明确的自查线索，便于形成独立内容。",
+      "source_end_ms": 665406,
+      "source_start_ms": 590365,
+      "title": "高音卡顿先看呼吸配合",
+      "topic": "高音通道与呼吸配合",
+      "topic_id": "topic_d866cf85982709ff"
+    },
+    {
+      "candidate_id": "candidate_2efa31efddfe10ed",
+      "edited_sentence": "唱歌时不必刻意控制舌头；如果一时找不到位置，可以让舌尖轻触下牙齿后方，但不要用力挤压。",
+      "evidence_quote": "如果说你现在实在是老师 我不知道在哪放了 同学怎么办放在下牙齿后面地住他在的 你看你不能这样唱抵住下牙齿后面一点点,不要刻意使劲挤。",
+      "evidence_receipt": {
+        "candidate_text_sha256": "d64b69c059e4213b89f4f47b70ebcc0741160eed7b0fa4085b47ff634832c0b3",
+        "normalized_end": 172,
+        "normalized_quote": "如果说你现在实在是老师我不知道在哪放了同学怎么办放在下牙齿后面地住他在的你看你不能这样唱抵住下牙齿后面一点点不要刻意使劲挤",
+        "normalized_start": 111,
+        "quote_sha256": "eadc59b92a3734cc1105b8ccf4f9e73040e2eef69e17702307bf1c5a0cc270f6",
+        "raw_end": 184,
+        "raw_start": 119,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "越在意舌头的位置，为什么反而越容易紧张？",
+      "keywords": [
+        "舌头放松",
+        "舌根",
+        "口腔空间",
+        "发声用力"
+      ],
+      "quality_score_x100": 7375,
+      "risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 4,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段指出刻意控制舌头可能带来额外用力，并给出轻触下牙齿后方的替代位置。表达完整、操作感强，但仍属于需要安全复核的口腔发声建议。",
+      "selection_reason": "它清楚呈现了舌头放松与摆位问题，是该话题中最具可理解性和独立性的实用角度。",
+      "source_end_ms": 1073920,
+      "source_start_ms": 1027830,
+      "title": "唱歌时别和舌头较劲",
+      "topic": "舌头放松与口腔空间",
+      "topic_id": "topic_cb1251a9e55849e6"
+    },
+    {
+      "candidate_id": "candidate_e27d41447dbfb889",
+      "edited_sentence": "音响或后期可以美化声音，但不能替代演唱者自身的发声通道与共鸣。",
+      "evidence_quote": "他修的只能去美化但是修不了你们的通道修不了你们的共鸣腔体",
+      "evidence_receipt": {
+        "candidate_text_sha256": "dbcfdc5f0c2200e65a0089d220e59d92606f54fac0403f3ce4299f1257c08864",
+        "normalized_end": 205,
+        "normalized_quote": "他修的只能去美化但是修不了你们的通道修不了你们的共鸣腔体",
+        "normalized_start": 177,
+        "quote_sha256": "2c69bb39d86337cd402949efa98a09acc1b3d928ffb81d80c58de386a7103017",
+        "raw_end": 207,
+        "raw_start": 179,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "音高能修，为什么音色还是不像成熟歌者？",
+      "keywords": [
+        "修音",
+        "音响",
+        "发声通道",
+        "共鸣腔体",
+        "音色"
+      ],
+      "quality_score_x100": 7000,
+      "risk_flags": [
+        "asr_uncertain"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段划分了声音后期处理与演唱基础能力的边界：前者可以修饰声音，却无法代替自身通道和共鸣。开头转写较乱，宜使用后半段完整观点。",
+      "selection_reason": "它为选集提供了独立的技术边界讨论，也是这一话题最直接、最容易提炼的核心判断。",
+      "source_end_ms": 4967980,
+      "source_start_ms": 4912830,
+      "title": "修音替代不了发声基础",
+      "topic": "修音无法替代通道与共鸣",
+      "topic_id": "topic_a089c0cc0e4fcb6e"
+    },
+    {
+      "candidate_id": "candidate_2e7f0f8e0e88fae2",
+      "edited_sentence": "练习可以配合自己喜欢且节奏清楚的歌曲，跟随鼓点保持节奏。",
+      "evidence_quote": "它是有节奏的你听它是有个你看这你就跟着这个鼓点",
+      "evidence_receipt": {
+        "candidate_text_sha256": "3d8127eecbfe33b71e94183ea0503da85a29e9a4f5f2a3ac925ec37a4f9484a5",
+        "normalized_end": 184,
+        "normalized_quote": "它是有节奏的你听它是有个你看这你就跟着这个鼓点",
+        "normalized_start": 161,
+        "quote_sha256": "97aa373396a580927ec0958a78fa333f03ba74d365d33af678a6e9c0f71ee278",
+        "raw_end": 185,
+        "raw_start": 162,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "把练习放进熟悉的节奏里，可能更容易找到连续感。",
+      "keywords": [
+        "节奏训练",
+        "鼓点",
+        "歌曲练习",
+        "运动基础"
+      ],
+      "quality_score_x100": 7000,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段建议依据个人运动基础调整练习量，并借助歌曲鼓点开展节奏训练。节奏思路清楚，但实际动作未被文字证据呈现，安全性仍需结合画面检查。",
+      "selection_reason": "它为按基础安排训练的话题补充了“跟随鼓点练习”的具体角度，与其他声乐技巧内容形成区分。",
+      "source_end_ms": 2428580,
+      "source_start_ms": 2364270,
+      "title": "跟着鼓点做节奏练习",
+      "topic": "按基础安排练习时长",
+      "topic_id": "topic_54e5159281e13a09"
+    },
+    {
+      "candidate_id": "candidate_005f7d0822d40234",
+      "edited_sentence": "流行演唱训练可以先从真声与咬字通道开始，再逐步过渡到高音。",
+      "evidence_quote": "我们唱歌的步骤一定要从真声开始 你一定要找到自己真声的咬字位置 找到咬字的通道 OK 我们再过渡到高音的真声",
+      "evidence_receipt": {
+        "candidate_text_sha256": "33795828e2de2d5b86df6892f689af10fb76e3a8d320a2229bc73e92e8ca3784",
+        "normalized_end": 85,
+        "normalized_quote": "我们唱歌的步骤一定要从真声开始你一定要找到自己真声的咬字位置找到咬字的通道ok我们再过渡到高音的真声",
+        "normalized_start": 35,
+        "quote_sha256": "de92fc613b985012e2cbce6a951982158c45e5739313a8fbd855b1b51f3330d5",
+        "raw_end": 92,
+        "raw_start": 38,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "一开始就追高音，可能跳过了真正需要建立的基础。",
+      "keywords": [
+        "流行演唱",
+        "真声",
+        "咬字通道",
+        "高音",
+        "训练顺序"
+      ],
+      "quality_score_x100": 6625,
+      "risk_flags": [
+        "asr_uncertain"
+      ],
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段提出由真声、咬字通道逐步过渡到高音及其他发声类型的训练顺序。层次鲜明，但部分专业术语转写不稳定，发布前应校正原意。",
+      "selection_reason": "它完整代表了渐进训练顺序这一话题，能为观众建立从基础到高阶的学习框架。",
+      "source_end_ms": 3588334,
+      "source_start_ms": 3529746,
+      "title": "流行演唱要按步骤打基础",
+      "topic": "流行演唱的渐进训练顺序",
+      "topic_id": "topic_15f4902e6c5ea6c9"
+    },
+    {
+      "candidate_id": "candidate_f1d87e3d981d87dc",
+      "edited_sentence": "一名教师学员反馈，学习相关方法后，给学生讲课时感觉嗓子更轻松了。",
+      "evidence_quote": "他说跟我学完这个几节课之后哎在学校给学生讲课的时候嗓子都觉得轻松了",
+      "evidence_receipt": {
+        "candidate_text_sha256": "4925d53e0523b978d028b13c17c9c60294899d877da88c39afbe30801d776510",
+        "normalized_end": 57,
+        "normalized_quote": "他说跟我学完这个几节课之后哎在学校给学生讲课的时候嗓子都觉得轻松了",
+        "normalized_start": 24,
+        "quote_sha256": "06ff2071a12ed21d4e78791a7e1d32a66f6872890170785c12bdf33b5cd242cc",
+        "raw_end": 57,
+        "raw_start": 24,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "声乐里的发声方法，能否帮助需要长期讲话的人？",
+      "keywords": [
+        "日常讲话",
+        "教师",
+        "嗓音负担",
+        "发声方法"
+      ],
+      "quality_score_x100": 5875,
+      "risk_flags": [
+        "visual_verification_required",
+        "health_or_safety_claim"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段以教师学员的反馈说明声乐方法可能延伸到日常讲话场景，并结合主播自身体验展开。属于经验性效果陈述，呼吸位置还依赖画面验证。",
+      "selection_reason": "它把声乐训练带入教师讲课等日常场景，为选集增加了唱歌之外的应用角度。",
+      "source_end_ms": 4097430,
+      "source_start_ms": 4029500,
+      "title": "把声乐方法带进日常讲话",
+      "topic": "把声乐方法用于日常讲话",
+      "topic_id": "topic_0a783a3e7fff5637"
+    },
+    {
+      "candidate_id": "candidate_c0638f35973b6082",
+      "edited_sentence": "直播授课结束后，还要整理学员视频、沟通对接并继续制作内容。",
+      "evidence_quote": "我上完课我要把你们的视频拷贝下来",
+      "evidence_receipt": {
+        "candidate_text_sha256": "799784fd217aeae9c719979c2e5e45b9f45f01c8dee699d242e7661f196fe44b",
+        "normalized_end": 104,
+        "normalized_quote": "我上完课我要把你们的视频拷贝下来",
+        "normalized_start": 88,
+        "quote_sha256": "f5fcbb94d670f68327f8718aa1aac26d8ecd0be5417e0c2665df20f1413af4d7",
+        "raw_end": 104,
+        "raw_start": 88,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "一场教学直播结束后，幕后工作才刚刚开始。",
+      "keywords": [
+        "直播教学",
+        "幕后工作",
+        "学员视频",
+        "内容制作",
+        "沟通对接"
+      ],
+      "quality_score_x100": 5875,
+      "risk_flags": [
+        "personal_data"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "script_description": "这段说明直播授课之外还包含整理学员素材、沟通协作和内容制作，展现教学主播不易被看见的工作链条。涉及学员视频，使用前需确认隐私与授权。",
+      "selection_reason": "它是选集中少见的幕后职业观察，能独立呈现教学直播之外的工作量与责任。",
+      "source_end_ms": 4193560,
+      "source_start_ms": 4134480,
+      "title": "教学直播背后的工作链",
+      "topic": "教学直播的幕后工作",
+      "topic_id": "topic_f7cc16af324e303e"
+    },
+    {
+      "candidate_id": "candidate_d3981771b1792fc6",
+      "edited_sentence": "主播转述，一名原本持怀疑态度的学员在体验课程并自述有进步后，继续报名。",
+      "evidence_quote": "但是我跟你上完一节课之后我发现真的是有进步的接着跟我报了试节课",
+      "evidence_receipt": {
+        "candidate_text_sha256": "7b635e2eb2512a450e41d4277d072f06105efdfc537d11754cb5e84b98bffcf4",
+        "normalized_end": 235,
+        "normalized_quote": "但是我跟你上完一节课之后我发现真的是有进步的接着跟我报了试节课",
+        "normalized_start": 204,
+        "quote_sha256": "95eea4206cd249175e9d84bbbe3a5a93bb74bac90a1c8627a5a659b2f16a3417",
+        "raw_end": 237,
+        "raw_start": 206,
+        "status": "passed",
+        "validator_version": "normalized-exact-substring-v2"
+      },
+      "hook": "从怀疑到继续报名，这段转折如何被主播讲述？",
+      "keywords": [
+        "学员反馈",
+        "课程体验",
+        "声乐教学",
+        "效果见证"
+      ],
+      "quality_score_x100": 5500,
+      "risk_flags": [
+        "asr_uncertain",
+        "sponsor_or_advertising",
+        "reputation_or_defamation"
+      ],
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "script_description": "这段通过主播转述的学员经历呈现从质疑到认可的转折，故事性较强。由于属于课程效果宣传且涉及第三方评价，发布前需核实表述、身份与授权。",
+      "selection_reason": "它代表教学服务与效果宣传话题，提供了明确的态度转折，同时需要保留审慎的见证内容审核。",
+      "source_end_ms": 3229940,
+      "source_start_ms": 3164110,
+      "title": "一段从质疑到报名的转述",
+      "topic": "声乐教学服务与效果宣传",
+      "topic_id": "topic_c903b3a9d02098a8"
+    }
+  ],
+  "portfolio": {
+    "algorithm_version": "topic-first-portfolio-v2",
+    "configuration": {
+      "maximum_interval_iou": 0.45,
+      "maximum_text_jaccard": 0.65,
+      "minimum_quality": 55.0,
+      "top_n": 12
+    },
+    "ledger": [
+      {
+        "candidate_id": "candidate_a0f21643888730a5",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7500,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_97bfef675f1a5bf4"
+      },
+      {
+        "candidate_id": "candidate_34558c9f504eca45",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4875,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_22d3260a7179c022",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_d866cf85982709ff"
+      },
+      {
+        "candidate_id": "candidate_005f7d0822d40234",
+        "disposition": "selected",
+        "quality_score_x100": 6625,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_15f4902e6c5ea6c9"
+      },
+      {
+        "candidate_id": "candidate_a4bef74f0779a1e2",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5000,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_5f0cb3f29617fcb9"
+      },
+      {
+        "candidate_id": "candidate_8cae2aab5bc153ac",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 5875,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_2716045703db1f3b",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 6625,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_15f4902e6c5ea6c9"
+      },
+      {
+        "candidate_id": "candidate_7c52ff6875a16a62",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5875,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_5f0cb3f29617fcb9"
+      },
+      {
+        "candidate_id": "candidate_1261f4ebdaaa4ed6",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_e27d41447dbfb889",
+        "disposition": "selected",
+        "quality_score_x100": 7000,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_a089c0cc0e4fcb6e"
+      },
+      {
+        "candidate_id": "candidate_2a81f27ea2fccc4f",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3875,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_c903b3a9d02098a8"
+      },
+      {
+        "candidate_id": "candidate_ec801fd85b29d485",
+        "disposition": "below_threshold",
+        "quality_score_x100": 2875,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_c903b3a9d02098a8"
+      },
+      {
+        "candidate_id": "candidate_7f4a5d4251808e1e",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3d9152c6c448020e"
+      },
+      {
+        "candidate_id": "candidate_f0c88f3966f4c86b",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3d9152c6c448020e"
+      },
+      {
+        "candidate_id": "candidate_260b8f35571eae11",
+        "disposition": "selected",
+        "quality_score_x100": 7500,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_5f0cb3f29617fcb9"
+      },
+      {
+        "candidate_id": "candidate_2e7f0f8e0e88fae2",
+        "disposition": "selected",
+        "quality_score_x100": 7000,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_54e5159281e13a09"
+      },
+      {
+        "candidate_id": "candidate_27095253c085da43",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7125,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_6e2099b264c5aea3"
+      },
+      {
+        "candidate_id": "candidate_f1d87e3d981d87dc",
+        "disposition": "selected",
+        "quality_score_x100": 5875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_0a783a3e7fff5637"
+      },
+      {
+        "candidate_id": "candidate_835027c32b145c6e",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_136f75878cbdf551"
+      },
+      {
+        "candidate_id": "candidate_c26a4653242fd277",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 7000,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_97bfef675f1a5bf4"
+      },
+      {
+        "candidate_id": "candidate_a7de7d24d9c2d27c",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5750,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_4305cfa07f8b1fbf",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 6625,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_54e5159281e13a09"
+      },
+      {
+        "candidate_id": "candidate_2efa31efddfe10ed",
+        "disposition": "selected",
+        "quality_score_x100": 7375,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_1b8b4323d05c7dd6",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 5875,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_0a783a3e7fff5637"
+      },
+      {
+        "candidate_id": "candidate_d3981771b1792fc6",
+        "disposition": "selected",
+        "quality_score_x100": 5500,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_c903b3a9d02098a8"
+      },
+      {
+        "candidate_id": "candidate_3c76eb79d4264624",
+        "disposition": "below_threshold",
+        "quality_score_x100": 5000,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_09d79f7c7691d6bf"
+      },
+      {
+        "candidate_id": "candidate_7d8b0df1b19a1ead",
+        "disposition": "below_threshold",
+        "quality_score_x100": 2500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3d9152c6c448020e"
+      },
+      {
+        "candidate_id": "candidate_a5c87afa0254618e",
+        "disposition": "selected",
+        "quality_score_x100": 7875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_97bfef675f1a5bf4"
+      },
+      {
+        "candidate_id": "candidate_c0638f35973b6082",
+        "disposition": "selected",
+        "quality_score_x100": 5875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_f7cc16af324e303e"
+      },
+      {
+        "candidate_id": "candidate_638470bcf20511aa",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7000,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_d866cf85982709ff"
+      },
+      {
+        "candidate_id": "candidate_45bc9a8fa85d8251",
+        "disposition": "below_threshold",
+        "quality_score_x100": 2875,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_ba6baa1793a52650"
+      },
+      {
+        "candidate_id": "candidate_09125d918b1fac0b",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7000,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_97bfef675f1a5bf4"
+      },
+      {
+        "candidate_id": "candidate_72165688c1b01bb0",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_d866cf85982709ff"
+      },
+      {
+        "candidate_id": "candidate_b1c6640371e0ceab",
+        "disposition": "selected",
+        "quality_score_x100": 7875,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_6e2099b264c5aea3"
+      },
+      {
+        "candidate_id": "candidate_18e1d7ea47ba32fc",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7000,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_6e2099b264c5aea3"
+      },
+      {
+        "candidate_id": "candidate_915e9f3bd1fce105",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 6625,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_8772ddd9d2d66094",
+        "disposition": "below_threshold",
+        "quality_score_x100": 4500,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_d866cf85982709ff"
+      },
+      {
+        "candidate_id": "candidate_a4d112648d50cd3d",
+        "disposition": "unusable",
+        "quality_score_x100": 375,
+        "reason": "Tier 1 不可用：fragment_only.",
+        "topic_id": null
+      },
+      {
+        "candidate_id": "candidate_765337da95068540",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3d9152c6c448020e"
+      },
+      {
+        "candidate_id": "candidate_523065b25295d83a",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 7000,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_cb1251a9e55849e6"
+      },
+      {
+        "candidate_id": "candidate_4df4063e46e8084e",
+        "disposition": "below_threshold",
+        "quality_score_x100": 3750,
+        "reason": "系统计算质量分低于冻结门槛。",
+        "topic_id": "topic_3d9152c6c448020e"
+      },
+      {
+        "candidate_id": "candidate_5d3778b0260b9b65",
+        "disposition": "selected",
+        "quality_score_x100": 9500,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_09d79f7c7691d6bf"
+      },
+      {
+        "candidate_id": "candidate_a2609c2e30906366",
+        "disposition": "portfolio_limit",
+        "quality_score_x100": 7875,
+        "reason": "Topic 代表项合格，但组合已达到 top_n 上限。",
+        "topic_id": "topic_09d79f7c7691d6bf"
+      },
+      {
+        "candidate_id": "candidate_e3f2a57d5e929402",
+        "disposition": "selected",
+        "quality_score_x100": 7500,
+        "reason": "达到质量门槛，并提升当前组合的 Topic 覆盖或有效不同角度。",
+        "topic_id": "topic_d866cf85982709ff"
+      },
+      {
+        "candidate_id": "candidate_525a6dcec50a0e42",
+        "disposition": "lower_rank_same_topic",
+        "quality_score_x100": 7000,
+        "reason": "同一 Topic 已有更高质量代表项，且没有足够增量价值。",
+        "topic_id": "topic_97bfef675f1a5bf4"
+      }
+    ],
+    "selected": [
+      {
+        "candidate_id": "candidate_5d3778b0260b9b65",
+        "canonical_angle": "这些候选共同讨论不同唱法和音色背后的通道、共鸣与支撑，并提醒初学者不要只模仿外在声音。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 9500,
+        "rank": 1,
+        "scores": {
+          "content_value": 4,
+          "editorial_utility": 4,
+          "evidence_fidelity": 4,
+          "hook_strength": 3,
+          "standalone_completeness": 4
+        },
+        "topic_id": "topic_09d79f7c7691d6bf",
+        "topic_label": "唱法差异、共鸣与模仿误区"
+      },
+      {
+        "candidate_id": "candidate_a5c87afa0254618e",
+        "canonical_angle": "这些候选共同讨论胸口或胸腔使用不当如何造成漏气、长音易虚，以及为何气息与发声通道需要协调。",
+        "content_risk_flags": [
+          "health_or_safety_claim",
+          "copyright_or_third_party"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7875,
+        "rank": 2,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_97bfef675f1a5bf4",
+        "topic_label": "胸口用力、漏气与长音易虚"
+      },
+      {
+        "candidate_id": "candidate_b1c6640371e0ceab",
+        "canonical_angle": "这些候选共同讨论正确吸气和气息支撑练习，并比较吐丝练习与小狗哈气的适用性和风险。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "incomplete_claim"
+        ],
+        "quality_score_x100": 7875,
+        "rank": 3,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_6e2099b264c5aea3",
+        "topic_label": "吸气方法与吐丝练习"
+      },
+      {
+        "candidate_id": "candidate_260b8f35571eae11",
+        "canonical_angle": "这些候选共同探讨年龄和成长带来的嗓音变化，以及不同年龄学习或使用嗓音时应如何看待自身条件。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7500,
+        "rank": 4,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_5f0cb3f29617fcb9",
+        "topic_label": "年龄、嗓音变化与学习可能"
+      },
+      {
+        "candidate_id": "candidate_e3f2a57d5e929402",
+        "canonical_angle": "这些候选共同讨论高音卡顿为何不能靠硬喊解决，以及应如何先建立发声通道、方向和呼吸配合。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 7500,
+        "rank": 5,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 3,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_d866cf85982709ff",
+        "topic_label": "高音通道与呼吸配合"
+      },
+      {
+        "candidate_id": "candidate_2efa31efddfe10ed",
+        "canonical_angle": "这些候选共同讨论如何放松并摆放舌头、扩大口腔空间，以及舌根紧张如何影响高音和鼻音。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 7375,
+        "rank": 6,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 4,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_cb1251a9e55849e6",
+        "topic_label": "舌头放松与口腔空间"
+      },
+      {
+        "candidate_id": "candidate_e27d41447dbfb889",
+        "canonical_angle": "该候选讨论音响或后期处理能够美化声音，却无法替代演唱者自身的发声通道和共鸣。",
+        "content_risk_flags": [],
+        "evidence_flags": [
+          "asr_uncertain"
+        ],
+        "quality_score_x100": 7000,
+        "rank": 7,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_a089c0cc0e4fcb6e",
+        "topic_label": "修音无法替代通道与共鸣"
+      },
+      {
+        "candidate_id": "candidate_2e7f0f8e0e88fae2",
+        "canonical_angle": "这些候选共同建议依据身体基础控制练习时长，并通过分散安排避免一次练习过久。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 7000,
+        "rank": 8,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_54e5159281e13a09",
+        "topic_label": "按基础安排练习时长"
+      },
+      {
+        "candidate_id": "candidate_005f7d0822d40234",
+        "canonical_angle": "这些候选共同主张流行演唱应从气息、真声和咬字通道打基础，再逐步过渡到高音及其他发声类型。",
+        "content_risk_flags": [],
+        "evidence_flags": [
+          "asr_uncertain"
+        ],
+        "quality_score_x100": 6625,
+        "rank": 9,
+        "scores": {
+          "content_value": 3,
+          "editorial_utility": 3,
+          "evidence_fidelity": 2,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_15f4902e6c5ea6c9",
+        "topic_label": "流行演唱的渐进训练顺序"
+      },
+      {
+        "candidate_id": "candidate_f1d87e3d981d87dc",
+        "canonical_angle": "这些候选共同用个人或学员经历说明声乐发声方法也可用于日常讲话，并可能减轻长时间说话后的嗓音负担。",
+        "content_risk_flags": [
+          "health_or_safety_claim"
+        ],
+        "evidence_flags": [
+          "visual_verification_required"
+        ],
+        "quality_score_x100": 5875,
+        "rank": 10,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_0a783a3e7fff5637",
+        "topic_label": "把声乐方法用于日常讲话"
+      },
+      {
+        "candidate_id": "candidate_c0638f35973b6082",
+        "canonical_angle": "该候选说明直播授课之外还包含学员素材处理、沟通协作和内容制作等幕后工作。",
+        "content_risk_flags": [
+          "personal_data"
+        ],
+        "evidence_flags": [],
+        "quality_score_x100": 5875,
+        "rank": 11,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 3,
+          "hook_strength": 2,
+          "standalone_completeness": 3
+        },
+        "topic_id": "topic_f7cc16af324e303e",
+        "topic_label": "教学直播的幕后工作"
+      },
+      {
+        "candidate_id": "candidate_d3981771b1792fc6",
+        "canonical_angle": "这些候选共同通过学员案例、效果数字或服务安排宣传声乐教学的价值与成效。",
+        "content_risk_flags": [
+          "sponsor_or_advertising",
+          "reputation_or_defamation"
+        ],
+        "evidence_flags": [
+          "asr_uncertain"
+        ],
+        "quality_score_x100": 5500,
+        "rank": 12,
+        "scores": {
+          "content_value": 2,
+          "editorial_utility": 2,
+          "evidence_fidelity": 2,
+          "hook_strength": 3,
+          "standalone_completeness": 2
+        },
+        "topic_id": "topic_c903b3a9d02098a8",
+        "topic_label": "声乐教学服务与效果宣传"
+      }
+    ],
+    "selected_count": 12
+  },
+  "schema_version": "2",
+  "selection_summary": "这组选段覆盖发声基础、高音与呼吸配合、练习风险、学习顺序、日常讲话应用及教学幕后工作，既有可提炼的知识点，也有个人经验和课程见证。涉及身体训练、第三方素材与宣传效果的内容均应在发布前复核。",
+  "topic_inventory": {
+    "accounting": {
+      "assessable_count": 44,
+      "excluded_count": 1,
+      "passed": true,
+      "topic_member_count": 44,
+      "unusable_count": 1
+    },
+    "excluded_candidates": [
+      {
+        "candidate_id": "candidate_a4d112648d50cd3d",
+        "unusable_reason": "fragment_only"
+      }
+    ],
+    "inventory_summary": "本段自然形成十五个话题，核心内容集中在漏气与胸口用力、舌头和口腔空间、高音通道、气息练习、训练安排及不同唱法，也包含声乐学习观念、教学效果宣传、直播互动与幕后工作等支线。",
+    "topics": [
+      {
+        "canonical_angle": "这些候选共同讨论胸口或胸腔使用不当如何造成漏气、长音易虚，以及为何气息与发声通道需要协调。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_a0f21643888730a5",
+            "member_angle": "解释胸口过度用力、气流压力与漏气之间的关系。",
+            "relationship": "core",
+            "relationship_reason": "它最完整地串联了胸口发紧、声带振动和漏气这一核心问题。"
+          },
+          {
+            "candidate_id": "candidate_c26a4653242fd277",
+            "member_angle": "说明过度推挤会明显缩短长音，并主张自然发声。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它延伸到漏气问题在长音持续能力上的具体表现。"
+          },
+          {
+            "candidate_id": "candidate_a5c87afa0254618e",
+            "member_angle": "通过胸腔共鸣的两种处理说明气息为何会在演唱中漏掉。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从共鸣处理切入同一漏气主题，并提出气息与通道结合训练。"
+          },
+          {
+            "candidate_id": "candidate_09125d918b1fac0b",
+            "member_angle": "把压强过大、胸口用力和长音易虚连在一起。",
+            "relationship": "same_claim",
+            "relationship_reason": "它实质重复了核心成员关于过度用力导致漏气的机制与结论。"
+          },
+          {
+            "candidate_id": "candidate_525a6dcec50a0e42",
+            "member_angle": "从胸口发紧的问题引出气息落点和用力位置。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与核心成员讨论同一问题和成因，只是解释在候选内尚未完全展开。"
+          }
+        ],
+        "topic_id": "topic_97bfef675f1a5bf4",
+        "topic_label": "胸口用力、漏气与长音易虚"
+      },
+      {
+        "canonical_angle": "这些候选共同讨论如何放松并摆放舌头、扩大口腔空间，以及舌根紧张如何影响高音和鼻音。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_2efa31efddfe10ed",
+            "member_angle": "给出避免刻意控舌及舌尖轻触下牙齿后方的明确做法。",
+            "relationship": "core",
+            "relationship_reason": "它对舌头放松、错误用力和替代摆位的说明最完整。"
+          },
+          {
+            "candidate_id": "candidate_34558c9f504eca45",
+            "member_angle": "强调不要挤压舌头，并提出舌头与上颚空间越大越利于高音。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它在放松舌头之外增加了口腔空间与高音的联系。"
+          },
+          {
+            "candidate_id": "candidate_8cae2aab5bc153ac",
+            "member_angle": "说明正确气息和嘴形会让舌头自然下凹并打开内口腔。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从整体协调角度解释舌位如何形成。"
+          },
+          {
+            "candidate_id": "candidate_1261f4ebdaaa4ed6",
+            "member_angle": "主张高音时不要刻意控制舌头，应让其自然下凹。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复了核心成员关于刻意控舌会导致发力的主要判断。"
+          },
+          {
+            "candidate_id": "candidate_a7de7d24d9c2d27c",
+            "member_angle": "用声音对比说明舌根与上颚之间的空间会影响高音卡紧。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与扩大口腔空间有助高音的主张实质一致。"
+          },
+          {
+            "candidate_id": "candidate_523065b25295d83a",
+            "member_angle": "通过观察伸舌形态识别舌尖用力，并先寻找自然放松感。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它贡献了识别舌部紧张的自我检测角度。"
+          },
+          {
+            "candidate_id": "candidate_915e9f3bd1fce105",
+            "member_angle": "把鼻音问题与舌根紧张及整体通道失调联系起来。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它讨论同一舌根放松问题对鼻音而非仅对高音的影响。"
+          }
+        ],
+        "topic_id": "topic_cb1251a9e55849e6",
+        "topic_label": "舌头放松与口腔空间"
+      },
+      {
+        "canonical_angle": "这些候选共同主张流行演唱应从气息、真声和咬字通道打基础，再逐步过渡到高音及其他发声类型。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_2716045703db1f3b",
+            "member_angle": "概述多种发声类型，并提出从气息、真声和咬字通道起步的训练顺序。",
+            "relationship": "core",
+            "relationship_reason": "它最清楚地交代了技巧分类与渐进训练逻辑。"
+          },
+          {
+            "candidate_id": "candidate_005f7d0822d40234",
+            "member_angle": "说明基础环节未建立会使后续高音、假声出现漏气问题。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复并补充了同一套从真声和咬字通道逐步过渡的主张。"
+          }
+        ],
+        "topic_id": "topic_15f4902e6c5ea6c9",
+        "topic_label": "流行演唱的渐进训练顺序"
+      },
+      {
+        "canonical_angle": "这些候选共同探讨年龄和成长带来的嗓音变化，以及不同年龄学习或使用嗓音时应如何看待自身条件。",
+        "cluster_confidence": "medium",
+        "members": [
+          {
+            "candidate_id": "candidate_7c52ff6875a16a62",
+            "member_angle": "以婴儿和青春期为例说明成长及变声期会改变声音。",
+            "relationship": "core",
+            "relationship_reason": "它最集中地讨论年龄增长与声音机能变化。"
+          },
+          {
+            "candidate_id": "candidate_a4bef74f0779a1e2",
+            "member_angle": "把成年后的机能变化与专业声乐学习投入联系起来。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它属于年龄影响嗓音的同一主题，但增加了寻求专业指导的角度。"
+          },
+          {
+            "candidate_id": "candidate_260b8f35571eae11",
+            "member_angle": "区分职业条件与业余爱好，主张学习唱歌不受年龄限制。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它从年龄与先天条件转向普通学习者仍可通过技术改善的结论。"
+          }
+        ],
+        "topic_id": "topic_5f0cb3f29617fcb9",
+        "topic_label": "年龄、嗓音变化与学习可能"
+      },
+      {
+        "canonical_angle": "这些候选共同讨论高音卡顿为何不能靠硬喊解决，以及应如何先建立发声通道、方向和呼吸配合。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_638470bcf20511aa",
+            "member_angle": "直接对比硬喊与借助通道、腔体和位置唱高音。",
+            "relationship": "core",
+            "relationship_reason": "它以明确问题和结论统领了高音通道主题。"
+          },
+          {
+            "candidate_id": "candidate_8772ddd9d2d66094",
+            "member_angle": "强调先确定高音方向和通道，气息才能有效使用。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与核心成员关于先找通道而非盲目用力的主张一致。"
+          },
+          {
+            "candidate_id": "candidate_72165688c1b01bb0",
+            "member_angle": "把高音卡顿归因于缺少合适的发声通道和位置。",
+            "relationship": "same_claim",
+            "relationship_reason": "它简短重复了核心因果判断。"
+          },
+          {
+            "candidate_id": "candidate_e3f2a57d5e929402",
+            "member_angle": "把高音挤压进一步关联到呼吸方式，并提出下腹起伏检查。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它为高音通道主题增加了呼吸自检的具体角度。"
+          },
+          {
+            "candidate_id": "candidate_22d3260a7179c022",
+            "member_angle": "在一次演唱诊断中指出咬字靠后、舌头处理和腰腹支撑问题。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它通过个案展示通道问题可能同时涉及咬字方向和支撑。"
+          }
+        ],
+        "topic_id": "topic_d866cf85982709ff",
+        "topic_label": "高音通道与呼吸配合"
+      },
+      {
+        "canonical_angle": "这些候选共同讨论正确吸气和气息支撑练习，并比较吐丝练习与小狗哈气的适用性和风险。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_18e1d7ea47ba32fc",
+            "member_angle": "解释吸气时腹部向外变化，并由正确吸气过渡到吐丝练习。",
+            "relationship": "core",
+            "relationship_reason": "它对吸气状态和基础气息练习的说明最连贯。"
+          },
+          {
+            "candidate_id": "candidate_b1c6640371e0ceab",
+            "member_angle": "说明小狗哈气可能引起咽部不适，并提出调整呼吸方式或改练吐丝。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它增加了不同气息练习的身体反应和替代选择。"
+          },
+          {
+            "candidate_id": "candidate_27095253c085da43",
+            "member_angle": "反对小狗哈气并强烈推荐吐丝练习。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与前一成员具有相同的练习取舍，只额外加入效果承诺。"
+          }
+        ],
+        "topic_id": "topic_6e2099b264c5aea3",
+        "topic_label": "吸气方法与吐丝练习"
+      },
+      {
+        "canonical_angle": "这些候选共同建议依据身体基础控制练习时长，并通过分散安排避免一次练习过久。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_4305cfa07f8b1fbf",
+            "member_angle": "按训练基础给出时长范围，并强调增加练习量时应分开进行。",
+            "relationship": "core",
+            "relationship_reason": "它最完整地说明了时长分级和分散练习原则。"
+          },
+          {
+            "candidate_id": "candidate_2e7f0f8e0e88fae2",
+            "member_angle": "按运动基础区分练习时长，并建议配合歌曲节奏完成。",
+            "relationship": "same_claim",
+            "relationship_reason": "它给出的时长分级与核心成员一致，主要增加了节奏载体。"
+          }
+        ],
+        "topic_id": "topic_54e5159281e13a09",
+        "topic_label": "按基础安排练习时长"
+      },
+      {
+        "canonical_angle": "这些候选共同用个人或学员经历说明声乐发声方法也可用于日常讲话，并可能减轻长时间说话后的嗓音负担。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_1b8b4323d05c7dd6",
+            "member_angle": "以连续授课后的嗓音状态说明正确通道也适用于讲话。",
+            "relationship": "core",
+            "relationship_reason": "它以完整个人经历呈现长时间讲话、疲惫与沙哑之间的区别。"
+          },
+          {
+            "candidate_id": "candidate_f1d87e3d981d87dc",
+            "member_angle": "以教师学员和说话示范说明气息与通道能让日常讲话更轻松。",
+            "relationship": "same_claim",
+            "relationship_reason": "它从学员案例重复并扩展了同一嗓音保护主张。"
+          }
+        ],
+        "topic_id": "topic_0a783a3e7fff5637",
+        "topic_label": "把声乐方法用于日常讲话"
+      },
+      {
+        "canonical_angle": "这些候选共同讨论不同唱法和音色背后的通道、共鸣与支撑，并提醒初学者不要只模仿外在声音。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_5d3778b0260b9b65",
+            "member_angle": "说明初学者应先建立自己的音色通道，刻意模仿资深歌者容易错误挤压。",
+            "relationship": "core",
+            "relationship_reason": "它最完整地提出了通道优先和反对表面模仿的核心观点。"
+          },
+          {
+            "candidate_id": "candidate_a2609c2e30906366",
+            "member_angle": "用美声传播力说明多个共鸣腔体和内部支撑的重要性。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它解释了不能只模仿外在音色的另一面，即声音传播依赖共鸣和支撑。"
+          },
+          {
+            "candidate_id": "candidate_3c76eb79d4264624",
+            "member_angle": "比较戏曲、流行与美声在咬字、嘴形和气息上的异同。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它把通道与音色问题扩展到不同唱法之间的技术差异。"
+          }
+        ],
+        "topic_id": "topic_09d79f7c7691d6bf",
+        "topic_label": "唱法差异、共鸣与模仿误区"
+      },
+      {
+        "canonical_angle": "该候选讨论音响或后期处理能够美化声音，却无法替代演唱者自身的发声通道和共鸣。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_e27d41447dbfb889",
+            "member_angle": "区分可被修正的音准问题与无法由修音补足的通道、共鸣问题。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立、完整地构成修音能力边界这一话题。"
+          }
+        ],
+        "topic_id": "topic_a089c0cc0e4fcb6e",
+        "topic_label": "修音无法替代通道与共鸣"
+      },
+      {
+        "canonical_angle": "这些候选共同通过学员案例、效果数字或服务安排宣传声乐教学的价值与成效。",
+        "cluster_confidence": "medium",
+        "members": [
+          {
+            "candidate_id": "candidate_d3981771b1792fc6",
+            "member_angle": "讲述学员从质疑到体验进步并继续报名的转折故事。",
+            "relationship": "core",
+            "relationship_reason": "它以较完整的见证故事呈现教学效果宣传。"
+          },
+          {
+            "candidate_id": "candidate_2a81f27ea2fccc4f",
+            "member_angle": "以零基础学员数量、短期见效和成功率为教学方法背书。",
+            "relationship": "same_claim",
+            "relationship_reason": "它同样以学员成效证明课程价值，但采用概括数字而非个案。"
+          },
+          {
+            "candidate_id": "candidate_ec801fd85b29d485",
+            "member_angle": "推广音频反馈和更长教学服务，并夹带嗓音疲劳建议。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它属于教学服务推广，但贡献的是服务方式和互动入口。"
+          }
+        ],
+        "topic_id": "topic_c903b3a9d02098a8",
+        "topic_label": "声乐教学服务与效果宣传"
+      },
+      {
+        "canonical_angle": "这些候选共同介绍声乐教学直播间、连麦诊断和观众互动安排。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_7f4a5d4251808e1e",
+            "member_angle": "以直播开场形式介绍声乐教学、问题提交和连麦。",
+            "relationship": "core",
+            "relationship_reason": "它最直接地概括直播间定位与互动方式。"
+          },
+          {
+            "candidate_id": "candidate_4df4063e46e8084e",
+            "member_angle": "在召集观众时反复强调声乐教学和连麦答疑。",
+            "relationship": "same_claim",
+            "relationship_reason": "它重复了核心成员的直播间定位与观众召集信息。"
+          },
+          {
+            "candidate_id": "candidate_7d8b0df1b19a1ead",
+            "member_angle": "预告稍后的连麦诊断并引导粉丝互动。",
+            "relationship": "same_claim",
+            "relationship_reason": "它与核心成员属于同一连麦公告，只是转写更混乱。"
+          },
+          {
+            "candidate_id": "candidate_765337da95068540",
+            "member_angle": "在互动片段后宣布稍后安排连麦诊断。",
+            "relationship": "same_claim",
+            "relationship_reason": "其主要可用信息同样是连麦诊断预告。"
+          },
+          {
+            "candidate_id": "candidate_f0c88f3966f4c86b",
+            "member_angle": "在连麦安排之外预告将讲解初学者高音卡顿和破音。",
+            "relationship": "alternate_angle",
+            "relationship_reason": "它属于直播议程介绍，并增加了即将讲解的具体教学问题。"
+          }
+        ],
+        "topic_id": "topic_3d9152c6c448020e",
+        "topic_label": "直播间介绍与连麦诊断预告"
+      },
+      {
+        "canonical_angle": "该候选围绕直播画面的灯光明暗效果进行调整并征询观众反馈。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_835027c32b145c6e",
+            "member_angle": "判断灯光缺少明暗对比并现场调整。",
+            "relationship": "core",
+            "relationship_reason": "该成员独立构成直播灯光调整话题。"
+          }
+        ],
+        "topic_id": "topic_136f75878cbdf551",
+        "topic_label": "直播灯光调整"
+      },
+      {
+        "canonical_angle": "该候选说明直播授课之外还包含学员素材处理、沟通协作和内容制作等幕后工作。",
+        "cluster_confidence": "high",
+        "members": [
+          {
+            "candidate_id": "candidate_c0638f35973b6082",
+            "member_angle": "列举课后处理学员视频、剪辑进步片段和准备次日内容的工作。",
+            "relationship": "core",
+            "relationship_reason": "该成员完整呈现了教学直播背后的工作链条。"
+          }
+        ],
+        "topic_id": "topic_f7cc16af324e303e",
+        "topic_label": "教学直播的幕后工作"
+      },
+      {
+        "canonical_angle": "该候选记录说话者测试个人低音下限，并表示无法达到更低的目标音。",
+        "cluster_confidence": "medium",
+        "members": [
+          {
+            "candidate_id": "candidate_45bc9a8fa85d8251",
+            "member_angle": "围绕个人低音音级进行试唱和判断。",
+            "relationship": "core",
+            "relationship_reason": "该成员虽夹杂闲聊，仍独立形成个人低音下限测试话题。"
+          }
+        ],
+        "topic_id": "topic_ba6baa1793a52650",
+        "topic_label": "个人低音下限测试"
+      }
+    ]
+  }
+}

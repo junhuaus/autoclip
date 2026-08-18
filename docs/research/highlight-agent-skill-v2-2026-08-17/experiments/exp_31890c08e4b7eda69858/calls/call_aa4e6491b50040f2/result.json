@@ -1,0 +1,283 @@
+{
+  "assessments": [
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选明确主张科学发声有助于长期保持嗓音状态，并以美声与摇滚作比较；但涉及具名歌手的评价，且后半段转写明显混乱，削弱了论证可靠性。",
+      "candidate_id": "candidate_ec5459f102e399ec",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "reputation_or_defamation"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "学习科学的发声方法更有利于长期维持嗓音状态，而某些大量使用声带的唱法可能更伤嗓。",
+      "risk_summary": "包含未经验证的嗓音健康判断及对具名歌手唱法的负面比较，且部分转写不清。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "科学发声与长期嗓音健康",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选清楚呈现了“没有唱歌天赋能否学好声乐”的常见疑问，但主体主要是连麦沟通和提问，尚未给出回答或论证。",
+      "candidate_id": "candidate_288c9f1bf0144c80",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "不少学习者担心自己没有唱歌天赋，因此怀疑能否学好声乐。",
+      "risk_summary": "候选提出了明确问题，但没有在本段内完成回答。",
+      "scores": {
+        "content_value": 1,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 1
+      },
+      "topic_hypothesis": "没有天赋能否学好唱歌",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选针对舌根紧张提出先改善气息和咬字、不要盲目采用偏门方法，观点可辨；但开头对具体做法的转写含混，且改善音色的因果表述较强。",
+      "candidate_id": "candidate_457e1f1bdcf9a2eb",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "unsafe_instruction"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "处理舌根紧张应先改善气息和咬字，不宜盲目采用直接干预舌头的偏门方法。",
+      "risk_summary": "涉及可能造成身体不适的舌部操作，虽有劝阻，但具体表述转写不清且效果主张未经验证。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "缓解唱歌时的舌根紧张",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选给出了闭口音遇到高音时的具体练习思路：先借助开口音建立感觉，再逐步过渡；中段有少量重复和明显同音转写错误，但核心步骤完整。",
+      "candidate_id": "candidate_45f74801b32ad9cf",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "练习高音中的闭口音时，可以先借助开口音找到口腔状态，再逐步过渡回闭口音。",
+      "risk_summary": "少量关键术语被错误转写，但核心练习观点仍可辨认。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "高音闭口音的过渡练习",
+      "uncertainty_flags": [
+        "asr_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选用个人经历说明舌头紧张可以通过后天练习改善，故事具有一定记忆点；但随后描述了直接用手和纱布转动舌头的做法，存在安全风险，结尾也未完整展开替代练习。",
+      "candidate_id": "candidate_d5a694fcab37dad8",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "unsafe_instruction"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "incomplete_claim"
+      ],
+      "primary_claim": "舌头和舌根的紧张并非不能改善，但候选者曾采用直接干预舌头的偏门练法。",
+      "risk_summary": "包含直接用手和纱布操作舌头的做法，可能造成伤害，不宜作为可直接照做的练习建议。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 1,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "舌头紧张的个人改善经历",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选表达了“先在唱歌通道里学会说，再用于唱”的教学观点，并开始解释共鸣概念；但开头承接前文，结尾停在新问题的引入处，术语也较抽象。",
+      "candidate_id": "candidate_383a43afa92485e7",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency",
+        "incomplete_claim"
+      ],
+      "primary_claim": "所谓带着说话位置唱歌，并非普通说话，而是在唱歌所需的发声状态中说。",
+      "risk_summary": "开头依赖前文，且对“共鸣”的后续解释在本候选内没有完成。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 3,
+        "hook_strength": 1,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "说话位置、唱歌通道与共鸣",
+      "uncertainty_flags": [
+        "missing_context",
+        "mixed_topics",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选完整回应了“没有天赋能否学唱歌”的焦虑，以自身后天训练为例，强调普通人无需以出道标准衡量自己，而应在自身条件上持续改善。",
+      "candidate_id": "candidate_65678839045aab40",
+      "content_risk_flags": [],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "普通人即使缺少稀缺的唱歌天赋，也能通过后天训练在自身条件上获得明显进步。",
+      "risk_summary": "",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 4,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "topic_hypothesis": "唱歌天赋与后天训练",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选直接劝零基础学习者不要盲练，并强调科学发声有助于唱得更久，主题明确；但“科学”的具体标准没有展开，开头还明显承接上一段比较。",
+      "candidate_id": "candidate_35a860b83062d6ab",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "context_dependency"
+      ],
+      "primary_claim": "零基础学习者不应盲目练习，而应寻找更科学的发声方式，以减少不当用嗓并延长可持续演唱时间。",
+      "risk_summary": "包含关于发声方式与嗓音耐久性的健康主张，但本段未提供具体依据或边界。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 3,
+        "evidence_fidelity": 3,
+        "hook_strength": 2,
+        "standalone_completeness": 3
+      },
+      "topic_hypothesis": "零基础应避免盲练并学习科学发声",
+      "uncertainty_flags": [
+        "missing_context",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "medium",
+      "assessment_reason": "候选用汽车动力与轮子的比喻说明气息只是唱歌基础之一，不能单靠练气息解决舌根或嗓子问题；但开头和结尾转写重复混乱，对正确练法也未完成说明。",
+      "candidate_id": "candidate_f88952d2d3ed4709",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain",
+        "incomplete_claim"
+      ],
+      "primary_claim": "气息训练是唱歌的基础，但不能单独解决所有舌根或嗓音问题。",
+      "risk_summary": "涉及嗓音训练效果的健康相关判断，且部分问题描述和练法转写不清、论述未完成。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 2,
+        "evidence_fidelity": 2,
+        "hook_strength": 2,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "气息训练的作用与局限",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "low",
+      "assessment_reason": "候选通过学员经历提醒持续嘶哑或疑似声带问题者就医，方向具有安全价值；但疾病名称和所谓病情进展的转述前后矛盾，还邀请观众发送语音供主播判断，容易造成远程诊断误解。",
+      "candidate_id": "candidate_cba78926f39edb10",
+      "content_risk_flags": [
+        "health_or_safety_claim",
+        "sponsor_or_advertising"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [
+        "asr_uncertain"
+      ],
+      "primary_claim": "发现持续声音嘶哑或怀疑声带异常时，应及时到医院检查，而不应只依赖非医疗人员判断。",
+      "risk_summary": "包含前后矛盾的严重疾病转述和通过语音判断声带问题的招揽，可能误导健康决策；专业处置部分则明确指向医院。",
+      "scores": {
+        "content_value": 2,
+        "editorial_utility": 1,
+        "evidence_fidelity": 1,
+        "hook_strength": 3,
+        "standalone_completeness": 2
+      },
+      "topic_hypothesis": "声音异常时及时就医检查",
+      "uncertainty_flags": [
+        "asr_ambiguity",
+        "claim_ambiguity"
+      ],
+      "unusable_reason": "none"
+    },
+    {
+      "assessment_confidence": "high",
+      "assessment_reason": "候选完整回答了每日练习时长问题，明确反对用练到嗓哑证明努力，强调控制连续练习时间、提高效率并主动听辨声音，观点清楚且有直接实用性。",
+      "candidate_id": "candidate_554c3d7035ba1055",
+      "content_risk_flags": [
+        "health_or_safety_claim"
+      ],
+      "disposition": "assessable",
+      "evidence_flags": [],
+      "primary_claim": "唱歌练习不应单纯追求时长或练到嗓哑，而应控制连续练习量，并通过思考和听辨提高效率。",
+      "risk_summary": "包含具体练习时长及用嗓安全建议，发布前宜确认其适用范围和专业依据。",
+      "scores": {
+        "content_value": 3,
+        "editorial_utility": 4,
+        "evidence_fidelity": 4,
+        "hook_strength": 3,
+        "standalone_completeness": 4
+      },
+      "topic_hypothesis": "唱歌练习时长与效率",
+      "uncertainty_flags": [],
+      "unusable_reason": "none"
+    }
+  ]
+}

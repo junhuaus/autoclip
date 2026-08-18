@@ -1,0 +1,16 @@
+{
+  "artifact_sha256": {
+    "result.json": "956b73cb6af332dd3d323eb1a7877d2b3c8057206378d644715325811234da3f",
+    "summary.json": "2d4964a57d4edc4622a11f39aa5c2154dd2b8235be07d6c0565f377e5971de7f",
+    "validation.json": "c625b8897c4c2facd64488239a66816e958e1249f908ba68a69e7bb268821323"
+  },
+  "call_receipts": [
+    {
+      "call_completion_sha256": "7d310f2fb3ff4f69d97a5f9fdb669456cb100b2ac62f69bcc28d808c2adb29bc",
+      "call_id": "call_dc416e499b6f98b3"
+    }
+  ],
+  "pipeline_contract_sha256": "ae0d47749a4a7739cf142018fc9f3fee96b1ea9c1881d60bc94526c5928cf794",
+  "pipeline_id": "pipeline_432edfabfa91afd1",
+  "schema_version": "1"
+}
