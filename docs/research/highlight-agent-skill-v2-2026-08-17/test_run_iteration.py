@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,16 @@ assert SPEC is not None and SPEC.loader is not None
 RUNNER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = RUNNER
 SPEC.loader.exec_module(RUNNER)
+_REAL_RUN_PREFLIGHT_PROCESS = RUNNER._run_preflight_process
+
+
+@pytest.fixture(autouse=True)
+def _successful_local_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    def run(command: list[str], *, cwd: Path, env: dict[str, str]):
+        del cwd, env
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(RUNNER, "_run_preflight_process", run)
 
 
 def _payload(prompt: str) -> dict[str, Any]:
@@ -128,6 +139,35 @@ def _mock_invoke_factory(counter: list[str]):
     return invoke
 
 
+def _recover_call_after_infrastructure_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    successful_invoke = _mock_invoke_factory([])
+    process_calls = 0
+
+    def fail_once(*, label: str, prompt: str, schema_path: Path):
+        nonlocal process_calls
+        process_calls += 1
+        if process_calls == 1:
+            raise RUNNER.CodexProcessFailure(
+                f"{label} app-server init failed",
+                category="infrastructure_permission_denied",
+                model_started=False,
+                returncode=1,
+                stderr="Operation not permitted",
+            )
+        return successful_invoke(label=label, prompt=prompt, schema_path=schema_path)
+
+    monkeypatch.setattr(RUNNER, "_invoke_codex", fail_once)
+    with pytest.raises(RUNNER.CodexInfrastructureUnavailable):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    call_dir = next((prepared.experiment_dir / "calls").iterdir())
+    recovered = RUNNER._run_experiment(prepared, sentinel=True)
+    assert recovered["completed_pipeline_count"] == 2
+    return call_dir
+
+
 def test_mock_sentinel_resumes_to_full_matrix_and_detects_tamper(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -140,9 +180,7 @@ def test_mock_sentinel_resumes_to_full_matrix_and_detects_tamper(
     assert sentinel["completed_pipeline_count"] == 2
     assert sentinel["remaining_pipeline_count"] == 10
 
-    first_pipeline_id = prepared.public_plan["schedule"][0]["pipelines"][0][
-        "pipeline_id"
-    ]
+    first_pipeline_id = prepared.public_plan["schedule"][0]["pipelines"][0]["pipeline_id"]
     first_pipeline_dir = prepared.experiment_dir / "pipelines" / first_pipeline_id
     (first_pipeline_dir / "complete.json").unlink()
     calls_before_recovery = len(counter)
@@ -195,3 +233,291 @@ def test_empty_portfolio_skips_tier4_model_call(
     )
     assert v2_summary["selected_count"] == 0
     assert v2_summary["tier_call_elapsed_seconds"]["tier4"] == 0.0
+
+
+def test_preflight_uses_stdio_transport_and_immediate_eof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    command = RUNNER._codex_preflight_command()
+    listen_index = command.index("--listen")
+    assert command[listen_index + 1] == "stdio://"
+    assert "off" not in command
+
+    observed: dict[str, Any] = {}
+
+    def run(command_value: list[str], **kwargs: Any):
+        observed["command"] = command_value
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(command_value, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(RUNNER.subprocess, "run", run)
+    completed = _REAL_RUN_PREFLIGHT_PROCESS(command, cwd=tmp_path, env={})
+    assert completed.returncode == 0
+    assert observed["command"] == command
+    assert observed["input"] == ""
+    assert observed["timeout"] == RUNNER.PREFLIGHT_TIMEOUT_SECONDS == 20
+    assert observed["check"] is False
+
+
+def test_preflight_failure_uses_zero_model_calls_and_recovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    model_calls: list[str] = []
+    monkeypatch.setattr(RUNNER, "_invoke_codex", _mock_invoke_factory(model_calls))
+
+    def denied(command: list[str], *, cwd: Path, env: dict[str, str]):
+        del cwd, env
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=(
+                "Error: failed to initialize in-process app-server client: "
+                "Operation not permitted (os error 1)"
+            ),
+        )
+
+    monkeypatch.setattr(RUNNER, "_run_preflight_process", denied)
+    with pytest.raises(RUNNER.CodexInfrastructureUnavailable, match="preflight failed"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert model_calls == []
+    first_receipt_path = (
+        prepared.experiment_dir / "infrastructure/preflight/checks/001/receipt.json"
+    )
+    first_receipt_bytes = first_receipt_path.read_bytes()
+    first_receipt = json.loads(first_receipt_bytes)
+    assert first_receipt["category"] == "infrastructure_permission_denied"
+    assert first_receipt["model_started"] is False
+    assert first_receipt["model_attempt_consumed"] is False
+    assert not (prepared.experiment_dir / "calls").exists()
+
+    def ready(command: list[str], *, cwd: Path, env: dict[str, str]):
+        del cwd, env
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(RUNNER, "_run_preflight_process", ready)
+    recovered = RUNNER._run_experiment(prepared, sentinel=True)
+    assert recovered["status"] == "generation_partial"
+    assert model_calls
+    assert first_receipt_path.read_bytes() == first_receipt_bytes
+    second_receipt = json.loads(
+        (prepared.experiment_dir / "infrastructure/preflight/checks/002/receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert second_receipt["status"] == "passed"
+
+
+def test_pre_model_call_failure_has_infrastructure_receipt_and_recovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    successful_calls: list[str] = []
+    successful_invoke = _mock_invoke_factory(successful_calls)
+    infrastructure_calls = 0
+
+    def fail_once(*, label: str, prompt: str, schema_path: Path):
+        nonlocal infrastructure_calls
+        infrastructure_calls += 1
+        if infrastructure_calls == 1:
+            raise RUNNER.CodexProcessFailure(
+                f"{label} app-server init failed",
+                category="infrastructure_permission_denied",
+                model_started=False,
+                returncode=1,
+                stderr="Operation not permitted",
+            )
+        return successful_invoke(label=label, prompt=prompt, schema_path=schema_path)
+
+    monkeypatch.setattr(RUNNER, "_invoke_codex", fail_once)
+    with pytest.raises(RUNNER.CodexInfrastructureUnavailable, match="before any model turn"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    call_dirs = list((prepared.experiment_dir / "calls").iterdir())
+    assert len(call_dirs) == 1
+    call_dir = call_dirs[0]
+    receipt_path = call_dir / "infrastructure-failures/001/receipt.json"
+    receipt_bytes = receipt_path.read_bytes()
+    receipt = json.loads(receipt_bytes)
+    assert receipt["model_started"] is False
+    assert receipt["model_attempt_consumed"] is False
+    assert not (call_dir / "attempts").exists()
+
+    recovered = RUNNER._run_experiment(prepared, sentinel=True)
+    assert recovered["completed_pipeline_count"] == 2
+    assert receipt_path.read_bytes() == receipt_bytes
+    assert (call_dir / "attempts/001/attempt-contract.json").is_file()
+
+
+@pytest.mark.parametrize("mutation", ["tamper", "delete", "extra"])
+def test_completed_call_binds_all_infrastructure_failure_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    call_dir = _recover_call_after_infrastructure_failure(tmp_path, monkeypatch)
+    receipt_path = call_dir / "infrastructure-failures/001/receipt.json"
+    completion = json.loads((call_dir / "complete.json").read_text(encoding="utf-8"))
+    assert completion["infrastructure_failure_receipts"] == [
+        {
+            "relative_path": "infrastructure-failures/001/receipt.json",
+            "sha256": RUNNER._sha256_path(receipt_path),
+        }
+    ]
+
+    if mutation == "tamper":
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["stderr_tail"] = "tampered after call completion"
+        receipt_path.write_bytes(RUNNER._pretty_json_bytes(receipt))
+    elif mutation == "delete":
+        receipt_path.unlink()
+    else:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["failure_number"] = 2
+        extra_path = call_dir / "infrastructure-failures/002/receipt.json"
+        extra_path.parent.mkdir(parents=True)
+        extra_path.write_bytes(RUNNER._pretty_json_bytes(receipt))
+
+    contract = json.loads((call_dir / "call-contract.json").read_text(encoding="utf-8"))
+
+    def should_not_revalidate(_: dict[str, Any]):
+        raise AssertionError("receipt drift must fail before model output validation")
+
+    with pytest.raises(RuntimeError, match="infrastructure"):
+        RUNNER._validate_completed_call(call_dir, contract, should_not_revalidate)
+    with pytest.raises(RuntimeError, match="infrastructure"):
+        RUNNER._verify_call_evidence(call_dir)
+
+
+def test_model_schema_attempts_remain_bounded_at_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    model_calls: list[str] = []
+
+    def invalid(*, label: str, prompt: str, schema_path: Path):
+        del prompt, schema_path
+        model_calls.append(label)
+        return (
+            {},
+            {
+                "label": label,
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium",
+                "request_id": f"invalid-{len(model_calls)}",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+                "started_at": "2026-08-17T00:00:00+00:00",
+                "completed_at": "2026-08-17T00:00:01+00:00",
+                "elapsed_seconds": 0.001,
+                "unsafe_tool_event": False,
+                "model_started": True,
+            },
+            '{"type":"turn.started"}\n',
+        )
+
+    monkeypatch.setattr(RUNNER, "_invoke_codex", invalid)
+    with pytest.raises(RuntimeError, match="exhausted 2 same-tier attempts"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert len(model_calls) == 2
+    call_dir = next((prepared.experiment_dir / "calls").iterdir())
+    assert sorted(path.name for path in (call_dir / "attempts").iterdir()) == [
+        "001",
+        "002",
+    ]
+    assert not (call_dir / "infrastructure-failures").exists()
+
+    with pytest.raises(RuntimeError, match="exhausted 2 same-tier attempts"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert len(model_calls) == 2
+
+
+def test_unsafe_tool_event_is_persisted_hard_failure_without_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    model_calls: list[str] = []
+    unsafe_events = (
+        '{"type":"turn.started"}\n{"type":"item.started","item":{"type":"command_execution"}}\n'
+    )
+
+    def unsafe(*, label: str, prompt: str, schema_path: Path):
+        del prompt, schema_path
+        model_calls.append(label)
+        raise RUNNER.CodexProcessFailure(
+            f"{label} emitted a forbidden tool event",
+            category="model_safety_tool_event",
+            model_started=True,
+            returncode=0,
+            stdout=unsafe_events,
+        )
+
+    monkeypatch.setattr(RUNNER, "_invoke_codex", unsafe)
+    with pytest.raises(RuntimeError, match="unsafe tool event"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert len(model_calls) == 1
+
+    call_dir = next((prepared.experiment_dir / "calls").iterdir())
+    attempt_dir = call_dir / "attempts/001"
+    attempt_contract = json.loads(
+        (attempt_dir / "attempt-contract.json").read_text(encoding="utf-8")
+    )
+    failure = json.loads((attempt_dir / "failure.json").read_text(encoding="utf-8"))
+    assert attempt_contract["status"] == "safety_failed"
+    assert failure["category"] == "model_safety_tool_event"
+    assert (attempt_dir / "events.jsonl").read_text(encoding="utf-8") == unsafe_events
+
+    with pytest.raises(RuntimeError, match="persisted unsafe tool event"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert len(model_calls) == 1
+    assert sorted(path.name for path in (call_dir / "attempts").iterdir()) == ["001"]
+
+
+def test_pre_model_infrastructure_retries_are_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared = RUNNER._prepare_experiment(tmp_path / "experiments")
+    process_calls = 0
+
+    def unavailable(*, label: str, prompt: str, schema_path: Path):
+        nonlocal process_calls
+        del prompt, schema_path
+        process_calls += 1
+        raise RUNNER.CodexProcessFailure(
+            f"{label} app-server init failed",
+            category="infrastructure_permission_denied",
+            model_started=False,
+            returncode=1,
+            stderr="Operation not permitted",
+        )
+
+    monkeypatch.setattr(RUNNER, "_invoke_codex", unavailable)
+    for _ in range(RUNNER.MAX_CALL_INFRASTRUCTURE_FAILURES):
+        with pytest.raises(RUNNER.CodexInfrastructureUnavailable):
+            RUNNER._run_experiment(prepared, sentinel=True)
+    assert process_calls == RUNNER.MAX_CALL_INFRASTRUCTURE_FAILURES
+    with pytest.raises(RUNNER.CodexInfrastructureUnavailable, match="bounded pre-model"):
+        RUNNER._run_experiment(prepared, sentinel=True)
+    assert process_calls == RUNNER.MAX_CALL_INFRASTRUCTURE_FAILURES
+
+
+def test_codex_process_classifies_pre_turn_permission_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    schema = tmp_path / "schema.json"
+    schema.write_text("{}", encoding="utf-8")
+
+    def denied(*args: Any, **kwargs: Any):
+        del args, kwargs
+        return subprocess.CompletedProcess(
+            ["codex"],
+            1,
+            stdout="",
+            stderr=(
+                "Error: failed to initialize in-process app-server client: "
+                "Operation not permitted (os error 1)"
+            ),
+        )
+
+    monkeypatch.setattr(RUNNER.subprocess, "run", denied)
+    with pytest.raises(RUNNER.CodexProcessFailure) as captured:
+        RUNNER._invoke_codex(label="offline-classifier", prompt="{}", schema_path=schema)
+    assert captured.value.category == "infrastructure_permission_denied"
+    assert captured.value.model_started is False

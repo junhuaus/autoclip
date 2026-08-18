@@ -59,6 +59,10 @@ MAXIMUM_INTERVAL_IOU = 0.45
 MAXIMUM_TEXT_JACCARD = 0.65
 MAX_MODEL_ATTEMPTS = 2
 MAX_PIPELINE_REPAIRS = 2
+PREFLIGHT_POLICY_VERSION = "codex-local-app-server-preflight-v2"
+MAX_PREFLIGHT_FAILURES = 3
+MAX_CALL_INFRASTRUCTURE_FAILURES = 3
+PREFLIGHT_TIMEOUT_SECONDS = 20
 
 
 @dataclass(frozen=True)
@@ -183,6 +187,32 @@ class PreparedExperiment:
     public_plan: dict[str, Any]
     private_map: dict[str, Any]
     tier_bundles: dict[str, str]
+
+
+class CodexProcessFailure(RuntimeError):
+    """A classified Codex process failure with explicit model-start evidence."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str,
+        model_started: bool,
+        returncode: int | None,
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.model_started = model_started
+        self.returncode = returncode
+        self.stdout_evidence = _redact(stdout)
+        self.stdout_tail = _redact(stdout)[-3000:]
+        self.stderr_tail = _redact(stderr)[-3000:]
+
+
+class CodexInfrastructureUnavailable(RuntimeError):
+    """Raised after an immutable zero-model infrastructure receipt is saved."""
 
 
 @dataclass
@@ -553,6 +583,42 @@ def _codex_identity() -> dict[str, str]:
     return {"path": str(Path(executable).resolve()), "version": version}
 
 
+def _safe_environment() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if key.upper() in SAFE_ENV_KEYS}
+
+
+def _disabled_feature_args() -> list[str]:
+    return [value for name in DISABLED_FEATURES for value in ("--disable", name)]
+
+
+def _codex_preflight_command() -> list[str]:
+    """Initialize the local app-server runtime without creating a model turn."""
+
+    executable = shutil.which("codex")
+    if executable is None:
+        raise RuntimeError("codex CLI is unavailable")
+    return [
+        executable,
+        "--ask-for-approval",
+        "never",
+        "--sandbox",
+        "read-only",
+        *_disabled_feature_args(),
+        "-c",
+        "features.shell_tool=false",
+        "-c",
+        "features.unified_exec=false",
+        "-c",
+        "features.multi_agent=false",
+        "-c",
+        'web_search="disabled"',
+        "app-server",
+        "--listen",
+        "stdio://",
+        "--strict-config",
+    ]
+
+
 def _validate_output_root(value: Path) -> Path:
     requested = value.expanduser()
     requested.parent.mkdir(parents=True, exist_ok=True)
@@ -621,6 +687,19 @@ def _prepare_experiment(output_root: Path) -> PreparedExperiment:
         "schedule": schedule,
         "arm_mapping_commitment_sha256": _sha256_bytes(private_bytes),
     }
+    codex_cli = _codex_identity()
+    preflight_command = _codex_preflight_command()
+    preflight_policy = {
+        "policy_version": PREFLIGHT_POLICY_VERSION,
+        "probe": "local_app_server_stdio_eof",
+        "model_requests": 0,
+        "command_sha256": _sha256_bytes(_canonical_bytes(preflight_command)),
+        "timeout_seconds": PREFLIGHT_TIMEOUT_SECONDS,
+        "maximum_failed_checks": MAX_PREFLIGHT_FAILURES,
+        "maximum_pre_model_failures_per_call": MAX_CALL_INFRASTRUCTURE_FAILURES,
+        "environment": "same_allowlist_as_model_process",
+        "tool_policy": "same_disabled_feature_set; read-only sandbox",
+    }
 
     expected_files: dict[str, bytes] = {
         "frozen/public-plan.json": _pretty_json_bytes(public_plan),
@@ -630,6 +709,7 @@ def _prepare_experiment(output_root: Path) -> PreparedExperiment:
         "frozen/runtime/v2-tier2-bundle.md": tier_bundles["tier2"].encode("utf-8"),
         "frozen/runtime/v2-tier4-bundle.md": tier_bundles["tier4"].encode("utf-8"),
         "frozen/gates/input_gate.py": INPUT_GATE_PATH.read_bytes(),
+        "frozen/runtime/codex-preflight-policy.json": _pretty_json_bytes(preflight_policy),
     }
     schema_hashes: dict[str, dict[str, str]] = {}
     source_contracts: list[dict[str, Any]] = []
@@ -710,7 +790,8 @@ def _prepare_experiment(output_root: Path) -> PreparedExperiment:
             "environment": "allowlist",
             "unsafe_tool_event": "hard_fail",
         },
-        "codex_cli": _codex_identity(),
+        "runtime_preflight": preflight_policy,
+        "codex_cli": codex_cli,
     }
     contract_sha = _sha256_bytes(_canonical_bytes(contract_payload))
     experiment_id = f"exp_{contract_sha[:20]}"
@@ -796,12 +877,11 @@ def _codex_command(schema: Path, output: Path) -> list[str]:
     executable = shutil.which("codex")
     if executable is None:
         raise RuntimeError("codex CLI is unavailable")
-    disabled = [value for name in DISABLED_FEATURES for value in ("--disable", name)]
     return [
         executable,
         "--ask-for-approval",
         "never",
-        *disabled,
+        *_disabled_feature_args(),
         "exec",
         "--ephemeral",
         "--ignore-user-config",
@@ -833,10 +913,13 @@ def _codex_command(schema: Path, output: Path) -> list[str]:
     ]
 
 
-def _parse_events(stdout: str) -> tuple[str | None, dict[str, int] | None, bool]:
+def _parse_events(
+    stdout: str,
+) -> tuple[str | None, dict[str, int] | None, bool, bool]:
     request_id: str | None = None
     usage: dict[str, int] | None = None
     unsafe_event = False
+    model_started = False
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -845,6 +928,8 @@ def _parse_events(stdout: str) -> tuple[str | None, dict[str, int] | None, bool]
         if event.get("type") == "thread.started" and isinstance(event.get("thread_id"), str):
             request_id = event["thread_id"]
         event_type = event.get("type")
+        if event_type == "turn.started":
+            model_started = True
         if isinstance(event_type, str) and event_type.startswith("item."):
             item = event.get("item")
             item_type = item.get("type") if isinstance(item, dict) else None
@@ -860,11 +945,170 @@ def _parse_events(stdout: str) -> tuple[str | None, dict[str, int] | None, bool]
                 and not isinstance(value, bool)
                 and value >= 0
             }
-    return request_id, usage, unsafe_event
+    return request_id, usage, unsafe_event, model_started
 
 
 def _redact(value: str) -> str:
     return SECRET_RE.sub("[REDACTED]", value)
+
+
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+
+
+def _classify_pre_model_failure(stderr: str, *, fallback: str) -> str:
+    normalized = stderr.casefold()
+    if "operation not permitted" in normalized or "permission denied" in normalized:
+        return "infrastructure_permission_denied"
+    if "failed to initialize in-process app-server" in normalized:
+        return "infrastructure_app_server_initialization"
+    if "failed to initialize sqlite state runtime" in normalized:
+        return "infrastructure_state_initialization"
+    if "config" in normalized and ("invalid" in normalized or "error" in normalized):
+        return "infrastructure_configuration"
+    return fallback
+
+
+def _run_preflight_process(
+    command: Sequence[str], *, cwd: Path, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        list(command),
+        input="",
+        text=True,
+        capture_output=True,
+        cwd=cwd,
+        env=env,
+        timeout=PREFLIGHT_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+
+def _validate_preflight_receipt(
+    receipt: dict[str, Any], prepared: PreparedExperiment, check_number: int
+) -> None:
+    required = {
+        "schema_version",
+        "policy_version",
+        "experiment_id",
+        "experiment_contract_sha256",
+        "check_number",
+        "status",
+        "category",
+        "command_sha256",
+        "returncode",
+        "model_started",
+        "model_attempt_consumed",
+        "stdout_tail",
+        "stderr_tail",
+        "recorded_at",
+    }
+    policy = prepared.manifest["immutable_contract"]["runtime_preflight"]
+    if (
+        set(receipt) != required
+        or receipt.get("schema_version") != "1"
+        or receipt.get("policy_version") != PREFLIGHT_POLICY_VERSION
+        or receipt.get("experiment_id") != prepared.experiment_id
+        or receipt.get("experiment_contract_sha256") != prepared.contract_sha256
+        or receipt.get("check_number") != check_number
+        or receipt.get("command_sha256") != policy["command_sha256"]
+        or receipt.get("model_started") is not False
+        or receipt.get("model_attempt_consumed") is not False
+        or receipt.get("status") not in {"passed", "failed"}
+    ):
+        raise RuntimeError("Codex infrastructure preflight receipt drift")
+
+
+def _ensure_runtime_preflight(prepared: PreparedExperiment) -> dict[str, Any]:
+    """Run at most one new zero-model readiness check per invocation."""
+
+    attempts_dir = prepared.experiment_dir / "infrastructure/preflight/checks"
+    existing: list[tuple[int, Path]] = []
+    if attempts_dir.exists():
+        for path in attempts_dir.iterdir():
+            if path.is_dir() and path.name.isdigit():
+                existing.append((int(path.name), path))
+        existing.sort()
+        if [number for number, _ in existing] != list(range(1, len(existing) + 1)):
+            raise RuntimeError("Codex infrastructure preflight receipt sequence drift")
+    failed_count = 0
+    for check_number, directory in existing:
+        receipt_path = directory / "receipt.json"
+        if not receipt_path.is_file():
+            raise RuntimeError(f"incomplete Codex preflight receipt: {directory}")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        _validate_preflight_receipt(receipt, prepared, check_number)
+        if receipt["status"] == "passed":
+            return receipt
+        failed_count += 1
+    if failed_count >= MAX_PREFLIGHT_FAILURES:
+        raise CodexInfrastructureUnavailable(
+            "Codex infrastructure preflight failure limit reached; preserve this experiment "
+            "and start a new immutable contract after fixing the environment"
+        )
+
+    command = _codex_preflight_command()
+    policy = prepared.manifest["immutable_contract"]["runtime_preflight"]
+    if _sha256_bytes(_canonical_bytes(command)) != policy["command_sha256"]:
+        raise RuntimeError("Codex infrastructure preflight command drift")
+    check_number = len(existing) + 1
+    started_at = datetime.now(UTC)
+    with tempfile.TemporaryDirectory(prefix="liveclip-v2-preflight-") as temp_value:
+        try:
+            completed = _run_preflight_process(
+                command,
+                cwd=Path(temp_value),
+                env=_safe_environment(),
+            )
+            stdout = completed.stdout
+            stderr = completed.stderr
+            returncode: int | None = completed.returncode
+            passed = completed.returncode == 0
+            category = (
+                "ready"
+                if passed
+                else _classify_pre_model_failure(
+                    stderr,
+                    fallback="infrastructure_preflight_process_failure",
+                )
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = _as_text(exc.stdout)
+            stderr = _as_text(exc.stderr)
+            returncode = None
+            passed = False
+            category = "infrastructure_preflight_timeout"
+        except OSError as exc:
+            stdout = ""
+            stderr = str(exc)
+            returncode = None
+            passed = False
+            category = "infrastructure_preflight_spawn_failure"
+    receipt = {
+        "schema_version": "1",
+        "policy_version": PREFLIGHT_POLICY_VERSION,
+        "experiment_id": prepared.experiment_id,
+        "experiment_contract_sha256": prepared.contract_sha256,
+        "check_number": check_number,
+        "status": "passed" if passed else "failed",
+        "category": category,
+        "command_sha256": policy["command_sha256"],
+        "returncode": returncode,
+        "model_started": False,
+        "model_attempt_consumed": False,
+        "stdout_tail": _redact(stdout)[-3000:],
+        "stderr_tail": _redact(stderr)[-3000:],
+        "recorded_at": started_at.isoformat(),
+    }
+    receipt_path = attempts_dir / f"{check_number:03d}" / "receipt.json"
+    _atomic_write_new(receipt_path, _pretty_json_bytes(receipt))
+    if not passed:
+        raise CodexInfrastructureUnavailable(
+            f"Codex infrastructure preflight failed ({category}); receipt: {receipt_path}"
+        )
+    return receipt
 
 
 def _invoke_codex(
@@ -878,27 +1122,96 @@ def _invoke_codex(
     print(f"START {label} sol/medium", flush=True)
     with tempfile.TemporaryDirectory(prefix=f"liveclip-v2-{label}-") as temp_value:
         output = Path(temp_value) / "result.json"
-        completed = subprocess.run(
-            _codex_command(schema_path, output),
-            input=prompt,
-            text=True,
-            capture_output=True,
-            cwd=temp_value,
-            env={key: value for key, value in os.environ.items() if key.upper() in SAFE_ENV_KEYS},
-            timeout=2_400,
-            check=False,
-        )
-        request_id, usage, unsafe_event = _parse_events(completed.stdout)
+        try:
+            completed = subprocess.run(
+                _codex_command(schema_path, output),
+                input=prompt,
+                text=True,
+                capture_output=True,
+                cwd=temp_value,
+                env=_safe_environment(),
+                timeout=2_400,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = _as_text(exc.stdout)
+            stderr = _as_text(exc.stderr)
+            _, _, _, model_started = _parse_events(stdout)
+            raise CodexProcessFailure(
+                f"{label} timed out",
+                category=(
+                    "model_process_timeout" if model_started else "infrastructure_process_timeout"
+                ),
+                model_started=model_started,
+                returncode=None,
+                stdout=stdout,
+                stderr=stderr,
+            ) from exc
+        except OSError as exc:
+            raise CodexProcessFailure(
+                f"{label} could not start the Codex process",
+                category="infrastructure_spawn_failure",
+                model_started=False,
+                returncode=None,
+                stderr=str(exc),
+            ) from exc
+        request_id, usage, unsafe_event, model_started = _parse_events(completed.stdout)
         if unsafe_event:
-            raise RuntimeError(f"{label} emitted a forbidden tool event")
+            raise CodexProcessFailure(
+                f"{label} emitted a forbidden tool event",
+                category="model_safety_tool_event",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
         if completed.returncode != 0:
             tail = "\n".join(completed.stderr.splitlines()[-12:])
-            raise RuntimeError(
-                f"{label} failed with exit {completed.returncode}: {_redact(tail)[:3000]}"
+            category = (
+                "model_process_failure"
+                if model_started
+                else _classify_pre_model_failure(
+                    completed.stderr,
+                    fallback="infrastructure_pre_model_process_failure",
+                )
+            )
+            raise CodexProcessFailure(
+                f"{label} failed with exit {completed.returncode}: {_redact(tail)[:3000]}",
+                category=category,
+                model_started=model_started,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
+        if not model_started:
+            raise CodexProcessFailure(
+                f"{label} exited without a model turn",
+                category="infrastructure_no_model_turn",
+                model_started=False,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
             )
         if not output.is_file():
-            raise RuntimeError(f"{label} did not produce structured output")
-        raw = json.loads(output.read_text(encoding="utf-8"))
+            raise CodexProcessFailure(
+                f"{label} did not produce structured output",
+                category="model_output_missing",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
+        try:
+            raw = json.loads(output.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise CodexProcessFailure(
+                f"{label} produced invalid JSON output",
+                category="model_output_invalid_json",
+                model_started=True,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            ) from exc
         events = completed.stdout
     metadata = {
         "label": label,
@@ -910,6 +1223,7 @@ def _invoke_codex(
         "completed_at": datetime.now(UTC).isoformat(),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "unsafe_tool_event": False,
+        "model_started": True,
     }
     print(f"DONE {label} {metadata['elapsed_seconds']}s", flush=True)
     return raw, metadata, events
@@ -958,20 +1272,30 @@ def _validate_completed_call(
     if not completion_path.exists():
         return None
     completion = json.loads(completion_path.read_text(encoding="utf-8"))
-    if set(completion) != {
-        "schema_version",
-        "call_id",
-        "call_contract_sha256",
-        "successful_attempt",
-        "successful_attempt_contract_sha256",
-        "artifact_sha256",
-    } or completion.get("call_id") != expected_contract["call_id"]:
+    if (
+        set(completion)
+        != {
+            "schema_version",
+            "call_id",
+            "call_contract_sha256",
+            "successful_attempt",
+            "successful_attempt_contract_sha256",
+            "artifact_sha256",
+            "infrastructure_failure_receipts",
+        }
+        or completion.get("call_id") != expected_contract["call_id"]
+    ):
         raise RuntimeError(f"completed call receipt shape/identity drift: {call_dir}")
     contract_path = call_dir / "call-contract.json"
     if not contract_path.is_file() or json.loads(contract_path.read_text()) != expected_contract:
         raise RuntimeError(f"completed call contract drift: {call_dir}")
     if completion.get("call_contract_sha256") != _sha256_path(contract_path):
         raise RuntimeError(f"completed call contract receipt drift: {call_dir}")
+    expected_infrastructure_receipts = _call_infrastructure_failure_receipt_inventory(
+        call_dir, expected_contract
+    )
+    if completion.get("infrastructure_failure_receipts") != expected_infrastructure_receipts:
+        raise RuntimeError(f"completed call infrastructure receipt drift: {call_dir}")
     attempt_number = completion.get("successful_attempt")
     if not isinstance(attempt_number, int) or isinstance(attempt_number, bool):
         raise RuntimeError(f"completed call has invalid attempt receipt: {call_dir}")
@@ -1015,12 +1339,22 @@ def _persist_attempt(
     metadata: dict[str, Any] | None,
     events: str | None,
     error: str | None,
+    terminal_failure_category: str | None = None,
 ) -> None:
+    if terminal_failure_category is not None and (error is None or events is None):
+        raise RuntimeError("terminal model safety failure requires error and event evidence")
+    status = (
+        "safety_failed"
+        if terminal_failure_category is not None
+        else "failed"
+        if error
+        else "validated"
+    )
     artifacts: dict[str, bytes] = {
         "attempt-contract.json": _pretty_json_bytes(
             {
                 "prompt_sha256": _sha256_bytes(prompt.encode("utf-8")),
-                "status": "failed" if error else "validated",
+                "status": status,
             }
         )
     }
@@ -1031,9 +1365,13 @@ def _persist_attempt(
     if events is not None:
         artifacts["events.jsonl"] = events.encode("utf-8")
     if error is not None:
-        artifacts["failure.json"] = _pretty_json_bytes(
-            {"error": _redact(error)[:2000], "recorded_at": datetime.now(UTC).isoformat()}
-        )
+        failure = {
+            "error": _redact(error)[:2000],
+            "recorded_at": datetime.now(UTC).isoformat(),
+        }
+        if terminal_failure_category is not None:
+            failure["category"] = terminal_failure_category
+        artifacts["failure.json"] = _pretty_json_bytes(failure)
     attempt_dir.parent.mkdir(parents=True, exist_ok=True)
     if attempt_dir.exists():
         for relative, content in artifacts.items():
@@ -1109,9 +1447,130 @@ def _complete_call(
             relative: _sha256_bytes(content)
             for relative, content in sorted(final_artifacts.items())
         },
+        "infrastructure_failure_receipts": _call_infrastructure_failure_receipt_inventory(
+            call_dir, json.loads(contract_bytes)
+        ),
     }
     _atomic_write_new(call_dir / "complete.json", _pretty_json_bytes(completion))
     return enriched, validation, metadata
+
+
+def _validated_call_infrastructure_failure_count(
+    call_dir: Path, call_contract: dict[str, Any]
+) -> int:
+    failures_dir = call_dir / "infrastructure-failures"
+    existing: list[tuple[int, Path]] = []
+    if failures_dir.exists():
+        for path in failures_dir.iterdir():
+            if path.is_dir() and path.name.isdigit():
+                existing.append((int(path.name), path))
+        existing.sort()
+        if [number for number, _ in existing] != list(range(1, len(existing) + 1)):
+            raise RuntimeError(f"call infrastructure receipt sequence drift: {call_dir}")
+        expected_receipt_paths = {Path(f"{number:03d}") / "receipt.json" for number, _ in existing}
+        actual_receipt_paths = {
+            path.relative_to(failures_dir)
+            for path in failures_dir.rglob("receipt.json")
+            if path.is_file()
+        }
+        if actual_receipt_paths != expected_receipt_paths:
+            raise RuntimeError(f"call infrastructure receipt layout drift: {call_dir}")
+    required = {
+        "schema_version",
+        "experiment_id",
+        "experiment_contract_sha256",
+        "call_id",
+        "pipeline_id",
+        "stage",
+        "failure_number",
+        "category",
+        "returncode",
+        "model_started",
+        "model_attempt_consumed",
+        "call_contract_sha256",
+        "stdout_tail",
+        "stderr_tail",
+        "recorded_at",
+    }
+    contract_path = call_dir / "call-contract.json"
+    contract_sha = _sha256_path(contract_path)
+    for failure_number, directory in existing:
+        receipt_path = directory / "receipt.json"
+        if not receipt_path.is_file():
+            raise RuntimeError(f"incomplete call infrastructure receipt: {directory}")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if (
+            set(receipt) != required
+            or receipt.get("schema_version") != "1"
+            or receipt.get("experiment_id") != call_contract["experiment_id"]
+            or receipt.get("experiment_contract_sha256")
+            != call_contract["experiment_contract_sha256"]
+            or receipt.get("call_id") != call_contract["call_id"]
+            or receipt.get("pipeline_id") != call_contract["pipeline_id"]
+            or receipt.get("stage") != call_contract["stage"]
+            or receipt.get("failure_number") != failure_number
+            or receipt.get("call_contract_sha256") != contract_sha
+            or receipt.get("model_started") is not False
+            or receipt.get("model_attempt_consumed") is not False
+        ):
+            raise RuntimeError(f"call infrastructure receipt drift: {receipt_path}")
+    return len(existing)
+
+
+def _call_infrastructure_failure_receipt_inventory(
+    call_dir: Path, call_contract: dict[str, Any]
+) -> list[dict[str, str]]:
+    failure_count = _validated_call_infrastructure_failure_count(call_dir, call_contract)
+    return [
+        {
+            "relative_path": f"infrastructure-failures/{number:03d}/receipt.json",
+            "sha256": _sha256_path(call_dir / f"infrastructure-failures/{number:03d}/receipt.json"),
+        }
+        for number in range(1, failure_count + 1)
+    ]
+
+
+def _assert_call_infrastructure_budget(call_dir: Path, call_contract: dict[str, Any]) -> int:
+    failure_count = _validated_call_infrastructure_failure_count(call_dir, call_contract)
+    if failure_count >= MAX_CALL_INFRASTRUCTURE_FAILURES:
+        raise CodexInfrastructureUnavailable(
+            f"call {call_contract['call_id']} reached the bounded pre-model "
+            "infrastructure failure limit"
+        )
+    return failure_count
+
+
+def _persist_call_infrastructure_failure(
+    *,
+    call_dir: Path,
+    call_contract: dict[str, Any],
+    failure: CodexProcessFailure,
+) -> Path:
+    if failure.model_started:
+        raise RuntimeError("model-started failures cannot use infrastructure receipts")
+    failures_dir = call_dir / "infrastructure-failures"
+    failure_number = _assert_call_infrastructure_budget(call_dir, call_contract) + 1
+    contract_sha = _sha256_path(call_dir / "call-contract.json")
+    receipt = {
+        "schema_version": "1",
+        "experiment_id": call_contract["experiment_id"],
+        "experiment_contract_sha256": call_contract["experiment_contract_sha256"],
+        "call_id": call_contract["call_id"],
+        "pipeline_id": call_contract["pipeline_id"],
+        "stage": call_contract["stage"],
+        "failure_number": failure_number,
+        "category": failure.category,
+        "returncode": failure.returncode,
+        "model_started": False,
+        "model_attempt_consumed": False,
+        "call_contract_sha256": contract_sha,
+        "stdout_tail": failure.stdout_tail,
+        "stderr_tail": failure.stderr_tail,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+    receipt_path = failures_dir / f"{failure_number:03d}" / "receipt.json"
+    _atomic_write_new(receipt_path, _pretty_json_bytes(receipt))
+    return receipt_path
 
 
 def _run_call(
@@ -1146,6 +1605,7 @@ def _run_call(
     resumed = _validate_completed_call(call_dir, contract, validator)
     if resumed is not None:
         return resumed
+    _assert_call_infrastructure_budget(call_dir, contract)
 
     current_prompt = prompt
     last_error = ""
@@ -1187,6 +1647,16 @@ def _run_call(
                     metadata=metadata,
                     events=events,
                 )
+            if attempt_contract.get("status") == "safety_failed":
+                events_path = attempt_dir / "events.jsonl"
+                if not failure_path.is_file() or not events_path.is_file():
+                    raise RuntimeError(f"incomplete persisted model safety failure: {attempt_dir}")
+                failure = json.loads(failure_path.read_text(encoding="utf-8"))
+                if failure.get("category") != "model_safety_tool_event":
+                    raise RuntimeError(f"model safety failure receipt drift: {attempt_dir}")
+                raise RuntimeError(
+                    f"{call_id} has a persisted unsafe tool event; hard failure cannot retry"
+                )
             if attempt_contract.get("status") != "failed" or not failure_path.is_file():
                 raise RuntimeError(f"invalid persisted attempt state: {attempt_dir}")
             failure = json.loads(failure_path.read_text(encoding="utf-8"))
@@ -1210,6 +1680,41 @@ def _run_call(
                 schema_path=schema_path,
             )
             enriched, validation = validator(raw)
+        except CodexProcessFailure as exc:
+            if not exc.model_started:
+                receipt_path = _persist_call_infrastructure_failure(
+                    call_dir=call_dir,
+                    call_contract=contract,
+                    failure=exc,
+                )
+                raise CodexInfrastructureUnavailable(
+                    f"{call_id} stopped before any model turn ({exc.category}); "
+                    f"receipt: {receipt_path}"
+                ) from exc
+            last_error = _redact(f"CodexProcessFailure[{exc.category}]: {exc}")[:2000]
+            if exc.category == "model_safety_tool_event":
+                _persist_attempt(
+                    attempt_dir,
+                    prompt=current_prompt,
+                    raw=raw,
+                    metadata=metadata,
+                    events=exc.stdout_evidence,
+                    error=last_error,
+                    terminal_failure_category=exc.category,
+                )
+                raise RuntimeError(
+                    f"{call_id} emitted an unsafe tool event; hard failure cannot retry"
+                ) from exc
+            _persist_attempt(
+                attempt_dir,
+                prompt=current_prompt,
+                raw=raw,
+                metadata=metadata,
+                events=events,
+                error=last_error,
+            )
+            current_prompt = _repair_prompt(prompt, raw, last_error)
+            continue
         except Exception as exc:
             last_error = _redact(f"{type(exc).__name__}: {exc}")[:2000]
             _persist_attempt(
@@ -1357,9 +1862,7 @@ def _would_escalate(
     }
 
 
-def _expected_pipeline_call_ids(
-    contract: dict[str, Any], summary: dict[str, Any]
-) -> list[str]:
+def _expected_pipeline_call_ids(contract: dict[str, Any], summary: dict[str, Any]) -> list[str]:
     call_ids = list(contract["required_call_ids"])
     conditional = contract["conditional_call_ids"]
     if contract["skill_version"] == "v2" and int(summary["selected_count"]) > 0:
@@ -1375,8 +1878,14 @@ def _verify_call_evidence(call_dir: Path) -> str:
     if not completion_path.is_file() or not contract_path.is_file():
         raise RuntimeError(f"pipeline call evidence is incomplete: {call_dir}")
     completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
     if completion.get("call_contract_sha256") != _sha256_path(contract_path):
         raise RuntimeError(f"pipeline call contract receipt drift: {call_dir}")
+    expected_infrastructure_receipts = _call_infrastructure_failure_receipt_inventory(
+        call_dir, contract
+    )
+    if completion.get("infrastructure_failure_receipts") != expected_infrastructure_receipts:
+        raise RuntimeError(f"pipeline call infrastructure receipt drift: {call_dir}")
     attempt_number = completion.get("successful_attempt")
     attempt_contract = call_dir / "attempts" / f"{attempt_number:03d}" / "attempt-contract.json"
     if not attempt_contract.is_file() or completion.get(
@@ -1411,13 +1920,17 @@ def _pipeline_completion(
     if json.loads(contract_path.read_text()) != expected_contract:
         raise RuntimeError(f"pipeline contract drift: {pipeline_dir}")
     complete = json.loads(complete_path.read_text(encoding="utf-8"))
-    if set(complete) != {
-        "schema_version",
-        "pipeline_id",
-        "pipeline_contract_sha256",
-        "artifact_sha256",
-        "call_receipts",
-    } or complete.get("pipeline_id") != expected_contract["pipeline_id"]:
+    if (
+        set(complete)
+        != {
+            "schema_version",
+            "pipeline_id",
+            "pipeline_contract_sha256",
+            "artifact_sha256",
+            "call_receipts",
+        }
+        or complete.get("pipeline_id") != expected_contract["pipeline_id"]
+    ):
         raise RuntimeError(f"pipeline completion receipt shape/identity drift: {pipeline_dir}")
     if complete.get("pipeline_contract_sha256") != _sha256_path(contract_path):
         raise RuntimeError(f"pipeline contract receipt drift: {pipeline_dir}")
@@ -1452,9 +1965,7 @@ def _pipeline_completion(
     experiment_dir = pipeline_dir.parents[1]
     for call_id in call_ids:
         digest = _verify_call_evidence(experiment_dir / "calls" / call_id)
-        expected_receipts.append(
-            {"call_id": call_id, "call_completion_sha256": digest}
-        )
+        expected_receipts.append({"call_id": call_id, "call_completion_sha256": digest})
     if receipts != expected_receipts:
         raise RuntimeError(f"pipeline call receipt drift: {pipeline_dir}")
     return summary
@@ -1475,9 +1986,7 @@ def _finish_pipeline(
     call_receipts = [
         {
             "call_id": call_id,
-            "call_completion_sha256": _verify_call_evidence(
-                experiment_dir / "calls" / call_id
-            ),
+            "call_completion_sha256": _verify_call_evidence(experiment_dir / "calls" / call_id),
         }
         for call_id in _expected_pipeline_call_ids(contract, summary)
     ]
@@ -1779,9 +2288,7 @@ def _run_v2_pipeline(
                 "tier1_assessments": assessment_sha,
                 "tier2_inventory": _sha256_bytes(_canonical_bytes(inventory)),
                 "tier3_portfolio": _sha256_bytes(_canonical_bytes(portfolio)),
-                "runtime_bundle": _sha256_bytes(
-                    prepared.tier_bundles["tier4"].encode("utf-8")
-                ),
+                "runtime_bundle": _sha256_bytes(prepared.tier_bundles["tier4"].encode("utf-8")),
             },
             validator=validate_tier4,
             repair_budget=repair_budget,
@@ -1878,6 +2385,7 @@ def _current_run_summary(
 
 
 def _run_experiment(prepared: PreparedExperiment, *, sentinel: bool = False) -> dict[str, Any]:
+    _ensure_runtime_preflight(prepared)
     private_pipelines = prepared.private_map["pipeline_id_to_identity"]
     selected_pairs = (
         prepared.public_plan["schedule"][:1] if sentinel else prepared.public_plan["schedule"]

@@ -1,0 +1,21 @@
+{
+  "aborted_at": "2026-08-18T06:45:01Z",
+  "classification": "pre_model_infrastructure_permission_denied",
+  "experiment_contract_sha256": "0ae4e48cf661fa862d5866f0409b426de89b755c49c471a5870ecf5ab9f2c610",
+  "experiment_id": "exp_0ae4e48cf661fa862d58",
+  "model_requests_observed": 0,
+  "model_results_observed": 0,
+  "reason": "The outer Codex sandbox denied local app-server initialization before any thread or turn event. The original runner recorded two failed same-tier attempts; no result, event stream, request ID, Pipeline completion, or model output exists.",
+  "receipt_sha256": {
+    "calls/call_5871625749e65420/attempts/001/attempt-contract.json": "90ba61327e0eb278066d5d696d5d30de7f1031ede2bdfec7bb247db35049fd39",
+    "calls/call_5871625749e65420/attempts/001/failure.json": "ea8307f6a14893f7d725b3be43415a1ad36c59eae3cedf5451b214022b24d153",
+    "calls/call_5871625749e65420/attempts/002/attempt-contract.json": "5aaacdd6136f3d09150ba73fe85ff185764b44d39586d34883e8a5a00248a435",
+    "calls/call_5871625749e65420/attempts/002/failure.json": "c4e582a72141ef0e5b28e3c72e75be2ce99330fd271ac4deac787ea351348672",
+    "calls/call_5871625749e65420/call-contract.json": "a15c6981d37f711726598a2eba5ce28576570836d95ee3300836b77d689e548d",
+    "pipelines/pipeline_295f8256b10bc1b8/pipeline-contract.json": "c0db43cc31dc7494c6d65498f88d7903b1bb4531726e2705893bbbc862958e4d"
+  },
+  "recovery": "Do not resume this obsolete runner contract. Preserve its failure receipts and use the superseding experiment, whose preflight and pre-model infrastructure receipts do not consume model repair attempts.",
+  "schema_version": "1",
+  "status": "aborted",
+  "superseded_by_experiment_id": "exp_1a2d7214d1a671d96c2c"
+}

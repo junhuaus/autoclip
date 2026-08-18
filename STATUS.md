@@ -1,6 +1,6 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-17 19:48 PDT
+Updated: 2026-08-17 23:45 PDT
 
 Package compatibility baseline: `0.1.0`
 
@@ -38,12 +38,26 @@ Across 263 primary `highlight_sentence` values, 30 are exact candidate quotes
 cannot be bound as a quote. This does not say the edited prose is unusable; it
 proves the old field mixed evidence and rewritten copy and needs the v2 split.
 
-Formal experiment `exp_0ae4e48cf661fa862d58` has immutable contract SHA-256
-`0ae4e48cf661fa862d5866f0409b426de89b755c49c471a5870ecf5ab9f2c610`.
+Formal experiment `exp_31890c08e4b7eda69858` has immutable contract SHA-256
+`31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797`.
 The contract binds the Runner, Input Gate, Skill package, Schemas, source
 evidence, candidate order, model/effort and opaque arm commitment. Its dry-run
 made zero model calls. The next remote step is a two-pipeline sentinel; no v2
 generation result exists yet.
+
+The first attempted sentinel used the superseded contract
+`exp_0ae4e48cf661fa862d58`. The outer sandbox denied the local Codex app-server
+before a thread or turn event, so it produced no model result or request ID.
+That runner incorrectly consumed two model-attempt slots; its exact failure
+receipts are preserved with `aborted.json`. The new runner performs a zero-model
+preflight, separately bounds and binds pre-model infrastructure failures, and
+hard-fails an unsafe tool event after one saved attempt without retry.
+
+An intermediate preflight-only contract, `exp_1a2d7214d1a671d96c2c`, was also
+preserved and aborted: Codex 0.146 rejects `app-server --listen off` because it
+has no transport. Preflight v2 uses stdio with immediate EOF. Its real outer
+execution for the current formal experiment returned exit 0, status `ready`,
+`model_started=false` and `model_attempt_consumed=false`.
 
 ## Current user-visible result
 
@@ -190,14 +204,14 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   report generation; report relative-link/content checks; and `git diff --check`.
   Browser runtime setup succeeded but `agent.browsers.list()` returned `[]`, so
   no MCP Chrome visual-pass claim is made.
-- Highlight Agent Skill v2 checkpoint: 88/88 research tests pass; research Ruff,
+- Highlight Agent Skill v2 checkpoint: 114/114 research tests pass; research Ruff,
   Schema freeze check, Skill Creator quick validation, complete project
   `make lint` and credential-pattern scan pass. Contracts SHA-256 is
   `5668ef9a50eee8f38d76fde170bd3df6b6366b72eff4041abcefc2d7763d296f`,
   Input Gate SHA-256 is
   `9ae14694e638e3dd0955a2c0c0c3fda8e5b64289fe27eefaec6fa069adf64f73`
-  and Runner SHA-256 is
-  `d9ec3a9dcbc5d39c3d42d039250e3212c5c703d7648d8ee20ce35b165d160a10`.
+  and the current Runner SHA-256 is
+  `17d8f7c0711f7426eb581e15fea8281f2d12448750ee970cc2db986071a51c32`.
   An independent read-only contract reviewer returned PASS with P0=0/P1=0.
 - A final independent read-only verifier returned `PASS` with P0=0 and no
   delivery-blocking P1. It independently recomputed the three macro scores,
@@ -268,8 +282,8 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Keep production development paused. Commit and push the new v2 contract,
-offline audit and frozen dry-run as an S2-M0 recovery checkpoint. Then run
+Keep production development paused. Commit and push the infrastructure recovery,
+anonymous viewer, dual-Judge harness and superseding frozen dry-run. Then run
 `run_iteration.py --sentinel` for exactly one same-source/repeat v1/v2 pair.
 Verify 2/12 completed pipelines, all Call receipts, zero unsafe tool events and
 all deterministic Gates before resuming the remaining ten pipelines. After all
@@ -296,5 +310,5 @@ latest `qa/pipeline.jsonl`, `qa/test-report.md`, the new benchmark
 `fa7029c10b593a987b285132d241fcda7fb102ec26f45da4899c64d46575e2de`
 and do not rerun the remote experiment. Resume implementation only after the
 user accepts a named next slice. For the already accepted v2 research slice,
-verify experiment `exp_0ae4e48cf661fa862d58` and resume its sentinel/full
+verify experiment `exp_31890c08e4b7eda69858` and resume its sentinel/full
 matrix without `--force`; never delete a completed Call receipt.

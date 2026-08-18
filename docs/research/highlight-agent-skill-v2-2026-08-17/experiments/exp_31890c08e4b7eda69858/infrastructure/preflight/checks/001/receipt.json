@@ -1,0 +1,16 @@
+{
+  "category": "ready",
+  "check_number": 1,
+  "command_sha256": "afec5693cfa8f323fde5a49f9b6437833c49ca0380a859b7ef4c2e521f322d0c",
+  "experiment_contract_sha256": "31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797",
+  "experiment_id": "exp_31890c08e4b7eda69858",
+  "model_attempt_consumed": false,
+  "model_started": false,
+  "policy_version": "codex-local-app-server-preflight-v2",
+  "recorded_at": "2026-08-18T07:00:45.544980+00:00",
+  "returncode": 0,
+  "schema_version": "1",
+  "status": "passed",
+  "stderr_tail": "",
+  "stdout_tail": ""
+}

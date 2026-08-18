@@ -1,0 +1,4 @@
+{
+  "error": "RuntimeError: call_5871625749e65420-a1 failed with exit 1: WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\nError: failed to initialize in-process app-server client: Operation not permitted (os error 1)",
+  "recorded_at": "2026-08-18T06:20:23.375528+00:00"
+}

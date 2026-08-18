@@ -191,9 +191,9 @@ write `iteration-2` rather than replacing iteration 1.
   context, one belongs to another candidate and 230 are unsupported as a quote.
   This is evidence-binding debt, not a retrospective judgment that the edited
   sentences are semantically bad.
-- 2026-08-17: The formal fresh A/B contract is
-  `exp_0ae4e48cf661fa862d58` with SHA-256
-  `0ae4e48cf661fa862d5866f0409b426de89b755c49c471a5870ecf5ab9f2c610`.
+- 2026-08-17: The current formal fresh A/B contract is
+  `exp_31890c08e4b7eda69858` with SHA-256
+  `31890c08e4b7eda698584a3502e440c7816b601dd74a1a3822db611284c4e797`.
   It contains three unique source hashes, two repeats, 12 paired pipelines and
   a balanced fixed seeded v1/v2 execution order. Dry-run made zero model calls.
 - 2026-08-17: Independent review found and closed three P1 harness defects:
@@ -201,6 +201,23 @@ write `iteration-2` rather than replacing iteration 1.
   bound to every Call receipt, and the deterministic output Gate rejects the
   expanded command/path/SQL/credential adversarial set. The reviewer returned
   PASS with no remaining P0/P1 after 88 tests.
+- 2026-08-17: The first real sentinel attempt under contract
+  `exp_0ae4e48cf661fa862d58` reached no model thread or turn. The outer sandbox
+  denied local Codex app-server initialization, and the old runner incorrectly
+  consumed its two same-Tier attempts. Its failure receipts are preserved and
+  the experiment is explicitly aborted. The superseding runner performs a
+  zero-model app-server preflight, separates bounded infrastructure failures
+  from model repairs, binds all such receipts, and hard-fails any tool event
+  without retry. Viewer and dual-Judge harnesses validate the same receipt chain.
+- 2026-08-17: The integrated research suite now has 113 passing tests. The
+  anonymous source-first viewer refuses partial 12-pipeline matrices, and the
+  dual-Judge harness refuses partial generator evidence before any Judge call.
+- 2026-08-17: The first zero-model preflight probe used `app-server --listen
+  off`, which Codex 0.146 correctly rejected because it configured no
+  transport. Contract `exp_1a2d7214d1a671d96c2c` is preserved and aborted.
+  Preflight v2 uses stdio plus immediate EOF; the outer environment returned
+  exit 0 with `model_started=false` and `model_attempt_consumed=false` under
+  the current formal contract. The integrated suite now contains 114 tests.
 
 ## Decision Log
 
@@ -234,9 +251,10 @@ write `iteration-2` rather than replacing iteration 1.
 
 ## Recovery Notes
 
-Current first task: commit and push the completed S2-M0 contract checkpoint,
-then run `run_iteration.py --sentinel` against the already frozen
-`exp_0ae4e48cf661fa862d58`. The sentinel must finish exactly the first paired
+Current first task: commit and push the infrastructure-recovery, viewer and
+dual-Judge harness checkpoint, then run `run_iteration.py --sentinel` against
+the already frozen `exp_31890c08e4b7eda69858`. The sentinel must finish exactly
+the first paired
 v1/v2 block (2/12 pipelines) and persist `generation_partial`; only after its
 receipts, Gates and isolation events pass may the same command without flags
 resume the remaining ten pipelines. If interrupted, read this file and

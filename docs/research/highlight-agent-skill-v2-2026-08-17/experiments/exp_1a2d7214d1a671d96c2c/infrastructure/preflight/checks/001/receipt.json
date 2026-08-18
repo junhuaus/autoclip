@@ -1,0 +1,16 @@
+{
+  "category": "infrastructure_configuration",
+  "check_number": 1,
+  "command_sha256": "3da2fc8730001f58efd552e4c0b6025d8ff79514de943f94ee4389b21030a651",
+  "experiment_contract_sha256": "1a2d7214d1a671d96c2c8fde02ffd56f37992fe7cdb6932111abc779af2a98f7",
+  "experiment_id": "exp_1a2d7214d1a671d96c2c",
+  "model_attempt_consumed": false,
+  "model_started": false,
+  "policy_version": "codex-local-app-server-preflight-v1",
+  "recorded_at": "2026-08-18T06:58:38.334291+00:00",
+  "returncode": 1,
+  "schema_version": "1",
+  "status": "failed",
+  "stderr_tail": "Error: no transport configured; use --listen or enable remote control\n",
+  "stdout_tail": ""
+}

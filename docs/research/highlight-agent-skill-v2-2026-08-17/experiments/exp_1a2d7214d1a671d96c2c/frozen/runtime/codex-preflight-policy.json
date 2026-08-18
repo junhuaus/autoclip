@@ -1,0 +1,11 @@
+{
+  "command_sha256": "3da2fc8730001f58efd552e4c0b6025d8ff79514de943f94ee4389b21030a651",
+  "environment": "same_allowlist_as_model_process",
+  "maximum_failed_checks": 3,
+  "maximum_pre_model_failures_per_call": 3,
+  "model_requests": 0,
+  "policy_version": "codex-local-app-server-preflight-v1",
+  "probe": "local_app_server_listen_off",
+  "timeout_seconds": 20,
+  "tool_policy": "same_disabled_feature_set; read-only sandbox"
+}

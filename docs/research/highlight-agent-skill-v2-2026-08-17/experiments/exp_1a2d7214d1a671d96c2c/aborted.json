@@ -1,0 +1,16 @@
+{
+  "aborted_at": "2026-08-18T07:00:55Z",
+  "classification": "zero_model_preflight_transport_configuration",
+  "experiment_contract_sha256": "1a2d7214d1a671d96c2c8fde02ffd56f37992fe7cdb6932111abc779af2a98f7",
+  "experiment_id": "exp_1a2d7214d1a671d96c2c",
+  "model_requests_observed": 0,
+  "model_results_observed": 0,
+  "reason": "Codex 0.146 rejected app-server --listen off because no transport was configured. The preflight itself correctly stopped before any generator call, but its probe could never report ready.",
+  "receipt_sha256": {
+    "infrastructure/preflight/checks/001/receipt.json": "41b16c4b70c76455aef28c627b6c79dafd684d2338b55378a413caabfa9c4d12"
+  },
+  "recovery": "Do not resume this obsolete preflight contract. The successor uses app-server stdio transport with immediate EOF, which initializes the local runtime and exits without a model turn.",
+  "schema_version": "1",
+  "status": "aborted",
+  "superseded_by_experiment_id": "exp_31890c08e4b7eda69858"
+}
