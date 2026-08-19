@@ -240,7 +240,7 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-18 Make formal Delivery reuse the exact approved current master, with legacy final-render fallback only for already-generated projects.
 - [x] 2026-08-18 Update Web/CLI wording and actions so approval is never presented as a prerequisite for the standard render.
 - [x] 2026-08-18 Prove pending/rejected clips are discarded from Delivery, revision edits stale the old master, and current approved masters package without a post-approval render.
-- [ ] Run focused tests, lint/full gates as proportionate, restart the local site, update recovery/status evidence and publish a scoped checkpoint. Current evidence: lint, 726 Python, 57 Web and controlled Chrome pass; real Chrome reached the post-delivery release step before a stale burned-mode fixture failure, and two immediate reruns then aborted at Chrome host startup.
+- [x] 2026-08-18 Run focused tests, `make lint`, 726 Python, 57 Web and controlled Chrome; restart local API/Web/Worker, verify HTTP 200 plus the unchanged `8-16-2` ZIP and restore its computed `delivered` status through a fingerprint-compatible fallback. The real Chrome flow reached the post-delivery release step before a stale burned-mode fixture failure; after correcting it to `clean_separate`, three immediate Chrome launches aborted at host startup, so no final real-browser pass is claimed. Publish scoped checkpoint `ec1491b` to `origin/main` without operational data.
 
 ### Research checkpoint — Three-configuration highlight Agent benchmark
 

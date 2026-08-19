@@ -501,8 +501,8 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   database. The expanded benchmark made 28 new tool-disabled generator calls,
   reused two byte/input/Prompt/Schema-identical pilot results, and made 20 new
   blind Judge calls. They wrote only research artifacts; no render was repeated.
-- Source/test/docs checkpoints include `fa395f6`, `0a266f3`, `d9f9836` and
-  `46ff874`;
+- Source/test/docs checkpoints include `fa395f6`, `0a266f3`, `d9f9836`,
+  `46ff874` and M16 `ec1491b`;
   product-generated/private paths remain ignored and unstaged.
 - The v2 iteration-1 experiment made 36 successful tool-disabled generator
   Calls plus two permitted failed model attempts that were repaired, and six
@@ -512,20 +512,18 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Finish M16 by recording the final full gate result, restarting the local
-API/Web/Worker with the new wording and verifying the existing `8-16-2` v001
-download remains available through the compatibility fallback. Retry the
-isolated real Chrome E2E only after Chrome can launch normally; do not hide the
-host-startup abort. Then create and push one scoped product/docs/test checkpoint
-without generated media, database, input, credentials or browser artifacts.
+M16 is implemented and published. Retry the isolated real Chrome E2E only after
+Chrome can launch normally; do not hide the host-startup abort. The next product
+decision remains whether to address content-review actor attribution and the
+separate Project-lifecycle approval gate found by the earlier audit.
 
 ## Resume instructions
 
 Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 all Living ExecPlans including `highlight-agent-skill-v2.md`, and this file.
 Run `git status --short --branch`, `git log -5 --oneline`, `.venv/bin/alembic
-current` and `.venv/bin/alembic check`. Expect product services to be stopped
-unless a later task explicitly starts them. Preserve all five real Projects,
+current` and `.venv/bin/alembic check`. The local API/Web/Worker were left
+running for user inspection at `http://127.0.0.1:5173/`. Preserve all five real Projects,
 all three database backups and existing offline-review packages. `8-16-2` is
 Project `209241230b2a452a8409472ed3df38f6`, PipelineRun
 `0da5647ff7f54b68b6fb77b003b68fd0`, with 15 validated original proxies, 15
