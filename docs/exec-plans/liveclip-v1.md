@@ -23,7 +23,7 @@ Important paths:
 
 ## Scope
 
-All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call. M11 removes the redundant full-livestream transcript panel from the Web review workspace while retaining persisted ASR/transcript data, the REST transcript endpoint and candidate-local subtitles/keywords. M12 renames the board `高光时刻`, uses one full-width horizontal row per clip, promotes the persisted Hook to `高光语句`, labels timed terms as editor-only keywords and makes subtitles the final row section. M13 adds a self-contained offline-review package for current clean proxies and their complete editorial metadata without conflating it with formal approved Delivery state. M14 makes the home page a member-scoped video-editor Project workspace with durable owner/editor/reviewer membership, local per-user authentication and server-side resource isolation.
+All M0–M6 requirements remain in scope. Milestones may close independently, but no later feature is treated as complete merely because a type or route exists. M0–M6 are locally committed after independent review. M7 added the installed Codex CLI as a real editorial provider and OpenRouter Whisper Large V3 as the selected real ASR. M8 is the user-authorized real-input acceptance and presentation correction: process `input/7.28.mp4` with both real providers, make review proxies clean while keeping editorial descriptions separate, repair discovered legacy/recovery defects, and close with reproducible gates and Git publication. M9 makes the user's no-blur requirement a system invariant and replaces every active long-video proxy with one direct source-video crop. M10 adds multi-candidate batch review plus subtitle and truthfully timed keyword navigation beneath each clean proxy. The user explicitly declined A/B variants; M10 operates only on the existing candidate set and reuses the existing transcript without another ASR call. M11 removes the redundant full-livestream transcript panel from the Web review workspace while retaining persisted ASR/transcript data, the REST transcript endpoint and candidate-local subtitles/keywords. M12 renames the board `高光时刻`, uses one full-width horizontal row per clip, promotes the persisted Hook to `高光语句`, labels timed terms as editor-only keywords and makes subtitles the final row section. M13 adds a self-contained offline-review package for current clean proxies and their complete editorial metadata without conflating it with formal approved Delivery state. M14 makes the home page a member-scoped video-editor Project workspace with durable owner/editor/reviewer membership, local per-user authentication and server-side resource isolation. M15 is the user-authorized real `8-16-2.ts` production slicing task, ending with 15 verified review proxies and an explicit human-review handoff rather than automatic approval or Delivery.
 
 ## Architecture Summary
 
@@ -220,6 +220,15 @@ CLI/API/Worker call shared application commands/queries and a fixed pipeline exe
 - [x] 2026-08-13 Pass `make lint`, 559 Python tests, 23 Web tests, Mock Chrome E2E and real FastAPI/leased-Worker/SQLite/FFmpeg Chrome E2E. The real E2E used an isolated temporary Mock-AI Project and did not mutate or reprocess `7.28`.
 - [x] 2026-08-13 Inspect the latest host-Chrome dashboard and delivered-workspace screenshots. The dashboard hierarchy, filters and Project card are visually coherent; strict in-app Browser discovery still returns no registered browser (`[]`), so no MCP-control claim is made.
 - [x] 2026-08-13 Create scoped M14 implementation checkpoint `d40ec81` without secrets, input, database, generated media or screenshots; publish it and the following status checkpoint to `origin/main`.
+
+### M15 — Real 8-16-2 slicing task
+
+- [x] 2026-08-18 Validate read-only allowed-root input `input/8-16-2.ts`: 2,229,033,280 bytes, 4,660.205 seconds, HEVC/AAC and SHA-256 `6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417`; disclose that it is byte-identical to `input/8.15-1.ts` and create the explicitly requested distinct Project without modifying either source.
+- [x] 2026-08-18 Install the audited Codex CLI 0.146.0 beneath ignored project operational data because the global 0.147.0 is outside the adapter's reviewed compatibility set; keep the global installation unchanged and pass Doctor READY with the three disclosed host fallback warnings.
+- [x] 2026-08-18 Complete Project `209241230b2a452a8409472ed3df38f6` / PipelineRun `0da5647ff7f54b68b6fb77b003b68fd0` through all six production stages: 55/55 OpenRouter ASR requests, 40/40 Codex edit requests, zero retries/errors, 40 candidates and Top 15 revision-1 selections.
+- [x] 2026-08-18 Verify all 15 current 540x960 H.264/AAC proxies by ffprobe and independent full FFmpeg decode; confirm all quality/black-frame/full-decode reports and contact sheets, and view three representative contact sheets as clean center crops. Keep the distinction that this session observation was not persisted—the reports' `visual_inspection_status` remains `pending`. Record actual durations of 36.001–65.800 seconds and stream-start deltas of 0–80 ms without claiming that timestamps prove semantic lip sync.
+- [x] 2026-08-18 Leave the Project at `pending_review` with no approval, final render, offline package or Delivery. Disclose the strong overlap between clips `6ca7b3fb7c55450a950793032545935a` and `f06504adfc0246b78fc3cf6407b2ef7b` (42.989 seconds, interval IoU 0.598) for the user's content decision.
+- [x] 2026-08-18 Preserve WAL-safe post-run backup `liveclip-post-8162-9a16c511fe0b4bc192975439a724e8d2.sqlite3` at SHA-256 `638d4d034238c1cae1db730bc45b8afdf332c9c7e26962d9a111b0aab3bd0b7b`; verify database integrity/head and source immutability, and keep database, input, credentials and generated media out of Git.
 
 ### Research checkpoint — Three-configuration highlight Agent benchmark
 
@@ -448,6 +457,18 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Surprises and Discoveries
 
+- 2026-08-18: `input/8-16-2.ts` is byte-identical to `input/8.15-1.ts`, but
+  verified ASR cache reuse is intentionally Project-scoped. The user's explicit
+  new Project therefore made 55 new real ASR calls and 40 new real editorial
+  calls rather than inheriting another Project's artifacts or provenance. The
+  completed Top 15 also contains one strong post-boundary-adjustment overlap:
+  42.989 seconds, 87.6% of the shorter clip and interval IoU 0.598. This is a
+  review decision, not a basis for silently deleting or approving either clip.
+- 2026-08-18: The host's global Codex advanced to 0.147.0 while production
+  remains exhaustively audited only for 0.146.0. A pinned local 0.146.0 under
+  ignored operational data restored the reviewed execution contract without
+  downgrading the user's global tool or changing application code.
+
 - 2026-08-18: The expanded free-discovery benchmark has 30 generator outputs
   and 20 anonymous dual-Judge outputs over ten groups. Five filenames contain
   only three unique source hashes: `8-16-2.ts` equals `8.15-1.ts`, and
@@ -576,6 +597,15 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Decision Log
 
+- 2026-08-18: Represent the explicitly requested `8-16-2.ts` work as its own
+  Project even though its source bytes match `8.15-1.ts`; rationale: a Project
+  is a distinct editorial assignment, while copying cross-Project cache/media
+  provenance would misstate which Provider calls and decisions produced it.
+- 2026-08-18: Stop M15 at `pending_review` and disclose the strong selected-clip
+  overlap instead of auto-approving, deduplicating or delivering; rationale:
+  media and automatic quality validation can establish technical readiness but
+  cannot replace the user's editorial and semantic-sync judgment.
+
 - 2026-08-13: Adopt ADR-013 environment-authenticated workspace identities and durable Project memberships; rationale: “每个人看自己的项目” is an authorization requirement, so a browser-only filter over a global collection would be both misleading and bypassable.
 - 2026-08-13: Make the current creator the Project owner and reserve member administration to that owner, while treating editor/reviewer as workflow labels in v1; rationale: this provides a clear accountability model without copying an incomplete permission state machine into API/Web adapters.
 - 2026-08-13: Keep Provider readiness and API-token controls in the account/system popover rather than the main Project dashboard; rationale: an editor's primary surface should prioritize assigned work, attention state and the next action.
@@ -651,6 +681,16 @@ Setup and Demo generation use isolated/generated targets. A stage re-run compare
 
 ## Recovery Notes
 
+M15 operational processing is complete. Project
+`209241230b2a452a8409472ed3df38f6`, PipelineRun
+`0da5647ff7f54b68b6fb77b003b68fd0`, is `pending_review` with 15 validated
+revision-1 proxies. Do not repeat its 55 OpenRouter ASR or 40 Codex edit calls,
+and do not auto-approve the disclosed overlapping pair. The audited executable
+is `data/projects/.runtime-liveclip/codex-0.146.0/node_modules/.bin/codex`; the
+global Codex remains 0.147.0. Preserve the post-run backup
+`data/projects/database-backups/liveclip-post-8162-9a16c511fe0b4bc192975439a724e8d2.sqlite3`
+and all source/generated operational data outside Git.
+
 M14 implementation is complete at checkpoint `d40ec81`. Migration `d31a6e9f4b72` is applied to the real database; integrity/FK/drift checks pass and existing `7.28` is owned by `local-admin`. The Web opens as “我的项目”, and API authorization is membership-scoped through every descendant resource. `make lint` plus 559 Python, 23 Web, Mock Chrome and real API/Worker/SQLite/FFmpeg Chrome tests pass. The host-Chrome dashboard and workspace screenshots were viewed; the Browser skill runtime itself still exposes no registered browser. No long-input ASR/LLM call or `7.28` domain/media mutation occurred.
 
 M12 implementation is complete at checkpoint `4e81d6c` on `origin/main`. Project `f91cb996f7534a6682aa5e5f01374b7b`, current generation-3 run `634c68f9d0b24c99b16ddac8d14ddfd7`, remains unchanged at 15 non-degraded descriptions and 15 succeeded Schema-4/no-blur clean proxies. The restarted clip-list API returns all 15 exact persisted Hooks; no paid Provider request was made. The board is `高光时刻`, one full-width horizontal row per clip, with `高光语句`, editor-only timed keywords and subtitles last. Final gates pass 540 Python, 21 Web and both Chrome flows. The in-app browser adapter again exposed no attached browser, so no MCP-control claim is made; the checked suites launched installed host Chrome and the real-backend success screenshot was actually viewed.
@@ -699,3 +739,13 @@ M13 is complete at implementation checkpoint `1ec1437`. It adds a state-preservi
 M14 is complete at implementation checkpoint `d40ec81` plus the following status checkpoint. Durable workspace identities and Project memberships now back the editor-facing “我的项目” dashboard; Project and every descendant API resource are server-side member-scoped, and owner-only membership management is enforced independently of the Web. Existing single-user loopback operation remains compatible. The real database migrated without data loss, and the unchanged `7.28` Project is immediately visible to its migrated owner. Full gates pass at 559 Python, 23 Web and both Chrome E2Es; the real test uses isolated Mock AI plus actual API, leased Worker, SQLite and FFmpeg. No paid Provider call was repeated.
 
 The 2026-08-16 transport-stream synchronization correction is complete pending its Git checkpoint. Real `8-16-1.ts` ran through 60 successful OpenRouter ASR chunks and 45 successful Codex editorial calls before the defect was reported. The renderer now uses the ADR-019 shared-timeline accurate-seek contract, and all 15 proxy jobs were regenerated as immutable v4 artifacts without repeating either Provider. Their measured MP4 stream starts differ by at most one 25-fps frame, all 15 quality/full-decode reports pass, `make lint` passes, and the complete gate passes at 726 Python tests, 57 Web tests, Mock Chrome 1/1 and isolated real API/Worker/SQLite/FFmpeg Chrome 1/1.
+
+M15 operational slicing is complete at the documentation checkpoint following
+this run. Real `8-16-2.ts` completed all six stages with 55/55 successful
+OpenRouter transcriptions and 40/40 successful Codex edits, producing 40
+candidates and 15 selected review proxies. All 15 540x960 H.264/AAC files pass
+ffprobe, independent full decode and recorded quality checks; three representative
+contact sheets were viewed in-session, while their persisted visual-inspection
+status remains `pending`. The Project remains `pending_review`, one 80 ms
+stream-start delta and one strong content-overlap pair are explicitly disclosed,
+and no clip has been approved, final-rendered or delivered.

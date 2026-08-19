@@ -1,24 +1,69 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 14:12 PDT
+Updated: 2026-08-18 19:08 PDT
 
 Package compatibility baseline: `0.1.0`
 
-Current activity: production development remains paused. Highlight Agent Skill
-v2 research iterations 1 and 2 are both formally rejected by their frozen
-gates; no production default changed. After recovering from the host crash,
-iteration 2 resumed at its exact pre-output checkpoint, froze successfully, and
-then stopped on the first Generator call's permanent integrity failure. Its
-receipts are preserved and the failed experiment will not be retried or replaced.
-Research does not modify the production Pipeline, database, source media,
-renders, reviews or Deliveries. The prior expanded free-discovery benchmark is
-complete under
-`docs/research/model-benchmark-2026-08-17/`: three generator configurations,
-three unique source hashes, nine primary order-perturbed runs, one zero-weight
-evidence diagnostic and two independent blind Judges. No Pipeline, database,
-source media, render or Delivery state changed. Expanded-benchmark checkpoint
-`d9f9836` and rejected iteration-1 checkpoint `46ff874` are committed and
-pushed to `origin/main`.
+Current activity: the user-requested real `8-16-2.ts` slicing task is complete
+and intentionally stopped at `pending_review`. Fifteen clean review proxies are
+ready; no clip is approved, final-rendered or delivered. Production development
+otherwise remains paused. Highlight Agent Skill v2 research iterations 1 and 2
+remain formally rejected by their frozen gates, with no production default
+change. Their immutable receipts and the prior expanded free-discovery benchmark
+remain preserved; none of that research modifies this production Pipeline or
+its database/media state.
+
+## Real 8-16-2 slicing checkpoint
+
+The allowed-root source `input/8-16-2.ts` is a read-only 2,229,033,280-byte,
+4,660.205-second HEVC/AAC transport stream with SHA-256
+`6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417`.
+It is byte-identical to `input/8.15-1.ts`; because the user explicitly requested
+a new `8-16-2` task and LiveClip supports distinct Projects for the same source,
+the run created a new Project instead of copying another Project's artifacts or
+Provider provenance. The source stat and hash were unchanged after processing.
+
+The globally installed Codex is 0.147.0, while the production adapter audits
+only 0.146.0. A project-local 0.146.0 runtime was therefore installed beneath
+ignored operational data at
+`data/projects/.runtime-liveclip/codex-0.146.0/node_modules/.bin/codex`; the
+global installation was not changed. With that executable, `liveclip doctor`
+reported READY with three disclosed host warnings: Node 26 is not LTS, this
+FFmpeg lacks `drawtext`/`subtitles` and uses the Pillow raster fallback, and
+VideoToolbox failed while the verified `libx264` fallback passed.
+
+Project `209241230b2a452a8409472ed3df38f6`, generation-1 PipelineRun
+`0da5647ff7f54b68b6fb77b003b68fd0`, completed all six stages with zero stage
+retry or error. The real Provider chain recorded 55/55 successful OpenRouter
+`openai/whisper-large-v3` transcription requests and 40/40 successful Codex
+`gpt-5.6-terra` edit requests, also with zero retry. Forty candidates were
+created and the configured Top 15 were selected at revision 1.
+
+All 15 current proxies are 540x960 H.264/AAC and actually fully decode with
+FFmpeg. Their media durations are 36.001–65.800 seconds; all automatic quality,
+black-frame and recorded full-decode checks pass, and every contact sheet
+exists. Three representative contact sheets, including the largest measured
+stream-start-delta case, were viewed as consistent single-layer center crops
+without black bars or blurred duplicate backgrounds. That session observation
+was not written back to the quality reports, whose persisted
+`visual_inspection_status` remains `pending`. Fourteen clips start within
+0–40 ms across audio/video; clip
+`c27ec277ceb44dde83104e70ed51a7bd` measures 80 ms (two 25-fps frames).
+Timestamp and contact-sheet evidence cannot prove semantic lip sync, so the user
+should still play representative clips before approval.
+
+Selection review found one strong content overlap: “想学唱歌，别先问条件”
+(`6ca7b3fb7c55450a950793032545935a`) and “普通人也能练好唱歌”
+(`f06504adfc0246b78fc3cf6407b2ef7b`) overlap for 42.989 seconds with interval
+IoU 0.598 and cover 87.6% of the shorter clip. This was not silently resolved;
+the Project remains `pending_review` for the user's content decision. No
+approval, final render, offline package or Delivery was created.
+
+A post-run WAL-safe database backup is preserved at
+`data/projects/database-backups/liveclip-post-8162-9a16c511fe0b4bc192975439a724e8d2.sqlite3`
+with SHA-256
+`638d4d034238c1cae1db730bc45b8afdf332c9c7e26962d9a111b0aab3bd0b7b`;
+its Alembic head, integrity and foreign-key checks pass.
 
 ## Highlight Agent Skill v2 iteration-2 rejected checkpoint
 
@@ -285,10 +330,24 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
   `data/projects/database-backups/liveclip-pre-project-search-3b1e1c0ad7304d7689452e6ff920c3bd.sqlite3`
   with SHA-256
   `1ed77aca699800797f1a09d3b33004657f6ae1b6ccdb47e0c165913c46883460`.
+- Pre-comments WAL-safe backup:
+  `data/projects/database-backups/liveclip-pre-comments-bb77061a92444e399100a4fab9160c34.sqlite3`
+  with SHA-256
+  `90dd7356f09d4a1057cedd6bcc1d931389fe536fe5fd704d5a5915a1a082b84d`.
+- Post-`8-16-2` WAL-safe backup:
+  `data/projects/database-backups/liveclip-post-8162-9a16c511fe0b4bc192975439a724e8d2.sqlite3`
+  with SHA-256
+  `638d4d034238c1cae1db730bc45b8afdf332c9c7e26962d9a111b0aab3bd0b7b`.
 - Current integrity: `quick_check=ok`, zero foreign-key rows, zero active
   PipelineRuns and zero active Tasks.
-- Current protected counts: 4 Projects, 4 SourceMedia, 6 PipelineRuns,
-  176 candidates, 90 RenderJobs and 458 ApiUsage rows.
+- Current protected counts: 5 Projects, 5 SourceMedia, 7 PipelineRuns,
+  216 candidates, 105 RenderJobs and 553 ApiUsage rows.
+- `8-16-2` Project `209241230b2a452a8409472ed3df38f6` is
+  `pending_review`: 15/15 current revision-1 proxy rows succeeded under
+  PipelineRun `0da5647ff7f54b68b6fb77b003b68fd0`.
+- Its 15 MP4s are 540x960 H.264/AAC; all automatic reports, black-frame checks,
+  recorded and independent full decodes pass. Measured stream-start deltas are
+  0–80 ms; timestamp evidence does not alone prove semantic lip sync.
 - `8-16-1` latest proxy rows: 15/15 `succeeded`, exact renderer contract v4.
 - Each latest MP4 is 540×960 H.264/AAC; all 15 automatic reports, black-frame
   checks and full decodes pass.
@@ -432,9 +491,14 @@ Read `AGENTS.md`, both Product Specs, `docs/SOLUTION.md`, `.agent/PLANS.md`,
 all Living ExecPlans including `highlight-agent-skill-v2.md`, and this file.
 Run `git status --short --branch`, `git log -5 --oneline`, `.venv/bin/alembic
 current` and `.venv/bin/alembic check`. Expect product services to be stopped
-unless a later task explicitly starts them. Preserve all four real Projects,
-both database backups and existing offline-review packages. Verify `fa395f6` and `0a266f3`
-are present/pushed. Open `8-16-1`, confirm the latest proxy path contains an
+unless a later task explicitly starts them. Preserve all five real Projects,
+all three database backups and existing offline-review packages. `8-16-2` is
+Project `209241230b2a452a8409472ed3df38f6`, PipelineRun
+`0da5647ff7f54b68b6fb77b003b68fd0`, with 15 validated proxies and one disclosed
+strong-overlap pair; do not repeat its 55 ASR/40 edit calls or auto-approve it.
+The audited local Codex 0.146.0 executable remains below ignored operational
+data; do not replace the global Codex. Verify `fa395f6` and `0a266f3` are
+present/pushed. Open `8-16-1`, confirm the latest proxy path contains an
 `s-.../t-.../review.mp4` segment and preserve offline-review `v001`. Read the
 latest `qa/pipeline.jsonl`, `qa/test-report.md`, the new benchmark
 `REPORT.html`, `analysis.json` and `SKILL-ARCHITECTURE-PROPOSAL.md`. Confirm
