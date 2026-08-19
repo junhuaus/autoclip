@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select, update
 
-from liveclip.application.deliveries import DeliveryRequest, DeliveryService
+from liveclip.application.deliveries import DeliveryConflict, DeliveryRequest, DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
 from liveclip.application.idempotency import build_idempotency_context
 from liveclip.application.pipeline import LeaseIdentity, PipelineRunConfig, PipelineService
@@ -49,7 +49,7 @@ from liveclip.services.demo_media import create_demo_source
 
 
 @pytest.mark.integration
-def test_persistent_review_final_render_and_delivery_flow(tmp_path: Path) -> None:
+def test_persistent_preapproval_master_and_delivery_reuse_flow(tmp_path: Path) -> None:
     media_root = tmp_path / "media"
     source_path = media_root / "source.mp4"
     data_dir = tmp_path / "projects"
@@ -138,54 +138,56 @@ def test_persistent_review_final_render_and_delivery_flow(tmp_path: Path) -> Non
         assert revised.current_revision == 2
         assert revised.review.status == ReviewStatus.PENDING_REVIEW
         assert {render.status for render in revised.renders} == {RenderStatus.STALE}
-        approved = review_service.review_clip(
-            clip_id,
-            ReviewCommand(expected_revision=2, status=ReviewStatus.APPROVED),
-        )
-        assert approved.review.status == ReviewStatus.APPROVED
-
         queued_render = render_service.enqueue(
             clip_id,
-            RenderRequest(expected_revision=2, kind="final"),
+            RenderRequest(expected_revision=2, kind="proxy"),
             idempotency=build_idempotency_context(
-                raw_key="integration-final-render",
+                raw_key="integration-delivery-master-render",
                 caller_scope="local-test",
                 operation_scope="POST:/api/v1/clips/render",
                 request_payload={
                     "clip_id": clip_id,
                     "expected_revision": 2,
-                    "kind": "final",
+                    "kind": "proxy",
                 },
             ),
         )
         replayed_render = render_service.enqueue(
             clip_id,
-            RenderRequest(expected_revision=2, kind="final"),
+            RenderRequest(expected_revision=2, kind="proxy"),
             idempotency=build_idempotency_context(
-                raw_key="integration-final-render",
+                raw_key="integration-delivery-master-render",
                 caller_scope="local-test",
                 operation_scope="POST:/api/v1/clips/render",
                 request_payload={
                     "clip_id": clip_id,
                     "expected_revision": 2,
-                    "kind": "final",
+                    "kind": "proxy",
                 },
             ),
         )
         assert replayed_render.render_id == queued_render.render_id
-        final_render = render_runner.run_until_terminal(
+        master_render = render_runner.run_until_terminal(
             queued_render.render_id,
             worker_id="render-worker",
         )
-        assert final_render.status == RenderStatus.SUCCEEDED
+        assert master_render.status == RenderStatus.SUCCEEDED
         detail = review_service.get_clip(clip_id)
-        current_final = next(
+        current_master = next(
             render
             for render in detail.renders
-            if render.kind == "final" and render.edit_plan_revision == 2
+            if render.kind == "proxy" and render.edit_plan_revision == 2
         )
-        assert current_final.video_asset_id is not None
-        assert current_final.subtitle_asset_id is not None
+        assert current_master.video_asset_id is not None
+        assert current_master.subtitle_asset_id is not None
+        assert not any(
+            render.kind == "final" and render.edit_plan_revision == 2 for render in detail.renders
+        )
+        approved = review_service.review_clip(
+            clip_id,
+            ReviewCommand(expected_revision=2, status=ReviewStatus.APPROVED),
+        )
+        assert approved.review.status == ReviewStatus.APPROVED
 
         delivery_context = build_idempotency_context(
             raw_key="integration-delivery",
@@ -229,13 +231,13 @@ def test_persistent_review_final_render_and_delivery_flow(tmp_path: Path) -> Non
             if stream.get("codec_type") == "video"
         )
         assert (video_stream["width"], video_stream["height"]) == (270, 480)
-        final_relative_path = None
+        master_relative_path = None
         with engine.connect() as connection:
-            final_relative_path = connection.scalar(
-                select(AssetRow.relative_path).where(AssetRow.id == current_final.video_asset_id)
+            master_relative_path = connection.scalar(
+                select(AssetRow.relative_path).where(AssetRow.id == current_master.video_asset_id)
             )
-        assert isinstance(final_relative_path, str)
-        assert video_path.stat().st_ino != (project_dir / final_relative_path).stat().st_ino
+        assert isinstance(master_relative_path, str)
+        assert video_path.stat().st_ino != (project_dir / master_relative_path).stat().st_ino
         assert pipeline_service.get_project(created.project_id).status == ProjectStatus.DELIVERED
 
         second_delivery = delivery_service.enqueue(
@@ -298,12 +300,22 @@ def test_persistent_review_final_render_and_delivery_flow(tmp_path: Path) -> Non
         assert (
             pipeline_service.get_project(created.project_id).status == ProjectStatus.PENDING_REVIEW
         )
+        with pytest.raises(DeliveryConflict, match="at least one approved clip"):
+            delivery_service.enqueue(
+                created.project_id,
+                DeliveryRequest(include_zip=True),
+            )
         with engine.connect() as connection:
             assert set(connection.scalars(select(AssetRow.status))) == {AssetStatus.COMMITTED.value}
 
+        revised_again = review_service.revise_clip(
+            clip_id,
+            ClipPatch(expected_revision=2, title="完整性检查 revision"),
+        )
+        assert revised_again.current_revision == 3
         integrity_render = render_service.enqueue(
             clip_id,
-            RenderRequest(expected_revision=2, kind="proxy"),
+            RenderRequest(expected_revision=3, kind="proxy"),
         )
         integrity_lease = queue.claim(worker_id="render-integrity", task_kind=TaskKind.RENDER)
         assert integrity_lease is not None

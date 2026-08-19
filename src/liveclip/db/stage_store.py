@@ -767,6 +767,7 @@ class SqlAlchemyStageStateStore:
                     RenderJobRow.height,
                     RenderJobRow.spec_fingerprint,
                     RenderJobRow.asset_id,
+                    RenderJobRow.subtitle_asset_id,
                     RenderJobRow.quality_report_asset_id,
                     RenderJobRow.contact_sheet_asset_id,
                 ).where(RenderJobRow.id == render_id, RenderJobRow.kind == "proxy")
@@ -787,12 +788,13 @@ class SqlAlchemyStageStateStore:
                 raise StageDataConflict("proxy render completion differs from its intent")
             expected_assets = (
                 value.video_asset_id,
+                value.subtitle_asset_id,
                 value.quality_report_asset_id,
                 value.contact_sheet_asset_id,
             )
             status = RenderStatus(str(existing.status))
             if status == RenderStatus.SUCCEEDED:
-                if tuple(existing[9:12]) != expected_assets:
+                if tuple(existing[9:13]) != expected_assets:
                     raise StageDataConflict("persisted proxy render differs from retry output")
                 return render_id
             if status != RenderStatus.RUNNING:
@@ -809,6 +811,7 @@ class SqlAlchemyStageStateStore:
                 .values(
                     status=RenderStatus.SUCCEEDED.value,
                     asset_id=value.video_asset_id,
+                    subtitle_asset_id=value.subtitle_asset_id,
                     quality_report_asset_id=value.quality_report_asset_id,
                     contact_sheet_asset_id=value.contact_sheet_asset_id,
                     error_code=None,
@@ -1071,10 +1074,11 @@ def _validate_proxy_assets(
 ) -> None:
     expected = {
         value.video_asset_id: "review_proxy",
+        value.subtitle_asset_id: "clip_subtitle_srt",
         value.quality_report_asset_id: "render_quality_report",
         value.contact_sheet_asset_id: "render_contact_sheet",
     }
-    if len(expected) != 3:
+    if len(expected) != 4:
         raise StageDataConflict("proxy render assets must be distinct")
     rows = connection.execute(
         select(AssetRow.id, AssetRow.kind).where(

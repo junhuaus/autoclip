@@ -223,8 +223,8 @@ class LiveClipRuntime:
             render_service = RenderService(
                 render_repository,
                 RenderProfile(
-                    preview_width=settings.preview_render_width,
-                    preview_height=settings.preview_render_height,
+                    preview_width=settings.final_render_width,
+                    preview_height=settings.final_render_height,
                     final_width=settings.final_render_width,
                     final_height=settings.final_render_height,
                     encoder=settings.video_encoder,
@@ -401,8 +401,8 @@ def pipeline_config_from_settings(
         max_chunk_bytes=settings.asr_max_chunk_bytes,
         transcription_model=transcription_model,
         llm_model=llm_model,
-        preview_width=settings.preview_render_width,
-        preview_height=settings.preview_render_height,
+        preview_width=settings.final_render_width,
+        preview_height=settings.final_render_height,
         video_encoder=settings.video_encoder,
         asr_concurrency=settings.asr_concurrency,
         asr_vocabulary_prompt=settings.asr_vocabulary_prompt,

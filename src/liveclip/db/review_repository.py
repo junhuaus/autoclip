@@ -790,9 +790,11 @@ def _get_clip(connection: Connection, clip_id: str) -> ClipDetail:
         has_active_layout
         and review.status == ReviewStatus.APPROVED
         and any(
-            render.kind == "final"
+            render.kind in {"proxy", "final"}
             and render.edit_plan_revision == current_revision
             and render.status == RenderStatus.SUCCEEDED
+            and render.video_asset_id is not None
+            and render.subtitle_asset_id is not None
             for render in renders
         )
     ):

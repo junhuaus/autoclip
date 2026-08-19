@@ -27,7 +27,8 @@ def test_real_mock_demo_reaches_delivered_with_current_revision_media(tmp_path: 
     assert selected["current_revision"] == 2
     assert [revision["origin"] for revision in selected["revisions"]] == ["ai", "human"]
     assert [render["status"] for render in selected["renders"]] == ["stale", "succeeded"]
-    assert [decision["revision"] for decision in selected["decisions"]] == [1, 2]
+    assert [render["kind"] for render in selected["renders"]] == ["proxy", "proxy"]
+    assert [decision["revision"] for decision in selected["decisions"]] == [2]
 
     probe = probe_media(result.final_video)
     streams = probe["streams"]

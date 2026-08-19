@@ -16,7 +16,7 @@ from liveclip.domain.transcript import TranscriptSegment
 
 EDIT_PLAN_SCHEMA_VERSION = "edit-plan-v1"
 EDIT_PLAN_PIPELINE_CONTRACT_VERSION = (
-    f"{EDIT_PLAN_SCHEMA_VERSION}.caption-v2.clean-proxy-v2.no-blur-v1"
+    f"{EDIT_PLAN_SCHEMA_VERSION}.caption-v2.clean-delivery-master-v1.no-blur-v1"
 )
 MAX_CAPTION_CUES = 32
 MIN_CAPTION_CUE_MS = 250

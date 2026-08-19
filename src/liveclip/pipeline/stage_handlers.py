@@ -25,7 +25,7 @@ from liveclip.application.stage_execution import (
     StageStateStore,
     stage_output_fingerprint,
 )
-from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION
+from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION, captions_to_srt
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.domain.state_transitions import AssetStatus, FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
@@ -36,6 +36,7 @@ from liveclip.media.artifacts import (
     project_directory,
     publish_file_no_clobber,
     write_json_no_clobber,
+    write_text_no_clobber,
 )
 from liveclip.media.ingest import (
     MediaIngestCancelled,
@@ -863,6 +864,7 @@ class PipelineStageHandlers:
                 f"renders/proxies/{item.candidate_id}/r{item.revision.revision:03d}",
             )
             video_relative = f"{base_relative}/review.mp4"
+            subtitle_relative = f"{base_relative}/review.srt"
             quality_relative = f"{base_relative}/review-quality/quality-report.json"
             contact_relative = f"{base_relative}/review-quality/contact-sheet.png"
             video_reservation = self._reserve(
@@ -872,7 +874,17 @@ class PipelineStageHandlers:
                 relative_path=video_relative,
                 mime_type="video/mp4",
                 candidate_id=item.candidate_id,
-                edit_plan_revision=1,
+                edit_plan_revision=item.revision.revision,
+                revision_epoch=work.revision_epoch,
+            )
+            subtitle_reservation = self._reserve(
+                work,
+                lease,
+                kind="clip_subtitle_srt",
+                relative_path=subtitle_relative,
+                mime_type="application/x-subrip",
+                candidate_id=item.candidate_id,
+                edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
             )
             quality_reservation = self._reserve(
@@ -882,7 +894,7 @@ class PipelineStageHandlers:
                 relative_path=quality_relative,
                 mime_type="application/json",
                 candidate_id=item.candidate_id,
-                edit_plan_revision=1,
+                edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
             )
             contact_reservation = self._reserve(
@@ -892,10 +904,11 @@ class PipelineStageHandlers:
                 relative_path=contact_relative,
                 mime_type="image/png",
                 candidate_id=item.candidate_id,
-                edit_plan_revision=1,
+                edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
             )
             canonical_video = project_dir / video_relative
+            canonical_subtitle = project_dir / subtitle_relative
             canonical_quality = project_dir / quality_relative
             canonical_contact = project_dir / contact_relative
             if not canonical_video.is_file():
@@ -999,6 +1012,10 @@ class PipelineStageHandlers:
                     media_path=canonical_video,
                     contact_sheet=canonical_contact,
                 )
+            validated_subtitle_sha256 = write_text_no_clobber(
+                canonical_subtitle,
+                captions_to_srt(item.revision.captions),
+            )
             committed_video = self._commit(
                 lease,
                 video_reservation,
@@ -1010,6 +1027,17 @@ class PipelineStageHandlers:
                     "full_decode": "passed",
                 },
                 expected_sha256=validated_video_sha256,
+            )
+            committed_subtitle = self._commit(
+                lease,
+                subtitle_reservation,
+                project_dir=project_dir,
+                validation={
+                    "schema_version": "1",
+                    "timeline": "clip_relative_ms",
+                    "cue_count": len(item.revision.captions),
+                },
+                expected_sha256=validated_subtitle_sha256,
             )
             committed_quality = self._commit(
                 lease,
@@ -1038,12 +1066,15 @@ class PipelineStageHandlers:
                         height=work.config.preview_height,
                         spec_fingerprint=spec_fingerprint,
                         video_asset_id=committed_video.asset_id,
+                        subtitle_asset_id=committed_subtitle.asset_id,
                         quality_report_asset_id=committed_quality.asset_id,
                         contact_sheet_asset_id=committed_contact.asset_id,
                     ),
                 )
             )
-            all_assets.extend((committed_video, committed_quality, committed_contact))
+            all_assets.extend(
+                (committed_video, committed_subtitle, committed_quality, committed_contact)
+            )
         diagnostic_relative_path = _write_stage_render_diagnostic(
             project_dir=project_dir,
             attempt_dir=attempt_dir,

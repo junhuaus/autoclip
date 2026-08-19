@@ -87,7 +87,7 @@ it("edits title, boundaries and cue text, exposes stale media, then approves the
   const editor = await screen.findByRole("region", { name: /原始高光标题/ });
   expect(within(editor).getByText("高光描述（独立元数据）")).toBeInTheDocument();
   expect(within(editor).getByText(/开头提出关键问题/)).toBeInTheDocument();
-  expect(within(editor).getByText(/干净审核切片/)).toBeInTheDocument();
+  expect(within(editor).getByText(/干净审核\/交付母版/)).toBeInTheDocument();
   expect(within(editor).getByText("每个 revision 至少保留 1 条字幕 cue。")).toBeVisible();
   expect(within(editor).getByRole("button", { name: "删除此 cue" })).toBeDisabled();
   const titleInput = within(editor).getByLabelText("标题");
@@ -112,7 +112,7 @@ it("edits title, boundaries and cue text, exposes stale media, then approves the
   await user.click(within(editor).getByRole("button", { name: "批准" }));
   await waitFor(() => expect(reviewBody).toEqual({ expected_revision: 2, status: "approved" }));
   expect(await within(editor).findByText("已批准")).toHaveAttribute("data-status", "approved");
-  expect(within(editor).getByRole("button", { name: "渲染最终视频" })).toBeEnabled();
+  expect(within(editor).getByRole("button", { name: "生成可选烧录版" })).toBeEnabled();
 });
 
 it("sends a boundary-only patch without stale relative captions", async () => {

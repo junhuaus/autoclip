@@ -123,10 +123,10 @@ class Settings(BaseSettings):
     max_clip_seconds: int = Field(default=90, ge=1, le=1800, validation_alias="MAX_CLIP_SECONDS")
 
     preview_render_width: int = Field(
-        default=540, ge=180, le=2160, validation_alias="PREVIEW_RENDER_WIDTH"
+        default=1080, ge=180, le=2160, validation_alias="PREVIEW_RENDER_WIDTH"
     )
     preview_render_height: int = Field(
-        default=960, ge=320, le=3840, validation_alias="PREVIEW_RENDER_HEIGHT"
+        default=1920, ge=320, le=3840, validation_alias="PREVIEW_RENDER_HEIGHT"
     )
     final_render_width: int = Field(
         default=1080, ge=360, le=4320, validation_alias="FINAL_RENDER_WIDTH"

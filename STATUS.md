@@ -1,17 +1,18 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 19:08 PDT
+Updated: 2026-08-18 21:07 PDT
 
 Package compatibility baseline: `0.1.0`
 
-Current activity: the user-requested real `8-16-2.ts` slicing task is complete
-and intentionally stopped at `pending_review`. Fifteen clean review proxies are
-ready; no clip is approved, final-rendered or delivered. Production development
-otherwise remains paused. Highlight Agent Skill v2 research iterations 1 and 2
-remain formally rejected by their frozen gates, with no production default
-change. Their immutable receipts and the prior expanded free-discovery benchmark
-remain preserved; none of that research modifies this production Pipeline or
-its database/media state.
+Current activity: the user-requested real `8-16-2.ts` slicing and delivery task
+is complete. After an explicit offline-approval request, all 15 unchanged
+revision-1 clips were approved, rendered and packaged as immutable Delivery
+`v001`. The user then changed the product workflow: selected clips now render
+one clean delivery-quality master before review; approval keeps that exact
+master and pending/rejected clips are omitted. The implementation, UI, CLI,
+specification, ADR and regressions are being closed under M16. Highlight Agent
+Skill v2 research remains isolated and does not modify this production Pipeline
+or its database/media state.
 
 ## Real 8-16-2 slicing checkpoint
 
@@ -49,21 +50,61 @@ was not written back to the quality reports, whose persisted
 `visual_inspection_status` remains `pending`. Fourteen clips start within
 0–40 ms across audio/video; clip
 `c27ec277ceb44dde83104e70ed51a7bd` measures 80 ms (two 25-fps frames).
-Timestamp and contact-sheet evidence cannot prove semantic lip sync, so the user
-should still play representative clips before approval.
+Timestamp and contact-sheet evidence cannot prove semantic lip sync; this
+limitation was disclosed before the later offline approval.
 
 Selection review found one strong content overlap: “想学唱歌，别先问条件”
 (`6ca7b3fb7c55450a950793032545935a`) and “普通人也能练好唱歌”
 (`f06504adfc0246b78fc3cf6407b2ef7b`) overlap for 42.989 seconds with interval
 IoU 0.598 and cover 87.6% of the shorter clip. This was not silently resolved;
-the Project remains `pending_review` for the user's content decision. No
-approval, final render, offline package or Delivery was created.
+it was disclosed before the later user instruction to approve all clips
+offline. Both overlapping clips therefore remain intentionally present in
+Delivery `v001`.
 
 A post-run WAL-safe database backup is preserved at
 `data/projects/database-backups/liveclip-post-8162-9a16c511fe0b4bc192975439a724e8d2.sqlite3`
 with SHA-256
 `638d4d034238c1cae1db730bc45b8afdf332c9c7e26962d9a111b0aab3bd0b7b`;
 its Alembic head, integrity and foreign-key checks pass.
+
+The pre-decision WAL-safe backup
+`data/projects/database-backups/liveclip-pre-8162-approval-09d6b078385e4e44aea9baeb7e74acfb.sqlite3`
+has SHA-256
+`638d4d034238c1cae1db730bc45b8afdf332c9c7e26962d9a111b0aab3bd0b7b`.
+All 15 offline decisions and all 15 current final renders succeeded. Immutable
+Delivery `d53ba233bd2544f480bdb54e3fba26d4` / `v001` contains 15 MP4s, 15 SRTs,
+manifest and ZIP. ZIP SHA-256 is
+`1f8ced81c03d4e6db463516080ae6ffd2022b1a80134787e7fc52a229f4bf1c9`;
+`unzip -t`, all manifest video hashes and independent full FFmpeg decode of all
+15 videos pass.
+
+## M16 single-render workflow checkpoint
+
+ADR-020 promotes the compatibility `proxy` RenderJob into the clean
+review/delivery master. New pipeline/manual masters default to 1080×1920 and
+publish MP4, matching clip-relative SRT, quality report and contact sheet before
+review. Delivery prefers that trusted current master and accepts a current
+manual final only as a legacy fallback for already-generated Projects. Approval
+does not start a render; it filters eligible masters. A changed revision stales
+the old master and only that clip needs rerendering. Optional burned media
+remains a separate approved release derivative.
+
+Focused Python integration tests prove render-before-approval, exact master
+reuse with no current final RenderJob, rejection exclusion, revision staleness,
+automatic pipeline SRT publication and legacy final compatibility. `make lint`
+passes, the corrected full Python rerun passes 726/726, 57/57 Web tests pass and
+the controlled Chrome E2E passes. An earlier full run's sole failure was the
+now-corrected historical Demo assertion expecting approval of obsolete revision
+1. A later real-browser retry reached the
+release checklist but exposed that the test still selected the deliberately
+optional `burned` mode; it now selects the standard `clean_separate` master.
+Three immediate subsequent Chrome launches aborted at host startup, so the final
+real-browser rerun remains an environment retry, not a claimed pass. The local
+development API/Web/Worker were restarted with the new code; health and Web
+return HTTP 200. A compatibility fingerprint check initially exposed existing
+`8-16-2` v001 as `ready_for_delivery`; preserving the v2 snapshot payload for
+unchanged legacy-final fallback restored the truthful `delivered` state without
+changing the immutable ZIP or its SHA-256.
 
 ## Highlight Agent Skill v2 iteration-2 rejected checkpoint
 
@@ -471,19 +512,12 @@ subtract `STARTPTS`; overlay/fade windows are shifted onto the preroll timeline.
 
 ## Next concrete task
 
-Keep production development paused. Rejected iteration 1 is checkpointed; now
-freeze iteration 2 before producing any new model output. Iteration 2 must
-preserve free Topic discovery and exact evidence, use
-one combined all-candidate assessment/free-Topic stage, deterministic
-quality-adaptive selection of 8–12 highlights and one selected-candidate copy
-stage, with at most two normal model Calls per Pipeline. Freeze explicit 0–4
-Judge anchors and distinguish subjective Judge-rated coverage from the
-deterministic selected-union ratio. Never overwrite iteration-1 artifacts and
-do not change the production default.
-
-The previously requested Web quantity range/minimum-score/manual-score slice
-has not been implemented. The approval-workflow audit and cross-Project bulk
-assignment also remain pending separate user decisions.
+Finish M16 by recording the final full gate result, restarting the local
+API/Web/Worker with the new wording and verifying the existing `8-16-2` v001
+download remains available through the compatibility fallback. Retry the
+isolated real Chrome E2E only after Chrome can launch normally; do not hide the
+host-startup abort. Then create and push one scoped product/docs/test checkpoint
+without generated media, database, input, credentials or browser artifacts.
 
 ## Resume instructions
 
@@ -494,8 +528,10 @@ current` and `.venv/bin/alembic check`. Expect product services to be stopped
 unless a later task explicitly starts them. Preserve all five real Projects,
 all three database backups and existing offline-review packages. `8-16-2` is
 Project `209241230b2a452a8409472ed3df38f6`, PipelineRun
-`0da5647ff7f54b68b6fb77b003b68fd0`, with 15 validated proxies and one disclosed
-strong-overlap pair; do not repeat its 55 ASR/40 edit calls or auto-approve it.
+`0da5647ff7f54b68b6fb77b003b68fd0`, with 15 validated original proxies, 15
+approved finals and immutable Delivery `v001`; do not repeat its 55 ASR/40 edit
+calls, approval decisions or renders. The disclosed strong-overlap pair remains
+intentionally included under the user's later approve-all instruction.
 The audited local Codex 0.146.0 executable remains below ignored operational
 data; do not replace the global Codex. Verify `fa395f6` and `0a266f3` are
 present/pushed. Open `8-16-1`, confirm the latest proxy path contains an

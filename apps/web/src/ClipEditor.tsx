@@ -338,7 +338,7 @@ export function ClipEditor({
         <div className="notice" aria-live="polite">
           <StatusBadge status={activeRenderQuery.data.status} />
           <span>
-            {activeRenderQuery.data.kind === "final" ? "最终视频" : "审核代理"}
+            {activeRenderQuery.data.kind === "final" ? "烧录版视频" : "审核/交付母版"}
             {renderPolling ? "正在渲染，页面会自动刷新。" : "渲染状态已更新。"}
           </span>
         </div>
@@ -365,13 +365,13 @@ export function ClipEditor({
               </video>
               <figcaption>
                 当前 revision {video.render.edit_plan_revision} · {video.render.kind === "final"
-                  ? "最终视频（标题与字幕已烧录）"
-                  : "干净审核切片（未烧录标题或字幕）"}
+                  ? "烧录版视频（标题与字幕已写入画面）"
+                  : "干净审核/交付母版（标题与字幕作为独立元数据）"}
               </figcaption>
             </figure>
           ) : (
             <EmptyState title="当前 revision 尚无可播放视频">
-              {allowed.has("render_proxy") ? "可先生成审核代理。" : "等待渲染完成或刷新详情。"}
+              {allowed.has("render_proxy") ? "可生成当前 revision 的审核/交付母版。" : "等待渲染完成或刷新详情。"}
             </EmptyState>
           )}
 
@@ -411,7 +411,7 @@ export function ClipEditor({
             <p><strong>标题：</strong>{clip.plan.title}</p>
             <p><strong>高光语句：</strong>{clip.plan.hook}</p>
             <p><strong>推荐理由：</strong>{clip.plan.reason}</p>
-            <p className="hint">标题、描述和字幕不会写入审核切片画面；审核修改后再生成最终视频。</p>
+            <p className="hint">标题、描述和字幕不写入母版画面；切片完成即生成母版，审核只决定保留或丢弃。</p>
             {clip.plan.risk_flags.length > 0 ? (
               <ul className="risk-list" aria-label="当前方案风险标签">
                 {clip.plan.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
@@ -630,8 +630,8 @@ export function ClipEditor({
         </section>
 
         <section className="action-card">
-          <h3>重新渲染</h3>
-          <p className="hint">渲染任务由独立 Worker 执行；本页只提交并轮询状态。</p>
+          <h3>渲染</h3>
+          <p className="hint">切片初版会自动生成母版；只有修改当前 revision 后才需在这里重新渲染。</p>
           <div className="button-row">
             <button
               type="button"
@@ -639,7 +639,7 @@ export function ClipEditor({
               disabled={busy || !canRender || renderPolling || !allowed.has("render_proxy")}
               onClick={() => renderMutation.mutate("proxy")}
             >
-              渲染审核代理
+              渲染审核/交付母版
             </button>
             <button
               type="button"
@@ -647,11 +647,11 @@ export function ClipEditor({
               disabled={busy || !canRender || renderPolling || !allowed.has("render_final")}
               onClick={() => renderMutation.mutate("final")}
             >
-              渲染最终视频
+              生成可选烧录版
             </button>
           </div>
           {renderMutation.isError ? <p className="form-error" role="alert">{errorMessage(renderMutation.error)}</p> : null}
-          {!allowed.has("render_final") ? <p className="hint">最终渲染仅在后端允许时启用，通常需先批准当前 revision。</p> : null}
+          {!allowed.has("render_final") ? <p className="hint">审批不影响母版；批准后才可按需另生成标题/字幕烧录版。</p> : null}
         </section>
       </div>
 
@@ -661,7 +661,7 @@ export function ClipEditor({
           <ul>
             {clip.renders.map((render) => (
               <li key={render.render_id}>
-                <span>{render.kind === "final" ? "最终" : "代理"} r{render.edit_plan_revision}</span>
+                <span>{render.kind === "final" ? "烧录版" : "审核/交付母版"} r{render.edit_plan_revision}</span>
                 <StatusBadge status={render.status} />
                 {render.safe_error_message ? <span className="form-error">{render.safe_error_message}</span> : null}
               </li>

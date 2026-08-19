@@ -28,7 +28,7 @@ const STAGE_LABELS: Record<string, string> = {
   transcribe: "中文转写",
   candidates: "候选生成",
   edit: "AI 编辑",
-  proxy_render: "审核代理渲染",
+  proxy_render: "审核/交付母版渲染",
 };
 
 const MEMBER_ROLE_LABELS = {
@@ -325,14 +325,14 @@ export function ClipCard({
               controls
               preload="metadata"
               src={item.proxy_media_url}
-              aria-label={`${clip.title} 审核代理`}
+              aria-label={`${clip.title} 审核交付母版`}
               onLoadedMetadata={applyPendingSeek}
             >
               浏览器不支持 HTML5 视频播放。
             </video>
           ) : (
             <div className="video-placeholder">
-              {clip.proxy_status === "stale" ? "旧代理已失效" : "暂无可播放代理"}
+              {clip.proxy_status === "stale" ? "旧母版已失效" : "暂无可播放母版"}
             </div>
           )}
         </div>
@@ -413,7 +413,7 @@ export function ClipCard({
             {clip.proxy_status ? <StatusBadge status={clip.proxy_status} label={`代理${statusLabel(clip.proxy_status)}`} /> : null}
           </div>
           {clip.proxy_status === "stale" ? (
-            <p className="stale-copy" role="status">当前 revision 需要重新渲染，旧代理不能用于交付。</p>
+            <p className="stale-copy" role="status">当前 revision 需要重新渲染，旧母版不能用于交付。</p>
           ) : null}
           {clip.risk_flags.length > 0 ? (
             <ul className="risk-list" aria-label="风险标签">
@@ -782,7 +782,7 @@ export function DeliveryPanel({
           {!canDeliver
             ? "你的项目角色可以查看已有交付，但不能创建新交付版本。"
             : approvedCount === 0
-            ? "至少批准一个当前 revision 后才能请求交付；最终渲染资格仍由后端校验。"
+            ? "至少批准一个已有当前母版的 revision 后才能请求交付；未审核和已拒绝切片会被丢弃。"
             : "已有交付任务正在执行，请等待其进入终态。"}
         </p>
       ) : null}

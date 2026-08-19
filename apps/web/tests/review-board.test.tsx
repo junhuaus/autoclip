@@ -76,7 +76,7 @@ it("seeks only the video belonging to the clicked subtitle or keyword", async ()
       <ClipCard item={second} onOpen={() => undefined} />
     </>,
   );
-  const videos = screen.getAllByLabelText(/审核代理/) as HTMLVideoElement[];
+  const videos = screen.getAllByLabelText(/审核交付母版/) as HTMLVideoElement[];
   for (const video of videos) {
     Object.defineProperty(video, "readyState", { configurable: true, value: 1 });
     Object.defineProperty(video, "duration", { configurable: true, value: 10 });
@@ -411,7 +411,9 @@ it("uses server capabilities to keep a viewer read-only", async () => {
   const editorPanel = await screen.findByRole("region", { name: /原始高光标题/ });
   expect(within(editorPanel).getByLabelText("标题")).toBeDisabled();
   expect(within(editorPanel).getByRole("button", { name: "批准" })).toBeDisabled();
-  expect(within(editorPanel).getByRole("button", { name: "渲染审核代理" })).toBeDisabled();
+  expect(
+    within(editorPanel).getByRole("button", { name: "渲染审核/交付母版" }),
+  ).toBeDisabled();
 });
 
 it("submits selected candidates through one atomic batch endpoint", async () => {

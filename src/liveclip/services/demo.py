@@ -20,7 +20,6 @@ from liveclip.domain.review import (
     RenderRecord,
     RevisionOrigin,
     add_render,
-    current_final_render,
     decide_clip,
     revise_clip,
     start_clip_lifecycle,
@@ -209,7 +208,7 @@ def _execute_demo(
         )
 
     set_phase("demo_review")
-    selected = decide_clip(lifecycles[0], status=ReviewStatus.APPROVED, decided_at=created_at)
+    selected = lifecycles[0]
     revised_payload = selected.current.plan.model_dump()
     revised_payload["title"] = "人工修订: 直播表达重点"
     revised_plan = EditPlan.model_validate(revised_payload)
@@ -221,46 +220,53 @@ def _execute_demo(
     )
     if selected.renders[0].status != RenderStatus.STALE:
         raise DemoRunError("Demo revision did not stale the old proxy render")
+    set_phase("delivery_master_render")
+    master_path = (
+        project_dir
+        / "renders"
+        / "proxies"
+        / selected.clip_id
+        / f"r{selected.current_revision:03d}"
+        / "review.mp4"
+    )
+    master_artifact = render_edit_plan_revision(
+        source_path=source.resolved_path,
+        revision=selected.current,
+        output_path=master_path,
+        width=settings.final_render_width,
+        height=settings.final_render_height,
+        encoder=settings.video_encoder,
+        text_mode=RenderTextMode.NONE,
+    )
+    selected = add_render(
+        selected,
+        RenderRecord(
+            render_id=f"master_{selected.clip_id}_r{selected.current_revision:03d}",
+            revision=selected.current_revision,
+            kind=RenderKind.PROXY,
+            status=RenderStatus.SUCCEEDED,
+            path=master_artifact.output_path,
+            sha256=master_artifact.sha256,
+        ),
+    )
     selected = decide_clip(
         selected,
         status=ReviewStatus.APPROVED,
         decided_at=datetime.now(UTC),
     )
     lifecycles[0] = selected
-
-    set_phase("final_render")
-    final_path = (
-        project_dir
-        / "renders"
-        / "final"
-        / selected.clip_id
-        / f"r{selected.current_revision:03d}"
-        / "final.mp4"
-    )
-    final_artifact = render_edit_plan_revision(
-        source_path=source.resolved_path,
-        revision=selected.current,
-        output_path=final_path,
-        width=settings.final_render_width,
-        height=settings.final_render_height,
-        encoder=settings.video_encoder,
-        text_mode=RenderTextMode.TITLE_AND_CAPTIONS,
-    )
-    selected = add_render(
-        selected,
-        RenderRecord(
-            render_id=f"final_{selected.clip_id}_r{selected.current_revision:03d}",
-            revision=selected.current_revision,
-            kind=RenderKind.FINAL,
-            status=RenderStatus.SUCCEEDED,
-            path=final_artifact.output_path,
-            sha256=final_artifact.sha256,
+    valid_master = next(
+        (
+            render
+            for render in selected.renders
+            if render.kind == RenderKind.PROXY
+            and render.revision == selected.current_revision
+            and render.status == RenderStatus.SUCCEEDED
         ),
+        None,
     )
-    lifecycles[0] = selected
-    valid_final = current_final_render(selected)
-    if valid_final is None or valid_final.path is None or valid_final.sha256 is None:
-        raise DemoRunError("current approved revision has no valid final render")
+    if valid_master is None or valid_master.path is None or valid_master.sha256 is None:
+        raise DemoRunError("current approved revision has no valid delivery master")
 
     set_phase("delivery")
     delivery = create_delivery(
@@ -272,15 +278,15 @@ def _execute_demo(
             DeliveryClipInput(
                 clip_id=selected.clip_id,
                 edit_plan_revision=selected.current_revision,
-                render_revision=valid_final.revision,
+                render_revision=valid_master.revision,
                 title=selected.current.plan.title,
                 source_start_ms=selected.current.plan.source_start_ms,
                 source_end_ms=selected.current.plan.source_end_ms,
                 score=selected.current.plan.score,
                 review_status=selected.review_status.value,
-                render_status=valid_final.status.value,
-                final_video_path=valid_final.path,
-                final_video_sha256=valid_final.sha256,
+                render_status=valid_master.status.value,
+                final_video_path=valid_master.path,
+                final_video_sha256=valid_master.sha256,
                 subtitle_srt=captions_to_srt(selected.current.captions),
             ),
         ),
@@ -319,9 +325,9 @@ def _execute_demo(
         candidate_count=len(candidates),
         project_dir=project_dir,
         source_video=source.resolved_path,
-        final_video=final_artifact.output_path,
-        contact_sheet=final_artifact.contact_sheet_path,
-        quality_report=final_artifact.quality_report_path,
+        final_video=master_artifact.output_path,
+        contact_sheet=master_artifact.contact_sheet_path,
+        quality_report=master_artifact.quality_report_path,
         delivery_dir=delivery.directory,
         delivery_zip=delivery.zip_path,
         state_path=state_path,

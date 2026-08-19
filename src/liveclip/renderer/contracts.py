@@ -4,7 +4,12 @@ from collections.abc import Mapping
 
 RENDER_SPEC_SCHEMA_VERSION = "4"
 FFMPEG_RENDERER_CONTRACT_VERSION = "ffmpeg-renderer-v4.av-sync-preroll"
-CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = "edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1"
+LEGACY_CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = "edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1"
+CLEAN_DELIVERY_MASTER_PIPELINE_CONTRACT_VERSION = (
+    "edit-plan-v1.caption-v2.clean-delivery-master-v1.no-blur-v1"
+)
+# Compatibility export used by existing review/edit-package callers and tests.
+CLEAN_PROXY_PIPELINE_CONTRACT_VERSION = CLEAN_DELIVERY_MASTER_PIPELINE_CONTRACT_VERSION
 
 
 def text_mode_for_render_kind(kind: str) -> str:
@@ -45,6 +50,24 @@ def is_clean_review_proxy(
 
     if spec is not None:
         return has_current_manual_render_contract("proxy", spec)
+    return isinstance(pipeline_config, Mapping) and pipeline_config.get(
+        "edit_plan_schema_version"
+    ) in {
+        LEGACY_CLEAN_PROXY_PIPELINE_CONTRACT_VERSION,
+        CLEAN_DELIVERY_MASTER_PIPELINE_CONTRACT_VERSION,
+    }
+
+
+def is_clean_delivery_master(
+    *,
+    spec: object,
+    pipeline_config: object,
+) -> bool:
+    """Recognize a clean render produced by the single-render delivery contract."""
+
+    if spec is not None:
+        return has_current_manual_render_contract("proxy", spec)
     return isinstance(pipeline_config, Mapping) and (
-        pipeline_config.get("edit_plan_schema_version") == CLEAN_PROXY_PIPELINE_CONTRACT_VERSION
+        pipeline_config.get("edit_plan_schema_version")
+        == CLEAN_DELIVERY_MASTER_PIPELINE_CONTRACT_VERSION
     )

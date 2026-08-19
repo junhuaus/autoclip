@@ -615,30 +615,32 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
         clip: {
           ...clipDetail.clip,
           review: { status: "approved", reason: null, decided_at: "2026-08-04T00:02:00Z" },
-          allowed_actions: ["edit", "approve", "reject", "render_proxy", "render_final"],
+          allowed_actions: ["edit", "approve", "reject", "render_proxy", "render_final", "deliver"],
         },
       };
       clipSummary = {
         ...clipSummary,
         clip: { ...clipSummary.clip, review_status: "approved" },
       };
+      project = { ...project, status: "ready_for_delivery" };
       await route.fulfill({ json: clipDetail });
       return;
     }
     if (path === "/api/v1/clips/clip-1/render" && method === "POST") {
+      expect(request.postDataJSON()).toEqual({ expected_revision: 2, kind: "proxy" });
       await route.fulfill({
         status: 202,
         json: {
           resource_type: "render",
-          resource_id: "final-render-1",
-          task_id: "final-task-1",
+          resource_id: "master-render-1",
+          task_id: "master-task-1",
           status: "queued",
-          status_url: "/api/v1/renders/final-render-1",
+          status_url: "/api/v1/renders/master-render-1",
         },
       });
       return;
     }
-    if (path === "/api/v1/renders/final-render-1" && method === "GET") {
+    if (path === "/api/v1/renders/master-render-1" && method === "GET") {
       renderPollCount += 1;
       const status = renderPollCount > 1 ? "succeeded" : "running";
       if (status === "succeeded") {
@@ -649,32 +651,31 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
             renders: [
               {
                 ...clipDetail.clip.renders[0],
-                render_id: "final-render-1",
-                task_id: "final-task-1",
-                kind: "final",
+                render_id: "master-render-1",
+                task_id: "master-task-1",
+                kind: "proxy",
                 status: "succeeded",
                 edit_plan_revision: 2,
                 width: 1080,
                 height: 1920,
-                video_asset_id: "final-video-1",
+                video_asset_id: "master-video-1",
               },
               ...clipDetail.clip.renders,
             ],
-            allowed_actions: ["edit", "approve", "reject", "render_proxy", "render_final", "deliver"],
+            allowed_actions: ["edit", "approve", "reject", "render_proxy"],
           },
           asset_urls: {
-            "final-video-1": "/api/v1/media/final-video-1?expires=9999999999&signature=final-signed",
+            "master-video-1": "/api/v1/media/master-video-1?expires=9999999999&signature=master-signed",
           },
         };
-        project = { ...project, status: "ready_for_delivery" };
       }
       await route.fulfill({
         json: {
-          render_id: "final-render-1",
-          task_id: "final-task-1",
+          render_id: "master-render-1",
+          task_id: "master-task-1",
           clip_id: "clip-1",
           edit_plan_revision: 2,
-          kind: "final",
+          kind: "proxy",
           status,
         },
       });
@@ -716,7 +717,7 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   expect((captionBox as { y: number }).y).toBeGreaterThanOrEqual(
     (mainBox as { y: number; height: number }).y + (mainBox as { height: number }).height - 1,
   );
-  const proxy = page.getByLabel("原始高光标题 审核代理");
+  const proxy = page.getByLabel("原始高光标题 审核交付母版");
   await expect(proxy).toHaveAttribute("src", /signature=signed/);
   await expect(firstCard.getByRole("link", { name: "下载 MP4" })).toBeVisible();
   await expect(firstCard.getByRole("link", { name: "下载 SRT" })).toBeVisible();
@@ -762,10 +763,10 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await expect(editor.getByText(/旧 revision 的 1 个渲染已失效/)).toBeVisible();
   await expect(editor.getByText("历史 r1")).toBeVisible();
 
+  await editor.getByRole("button", { name: "渲染审核/交付母版" }).click();
+  await expect(editor.getByText("审核/交付母版渲染状态已更新。")).toBeVisible({ timeout: 8_000 });
   await editor.getByRole("button", { name: "批准" }).click();
   await expect(editor.getByText("已批准")).toBeVisible();
-  await editor.getByRole("button", { name: "渲染最终视频" }).click();
-  await expect(editor.getByText("最终视频渲染状态已更新。")).toBeVisible({ timeout: 8_000 });
 
   const createDelivery = page.getByRole("button", { name: "创建新交付版本" });
   await expect(createDelivery).toBeEnabled({ timeout: 8_000 });

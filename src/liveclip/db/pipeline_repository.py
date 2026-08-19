@@ -1811,6 +1811,7 @@ def _require_proxy_checkpoint(
         kind_counts,
         {
             "review_proxy": proxy_count,
+            "clip_subtitle_srt": proxy_count,
             "render_quality_report": proxy_count,
             "render_contact_sheet": proxy_count,
         },
@@ -1820,6 +1821,7 @@ def _require_proxy_checkpoint(
         select(
             RenderJobRow.id,
             RenderJobRow.asset_id,
+            RenderJobRow.subtitle_asset_id,
             RenderJobRow.quality_report_asset_id,
             RenderJobRow.contact_sheet_asset_id,
         )
@@ -1838,7 +1840,12 @@ def _require_proxy_checkpoint(
     render_asset_ids = {
         str(asset_id)
         for row in renders
-        for asset_id in (row.asset_id, row.quality_report_asset_id, row.contact_sheet_asset_id)
+        for asset_id in (
+            row.asset_id,
+            row.subtitle_asset_id,
+            row.quality_report_asset_id,
+            row.contact_sheet_asset_id,
+        )
         if asset_id is not None
     }
     if render_asset_ids != set(assets.ids):

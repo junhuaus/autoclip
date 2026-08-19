@@ -100,7 +100,7 @@ class PipelineRunConfig(BaseModel):
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
     edit_plan_schema_version: str = Field(
-        default="edit-plan-v1.caption-v2.clean-proxy-v2.no-blur-v1",
+        default="edit-plan-v1.caption-v2.clean-delivery-master-v1.no-blur-v1",
         min_length=1,
         max_length=80,
         pattern=r"^[A-Za-z0-9_.:-]+$",

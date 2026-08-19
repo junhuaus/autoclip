@@ -76,14 +76,13 @@ flowchart LR
   CAND -->|bounded text + metadata| EDITOR[OpenAI Responses or local Codex CLI process]
   EDITOR -->|cloud inference; no tools| VALIDATE[Local strict validation]
   VALIDATE --> META[Separate title / Hook / reason / risks / captions]
-  VALIDATE --> PROXY[Local clean proxy renderer]
+  VALIDATE --> MASTER[Local clean review/delivery master renderer]
   META --> REVIEW[Human review]
-  PROXY --> REVIEW
-  REVIEW --> FINAL[Local final renderer with approved overlays]
-  SOURCE --> PROXY
-  SOURCE --> FINAL
-  FINAL --> LOCAL[(Local finals/deliveries)]
-  PROXY --> LOCAL_PROXY[(Local review proxies)]
+  MASTER --> REVIEW
+  REVIEW --> FILTER[Keep approved / discard others]
+  SOURCE --> MASTER
+  FILTER --> LOCAL[(Local immutable deliveries reuse masters)]
+  MASTER --> LOCAL_MASTER[(Local clean masters)]
 ```
 
 Video frames, files, database, proxies, finals and deliveries stay local. In the default chain, prepared audio passes through OpenRouter to its selected Whisper host. Bounded transcript data then goes separately to the local Codex CLI process, whose inference remains cloud-based through saved ChatGPT authentication. Codex never receives source video/audio and is not ASR. Direct OpenAI ASR/Responses modes remain explicit alternatives.
@@ -101,8 +100,7 @@ stateDiagram-v2
   proxy_render --> pending_review
   pending_review --> approved
   pending_review --> rejected
-  approved --> final_render
-  final_render --> ready_for_delivery
+  approved --> ready_for_delivery
   ready_for_delivery --> delivered
   approved --> pending_review: new EditPlan revision
   delivered --> pending_review: later edit
@@ -269,7 +267,7 @@ No path, command, layout, filtergraph, SQL, code or script is accepted from the 
 
 For MPEG-TS/long-GOP input, system-owned FFmpeg argv performs a bounded early seek plus accurate output seek. Audio and video keep their relative PTS through the filtergraph; only the muxed result is moved onto the clip timeline. This prevents independent `STARTPTS` resets from hiding undecodable HEVC lead-in frames and creating a permanent lip-sync offset.
 
-Review proxies always use the `none` text mode and expose editorial fields separately. Final renders use `title_and_captions` only for the approved current revision. The text mode participates in the render fingerprint.
+Clean review/delivery masters always use the `none` text mode and expose editorial fields separately. Optional burned derivatives use `title_and_captions` only for the approved current revision. The text mode participates in the render fingerprint; Delivery reuses the clean current master without a post-approval render.
 
 ## Revision and invalidation
 

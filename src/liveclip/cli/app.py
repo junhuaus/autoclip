@@ -377,7 +377,7 @@ def rerender(
         typer.Option("--wait/--no-wait", help="Render in this foreground process."),
     ] = True,
 ) -> None:
-    """Queue the approved current revision for a final portrait render."""
+    """Queue the current revision for a clean review and delivery master render."""
 
     settings = get_settings()
     try:
@@ -387,7 +387,7 @@ def rerender(
                 clip_id,
                 RenderRequest(
                     expected_revision=current.current_revision,
-                    kind="final",
+                    kind="proxy",
                 ),
             )
             typer.echo(f"Render ID: {queued.render_id}")
@@ -531,7 +531,7 @@ def demo() -> None:
     typer.echo(f"Project status: {result.project_status}")
     typer.echo(f"Candidates: {result.candidate_count}")
     typer.echo(f"Source video: {result.source_video.resolve()}")
-    typer.echo(f"Final video: {result.final_video.resolve()}")
+    typer.echo(f"Delivery master: {result.final_video.resolve()}")
     typer.echo(f"Contact sheet: {result.contact_sheet.resolve()}")
     typer.echo(f"Quality report: {result.quality_report.resolve()}")
     typer.echo(f"Delivery directory: {result.delivery_dir.resolve()}")

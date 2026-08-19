@@ -147,6 +147,18 @@ def test_persistent_mock_pipeline_reaches_pending_review_with_real_proxies(
             ).all()
             assert len(renders) == 3
             assert {status for status, _ in renders} == {RenderStatus.SUCCEEDED.value}
+            assert (
+                connection.scalar(
+                    select(func.count())
+                    .select_from(AssetRow)
+                    .where(AssetRow.kind == "clip_subtitle_srt")
+                )
+                == 3
+            )
+            assert not any(
+                value is None
+                for value in connection.scalars(select(RenderJobRow.subtitle_asset_id))
+            )
             assert set(connection.scalars(select(AssetRow.status))) == {AssetStatus.COMMITTED.value}
         for _, relative_path in renders:
             proxy_path = data_dir / created.project_id / str(relative_path)

@@ -207,12 +207,10 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await expect(editor.getByText("当前 revision 尚无可播放视频")).toBeVisible();
   await expect(editor.getByText("历史 r1")).toBeVisible();
 
-  await editor.getByRole("button", { name: "批准" }).click();
-  await expect(editor.getByText("已批准")).toBeVisible();
   const acceptedRender = page.waitForResponse(
     (response) => response.request().method() === "POST" && /\/api\/v1\/clips\/.+\/render$/.test(new URL(response.url()).pathname),
   );
-  await editor.getByRole("button", { name: "渲染最终视频" }).click();
+  await editor.getByRole("button", { name: "渲染审核/交付母版" }).click();
   const renderResponse = await acceptedRender;
   expect(renderResponse.status()).toBe(202);
   const render = await renderResponse.json() as { resource_id: string };
@@ -225,8 +223,10 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
     },
     { success: "succeeded", failures: new Set(["failed", "stale"]) },
   );
-  await expect(editor.getByText("最终视频渲染状态已更新。")).toBeVisible();
-  await expect(editor.getByText("当前 revision 2 · 最终视频")).toBeVisible();
+  await expect(editor.getByText("审核/交付母版渲染状态已更新。")).toBeVisible();
+  await expect(editor.getByText(/当前 revision 2 · 干净审核\/交付母版/)).toBeVisible();
+  await editor.getByRole("button", { name: "批准" }).click();
+  await expect(editor.getByText("已批准")).toBeVisible();
 
   const createDelivery = page.getByRole("button", { name: "创建新交付版本" });
   await expect(createDelivery).toBeEnabled();
@@ -278,7 +278,7 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await releaseCreateForm.getByLabel("高光时刻").selectOption({ index: 1 });
   await releaseCreateForm.getByLabel("目标平台").selectOption("douyin");
   await releaseCreateForm.getByLabel("发布账号").fill("真实 E2E 主账号");
-  await releaseCreateForm.getByLabel("视频与字幕").selectOption("burned");
+  await releaseCreateForm.getByLabel("视频与字幕").selectOption("clean_separate");
   const createdReleaseResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&

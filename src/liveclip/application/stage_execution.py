@@ -103,6 +103,7 @@ class ProxyRenderPersistence:
     height: int
     spec_fingerprint: str
     video_asset_id: str
+    subtitle_asset_id: str
     quality_report_asset_id: str
     contact_sheet_asset_id: str
 

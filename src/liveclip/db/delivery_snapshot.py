@@ -4,19 +4,24 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.engine import Connection
 
 from liveclip.db.models import (
     AssetRow,
     CandidateClipRow,
     EditPlanRevisionRow,
+    PipelineRunRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
     SourceMediaRow,
 )
 from liveclip.domain.state_transitions import AssetStatus, RenderStatus, ReviewStatus
+from liveclip.renderer.contracts import (
+    has_current_manual_render_contract,
+    is_clean_delivery_master,
+)
 
 
 class DeliverySetError(RuntimeError):
@@ -66,8 +71,10 @@ def load_eligible_delivery_set(
             ProjectRow.revision_epoch,
             SourceMediaRow.filename,
             SourceMediaRow.sha256,
+            PipelineRunRow.config_json,
         )
         .join(SourceMediaRow, SourceMediaRow.project_id == ProjectRow.id)
+        .join(PipelineRunRow, PipelineRunRow.id == ProjectRow.current_pipeline_run_id)
         .where(ProjectRow.id == project_id)
     ).one_or_none()
     if project is None or project.current_pipeline_run_id is None:
@@ -106,10 +113,12 @@ def load_eligible_delivery_set(
         ).one_or_none()
         if decision is None or decision.status != ReviewStatus.APPROVED.value:
             continue
-        render = connection.execute(
+        renders = connection.execute(
             select(
                 RenderJobRow.id,
+                RenderJobRow.kind,
                 RenderJobRow.spec_fingerprint,
+                RenderJobRow.spec_json,
                 RenderJobRow.revision_epoch,
                 RenderJobRow.asset_id,
                 RenderJobRow.subtitle_asset_id,
@@ -120,12 +129,33 @@ def load_eligible_delivery_set(
                 RenderJobRow.candidate_clip_id == candidate.id,
                 RenderJobRow.edit_plan_revision_id == candidate.revision_id,
                 RenderJobRow.edit_plan_revision == candidate.current_revision,
-                RenderJobRow.kind == "final",
+                RenderJobRow.kind.in_(("proxy", "final")),
                 RenderJobRow.status == RenderStatus.SUCCEEDED.value,
             )
-            .order_by(RenderJobRow.created_at.desc(), RenderJobRow.id.desc())
-            .limit(1)
-        ).one_or_none()
+            .order_by(
+                case((RenderJobRow.kind == "proxy", 0), else_=1),
+                RenderJobRow.created_at.desc(),
+                RenderJobRow.id.desc(),
+            )
+        ).all()
+        render = next(
+            (
+                item
+                for item in renders
+                if (
+                    item.kind == "proxy"
+                    and is_clean_delivery_master(
+                        spec=item.spec_json,
+                        pipeline_config=project.config_json,
+                    )
+                )
+                or (
+                    item.kind == "final"
+                    and has_current_manual_render_contract("final", item.spec_json)
+                )
+            ),
+            None,
+        )
         if (
             render is None
             or render.asset_id is None
@@ -133,7 +163,7 @@ def load_eligible_delivery_set(
             or render.quality_report_asset_id is None
             or render.contact_sheet_asset_id is None
         ):
-            raise DeliverySetError("an approved clip lacks its current successful final render")
+            raise DeliverySetError("an approved clip lacks its current successful delivery master")
         asset_ids = (
             str(render.asset_id),
             str(render.subtitle_asset_id),
@@ -165,9 +195,11 @@ def load_eligible_delivery_set(
         quality = by_id.get(str(render.quality_report_asset_id))
         contact = by_id.get(str(render.contact_sheet_asset_id))
         if video is None or subtitle is None or quality is None or contact is None:
-            raise DeliverySetError("an approved clip has missing final render assets")
+            raise DeliverySetError("an approved clip has missing delivery-master assets")
         expected_kinds = {
-            str(render.asset_id): "final_video",
+            str(render.asset_id): (
+                "review_proxy" if str(render.kind) == "proxy" else "final_video"
+            ),
             str(render.subtitle_asset_id): "clip_subtitle_srt",
             str(render.quality_report_asset_id): "render_quality_report",
             str(render.contact_sheet_asset_id): "render_contact_sheet",
@@ -187,7 +219,7 @@ def load_eligible_delivery_set(
             or not isinstance(asset.validation_json, dict)
             for asset in (video, subtitle, quality, contact)
         ):
-            raise DeliverySetError("an approved clip final render assets are stale or invalid")
+            raise DeliverySetError("an approved clip delivery-master assets are stale or invalid")
         if (
             video.validation_json.get("full_decode") != "passed"
             or subtitle.validation_json.get("timeline") != "clip_relative_ms"
@@ -196,7 +228,7 @@ def load_eligible_delivery_set(
             or not isinstance(contact.validation_json.get("frames"), int)
             or int(contact.validation_json["frames"]) < 3
         ):
-            raise DeliverySetError("an approved clip final render quality contract is invalid")
+            raise DeliverySetError("an approved clip delivery-master quality contract is invalid")
         eligible.append(
             EligibleDeliveryClip(
                 clip_id=str(candidate.id),

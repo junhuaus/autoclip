@@ -2,6 +2,8 @@
 
 Status: accepted
 
+Amended by ADR-020: the clean review artifact is now the standard delivery master rather than a disposable preview.
+
 Date: 2026-08-05
 
 ## Context
