@@ -19,6 +19,6 @@ it("makes a stale proxy unmistakable and does not play it as current media", () 
 
   expect(screen.getByText("旧母版已失效")).toBeInTheDocument();
   expect(screen.getByText(/旧母版不能用于交付/)).toBeInTheDocument();
-  expect(screen.getByText("代理已失效")).toHaveAttribute("data-status", "stale");
+  expect(screen.getByText("母版已失效")).toHaveAttribute("data-status", "stale");
   expect(screen.queryByRole("video")).not.toBeInTheDocument();
 });

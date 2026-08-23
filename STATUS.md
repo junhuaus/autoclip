@@ -1,18 +1,152 @@
 # LiveClip status snapshot
 
-Updated: 2026-08-18 21:07 PDT
+Updated: 2026-08-23 14:40 PDT
 
 Package compatibility baseline: `0.1.0`
 
-Current activity: the user-requested real `8-16-2.ts` slicing and delivery task
-is complete. After an explicit offline-approval request, all 15 unchanged
-revision-1 clips were approved, rendered and packaged as immutable Delivery
-`v001`. The user then changed the product workflow: selected clips now render
-one clean delivery-quality master before review; approval keeps that exact
-master and pending/rejected clips are omitted. The implementation, UI, CLI,
-specification, ADR and regressions are being closed under M16. Highlight Agent
-Skill v2 research remains isolated and does not modify this production Pipeline
-or its database/media state.
+Current activity: M22 adds recommended `semantic_windowed` without changing Algorithm A, frozen B v1,
+experimental B v2 or Full-first comparison mode. Discovery uses 120-second logical windows at a
+60-second step; four windows share one deduplicated 300-second batch request and a half-open 240-second
+candidate-start ownership interval. Either neighboring side reporting an unfinished outside-edge topic
+triggers one fixed 180-second adjacent-window union. Uncached base batches run with bounded concurrency
+five and independent semantic cache keys.
+
+Discovery returns zero or many candidates and structured boundary evidence without final scoring.
+Global Review receives candidate source transcript, roughly 30 seconds of local context and boundary
+results rather than rereading the whole livestream. It owns semantic duplicate/merge/split judgment,
+shortest-complete boundaries and the common six-part score. Python performs only deterministic Schema,
+cue/time, ownership, continuous 45–90 second range, strict `>75`, risk, Top-N, cache/statistics and
+FFmpeg work; it has no keyword, punctuation, overlap-ratio or five-second semantic rule.
+
+The versioned Prompt bundle loads `main → common → stage → profile`; production
+never loads the `8-16-3` eval. Discovery and Global Review have checked-in JSON
+Schemas, independent hashes/caches, bounded repair with the invalid result and
+allowed IDs, and failure/repair telemetry that excludes transcript text. Config
+schema v5, CLI/API/Web, direct SRT evaluation and no-render Pipeline integration
+are implemented. The Web selects overlapping semantic windows for new projects while the bare
+CLI/API default remains A for backward-compatible automation.
+
+The real `8-16-3` windowed chain is complete. The first cold phase executed all 20 base batches and
+stopped honestly on a contradictory candidate reference; an exact compatible checkpoint continuation
+then ran seven 180-second boundary bridges and Global Review with bounded repair. Together the two
+phases made 34 Agent calls (six repair calls), used 555,932 input and 111,000 output tokens, and took
+932.698 seconds. It produced 28 Discovery candidates and 14 kept clips (3 clear, 11 manual), touching
+at least 9/12 fixture-only strong anchors. The later `r23` plan is a zero-call deterministic replay of
+those exact validated Discovery and Global Review artifacts, not a falsely claimed cold run.
+
+Offline editorial review selected 12 of the 14 kept clips for an evaluation Delivery, rejected the
+redundant abdominal-preparation clip and repeated absolute-talent clip, and shortened only the
+breathing answer through audited cue IDs 179–193. The generic adapter contains no source-specific
+timestamps: it binds review to the exact plan SHA, remaps cue IDs and validates duration before using
+the normal renderer and Delivery publisher. All 12 real 1088×1920 H.264/AAC outputs probe between
+45.08 and 88.52 seconds; the breathing output is 68.45 seconds and the complete four-step output is
+88.52 seconds. Eleven unchanged renders were reused only after exact source/range/hash checks; the
+corrected four-step interval was freshly rendered. Checksums and ZIP integrity pass, and
+the 12-frame contact sheet was viewed without black frames, rotation or crop defects. Delivery `v001`
+contains 12 MP4s, 12 SRTs, `manifest.json`, `checksums.sha256`, root `index.html` and `delivery.zip`.
+The superseding reviewed package `r26-web-metadata` also carries the same editorial fields shown by
+the Web review card: all 12 clips have a high-impact `hook`, 1–5 transcript-grounded keyword
+occurrences, clip-relative/source timestamps and honest word/segment precision in both manifest and
+the file-only index. The normal Web-approved Delivery path now preserves those fields too.
+The in-app Browser runtime exposed no browser, so this exact file page was structurally/resource
+checked rather than visually claimed; the repository Mock and real-backend Chrome E2Es still passed.
+
+The 701-cue, 4,659.820-second `8-16-3-full-transcript.txt` fixture selects
+`full_context` under a 128K/0.58 budget. Null normalization fields are omitted
+from model transport while cue ID, original text, exact milliseconds and any
+actual normalized text/note remain present; the final Global request is 67,696
+estimated tokens against a 74,240-token budget, so both stages read the full
+transcript instead of 78 small windows or fallback candidate contexts.
+
+The superseding real `gpt-5.6-sol` high-reasoning regression is
+`data/evaluations/8-16-3-semantic-global-boundary-r20-global-only-sol-high-2026-08-20`.
+It reuses a strictly compatible, validated full-context Discovery artifact (37 semantic topics,
+11 candidates) and runs one full-context Global Review plus one bounded structural repair. The final
+set is 3 automatic + 7 manual clips and touches 9/12 fixture-only strong anchors. The breathing
+explanation is exactly 00:15:32.500–00:16:40.950; the four-step framework is exactly
+00:20:06.950–00:21:35.440. The old sales/welcome padding, unfinished “但是” ending and medically
+reframed title are absent. All 10 kept intervals are continuous and 45–90 seconds; all have a
+complete source ending, first payoff at the end cue, shortest-complete boundary and faithful source
+stance. Automatic score `<=75`, automatic `medical_diagnosis_high`, duplicate risk types and missing
+raw rejection audit are all zero. The evaluation-ready report includes exact times, per-clip/full
+transcript, coverage and immutable Prompt/model/call/token/latency evidence.
+
+Final gates pass: `make lint`; 842 Python tests; 58 Web tests; Mock Chrome 1/1;
+and isolated real API/Worker/SQLite/FFmpeg Chrome 1/1. The real semantic
+evaluation and reviewed render/Delivery are now both complete. Historical A/B media and Delivery
+remain unchanged.
+
+Historical M18 activity: M18 completed a user-selectable clipping A/B test while
+the completed real `8-16-2.ts` Project and immutable Delivery `v001` remain
+untouched. Algorithm A is the existing rules → per-candidate AI → forced Top-N
+path. Algorithm B is separate: a versioned semantic Skill evaluates timestamped
+`2L` windows at stride `L`, may retain a transcript-aligned interval of at most
+`L`, and may return no clip rather than padding low-value output. Only scores
+strictly greater than the configurable default threshold 75 are retained. The new-project
+Web dialog exposes A/B and defaults B's maximum to 60 seconds (120-second input
+window, 60-second overlap/stride); A retains its 30/90-second defaults. Strict
+config v3 records the choice while exact historical v2 snapshots adapt to A in
+memory without changing stored fingerprints. Focused tests, lint and the full
+Python/Web suites pass. The controlled Chrome flow passed before later host
+Chrome launches began aborting at startup; the final real-browser rerun is
+therefore not claimed. The user authorized and the system completed a B-only
+real `8-16-3.ts` experiment; A was not rerun.
+
+## Real 8-16-3 Algorithm B checkpoint
+
+`input/8-16-3.ts` is byte-identical to the A baseline `input/8-16-2.ts`: both
+are 2,229,033,280 bytes with SHA-256
+`6cdac49603cb5e25faf6cb33523aa8c46e28398770f02345a05ca526b503f417`.
+Project `5425c3a68495459d9d1beafd8294c757`, generation-2 PipelineRun
+`e93c703f15214d24ab21587caa6a3dcf`, is the valid B result. It completed all
+stages at 100% using 78 timestamped 120-second windows at a 60-second stride,
+strict threshold `>75`, and versioned Skill `semantic_window_v1`. Forty-five
+Agent proposals exceeded 75; after validation, overlap filtering and the Top-15
+ceiling, 15 were retained without padding.
+
+Compared with the existing A portfolio, B raises the selected score range from
+74–85 to 82–84 and reduces mean duration from 56.7 to 35.5 seconds. The A clip
+“老师点评学员第二节课” is absent: B explicitly scored nearby individual-feedback
+and classroom-interaction material at zero because it lacked independent public
+value. One remaining editorial issue is disclosed: B ranks 1 and 5 overlap by
+6.9 seconds/38.2% of the shorter interval and both concern abdominal movement,
+though the latter continues from inhalation into exhalation.
+
+The valid run reused all 55 generation-1 ASR results and made 79 Codex calls
+(77 initial success, one invalid initial response, one successful repair), with
+zero retry and no degraded selection. All 15 1080x1920 H.264/AAC masters pass
+automatic quality and full decode; three contact sheets were viewed as coherent
+portrait crops. The initial B generation remains audit evidence: its first
+nested Codex call was denied by the restricted host sandbox, so the B contract
+discarded all degraded results and produced zero clips; it is not the quality
+result. The valid host run then completed without rerunning A.
+
+Post-run WAL-safe backup
+`liveclip-post-8163-b-dd02a5a946fc443f9a90bae2baee5a58.sqlite3` has SHA-256
+`af43e781749d9814446afd56f2a0a5ad7bfa5843634f4a1814deef34355816b3`;
+Alembic head/integrity/foreign-key checks pass, and both source hashes remain
+unchanged. Full details are in
+`docs/verification/8-16-3-algorithm-b-2026-08-19.md`.
+
+The user then selected all 15 B clips for delivery without a separate approval
+step. Immutable Delivery `459c1f307a814a2abda87aff425c2911` / `v001`
+contains a root `index.html`, manifest, checksums, 15 MP4s, 15 SRTs and ZIP.
+ZIP SHA-256 is
+`26af5491c8ae49f77af4125f29f89f6fd83924e253f04c5c10a73fa634ae6384`;
+ZIP integrity, every package checksum and independent full decode of all 15
+MP4s pass. Host Chrome opened the file-only index, displayed all 15 cards and
+played clip 1 through its 18.08-second end without a media error.
+
+Delivery exposed and regression-tested one compatibility gap: existing
+pipeline-generated masters bind Assets to the exact successful stage Task input
+fingerprint, whereas the new packager originally accepted only a per-render
+fingerprint. New pipeline Assets now use the render fingerprint; historical
+ones are accepted only with exact successful Task/Attempt provenance. The B
+masters were reused without rerendering. Post-delivery WAL-safe backup
+`liveclip-post-8163-b-delivery-93ccb331602447e2b14cf6824e83913b.sqlite3`
+has SHA-256
+`f486701b28eabff95a851695bf7090ccc256c1d2123ec1f2759a99e5e0d52483`;
+database checks pass.
 
 ## Real 8-16-2 slicing checkpoint
 
@@ -105,6 +239,33 @@ return HTTP 200. A compatibility fingerprint check initially exposed existing
 `8-16-2` v001 as `ready_for_delivery`; preserving the v2 snapshot payload for
 unchanged legacy-final fallback restored the truthful `delivered` state without
 changing the immutable ZIP or its SHA-256.
+
+## M17 selection-first UI checkpoint
+
+ADR-021 makes the ordinary board a keep/discard workflow. One persisted
+“选入交付” checkbox replaces per-clip approval/rejection buttons and the second
+EditPackage selection panel; unselected clips are silently excluded. The
+bounded 0–100 score is editable through the versioned clip form. As with every
+EditPlan change, a score edit advances the revision, invalidates its old master
+and temporarily disables selection until that exact revision is rendered.
+Release approval, collaboration comments, historical EditPackages and the
+append-only compatibility review records remain available outside this simple
+path.
+
+New formal Delivery versions contain the selected clean MP4/SRT pairs,
+`manifest.json`, a deterministic CSP-constrained root `index.html`,
+`checksums.sha256` and optional ZIP. Retry validation re-derives the HTML and
+checksums and validates the exact disk/ZIP member set. Existing immutable
+Delivery versions are neither rewritten nor relabeled.
+
+Final gates pass: `make lint`, 730/730 Python tests, 57/57 Web tests, Web
+typecheck and the controlled Chrome selection/edit-score/rerender/export flow.
+The FFmpeg-backed Demo produced and verified a five-member one-clip Delivery
+including the new index and checksums. Local API/Web/Worker were restarted with
+the audited project-local Codex 0.146.0 runtime; API health reports all Providers
+ready and both API/Web return HTTP 200. The optional in-app
+visual pass is not claimed because browser discovery returned no connected
+instance.
 
 ## Highlight Agent Skill v2 iteration-2 rejected checkpoint
 

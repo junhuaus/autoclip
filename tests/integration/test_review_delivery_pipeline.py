@@ -24,6 +24,7 @@ from liveclip.application.stage_runner import StageTaskRunner
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.base import Base
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
+from liveclip.db.delivery_snapshot import load_eligible_delivery_set
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import AssetRow, DeliveryRow, RenderJobRow, TaskAttemptRow, TaskRow
 from liveclip.db.pipeline_repository import SqlAlchemyPipelineRepository
@@ -131,6 +132,59 @@ def test_persistent_preapproval_master_and_delivery_reuse_flow(tmp_path: Path) -
         assert initial.current_revision == 1
         assert any(render.status == RenderStatus.SUCCEEDED for render in initial.renders)
 
+        with engine.begin() as connection:
+            pipeline_master = connection.execute(
+                select(
+                    RenderJobRow.id,
+                    RenderJobRow.task_id,
+                    RenderJobRow.spec_fingerprint,
+                    RenderJobRow.asset_id,
+                    RenderJobRow.subtitle_asset_id,
+                    RenderJobRow.quality_report_asset_id,
+                    RenderJobRow.contact_sheet_asset_id,
+                ).where(
+                    RenderJobRow.candidate_clip_id == clip_id,
+                    RenderJobRow.kind == "proxy",
+                    RenderJobRow.status == RenderStatus.SUCCEEDED.value,
+                )
+            ).one()
+            pipeline_asset_ids = tuple(
+                str(asset_id)
+                for asset_id in (
+                    pipeline_master.asset_id,
+                    pipeline_master.subtitle_asset_id,
+                    pipeline_master.quality_report_asset_id,
+                    pipeline_master.contact_sheet_asset_id,
+                )
+            )
+            pipeline_asset_fingerprints = tuple(
+                connection.scalars(
+                    select(AssetRow.input_fingerprint).where(AssetRow.id.in_(pipeline_asset_ids))
+                )
+            )
+            assert set(pipeline_asset_fingerprints) == {pipeline_master.spec_fingerprint}
+            historical_task_fingerprint = connection.scalar(
+                select(TaskRow.input_fingerprint).where(TaskRow.id == pipeline_master.task_id)
+            )
+            assert historical_task_fingerprint is not None
+            assert historical_task_fingerprint != pipeline_master.spec_fingerprint
+            connection.execute(
+                update(AssetRow)
+                .where(AssetRow.id.in_(pipeline_asset_ids))
+                .values(input_fingerprint=historical_task_fingerprint)
+            )
+        review_service.review_clip(
+            clip_id,
+            ReviewCommand(expected_revision=1, status=ReviewStatus.APPROVED),
+        )
+        with engine.connect() as connection:
+            historical_pipeline_snapshot = load_eligible_delivery_set(
+                connection,
+                created.project_id,
+            )
+        assert len(historical_pipeline_snapshot.clips) == 1
+        assert historical_pipeline_snapshot.clips[0].render_job_id == pipeline_master.id
+
         revised = review_service.revise_clip(
             clip_id,
             ClipPatch(expected_revision=1, title="人工确认后的高光标题"),
@@ -221,6 +275,14 @@ def test_persistent_preapproval_master_and_delivery_reuse_flow(tmp_path: Path) -
         assert manifest["delivery_version"] == "v001"
         assert manifest["snapshot_fingerprint"]
         assert len(manifest["clips"]) == 1
+        assert manifest["clips"][0]["hook"]
+        assert manifest["clips"][0]["reason"]
+        assert manifest["clips"][0]["keywords"]
+        index_html = (project_dir / "deliveries" / "v001" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        assert "高光语句" in index_html
+        assert "编辑关键词" in index_html
         assert zip_path.is_file()
         with zipfile.ZipFile(zip_path) as archive:
             assert archive.testzip() is None

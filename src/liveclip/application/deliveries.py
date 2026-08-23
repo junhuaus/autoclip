@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import LeaseIdentity
+from liveclip.domain.keywords import KeywordOccurrence
 from liveclip.domain.state_transitions import DeliveryStatus
 
 
@@ -56,6 +57,10 @@ class DeliveryWorkClip:
     video_sha256: str
     subtitle_relative_path: str
     subtitle_sha256: str
+    hook: str = ""
+    reason: str = ""
+    risk_flags: tuple[str, ...] = ()
+    keywords: tuple[KeywordOccurrence, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

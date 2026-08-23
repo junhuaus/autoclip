@@ -11,7 +11,6 @@ import type {
   ProjectSearchCriteria,
   ProjectSnapshot,
   ReleaseItemSnapshot,
-  ReviewActionRequest,
   SavedProjectView,
 } from "../src/types";
 import {
@@ -26,7 +25,6 @@ import {
 test("creates, reviews, rerenders and downloads one visible delivery flow", async ({ page }, testInfo) => {
   let created = false;
   let deliveryCreated = false;
-  let editPackageCreated = false;
   let renderPollCount = 0;
   let releaseItem: ReleaseItemSnapshot | null = null;
   let project: ProjectSnapshot = initialProject;
@@ -100,17 +98,6 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
-    if (path === "/api/v1/edit-packages/package-1/download") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/zip",
-        headers: {
-          "Content-Disposition": 'attachment; filename="liveclip-edit-package-v001.zip"',
-        },
-        body: "PK\u0003\u0004mock-liveclip-edit-package",
-      });
-      return;
-    }
     if (path === "/api/v1/release-packages/release-package-1/download") {
       await route.fulfill({
         status: 200,
@@ -174,6 +161,11 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       return;
     }
     if (path === "/api/v1/jobs" && method === "POST") {
+      expect(request.postDataJSON()).toMatchObject({
+        clipping_algorithm: "a",
+        minimum_clip_seconds: 30,
+        maximum_clip_seconds: 90,
+      });
       created = true;
       await route.fulfill({
         status: 202,
@@ -312,33 +304,6 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
     }
     if (path === "/api/v1/projects/project-1/deliveries" && method === "GET") {
       await route.fulfill({ json: deliveryCreated ? [succeededDelivery] : [] });
-      return;
-    }
-    const editPackage = {
-      edit_package: {
-        edit_package_id: "package-1",
-        project_id: "project-1",
-        task_id: "edit-package-task-1",
-        requested_by_user_id: "user-local-admin",
-        version: 1,
-        package_version: "v001",
-        status: "succeeded",
-        clip_count: 1,
-        preset: "clean_editing",
-        content: "full",
-        manifest_asset_id: "edit-package-manifest-1",
-        zip_asset_id: "edit-package-zip-1",
-        include_zip: true,
-        error_code: null,
-        safe_error_message: null,
-        created_at: "2026-08-15T00:00:00Z",
-        completed_at: "2026-08-15T00:00:01Z",
-      },
-      download_url:
-        "/api/v1/edit-packages/package-1/download?expires=9999999999&signature=package-signed",
-    };
-    if (path === "/api/v1/projects/project-1/edit-packages" && method === "GET") {
-      await route.fulfill({ json: editPackageCreated ? [editPackage] : [] });
       return;
     }
     if (path === "/api/v1/release-presets" && method === "GET") {
@@ -523,30 +488,6 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
-    if (path === "/api/v1/projects/project-1/edit-packages" && method === "POST") {
-      expect(request.postDataJSON()).toEqual({
-        items: [{ clip_id: "clip-1", expected_revision: 1 }],
-        preset: "clean_editing",
-        content: "full",
-        include_zip: true,
-      });
-      editPackageCreated = true;
-      await route.fulfill({
-        status: 202,
-        json: {
-          resource_type: "edit_package",
-          resource_id: "package-1",
-          task_id: "edit-package-task-1",
-          status: "queued",
-          status_url: "/api/v1/edit-packages/package-1",
-        },
-      });
-      return;
-    }
-    if (path === "/api/v1/edit-packages/package-1" && method === "GET") {
-      await route.fulfill({ json: editPackage });
-      return;
-    }
     if (path === "/api/v1/projects/project-1/deliveries" && method === "POST") {
       deliveryCreated = true;
       await route.fulfill({
@@ -580,6 +521,7 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
           plan: {
             ...clipDetail.clip.plan,
             title: body.title ?? clipDetail.clip.plan.title,
+            score: body.score ?? clipDetail.clip.plan.score,
             source_start_ms: body.source_start_ms ?? clipDetail.clip.plan.source_start_ms,
             source_end_ms: body.source_end_ms ?? clipDetail.clip.plan.source_end_ms,
           },
@@ -594,7 +536,9 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
         clip: {
           ...clipSummary.clip,
           edit_plan_revision: 2,
+          review_status: "pending_review",
           title: clipDetail.clip.plan.title,
+          score: clipDetail.clip.plan.score,
           source_start_ms: clipDetail.clip.plan.source_start_ms,
           source_end_ms: clipDetail.clip.plan.source_end_ms,
           proxy_status: "stale",
@@ -607,23 +551,36 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       await route.fulfill({ json: clipDetail });
       return;
     }
-    if (path === "/api/v1/clips/clip-1/review" && method === "POST") {
-      const body = request.postDataJSON() as ReviewActionRequest;
-      expect(body).toEqual({ expected_revision: 2, status: "approved" });
+    if (path === "/api/v1/projects/project-1/reviews/batch" && method === "POST") {
+      const body = request.postDataJSON() as {
+        items: Array<{ clip_id: string; expected_revision: number; status: string; reason?: string }>;
+      };
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0]).toMatchObject({
+        clip_id: "clip-1",
+        expected_revision: clipSummary.clip.edit_plan_revision,
+      });
+      const selected = body.items[0]?.status === "approved";
       clipDetail = {
         ...clipDetail,
         clip: {
           ...clipDetail.clip,
-          review: { status: "approved", reason: null, decided_at: "2026-08-04T00:02:00Z" },
+          review: {
+            status: selected ? "approved" : "rejected",
+            reason: selected ? null : "未选入交付",
+            decided_at: "2026-08-04T00:02:00Z",
+          },
           allowed_actions: ["edit", "approve", "reject", "render_proxy", "render_final", "deliver"],
         },
       };
       clipSummary = {
         ...clipSummary,
-        clip: { ...clipSummary.clip, review_status: "approved" },
+        clip: { ...clipSummary.clip, review_status: selected ? "approved" : "rejected" },
       };
-      project = { ...project, status: "ready_for_delivery" };
-      await route.fulfill({ json: clipDetail });
+      project = { ...project, status: selected ? "ready_for_delivery" : "pending_review" };
+      await route.fulfill({
+        json: { schema_version: "1", project_id: "project-1", clips: [clipDetail] },
+      });
       return;
     }
     if (path === "/api/v1/clips/clip-1/render" && method === "POST") {
@@ -668,6 +625,20 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
             "master-video-1": "/api/v1/media/master-video-1?expires=9999999999&signature=master-signed",
           },
         };
+        clipSummary = {
+          ...clipSummary,
+          clip: {
+            ...clipSummary.clip,
+            proxy_status: "succeeded",
+            proxy_asset_id: "master-video-1",
+          },
+          proxy_media_url:
+            "/api/v1/media/master-video-1?expires=9999999999&signature=master-signed",
+          download_video_url:
+            "/api/v1/clips/clip-1/download/video?expires=9999999999&signature=master-signed",
+          download_subtitle_url:
+            "/api/v1/clips/clip-1/download/subtitle?expires=9999999999&signature=master-signed",
+        };
       }
       await route.fulfill({
         json: {
@@ -691,6 +662,12 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await expect(page.getByText(/Mock ASR/)).toHaveCount(0);
   await page.getByRole("button", { name: "＋ 新建项目" }).click();
   await expect(page.getByRole("button", { name: "创建并开始处理" })).toBeEnabled();
+  await page.getByLabel(/B v1 · 历史语义窗口/).check();
+  await expect(page.getByLabel("最短秒数")).toHaveValue("8");
+  await expect(page.getByLabel("理想切片秒数")).toHaveValue("60");
+  await expect(page.getByLabel("最长切片秒数")).toHaveValue("60");
+  await expect(page.getByLabel("保留分数须高于")).toHaveValue("75");
+  await page.getByLabel(/A · 经典算法/).check();
   await page.getByLabel("本地视频绝对路径").fill("/Users/demo/Videos/live.mp4");
   await page.getByRole("button", { name: "创建并开始处理" }).click();
 
@@ -717,33 +694,16 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   expect((captionBox as { y: number }).y).toBeGreaterThanOrEqual(
     (mainBox as { y: number; height: number }).y + (mainBox as { height: number }).height - 1,
   );
-  const proxy = page.getByLabel("原始高光标题 审核交付母版");
+  const proxy = page.getByLabel("原始高光标题 预览交付母版");
   await expect(proxy).toHaveAttribute("src", /signature=signed/);
   await expect(firstCard.getByRole("link", { name: "下载 MP4" })).toBeVisible();
   await expect(firstCard.getByRole("link", { name: "下载 SRT" })).toBeVisible();
 
-  await firstCard.getByLabel("选择导出").check();
-  await expect(page.getByText("已选 1 条用于剪辑交接")).toBeVisible();
-  await page.getByRole("button", { name: "生成所选剪辑交接包" }).click();
-  const handoffDownload = page.getByRole("link", { name: "下载剪辑交接 ZIP" });
-  await expect(handoffDownload).toHaveAttribute("href", /signature=package-signed/);
-  const handoffHref = await handoffDownload.getAttribute("href");
-  const handoffArchive = await page.evaluate(async (href) => {
-    const response = await fetch(href);
-    const body = new Uint8Array(await response.arrayBuffer());
-    return {
-      status: response.status,
-      disposition: response.headers.get("Content-Disposition"),
-      magic: Array.from(body.slice(0, 2)),
-    };
-  }, handoffHref as string);
-  expect(handoffArchive).toEqual({
-    status: 200,
-    disposition: 'attachment; filename="liveclip-edit-package-v001.zip"',
-    magic: [0x50, 0x4b],
-  });
+  await firstCard.getByLabel("选入交付").click();
+  await expect(page.getByLabel("交付选择").getByText("已选 1 条", { exact: true })).toBeVisible();
+  await expect(page.getByText("已更新 1 条交付选择。")).toBeVisible();
 
-  await page.getByRole("button", { name: "审核和编辑" }).click();
+  await page.getByRole("button", { name: "编辑详情" }).click();
   const editor = page.locator("section.clip-editor");
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("heading", { name: "协作批注" })).toBeVisible();
@@ -756,19 +716,20 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
   await expect(editor.getByText("浏览器协作回复")).toBeVisible();
   await editor.getByRole("button", { name: "标记已解决" }).click();
   await expect(editor.locator(".comment-status")).toHaveText("已解决");
-  await editor.getByLabel("标题").fill("浏览器审核后的标题");
+  await editor.getByLabel("标题").fill("浏览器选择后的标题");
+  await editor.getByLabel("评分").fill("88.5");
   await editor.getByLabel("源开始（ms）").fill("1200");
   await editor.getByLabel("文本").fill("浏览器逐 cue 修改字幕");
   await editor.getByRole("button", { name: "保存为新 revision" }).click();
   await expect(editor.getByText(/旧 revision 的 1 个渲染已失效/)).toBeVisible();
   await expect(editor.getByText("历史 r1")).toBeVisible();
 
-  await editor.getByRole("button", { name: "渲染审核/交付母版" }).click();
-  await expect(editor.getByText("审核/交付母版渲染状态已更新。")).toBeVisible({ timeout: 8_000 });
-  await editor.getByRole("button", { name: "批准" }).click();
-  await expect(editor.getByText("已批准")).toBeVisible();
+  await editor.getByRole("button", { name: "渲染预览/交付母版" }).click();
+  await expect(editor.getByText("预览/交付母版渲染状态已更新。")).toBeVisible({ timeout: 8_000 });
+  await editor.getByRole("button", { name: "关闭详情" }).click();
+  await firstCard.getByLabel("选入交付").click();
 
-  const createDelivery = page.getByRole("button", { name: "创建新交付版本" });
+  const createDelivery = page.getByRole("button", { name: "导出所选高光" });
   await expect(createDelivery).toBeEnabled({ timeout: 8_000 });
   await createDelivery.click();
   const downloadLink = page.getByRole("link", { name: "下载 ZIP" });

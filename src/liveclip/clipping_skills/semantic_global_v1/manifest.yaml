@@ -1,0 +1,19 @@
+version: 1
+name: semantic_global_v1
+base:
+  - main.md
+  - common_rules.md
+stages:
+  discovery: stages/discovery.md
+  global_review: stages/global_review.md
+  boundary_refinement: stages/boundary_refinement.md
+repairs:
+  discovery: stages/repair.md
+  global_review: stages/global_review_repair.md
+  boundary_refinement: stages/boundary_refinement_repair.md
+profiles:
+  general: profiles/general.md
+  vocal_coach_live: profiles/vocal_coach_live.md
+evals:
+  vocal_coach_live:
+    - evals/8-16-3.md

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -9,7 +11,12 @@ import pytest
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
-from liveclip.application.pipeline import LeaseIdentity, PipelineRunConfig, PipelineService
+from liveclip.application.pipeline import (
+    LeaseIdentity,
+    PipelineRunConfig,
+    PipelineService,
+    load_persisted_pipeline_config,
+)
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.db.base import Base, new_id
 from liveclip.db.engine import create_sqlite_engine
@@ -38,6 +45,26 @@ from liveclip.domain.state_transitions import (
 )
 
 NOW = datetime(2026, 8, 3, 10, 0, tzinfo=UTC)
+
+V5_SEMANTIC_GLOBAL_FIELDS = (
+    "semantic_profile",
+    "semantic_discovery_skill_version",
+    "semantic_discovery_skill_sha256",
+    "semantic_global_review_skill_version",
+    "semantic_global_review_skill_sha256",
+    "semantic_full_context_budget_ratio",
+    "semantic_model_context_tokens",
+    "semantic_tokenizer_name",
+    "semantic_output_reserve_tokens",
+    "semantic_safety_margin_tokens",
+    "semantic_fallback_target_ms",
+    "semantic_fallback_minimum_ms",
+    "semantic_fallback_maximum_ms",
+    "semantic_fallback_context_guard_ms",
+    "semantic_global_context_ms",
+    "semantic_no_render",
+    "semantic_prompt_debug",
+)
 
 
 @pytest.fixture
@@ -75,6 +102,89 @@ def _create(service: PipelineService, suffix: str = "a") -> tuple[str, str]:
         max_stage_retries=3,
     )
     return created.project_id, created.run_id
+
+
+def test_exact_historical_v2_config_loads_as_algorithm_a() -> None:
+    payload = _config().model_dump(mode="json")
+    payload["schema_version"] = "2"
+    for field in (
+        *V5_SEMANTIC_GLOBAL_FIELDS,
+        "clipping_algorithm",
+        "semantic_skill_version",
+        "semantic_skill_sha256",
+        "semantic_score_threshold",
+        "semantic_target_clip_ms",
+        "semantic_continuous_merge_enabled",
+        "semantic_consolidation_skill_version",
+        "semantic_consolidation_skill_sha256",
+    ):
+        del payload[field]
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    restored = load_persisted_pipeline_config(
+        payload,
+        hashlib.sha256(serialized.encode()).hexdigest(),
+    )
+
+    assert restored.schema_version == "5"
+    assert restored.clipping_algorithm == "a"
+    assert restored.top_n == 3
+
+
+def test_exact_historical_v3_config_loads_without_continuous_merge() -> None:
+    current = _config()
+    payload = current.model_dump(mode="json")
+    payload["schema_version"] = "3"
+    for field in (
+        *V5_SEMANTIC_GLOBAL_FIELDS,
+        "semantic_target_clip_ms",
+        "semantic_continuous_merge_enabled",
+        "semantic_consolidation_skill_version",
+        "semantic_consolidation_skill_sha256",
+    ):
+        del payload[field]
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    restored = load_persisted_pipeline_config(
+        payload,
+        hashlib.sha256(serialized.encode()).hexdigest(),
+    )
+
+    assert restored.schema_version == "5"
+    assert restored.semantic_continuous_merge_enabled is False
+    assert restored.semantic_target_clip_ms == restored.maximum_clip_ms
+
+
+def test_exact_experimental_v4_config_loads_without_becoming_semantic_global() -> None:
+    payload = _config().model_dump(mode="json")
+    payload["schema_version"] = "4"
+    for field in V5_SEMANTIC_GLOBAL_FIELDS:
+        del payload[field]
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    restored = load_persisted_pipeline_config(
+        payload,
+        hashlib.sha256(serialized.encode()).hexdigest(),
+    )
+
+    assert restored.schema_version == "5"
+    assert restored.clipping_algorithm == "a"
+    assert restored.semantic_discovery_skill_sha256 == "0" * 64
 
 
 def test_pipeline_service_rechecks_data_directory_source_before_database_insert(

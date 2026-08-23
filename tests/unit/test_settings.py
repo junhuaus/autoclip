@@ -30,6 +30,17 @@ def test_real_runtime_defaults_to_openrouter_asr_and_codex_editing() -> None:
     assert settings.codex_executable == "codex"
 
 
+def test_settings_allow_full_context_high_reasoning_timeout() -> None:
+    settings = Settings(openai_request_timeout_seconds=1_200, _env_file=None)
+
+    assert settings.openai_request_timeout_seconds == 1_200
+
+
+def test_settings_reject_excessive_llm_timeout() -> None:
+    with pytest.raises(ValidationError):
+        Settings(openai_request_timeout_seconds=3_601, _env_file=None)
+
+
 @pytest.mark.parametrize(
     "provider", ("mock", "openai", "mock-codex", "openai-codex", "openrouter-codex")
 )
@@ -92,6 +103,57 @@ def test_mock_mode_remains_explicit_for_tests_and_demo() -> None:
     assert config.llm_model == "mock-llm-v1"
     assert config.asr_contract_version == MOCK_ASR_CONTRACT_VERSION
     assert config.llm_contract_version == MOCK_LLM_CONTRACT_VERSION
+
+
+def test_clipping_algorithm_b_has_an_independent_skill_fingerprint() -> None:
+    classic = pipeline_config_from_settings(Settings(ai_provider="mock", _env_file=None))
+    semantic = pipeline_config_from_settings(
+        Settings(ai_provider="mock", _env_file=None),
+        clipping_algorithm="b",
+        minimum_clip_seconds=8,
+        maximum_clip_seconds=60,
+    )
+
+    assert classic.clipping_algorithm == "a"
+    assert classic.editing_prompt_version == "editing_v1"
+    assert semantic.clipping_algorithm == "b"
+    assert semantic.editing_prompt_version == "semantic_window_v1"
+    assert semantic.editing_prompt_sha256 == semantic.semantic_skill_sha256
+    assert semantic.semantic_target_clip_ms == 60_000
+    assert semantic.semantic_continuous_merge_enabled is False
+    assert semantic.semantic_consolidation_skill_version == "semantic_continuous_v1"
+    assert semantic.semantic_consolidation_skill_sha256 != "0" * 64
+    assert semantic.semantic_score_threshold == 75
+    assert semantic.fingerprint != classic.fingerprint
+
+
+def test_clipping_algorithm_b_preserves_frozen_sixty_second_v1_contract() -> None:
+    semantic = pipeline_config_from_settings(
+        Settings(ai_provider="mock", _env_file=None),
+        clipping_algorithm="b",
+    )
+
+    assert semantic.semantic_target_clip_ms == 60_000
+    assert semantic.maximum_clip_ms == 60_000
+
+
+def test_semantic_global_defaults_to_full_first_vocal_duration_contract() -> None:
+    semantic = pipeline_config_from_settings(
+        Settings(ai_provider="mock", _env_file=None),
+        clipping_algorithm="semantic_global",
+        semantic_profile="vocal_coach_live",
+    )
+
+    assert semantic.minimum_clip_ms == 45_000
+    assert semantic.semantic_target_clip_ms == 60_000
+    assert semantic.maximum_clip_ms == 90_000
+    assert semantic.semantic_full_context_budget_ratio == 0.58
+    assert semantic.semantic_model_context_tokens == 128_000
+    assert semantic.semantic_discovery_skill_sha256 != "0" * 64
+    assert semantic.semantic_global_review_skill_sha256 != "0" * 64
+    assert semantic.semantic_discovery_skill_sha256 != (
+        semantic.semantic_global_review_skill_sha256
+    )
 
 
 def test_import_only_config_does_not_require_executing_codex_probe(

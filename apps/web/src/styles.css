@@ -765,11 +765,68 @@ textarea {
   gap: 1rem;
 }
 
+.algorithm-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.algorithm-picker legend {
+  grid-column: 1 / -1;
+  margin-bottom: 0.45rem;
+  font-weight: 800;
+}
+
+.algorithm-picker > label {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: rgba(4, 15, 17, 0.55);
+  cursor: pointer;
+}
+
+.algorithm-picker > label.selected {
+  border-color: rgba(88, 224, 193, 0.65);
+  background: rgba(88, 224, 193, 0.09);
+}
+
+.algorithm-picker input {
+  margin-top: 0.2rem;
+}
+
+.algorithm-picker span,
+.algorithm-picker small {
+  display: block;
+}
+
+.algorithm-picker small {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .field-triple,
+.field-quad,
+.field-five,
 .field-pair {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.8rem;
+}
+
+.field-quad {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.field-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .field-pair {
@@ -1275,6 +1332,16 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   background: rgba(8, 28, 29, 0.72);
 }
 
+.selection-bar {
+  align-items: center;
+  border-color: rgba(88, 224, 193, 0.42);
+  background: linear-gradient(90deg, rgba(37, 136, 119, 0.16), rgba(8, 28, 29, 0.72));
+}
+
+.selection-bar > .hint {
+  flex: 1 1 20rem;
+}
+
 .handoff-selection-bar {
   display: flex;
   flex-wrap: wrap;
@@ -1331,6 +1398,23 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #30b99d, #
   border: 1px solid var(--line);
   border-radius: 15px;
   background: rgba(7, 21, 23, 0.72);
+}
+
+.clip-card.clip-selected {
+  border-color: rgba(88, 224, 193, 0.72);
+  box-shadow: 0 0 0 1px rgba(88, 224, 193, 0.18), 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.clip-delivery-select {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.clip-delivery-select input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
 }
 
 .clip-card-main {
@@ -1842,6 +1926,10 @@ summary {
   margin-top: 1.25rem;
 }
 
+.action-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .action-card {
   display: flex;
   flex-direction: column;
@@ -2050,7 +2138,10 @@ summary {
 
 @media (max-width: 600px) {
   .field-triple,
+  .field-quad,
+  .field-five,
   .field-pair,
+  .algorithm-picker,
   .stage-list,
   .action-grid,
   .delivery-row {

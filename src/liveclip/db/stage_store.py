@@ -513,10 +513,15 @@ class SqlAlchemyStageStateStore:
         fence: StageMutationFence,
         prepared: Sequence[PreparedRevision],
     ) -> tuple[PersistedRevision, ...]:
-        if not prepared:
-            raise StageDataConflict("editing produced no review candidates")
         with begin_immediate(self._engine) as connection:
             _assert_mutation_fence(connection, fence)
+            if not prepared:
+                connection.execute(
+                    update(CandidateClipRow)
+                    .where(CandidateClipRow.pipeline_run_id == fence.run_id)
+                    .values(selected_for_review=False)
+                )
+                return ()
             candidate_rows = connection.execute(
                 select(
                     CandidateClipRow.id,

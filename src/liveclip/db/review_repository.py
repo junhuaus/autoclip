@@ -111,6 +111,7 @@ class SqlAlchemyReviewRepository:
                         if patch.source_end_ms is not None
                         else current_plan.source_end_ms
                     ),
+                    "score": patch.score if patch.score is not None else current_plan.score,
                     "title": patch.title if patch.title is not None else current_plan.title,
                     "layout": (
                         Layout(patch.layout) if patch.layout is not None else Layout.CENTER_CROP

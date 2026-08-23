@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://liveclip.local/schemas/clipping/offline_review.schema.json",
+  "title": "LiveClip offline semantic review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_sha256", "reviewer", "selections", "rejected", "notes"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reviewer": {"type": "string", "minLength": 1, "maxLength": 80},
+    "selections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/selection"}
+    },
+    "rejected": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/rejection"}
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "clip_id": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$"},
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_id", "reason"],
+      "properties": {
+        "clip_id": {"$ref": "#/$defs/clip_id"},
+        "start_cue_id": {"type": ["integer", "null"], "minimum": 1},
+        "end_cue_id": {"type": ["integer", "null"], "minimum": 1},
+        "title": {"type": ["string", "null"], "minLength": 1, "maxLength": 40},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "rejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_id", "reason"],
+      "properties": {
+        "clip_id": {"$ref": "#/$defs/clip_id"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    }
+  }
+}

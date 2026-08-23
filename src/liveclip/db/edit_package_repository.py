@@ -867,18 +867,21 @@ def _validate_proxy_producer(
         or str(producer.pipeline_run_id) != project.run_id
         or producer.task_status != TaskStatus.SUCCEEDED.value
         or producer.outcome != AttemptOutcome.SUCCEEDED.value
-        or any(str(asset.input_fingerprint) != str(producer.input_fingerprint) for asset in assets)
     ):
         raise EditPackageConflict("selected clip review producer lineage is invalid")
     producer_kind = str(producer.kind)
     producer_stage = str(producer.stage) if producer.stage is not None else None
     if producer_kind == TaskKind.RENDER.value:
-        if producer_stage is not None or str(producer.input_fingerprint) != str(
-            render.spec_fingerprint
+        if (
+            producer_stage is not None
+            or str(producer.input_fingerprint) != str(render.spec_fingerprint)
+            or any(str(asset.input_fingerprint) != str(render.spec_fingerprint) for asset in assets)
         ):
             raise EditPackageConflict("selected manual proxy producer lineage is invalid")
     elif producer_kind == TaskKind.STAGE.value:
-        if producer_stage != PipelineStage.PROXY_RENDER.value:
+        if producer_stage != PipelineStage.PROXY_RENDER.value or any(
+            str(asset.input_fingerprint) != str(render.spec_fingerprint) for asset in assets
+        ):
             raise EditPackageConflict("selected pipeline proxy producer lineage is invalid")
     else:
         raise EditPackageConflict("selected clip review producer kind is invalid")

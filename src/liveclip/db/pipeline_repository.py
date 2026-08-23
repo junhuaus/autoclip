@@ -1761,8 +1761,8 @@ def _validate_stage_checkpoint(
 
     if stage == PipelineStage.EDIT:
         _require_asset_kinds(kind_counts, {"edit_plans": 1}, stage)
-        clip_ids = _checkpoint_ids(checkpoint, "clip_ids")
-        selected_count = _checkpoint_count(checkpoint, "selected_count")
+        clip_ids = _checkpoint_ids(checkpoint, "clip_ids", allow_empty=True)
+        selected_count = _checkpoint_count(checkpoint, "selected_count", allow_zero=True)
         if len(clip_ids) != selected_count:
             raise PipelineConflict("edit checkpoint selected count is inconsistent")
         candidates = connection.execute(
@@ -1803,20 +1803,31 @@ def _require_proxy_checkpoint(
     kind_counts: dict[str, int],
     pipeline_run_id: str,
 ) -> None:
-    render_ids = _checkpoint_ids(checkpoint, "render_ids")
-    proxy_count = _checkpoint_count(checkpoint, "proxy_count")
+    render_ids = _checkpoint_ids(checkpoint, "render_ids", allow_empty=True)
+    proxy_count = _checkpoint_count(checkpoint, "proxy_count", allow_zero=True)
     if len(render_ids) != proxy_count:
         raise PipelineConflict("proxy checkpoint count is inconsistent")
-    _require_asset_kinds(
-        kind_counts,
-        {
+    expected_kinds = (
+        {"no_review_clips": 1}
+        if proxy_count == 0
+        else {
             "review_proxy": proxy_count,
             "clip_subtitle_srt": proxy_count,
             "render_quality_report": proxy_count,
             "render_contact_sheet": proxy_count,
-        },
-        PipelineStage.PROXY_RENDER,
+        }
     )
+    _require_asset_kinds(kind_counts, expected_kinds, PipelineStage.PROXY_RENDER)
+    if proxy_count == 0:
+        render_count = connection.scalar(
+            select(func.count())
+            .select_from(RenderJobRow)
+            .join(CandidateClipRow, CandidateClipRow.id == RenderJobRow.candidate_clip_id)
+            .where(CandidateClipRow.pipeline_run_id == pipeline_run_id)
+        )
+        if render_count != 0:
+            raise PipelineConflict("empty proxy checkpoint has persisted renders")
+        return
     renders = connection.execute(
         select(
             RenderJobRow.id,
@@ -1868,9 +1879,11 @@ def _checkpoint_id(checkpoint: dict[str, object], key: str) -> str:
     return value
 
 
-def _checkpoint_ids(checkpoint: dict[str, object], key: str) -> tuple[str, ...]:
+def _checkpoint_ids(
+    checkpoint: dict[str, object], key: str, *, allow_empty: bool = False
+) -> tuple[str, ...]:
     raw = checkpoint.get(key)
-    if not isinstance(raw, list) or not raw:
+    if not isinstance(raw, list) or (not raw and not allow_empty):
         raise PipelineConflict(f"stage checkpoint {key} is invalid")
     values = tuple(raw)
     if any(
@@ -1882,9 +1895,14 @@ def _checkpoint_ids(checkpoint: dict[str, object], key: str) -> tuple[str, ...]:
     return values
 
 
-def _checkpoint_count(checkpoint: dict[str, object], key: str) -> int:
+def _checkpoint_count(checkpoint: dict[str, object], key: str, *, allow_zero: bool = False) -> int:
     value = checkpoint.get(key)
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        or (value == 0 and not allow_zero)
+    ):
         raise PipelineConflict(f"stage checkpoint {key} is invalid")
     return value
 

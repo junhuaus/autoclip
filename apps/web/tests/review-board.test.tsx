@@ -10,7 +10,6 @@ import type {
   BatchReviewResponse,
   ClipDetailResponse,
   ClipSummaryResponse,
-  EditPackageDetailResponse,
 } from "../src/types";
 import { clipDetail, clipSummary, completedRun, project, transcript } from "./fixtures";
 import { server } from "./server";
@@ -60,7 +59,7 @@ function reviewedDetail(
   const result = structuredClone(value);
   result.clip.review = {
     status,
-    reason: status === "rejected" ? "批量拒绝" : null,
+    reason: status === "rejected" ? "未选入交付" : null,
     decided_at: "2026-08-11T00:00:00Z",
   };
   result.clip.allowed_actions = ["edit", "approve", "reject", "render_proxy"];
@@ -76,7 +75,7 @@ it("seeks only the video belonging to the clicked subtitle or keyword", async ()
       <ClipCard item={second} onOpen={() => undefined} />
     </>,
   );
-  const videos = screen.getAllByLabelText(/审核交付母版/) as HTMLVideoElement[];
+  const videos = screen.getAllByLabelText(/预览交付母版/) as HTMLVideoElement[];
   for (const video of videos) {
     Object.defineProperty(video, "readyState", { configurable: true, value: 1 });
     Object.defineProperty(video, "duration", { configurable: true, value: 10 });
@@ -109,32 +108,7 @@ it("renders each highlight as one horizontal list row with its sentence and capt
   expect(screen.getByText("仅供编辑定位")).toBeVisible();
 });
 
-it("selects exact current clips and creates a downloadable editing handoff", async () => {
-  let submitted: unknown = null;
-  let created = false;
-  const completedPackage: EditPackageDetailResponse = {
-    edit_package: {
-      edit_package_id: "package-1",
-      project_id: "project-1",
-      task_id: "task-package-1",
-      requested_by_user_id: "user-local-admin",
-      version: 1,
-      package_version: "v001",
-      status: "succeeded",
-      clip_count: 1,
-      preset: "clean_editing",
-      content: "full",
-      manifest_asset_id: "manifest-package-1",
-      zip_asset_id: "zip-package-1",
-      include_zip: true,
-      error_code: null,
-      safe_error_message: null,
-      created_at: "2026-08-15T00:00:00Z",
-      completed_at: "2026-08-15T00:00:01Z",
-    },
-    download_url:
-      "/api/v1/edit-packages/package-1/download?expires=9999999999&signature=package",
-  };
+it("uses one delivery-selection control and hides the separate editing-handoff flow", async () => {
   server.use(
     http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
     http.get("/api/v1/runs/run-1", () => HttpResponse.json(completedRun)),
@@ -142,58 +116,16 @@ it("selects exact current clips and creates a downloadable editing handoff", asy
       HttpResponse.json([structuredClone(clipSummary)]),
     ),
     http.get("/api/v1/projects/project-1/deliveries", () => HttpResponse.json([])),
-    http.get("/api/v1/projects/project-1/edit-packages", () =>
-      HttpResponse.json(created ? [completedPackage] : []),
-    ),
-    http.get("/api/v1/edit-packages/package-1", () =>
-      HttpResponse.json(completedPackage),
-    ),
-    http.post("/api/v1/projects/project-1/edit-packages", async ({ request }) => {
-      submitted = await request.json();
-      created = true;
-      return HttpResponse.json(
-        {
-          resource_type: "edit_package",
-          resource_id: "package-1",
-          task_id: "task-package-1",
-          status: "queued",
-          status_url: "/api/v1/edit-packages/package-1",
-        },
-        { status: 202 },
-      );
-    }),
   );
-  const user = userEvent.setup();
 
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
 
-  await user.click(await screen.findByLabelText("选择导出"));
-  expect(screen.getByText("已选 1 条用于剪辑交接")).toBeVisible();
-  expect(screen.getByRole("link", { name: "下载 MP4" })).toHaveAttribute(
-    "href",
-    clipSummary.download_video_url,
-  );
-  expect(screen.getByRole("link", { name: "下载 SRT" })).toHaveAttribute(
-    "href",
-    clipSummary.download_subtitle_url,
-  );
-  await user.click(screen.getByRole("button", { name: "生成所选剪辑交接包" }));
-
-  await waitFor(() =>
-    expect(submitted).toEqual({
-      items: [{ clip_id: "clip-1", expected_revision: 1 }],
-      preset: "clean_editing",
-      content: "full",
-      include_zip: true,
-    }),
-  );
-  expect(await screen.findByText("v001 状态已更新。")).toBeVisible();
-  expect(screen.getByRole("link", { name: "下载剪辑交接 ZIP" })).toHaveAttribute(
-    "href",
-    completedPackage.download_url,
-  );
+  expect(await screen.findByLabelText("选入交付")).toBeVisible();
+  expect(screen.queryByText("剪辑交接包")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("选择导出")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "网页交付包" })).toBeVisible();
 });
 
 it("omits the redundant full transcript panel and does not request it", async () => {
@@ -403,16 +335,17 @@ it("uses server capabilities to keep a viewer read-only", async () => {
 
   expect(await screen.findByText("只读 · 1 位成员")).toBeVisible();
   expect(screen.queryByRole("button", { name: "＋ 添加成员" })).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("批量审核")).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("选入交付")).toBeDisabled();
   expect(screen.queryByRole("button", { name: "取消处理" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "创建新交付版本" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "导出所选高光" })).toBeDisabled();
 
-  await user.click(await screen.findByRole("button", { name: "审核和编辑" }));
+  await user.click(await screen.findByRole("button", { name: "编辑详情" }));
   const editorPanel = await screen.findByRole("region", { name: /原始高光标题/ });
   expect(within(editorPanel).getByLabelText("标题")).toBeDisabled();
-  expect(within(editorPanel).getByRole("button", { name: "批准" })).toBeDisabled();
+  expect(within(editorPanel).getByLabelText("评分")).toBeDisabled();
+  expect(within(editorPanel).queryByRole("button", { name: "批准" })).not.toBeInTheDocument();
   expect(
-    within(editorPanel).getByRole("button", { name: "渲染审核/交付母版" }),
+    within(editorPanel).getByRole("button", { name: "渲染预览/交付母版" }),
   ).toBeDisabled();
 });
 
@@ -441,10 +374,9 @@ it("submits selected candidates through one atomic batch endpoint", async () => 
   const { client } = renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
+  await user.click((await screen.findAllByRole("button", { name: "编辑详情" }))[0]);
   await screen.findByRole("button", { name: "关闭详情" });
-  await user.click(await screen.findByLabelText("全选可审核高光"));
-  await user.click(screen.getByRole("button", { name: "批量批准" }));
+  await user.click(await screen.findByLabelText("全选可交付高光"));
 
   await waitFor(() =>
     expect(batchBody).toEqual({
@@ -454,13 +386,13 @@ it("submits selected candidates through one atomic batch endpoint", async () => 
       ],
     }),
   );
-  expect(await screen.findByText("已原子提交 2 条审核决定。")).toBeVisible();
+  expect(await screen.findByText("已更新 2 条交付选择。")).toBeVisible();
   await waitFor(() =>
     expect(
       (client.getQueryData(["clip", "clip-1"]) as ClipDetailResponse).clip.review.status,
     ).toBe("approved"),
   );
-  expect(screen.getAllByText("已批准").length).toBeGreaterThan(0);
+  expect(screen.getByText(/勾选即保存，不需要审批/)).toBeVisible();
 });
 
 it("retries a failed batch with the exact same body and idempotency key", async () => {
@@ -493,14 +425,13 @@ it("retries a failed batch with the exact same body and idempotency key", async 
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click(await screen.findByLabelText("全选可审核高光"));
-  await user.click(screen.getByRole("button", { name: "批量批准" }));
+  await user.click(await screen.findByLabelText("全选可交付高光"));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("无法连接本机 LiveClip API");
-  expect(await screen.findByText(/审核状态已重新加载/)).toBeVisible();
+  expect(await screen.findByText(/选择状态已重新加载/)).toBeVisible();
   expect(clipListReads).toBeGreaterThan(1);
   await user.click(screen.getByRole("button", { name: "重试同一批次" }));
-  expect(await screen.findByText("已原子提交 2 条审核决定。")).toBeVisible();
+  expect(await screen.findByText("已更新 2 条交付选择。")).toBeVisible();
 
   expect(requestKeys).toHaveLength(2);
   expect(requestKeys[0]).toBeTruthy();
@@ -524,21 +455,20 @@ it("blocks retry when a clip from the failed batch gains an unsaved draft", asyn
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click(await screen.findByLabelText("全选可审核高光"));
-  await user.click(screen.getByRole("button", { name: "批量批准" }));
+  await user.click(await screen.findByLabelText("全选可交付高光"));
   const retryButton = await screen.findByRole("button", { name: "重试同一批次" });
   expect(retryButton).toBeEnabled();
 
-  await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
+  await user.click((await screen.findAllByRole("button", { name: "编辑详情" }))[0]);
   const titleInput = await screen.findByLabelText("标题");
   await user.clear(titleInput);
   await user.type(titleInput, "失败批次之后的新草稿");
 
   await waitFor(() => expect(retryButton).toBeDisabled());
-  expect(screen.getByText(/原批次包含未保存编辑/)).toBeVisible();
+  expect(screen.getByText(/原操作包含未保存编辑/)).toBeVisible();
 });
 
-it("excludes a candidate with an unsaved editor draft from batch review", async () => {
+it("locks delivery selection while a candidate has an unsaved editor draft", async () => {
   const summaries = [structuredClone(clipSummary), secondSummary()];
   server.use(
     http.get("/api/v1/projects/project-1", () => HttpResponse.json(project)),
@@ -553,20 +483,18 @@ it("excludes a candidate with an unsaved editor draft from batch review", async 
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  const selectors = await screen.findAllByLabelText("批量审核");
-  await user.click(selectors[0]);
-  await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
+  const selectors = await screen.findAllByLabelText("选入交付");
+  await user.click((await screen.findAllByRole("button", { name: "编辑详情" }))[0]);
   const titleInput = await screen.findByLabelText("标题");
   await user.clear(titleInput);
   await user.type(titleInput, "尚未保存的新标题");
 
   await waitFor(() => expect(selectors[0]).toBeDisabled());
   expect(selectors[0]).not.toBeChecked();
-  expect(screen.getByRole("button", { name: "批量批准" })).toBeDisabled();
-  expect(screen.getByText(/存在未保存编辑，已从批量审核中排除/)).toBeVisible();
+  expect(screen.getByText(/存在未保存编辑，暂时不能改变选择/)).toBeVisible();
 });
 
-it("locks the editor while a selected batch review is in flight", async () => {
+it("locks the editor while a selection write is in flight", async () => {
   const summaries = [structuredClone(clipSummary), secondSummary()];
   let releaseBatch: (() => void) | null = null;
   const batchGate = new Promise<void>((resolve) => {
@@ -593,18 +521,17 @@ it("locks the editor while a selected batch review is in flight", async () => {
   renderWithClient(
     <ProjectWorkspace api={new LiveClipApiClient()} projectId="project-1" onBack={() => undefined} />,
   );
-  await user.click((await screen.findAllByRole("button", { name: "审核和编辑" }))[0]);
+  await user.click((await screen.findAllByRole("button", { name: "编辑详情" }))[0]);
   const titleInput = await screen.findByLabelText("标题");
-  await user.click((await screen.findAllByLabelText("批量审核"))[0]);
-  await user.click(screen.getByRole("button", { name: "批量批准" }));
+  await user.click((await screen.findAllByLabelText("选入交付"))[0]);
 
   await waitFor(() => expect(titleInput).toBeDisabled());
-  for (const openButton of screen.getAllByRole("button", { name: "审核和编辑" })) {
+  for (const openButton of screen.getAllByRole("button", { name: "编辑详情" })) {
     expect(openButton).toBeDisabled();
   }
   expect(titleInput).toHaveValue("原始高光标题");
 
   act(() => releaseBatch?.());
-  expect(await screen.findByText("已原子提交 1 条审核决定。")).toBeVisible();
+  expect(await screen.findByText("已更新 1 条交付选择。")).toBeVisible();
   expect(titleInput).toHaveValue("原始高光标题");
 });

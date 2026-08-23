@@ -1,0 +1,16 @@
+version: 1
+name: semantic_windowed_v1
+
+base:
+  - main.md
+  - common_rules.md
+
+stages:
+  discovery: stages/discovery.md
+
+profiles:
+  general: profiles/general.md
+  vocal_coach_live: profiles/vocal_coach_live.md
+
+repairs:
+  discovery: stages/repair.md

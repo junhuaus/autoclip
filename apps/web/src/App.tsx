@@ -35,6 +35,11 @@ function optionalInteger(value: FormDataEntryValue | null): number | undefined {
   return text ? Number.parseInt(text, 10) : undefined;
 }
 
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const text = String(value ?? "").trim();
+  return text ? Number(text) : undefined;
+}
+
 const DEFAULT_PROJECT_SEARCH: ProjectSearchCriteria = {
   query: "",
   lifecycles: [],
@@ -140,6 +145,9 @@ export function App() {
   const [authVersion, setAuthVersion] = useState(0);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [clippingAlgorithm, setClippingAlgorithm] = useState<
+    "a" | "b" | "b_v2_experimental" | "semantic_global" | "semantic_windowed"
+  >("semantic_windowed");
   const [showSettings, setShowSettings] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("projects");
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
@@ -248,13 +256,31 @@ export function App() {
   const createProject = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const request: JobCreateRequest = { input_path: String(data.get("input_path") ?? "") };
+    const request: JobCreateRequest = {
+      input_path: String(data.get("input_path") ?? ""),
+      clipping_algorithm: clippingAlgorithm,
+    };
     const topN = optionalInteger(data.get("top_n"));
     const minimum = optionalInteger(data.get("minimum_clip_seconds"));
     const maximum = optionalInteger(data.get("maximum_clip_seconds"));
+    const semanticTarget = optionalInteger(data.get("semantic_target_clip_seconds"));
+    const semanticThreshold = optionalInteger(data.get("semantic_score_threshold"));
+    const semanticBudgetRatio = optionalNumber(data.get("semantic_full_context_budget_ratio"));
+    const semanticContextTokens = optionalInteger(data.get("semantic_model_context_tokens"));
     if (topN !== undefined) request.top_n = topN;
     if (minimum !== undefined) request.minimum_clip_seconds = minimum;
     if (maximum !== undefined) request.maximum_clip_seconds = maximum;
+    if (semanticTarget !== undefined) request.semantic_target_clip_seconds = semanticTarget;
+    if (semanticThreshold !== undefined) request.semantic_score_threshold = semanticThreshold;
+    if (semanticBudgetRatio !== undefined) {
+      request.semantic_full_context_budget_ratio = semanticBudgetRatio;
+    }
+    if (semanticContextTokens !== undefined) {
+      request.semantic_model_context_tokens = semanticContextTokens;
+    }
+    if (clippingAlgorithm === "semantic_global" || clippingAlgorithm === "semantic_windowed") {
+      request.semantic_profile = String(data.get("semantic_profile")) as "general" | "vocal_coach_live";
+    }
     createMutation.mutate(request);
   };
 
@@ -448,7 +474,7 @@ export function App() {
               <span>需要处理</span><strong>{projectSummary?.needs_attention ?? "—"}</strong><small>存在问题或要求修改</small>
             </button>
             <button type="button" aria-pressed={projectFilter === "review"} onClick={() => applyProjectFilter("review")}>
-              <span>审核中</span><strong>{projectSummary?.review ?? "—"}</strong><small>编辑审核或发布审批</small>
+              <span>待选择</span><strong>{projectSummary?.review ?? "—"}</strong><small>挑选高光或处理发布终审</small>
             </button>
             <button type="button" aria-pressed={projectFilter === "publish"} onClick={() => applyProjectFilter("publish")}>
               <span>发布队列</span><strong>{projectSummary?.publish ?? "—"}</strong><small>待发布或已发布项目</small>
@@ -535,11 +561,42 @@ export function App() {
             <div className="section-heading"><div><p className="eyebrow">新建项目</p><h2 id="create-title">导入一段本地视频</h2></div><button type="button" className="button button-ghost" onClick={() => setShowCreate(false)}>取消</button></div>
             <form className="create-form" onSubmit={createProject}>
               <label>本地视频绝对路径<input name="input_path" type="text" required maxLength={4_096} placeholder="/Users/you/Videos/live.mp4" autoFocus /></label>
-              <div className="field-triple">
+              <fieldset className="algorithm-picker">
+                <legend>切片算法</legend>
+                <label className={clippingAlgorithm === "a" ? "selected" : ""}>
+                  <input type="radio" name="clipping_algorithm" value="a" checked={clippingAlgorithm === "a"} onChange={() => setClippingAlgorithm("a")} />
+                  <span><strong>A · 经典算法</strong><small>规则粗选后逐条 AI 编辑，适合复现以前的结果。</small></span>
+                </label>
+                <label className={clippingAlgorithm === "b" ? "selected" : ""}>
+                  <input type="radio" name="clipping_algorithm" value="b" checked={clippingAlgorithm === "b"} onChange={() => setClippingAlgorithm("b")} />
+                  <span><strong>B v1 · 历史语义窗口</strong><small>冻结的 120/60 秒历史算法，用于复现和对比。</small></span>
+                </label>
+                <label className={clippingAlgorithm === "semantic_global" ? "selected" : ""}>
+                  <input type="radio" name="clipping_algorithm" value="semantic_global" checked={clippingAlgorithm === "semantic_global"} onChange={() => setClippingAlgorithm("semantic_global")} />
+                  <span><strong>Full-first · 对照</strong><small>优先整篇理解，用于与新的窗口模式比较。</small></span>
+                </label>
+                <label className={clippingAlgorithm === "semantic_windowed" ? "selected" : ""}>
+                  <input type="radio" name="clipping_algorithm" value="semantic_windowed" checked={clippingAlgorithm === "semantic_windowed"} onChange={() => setClippingAlgorithm("semantic_windowed")} />
+                  <span><strong>重叠语义窗口 · 推荐</strong><small>120秒窗口、60秒重叠，每窗可发现多条；跨边界话题由全局Agent接力。</small></span>
+                </label>
+                <label className={clippingAlgorithm === "b_v2_experimental" ? "selected" : ""}>
+                  <input type="radio" name="clipping_algorithm" value="b_v2_experimental" checked={clippingAlgorithm === "b_v2_experimental"} onChange={() => setClippingAlgorithm("b_v2_experimental")} />
+                  <span><strong>B v2 · 实验</strong><small>保留两阶段时间邻接归并实验，不作为默认方案。</small></span>
+                </label>
+              </fieldset>
+              <div className={clippingAlgorithm !== "a" ? "field-five" : "field-triple"} key={clippingAlgorithm}>
                 <label>高光数量<input name="top_n" type="number" min="1" max="100" step="1" defaultValue="15" /></label>
-                <label>最短秒数<input name="minimum_clip_seconds" type="number" min="1" max="600" step="1" defaultValue="30" /></label>
-                <label>最长秒数<input name="maximum_clip_seconds" type="number" min="1" max="1800" step="1" defaultValue="90" /></label>
+                <label>最短秒数<input name="minimum_clip_seconds" type="number" min="1" max="600" step="1" defaultValue={clippingAlgorithm === "semantic_global" || clippingAlgorithm === "semantic_windowed" ? "45" : clippingAlgorithm === "a" ? "30" : "8"} /></label>
+                {clippingAlgorithm !== "a" ? <label>理想切片秒数<input name="semantic_target_clip_seconds" type="number" min="1" max="600" step="1" defaultValue="60" /></label> : null}
+                <label>{clippingAlgorithm !== "a" ? "最长切片秒数" : "最长秒数"}<input name="maximum_clip_seconds" type="number" min="1" max={clippingAlgorithm !== "a" ? "600" : "1800"} step="1" defaultValue={clippingAlgorithm === "b" ? "60" : "90"} /></label>
+                {clippingAlgorithm !== "a" ? <label>保留分数须高于<input name="semantic_score_threshold" type="number" min="0" max="100" step="1" defaultValue="75" /></label> : null}
               </div>
+              {clippingAlgorithm === "semantic_global" ? <div className="field-triple semantic-global-options"><label>内容 Profile<select name="semantic_profile" defaultValue="vocal_coach_live"><option value="vocal_coach_live">声乐教学直播</option><option value="general">通用内容</option></select></label><label>模型上下文 tokens<input name="semantic_model_context_tokens" type="number" min="16000" max="2000000" step="1000" defaultValue="128000" /></label><label>Full-context 预算比例<input name="semantic_full_context_budget_ratio" type="number" min="0.1" max="0.8" step="0.01" defaultValue="0.58" /></label></div> : null}
+              {clippingAlgorithm === "semantic_windowed" ? <div className="field-triple semantic-global-options"><label>内容 Profile<select name="semantic_profile" defaultValue="vocal_coach_live"><option value="vocal_coach_live">声乐教学直播</option><option value="general">通用内容</option></select></label><label>分析窗口<input value="120 秒" readOnly /></label><label>相邻重叠<input value="60 秒" readOnly /></label></div> : null}
+              {clippingAlgorithm === "semantic_global" ? <p className="hint">优先按真实 tokenizer 判断完整字幕是否安全装入上下文；超预算才使用 10–20 分钟大窗口。Discovery 不评分，Global Review 读取全局证据后统一去重、定界和评分。</p> : null}
+              {clippingAlgorithm === "semantic_windowed" ? <p className="hint">Discovery 不评分，只负责发现候选与报告开放边界；重叠只用于保留上下文，同话题、合并和去重由 Global Review 根据 viewer promise 与原字幕判断。</p> : null}
+              {clippingAlgorithm === "b" ? <p className="hint">B v1 固定按 120 秒窗口、60 秒步长复现历史结果。</p> : null}
+              {clippingAlgorithm === "b_v2_experimental" ? <p className="hint">实验模式保留时间邻接归并，仅用于比较，不是推荐默认。</p> : null}
               <div className="create-assignment"><span>项目负责人</span><strong>{currentUser?.display_name ?? "当前用户"}</strong><small>创建后可在项目内添加编辑与审核成员。</small></div>
               <button type="submit" className="button button-primary" disabled={createMutation.isPending || !processingReady}>{createMutation.isPending ? "正在创建…" : "创建并开始处理"}</button>
               {!processingReady ? <p className="hint">AI 处理链路未就绪，请在右上角设置中检查配置。</p> : null}

@@ -16,6 +16,7 @@ from liveclip.delivery.package import (
     validate_zip_infos,
     validate_zip_members,
 )
+from liveclip.domain.keywords import KeywordOccurrence, KeywordTimingPrecision
 from liveclip.media import secure_files
 from liveclip.media.fingerprint import stream_sha256
 
@@ -28,6 +29,19 @@ def make_clip(tmp_path: Path, **changes: object) -> DeliveryClipInput:
         "edit_plan_revision": 1,
         "render_revision": 1,
         "title": "中文标题 / 安全测试",
+        "hook": "这是一句真实高光。",
+        "reason": "片段完整并且适合独立观看。",
+        "risk_flags": ("general_health_warning",),
+        "keywords": (
+            KeywordOccurrence(
+                text="第一句",
+                clip_start_ms=0,
+                clip_end_ms=2_000,
+                source_start_ms=1_000,
+                source_end_ms=3_000,
+                timing_precision=KeywordTimingPrecision.SEGMENT,
+            ),
+        ),
         "source_start_ms": 1_000,
         "source_end_ms": 31_000,
         "score": 91.5,
@@ -104,6 +118,8 @@ def test_delivery_creates_immutable_versions_manifest_hash_and_safe_zip(tmp_path
         "clips/01-中文标题-安全测试.mp4",
         "subtitles/01-中文标题-安全测试.srt",
         "manifest.json",
+        "index.html",
+        "checksums.sha256",
     ]
     validate_zip_members(names)
     assert first.manifest_sha256 == stream_sha256(first.manifest_path)
@@ -111,6 +127,19 @@ def test_delivery_creates_immutable_versions_manifest_hash_and_safe_zip(tmp_path
     assert set(first.member_sha256) == {*names, "delivery.zip"}
     for name, expected_sha256 in first.member_sha256.items():
         assert stream_sha256(first.directory / name) == expected_sha256
+    index = (first.directory / "index.html").read_text(encoding="utf-8")
+    assert "Content-Security-Policy" in index
+    assert 'src="clips/01-中文标题-安全测试.mp4"' in index
+    assert "评分 91.5" in index
+    assert "高光语句" in index
+    assert "这是一句真实高光。" in index
+    assert "编辑关键词" in index
+    assert "第一句" in index
+    assert "片内 00:00:00.000&ndash;00:00:02.000" in index
+    assert entry["hook"] == "这是一句真实高光。"
+    assert entry["keywords"][0]["source_start_ms"] == 1_000
+    checksums = (first.directory / "checksums.sha256").read_text(encoding="utf-8")
+    assert f"{first.member_sha256['index.html']}  index.html\n" in checksums
 
 
 @pytest.mark.parametrize(

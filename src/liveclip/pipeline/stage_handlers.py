@@ -5,6 +5,7 @@ import json
 import logging
 import traceback
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
@@ -25,7 +26,25 @@ from liveclip.application.stage_execution import (
     StageStateStore,
     stage_output_fingerprint,
 )
-from liveclip.domain.edit_plan import EDIT_PLAN_PIPELINE_CONTRACT_VERSION, captions_to_srt
+from liveclip.clipping_skills import (
+    load_semantic_continuous_skill,
+    load_semantic_discovery_skill,
+)
+from liveclip.clipping_skills.semantic_global_v1 import (
+    SemanticGlobalPromptBundle,
+    load_semantic_global_prompt,
+)
+from liveclip.clipping_skills.semantic_windowed_v1 import (
+    load_semantic_windowed_discovery_prompt,
+)
+from liveclip.domain.edit_plan import (
+    EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
+    CaptionTemplate,
+    EditPlan,
+    Effect,
+    Layout,
+    captions_to_srt,
+)
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
 from liveclip.domain.state_transitions import AssetStatus, FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
@@ -60,7 +79,37 @@ from liveclip.media.secure_files import (
 )
 from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_candidates
 from liveclip.pipeline.editing import edit_and_rank_candidates
+from liveclip.pipeline.semantic_cache import (
+    load_semantic_stage_cache,
+    semantic_stage_cache_key,
+    write_semantic_stage_cache,
+)
+from liveclip.pipeline.semantic_clipping import (
+    generate_semantic_analysis_windows,
+    select_semantic_clips,
+)
+from liveclip.pipeline.semantic_global import (
+    DiscoveryOutput,
+    GlobalReviewOutput,
+    SemanticGlobalConfig,
+    SemanticInputMode,
+    SemanticInputPlan,
+    SemanticInputUnit,
+    ValidatedGlobalClip,
+    build_global_review_payload,
+    discovery_request_payload,
+    namespace_discovery_output,
+    plan_boundary_bridge_units,
+    plan_semantic_input,
+    plan_semantic_windowed_input,
+    semantic_global_output_slots,
+    semantic_repair_payload,
+    semantic_request_tokens,
+    validate_discovery_output,
+    validate_global_review,
+)
 from liveclip.pipeline.transcript import transcribe_chunks_detailed
+from liveclip.prompts import EditingPromptBundle
 from liveclip.providers.asr.base import AudioChunkLike
 from liveclip.providers.asr.mock import MockASRProvider
 from liveclip.providers.asr.openai import OpenAIASRProvider
@@ -69,6 +118,14 @@ from liveclip.providers.llm.base import EDITORIAL_SUGGESTION_SCHEMA_VERSION
 from liveclip.providers.llm.codex import CodexCLILLMProvider
 from liveclip.providers.llm.mock import MockLLMProvider
 from liveclip.providers.llm.openai import OpenAILLMProvider
+from liveclip.providers.llm.structured import (
+    CodexStructuredLLMProvider,
+    MockStructuredLLMProvider,
+    OpenAIStructuredLLMProvider,
+    StructuredCallResult,
+    StructuredLLMProvider,
+    StructuredProviderError,
+)
 from liveclip.providers.openai_retry import OpenAIRetryPolicy
 from liveclip.providers.telemetry import (
     ProviderCallRecord,
@@ -508,6 +565,7 @@ class PipelineStageHandlers:
         cancel_requested: Callable[[], bool],
     ) -> StageExecutionResult:
         project_dir = project_directory(self._data_dir, work.project_id)
+        generation_dir = _generation_directory(project_dir, work.generation)
         transcript = TranscriptDocument.model_validate_json(
             self._committed_asset_bytes(
                 work,
@@ -534,28 +592,430 @@ class PipelineStageHandlers:
             mime_type="application/json",
         )
         _check_cancel(cancel_requested)
-        config = CandidateGenerationConfig(
-            minimum_duration_ms=work.config.minimum_clip_ms,
-            maximum_duration_ms=work.config.maximum_clip_ms,
-            rough_limit=min(200, max(40, work.config.top_n * 3)),
-            top_n=work.config.top_n,
-            context_ms=5_000,
-            boundary_pause_ms=900,
-        )
-        candidates = generate_candidates(
-            transcript,
-            config=config,
-            silence_intervals=manifest.silences,
-        )
+        semantic_global_payload: dict[str, object] | None = None
+        artifact_config: dict[str, object]
+        if work.config.clipping_algorithm in {"semantic_global", "semantic_windowed"}:
+            semantic_config = _semantic_global_config(work)
+            discovery_prompt = (
+                load_semantic_windowed_discovery_prompt(work.config.semantic_profile)
+                if work.config.clipping_algorithm == "semantic_windowed"
+                else load_semantic_global_prompt("discovery", work.config.semantic_profile)
+            )
+            _assert_semantic_global_prompt(work, discovery_prompt)
+            planner = (
+                plan_semantic_windowed_input
+                if work.config.clipping_algorithm == "semantic_windowed"
+                else plan_semantic_input
+            )
+            input_plan = planner(
+                transcript,
+                prompt=discovery_prompt.instructions,
+                config=semantic_config,
+            )
+            discovery_provider = self._structured_provider(work, discovery_prompt)
+            fence = _mutation_fence(work, lease)
+            discovery_outputs: list[DiscoveryOutput] = []
+            discovery_cache_hits: list[bool] = []
+            discovery_validation_events: list[dict[str, str]] = []
+
+            def normalize_discovery(
+                raw: DiscoveryOutput,
+                unit: SemanticInputUnit,
+            ) -> DiscoveryOutput:
+                normalized, notes = namespace_discovery_output(raw, unit=unit)
+                discovery_validation_events.extend(
+                    {"input_unit_id": unit.unit_id, "normalization": note} for note in notes
+                )
+                return normalized
+
+            model_settings = _semantic_model_settings(work)
+            discovery_cache_dir = generation_dir / "candidates/semantic-cache/discovery"
+            fallback_discovery_cache_dirs = tuple(
+                project_dir
+                / _generation_relative(generation, "candidates/semantic-cache/discovery")
+                for generation in range(1, work.generation)
+            )
+            prefetched_discovery: dict[str, StructuredCallResult[DiscoveryOutput]] = {}
+            if work.config.clipping_algorithm == "semantic_windowed":
+                uncached_requests: list[tuple[str, dict[str, object]]] = []
+                for unit in input_plan.units:
+                    request_payload = discovery_request_payload(
+                        unit,
+                        source_id=work.project_id,
+                        mode=input_plan.mode,
+                        config=semantic_config,
+                    )
+                    cache_key = semantic_stage_cache_key(
+                        stage="discovery",
+                        payload=request_payload,
+                        provider=discovery_provider,
+                        model_settings=model_settings,
+                        output_model=DiscoveryOutput,
+                    )
+                    cached = load_semantic_stage_cache(
+                        cache_dirs=(discovery_cache_dir, *fallback_discovery_cache_dirs),
+                        cache_key=cache_key,
+                        stage="discovery",
+                        payload=request_payload,
+                        provider=discovery_provider,
+                        model_settings=model_settings,
+                        output_model=DiscoveryOutput,
+                    )
+                    if cached is None:
+                        uncached_requests.append((unit.unit_id, request_payload))
+                first_prefetch_error: StructuredProviderError | None = None
+                with ThreadPoolExecutor(
+                    max_workers=min(
+                        semantic_config.window_discovery_concurrency,
+                        max(1, len(uncached_requests)),
+                    ),
+                    thread_name_prefix="semantic-windowed-discovery",
+                ) as executor:
+                    pending = {
+                        executor.submit(
+                            discovery_provider.generate,
+                            subject_id=f"{work.run_id}.{unit_id}",
+                            payload=request_payload,
+                            response_model=DiscoveryOutput,
+                            cancel_requested=cancel_requested,
+                        ): unit_id
+                        for unit_id, request_payload in uncached_requests
+                    }
+                    for future in as_completed(pending):
+                        unit_id = pending[future]
+                        try:
+                            result = future.result()
+                        except StructuredProviderError as exc:
+                            self._state.record_provider_calls(
+                                fence,
+                                exc.call_records,
+                                cache_hit=False,
+                            )
+                            first_prefetch_error = first_prefetch_error or exc
+                            continue
+                        self._state.record_provider_calls(
+                            fence,
+                            result.call_records,
+                            cache_hit=False,
+                        )
+                        prefetched_discovery[unit_id] = result
+                if first_prefetch_error is not None:
+                    raise first_prefetch_error
+            for unit in input_plan.units:
+                _check_cancel(cancel_requested)
+                request_payload = discovery_request_payload(
+                    unit,
+                    source_id=work.project_id,
+                    mode=input_plan.mode,
+                    config=semantic_config,
+                )
+                cache_key = semantic_stage_cache_key(
+                    stage="discovery",
+                    payload=request_payload,
+                    provider=discovery_provider,
+                    model_settings=model_settings,
+                    output_model=DiscoveryOutput,
+                )
+                cached = load_semantic_stage_cache(
+                    cache_dirs=(discovery_cache_dir, *fallback_discovery_cache_dirs),
+                    cache_key=cache_key,
+                    stage="discovery",
+                    payload=request_payload,
+                    provider=discovery_provider,
+                    model_settings=model_settings,
+                    output_model=DiscoveryOutput,
+                )
+                if cached is not None:
+                    output = validate_discovery_output(
+                        normalize_discovery(cached, unit),
+                        unit=unit,
+                        config=semantic_config,
+                    )
+                    discovery_outputs.append(output)
+                    discovery_cache_hits.append(True)
+                    continue
+                prefetched_result = (
+                    prefetched_discovery.pop(unit.unit_id)
+                    if unit.unit_id in prefetched_discovery
+                    else None
+                )
+                if prefetched_result is None:
+                    try:
+                        result = discovery_provider.generate(
+                            subject_id=f"{work.run_id}.{unit.unit_id}",
+                            payload=request_payload,
+                            response_model=DiscoveryOutput,
+                            cancel_requested=cancel_requested,
+                        )
+                    except StructuredProviderError as exc:
+                        self._state.record_provider_calls(
+                            fence,
+                            exc.call_records,
+                            cache_hit=False,
+                        )
+                        raise
+                    self._state.record_provider_calls(
+                        fence,
+                        result.call_records,
+                        cache_hit=False,
+                    )
+                else:
+                    result = prefetched_result
+                normalized_output = normalize_discovery(result.output, unit)
+                try:
+                    output = validate_discovery_output(
+                        normalized_output,
+                        unit=unit,
+                        config=semantic_config,
+                    )
+                except ValueError as exc:
+                    discovery_validation_events.append(
+                        {"input_unit_id": unit.unit_id, "error": str(exc)[:500]}
+                    )
+                    if result.repaired:
+                        raise ValueError(
+                            "semantic Discovery remained invalid after one repair"
+                        ) from exc
+                    try:
+                        repaired = discovery_provider.repair(
+                            subject_id=f"{work.run_id}.{unit.unit_id}",
+                            payload=semantic_repair_payload(
+                                request_payload,
+                                normalized_output,
+                                validation_errors=(str(exc)[:500],),
+                            ),
+                            response_model=DiscoveryOutput,
+                            validation_errors=(str(exc)[:240],),
+                            cancel_requested=cancel_requested,
+                        )
+                    except StructuredProviderError as repair_exc:
+                        self._state.record_provider_calls(
+                            fence,
+                            repair_exc.call_records,
+                            cache_hit=False,
+                        )
+                        raise
+                    self._state.record_provider_calls(
+                        fence,
+                        repaired.call_records,
+                        cache_hit=False,
+                    )
+                    output = validate_discovery_output(
+                        normalize_discovery(repaired.output, unit),
+                        unit=unit,
+                        config=semantic_config,
+                    )
+                write_semantic_stage_cache(
+                    cache_dir=discovery_cache_dir,
+                    cache_key=cache_key,
+                    stage="discovery",
+                    payload=request_payload,
+                    provider=discovery_provider,
+                    model_settings=model_settings,
+                    output=output,
+                )
+                discovery_outputs.append(output)
+                discovery_cache_hits.append(False)
+            boundary_bridge_units: tuple[SemanticInputUnit, ...] = ()
+            if work.config.clipping_algorithm == "semantic_windowed":
+                boundary_bridge_units = plan_boundary_bridge_units(
+                    transcript,
+                    input_plan=input_plan,
+                    discovery_outputs=tuple(discovery_outputs),
+                    config=semantic_config,
+                )
+                for unit in boundary_bridge_units:
+                    _check_cancel(cancel_requested)
+                    request_payload = discovery_request_payload(
+                        unit,
+                        source_id=work.project_id,
+                        mode=SemanticInputMode.BOUNDARY_BRIDGE,
+                        config=semantic_config,
+                    )
+                    cache_key = semantic_stage_cache_key(
+                        stage="discovery",
+                        payload=request_payload,
+                        provider=discovery_provider,
+                        model_settings=model_settings,
+                        output_model=DiscoveryOutput,
+                    )
+                    cached = load_semantic_stage_cache(
+                        cache_dirs=(discovery_cache_dir, *fallback_discovery_cache_dirs),
+                        cache_key=cache_key,
+                        stage="discovery",
+                        payload=request_payload,
+                        provider=discovery_provider,
+                        model_settings=model_settings,
+                        output_model=DiscoveryOutput,
+                    )
+                    if cached is not None:
+                        output = validate_discovery_output(
+                            normalize_discovery(cached, unit),
+                            unit=unit,
+                            config=semantic_config,
+                        )
+                        discovery_outputs.append(output)
+                        discovery_cache_hits.append(True)
+                        continue
+                    try:
+                        result = discovery_provider.generate(
+                            subject_id=f"{work.run_id}.{unit.unit_id}",
+                            payload=request_payload,
+                            response_model=DiscoveryOutput,
+                            cancel_requested=cancel_requested,
+                        )
+                    except StructuredProviderError as exc:
+                        self._state.record_provider_calls(
+                            fence,
+                            exc.call_records,
+                            cache_hit=False,
+                        )
+                        raise
+                    self._state.record_provider_calls(
+                        fence,
+                        result.call_records,
+                        cache_hit=False,
+                    )
+                    normalized_output = normalize_discovery(result.output, unit)
+                    try:
+                        output = validate_discovery_output(
+                            normalized_output,
+                            unit=unit,
+                            config=semantic_config,
+                        )
+                    except ValueError as exc:
+                        discovery_validation_events.append(
+                            {"input_unit_id": unit.unit_id, "error": str(exc)[:500]}
+                        )
+                        if result.repaired:
+                            raise ValueError(
+                                "semantic boundary bridge remained invalid after one repair"
+                            ) from exc
+                        repaired = discovery_provider.repair(
+                            subject_id=f"{work.run_id}.{unit.unit_id}",
+                            payload=semantic_repair_payload(
+                                request_payload,
+                                normalized_output,
+                                validation_errors=(str(exc)[:500],),
+                            ),
+                            response_model=DiscoveryOutput,
+                            validation_errors=(str(exc)[:240],),
+                            cancel_requested=cancel_requested,
+                        )
+                        self._state.record_provider_calls(
+                            fence,
+                            repaired.call_records,
+                            cache_hit=False,
+                        )
+                        output = validate_discovery_output(
+                            normalize_discovery(repaired.output, unit),
+                            unit=unit,
+                            config=semantic_config,
+                        )
+                    write_semantic_stage_cache(
+                        cache_dir=discovery_cache_dir,
+                        cache_key=cache_key,
+                        stage="discovery",
+                        payload=request_payload,
+                        provider=discovery_provider,
+                        model_settings=model_settings,
+                        output=output,
+                    )
+                    discovery_outputs.append(output)
+                    discovery_cache_hits.append(False)
+            candidates = semantic_global_output_slots(
+                transcript,
+                max_clips=work.config.top_n,
+                minimum_duration_ms=work.config.minimum_clip_ms,
+            )
+            artifact_config = {
+                "algorithm": work.config.clipping_algorithm,
+                "profile": work.config.semantic_profile,
+                "minimum_clip_ms": work.config.minimum_clip_ms,
+                "target_clip_ms": work.config.semantic_target_clip_ms,
+                "maximum_clip_ms": work.config.maximum_clip_ms,
+                "score_threshold_exclusive": work.config.semantic_score_threshold,
+                "max_clips": work.config.top_n,
+            }
+            semantic_global_payload = {
+                "input_plan": input_plan.model_dump(mode="json"),
+                "discovery_outputs": [
+                    output.model_dump(mode="json") for output in discovery_outputs
+                ],
+                "prompt_debug": {
+                    "stage": discovery_prompt.stage,
+                    "profile": discovery_prompt.profile,
+                    "version": f"{discovery_prompt.version}.discovery",
+                    "sha256": discovery_prompt.sha256,
+                    "loaded_files": list(discovery_prompt.loaded_files),
+                    "tokenizer": input_plan.tokenizer_name,
+                    "mode": input_plan.mode.value,
+                    "prompt_tokens": input_plan.prompt_tokens,
+                    "transcript_tokens": input_plan.transcript_tokens,
+                    "budget_tokens": input_plan.budget_tokens,
+                    "cache_hits": discovery_cache_hits,
+                    "validation_events": discovery_validation_events,
+                    "boundary_bridge_count": len(boundary_bridge_units),
+                    "discovery_concurrency": (
+                        semantic_config.window_discovery_concurrency
+                        if work.config.clipping_algorithm == "semantic_windowed"
+                        else 1
+                    ),
+                },
+            }
+        elif work.config.clipping_algorithm in {"b", "b_v2_experimental"}:
+            target_clip_ms = (
+                work.config.semantic_target_clip_ms
+                if work.config.semantic_continuous_merge_enabled
+                else None
+            )
+            candidates = generate_semantic_analysis_windows(
+                transcript,
+                maximum_clip_ms=work.config.maximum_clip_ms,
+                minimum_clip_ms=work.config.minimum_clip_ms,
+                target_clip_ms=target_clip_ms,
+            )
+            analysis_stride_ms = target_clip_ms or work.config.maximum_clip_ms
+            artifact_config = {
+                "algorithm": work.config.clipping_algorithm,
+                "analysis_window_ms": work.config.maximum_clip_ms + analysis_stride_ms,
+                "analysis_stride_ms": analysis_stride_ms,
+                "target_clip_ms": work.config.semantic_target_clip_ms,
+                "maximum_clip_ms": work.config.maximum_clip_ms,
+                "minimum_clip_ms": work.config.minimum_clip_ms,
+                "skill_version": work.config.semantic_skill_version,
+                "skill_sha256": work.config.semantic_skill_sha256,
+                "continuous_merge_enabled": work.config.semantic_continuous_merge_enabled,
+                "consolidation_skill_version": (work.config.semantic_consolidation_skill_version),
+                "consolidation_skill_sha256": (work.config.semantic_consolidation_skill_sha256),
+            }
+        else:
+            config = CandidateGenerationConfig(
+                minimum_duration_ms=work.config.minimum_clip_ms,
+                maximum_duration_ms=work.config.maximum_clip_ms,
+                rough_limit=min(200, max(40, work.config.top_n * 3)),
+                top_n=work.config.top_n,
+                context_ms=5_000,
+                boundary_pause_ms=900,
+            )
+            candidates = generate_candidates(
+                transcript,
+                config=config,
+                silence_intervals=manifest.silences,
+            )
+            artifact_config = {"algorithm": "a", **config.model_dump(mode="json")}
         if not candidates:
-            raise ValueError("deterministic candidate generation produced no complete clips")
+            raise ValueError("candidate analysis produced no complete transcript windows")
+        artifact_payload: dict[str, object] = {
+            "schema_version": "1",
+            "config": artifact_config,
+            "candidates": [item.model_dump(mode="json") for item in candidates],
+        }
+        if semantic_global_payload is not None:
+            artifact_payload["semantic_global"] = semantic_global_payload
         write_json_no_clobber(
             project_dir / reservation.relative_path,
-            {
-                "schema_version": "1",
-                "config": config.model_dump(mode="json"),
-                "candidates": [item.model_dump(mode="json") for item in candidates],
-            },
+            artifact_payload,
         )
         committed = self._commit(
             lease,
@@ -621,60 +1081,373 @@ class PipelineStageHandlers:
                 raise ValueError("pending EditPlan artifact is symbolic or unstable") from exc
             prepared = _load_prepared_revisions(pending_payload)
         else:
-            editor = self._llm_provider(work)
             fence = _mutation_fence(work, lease)
-            editing = edit_and_rank_candidates(
-                editor,
-                tuple(item.candidate for item in candidates),
-                source_duration_ms=source.duration_ms,
-                minimum_duration_ms=work.config.minimum_clip_ms,
-                maximum_duration_ms=work.config.maximum_clip_ms,
-                top_n=work.config.top_n,
-                cache_dir=generation_dir / "editing" / "cache",
-                cancel_requested=cancel_requested,
-                on_call_records=lambda records, cache_hit: self._state.record_provider_calls(
-                    fence,
-                    records,
-                    cache_hit=cache_hit,
-                ),
-            )
-            prepared_values: list[PreparedRevision] = []
-            created_at = datetime.now(UTC)
-            for rank, edited in enumerate(editing.selected, start=1):
-                _check_cancel(cancel_requested)
-                item = by_key[edited.candidate.candidate_id]
-                plan = edited.result.plan
-                captions = captions_for_clip(
-                    transcript.segments,
-                    source_start_ms=plan.source_start_ms,
-                    source_end_ms=plan.source_end_ms,
-                )
-                prepared_values.append(
-                    PreparedRevision(
-                        candidate_id=item.candidate_id,
-                        rank=rank,
-                        revision=EditPlanRevision(
-                            clip_id=item.candidate_id,
-                            revision=1,
-                            origin=(
-                                RevisionOrigin.DETERMINISTIC if plan.degraded else RevisionOrigin.AI
-                            ),
-                            plan=plan,
-                            captions=captions,
-                            created_at=created_at,
+            artifact_extra: dict[str, object] = {}
+            if work.config.clipping_algorithm in {"semantic_global", "semantic_windowed"}:
+                rough_payload = json.loads(
+                    self._committed_asset_bytes(
+                        work,
+                        project_dir=project_dir,
+                        kind="rough_candidates",
+                        relative_path=_generation_relative(
+                            work.generation,
+                            "candidates/rough-candidates.json",
                         ),
+                        max_bytes=64 * 1024 * 1024,
                     )
                 )
-            prepared = tuple(prepared_values)
+                if not isinstance(rough_payload, dict) or not isinstance(
+                    rough_payload.get("semantic_global"),
+                    dict,
+                ):
+                    raise ValueError("semantic global Discovery artifact is missing")
+                global_artifact = rough_payload["semantic_global"]
+                input_plan = SemanticInputPlan.model_validate_json(
+                    json.dumps(global_artifact.get("input_plan"), ensure_ascii=False)
+                )
+                raw_discovery = global_artifact.get("discovery_outputs")
+                if not isinstance(raw_discovery, list):
+                    raise ValueError("semantic global Discovery outputs are missing")
+                discovery_outputs = tuple(
+                    DiscoveryOutput.model_validate_json(json.dumps(value, ensure_ascii=False))
+                    for value in raw_discovery
+                )
+                semantic_config = _semantic_global_config(work)
+                global_prompt = load_semantic_global_prompt(
+                    "global_review",
+                    work.config.semantic_profile,
+                )
+                _assert_semantic_global_prompt(work, global_prompt)
+                global_payload = build_global_review_payload(
+                    transcript,
+                    input_plan=input_plan,
+                    discovery_outputs=discovery_outputs,
+                    config=semantic_config,
+                    prompt=global_prompt.instructions,
+                )
+                global_input_tokens = semantic_request_tokens(
+                    global_prompt.instructions,
+                    global_payload,
+                    config=semantic_config,
+                )
+                global_provider = self._structured_provider(work, global_prompt)
+                global_validation_events: list[dict[str, str]] = []
+                model_settings = _semantic_model_settings(work)
+                global_cache_dir = generation_dir / "editing/semantic-cache/global_review"
+                global_cache_key = semantic_stage_cache_key(
+                    stage="global_review",
+                    payload=global_payload,
+                    provider=global_provider,
+                    model_settings=model_settings,
+                    output_model=GlobalReviewOutput,
+                )
+                cached_global = load_semantic_stage_cache(
+                    cache_dirs=(
+                        global_cache_dir,
+                        *(
+                            project_dir
+                            / _generation_relative(
+                                generation,
+                                "editing/semantic-cache/global_review",
+                            )
+                            for generation in range(1, work.generation)
+                        ),
+                    ),
+                    cache_key=global_cache_key,
+                    stage="global_review",
+                    payload=global_payload,
+                    provider=global_provider,
+                    model_settings=model_settings,
+                    output_model=GlobalReviewOutput,
+                )
+                global_cache_hit = cached_global is not None
+                if cached_global is not None:
+                    global_output = cached_global
+                    validated = validate_global_review(
+                        global_output,
+                        transcript=transcript,
+                        discovery_outputs=discovery_outputs,
+                        config=semantic_config,
+                        input_mode=input_plan.mode,
+                    )
+                else:
+                    try:
+                        result = global_provider.generate(
+                            subject_id=work.run_id,
+                            payload=global_payload,
+                            response_model=GlobalReviewOutput,
+                            cancel_requested=cancel_requested,
+                        )
+                    except StructuredProviderError as exc:
+                        self._state.record_provider_calls(
+                            fence,
+                            exc.call_records,
+                            cache_hit=False,
+                        )
+                        raise
+                    self._state.record_provider_calls(
+                        fence,
+                        result.call_records,
+                        cache_hit=False,
+                    )
+                    try:
+                        global_output = result.output
+                        validated = validate_global_review(
+                            global_output,
+                            transcript=transcript,
+                            discovery_outputs=discovery_outputs,
+                            config=semantic_config,
+                            input_mode=input_plan.mode,
+                        )
+                    except ValueError as exc:
+                        global_validation_events.append(
+                            {"stage": "global_review", "error": str(exc)[:500]}
+                        )
+                        if result.repaired:
+                            raise ValueError(
+                                "semantic Global Review remained invalid after one repair"
+                            ) from exc
+                        try:
+                            repaired = global_provider.repair(
+                                subject_id=work.run_id,
+                                payload=semantic_repair_payload(
+                                    global_payload,
+                                    result.output,
+                                    validation_errors=(str(exc)[:500],),
+                                ),
+                                response_model=GlobalReviewOutput,
+                                validation_errors=(str(exc)[:240],),
+                                cancel_requested=cancel_requested,
+                            )
+                        except StructuredProviderError as repair_exc:
+                            self._state.record_provider_calls(
+                                fence,
+                                repair_exc.call_records,
+                                cache_hit=False,
+                            )
+                            raise
+                        self._state.record_provider_calls(
+                            fence,
+                            repaired.call_records,
+                            cache_hit=False,
+                        )
+                        global_output = repaired.output
+                        validated = validate_global_review(
+                            global_output,
+                            transcript=transcript,
+                            discovery_outputs=discovery_outputs,
+                            config=semantic_config,
+                            input_mode=input_plan.mode,
+                        )
+                    write_semantic_stage_cache(
+                        cache_dir=global_cache_dir,
+                        cache_key=global_cache_key,
+                        stage="global_review",
+                        payload=global_payload,
+                        provider=global_provider,
+                        model_settings=model_settings,
+                        output=global_output,
+                    )
+                if len(validated.selected) > len(candidates):
+                    raise ValueError(
+                        "semantic global selected more clips than persisted output slots"
+                    )
+                prepared_values: list[PreparedRevision] = []
+                created_at = datetime.now(UTC)
+                for rank, (selected, slot) in enumerate(
+                    zip(validated.selected, candidates, strict=False),
+                    start=1,
+                ):
+                    _check_cancel(cancel_requested)
+                    plan = EditPlan(
+                        candidate_id=slot.candidate.candidate_id,
+                        source_start_ms=selected.start_ms,
+                        source_end_ms=selected.end_ms,
+                        score=float(selected.final_score),
+                        title=selected.clip.title,
+                        hook=selected.clip.hook[:80],
+                        reason=selected.clip.review_reason[:240],
+                        layout=Layout.CENTER_CROP,
+                        caption_template=CaptionTemplate.CLEAN_ZH_V1,
+                        effect=Effect.NONE,
+                        risk_flags=tuple(
+                            dict.fromkeys(risk.type.value for risk in selected.clip.risks)
+                        ),
+                        prompt_version=f"{global_prompt.version}.global_review",
+                        model=global_provider.model_name,
+                        degraded=False,
+                    )
+                    captions = captions_for_clip(
+                        transcript.segments,
+                        source_start_ms=plan.source_start_ms,
+                        source_end_ms=plan.source_end_ms,
+                    )
+                    prepared_values.append(
+                        PreparedRevision(
+                            candidate_id=slot.candidate_id,
+                            rank=rank,
+                            revision=EditPlanRevision(
+                                clip_id=slot.candidate_id,
+                                revision=1,
+                                origin=RevisionOrigin.AI,
+                                plan=plan,
+                                captions=captions,
+                                created_at=created_at,
+                            ),
+                        )
+                    )
+                prepared = tuple(prepared_values)
+                artifact_extra = {
+                    "semantic_global": {
+                        "raw_global_review": global_output.model_dump(mode="json"),
+                        "validated": {
+                            "selected": [
+                                _validated_global_clip_payload(value)
+                                for value in validated.selected
+                            ],
+                            "manual_review": [
+                                _validated_global_clip_payload(value)
+                                for value in validated.manual_review
+                            ],
+                            "rejected": [
+                                _validated_global_clip_payload(value)
+                                for value in validated.rejected
+                            ],
+                            "rejected_candidates": [
+                                value.model_dump(mode="json")
+                                for value in validated.rejected_candidates
+                            ],
+                            "coverage_decisions": [
+                                value.model_dump(mode="json")
+                                for value in validated.coverage_decisions
+                            ],
+                            "global_review_summary": (
+                                validated.global_review_summary.model_dump(mode="json")
+                            ),
+                            "validation_notes": list(validated.validation_notes),
+                        },
+                        "prompt_debug": {
+                            "stage": global_prompt.stage,
+                            "profile": global_prompt.profile,
+                            "version": f"{global_prompt.version}.global_review",
+                            "sha256": global_prompt.sha256,
+                            "loaded_files": list(global_prompt.loaded_files),
+                            "input_mode": str(global_payload["mode"]),
+                            "estimated_total_tokens": global_input_tokens,
+                            "cache_hit": global_cache_hit,
+                            "validation_events": global_validation_events,
+                        },
+                    }
+                }
+            else:
+                editor = self._llm_provider(work)
+                if work.config.clipping_algorithm in {"b", "b_v2_experimental"}:
+                    consolidation_editor = (
+                        self._llm_provider(
+                            work,
+                            semantic_prompts=load_semantic_continuous_skill(),
+                            enforce_persisted_prompt=False,
+                        )
+                        if work.config.semantic_continuous_merge_enabled
+                        else None
+                    )
+                    semantic_selection = select_semantic_clips(
+                        editor,
+                        tuple(item.candidate for item in candidates),
+                        transcript=transcript,
+                        source_duration_ms=source.duration_ms,
+                        minimum_duration_ms=work.config.minimum_clip_ms,
+                        maximum_duration_ms=work.config.maximum_clip_ms,
+                        top_n=work.config.top_n,
+                        score_threshold=work.config.semantic_score_threshold,
+                        cache_dir=generation_dir / "editing" / "semantic-cache",
+                        target_duration_ms=work.config.semantic_target_clip_ms,
+                        continuous_merge_enabled=work.config.semantic_continuous_merge_enabled,
+                        consolidation_provider=consolidation_editor,
+                        consolidation_cache_dir=(
+                            generation_dir / "editing" / "continuous-cache"
+                            if consolidation_editor is not None
+                            else None
+                        ),
+                        cancel_requested=cancel_requested,
+                        on_call_records=lambda records, cache_hit: (
+                            self._state.record_provider_calls(
+                                fence,
+                                records,
+                                cache_hit=cache_hit,
+                            )
+                        ),
+                    )
+                    selected_edits = semantic_selection.selected
+                else:
+                    classic_editing = edit_and_rank_candidates(
+                        editor,
+                        tuple(item.candidate for item in candidates),
+                        source_duration_ms=source.duration_ms,
+                        minimum_duration_ms=work.config.minimum_clip_ms,
+                        maximum_duration_ms=work.config.maximum_clip_ms,
+                        top_n=work.config.top_n,
+                        cache_dir=generation_dir / "editing" / "cache",
+                        cancel_requested=cancel_requested,
+                        on_call_records=lambda records, cache_hit: (
+                            self._state.record_provider_calls(
+                                fence,
+                                records,
+                                cache_hit=cache_hit,
+                            )
+                        ),
+                    )
+                    selected_edits = classic_editing.selected
+                prepared_values = []
+                created_at = datetime.now(UTC)
+                for rank, edited in enumerate(selected_edits, start=1):
+                    _check_cancel(cancel_requested)
+                    item = by_key[edited.candidate.candidate_id]
+                    plan = edited.result.plan
+                    captions = captions_for_clip(
+                        transcript.segments,
+                        source_start_ms=plan.source_start_ms,
+                        source_end_ms=plan.source_end_ms,
+                    )
+                    prepared_values.append(
+                        PreparedRevision(
+                            candidate_id=item.candidate_id,
+                            rank=rank,
+                            revision=EditPlanRevision(
+                                clip_id=item.candidate_id,
+                                revision=1,
+                                origin=(
+                                    RevisionOrigin.DETERMINISTIC
+                                    if plan.degraded
+                                    else RevisionOrigin.AI
+                                ),
+                                plan=plan,
+                                captions=captions,
+                                created_at=created_at,
+                            ),
+                        )
+                    )
+                prepared = tuple(prepared_values)
             write_json_no_clobber(
                 artifact_path,
                 {
                     "schema_version": "1",
                     "revisions": [_prepared_payload(value) for value in prepared],
+                    **artifact_extra,
                 },
             )
         prepared_ids = [item.candidate_id for item in prepared]
-        expected_count = min(work.config.top_n, len(candidates))
+        expected_count = (
+            len(prepared)
+            if work.config.clipping_algorithm
+            in {
+                "b",
+                "b_v2_experimental",
+                "semantic_global",
+                "semantic_windowed",
+            }
+            else min(work.config.top_n, len(candidates))
+        )
         if (
             len(prepared_ids) != expected_count
             or len(set(prepared_ids)) != len(prepared_ids)
@@ -727,11 +1500,52 @@ class PipelineStageHandlers:
         return provider
 
     def _llm_provider(
-        self, work: StageWork
+        self,
+        work: StageWork,
+        *,
+        semantic_prompts: EditingPromptBundle | None = None,
+        enforce_persisted_prompt: bool = True,
     ) -> MockLLMProvider | OpenAILLMProvider | CodexCLILLMProvider:
+        if semantic_prompts is None and work.config.clipping_algorithm in {
+            "b",
+            "b_v2_experimental",
+        }:
+            semantic_prompts = load_semantic_discovery_skill(work.config.semantic_skill_version)
+        if (
+            semantic_prompts is not None
+            and enforce_persisted_prompt
+            and (
+                semantic_prompts.version,
+                semantic_prompts.sha256,
+            )
+            != (
+                work.config.semantic_skill_version,
+                work.config.semantic_skill_sha256,
+            )
+        ):
+            raise ProviderConfigurationError(
+                "persisted semantic clipping Skill no longer matches the installed Skill"
+            )
+        if (
+            semantic_prompts is not None
+            and not enforce_persisted_prompt
+            and (
+                semantic_prompts.version,
+                semantic_prompts.sha256,
+            )
+            != (
+                work.config.semantic_consolidation_skill_version,
+                work.config.semantic_consolidation_skill_sha256,
+            )
+        ):
+            raise ProviderConfigurationError(
+                "persisted semantic consolidation Skill no longer matches the installed Skill"
+            )
         if work.config.provider == "mock":
             provider: MockLLMProvider | OpenAILLMProvider | CodexCLILLMProvider = MockLLMProvider(
-                model_name=work.config.llm_model
+                model_name=work.config.llm_model,
+                prompt_version=(semantic_prompts.version if semantic_prompts else "editing_v1"),
+                prompt_sha256=(semantic_prompts.sha256 if semantic_prompts else None),
             )
         elif work.config.provider in {"mock-codex", "openai-codex", "openrouter-codex"}:
             provider = CodexCLILLMProvider(
@@ -739,6 +1553,7 @@ class PipelineStageHandlers:
                 codex_executable=self._codex_executable,
                 timeout_seconds=work.config.openai_request_timeout_seconds,
                 contract_version=work.config.llm_contract_version,
+                prompts=semantic_prompts,
             )
         else:
             provider = OpenAILLMProvider(
@@ -748,6 +1563,7 @@ class PipelineStageHandlers:
                 retry_policy=_retry_policy(work),
                 input_price_per_million=work.config.llm_input_price_per_million,
                 output_price_per_million=work.config.llm_output_price_per_million,
+                prompts=semantic_prompts,
             )
         expected = (
             provider.contract_version,
@@ -763,11 +1579,49 @@ class PipelineStageHandlers:
             work.config.editorial_schema_version,
             work.config.edit_plan_schema_version,
         )
-        if expected != persisted:
+        if enforce_persisted_prompt and expected != persisted:
             raise ProviderConfigurationError(
                 "persisted editing contract no longer matches the installed provider"
             )
+        if not enforce_persisted_prompt and (
+            provider.contract_version,
+            EDITORIAL_SUGGESTION_SCHEMA_VERSION,
+            EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
+        ) != (
+            work.config.llm_contract_version,
+            work.config.editorial_schema_version,
+            work.config.edit_plan_schema_version,
+        ):
+            raise ProviderConfigurationError(
+                "persisted consolidation contract no longer matches the installed provider"
+            )
         return provider
+
+    def _structured_provider(
+        self,
+        work: StageWork,
+        prompts: SemanticGlobalPromptBundle,
+    ) -> StructuredLLMProvider:
+        if work.config.provider == "mock":
+            return MockStructuredLLMProvider(
+                prompts=prompts,
+                model_name=work.config.llm_model,
+            )
+        if work.config.provider in {"mock-codex", "openai-codex", "openrouter-codex"}:
+            return CodexStructuredLLMProvider(
+                prompts=prompts,
+                model_name=work.config.llm_model,
+                codex_executable=self._codex_executable,
+                timeout_seconds=work.config.openai_request_timeout_seconds,
+                contract_version=work.config.llm_contract_version,
+            )
+        return OpenAIStructuredLLMProvider(
+            prompts=prompts,
+            model_name=work.config.llm_model,
+            api_key=self._openai_api_key,
+            timeout_seconds=work.config.openai_request_timeout_seconds,
+            retry_policy=_retry_policy(work),
+        )
 
     def _proxy_render(
         self,
@@ -792,8 +1646,86 @@ class PipelineStageHandlers:
             (item.candidate_id, item.revision) for item in revisions
         ):
             raise ValueError("persisted revisions differ from their committed EditPlan Asset")
+        if (
+            work.config.clipping_algorithm in {"semantic_global", "semantic_windowed"}
+            and work.config.semantic_no_render
+        ):
+            reservation = self._reserve(
+                work,
+                lease,
+                # A zero-render proxy checkpoint already has a stable repository
+                # contract: one ``no_review_clips`` manifest and no RenderJob rows.
+                # Reuse that artifact kind while recording the explicit dry-run
+                # reason inside the immutable manifest.
+                kind="no_review_clips",
+                relative_path=_generation_relative(
+                    work.generation,
+                    "renders/no-render-plan.json",
+                ),
+                mime_type="application/json",
+            )
+            write_json_no_clobber(
+                project_dir / reservation.relative_path,
+                {
+                    "schema_version": "1",
+                    "algorithm": work.config.clipping_algorithm,
+                    "reason": "explicit_no_render",
+                    "selected_plan_count": len(revisions),
+                },
+            )
+            committed = self._commit(
+                lease,
+                reservation,
+                project_dir=project_dir,
+                validation={
+                    "schema_version": "1",
+                    "selected_plan_count": len(revisions),
+                },
+            )
+            return self._result(
+                work.stage,
+                (committed,),
+                {"render_ids": [], "proxy_count": 0},
+            )
         if not revisions:
-            raise ValueError("proxy rendering has no selected EditPlan revisions")
+            if work.config.clipping_algorithm not in {
+                "b",
+                "b_v2_experimental",
+                "semantic_global",
+                "semantic_windowed",
+            }:
+                raise ValueError("proxy rendering has no selected EditPlan revisions")
+            reservation = self._reserve(
+                work,
+                lease,
+                kind="no_review_clips",
+                relative_path=_generation_relative(
+                    work.generation,
+                    "renders/no-review-clips.json",
+                ),
+                mime_type="application/json",
+            )
+            write_json_no_clobber(
+                project_dir / reservation.relative_path,
+                {
+                    "schema_version": "1",
+                    "algorithm": work.config.clipping_algorithm,
+                    "selected_count": 0,
+                    "reason": "no_agent_proposal_above_threshold",
+                    "score_threshold_exclusive": work.config.semantic_score_threshold,
+                },
+            )
+            committed = self._commit(
+                lease,
+                reservation,
+                project_dir=project_dir,
+                validation={"schema_version": "1", "selected_count": 0},
+            )
+            return self._result(
+                work.stage,
+                (committed,),
+                {"render_ids": [], "proxy_count": 0},
+            )
         try:
             with open_pinned_regular_file(source.resolved_path) as pinned:
                 _validate_pinned_pipeline_source(
@@ -873,6 +1805,7 @@ class PipelineStageHandlers:
                 kind="review_proxy",
                 relative_path=video_relative,
                 mime_type="video/mp4",
+                input_fingerprint=spec_fingerprint,
                 candidate_id=item.candidate_id,
                 edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
@@ -883,6 +1816,7 @@ class PipelineStageHandlers:
                 kind="clip_subtitle_srt",
                 relative_path=subtitle_relative,
                 mime_type="application/x-subrip",
+                input_fingerprint=spec_fingerprint,
                 candidate_id=item.candidate_id,
                 edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
@@ -893,6 +1827,7 @@ class PipelineStageHandlers:
                 kind="render_quality_report",
                 relative_path=quality_relative,
                 mime_type="application/json",
+                input_fingerprint=spec_fingerprint,
                 candidate_id=item.candidate_id,
                 edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
@@ -903,6 +1838,7 @@ class PipelineStageHandlers:
                 kind="render_contact_sheet",
                 relative_path=contact_relative,
                 mime_type="image/png",
+                input_fingerprint=spec_fingerprint,
                 candidate_id=item.candidate_id,
                 edit_plan_revision=item.revision.revision,
                 revision_epoch=work.revision_epoch,
@@ -1154,6 +2090,7 @@ class PipelineStageHandlers:
         kind: str,
         relative_path: str,
         mime_type: str,
+        input_fingerprint: str | None = None,
         candidate_id: str | None = None,
         edit_plan_revision: int | None = None,
         revision_epoch: int | None = None,
@@ -1164,7 +2101,7 @@ class PipelineStageHandlers:
             kind=kind,
             relative_path=relative_path,
             mime_type=mime_type,
-            input_fingerprint=work.input_fingerprint,
+            input_fingerprint=input_fingerprint or work.input_fingerprint,
             generation=work.generation,
             candidate_id=candidate_id,
             edit_plan_revision=edit_plan_revision,
@@ -1419,6 +2356,76 @@ def _prepared_payload(value: PreparedRevision) -> dict[str, object]:
         "candidate_id": value.candidate_id,
         "rank": value.rank,
         "revision": value.revision.model_dump(mode="json"),
+    }
+
+
+def _semantic_global_config(work: StageWork) -> SemanticGlobalConfig:
+    return SemanticGlobalConfig(
+        minimum_duration_ms=work.config.minimum_clip_ms,
+        target_duration_ms=work.config.semantic_target_clip_ms,
+        maximum_duration_ms=work.config.maximum_clip_ms,
+        score_threshold_exclusive=work.config.semantic_score_threshold,
+        max_clips=work.config.top_n,
+        full_context_budget_ratio=work.config.semantic_full_context_budget_ratio,
+        model_context_tokens=work.config.semantic_model_context_tokens,
+        tokenizer_name=work.config.semantic_tokenizer_name,
+        output_reserve_tokens=work.config.semantic_output_reserve_tokens,
+        safety_margin_tokens=work.config.semantic_safety_margin_tokens,
+        fallback_target_duration_ms=work.config.semantic_fallback_target_ms,
+        fallback_minimum_duration_ms=work.config.semantic_fallback_minimum_ms,
+        fallback_maximum_duration_ms=work.config.semantic_fallback_maximum_ms,
+        fallback_context_guard_ms=work.config.semantic_fallback_context_guard_ms,
+        global_context_ms=work.config.semantic_global_context_ms,
+    )
+
+
+def _semantic_model_settings(work: StageWork) -> dict[str, object]:
+    """Return non-secret model settings that materially affect structured output."""
+
+    return {
+        "llm_model": work.config.llm_model,
+        "request_timeout_seconds": work.config.openai_request_timeout_seconds,
+        "max_request_retries": work.config.openai_max_request_retries,
+        "retry_base_seconds": work.config.openai_retry_base_seconds,
+        "retry_max_seconds": work.config.openai_retry_max_seconds,
+        "tokenizer_name": work.config.semantic_tokenizer_name,
+        "model_context_tokens": work.config.semantic_model_context_tokens,
+        "output_reserve_tokens": work.config.semantic_output_reserve_tokens,
+        "safety_margin_tokens": work.config.semantic_safety_margin_tokens,
+    }
+
+
+def _assert_semantic_global_prompt(
+    work: StageWork,
+    prompt: SemanticGlobalPromptBundle,
+) -> None:
+    expected = (f"{prompt.version}.{prompt.stage}", prompt.sha256)
+    persisted = (
+        (
+            work.config.semantic_discovery_skill_version,
+            work.config.semantic_discovery_skill_sha256,
+        )
+        if prompt.stage == "discovery"
+        else (
+            work.config.semantic_global_review_skill_version,
+            work.config.semantic_global_review_skill_sha256,
+        )
+    )
+    if expected != persisted:
+        raise ProviderConfigurationError(
+            "persisted semantic global Skill no longer matches the installed bundle"
+        )
+
+
+def _validated_global_clip_payload(value: ValidatedGlobalClip) -> dict[str, object]:
+    return {
+        "clip": value.clip.model_dump(mode="json"),
+        "decision": value.decision.value,
+        "start_ms": value.start_ms,
+        "end_ms": value.end_ms,
+        "duration_ms": value.duration_ms,
+        "final_score": value.final_score,
+        "validation_notes": list(value.validation_notes),
     }
 
 

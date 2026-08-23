@@ -43,8 +43,10 @@ def test_real_mock_demo_reaches_delivered_with_current_revision_media(tmp_path: 
     assert manifest["clips"][0]["edit_plan_revision"] == 2
     with zipfile.ZipFile(result.delivery_zip) as archive:
         names = archive.namelist()
-        assert names[-1] == "manifest.json"
-        assert len(names) == 3
+        assert names[-3:] == ["manifest.json", "index.html", "checksums.sha256"]
+        assert len(names) == 5
+        assert b"<video" in archive.read("index.html")
+        assert b"  index.html\n" in archive.read("checksums.sha256")
         subtitle_name = manifest["clips"][0]["subtitle_filename"]
         subtitle = archive.read(subtitle_name).decode("utf-8")
     assert "00:00:00,000 -->" in subtitle

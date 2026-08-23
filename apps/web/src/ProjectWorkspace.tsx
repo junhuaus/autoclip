@@ -28,7 +28,7 @@ const STAGE_LABELS: Record<string, string> = {
   transcribe: "中文转写",
   candidates: "候选生成",
   edit: "AI 编辑",
-  proxy_render: "审核/交付母版渲染",
+  proxy_render: "预览/交付母版渲染",
 };
 
 const MEMBER_ROLE_LABELS = {
@@ -273,9 +273,6 @@ export function ClipCard({
   selected = false,
   onSelectedChange = () => undefined,
   selectionDisabled = false,
-  handoffSelected = false,
-  onHandoffSelectedChange = () => undefined,
-  handoffSelectionDisabled = false,
   openDisabled = false,
 }: {
   item: ClipSummaryResponse;
@@ -283,9 +280,6 @@ export function ClipCard({
   selected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
   selectionDisabled?: boolean;
-  handoffSelected?: boolean;
-  onHandoffSelectedChange?: (selected: boolean) => void;
-  handoffSelectionDisabled?: boolean;
   openDisabled?: boolean;
 }) {
   const { clip } = item;
@@ -314,7 +308,7 @@ export function ClipCard({
 
   return (
     <article
-      className={`clip-card ${clip.proxy_status === "stale" ? "clip-stale" : ""}`}
+      className={`clip-card ${selected ? "clip-selected" : ""} ${clip.proxy_status === "stale" ? "clip-stale" : ""}`}
       aria-labelledby={`clip-title-${clip.clip_id}`}
     >
       <div className="clip-card-main">
@@ -325,7 +319,7 @@ export function ClipCard({
               controls
               preload="metadata"
               src={item.proxy_media_url}
-              aria-label={`${clip.title} 审核交付母版`}
+              aria-label={`${clip.title} 预览交付母版`}
               onLoadedMetadata={applyPendingSeek}
             >
               浏览器不支持 HTML5 视频播放。
@@ -338,27 +332,19 @@ export function ClipCard({
         </div>
         <div className="clip-card-body">
           <div className="section-heading compact">
-            <div className="clip-selection-group">
-              <label className="clip-select">
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  disabled={selectionDisabled}
-                  onChange={(event) => onSelectedChange(event.target.checked)}
-                />
-                批量审核
-              </label>
-              <label className="clip-select clip-export-select">
-                <input
-                  type="checkbox"
-                  checked={handoffSelected}
-                  disabled={handoffSelectionDisabled}
-                  onChange={(event) => onHandoffSelectedChange(event.target.checked)}
-                />
-                选择导出
-              </label>
-            </div>
-            <StatusBadge status={clip.review_status} />
+            <label className="clip-select clip-delivery-select">
+              <input
+                type="checkbox"
+                checked={selected}
+                disabled={selectionDisabled}
+                onChange={(event) => onSelectedChange(event.target.checked)}
+              />
+              选入交付
+            </label>
+            <StatusBadge
+              status={selected ? "approved" : "pending_review"}
+              label={selected ? "已选中" : "未选中"}
+            />
           </div>
           <span className="eyebrow">revision {clip.edit_plan_revision}</span>
           <h3 id={`clip-title-${clip.clip_id}`}>{clip.title}</h3>
@@ -375,7 +361,7 @@ export function ClipCard({
               <span>推荐上屏</span>
             </div>
             <blockquote>{clip.hook}</blockquote>
-            <p className="hint">AI 从当前高光内容提炼，作为可审核的画面文案。</p>
+            <p className="hint">AI 从当前高光内容提炼，可在编辑详情中继续调整。</p>
           </section>
 
           <section className="clip-keywords" aria-labelledby={`keywords-${clip.clip_id}`}>
@@ -409,8 +395,8 @@ export function ClipCard({
           </section>
 
           <div className="badge-row">
-            <span className="metric">{clip.score.toFixed(1)} 分</span>
-            {clip.proxy_status ? <StatusBadge status={clip.proxy_status} label={`代理${statusLabel(clip.proxy_status)}`} /> : null}
+            <span className="metric">评分 {clip.score.toFixed(1)}</span>
+            {clip.proxy_status ? <StatusBadge status={clip.proxy_status} label={`母版${statusLabel(clip.proxy_status)}`} /> : null}
           </div>
           {clip.proxy_status === "stale" ? (
             <p className="stale-copy" role="status">当前 revision 需要重新渲染，旧母版不能用于交付。</p>
@@ -427,7 +413,7 @@ export function ClipCard({
               disabled={openDisabled}
               onClick={onOpen}
             >
-              审核和编辑
+              编辑详情
             </button>
             {item.download_video_url ? (
               <a className="button button-secondary" href={item.download_video_url} download>
@@ -680,11 +666,11 @@ function DeliveryRow({ value }: { value: DeliveryDetailResponse }) {
 export function DeliveryPanel({
   api,
   project,
-  approvedCount,
+  selectedCount,
 }: {
   api: LiveClipApiClient;
   project: ProjectSnapshot;
-  approvedCount: number;
+  selectedCount: number;
 }) {
   const queryClient = useQueryClient();
   const [includeZip, setIncludeZip] = useState(true);
@@ -741,16 +727,16 @@ export function DeliveryPanel({
   );
   const canDeliver = project.allowed_actions.includes("deliver");
   const canCreate =
-    canDeliver && approvedCount > 0 && !activeDelivery && !createMutation.isPending;
+    canDeliver && selectedCount > 0 && !activeDelivery && !createMutation.isPending;
 
   return (
     <section className="panel" aria-labelledby="delivery-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">不可变版本</p>
-          <h2 id="delivery-title">交付包</h2>
+          <p className="eyebrow">所选高光 · 不可变版本</p>
+          <h2 id="delivery-title">网页交付包</h2>
         </div>
-        <span className="metric">已批准 {approvedCount}</span>
+        <span className="metric">已选 {selectedCount} 条</span>
       </div>
       <div className="delivery-actions">
         <label className="checkbox-label">
@@ -760,7 +746,7 @@ export function DeliveryPanel({
             disabled={!canDeliver}
             onChange={(event) => setIncludeZip(event.currentTarget.checked)}
           />
-          创建 delivery.zip
+          同时创建 ZIP
         </label>
         <button
           type="button"
@@ -772,20 +758,21 @@ export function DeliveryPanel({
             ? "正在提交…"
             : includeZip
               ? hasFailedDelivery
-                ? "重试为新交付版本"
-                : "创建新交付版本"
-              : "创建无 ZIP 交付版本"}
+                ? "重试生成新网页包"
+                : "导出所选高光"
+              : "创建网页目录"}
         </button>
       </div>
       {!canCreate ? (
         <p className="hint disabled-reason">
           {!canDeliver
             ? "你的项目角色可以查看已有交付，但不能创建新交付版本。"
-            : approvedCount === 0
-            ? "至少批准一个已有当前母版的 revision 后才能请求交付；未审核和已拒绝切片会被丢弃。"
+            : selectedCount === 0
+            ? "请先在高光列表勾选至少一条；未选中的切片不会进入交付包。"
             : "已有交付任务正在执行，请等待其进入终态。"}
         </p>
       ) : null}
+      <p className="hint">下载并解压 ZIP 后，直接打开根目录的 index.html 即可浏览全部已选视频。</p>
       {deliveryQuery.data ? (
         <div className="notice" aria-live="polite">
           <StatusBadge status={deliveryQuery.data.delivery.status} />
@@ -817,9 +804,6 @@ export function ProjectWorkspace({
 }) {
   const queryClient = useQueryClient();
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-  const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(() => new Set());
-  const [handoffClipIds, setHandoffClipIds] = useState<Set<string>>(() => new Set());
-  const [batchRejectReason, setBatchRejectReason] = useState("");
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [dirtyClipIds, setDirtyClipIds] = useState<Set<string>>(() => new Set());
   const [failedBatchOperation, setFailedBatchOperation] =
@@ -861,62 +845,19 @@ export function ProjectWorkspace({
         query.state.data?.map((value) => value.proxy_media_url) ?? [],
       ),
   });
-  const approvedCount = useMemo(
+  const selectedCount = useMemo(
     () => clipsQuery.data?.filter(({ clip }) => clip.review_status === "approved").length ?? 0,
     [clipsQuery.data],
-  );
-  const selectedItems = useMemo(
-    () =>
-      clipsQuery.data?.filter(({ clip }) => selectedClipIds.has(clip.clip_id)) ?? [],
-    [clipsQuery.data, selectedClipIds],
-  );
-  const handoffItems = useMemo(
-    () =>
-      clipsQuery.data?.filter(({ clip }) => handoffClipIds.has(clip.clip_id)) ?? [],
-    [clipsQuery.data, handoffClipIds],
-  );
-  const exportableItems = useMemo(
-    () =>
-      clipsQuery.data?.filter(
-        ({ clip, download_video_url, download_subtitle_url }) =>
-          !dirtyClipIds.has(clip.clip_id) &&
-          clip.proxy_status === "succeeded" &&
-          Boolean(download_video_url) &&
-          Boolean(download_subtitle_url),
-      ) ?? [],
-    [clipsQuery.data, dirtyClipIds],
   );
   const selectableItems = useMemo(
     () =>
       clipsQuery.data?.filter(({ clip }) =>
         !dirtyClipIds.has(clip.clip_id) &&
+        clip.proxy_status === "succeeded" &&
         (clip.allowed_actions.includes("approve") || clip.allowed_actions.includes("reject")),
       ) ?? [],
     [clipsQuery.data, dirtyClipIds],
   );
-  useEffect(() => {
-    if (!clipsQuery.data) return;
-    const visibleIds = new Set(clipsQuery.data.map(({ clip }) => clip.clip_id));
-    setSelectedClipIds((current) => {
-      const next = new Set([...current].filter((clipId) => visibleIds.has(clipId)));
-      return next.size === current.size ? current : next;
-    });
-    setHandoffClipIds((current) => {
-      const next = new Set([...current].filter((clipId) => visibleIds.has(clipId)));
-      return next.size === current.size ? current : next;
-    });
-  }, [clipsQuery.data]);
-  useEffect(() => {
-    if (dirtyClipIds.size === 0) return;
-    setSelectedClipIds((current) => {
-      const next = new Set([...current].filter((clipId) => !dirtyClipIds.has(clipId)));
-      return next.size === current.size ? current : next;
-    });
-    setHandoffClipIds((current) => {
-      const next = new Set([...current].filter((clipId) => !dirtyClipIds.has(clipId)));
-      return next.size === current.size ? current : next;
-    });
-  }, [dirtyClipIds]);
   const handleEditorDirtyChange = useCallback((clipId: string, dirty: boolean) => {
     setDirtyClipIds((current) => {
       const next = new Set(current);
@@ -942,45 +883,39 @@ export function ProjectWorkspace({
       for (const detail of response.clips) {
         queryClient.setQueryData(["clip", detail.clip.clip_id], detail);
       }
-      setBatchNotice(`已原子提交 ${response.clips.length} 条审核决定。`);
+      setBatchNotice(`已更新 ${response.clips.length} 条交付选择。`);
       setFailedBatchOperation(null);
-      setSelectedClipIds(new Set());
-      setBatchRejectReason("");
       void clipsQuery.refetch();
       void projectQuery.refetch();
     },
     onError: async (_error, operation) => {
       setFailedBatchOperation(operation);
       await Promise.all([clipsQuery.refetch(), projectQuery.refetch()]);
-      setBatchNotice("审核状态已重新加载。请确认最新 revision；网络失败可重试同一批次。");
+      setBatchNotice("选择状态已重新加载；网络失败可安全重试同一操作。");
     },
   });
-  const submitBatch = (status: "approved" | "rejected") => {
+  const submitSelection = (
+    items: ClipSummaryResponse[],
+    status: "approved" | "rejected",
+  ) => {
     const body: BatchReviewRequest = {
-      items: selectedItems.map(({ clip }) => ({
+      items: items.map(({ clip }) => ({
         clip_id: clip.clip_id,
         expected_revision: clip.edit_plan_revision,
         status,
-        ...(status === "rejected" ? { reason: batchRejectReason.trim() } : {}),
+        ...(status === "rejected" ? { reason: "未选入交付" } : {}),
       })),
     };
     setBatchNotice(null);
     setFailedBatchOperation(null);
     batchMutation.mutate({
       body,
-      requestKey: createIdempotencyKey("batch-review"),
+      requestKey: createIdempotencyKey("delivery-selection"),
     });
   };
   const allSelectableSelected =
     selectableItems.length > 0 &&
-    selectableItems.every(({ clip }) => selectedClipIds.has(clip.clip_id));
-  const canBatchApprove =
-    selectedItems.length > 0 &&
-    selectedItems.every(({ clip }) => clip.allowed_actions.includes("approve"));
-  const canBatchReject =
-    selectedItems.length > 0 &&
-    selectedItems.every(({ clip }) => clip.allowed_actions.includes("reject")) &&
-    batchRejectReason.trim().length > 0;
+    selectableItems.every(({ clip }) => clip.review_status === "approved");
   const failedBatchRetrySafe = useMemo(() => {
     if (!failedBatchOperation || !clipsQuery.data) return false;
     const currentClips = new Map(
@@ -1008,10 +943,6 @@ export function ProjectWorkspace({
   const canReview = project.allowed_actions.includes("review_clip");
   const canComment = project.allowed_actions.includes("comment");
   const canRender = project.allowed_actions.includes("render");
-  const canExport = project.allowed_actions.includes("export");
-  const allExportableSelected =
-    exportableItems.length > 0 &&
-    exportableItems.every(({ clip }) => handoffClipIds.has(clip.clip_id));
 
   return (
     <main className="workspace">
@@ -1027,7 +958,7 @@ export function ProjectWorkspace({
         <div className="hero-status">
           <StatusBadge status={project.lifecycle} label={PROJECT_LIFECYCLE_LABELS[project.lifecycle]} />
           <span>技术状态 · {statusLabel(project.status)}</span>
-          <span>已批准 {approvedCount}/{clipsQuery.data?.length ?? 0}</span>
+          <span>已选 {selectedCount}/{clipsQuery.data?.length ?? 0}</span>
           <span>
             {MEMBER_ROLE_LABELS[project.current_user_role]} · {project.members.length} 位成员
           </span>
@@ -1068,10 +999,10 @@ export function ProjectWorkspace({
       <section className="panel" aria-labelledby="clips-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">人工审核</p>
+            <p className="eyebrow">挑选成片</p>
             <h2 id="clips-title">高光时刻</h2>
           </div>
-          <span className="metric">已批准 {approvedCount}</span>
+          <span className="metric">已选 {selectedCount} 条</span>
         </div>
         {!contentEnabled ? <EmptyState title="高光时刻尚未可用">等待 Pipeline 完成。</EmptyState> : null}
         {contentEnabled && clipsQuery.isPending ? <LoadingState>正在加载高光时刻…</LoadingState> : null}
@@ -1079,49 +1010,26 @@ export function ProjectWorkspace({
         {clipsQuery.data?.length === 0 ? <EmptyState title="没有高光时刻" /> : null}
         {clipsQuery.data && clipsQuery.data.length > 0 ? (
           <>
-            {canReview ? <div className="batch-review-bar" aria-label="批量审核">
+            {canReview ? <div className="batch-review-bar selection-bar" aria-label="交付选择">
               <label>
                 <input
                   type="checkbox"
                   checked={allSelectableSelected}
                   disabled={batchMutation.isPending || selectableItems.length === 0}
-                  onChange={(event) =>
-                    setSelectedClipIds(
-                      event.target.checked
-                        ? new Set(selectableItems.map(({ clip }) => clip.clip_id))
-                        : new Set(),
-                    )
-                  }
+                  onChange={(event) => {
+                    const desired = event.target.checked ? "approved" : "rejected";
+                    const changed = selectableItems.filter(({ clip }) =>
+                      desired === "approved"
+                        ? clip.review_status !== "approved"
+                        : clip.review_status === "approved",
+                    );
+                    if (changed.length > 0) submitSelection(changed, desired);
+                  }}
                 />
-                全选可审核高光
+                全选可交付高光
               </label>
-              <strong>已选 {selectedItems.length} 条</strong>
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={batchMutation.isPending || !canBatchApprove}
-                onClick={() => submitBatch("approved")}
-              >
-                {batchMutation.isPending ? "批量提交中…" : "批量批准"}
-              </button>
-              <label className="batch-reason">
-                批量拒绝原因
-                <input
-                  value={batchRejectReason}
-                  maxLength={1_000}
-                  disabled={batchMutation.isPending}
-                  onChange={(event) => setBatchRejectReason(event.target.value)}
-                  placeholder="拒绝时必填"
-                />
-              </label>
-              <button
-                type="button"
-                className="button button-danger-ghost"
-                disabled={batchMutation.isPending || !canBatchReject}
-                onClick={() => submitBatch("rejected")}
-              >
-                批量拒绝
-              </button>
+              <strong>{batchMutation.isPending ? "正在保存选择…" : `已选 ${selectedCount} 条`}</strong>
+              <span className="hint">勾选即保存，不需要审批；未选内容不会进入交付包。</span>
               {batchNotice ? <p role="status">{batchNotice}</p> : null}
               {batchMutation.isError ? (
                 <p className="form-error" role="alert">{errorMessage(batchMutation.error)}</p>
@@ -1138,68 +1046,30 @@ export function ProjectWorkspace({
               ) : null}
               {batchMutation.isError && failedBatchOperation && !failedBatchRetrySafe ? (
                 <p className="hint" role="status">
-                  原批次包含未保存编辑、已变化 revision 或已移除候选，不能直接重试；请先处理编辑并重新选择。
+                  原操作包含未保存编辑、已变化 revision 或已移除候选，不能直接重试。
                 </p>
               ) : null}
               {dirtyClipIds.size > 0 ? (
                 <p className="hint" role="status">
-                  有 {dirtyClipIds.size} 个高光存在未保存编辑，已从批量审核中排除。
+                  有 {dirtyClipIds.size} 个高光存在未保存编辑，暂时不能改变选择。
                 </p>
               ) : null}
             </div> : null}
-            {canExport ? (
-              <div className="handoff-selection-bar" aria-label="剪辑交接选择">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={allExportableSelected}
-                    disabled={exportableItems.length === 0}
-                    onChange={(event) =>
-                      setHandoffClipIds(
-                        event.target.checked
-                          ? new Set(exportableItems.map(({ clip }) => clip.clip_id))
-                          : new Set(),
-                      )
-                    }
-                  />
-                  全选可导出高光
-                </label>
-                <strong>已选 {handoffItems.length} 条用于剪辑交接</strong>
-              </div>
-            ) : null}
             <ol className="highlight-list" aria-label="高光时刻列表">
               {clipsQuery.data.map((item) => (
                 <li key={item.clip.clip_id}>
                   <ClipCard
                     item={item}
-                    selected={selectedClipIds.has(item.clip.clip_id)}
-                    handoffSelected={handoffClipIds.has(item.clip.clip_id)}
+                    selected={item.clip.review_status === "approved"}
                     selectionDisabled={
-                      !canReview || batchMutation.isPending || dirtyClipIds.has(item.clip.clip_id)
+                      !canReview ||
+                      batchMutation.isPending ||
+                      dirtyClipIds.has(item.clip.clip_id) ||
+                      item.clip.proxy_status !== "succeeded"
                     }
                     openDisabled={batchMutation.isPending}
-                    handoffSelectionDisabled={
-                      !canExport ||
-                      dirtyClipIds.has(item.clip.clip_id) ||
-                      item.clip.proxy_status !== "succeeded" ||
-                      !item.download_video_url ||
-                      !item.download_subtitle_url
-                    }
                     onSelectedChange={(selected) =>
-                      setSelectedClipIds((current) => {
-                        const next = new Set(current);
-                        if (selected) next.add(item.clip.clip_id);
-                        else next.delete(item.clip.clip_id);
-                        return next;
-                      })
-                    }
-                    onHandoffSelectedChange={(selected) =>
-                      setHandoffClipIds((current) => {
-                        const next = new Set(current);
-                        if (selected) next.add(item.clip.clip_id);
-                        else next.delete(item.clip.clip_id);
-                        return next;
-                      })
+                      submitSelection([item], selected ? "approved" : "rejected")
                     }
                     onOpen={() => setSelectedClipId(item.clip.clip_id)}
                   />
@@ -1210,21 +1080,11 @@ export function ProjectWorkspace({
         ) : null}
       </section>
 
-      {contentEnabled ? (
-        <EditPackagePanel
-          api={api}
-          project={project}
-          selectedItems={handoffItems}
-          onClearSelection={() => setHandoffClipIds(new Set())}
-        />
-      ) : null}
-
       {selectedClipId ? (
         <ClipEditor
           api={api}
           clipId={selectedClipId}
           canEdit={canEdit}
-          canReview={canReview}
           canComment={canComment}
           canRender={canRender}
           members={project.members}
@@ -1238,7 +1098,7 @@ export function ProjectWorkspace({
         />
       ) : null}
 
-      <DeliveryPanel api={api} project={project} approvedCount={approvedCount} />
+      <DeliveryPanel api={api} project={project} selectedCount={selectedCount} />
 
       {contentEnabled ? (
         <ReleaseWorkspace

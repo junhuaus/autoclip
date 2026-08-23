@@ -19,6 +19,8 @@ from liveclip.delivery.package import (
     DeliveryClipInput,
     DeliveryError,
     create_delivery,
+    delivery_checksums_text,
+    delivery_index_html,
     normalize_srt,
     safe_filename_component,
     verify_pinned_zip_members,
@@ -94,6 +96,10 @@ class DeliveryTaskHandler:
                     edit_plan_revision=clip.edit_plan_revision,
                     render_revision=clip.edit_plan_revision,
                     title=clip.title,
+                    hook=clip.hook,
+                    reason=clip.reason,
+                    risk_flags=clip.risk_flags,
+                    keywords=clip.keywords,
                     source_start_ms=clip.source_start_ms,
                     source_end_ms=clip.source_end_ms,
                     score=clip.score,
@@ -164,7 +170,7 @@ class DeliveryTaskHandler:
                     "delivery_id": work.delivery_id,
                     "delivery_version": version,
                     "snapshot_fingerprint": work.snapshot_fingerprint,
-                    "members": len(work.clips) * 2 + 1,
+                    "members": len(work.clips) * 2 + 3,
                 },
                 expected_sha256=validated.zip_sha256,
             )
@@ -311,6 +317,26 @@ def _validate_existing_delivery(
 
         disk_evidence["manifest.json"] = manifest_evidence
         archive_hashes["manifest.json"] = manifest_evidence.sha256
+        index_sha256 = hashlib.sha256(delivery_index_html(manifest).encode("utf-8")).hexdigest()
+        index_evidence = _capture_delivery_member(
+            destination,
+            "index.html",
+            expected_sha256=index_sha256,
+            stack=stack,
+        )
+        disk_evidence["index.html"] = index_evidence
+        archive_hashes["index.html"] = index_sha256
+        checksums_sha256 = hashlib.sha256(
+            delivery_checksums_text(archive_hashes).encode("utf-8")
+        ).hexdigest()
+        checksums_evidence = _capture_delivery_member(
+            destination,
+            "checksums.sha256",
+            expected_sha256=checksums_sha256,
+            stack=stack,
+        )
+        disk_evidence["checksums.sha256"] = checksums_evidence
+        archive_hashes["checksums.sha256"] = checksums_sha256
         zip_sha256: str | None = None
         if work.include_zip:
             zip_evidence = _capture_delivery_member(

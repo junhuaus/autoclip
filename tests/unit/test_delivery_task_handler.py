@@ -163,7 +163,10 @@ def test_task_handler_commits_exact_new_manifest_and_zip_hashes(tmp_path: Path) 
     assert persistence.manifest_clips[0].clip_id == "clip_1"
 
 
-@pytest.mark.parametrize("member_kind", ("video", "subtitle", "manifest", "zip"))
+@pytest.mark.parametrize(
+    "member_kind",
+    ("video", "subtitle", "manifest", "index", "checksums", "zip"),
+)
 def test_existing_delivery_retry_rejects_exact_member_tamper(
     tmp_path: Path,
     member_kind: str,
@@ -179,6 +182,8 @@ def test_existing_delivery_retry_rejects_exact_member_tamper(
         "video": delivery / entry["video_filename"],
         "subtitle": delivery / entry["subtitle_filename"],
         "manifest": delivery / "manifest.json",
+        "index": delivery / "index.html",
+        "checksums": delivery / "checksums.sha256",
         "zip": delivery / "delivery.zip",
     }
     targets[member_kind].write_bytes(f"attacker-{member_kind}".encode())

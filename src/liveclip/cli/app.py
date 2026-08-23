@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 from pydantic import ValidationError
@@ -19,6 +19,10 @@ from liveclip.bootstrap import (
     pipeline_config_from_settings,
 )
 from liveclip.cli.doctor import DoctorReport, run_doctor
+from liveclip.clipping_skills.semantic_global_v1 import load_semantic_global_prompt
+from liveclip.clipping_skills.semantic_windowed_v1 import (
+    load_semantic_windowed_discovery_prompt,
+)
 from liveclip.config import get_settings
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.domain.edit_plan import CaptionCue
@@ -30,6 +34,7 @@ from liveclip.domain.state_transitions import (
 )
 from liveclip.domain.time import seconds_to_ms
 from liveclip.media.ingest import resolve_allowed_source
+from liveclip.pipeline.semantic_global import SemanticGlobalConfig
 from liveclip.providers.readiness import require_processing_ready
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
@@ -42,6 +47,8 @@ from liveclip.services.database_backup import (
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
 from liveclip.services.openrouter_smoke import OpenRouterSmokeError, run_openrouter_smoke
+from liveclip.services.semantic_delivery import render_reviewed_semantic_delivery
+from liveclip.services.semantic_evaluation import run_semantic_evaluation
 from liveclip.worker import run_worker
 
 app = typer.Typer(
@@ -146,9 +153,57 @@ def db_restore(
 @app.command("run")
 def run_pipeline(
     input_path: Annotated[Path, typer.Option("--input", help="Absolute local source video path.")],
-    top_n: Annotated[int | None, typer.Option("--top-n", min=1, max=100)] = None,
-    minimum_seconds: Annotated[int | None, typer.Option("--min-seconds", min=1, max=600)] = None,
-    maximum_seconds: Annotated[int | None, typer.Option("--max-seconds", min=1, max=1_800)] = None,
+    top_n: Annotated[
+        int | None,
+        typer.Option("--top-n", "--max-clips", min=1, max=100),
+    ] = None,
+    minimum_seconds: Annotated[
+        int | None,
+        typer.Option("--min-seconds", "--min-duration", min=1, max=600),
+    ] = None,
+    maximum_seconds: Annotated[
+        int | None,
+        typer.Option("--max-seconds", "--max-duration", min=1, max=1_800),
+    ] = None,
+    algorithm: Annotated[
+        Literal["a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"],
+        typer.Option(
+            "--algorithm",
+            help=("a, b (frozen v1), b_v2_experimental, semantic_global, or semantic_windowed."),
+        ),
+    ] = "a",
+    semantic_profile: Annotated[
+        Literal["general", "vocal_coach_live"],
+        typer.Option("--profile"),
+    ] = "general",
+    semantic_score_threshold: Annotated[
+        float | None,
+        typer.Option("--semantic-threshold", "--score-threshold", min=0, max=100),
+    ] = None,
+    semantic_target_seconds: Annotated[
+        int | None,
+        typer.Option("--semantic-target-seconds", "--target-duration", min=1, max=600),
+    ] = None,
+    semantic_full_context_budget_ratio: Annotated[
+        float,
+        typer.Option("--full-context-budget-ratio", min=0.1, max=0.8),
+    ] = 0.58,
+    semantic_model_context_tokens: Annotated[
+        int,
+        typer.Option("--model-context-tokens", min=16_000, max=2_000_000),
+    ] = 128_000,
+    prompt_debug: Annotated[
+        bool,
+        typer.Option("--prompt-debug", help="Print prompt identity and budget metadata only."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate configuration without creating a PipelineRun."),
+    ] = False,
+    no_render: Annotated[
+        bool,
+        typer.Option("--no-render", help="Create the final semantic plan but skip FFmpeg renders."),
+    ] = False,
     wait: Annotated[
         bool, typer.Option("--wait", help="Process in this foreground process.")
     ] = False,
@@ -160,13 +215,51 @@ def run_pipeline(
         raise typer.Exit(code=2)
     settings = get_settings()
     try:
-        require_processing_ready(settings)
+        if not dry_run:
+            require_processing_ready(settings)
         config = pipeline_config_from_settings(
             settings,
             top_n=top_n,
             minimum_clip_seconds=minimum_seconds,
             maximum_clip_seconds=maximum_seconds,
+            clipping_algorithm=algorithm,
+            semantic_target_clip_seconds=semantic_target_seconds,
+            semantic_score_threshold=semantic_score_threshold,
+            semantic_profile=semantic_profile,
+            semantic_full_context_budget_ratio=semantic_full_context_budget_ratio,
+            semantic_model_context_tokens=semantic_model_context_tokens,
+            semantic_no_render=no_render,
+            semantic_prompt_debug=prompt_debug,
         )
+        if prompt_debug and algorithm in {"semantic_global", "semantic_windowed"}:
+            for stage in ("discovery", "global_review"):
+                bundle = (
+                    load_semantic_windowed_discovery_prompt(semantic_profile)
+                    if algorithm == "semantic_windowed" and stage == "discovery"
+                    else load_semantic_global_prompt(stage, semantic_profile)
+                )
+                typer.echo(
+                    json.dumps(
+                        {
+                            "stage": stage,
+                            "profile": semantic_profile,
+                            "version": f"{bundle.version}.{stage}",
+                            "sha256": bundle.sha256,
+                            "loaded_files": bundle.loaded_files,
+                            "model_context_tokens": config.semantic_model_context_tokens,
+                            "full_context_budget_ratio": (
+                                config.semantic_full_context_budget_ratio
+                            ),
+                            "tokenizer": config.semantic_tokenizer_name,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+        if dry_run:
+            typer.echo(f"Configuration valid: {config.clipping_algorithm}")
+            typer.echo(f"Config fingerprint: {config.fingerprint}")
+            return
         with LiveClipRuntime.open(settings) as runtime:
             source_path = resolve_allowed_source(
                 input_path,
@@ -202,6 +295,161 @@ def run_pipeline(
     except (BootstrapError, ValidationError, ValueError, RuntimeError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
         raise typer.Exit(code=1) from exc
+
+
+@app.command("semantic-eval")
+def semantic_eval(
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Timestamped SRT transcript to evaluate."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New output directory; existing paths are never replaced."),
+    ],
+    provider: Annotated[
+        Literal["configured", "mock"],
+        typer.Option("--provider", help="Use configured real LLM or deterministic mock."),
+    ] = "configured",
+    algorithm: Annotated[
+        Literal["semantic_global", "semantic_windowed"],
+        typer.Option("--algorithm"),
+    ] = "semantic_global",
+    profile: Annotated[
+        Literal["general", "vocal_coach_live"],
+        typer.Option("--profile"),
+    ] = "vocal_coach_live",
+    minimum_seconds: Annotated[int, typer.Option("--min-duration", min=1, max=600)] = 45,
+    target_seconds: Annotated[int, typer.Option("--target-duration", min=1, max=600)] = 60,
+    maximum_seconds: Annotated[int, typer.Option("--max-duration", min=1, max=600)] = 90,
+    threshold: Annotated[float, typer.Option("--score-threshold", min=0, max=100)] = 75,
+    max_clips: Annotated[int, typer.Option("--max-clips", min=1, max=100)] = 15,
+    model_context_tokens: Annotated[
+        int,
+        typer.Option("--model-context-tokens", min=16_000, max=2_000_000),
+    ] = 128_000,
+    full_context_budget_ratio: Annotated[
+        float,
+        typer.Option("--full-context-budget-ratio", min=0.1, max=0.8),
+    ] = 0.58,
+    baseline: Annotated[
+        Path | None,
+        typer.Option("--baseline", help="Optional prior evaluation directory for the report."),
+    ] = None,
+    reuse_discovery_from: Annotated[
+        Path | None,
+        typer.Option(
+            "--reuse-discovery-from",
+            help=(
+                "Reuse compatible validated Discovery output; window mode can resume exact "
+                "completed batches from a failed run."
+            ),
+        ),
+    ] = None,
+    reuse_global_review_from: Annotated[
+        Path | None,
+        typer.Option(
+            "--reuse-global-review-from",
+            help="Reuse one compatible validated Global Review and run later validation stages.",
+        ),
+    ] = None,
+    boundary_refinement: Annotated[
+        bool,
+        typer.Option(
+            "--boundary-refinement/--no-boundary-refinement",
+            help="Run the experimental score-neutral boundary re-check.",
+        ),
+    ] = False,
+    discovery_reasoning_effort: Annotated[
+        Literal["low", "medium", "high", "xhigh"],
+        typer.Option(
+            "--discovery-reasoning-effort",
+            help="Codex reasoning effort for Discovery.",
+        ),
+    ] = "medium",
+    global_review_reasoning_effort: Annotated[
+        Literal["low", "medium", "high", "xhigh"],
+        typer.Option(
+            "--global-review-reasoning-effort",
+            help="Codex reasoning effort for Global Review.",
+        ),
+    ] = "medium",
+) -> None:
+    """Evaluate a semantic clipping mode from an existing transcript without FFmpeg."""
+
+    try:
+        result = run_semantic_evaluation(
+            transcript_path=transcript,
+            output_dir=output,
+            settings=get_settings(),
+            profile=profile,
+            provider_mode=provider,
+            baseline_dir=baseline,
+            discovery_cache_dir=reuse_discovery_from,
+            global_review_cache_dir=reuse_global_review_from,
+            boundary_refinement_enabled=boundary_refinement,
+            discovery_reasoning_effort=discovery_reasoning_effort,
+            global_review_reasoning_effort=global_review_reasoning_effort,
+            algorithm=algorithm,
+            config=SemanticGlobalConfig(
+                minimum_duration_ms=minimum_seconds * 1_000,
+                target_duration_ms=target_seconds * 1_000,
+                maximum_duration_ms=maximum_seconds * 1_000,
+                score_threshold_exclusive=threshold,
+                max_clips=max_clips,
+                model_context_tokens=model_context_tokens,
+                full_context_budget_ratio=full_context_budget_ratio,
+            ),
+        )
+    except (ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+
+
+@app.command("semantic-deliver")
+def semantic_deliver(
+    source: Annotated[Path, typer.Option("--source", help="Absolute source media path.")],
+    transcript: Annotated[Path, typer.Option("--transcript", help="Timestamped SRT evidence.")],
+    plan: Annotated[Path, typer.Option("--plan", help="Validated semantic clipping plan.")],
+    review: Annotated[Path, typer.Option("--review", help="Auditable offline review JSON.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New output directory; existing paths are not replaced."),
+    ],
+    reuse_renders_from: Annotated[
+        Path | None,
+        typer.Option(
+            "--reuse-renders-from",
+            help="Prior reviewed-render-manifest.json; only exact source/range matches are reused.",
+        ),
+    ] = None,
+) -> None:
+    """Render reviewed semantic clips and create a browsable delivery package."""
+
+    if not source.is_absolute() or ".." in source.parts:
+        typer.echo("--source must be an absolute path without '..'", err=True)
+        raise typer.Exit(code=2)
+    settings = get_settings()
+    try:
+        result = render_reviewed_semantic_delivery(
+            source_path=source,
+            transcript_path=transcript,
+            plan_path=plan,
+            review_path=review,
+            output_dir=output,
+            allowed_media_roots=settings.allowed_media_roots,
+            reuse_render_manifest_path=reuse_renders_from,
+        )
+    except (ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Verified delivery clips: {result.rendered_clip_count}")
+    typer.echo(f"New renders: {result.new_render_count}")
+    typer.echo(f"Reused verified renders: {result.reused_render_count}")
+    typer.echo(f"Review manifest: {result.review_manifest_path}")
+    typer.echo(f"Delivery index: {result.delivery.directory / 'index.html'}")
+    typer.echo(f"Delivery ZIP: {result.delivery.zip_path}")
 
 
 @app.command()

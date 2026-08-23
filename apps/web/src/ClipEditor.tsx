@@ -17,7 +17,6 @@ interface ClipEditorProps {
   api: LiveClipApiClient;
   clipId: string;
   canEdit?: boolean;
-  canReview?: boolean;
   canRender?: boolean;
   canComment?: boolean;
   members?: WorkspaceMember[];
@@ -35,6 +34,7 @@ interface CaptionDraft {
 
 interface EditorDraft {
   revision: number;
+  score: string;
   title: string;
   sourceStartMs: string;
   sourceEndMs: string;
@@ -44,6 +44,7 @@ interface EditorDraft {
 function draftFromResponse(response: ClipDetailResponse): EditorDraft {
   return {
     revision: response.clip.current_revision,
+    score: String(response.clip.plan.score),
     title: response.clip.plan.title,
     sourceStartMs: String(response.clip.plan.source_start_ms),
     sourceEndMs: String(response.clip.plan.source_end_ms),
@@ -58,9 +59,13 @@ function draftFromResponse(response: ClipDetailResponse): EditorDraft {
 function patchFromDraft(draft: EditorDraft, original: EditorDraft): ClipPatchRequest | null {
   const sourceStartMs = Number(draft.sourceStartMs);
   const sourceEndMs = Number(draft.sourceEndMs);
+  const score = Number(draft.score);
   if (
     !draft.title.trim() ||
     draft.captions.length === 0 ||
+    !Number.isFinite(score) ||
+    score < 0 ||
+    score > 100 ||
     !Number.isSafeInteger(sourceStartMs) ||
     !Number.isSafeInteger(sourceEndMs)
   ) {
@@ -76,6 +81,9 @@ function patchFromDraft(draft: EditorDraft, original: EditorDraft): ClipPatchReq
     captions.push({ start_ms: startMs, end_ms: endMs, text: cue.text });
   }
   const patch: ClipPatchRequest = { expected_revision: draft.revision };
+  if (draft.score !== original.score) {
+    patch.score = score;
+  }
   if (draft.sourceStartMs !== original.sourceStartMs) {
     patch.source_start_ms = sourceStartMs;
   }
@@ -111,7 +119,6 @@ export function ClipEditor({
   api,
   clipId,
   canEdit = true,
-  canReview = true,
   canRender = true,
   canComment = true,
   members = [],
@@ -122,7 +129,6 @@ export function ClipEditor({
 }: ClipEditorProps) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<EditorDraft | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
   const [inputError, setInputError] = useState<string | null>(null);
   const [activeRenderId, setActiveRenderId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -196,24 +202,6 @@ export function ClipEditor({
     },
   });
 
-  const reviewMutation = useMutation({
-    mutationFn: (variables: { status: "approved" | "rejected"; reason?: string }) => {
-      if (!clipQuery.data) {
-        throw new Error("clip unavailable");
-      }
-      return api.reviewClip(clipId, {
-        expected_revision: clipQuery.data.clip.current_revision,
-        status: variables.status,
-        ...(variables.reason ? { reason: variables.reason } : {}),
-      });
-    },
-    onSuccess: (response) => {
-      queryClient.setQueryData(["clip", clipId], response);
-      setRejectionReason("");
-      void refreshRelated();
-    },
-  });
-
   const renderMutation = useMutation({
     mutationFn: (kind: RenderKind) => {
       if (!clipQuery.data) {
@@ -266,7 +254,6 @@ export function ClipEditor({
   const busy =
     externalBusy ||
     saveMutation.isPending ||
-    reviewMutation.isPending ||
     renderMutation.isPending;
   const renderPolling =
     activeRenderQuery.data?.status === "queued" || activeRenderQuery.data?.status === "running";
@@ -287,7 +274,7 @@ export function ClipEditor({
   const save = () => {
     const patch = patchFromDraft(draft, originalDraft);
     if (!patch) {
-      setInputError("请保留至少一条字幕，并为标题、毫秒时间和字幕填写有效值。");
+      setInputError("请填写 0–100 的评分，并为标题、毫秒时间和至少一条字幕填写有效值。");
       return;
     }
     setInputError(null);
@@ -330,7 +317,7 @@ export function ClipEditor({
       {staleRenders.length > 0 ? (
         <div className="notice notice-stale" role="status">
           <StatusBadge status="stale" />
-          <span>旧 revision 的 {staleRenders.length} 个渲染已失效，不能用于当前审核或交付。</span>
+          <span>旧 revision 的 {staleRenders.length} 个渲染已失效，不能用于当前预览或交付。</span>
         </div>
       ) : null}
 
@@ -338,7 +325,7 @@ export function ClipEditor({
         <div className="notice" aria-live="polite">
           <StatusBadge status={activeRenderQuery.data.status} />
           <span>
-            {activeRenderQuery.data.kind === "final" ? "烧录版视频" : "审核/交付母版"}
+            {activeRenderQuery.data.kind === "final" ? "烧录版视频" : "预览/交付母版"}
             {renderPolling ? "正在渲染，页面会自动刷新。" : "渲染状态已更新。"}
           </span>
         </div>
@@ -366,12 +353,12 @@ export function ClipEditor({
               <figcaption>
                 当前 revision {video.render.edit_plan_revision} · {video.render.kind === "final"
                   ? "烧录版视频（标题与字幕已写入画面）"
-                  : "干净审核/交付母版（标题与字幕作为独立元数据）"}
+                  : "干净预览/交付母版（标题与字幕作为独立元数据）"}
               </figcaption>
             </figure>
           ) : (
             <EmptyState title="当前 revision 尚无可播放视频">
-              {allowed.has("render_proxy") ? "可生成当前 revision 的审核/交付母版。" : "等待渲染完成或刷新详情。"}
+              {allowed.has("render_proxy") ? "可生成当前 revision 的预览/交付母版。" : "等待渲染完成或刷新详情。"}
             </EmptyState>
           )}
 
@@ -411,7 +398,7 @@ export function ClipEditor({
             <p><strong>标题：</strong>{clip.plan.title}</p>
             <p><strong>高光语句：</strong>{clip.plan.hook}</p>
             <p><strong>推荐理由：</strong>{clip.plan.reason}</p>
-            <p className="hint">标题、描述和字幕不写入母版画面；切片完成即生成母版，审核只决定保留或丢弃。</p>
+            <p className="hint">标题、描述和字幕不写入母版画面；回到高光列表勾选即可加入交付。</p>
             {clip.plan.risk_flags.length > 0 ? (
               <ul className="risk-list" aria-label="当前方案风险标签">
                 {clip.plan.risk_flags.map((flag) => <li key={flag}>{flag}</li>)}
@@ -475,9 +462,23 @@ export function ClipEditor({
         <form className="editor-form" onSubmit={(event) => { event.preventDefault(); save(); }}>
           <h3>编辑当前方案</h3>
           <p className="hint">
-            源边界使用绝对毫秒；字幕使用片段相对毫秒。允许窗口：
+            评分范围为 0–100；源边界使用绝对毫秒；字幕使用片段相对毫秒。允许窗口：
             {clip.allowed_start_ms}–{clip.allowed_end_ms} ms。最终校验由后端完成。
           </p>
+
+          <label>
+            评分
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={draft.score}
+              required
+              disabled={busy || !canEdit}
+              onChange={(event) => setDraft({ ...draft, score: event.currentTarget.value })}
+            />
+          </label>
 
           <label>
             标题
@@ -592,43 +593,7 @@ export function ClipEditor({
         </form>
       </div>
 
-      <div className="action-grid">
-        <section className="action-card">
-          <h3>人工审核</h3>
-          <p className="hint">有未保存修改时请先创建新 revision，再审核该 revision。</p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="button button-success"
-              disabled={busy || !canReview || dirty || !allowed.has("approve")}
-              onClick={() => reviewMutation.mutate({ status: "approved" })}
-            >
-              {reviewMutation.isPending ? "提交中…" : "批准"}
-            </button>
-          </div>
-          <label>
-            拒绝理由
-            <textarea
-              rows={2}
-              maxLength={1_000}
-              disabled={busy || !canReview}
-              value={rejectionReason}
-              onChange={(event) => setRejectionReason(event.currentTarget.value)}
-              placeholder="说明内容不完整等原因"
-            />
-          </label>
-          <button
-            type="button"
-            className="button button-danger"
-            disabled={busy || !canReview || dirty || !allowed.has("reject") || !rejectionReason.trim()}
-            onClick={() => reviewMutation.mutate({ status: "rejected", reason: rejectionReason.trim() })}
-          >
-            拒绝此 revision
-          </button>
-          {reviewMutation.isError ? <p className="form-error" role="alert">{errorMessage(reviewMutation.error)}</p> : null}
-          {clip.review.reason ? <p className="hint">最近拒绝理由：{clip.review.reason}</p> : null}
-        </section>
-
+      <div className="action-grid action-grid-single">
         <section className="action-card">
           <h3>渲染</h3>
           <p className="hint">切片初版会自动生成母版；只有修改当前 revision 后才需在这里重新渲染。</p>
@@ -639,7 +604,7 @@ export function ClipEditor({
               disabled={busy || !canRender || renderPolling || !allowed.has("render_proxy")}
               onClick={() => renderMutation.mutate("proxy")}
             >
-              渲染审核/交付母版
+              渲染预览/交付母版
             </button>
             <button
               type="button"
@@ -651,7 +616,7 @@ export function ClipEditor({
             </button>
           </div>
           {renderMutation.isError ? <p className="form-error" role="alert">{errorMessage(renderMutation.error)}</p> : null}
-          {!allowed.has("render_final") ? <p className="hint">审批不影响母版；批准后才可按需另生成标题/字幕烧录版。</p> : null}
+          {!allowed.has("render_final") ? <p className="hint">选入交付不影响母版；选中后才可按需另生成标题/字幕烧录版。</p> : null}
         </section>
       </div>
 
@@ -661,7 +626,7 @@ export function ClipEditor({
           <ul>
             {clip.renders.map((render) => (
               <li key={render.render_id}>
-                <span>{render.kind === "final" ? "烧录版" : "审核/交付母版"} r{render.edit_plan_revision}</span>
+                <span>{render.kind === "final" ? "烧录版" : "预览/交付母版"} r{render.edit_plan_revision}</span>
                 <StatusBadge status={render.status} />
                 {render.safe_error_message ? <span className="form-error">{render.safe_error_message}</span> : null}
               </li>

@@ -25,6 +25,7 @@ class ClipPatch(BaseModel):
     expected_revision: int = Field(ge=1)
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
+    score: float | None = Field(default=None, ge=0, le=100)
     title: str | None = Field(default=None, min_length=1, max_length=40)
     layout: Literal["center_crop"] | None = None
     captions: tuple[CaptionCue, ...] | None = Field(
@@ -38,12 +39,15 @@ class ClipPatch(BaseModel):
             for value in (
                 self.source_start_ms,
                 self.source_end_ms,
+                self.score,
                 self.title,
                 self.layout,
                 self.captions,
             )
         ):
-            raise ValueError("clip patch must include a title, boundary, layout, or caption change")
+            raise ValueError(
+                "clip patch must include a score, title, boundary, layout, or caption change"
+            )
         if (
             self.source_start_ms is not None
             and self.source_end_ms is not None

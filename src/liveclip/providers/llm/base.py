@@ -101,11 +101,24 @@ def deterministic_edit_plan(
     degraded: bool,
     risk_flags: tuple[str, ...],
 ) -> EditPlan:
+    bounded_candidate = candidate
+    if (
+        "algorithm_b_analysis_window" in candidate.reasons
+        or "algorithm_b_continuous_cluster" in candidate.reasons
+    ) and candidate.duration_ms > maximum_duration_ms:
+        bounded_candidate = candidate.model_copy(
+            update={
+                "source_end_ms": min(
+                    candidate.source_end_ms,
+                    candidate.source_start_ms + maximum_duration_ms,
+                )
+            }
+        )
     title, hook = editorial_labels(candidate.text)
     plan = EditPlan(
         candidate_id=candidate.candidate_id,
-        source_start_ms=candidate.source_start_ms,
-        source_end_ms=candidate.source_end_ms,
+        source_start_ms=bounded_candidate.source_start_ms,
+        source_end_ms=bounded_candidate.source_end_ms,
         score=round(candidate.rule_score, 3),
         title=title,
         hook=hook,

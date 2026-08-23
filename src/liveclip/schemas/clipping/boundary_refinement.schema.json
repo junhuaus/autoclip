@@ -1,0 +1,313 @@
+{
+  "$defs": {
+    "BoundaryCompactness": {
+      "enum": [
+        "shortest_complete",
+        "contains_removable_context"
+      ],
+      "title": "BoundaryCompactness",
+      "type": "string"
+    },
+    "BoundaryRefinementItem": {
+      "additionalProperties": false,
+      "description": "A score-neutral source-boundary patch for one reviewed clip.",
+      "properties": {
+        "boundary_compactness": {
+          "$ref": "#/$defs/BoundaryCompactness"
+        },
+        "clip_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "editorial_decision": {
+          "const": "keep",
+          "title": "Editorial Decision",
+          "type": "string"
+        },
+        "end_boundary_reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "End Boundary Reason",
+          "type": "string"
+        },
+        "end_cue_function": {
+          "$ref": "#/$defs/EndCueFunction"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "end_cue_speaker_role": {
+          "$ref": "#/$defs/EndCueSpeakerRole"
+        },
+        "ending_complete": {
+          "title": "Ending Complete",
+          "type": "boolean"
+        },
+        "first_complete_payoff_cue_id": {
+          "minimum": 1,
+          "title": "First Complete Payoff Cue Id",
+          "type": "integer"
+        },
+        "following_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Following Cue Id"
+        },
+        "following_cue_quote": {
+          "anyOf": [
+            {
+              "maxLength": 400,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Following Cue Quote"
+        },
+        "following_cue_relation": {
+          "$ref": "#/$defs/FollowingCueRelation"
+        },
+        "hook": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "irrelevant_intro_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Irrelevant Intro Cue Ids",
+          "type": "array"
+        },
+        "irrelevant_outro_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Irrelevant Outro Cue Ids",
+          "type": "array"
+        },
+        "minimum_duration_extension_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Minimum Duration Extension Cue Ids",
+          "type": "array"
+        },
+        "opening_relevance": {
+          "$ref": "#/$defs/OpeningRelevance"
+        },
+        "payoff": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Payoff",
+          "type": "string"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlag"
+          },
+          "maxItems": 12,
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "review_reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Review Reason",
+          "type": "string"
+        },
+        "source_closing_quote": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Closing Quote",
+          "type": "string"
+        },
+        "source_fidelity": {
+          "$ref": "#/$defs/SourceFidelity"
+        },
+        "source_fidelity_notes": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Fidelity Notes",
+          "type": "string"
+        },
+        "source_opening_promise": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Source Opening Promise",
+          "type": "string"
+        },
+        "source_opening_quote": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Opening Quote",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "topic_core_end_cue_id": {
+          "minimum": 1,
+          "title": "Topic Core End Cue Id",
+          "type": "integer"
+        },
+        "topic_core_start_cue_id": {
+          "minimum": 1,
+          "title": "Topic Core Start Cue Id",
+          "type": "integer"
+        },
+        "viewer_promise": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Viewer Promise",
+          "type": "string"
+        },
+        "viewer_promise_matches_source_opening": {
+          "title": "Viewer Promise Matches Source Opening",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "clip_id",
+        "editorial_decision",
+        "start_cue_id",
+        "end_cue_id",
+        "viewer_promise",
+        "title",
+        "hook",
+        "payoff",
+        "source_opening_quote",
+        "source_opening_promise",
+        "viewer_promise_matches_source_opening",
+        "source_closing_quote",
+        "end_cue_speaker_role",
+        "end_cue_function",
+        "following_cue_relation",
+        "end_boundary_reason",
+        "opening_relevance",
+        "ending_complete",
+        "first_complete_payoff_cue_id",
+        "minimum_duration_extension_cue_ids",
+        "boundary_compactness",
+        "source_fidelity",
+        "source_fidelity_notes",
+        "topic_core_start_cue_id",
+        "topic_core_end_cue_id",
+        "review_reason"
+      ],
+      "title": "BoundaryRefinementItem",
+      "type": "object"
+    },
+    "EndCueFunction": {
+      "enum": [
+        "substantive_payoff",
+        "same_promise_clarification",
+        "rhetorical_closure",
+        "listener_response",
+        "new_topic_or_question",
+        "noise_or_unknown"
+      ],
+      "title": "EndCueFunction",
+      "type": "string"
+    },
+    "EndCueSpeakerRole": {
+      "enum": [
+        "answerer",
+        "listener",
+        "unknown"
+      ],
+      "title": "EndCueSpeakerRole",
+      "type": "string"
+    },
+    "FollowingCueRelation": {
+      "description": "The semantic relationship between a proposed end and its next source cue.",
+      "enum": [
+        "continues_same_utterance",
+        "required_same_promise",
+        "optional_or_redundant",
+        "new_topic_or_noise",
+        "source_end"
+      ],
+      "title": "FollowingCueRelation",
+      "type": "string"
+    },
+    "OpeningRelevance": {
+      "enum": [
+        "direct",
+        "necessary_context",
+        "irrelevant"
+      ],
+      "title": "OpeningRelevance",
+      "type": "string"
+    },
+    "QualityFlag": {
+      "enum": [
+        "context_dependent_opening",
+        "irrelevant_intro",
+        "irrelevant_outro",
+        "repeated_live_cta",
+        "sales_heavy",
+        "asr_uncertain",
+        "topic_not_closed",
+        "incomplete_ending",
+        "topic_switch_inside",
+        "source_title_mismatch",
+        "padded_with_irrelevant_content"
+      ],
+      "title": "QualityFlag",
+      "type": "string"
+    },
+    "SourceFidelity": {
+      "enum": [
+        "faithful",
+        "unsupported_reframe"
+      ],
+      "title": "SourceFidelity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/BoundaryRefinementItem"
+      },
+      "maxItems": 100,
+      "title": "Clips",
+      "type": "array"
+    }
+  },
+  "required": [
+    "clips"
+  ],
+  "title": "BoundaryRefinementOutput",
+  "type": "object"
+}

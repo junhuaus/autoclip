@@ -59,6 +59,20 @@ class ApiRequestModel(BaseModel):
 
 class JobCreateRequest(ApiRequestModel):
     input_path: str = Field(min_length=1, max_length=4_096)
+    clipping_algorithm: Literal[
+        "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
+    ] = "a"
+    semantic_profile: Literal["general", "vocal_coach_live"] = "general"
+    semantic_target_clip_seconds: int | None = Field(default=None, ge=1, le=600)
+    semantic_score_threshold: float | None = Field(default=None, ge=0, le=100)
+    semantic_full_context_budget_ratio: float | None = Field(default=None, ge=0.1, le=0.8)
+    semantic_model_context_tokens: int | None = Field(
+        default=None,
+        ge=16_000,
+        le=2_000_000,
+    )
+    semantic_no_render: bool = False
+    semantic_prompt_debug: bool = False
     top_n: int | None = Field(default=None, ge=1, le=100)
     minimum_clip_seconds: int | None = Field(default=None, ge=1, le=600)
     maximum_clip_seconds: int | None = Field(default=None, ge=1, le=1_800)
@@ -71,10 +85,36 @@ class JobCreateRequest(ApiRequestModel):
             and self.minimum_clip_seconds > self.maximum_clip_seconds
         ):
             raise ValueError("minimum clip duration cannot exceed maximum")
+        if (
+            self.semantic_target_clip_seconds is not None
+            and self.minimum_clip_seconds is not None
+            and self.semantic_target_clip_seconds < self.minimum_clip_seconds
+        ):
+            raise ValueError("target clip duration cannot be shorter than minimum")
+        if (
+            self.semantic_target_clip_seconds is not None
+            and self.maximum_clip_seconds is not None
+            and self.semantic_target_clip_seconds > self.maximum_clip_seconds
+        ):
+            raise ValueError("target clip duration cannot exceed maximum")
         return self
 
 
 class RunCreateRequest(ApiRequestModel):
+    clipping_algorithm: Literal[
+        "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
+    ] = "a"
+    semantic_profile: Literal["general", "vocal_coach_live"] = "general"
+    semantic_target_clip_seconds: int | None = Field(default=None, ge=1, le=600)
+    semantic_score_threshold: float | None = Field(default=None, ge=0, le=100)
+    semantic_full_context_budget_ratio: float | None = Field(default=None, ge=0.1, le=0.8)
+    semantic_model_context_tokens: int | None = Field(
+        default=None,
+        ge=16_000,
+        le=2_000_000,
+    )
+    semantic_no_render: bool = False
+    semantic_prompt_debug: bool = False
     top_n: int | None = Field(default=None, ge=1, le=100)
     minimum_clip_seconds: int | None = Field(default=None, ge=1, le=600)
     maximum_clip_seconds: int | None = Field(default=None, ge=1, le=1_800)
@@ -87,6 +127,18 @@ class RunCreateRequest(ApiRequestModel):
             and self.minimum_clip_seconds > self.maximum_clip_seconds
         ):
             raise ValueError("minimum clip duration cannot exceed maximum")
+        if (
+            self.semantic_target_clip_seconds is not None
+            and self.minimum_clip_seconds is not None
+            and self.semantic_target_clip_seconds < self.minimum_clip_seconds
+        ):
+            raise ValueError("target clip duration cannot be shorter than minimum")
+        if (
+            self.semantic_target_clip_seconds is not None
+            and self.maximum_clip_seconds is not None
+            and self.semantic_target_clip_seconds > self.maximum_clip_seconds
+        ):
+            raise ValueError("target clip duration cannot exceed maximum")
         return self
 
 
@@ -109,6 +161,7 @@ class ClipPatchRequest(ApiRequestModel):
     expected_revision: int = Field(ge=1)
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
+    score: float | None = Field(default=None, ge=0, le=100)
     title: str | None = Field(default=None, min_length=1, max_length=40)
     layout: Literal["center_crop"] | None = None
     captions: tuple[CaptionCueRequest, ...] | None = Field(
@@ -122,6 +175,7 @@ class ReviewActionRequest(ApiRequestModel):
     reason: str | None = Field(default=None, max_length=1_000)
     source_start_ms: int | None = Field(default=None, ge=0)
     source_end_ms: int | None = Field(default=None, gt=0)
+    score: float | None = Field(default=None, ge=0, le=100)
     title: str | None = Field(default=None, min_length=1, max_length=40)
     layout: Literal["center_crop"] | None = None
     captions: tuple[CaptionCueRequest, ...] | None = Field(

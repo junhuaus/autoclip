@@ -10,6 +10,34 @@ import { server } from "./server";
 import { renderWithClient } from "./test-utils";
 
 describe("project list states", () => {
+  it("defaults to overlapping semantic windows and keeps comparison modes explicit", async () => {
+    const user = userEvent.setup();
+    renderWithClient(<App />);
+
+    await screen.findByText("还没有项目");
+    await user.click(screen.getByRole("button", { name: "＋ 新建项目" }));
+    expect(screen.getByLabelText(/重叠语义窗口 · 推荐/)).toBeChecked();
+    expect(screen.getByLabelText("最短秒数")).toHaveValue(45);
+    expect(screen.getByLabelText("理想切片秒数")).toHaveValue(60);
+    expect(screen.getByLabelText("最长切片秒数")).toHaveValue(90);
+    expect(screen.getByLabelText("内容 Profile")).toHaveValue("vocal_coach_live");
+    expect(screen.getByText(/Discovery 不评分/)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/B v1 · 历史语义窗口/));
+
+    expect(screen.getByLabelText(/B v1 · 历史语义窗口/)).toBeChecked();
+    expect(screen.getByLabelText("最短秒数")).toHaveValue(8);
+    expect(screen.getByLabelText("理想切片秒数")).toHaveValue(60);
+    expect(screen.getByLabelText("最长切片秒数")).toHaveValue(60);
+    expect(screen.getByLabelText("保留分数须高于")).toHaveValue(75);
+    expect(screen.getByText(/120 秒窗口、60 秒步长/)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/B v2 · 实验/));
+
+    expect(screen.getByLabelText("最长切片秒数")).toHaveValue(90);
+    expect(screen.getByText(/实验模式保留时间邻接归并/)).toBeInTheDocument();
+  });
+
   it("shows loading and then a useful empty state", async () => {
     server.use(
       http.get("/api/v1/projects/search", async () => {

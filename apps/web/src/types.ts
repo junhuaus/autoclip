@@ -432,6 +432,14 @@ export interface ProjectMembersResponse {
 
 export interface JobCreateRequest {
   input_path: string;
+  clipping_algorithm?: "a" | "b" | "b_v2_experimental" | "semantic_global" | "semantic_windowed";
+  semantic_profile?: "general" | "vocal_coach_live";
+  semantic_target_clip_seconds?: number;
+  semantic_score_threshold?: number;
+  semantic_full_context_budget_ratio?: number;
+  semantic_model_context_tokens?: number;
+  semantic_no_render?: boolean;
+  semantic_prompt_debug?: boolean;
   top_n?: number;
   minimum_clip_seconds?: number;
   maximum_clip_seconds?: number;
@@ -643,6 +651,7 @@ export interface ClipPatchRequest {
   expected_revision: number;
   source_start_ms?: number;
   source_end_ms?: number;
+  score?: number;
   title?: string;
   layout?: "center_crop";
   captions?: CaptionCue[];

@@ -456,6 +456,23 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
             assert invalid_range.status_code == 416
             assert invalid_range.json()["error"]["code"] == "RANGE_NOT_SATISFIABLE"
 
+            # Selection-first delivery: the persisted review status is the single
+            # source of truth for which clips may enter a package.
+            initial_selection = client.post(
+                f"/api/v1/projects/{project_id}/reviews/batch",
+                headers={**auth, "Idempotency-Key": "api-initial-selection-001"},
+                json={
+                    "items": [
+                        {
+                            "clip_id": clip_id,
+                            "expected_revision": 1,
+                            "status": "approved",
+                        }
+                    ]
+                },
+            )
+            assert initial_selection.status_code == 200
+
             initial_package_body = {
                 "items": [{"clip_id": clip_id, "expected_revision": 1}],
                 "preset": "clean_editing",
@@ -467,7 +484,7 @@ def test_authenticated_mock_api_review_render_delivery_and_range_flow(
                 headers={**auth, "Idempotency-Key": "api-initial-edit-package-001"},
                 json=initial_package_body,
             )
-            assert initial_package.status_code == 202
+            assert initial_package.status_code == 202, initial_package.text
             completed_initial_package = runtime.delivery_runner.run_edit_package_until_terminal(
                 str(initial_package.json()["resource_id"]),
                 worker_id="api-initial-edit-package-worker",

@@ -38,12 +38,12 @@ it("shows an empty delivery state, creates a ZIP version and exposes its signed 
     <DeliveryPanel
       api={new LiveClipApiClient()}
       project={{ ...project, status: "ready_for_delivery" }}
-      approvedCount={1}
+      selectedCount={1}
     />,
   );
 
   expect(await screen.findByText("还没有交付版本")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "创建新交付版本" }));
+  await user.click(screen.getByRole("button", { name: "导出所选高光" }));
 
   await waitFor(() => expect(requestBody).toEqual({ include_zip: true }));
   const download = await screen.findByRole("link", { name: "下载 ZIP" });
@@ -91,13 +91,13 @@ it("allows the configured delivery workflow to omit the ZIP", async () => {
     <DeliveryPanel
       api={new LiveClipApiClient()}
       project={{ ...project, status: "ready_for_delivery" }}
-      approvedCount={1}
+      selectedCount={1}
     />,
   );
 
   await screen.findByText("还没有交付版本");
-  await user.click(screen.getByRole("checkbox", { name: "创建 delivery.zip" }));
-  const createButton = screen.getByRole("button", { name: "创建无 ZIP 交付版本" });
+  await user.click(screen.getByRole("checkbox", { name: "同时创建 ZIP" }));
+  const createButton = screen.getByRole("button", { name: "创建网页目录" });
   expect(createButton).toBeEnabled();
   await user.click(createButton);
   await waitFor(() => expect(requestBody).toEqual({ include_zip: false }));
@@ -152,12 +152,12 @@ it("offers a new immutable delivery attempt after the previous version failed", 
     <DeliveryPanel
       api={new LiveClipApiClient()}
       project={{ ...project, status: "failed" }}
-      approvedCount={1}
+      selectedCount={1}
     />,
   );
 
   expect(await screen.findByText("交付写入失败，请重试。")).toBeInTheDocument();
-  const retryButton = screen.getByRole("button", { name: "重试为新交付版本" });
+  const retryButton = screen.getByRole("button", { name: "重试生成新网页包" });
   expect(retryButton).toBeEnabled();
   await user.click(retryButton);
   await waitFor(() => expect(retried).toBe(true));

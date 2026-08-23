@@ -358,6 +358,26 @@ def test_legacy_blur_revision_cannot_be_approved_or_rendered_until_revised(
         assert connection.scalar(select(func.count()).select_from(ReviewDecisionRow)) == 0
 
 
+def test_score_edit_creates_bounded_human_revision(
+    review_context: tuple[Engine, ReviewService, str, str, str],
+) -> None:
+    engine, service, clip_id, _, _ = review_context
+
+    revised = service.revise_clip(clip_id, ClipPatch(expected_revision=1, score=73.5))
+
+    assert revised.current_revision == 2
+    assert revised.plan.score == 73.5
+    assert revised.review.status == ReviewStatus.PENDING_REVIEW
+    assert {render.status for render in revised.renders} == {RenderStatus.STALE}
+    with engine.connect() as connection:
+        stored = connection.execute(
+            select(EditPlanRevisionRow.score, EditPlanRevisionRow.origin).where(
+                EditPlanRevisionRow.revision == 2
+            )
+        ).one()
+        assert tuple(stored) == (73.5, "human")
+
+
 def test_stale_expected_revision_rolls_back_without_partial_revision_or_decision(
     review_context: tuple[Engine, ReviewService, str, str, str],
 ) -> None:

@@ -97,3 +97,9 @@ def test_clip_patch_allows_only_the_single_layer_layout() -> None:
     assert patch.layout == "center_crop"
     with pytest.raises(ValidationError):
         ClipPatch.model_validate({"expected_revision": 1, "layout": "vertical_blur_background"})
+
+
+def test_clip_patch_accepts_only_bounded_human_scores() -> None:
+    assert ClipPatch(expected_revision=1, score=87.5).score == 87.5
+    with pytest.raises(ValidationError):
+        ClipPatch(expected_revision=1, score=100.1)

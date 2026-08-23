@@ -2018,6 +2018,22 @@ def _pipeline_config(
         top_n=body.top_n,
         minimum_clip_seconds=body.minimum_clip_seconds,
         maximum_clip_seconds=body.maximum_clip_seconds,
+        clipping_algorithm=body.clipping_algorithm,
+        semantic_target_clip_seconds=body.semantic_target_clip_seconds,
+        semantic_score_threshold=body.semantic_score_threshold,
+        semantic_profile=body.semantic_profile,
+        semantic_full_context_budget_ratio=(
+            body.semantic_full_context_budget_ratio
+            if body.semantic_full_context_budget_ratio is not None
+            else 0.58
+        ),
+        semantic_model_context_tokens=(
+            body.semantic_model_context_tokens
+            if body.semantic_model_context_tokens is not None
+            else 128_000
+        ),
+        semantic_no_render=body.semantic_no_render,
+        semantic_prompt_debug=body.semantic_prompt_debug,
     )
 
 
@@ -2137,6 +2153,7 @@ def _clip_patch(body: ClipPatchRequest) -> ClipPatch:
         expected_revision=body.expected_revision,
         source_start_ms=body.source_start_ms,
         source_end_ms=body.source_end_ms,
+        score=body.score,
         title=body.title,
         layout=body.layout,
         captions=(
@@ -2153,6 +2170,7 @@ def _review_contains_patch(body: ReviewActionRequest) -> bool:
         for value in (
             body.source_start_ms,
             body.source_end_ms,
+            body.score,
             body.title,
             body.layout,
             body.captions,
@@ -2165,6 +2183,7 @@ def _review_patch(body: ReviewActionRequest) -> ClipPatch:
         expected_revision=body.expected_revision,
         source_start_ms=body.source_start_ms,
         source_end_ms=body.source_end_ms,
+        score=body.score,
         title=body.title,
         layout=body.layout,
         captions=(

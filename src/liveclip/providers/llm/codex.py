@@ -17,6 +17,10 @@ from pydantic import ValidationError
 
 from liveclip.domain.candidate import CandidateClip
 from liveclip.domain.edit_plan import EditPlan, Layout, validate_edit_plan_bounds
+from liveclip.limits import (
+    MAX_LLM_REQUEST_TIMEOUT_SECONDS,
+    MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+)
 from liveclip.media.process import ProcessCancelled, run_cancellable_process
 from liveclip.media.secure_files import (
     SecureFileError,
@@ -40,8 +44,8 @@ from liveclip.providers.telemetry import (
 
 CODEX_LLM_CONTRACT_PREFIX = "codex-cli-editorial-v2"
 CODEX_LLM_UNPROBED_CONTRACT = f"{CODEX_LLM_CONTRACT_PREFIX}.not-executed"
-SUPPORTED_CODEX_CLI_VERSION = "0.146.0"
-CODEX_SECURITY_PROFILE_VERSION = "tool-free-v1"
+SUPPORTED_CODEX_CLI_VERSION = "0.147.0"
+CODEX_SECURITY_PROFILE_VERSION = "tool-free-v2"
 _SAFE_MODEL = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _SAFE_CONTRACT = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 _VERSION = re.compile(r"^codex-cli\s+([0-9]+\.[0-9]+\.[0-9]+)$")
@@ -75,6 +79,7 @@ CODEX_DISABLED_FEATURES = (
     "mcp_2026_07_28",
     "memories",
     "multi_agent",
+    "multi_agent_v2",
     "network_proxy",
     "plugin_sharing",
     "plugins",
@@ -89,9 +94,13 @@ CODEX_DISABLED_FEATURES = (
     "tool_call_mcp_elicitation",
     "tool_suggest",
     "unified_exec",
+    "view_image",
     "workspace_dependencies",
 )
-_SAFE_CODEX_ITEM_TYPES = frozenset({"agent_message", "reasoning"})
+# Codex CLI 0.147.0 emits a non-fatal ``error`` item when its optional PATH
+# alias setup is unavailable. It is diagnostic metadata, not a tool call. Keep
+# the allowlist closed: command/file/network/MCP item types still fail the run.
+_SAFE_CODEX_ITEM_TYPES = frozenset({"agent_message", "error", "reasoning"})
 _CHILD_ENV_KEYS = frozenset(
     {
         "CODEX_HOME",
@@ -225,7 +234,9 @@ class CodexCLILLMProvider:
     ) -> None:
         if _SAFE_MODEL.fullmatch(model_name) is None:
             raise ProviderConfigurationError("OPENAI_LLM_MODEL is invalid")
-        if timeout_seconds < 5 or timeout_seconds > 600:
+        if not (
+            MIN_LLM_REQUEST_TIMEOUT_SECONDS <= timeout_seconds <= MAX_LLM_REQUEST_TIMEOUT_SECONDS
+        ):
             raise ProviderConfigurationError("Codex request timeout is invalid")
         self._model_name = model_name
         self._executable = resolve_codex_executable(codex_executable)

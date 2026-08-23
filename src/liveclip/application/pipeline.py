@@ -21,6 +21,10 @@ from liveclip.domain.state_transitions import (
     StageRunStatus,
     TaskStatus,
 )
+from liveclip.limits import (
+    MAX_LLM_REQUEST_TIMEOUT_SECONDS,
+    MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+)
 
 
 class StageLeaseLost(RuntimeError):
@@ -43,10 +47,11 @@ class PipelineConfigInvalid(PipelineConflict):
     """A persisted pipeline snapshot is legacy, incomplete, or fingerprint-invalid."""
 
 
-class PipelineRunConfig(BaseModel):
+class _PipelineRunConfigFields(BaseModel):
+    """Fields shared by historical v2 and current v3 immutable snapshots."""
+
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    schema_version: Literal["2"] = "2"
     run_scope: Literal["full", "import"] = "full"
     provider: str = Field(pattern=r"^(mock|openai|mock-codex|openai-codex|openrouter-codex)$")
     top_n: int = Field(ge=1, le=100)
@@ -65,7 +70,11 @@ class PipelineRunConfig(BaseModel):
         default="LiveClip、直播、高光、切片",
         max_length=1_000,
     )
-    openai_request_timeout_seconds: float = Field(default=120.0, ge=5, le=600)
+    openai_request_timeout_seconds: float = Field(
+        default=300.0,
+        ge=MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+        le=MAX_LLM_REQUEST_TIMEOUT_SECONDS,
+    )
     openai_max_request_retries: int = Field(default=2, ge=0, le=8)
     openai_retry_base_seconds: float = Field(default=1.0, gt=0, le=60)
     openai_retry_max_seconds: float = Field(default=30.0, gt=0, le=300)
@@ -107,7 +116,7 @@ class PipelineRunConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_ranges(self) -> PipelineRunConfig:
+    def validate_ranges(self) -> _PipelineRunConfigFields:
         if self.minimum_clip_ms > self.maximum_clip_ms:
             raise ValueError("minimum clip duration cannot exceed maximum")
         if self.chunk_overlap_ms >= self.chunk_duration_ms:
@@ -137,28 +146,227 @@ class PipelineRunConfig(BaseModel):
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+class _PipelineRunConfigV2(_PipelineRunConfigFields):
+    """Exact historical snapshot contract; never use for newly-created runs."""
+
+    schema_version: Literal["2"] = "2"
+
+
+class _PipelineRunConfigV3(_PipelineRunConfigFields):
+    """Exact historical Algorithm B v1 snapshot contract."""
+
+    schema_version: Literal["3"] = "3"
+    clipping_algorithm: Literal["a", "b"] = "a"
+    semantic_skill_version: str = Field(
+        default="semantic_window_v1",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    semantic_score_threshold: float = Field(default=75.0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_semantic_config(self) -> _PipelineRunConfigV3:
+        if self.clipping_algorithm == "b" and self.maximum_clip_ms > 600_000:
+            raise ValueError("algorithm B maximum clip duration cannot exceed 10 minutes")
+        return self
+
+
+class _PipelineRunConfigV4(_PipelineRunConfigV3):
+    """Exact experimental Algorithm B v2 snapshot contract."""
+
+    schema_version: Literal["4"] = "4"  # type: ignore[assignment]
+    semantic_target_clip_ms: int = Field(default=60_000, ge=1_000, le=600_000)
+    semantic_continuous_merge_enabled: bool = False
+    semantic_consolidation_skill_version: str = Field(
+        default="semantic_continuous_v1",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_consolidation_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def validate_continuous_semantic_config(self) -> _PipelineRunConfigV4:
+        if self.clipping_algorithm != "b":
+            return self
+        if self.semantic_continuous_merge_enabled and not (
+            self.minimum_clip_ms <= self.semantic_target_clip_ms <= self.maximum_clip_ms
+        ):
+            raise ValueError("algorithm B target duration must be between minimum and maximum")
+        if (
+            self.semantic_continuous_merge_enabled
+            and self.semantic_consolidation_skill_sha256 == "0" * 64
+        ):
+            raise ValueError("algorithm B continuous merge requires a Skill fingerprint")
+        return self
+
+
+class PipelineRunConfig(_PipelineRunConfigV4):
+    """Immutable v5 snapshot with Full-first semantic-global clipping."""
+
+    schema_version: Literal["5"] = "5"  # type: ignore[assignment]
+    clipping_algorithm: Literal[
+        "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
+    ] = "a"  # type: ignore[assignment]
+    semantic_profile: Literal["general", "vocal_coach_live"] = "general"
+    semantic_discovery_skill_version: str = Field(
+        default="semantic_global_v1.discovery",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_discovery_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    semantic_global_review_skill_version: str = Field(
+        default="semantic_global_v1.global_review",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_global_review_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    semantic_full_context_budget_ratio: float = Field(default=0.58, ge=0.1, le=0.8)
+    semantic_model_context_tokens: int = Field(default=128_000, ge=16_000, le=2_000_000)
+    semantic_tokenizer_name: str = Field(
+        default="o200k_base",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_output_reserve_tokens: int = Field(default=16_000, ge=2_000, le=200_000)
+    semantic_safety_margin_tokens: int = Field(default=1_000, ge=1_000, le=200_000)
+    semantic_fallback_target_ms: int = Field(default=900_000, ge=60_000, le=3_600_000)
+    semantic_fallback_minimum_ms: int = Field(default=600_000, ge=60_000, le=3_600_000)
+    semantic_fallback_maximum_ms: int = Field(default=1_200_000, ge=60_000, le=3_600_000)
+    semantic_fallback_context_guard_ms: int = Field(default=30_000, ge=0, le=300_000)
+    semantic_global_context_ms: int = Field(default=90_000, ge=30_000, le=300_000)
+    semantic_no_render: bool = False
+    semantic_prompt_debug: bool = False
+
+    @model_validator(mode="after")
+    def validate_semantic_global_config(self) -> PipelineRunConfig:
+        if self.clipping_algorithm == "b" and self.semantic_continuous_merge_enabled:
+            raise ValueError("algorithm B v1 cannot enable experimental continuous consolidation")
+        if self.clipping_algorithm == "b_v2_experimental" and not (
+            self.semantic_continuous_merge_enabled
+            and self.semantic_consolidation_skill_sha256 != "0" * 64
+        ):
+            raise ValueError("experimental Algorithm B v2 requires its consolidation Skill")
+        if self.clipping_algorithm not in {"semantic_global", "semantic_windowed"}:
+            return self
+        if not self.minimum_clip_ms <= self.semantic_target_clip_ms <= self.maximum_clip_ms:
+            raise ValueError("semantic global duration must satisfy minimum <= target <= maximum")
+        if self.maximum_clip_ms > 600_000:
+            raise ValueError("semantic global maximum duration cannot exceed 10 minutes")
+        if "0" * 64 in {
+            self.semantic_discovery_skill_sha256,
+            self.semantic_global_review_skill_sha256,
+        }:
+            raise ValueError("semantic global requires Discovery and Global Review Skill hashes")
+        if not (
+            self.semantic_fallback_minimum_ms
+            <= self.semantic_fallback_target_ms
+            <= self.semantic_fallback_maximum_ms
+        ):
+            raise ValueError("semantic fallback duration must satisfy minimum <= target <= maximum")
+        budget = int(self.semantic_model_context_tokens * self.semantic_full_context_budget_ratio)
+        if self.semantic_output_reserve_tokens + self.semantic_safety_margin_tokens >= budget:
+            raise ValueError("semantic global reserves leave no model input budget")
+        return self
+
+
 def load_persisted_pipeline_config(
     payload: Mapping[str, object] | object,
     stored_fingerprint: str,
 ) -> PipelineRunConfig:
-    """Load one immutable v2 snapshot and prove its database fingerprint."""
+    """Load v5 or adapt exact, fingerprinted historical v2/v3/v4 snapshots in memory."""
 
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != "2":
+    if not isinstance(payload, Mapping) or payload.get("schema_version") not in {
+        "2",
+        "3",
+        "4",
+        "5",
+    }:
         raise PipelineConfigInvalid("legacy pipeline config cannot be resumed safely")
-    required_fields = frozenset(PipelineRunConfig.model_fields)
+    version = payload.get("schema_version")
+    model = (
+        _PipelineRunConfigV2
+        if version == "2"
+        else _PipelineRunConfigV3
+        if version == "3"
+        else _PipelineRunConfigV4
+        if version == "4"
+        else PipelineRunConfig
+    )
+    required_fields = frozenset(model.model_fields)
     if set(payload) != required_fields:
         raise PipelineConfigInvalid("pipeline config snapshot is incomplete or has unknown fields")
     try:
         # Pydantic's strict JSON contract intentionally accepts JSON strings for
         # Decimal, matching the exact representation emitted by ``mode='json'``.
-        config = PipelineRunConfig.model_validate_json(
+        persisted = model.model_validate_json(
             json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         )
     except Exception as exc:
         raise PipelineConfigInvalid("pipeline config snapshot is invalid") from exc
-    if config.fingerprint != stored_fingerprint:
+    if persisted.fingerprint != stored_fingerprint:
         raise PipelineConfigInvalid("pipeline config fingerprint does not match its snapshot")
-    return config
+    if isinstance(persisted, PipelineRunConfig):
+        return persisted
+    upgraded = persisted.model_dump(mode="python")
+    upgraded["schema_version"] = "5"
+    if isinstance(persisted, _PipelineRunConfigV2):
+        upgraded.update(
+            clipping_algorithm="a",
+            semantic_skill_version="semantic_window_v1",
+            semantic_skill_sha256="0" * 64,
+            semantic_score_threshold=75.0,
+        )
+    if isinstance(persisted, (_PipelineRunConfigV2, _PipelineRunConfigV3)):
+        upgraded.update(
+            semantic_target_clip_ms=int(persisted.maximum_clip_ms),
+            semantic_continuous_merge_enabled=False,
+            semantic_consolidation_skill_version="semantic_continuous_v1",
+            semantic_consolidation_skill_sha256="0" * 64,
+        )
+    if (
+        isinstance(persisted, _PipelineRunConfigV4)
+        and persisted.clipping_algorithm == "b"
+        and persisted.semantic_continuous_merge_enabled
+    ):
+        upgraded["clipping_algorithm"] = "b_v2_experimental"
+    upgraded.update(
+        semantic_profile="general",
+        semantic_discovery_skill_version="semantic_global_v1.discovery",
+        semantic_discovery_skill_sha256="0" * 64,
+        semantic_global_review_skill_version="semantic_global_v1.global_review",
+        semantic_global_review_skill_sha256="0" * 64,
+        semantic_full_context_budget_ratio=0.58,
+        semantic_model_context_tokens=128_000,
+        semantic_tokenizer_name="o200k_base",
+        semantic_output_reserve_tokens=16_000,
+        semantic_safety_margin_tokens=1_000,
+        semantic_fallback_target_ms=900_000,
+        semantic_fallback_minimum_ms=600_000,
+        semantic_fallback_maximum_ms=1_200_000,
+        semantic_fallback_context_guard_ms=30_000,
+        semantic_global_context_ms=90_000,
+        semantic_no_render=False,
+        semantic_prompt_debug=False,
+    )
+    return PipelineRunConfig.model_validate(upgraded)
 
 
 class CreatedPipeline(BaseModel):

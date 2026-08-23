@@ -16,10 +16,16 @@ from liveclip.application.pipeline import (
 )
 from liveclip.application.stage_execution import StageExecutionError, StageExecutionResult
 from liveclip.application.stage_runner import StageTaskRunner
+from liveclip.clipping_skills import (
+    load_semantic_continuous_skill,
+    load_semantic_discovery_skill,
+)
+from liveclip.clipping_skills.semantic_global_v1 import load_semantic_global_prompt
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import (
+    ApiUsageRow,
     AssetRow,
     CandidateClipRow,
     EditPlanRevisionRow,
@@ -70,6 +76,190 @@ class FailOnceAfterProxyAssets:
                     safe_message="Injected crash window after proxy assets committed",
                 )
         return result
+
+
+@pytest.mark.integration
+def test_algorithm_b_v2_consolidates_agent_windows_without_forcing_top_n(tmp_path: Path) -> None:
+    media_root = tmp_path / "media"
+    source_path = media_root / "semantic-source.mp4"
+    data_dir = tmp_path / "projects"
+    create_demo_source(output_path=source_path, duration_ms=24_000)
+    engine = create_sqlite_engine(tmp_path / "semantic.sqlite3")
+    Base.metadata.create_all(engine)
+    repository = SqlAlchemyPipelineRepository(engine)
+    service = PipelineService(repository)
+    queue = SQLiteTaskQueue(engine, lease_seconds=30)
+    runner = StageTaskRunner(
+        queue=queue,
+        repository=repository,
+        pipeline_service=service,
+        handler=PipelineStageHandlers(
+            data_dir=data_dir,
+            allowed_media_roots=(media_root,),
+            assets=SqlAlchemyAssetStore(engine),
+            state=SqlAlchemyStageStateStore(engine),
+        ),
+        heartbeat_seconds=5,
+    )
+    skill = load_semantic_discovery_skill("semantic_window_v2")
+    consolidation_skill = load_semantic_continuous_skill()
+    semantic_config = PipelineRunConfig(
+        provider="mock",
+        top_n=10,
+        minimum_clip_ms=4_000,
+        maximum_clip_ms=8_000,
+        chunk_duration_ms=12_000,
+        chunk_overlap_ms=2_000,
+        max_chunk_bytes=24_000_000,
+        transcription_model="mock-asr-v1",
+        llm_model="mock-llm-v1",
+        preview_width=270,
+        preview_height=480,
+        video_encoder="libx264",
+        clipping_algorithm="b_v2_experimental",
+        editing_prompt_version=skill.version,
+        editing_prompt_sha256=skill.sha256,
+        semantic_skill_version=skill.version,
+        semantic_skill_sha256=skill.sha256,
+        semantic_target_clip_ms=6_000,
+        semantic_continuous_merge_enabled=True,
+        semantic_consolidation_skill_version=consolidation_skill.version,
+        semantic_consolidation_skill_sha256=consolidation_skill.sha256,
+    )
+    try:
+        created = service.create_project_and_run(
+            source_path=source_path.resolve(),
+            config=semantic_config,
+            max_stage_retries=1,
+        )
+
+        snapshot = runner.run_until_terminal(
+            created.run_id,
+            worker_id="semantic-integration",
+        )
+
+        assert snapshot.status == PipelineRunStatus.COMPLETED
+        with engine.connect() as connection:
+            window_count = connection.scalar(select(func.count()).select_from(CandidateClipRow))
+            selected_count = connection.scalar(
+                select(func.count())
+                .select_from(CandidateClipRow)
+                .where(CandidateClipRow.selected_for_review.is_(True))
+            )
+            assert window_count is not None and window_count >= 2
+            assert selected_count is not None and 0 < selected_count < 10
+            assert selected_count <= window_count
+            assert (
+                connection.scalar(select(func.count()).select_from(RenderJobRow)) == selected_count
+            )
+
+        empty_run = service.create_run(
+            project_id=created.project_id,
+            config=semantic_config.model_copy(update={"semantic_score_threshold": 80.0}),
+            max_stage_retries=1,
+        )
+        empty_snapshot = runner.run_until_terminal(
+            empty_run.run_id,
+            worker_id="semantic-empty-integration",
+        )
+        assert empty_snapshot.status == PipelineRunStatus.COMPLETED
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(
+                    select(func.count())
+                    .select_from(CandidateClipRow)
+                    .where(
+                        CandidateClipRow.pipeline_run_id == empty_run.run_id,
+                        CandidateClipRow.selected_for_review.is_(True),
+                    )
+                )
+                == 0
+            )
+            assert set(
+                connection.scalars(
+                    select(TaskRow.status).where(TaskRow.pipeline_run_id == empty_run.run_id)
+                )
+            ) == {TaskStatus.SUCCEEDED.value}
+    finally:
+        engine.dispose(close=True)
+
+
+@pytest.mark.integration
+def test_semantic_global_runs_full_discovery_review_and_no_render_plan(tmp_path: Path) -> None:
+    media_root = tmp_path / "media"
+    source_path = media_root / "semantic-global-source.mp4"
+    data_dir = tmp_path / "projects"
+    create_demo_source(output_path=source_path, duration_ms=24_000)
+    engine = create_sqlite_engine(tmp_path / "semantic-global.sqlite3")
+    Base.metadata.create_all(engine)
+    repository = SqlAlchemyPipelineRepository(engine)
+    service = PipelineService(repository)
+    queue = SQLiteTaskQueue(engine, lease_seconds=30)
+    runner = StageTaskRunner(
+        queue=queue,
+        repository=repository,
+        pipeline_service=service,
+        handler=PipelineStageHandlers(
+            data_dir=data_dir,
+            allowed_media_roots=(media_root,),
+            assets=SqlAlchemyAssetStore(engine),
+            state=SqlAlchemyStageStateStore(engine),
+        ),
+        heartbeat_seconds=5,
+    )
+    discovery = load_semantic_global_prompt("discovery", "general")
+    review = load_semantic_global_prompt("global_review", "general")
+    config = PipelineRunConfig(
+        provider="mock",
+        top_n=10,
+        minimum_clip_ms=4_000,
+        semantic_target_clip_ms=6_000,
+        maximum_clip_ms=8_000,
+        chunk_duration_ms=12_000,
+        chunk_overlap_ms=2_000,
+        max_chunk_bytes=24_000_000,
+        transcription_model="mock-asr-v1",
+        llm_model="mock-llm-v1",
+        preview_width=270,
+        preview_height=480,
+        video_encoder="libx264",
+        clipping_algorithm="semantic_global",
+        editing_prompt_version=f"{discovery.version}.discovery",
+        editing_prompt_sha256=discovery.sha256,
+        semantic_profile="general",
+        semantic_discovery_skill_version=f"{discovery.version}.discovery",
+        semantic_discovery_skill_sha256=discovery.sha256,
+        semantic_global_review_skill_version=f"{review.version}.global_review",
+        semantic_global_review_skill_sha256=review.sha256,
+        semantic_no_render=True,
+    )
+    try:
+        created = service.create_project_and_run(
+            source_path=source_path.resolve(),
+            config=config,
+            max_stage_retries=1,
+        )
+
+        snapshot = runner.run_until_terminal(
+            created.run_id,
+            worker_id="semantic-global-integration",
+        )
+
+        assert snapshot.status == PipelineRunStatus.COMPLETED
+        with engine.connect() as connection:
+            assert connection.scalar(select(func.count()).select_from(CandidateClipRow)) == 10
+            assert connection.scalar(select(func.count()).select_from(EditPlanRevisionRow)) == 1
+            assert connection.scalar(select(func.count()).select_from(RenderJobRow)) == 0
+            assert connection.scalar(select(func.count()).select_from(ApiUsageRow)) == 2
+            operations = set(
+                connection.scalars(select(ApiUsageRow.operation).order_by(ApiUsageRow.operation))
+            )
+            assert operations == {
+                "responses.semantic.discovery.initial",
+                "responses.semantic.global_review.initial",
+            }
+    finally:
+        engine.dispose(close=True)
 
 
 @pytest.mark.integration

@@ -33,6 +33,14 @@ from liveclip.application.reviewing import ReviewService
 from liveclip.application.stage_runner import StageTaskRunner
 from liveclip.application.storage import StorageAdministrationService
 from liveclip.application.workspace import WorkspaceService
+from liveclip.clipping_skills import (
+    load_semantic_continuous_skill,
+    load_semantic_discovery_skill,
+)
+from liveclip.clipping_skills.semantic_global_v1 import load_semantic_global_prompt
+from liveclip.clipping_skills.semantic_windowed_v1 import (
+    load_semantic_windowed_discovery_prompt,
+)
 from liveclip.config import Settings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
@@ -346,6 +354,16 @@ def pipeline_config_from_settings(
     top_n: int | None = None,
     minimum_clip_seconds: int | None = None,
     maximum_clip_seconds: int | None = None,
+    clipping_algorithm: Literal[
+        "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
+    ] = "a",
+    semantic_target_clip_seconds: int | None = None,
+    semantic_score_threshold: float | None = None,
+    semantic_profile: Literal["general", "vocal_coach_live"] = "general",
+    semantic_full_context_budget_ratio: float = 0.58,
+    semantic_model_context_tokens: int = 128_000,
+    semantic_no_render: bool = False,
+    semantic_prompt_debug: bool = False,
 ) -> PipelineRunConfig:
     provider = settings.ai_provider
     mock_asr = provider in {"mock", "mock-codex"}
@@ -369,10 +387,7 @@ def pipeline_config_from_settings(
     )
     if mock_llm:
         llm_contract_version = MOCK_LLM_CONTRACT_VERSION
-        editing_prompt_version = "editing_v1"
-        editing_prompt_sha256 = mock_prompt_sha256(editing_prompt_version)
     else:
-        prompts = load_editing_prompts()
         llm_contract_version = (
             (
                 CODEX_LLM_UNPROBED_CONTRACT
@@ -382,20 +397,66 @@ def pipeline_config_from_settings(
             if codex_llm
             else OPENAI_LLM_CONTRACT_VERSION
         )
+    semantic_v1_skill = load_semantic_discovery_skill("semantic_window_v1")
+    semantic_v2_skill = load_semantic_discovery_skill("semantic_window_v2")
+    consolidation_skill = load_semantic_continuous_skill()
+    global_discovery = load_semantic_global_prompt("discovery", semantic_profile)
+    global_review = load_semantic_global_prompt("global_review", semantic_profile)
+    windowed_discovery = load_semantic_windowed_discovery_prompt(semantic_profile)
+    if clipping_algorithm == "b":
+        semantic_skill = semantic_v1_skill
+        editing_prompt_version = semantic_skill.version
+        editing_prompt_sha256 = semantic_skill.sha256
+    elif clipping_algorithm == "b_v2_experimental":
+        semantic_skill = semantic_v2_skill
+        editing_prompt_version = semantic_skill.version
+        editing_prompt_sha256 = semantic_skill.sha256
+    elif clipping_algorithm == "semantic_global":
+        semantic_skill = semantic_v1_skill
+        editing_prompt_version = f"{global_discovery.version}.discovery"
+        editing_prompt_sha256 = global_discovery.sha256
+    elif clipping_algorithm == "semantic_windowed":
+        semantic_skill = semantic_v1_skill
+        editing_prompt_version = f"{windowed_discovery.version}.discovery"
+        editing_prompt_sha256 = windowed_discovery.sha256
+    elif mock_llm:
+        semantic_skill = semantic_v1_skill
+        editing_prompt_version = "editing_v1"
+        editing_prompt_sha256 = mock_prompt_sha256(editing_prompt_version)
+    else:
+        semantic_skill = semantic_v1_skill
+        prompts = load_editing_prompts()
         editing_prompt_version = prompts.version
         editing_prompt_sha256 = prompts.sha256
+    resolved_minimum_clip_seconds = (
+        minimum_clip_seconds
+        if minimum_clip_seconds is not None
+        else 45
+        if clipping_algorithm in {"semantic_global", "semantic_windowed"}
+        else 8
+        if clipping_algorithm in {"b", "b_v2_experimental"}
+        else settings.min_clip_seconds
+    )
+    resolved_maximum_clip_seconds = (
+        maximum_clip_seconds
+        if maximum_clip_seconds is not None
+        else 90
+        if clipping_algorithm in {"b_v2_experimental", "semantic_global", "semantic_windowed"}
+        else 60
+        if clipping_algorithm == "b"
+        else settings.max_clip_seconds
+    )
+    resolved_semantic_target_seconds = (
+        semantic_target_clip_seconds
+        if semantic_target_clip_seconds is not None
+        else min(max(60, resolved_minimum_clip_seconds), resolved_maximum_clip_seconds)
+    )
     return PipelineRunConfig(
         run_scope=run_scope,
         provider=provider,
         top_n=top_n if top_n is not None else settings.default_top_n,
-        minimum_clip_ms=(
-            minimum_clip_seconds if minimum_clip_seconds is not None else settings.min_clip_seconds
-        )
-        * 1_000,
-        maximum_clip_ms=(
-            maximum_clip_seconds if maximum_clip_seconds is not None else settings.max_clip_seconds
-        )
-        * 1_000,
+        minimum_clip_ms=resolved_minimum_clip_seconds * 1_000,
+        maximum_clip_ms=resolved_maximum_clip_seconds * 1_000,
         chunk_duration_ms=settings.asr_chunk_seconds * 1_000,
         chunk_overlap_ms=settings.asr_chunk_overlap_seconds * 1_000,
         max_chunk_bytes=settings.asr_max_chunk_bytes,
@@ -422,6 +483,33 @@ def pipeline_config_from_settings(
         editing_prompt_sha256=editing_prompt_sha256,
         editorial_schema_version=EDITORIAL_SUGGESTION_SCHEMA_VERSION,
         edit_plan_schema_version=EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
+        clipping_algorithm=clipping_algorithm,
+        semantic_skill_version=semantic_skill.version,
+        semantic_skill_sha256=semantic_skill.sha256,
+        semantic_target_clip_ms=resolved_semantic_target_seconds * 1_000,
+        semantic_continuous_merge_enabled=clipping_algorithm == "b_v2_experimental",
+        semantic_consolidation_skill_version=consolidation_skill.version,
+        semantic_consolidation_skill_sha256=consolidation_skill.sha256,
+        semantic_score_threshold=(
+            semantic_score_threshold if semantic_score_threshold is not None else 75.0
+        ),
+        semantic_profile=semantic_profile,
+        semantic_discovery_skill_version=(
+            f"{windowed_discovery.version}.discovery"
+            if clipping_algorithm == "semantic_windowed"
+            else f"{global_discovery.version}.discovery"
+        ),
+        semantic_discovery_skill_sha256=(
+            windowed_discovery.sha256
+            if clipping_algorithm == "semantic_windowed"
+            else global_discovery.sha256
+        ),
+        semantic_global_review_skill_version=f"{global_review.version}.global_review",
+        semantic_global_review_skill_sha256=global_review.sha256,
+        semantic_full_context_budget_ratio=semantic_full_context_budget_ratio,
+        semantic_model_context_tokens=semantic_model_context_tokens,
+        semantic_no_render=semantic_no_render,
+        semantic_prompt_debug=semantic_prompt_debug,
     )
 
 

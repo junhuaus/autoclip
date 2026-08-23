@@ -16,7 +16,7 @@ from liveclip.providers.llm.base import LLMDisposition
 from liveclip.providers.llm.codex import CODEX_DISABLED_FEATURES, CodexCLILLMProvider
 from liveclip.providers.telemetry import ProviderCallStatus, ProviderCancelled
 
-_CONTRACT = "codex-cli-editorial-v2.0.146.0." + "a" * 64
+_CONTRACT = "codex-cli-editorial-v2.0.147.0." + "a" * 64
 _REAL_CONTRACT_VERSION = codex_module.codex_cli_contract_version
 
 
@@ -64,6 +64,17 @@ def _provider() -> CodexCLILLMProvider:
         timeout_seconds=30,
         contract_version=_CONTRACT,
     )
+
+
+def test_codex_provider_accepts_long_full_context_timeout() -> None:
+    provider = CodexCLILLMProvider(
+        model_name="gpt-5.6-terra",
+        codex_executable="/usr/bin/true",
+        timeout_seconds=1_200,
+        contract_version=_CONTRACT,
+    )
+
+    assert provider._timeout_seconds == 1_200
 
 
 def _edit(provider: CodexCLILLMProvider, candidate: CandidateClip | None = None):
@@ -139,6 +150,8 @@ def test_codex_provider_is_tool_disabled_structured_and_keeps_transcript_off_arg
     assert "features.multi_agent=false" in argv
     assert 'web_search="disabled"' in argv
     disabled = {argv[index + 1] for index, value in enumerate(argv[:-1]) if value == "--disable"}
+    assert "multi_agent_v2" in disabled
+    assert "view_image" in disabled
     assert disabled == set(CODEX_DISABLED_FEATURES)
     assert argv[-1] == "-"
     assert injection in observed["prompt"]
@@ -196,6 +209,26 @@ def test_codex_metadata_fails_closed_for_oversized_or_truncated_jsonl(stdout: st
     assert usage is None
     if "truncated" in stdout:
         assert request_id == "thread-1"
+
+
+def test_codex_nonfatal_error_metadata_is_not_mistaken_for_a_tool_call() -> None:
+    stdout = "\n".join(
+        (
+            json.dumps({"type": "item.completed", "item": {"type": "error"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message"}}),
+            json.dumps(
+                {
+                    "type": "turn.completed",
+                    "usage": {"input_tokens": 10, "output_tokens": 2},
+                }
+            ),
+        )
+    )
+
+    _request_id, usage, unsafe_tool_event = codex_module._codex_metadata(stdout)
+
+    assert unsafe_tool_event is False
+    assert usage == {"input_tokens": 10, "output_tokens": 2}
 
 
 def test_invalid_codex_output_gets_exactly_one_successful_repair(
@@ -324,7 +357,7 @@ def test_codex_contract_changes_with_executable_bytes_and_is_not_cached(
         codex_module.subprocess,
         "run",
         lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            ["/codex", "--version"], 0, "codex-cli 0.146.0\n", ""
+            ["/codex", "--version"], 0, "codex-cli 0.147.0\n", ""
         ),
     )
 
@@ -333,7 +366,7 @@ def test_codex_contract_changes_with_executable_bytes_and_is_not_cached(
 
     assert first != second
     assert len(first) <= 120
-    assert first.startswith("codex-cli-editorial-v2.0.146.0.")
+    assert first.startswith("codex-cli-editorial-v2.0.147.0.")
 
 
 def test_local_invalid_bounds_are_repaired_once_then_degraded(

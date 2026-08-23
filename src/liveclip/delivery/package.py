@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import html
 import json
 import os
 import re
@@ -16,6 +17,8 @@ from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from liveclip.domain.keywords import KeywordOccurrence, KeywordTimingPrecision
+from liveclip.domain.time import ms_to_srt
 from liveclip.media.secure_files import (
     PinnedFileEvidence,
     SecureFileError,
@@ -44,6 +47,10 @@ class DeliveryClipInput(BaseModel):
     edit_plan_revision: int = Field(ge=1)
     render_revision: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=40)
+    hook: str = Field(default="", max_length=500)
+    reason: str = Field(default="", max_length=1_000)
+    risk_flags: tuple[str, ...] = Field(default_factory=tuple, max_length=16)
+    keywords: tuple[KeywordOccurrence, ...] = Field(default_factory=tuple, max_length=6)
     source_start_ms: int = Field(ge=0)
     source_end_ms: int = Field(gt=0)
     score: float = Field(ge=0, le=100)
@@ -246,6 +253,10 @@ def _build_delivery(
                 "clip_id": clip.clip_id,
                 "edit_plan_revision": clip.edit_plan_revision,
                 "title": clip.title,
+                "hook": clip.hook,
+                "reason": clip.reason,
+                "risk_flags": list(dict.fromkeys(clip.risk_flags)),
+                "keywords": [keyword.model_dump(mode="json") for keyword in clip.keywords],
                 "video_filename": video_relative.as_posix(),
                 "subtitle_filename": subtitle_relative.as_posix(),
                 "source_start": round(clip.source_start_ms / 1_000, 3),
@@ -287,6 +298,32 @@ def _build_delivery(
         raise DeliveryError("delivery manifest could not be published safely") from exc
     archive_members.append(PurePosixPath("manifest.json"))
     member_sha256["manifest.json"] = manifest_sha256
+
+    index_payload = delivery_index_html(manifest).encode("utf-8")
+    index_sha256 = hashlib.sha256(index_payload).hexdigest()
+    try:
+        write_bytes_immutable_no_follow(
+            temporary / "index.html",
+            index_payload,
+            max_bytes=4_000_000,
+        )
+    except SecureFileError as exc:
+        raise DeliveryError("delivery index could not be published safely") from exc
+    archive_members.append(PurePosixPath("index.html"))
+    member_sha256["index.html"] = index_sha256
+
+    checksums_payload = delivery_checksums_text(member_sha256).encode("utf-8")
+    checksums_sha256 = hashlib.sha256(checksums_payload).hexdigest()
+    try:
+        write_bytes_immutable_no_follow(
+            temporary / "checksums.sha256",
+            checksums_payload,
+            max_bytes=2_000_000,
+        )
+    except SecureFileError as exc:
+        raise DeliveryError("delivery checksums could not be published safely") from exc
+    archive_members.append(PurePosixPath("checksums.sha256"))
+    member_sha256["checksums.sha256"] = checksums_sha256
     zip_path: Path | None = None
     zip_sha256: str | None = None
     if include_zip:
@@ -338,6 +375,157 @@ def safe_filename_component(value: str, *, maximum_utf8_bytes: int = 72) -> str:
     return "".join(bounded).rstrip("-.") or "clip"
 
 
+def delivery_index_html(manifest: dict[str, object]) -> str:
+    """Build a deterministic, file-only gallery from trusted manifest structure."""
+
+    raw_clips = manifest.get("clips")
+    if not isinstance(raw_clips, list) or not raw_clips:
+        raise DeliveryError("delivery index requires manifest clips")
+    cards: list[str] = []
+    for ordinal, raw_clip in enumerate(raw_clips, start=1):
+        if not isinstance(raw_clip, dict):
+            raise DeliveryError("delivery index clip is invalid")
+        try:
+            title = html.escape(str(raw_clip["title"]), quote=True)
+            video = html.escape(str(raw_clip["video_filename"]), quote=True)
+            subtitle = html.escape(str(raw_clip["subtitle_filename"]), quote=True)
+            score = float(raw_clip["score"])
+            duration = float(raw_clip["duration"])
+            hook = html.escape(str(raw_clip.get("hook", "")), quote=True)
+            reason = html.escape(str(raw_clip.get("reason", "")), quote=True)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise DeliveryError("delivery index clip fields are invalid") from exc
+        if not 0 <= score <= 100 or duration <= 0:
+            raise DeliveryError("delivery index numeric fields are invalid")
+        raw_keywords = raw_clip.get("keywords", [])
+        if not isinstance(raw_keywords, list):
+            raise DeliveryError("delivery index keywords are invalid")
+        try:
+            keywords = tuple(_manifest_keyword(value) for value in raw_keywords)
+        except (TypeError, ValueError) as exc:
+            raise DeliveryError("delivery index keywords are invalid") from exc
+        keyword_html = (
+            "".join(
+                '<li class="keyword">'
+                f"<strong>{html.escape(keyword.text)}</strong>"
+                f"<span>片内 {_display_time(keyword.clip_start_ms)}&ndash;"
+                f"{_display_time(keyword.clip_end_ms)}</span>"
+                "<span>"
+                f"{'词级时间' if keyword.timing_precision.value == 'word' else '转写段时间窗'}"
+                "</span>"
+                f"<span>源 {_display_time(keyword.source_start_ms)}&ndash;"
+                f"{_display_time(keyword.source_end_ms)}</span>"
+                "</li>"
+                for keyword in keywords
+            )
+            or '<li class="empty">暂无可定位的编辑关键词</li>'
+        )
+        hook_html = hook or "暂无高光语句"
+        reason_html = f'<p class="reason">{reason}</p>' if reason else ""
+        cards.append(
+            "\n".join(
+                (
+                    '<article class="clip">',
+                    f"<header><span>{ordinal:02d}</span><h2>{title}</h2></header>",
+                    f'<video controls preload="metadata" src="{video}">'
+                    "浏览器不支持视频播放。</video>",
+                    '<div class="content">',
+                    '<section class="highlight"><div class="section-title">'
+                    "<h3>高光语句</h3><span>推荐上屏</span></div>",
+                    f"<blockquote>{hook_html}</blockquote>{reason_html}</section>",
+                    '<section class="keywords"><div class="section-title">'
+                    "<h3>编辑关键词</h3><span>仅供编辑定位</span></div>",
+                    f'<ul aria-label="{title} 编辑关键词">{keyword_html}</ul></section>',
+                    '<div class="meta">',
+                    f"<span>评分 {score:.1f}</span><span>时长 {duration:.3f} 秒</span>",
+                    f'<a href="{video}" download>下载 MP4</a>',
+                    f'<a href="{subtitle}" download>下载 SRT</a>',
+                    "</div>",
+                    "</div>",
+                    "</article>",
+                )
+            )
+        )
+    project_id = html.escape(str(manifest.get("project_id", "")), quote=True)
+    version = html.escape(str(manifest.get("delivery_version", "")), quote=True)
+    source = html.escape(str(manifest.get("source_filename", "")), quote=True)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; media-src 'self';">
+  <title>LiveClip 交付包 {version}</title>
+  <style>
+    :root {{ color-scheme:dark; font-family:-apple-system, BlinkMacSystemFont,
+      "Segoe UI", sans-serif; background:#071416; color:#eef8f6; }}
+    * {{ box-sizing:border-box; }} body {{ margin:0; }}
+    main {{ width:min(1180px, calc(100% - 32px)); margin:0 auto; padding:40px 0 64px; }}
+    .hero {{ margin-bottom:28px; }}
+    h1 {{ margin:.25rem 0; font-size:clamp(2rem, 5vw, 3.6rem); }}
+    .hero p {{ color:#9ab8b4; }}
+    .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }}
+    .clip {{ overflow:hidden; border:1px solid #244447; border-radius:18px;
+      background:#0c2023; box-shadow:0 18px 42px #0006; }}
+    .clip header {{ display:flex; gap:12px; align-items:baseline; padding:18px 18px 12px; }}
+    .clip header span {{ color:#5ee0c2; font-weight:800; }}
+    h2 {{ margin:0; font-size:1.05rem; }}
+    video {{ display:block; width:100%; aspect-ratio:9/16; background:#000;
+      object-fit:contain; max-height:68vh; }}
+    .content {{ padding:16px 18px 18px; }}
+    .highlight, .keywords {{ margin-bottom:16px; }}
+    .section-title {{ display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:8px; }}
+    .section-title h3 {{ margin:0; font-size:.92rem; color:#d9efeb; }}
+    .section-title span {{ color:#6f9691; font-size:.75rem; }}
+    blockquote {{ margin:0; padding:13px 14px; border-left:3px solid #5ee0c2;
+      border-radius:8px; background:#102b2e; line-height:1.65; color:#f4fffd; }}
+    .reason {{ margin:9px 0 0; color:#9ab8b4; line-height:1.55; font-size:.86rem; }}
+    .keywords ul {{ display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; list-style:none; }}
+    .keyword {{ display:grid; gap:3px; min-width:142px; padding:8px 10px;
+      border:1px solid #2c5255; border-radius:10px; background:#10282b; }}
+    .keyword strong {{ color:#eafffa; }}
+    .keyword span, .empty {{ color:#86aaa5; font-size:.74rem; }}
+    .meta {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+      padding:0; color:#a9c4c0; font-size:.9rem; }}
+    .meta a {{ color:#071416; background:#5ee0c2; border-radius:999px;
+      padding:7px 11px; text-decoration:none; font-weight:750; }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p>LiveClip · 项目 {project_id}</p><h1>交付包 {version}</h1>
+      <p>{source} · 已选 {len(cards)} 条</p>
+    </section>
+    <section class="grid">{" ".join(cards)}</section>
+  </main>
+</body>
+</html>
+"""
+
+
+def _display_time(value_ms: int) -> str:
+    return ms_to_srt(value_ms).replace(",", ".")
+
+
+def _manifest_keyword(value: object) -> KeywordOccurrence:
+    if not isinstance(value, dict):
+        raise ValueError("keyword must be an object")
+    payload = dict(value)
+    raw_precision = payload.get("timing_precision")
+    if not isinstance(raw_precision, str):
+        raise ValueError("keyword timing precision must be text")
+    payload["timing_precision"] = KeywordTimingPrecision(raw_precision)
+    return KeywordOccurrence.model_validate(payload)
+
+
+def delivery_checksums_text(member_sha256: dict[str, str]) -> str:
+    names = validate_zip_members(member_sha256)
+    return "".join(f"{member_sha256[name]}  {name}\n" for name in sorted(names))
+
+
 def validate_zip_members(names: Iterable[str]) -> tuple[str, ...]:
     checked: list[str] = []
     seen: set[str] = set()
@@ -371,7 +559,7 @@ def validate_zip_members(names: Iterable[str]) -> tuple[str, ...]:
 def validate_zip_infos(
     infos: Iterable[zipfile.ZipInfo],
     *,
-    maximum_members: int = 201,
+    maximum_members: int = 205,
     maximum_member_bytes: int = 512 * 1024 * 1024,
     maximum_total_bytes: int = 10 * 1024 * 1024 * 1024,
 ) -> tuple[str, ...]:

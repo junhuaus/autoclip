@@ -56,7 +56,8 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await page.getByLabel("本地视频绝对路径").fill(inputPath);
   await page.getByLabel("高光数量").fill("1");
   await page.getByLabel("最短秒数").fill("8");
-  await page.getByLabel("最长秒数").fill("12");
+  await page.getByLabel("理想切片秒数").fill("10");
+  await page.getByLabel("最长切片秒数").fill("12");
   const acceptedJob = page.waitForResponse(
     (response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/v1/jobs",
   );
@@ -121,51 +122,7 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await expect(firstCard.getByRole("link", { name: "下载 MP4" })).toBeVisible();
   await expect(firstCard.getByRole("link", { name: "下载 SRT" })).toBeVisible();
 
-  await firstCard.getByLabel("选择导出").check();
-  const acceptedPackage = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      /\/api\/v1\/projects\/.+\/edit-packages$/.test(new URL(response.url()).pathname),
-  );
-  await page.getByRole("button", { name: "生成所选剪辑交接包" }).click();
-  const packageResponse = await acceptedPackage;
-  expect(packageResponse.status()).toBe(202);
-  const editPackage = await packageResponse.json() as { resource_id: string };
-  await waitForTerminal(
-    async () => {
-      const response = await page.request.get(`/api/v1/edit-packages/${editPackage.resource_id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const body = await response.json() as { edit_package: StatusPayload };
-      return { statusCode: response.status(), body: body.edit_package };
-    },
-    { success: "succeeded", failures: new Set(["failed"]) },
-  );
-  const handoffDownload = page.getByRole("link", { name: "下载剪辑交接 ZIP" });
-  await expect(handoffDownload).toHaveAttribute(
-    "href",
-    /\/api\/v1\/edit-packages\/.+signature=/,
-    { timeout: 8_000 },
-  );
-  const handoffUrl = await handoffDownload.getAttribute("href");
-  const handoffArchive = await page.evaluate(async (url) => {
-    const response = await fetch(url);
-    const body = new Uint8Array(await response.arrayBuffer());
-    return {
-      status: response.status,
-      disposition: response.headers.get("Content-Disposition"),
-      length: body.length,
-      magic: Array.from(body.slice(0, 2)),
-    };
-  }, handoffUrl as string);
-  expect(handoffArchive.status).toBe(200);
-  expect(handoffArchive.disposition).toBe(
-    'attachment; filename="liveclip-edit-package-v001.zip"',
-  );
-  expect(handoffArchive.length).toBeGreaterThan(1_000);
-  expect(handoffArchive.magic).toEqual([0x50, 0x4b]);
-
-  await page.getByRole("button", { name: "审核和编辑" }).first().click();
+  await page.getByRole("button", { name: "编辑详情" }).first().click();
   const editor = page.locator("section.clip-editor");
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("heading", { name: "协作批注" })).toBeVisible();
@@ -200,6 +157,7 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   await expect(editor.locator(".comment-status")).toHaveText("已解决");
 
   await editor.getByLabel("标题").fill("真实浏览器修订高光");
+  await editor.getByLabel("评分").fill("91.5");
   await editor.getByLabel("文本").first().fill("真实浏览器逐 cue 修改字幕");
   await editor.getByRole("button", { name: "保存为新 revision" }).click();
   await expect(editor.getByText("高光 #1 · revision 2", { exact: true })).toBeVisible();
@@ -210,7 +168,7 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
   const acceptedRender = page.waitForResponse(
     (response) => response.request().method() === "POST" && /\/api\/v1\/clips\/.+\/render$/.test(new URL(response.url()).pathname),
   );
-  await editor.getByRole("button", { name: "渲染审核/交付母版" }).click();
+  await editor.getByRole("button", { name: "渲染预览/交付母版" }).click();
   const renderResponse = await acceptedRender;
   expect(renderResponse.status()).toBe(202);
   const render = await renderResponse.json() as { resource_id: string };
@@ -223,12 +181,13 @@ test("drives the real API, leased Worker and FFmpeg through delivered", async ({
     },
     { success: "succeeded", failures: new Set(["failed", "stale"]) },
   );
-  await expect(editor.getByText("审核/交付母版渲染状态已更新。")).toBeVisible();
-  await expect(editor.getByText(/当前 revision 2 · 干净审核\/交付母版/)).toBeVisible();
-  await editor.getByRole("button", { name: "批准" }).click();
-  await expect(editor.getByText("已批准")).toBeVisible();
+  await expect(editor.getByText("预览/交付母版渲染状态已更新。")).toBeVisible();
+  await expect(editor.getByText(/当前 revision 2 · 干净预览\/交付母版/)).toBeVisible();
+  await editor.getByRole("button", { name: "关闭详情" }).click();
+  await firstCard.getByLabel("选入交付").click();
+  await expect(page.getByText("已更新 1 条交付选择。")).toBeVisible();
 
-  const createDelivery = page.getByRole("button", { name: "创建新交付版本" });
+  const createDelivery = page.getByRole("button", { name: "导出所选高光" });
   await expect(createDelivery).toBeEnabled();
   const acceptedDelivery = page.waitForResponse(
     (response) => response.request().method() === "POST" && /\/api\/v1\/projects\/.+\/deliveries$/.test(new URL(response.url()).pathname),

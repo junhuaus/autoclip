@@ -70,6 +70,117 @@ liveclip db-restore --backup /absolute/path/backup.sqlite3 --output /absolute/pa
 
 All commands above are implemented. `review` creates an immutable human revision when title/boundary/subtitle fields change, `rerender` queues or foreground-executes the current revision, and `deliver` creates a new immutable delivery version. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
 
+For new semantic clipping work, choose `semantic_windowed` explicitly (the Web selects it by default;
+the bare CLI/API default remains A for backward-compatible automation):
+
+```bash
+liveclip run \
+  --input /absolute/path/live.ts \
+  --algorithm semantic_windowed \
+  --profile vocal_coach_live \
+  --min-duration 45 --target-duration 60 --max-duration 90 \
+  --score-threshold 75 --max-clips 15 \
+  --prompt-debug --no-render --wait
+```
+
+`semantic_windowed` scans 120-second logical windows at a 60-second step. Four logical windows are
+deduplicated into one 300-second Discovery batch with a half-open 240-second candidate-start ownership
+interval; uncached batches run with bounded concurrency five. A structured open-topic report on either
+side schedules one 180-second boundary union. Every Discovery batch may return any number of candidates
+and does no final scoring. Global Review receives candidate source text, nearby context and boundary
+results—not the whole livestream—and owns duplicate/merge/split decisions and all final scoring. Python maps
+global cue IDs to source milliseconds, accepts only one continuous 45–90 second range, recomputes the
+six score fields, requires a score strictly greater than 75, applies risk/manual-review gates and uses
+Top-N only as a ceiling. `--no-render` persists the final plan without FFmpeg. `--prompt-debug` prints
+only loaded Prompt files, version/hash, profile, token estimate and window mode; it never
+prints the transcript.
+
+Full-first `semantic_global` remains available as a comparison mode. It uses tokenizer budgeting to
+choose a whole-transcript request or 10–20 minute fallback transport windows; it is no longer the Web
+default because whole-live retries have higher latency and a larger failure blast radius.
+
+Discovery builds a complete topic map before proposing clips. Every medium/high-value topic must
+either reference a candidate or carry a structured no-candidate reason; risk is recorded but never
+used to suppress discovery. Before Global Review, Python adds exact candidate/topic milliseconds and
+durations. Global Review must account for every medium/high topic through a structured coverage
+decision and must provide cue boundaries for any duration rejection. Python is the sole duration
+authority and sends a contradictory duration claim through the one bounded repair path.
+
+Candidates and final clips also preserve the source opening quote, opening relevance, semantic-core
+cue range, source closing quote, first complete payoff, boundary compactness, source fidelity,
+irrelevant intro/outro cues and quality flags. Among legal 45–90 second ranges the Agent must choose
+the shortest natural interval that contains the complete promise; 60 seconds is a soft target and
+90 seconds is never a target to fill. An irrelevant opening/outro, unfinished ending, internal topic
+switch, unsupported title reframing or padding with welcome/CTA/assistant chatter cannot be retained.
+Editorial value (`keep`/`drop`) is separate from release status (`clear`/`manual`): high-risk medical diagnosis, absolute/commercial
+claims and music-rights material can remain valuable review candidates without becoming automatic
+selections. Ordinary low-severity vocal-health advice is distinct from medical diagnosis.
+
+The Prompt bundle loads in stable order: `main.md`, `common_rules.md`, the selected stage, and the
+selected profile. Add a profile under `src/liveclip/clipping_skills/semantic_global_v1/profiles/`,
+declare it in `manifest.yaml`, extend the typed profile allowlist and add loader tests; a profile
+cannot override continuity, duration, score or safety rules. Evaluation examples are not loaded into
+production Prompts.
+
+Run the checked-in 701-cue regression without ASR or rendering:
+
+```bash
+liveclip semantic-eval \
+  --algorithm semantic_windowed \
+  --transcript tests/fixtures/8-16-3-full-transcript.txt \
+  --output data/evaluations/8-16-3-semantic-windowed-local \
+  --provider mock --model-context-tokens 128000 \
+  --baseline data/evaluations/previous-semantic-run
+```
+
+When only Global Review rules changed, reuse a compatible validated Discovery artifact instead of
+paying for and waiting on the same full-transcript Discovery again. Window mode can also resume the
+exact completed batches from a failed run and call only missing batches:
+
+```bash
+liveclip semantic-eval \
+  --transcript tests/fixtures/8-16-3-full-transcript.txt \
+  --output data/evaluations/8-16-3-global-review-iteration \
+  --provider configured \
+  --reuse-discovery-from data/evaluations/8-16-3-prior-run
+```
+
+Full-context reuse fails closed unless source hash, profile, model/provider, runtime limits, context
+mode, reasoning effort and Discovery Prompt hash all match. Window-batch reuse recomputes the provider
+operation key from the complete current payload and accepts a batch only on an exact match. The new
+run manifest records the source run and actual missing-batch call count.
+
+After semantic evaluation, apply an explicit review artifact and create real media plus a directly
+browsable Delivery. The review is bound to the exact plan SHA-256, must classify every kept clip and
+may revise boundaries only through existing transcript cue IDs; the command rechecks the configured
+45–90 second range before FFmpeg runs:
+
+```bash
+liveclip semantic-deliver \
+  --source /absolute/path/live.ts \
+  --transcript tests/fixtures/8-16-3-full-transcript.txt \
+  --plan data/evaluations/run/final-validated.json \
+  --review data/evaluations/run/offline-review.json \
+  --output data/exports/reviewed-run
+```
+
+The output contains immutable renders, `reviewed-render-manifest.json`, and
+`deliveries/v001/index.html`, subtitles, checksums and `delivery.zip`. The manifest and offline index
+carry the same grounded editorial metadata used by the Web review card: each clip shows its high-impact
+`hook` plus transcript-backed `keywords` with clip-relative time, source time and honest word/segment
+timing precision. Boundary decisions remain review data and never become source-specific rules in
+Discovery or Global Review. A later review may
+pass `--reuse-renders-from` with the prior `reviewed-render-manifest.json`; only exact
+source-SHA/range/hash matches are reused, so a one-clip boundary change re-encodes only that clip.
+
+Use `--provider configured` only when a real configured provider is intended. The output directory
+contains `discovery-raw.json`, exact `global-review-agent-raw.json`, deterministically normalized
+`global-review-raw.json`, `final-validated.json`, `run-manifest.json`, `prompt-debug.json` and
+`before-after-report.md`; a repair also creates `repair-attempts.json`.
+Rejected candidate groups, duplicate targets, coverage decisions and validator-added rejections are
+retained in the final audit instead of being silently discarded. Directories are no-clobber. See
+[ADR-024](docs/adr/024-full-first-semantic-global-clipping.md).
+
 `export-review` is intentionally different from formal `deliver`: it snapshots every current
 successful clean review proxy while clips may still be `pending_review`, leaves all review and
 Project state unchanged, and creates a versioned self-contained offline package. The package

@@ -265,6 +265,10 @@ class SqlAlchemyDeliveryRepository:
                         video_sha256=clip.video_sha256,
                         subtitle_relative_path=clip.subtitle_relative_path,
                         subtitle_sha256=clip.subtitle_sha256,
+                        hook=clip.hook,
+                        reason=clip.reason,
+                        risk_flags=clip.risk_flags,
+                        keywords=clip.keywords,
                     )
                     for clip in eligible.clips
                 ),
@@ -400,7 +404,7 @@ class SqlAlchemyDeliveryRepository:
                     or archive_validation.get("delivery_id") != work.delivery_id
                     or archive_validation.get("delivery_version") != f"v{work.version:03d}"
                     or archive_validation.get("snapshot_fingerprint") != work.snapshot_fingerprint
-                    or archive_validation.get("members") != len(work.clips) * 2 + 1
+                    or archive_validation.get("members") != len(work.clips) * 2 + 3
                 ):
                     raise DeliveryConflict("delivery ZIP asset is invalid")
             elif persistence.zip_asset_id is not None:

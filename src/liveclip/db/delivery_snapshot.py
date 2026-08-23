@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import defaultdict
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import case, select
 from sqlalchemy.engine import Connection
@@ -10,14 +12,28 @@ from sqlalchemy.engine import Connection
 from liveclip.db.models import (
     AssetRow,
     CandidateClipRow,
+    CaptionCueRow,
     EditPlanRevisionRow,
     PipelineRunRow,
     ProjectRow,
     RenderJobRow,
     ReviewDecisionRow,
     SourceMediaRow,
+    TaskAttemptRow,
+    TaskRow,
+    TranscriptRow,
+    TranscriptSegmentRow,
+    TranscriptWordRow,
 )
-from liveclip.domain.state_transitions import AssetStatus, RenderStatus, ReviewStatus
+from liveclip.domain.edit_plan import CaptionCue
+from liveclip.domain.keywords import KeywordOccurrence, derive_keyword_occurrences
+from liveclip.domain.state_transitions import (
+    AssetStatus,
+    AttemptOutcome,
+    RenderStatus,
+    ReviewStatus,
+)
+from liveclip.domain.transcript import TranscriptSegment, TranscriptWord
 from liveclip.renderer.contracts import (
     has_current_manual_render_contract,
     is_clean_delivery_master,
@@ -46,6 +62,10 @@ class EligibleDeliveryClip:
     subtitle_asset_id: str
     subtitle_relative_path: str
     subtitle_sha256: str
+    hook: str
+    reason: str
+    risk_flags: tuple[str, ...]
+    keywords: tuple[KeywordOccurrence, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +107,9 @@ def load_eligible_delivery_set(
             CandidateClipRow.rank,
             EditPlanRevisionRow.id.label("revision_id"),
             EditPlanRevisionRow.title,
+            EditPlanRevisionRow.hook,
+            EditPlanRevisionRow.reason,
+            EditPlanRevisionRow.risk_flags_json,
             EditPlanRevisionRow.source_start_ms,
             EditPlanRevisionRow.source_end_ms,
             EditPlanRevisionRow.score,
@@ -103,6 +126,49 @@ def load_eligible_delivery_set(
         )
         .order_by(CandidateClipRow.rank, CandidateClipRow.id)
     ).all()
+    segment_rows = tuple(
+        connection.execute(
+            select(
+                TranscriptSegmentRow.id,
+                TranscriptSegmentRow.source_start_ms,
+                TranscriptSegmentRow.source_end_ms,
+                TranscriptSegmentRow.text,
+            )
+            .join(TranscriptRow, TranscriptRow.id == TranscriptSegmentRow.transcript_id)
+            .where(TranscriptRow.pipeline_run_id == run_id)
+            .order_by(TranscriptSegmentRow.segment_index)
+        )
+    )
+    words_by_segment: defaultdict[str, list[TranscriptWord]] = defaultdict(list)
+    for word_row in connection.execute(
+        select(
+            TranscriptWordRow.segment_id,
+            TranscriptWordRow.source_start_ms,
+            TranscriptWordRow.source_end_ms,
+            TranscriptWordRow.text,
+        )
+        .join(TranscriptSegmentRow, TranscriptSegmentRow.id == TranscriptWordRow.segment_id)
+        .join(TranscriptRow, TranscriptRow.id == TranscriptSegmentRow.transcript_id)
+        .where(TranscriptRow.pipeline_run_id == run_id)
+        .order_by(TranscriptWordRow.segment_id, TranscriptWordRow.word_index)
+    ):
+        words_by_segment[str(word_row.segment_id)].append(
+            TranscriptWord(
+                start_ms=int(word_row.source_start_ms),
+                end_ms=int(word_row.source_end_ms),
+                text=str(word_row.text),
+            )
+        )
+    transcript_segments = tuple(
+        TranscriptSegment(
+            segment_id=str(row.id),
+            start_ms=int(row.source_start_ms),
+            end_ms=int(row.source_end_ms),
+            text=str(row.text),
+            words=tuple(words_by_segment[str(row.id)]) or None,
+        )
+        for row in segment_rows
+    )
     eligible: list[EligibleDeliveryClip] = []
     for candidate in candidates:
         decision = connection.execute(
@@ -117,6 +183,7 @@ def load_eligible_delivery_set(
             select(
                 RenderJobRow.id,
                 RenderJobRow.kind,
+                RenderJobRow.task_id,
                 RenderJobRow.spec_fingerprint,
                 RenderJobRow.spec_json,
                 RenderJobRow.revision_epoch,
@@ -173,6 +240,7 @@ def load_eligible_delivery_set(
         assets = connection.execute(
             select(
                 AssetRow.id,
+                AssetRow.producer_attempt_id,
                 AssetRow.kind,
                 AssetRow.relative_path,
                 AssetRow.sha256,
@@ -196,6 +264,7 @@ def load_eligible_delivery_set(
         contact = by_id.get(str(render.contact_sheet_asset_id))
         if video is None or subtitle is None or quality is None or contact is None:
             raise DeliverySetError("an approved clip has missing delivery-master assets")
+        asset_rows = (video, subtitle, quality, contact)
         expected_kinds = {
             str(render.asset_id): (
                 "review_proxy" if str(render.kind) == "proxy" else "final_video"
@@ -215,9 +284,14 @@ def load_eligible_delivery_set(
             or int(asset.edit_plan_revision) != int(candidate.current_revision)
             or asset.revision_epoch is None
             or int(asset.revision_epoch) != int(render.revision_epoch)
-            or str(asset.input_fingerprint) != str(render.spec_fingerprint)
             or not isinstance(asset.validation_json, dict)
-            for asset in (video, subtitle, quality, contact)
+            for asset in asset_rows
+        ):
+            raise DeliverySetError("an approved clip delivery-master assets are stale or invalid")
+        if not _asset_fingerprints_match_render(
+            connection,
+            render=render,
+            assets=asset_rows,
         ):
             raise DeliverySetError("an approved clip delivery-master assets are stale or invalid")
         if (
@@ -229,6 +303,28 @@ def load_eligible_delivery_set(
             or int(contact.validation_json["frames"]) < 3
         ):
             raise DeliverySetError("an approved clip delivery-master quality contract is invalid")
+        captions = tuple(
+            CaptionCue(
+                start_ms=int(cue.start_ms),
+                end_ms=int(cue.end_ms),
+                text=str(cue.text),
+            )
+            for cue in connection.execute(
+                select(CaptionCueRow.start_ms, CaptionCueRow.end_ms, CaptionCueRow.text)
+                .where(CaptionCueRow.edit_plan_revision_id == candidate.revision_id)
+                .order_by(CaptionCueRow.cue_index)
+            )
+        )
+        risk_flags = tuple(dict.fromkeys(str(value) for value in candidate.risk_flags_json))
+        keywords = derive_keyword_occurrences(
+            captions,
+            source_start_ms=int(candidate.source_start_ms),
+            source_end_ms=int(candidate.source_end_ms),
+            title=str(candidate.title),
+            hook=str(candidate.hook),
+            reason=str(candidate.reason),
+            segments=transcript_segments,
+        )
         eligible.append(
             EligibleDeliveryClip(
                 clip_id=str(candidate.id),
@@ -247,6 +343,10 @@ def load_eligible_delivery_set(
                 subtitle_asset_id=str(subtitle.id),
                 subtitle_relative_path=str(subtitle.relative_path),
                 subtitle_sha256=str(subtitle.sha256),
+                hook=str(candidate.hook),
+                reason=str(candidate.reason),
+                risk_flags=risk_flags,
+                keywords=keywords,
             )
         )
     if not eligible:
@@ -270,6 +370,10 @@ def load_eligible_delivery_set(
                 "source_start_ms": clip.source_start_ms,
                 "source_end_ms": clip.source_end_ms,
                 "score": clip.score,
+                "hook": clip.hook,
+                "reason": clip.reason,
+                "risk_flags": list(clip.risk_flags),
+                "keywords": [keyword.model_dump(mode="json") for keyword in clip.keywords],
                 "render_id": clip.render_job_id,
                 "render_spec_fingerprint": clip.render_spec_fingerprint,
                 "video_asset_id": clip.video_asset_id,
@@ -292,4 +396,38 @@ def load_eligible_delivery_set(
         source_fingerprint=str(project.sha256),
         fingerprint=fingerprint,
         clips=tuple(eligible),
+    )
+
+
+def _asset_fingerprints_match_render(
+    connection: Connection,
+    *,
+    render: Any,
+    assets: tuple[Any, ...],
+) -> bool:
+    """Accept exact render binding or the audited historical pipeline-task binding."""
+
+    spec_fingerprint = str(render.spec_fingerprint)
+    if all(str(asset.input_fingerprint) == spec_fingerprint for asset in assets):
+        return True
+    if str(render.kind) != "proxy" or render.task_id is None:
+        return False
+    attempt_ids = {str(asset.producer_attempt_id) for asset in assets if asset.producer_attempt_id}
+    if len(attempt_ids) != 1:
+        return False
+    attempt = connection.execute(
+        select(
+            TaskAttemptRow.id,
+            TaskAttemptRow.task_id,
+            TaskAttemptRow.outcome,
+            TaskRow.input_fingerprint,
+        )
+        .join(TaskRow, TaskRow.id == TaskAttemptRow.task_id)
+        .where(TaskAttemptRow.id == next(iter(attempt_ids)))
+    ).one_or_none()
+    return bool(
+        attempt is not None
+        and str(attempt.task_id) == str(render.task_id)
+        and str(attempt.outcome) == AttemptOutcome.SUCCEEDED.value
+        and all(str(asset.input_fingerprint) == str(attempt.input_fingerprint) for asset in assets)
     )

@@ -1,0 +1,44 @@
+# Batch与边界任务
+
+input_mode=windowed时，batch_context_ms是一次提供的连续字幕。logical_windows_ms默认是四个
+120秒逻辑窗口，步长60秒；逐窗检查，但同一候选在batch只输出一次，每窗允许零到多个候选。
+
+ownership_interval_ms是半开区间。只有最终start cue的start_ms位于该区间，当前batch才能输出；
+候选可以结束在ownership之外但不能越出batch_context。batch内部跨逻辑窗口的话题直接合并、
+定界，不上报为外缘问题。
+
+若batch左边第一句话题明显从前文开始，设置starts_inside_open_topic=true；若右边最后话题尚未
+给出payoff，设置ends_inside_open_topic=true。每个true都必须有boundary_topics对象，包含side、
+topic_summary、viewer_promise、evidence_cue_ids、continuation_expected=true和相关candidate IDs。
+边界报告必须回到当前未闭合内容最近的 direct 问题，保留问题明确提出的全部阶段、方向、条件或
+编号，不能只把窗口尾部尚未回答的半句改写成更窄 promise。evidence至少包含该 direct 问题和
+窗口内已出现的回答证据；即使问题前半已形成局部候选，也要报告完整上位 promise。
+
+input_mode=boundary_bridge时，输入是相邻batch外缘两个逻辑窗口的固定180秒并集。
+bridge_boundary_ms是交界。只处理跨越交界的话题：同一promise则返回一个跨界最短完整候选；
+相邻但不同的问题不得合并。bridge候选必须跨越交界；没有跨界完整高光时返回零候选。
+
+触发报告只是线索，不是语义边界。必须从180秒原文中重新寻找交界前最近的 direct 问题；若它
+询问同一动作在两个阶段/方向/条件下的变化，候选必须覆盖各阶段首次完整答案。候选可以跨越
+Discovery topic unit；topic unit是目录而不是剪辑边界，所有被候选连续覆盖的相关topic都应引用
+同一candidate_id。不能通过缩窄问题只保留其中一半。
+
+bridge任务必须从触发报告的原始问题重新核对它提出的全部条件或阶段，而不是沿用某一侧的窄候选。
+只要在45–90秒内已经回答上位问题，就在第一个完整payoff处结束；片内已经解释清楚的确认性反问
+可以闭合，不要求后续听者回答、重复演示或转入下一教学点。短暂的内部直播插话降低洁净度但不应
+让完整跨界话题消失；首尾可删除的插话仍必须移出边界。
+
+先建立topic_units，再逐个搜索候选。medium/high话题的风险、商业属性、版权或敏感性不得代替
+内容发现；有独立价值就形成候选并标风险，只有语义不完整或无法形成合法连续边界时才no_candidate。
+topic unit不是候选边界。同一直接问题可以由相邻topic unit依次展开；只要45–90秒连续范围内能
+完整兑现，就输出一个跨unit候选，并让每个相关topic引用它。不要为了topic map整齐而拆成半答案。
+
+对每个候选，从当前start到first_complete_payoff之间逐个检查更晚出现的direct问题。若更晚问题
+到同一结尾仍不少于minimum且不丢必要前提，必须从更晚问题开始；双方此前的试探、选歌背景或
+“刚才聊到什么”通常不是必要上下文。若听者简短确认后老师立即继续同一建议，应把老师的最终
+补充纳入首次完整payoff，不能在听者确认处提前结束。
+
+不要因为一句话末尾预告了后续示范、另一个条件或更深入解释，就否定前面已经完整兑现的独立子承诺。
+应比较不同viewer_promise：如果“纠正误区→说明真正作用位置→用一个演示解释原理”已在合法时长内
+闭合，可以在新问题或后续深化前形成候选；只有候选承诺本身仍缺答案时，才判incomplete_topic。
+返回严格Discovery JSON，不返回最终分数或解释正文。

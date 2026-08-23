@@ -10,6 +10,11 @@ from pathlib import Path
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from liveclip.limits import (
+    MAX_LLM_REQUEST_TIMEOUT_SECONDS,
+    MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+)
+
 
 class Settings(BaseSettings):
     """Validated local settings.
@@ -94,9 +99,9 @@ class Settings(BaseSettings):
         validation_alias="ASR_VOCABULARY_PROMPT",
     )
     openai_request_timeout_seconds: float = Field(
-        default=120.0,
-        ge=5,
-        le=600,
+        default=300.0,
+        ge=MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+        le=MAX_LLM_REQUEST_TIMEOUT_SECONDS,
         validation_alias="OPENAI_REQUEST_TIMEOUT_SECONDS",
     )
     openai_max_request_retries: int = Field(
