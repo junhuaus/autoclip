@@ -1,4 +1,7 @@
 import type {
+  CompletionPresetsResponse,
+  CompletionPresetCreateRequest,
+  CompletionGoalResponse,
   AcceptedPipelineResponse,
   AcceptedTaskResponse,
   AdminAuditEventsResponse,
@@ -158,6 +161,25 @@ export function createIdempotencyKey(scope: string): string {
 }
 
 export class LiveClipApiClient {
+  completionGoal(intentId: string): Promise<CompletionGoalResponse> {
+    return this.request(`/completion-goals/${encodeURIComponent(intentId)}`);
+  }
+
+  completionPresets(): Promise<CompletionPresetsResponse> {
+    return this.request("/completion-presets");
+  }
+
+  createCompletionFromPreset(
+    body: CompletionPresetCreateRequest,
+    idempotencyKey: string,
+  ): Promise<CompletionGoalResponse> {
+    return this.request("/completion-goals/from-preset", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(body),
+    });
+  }
+
   private readonly token: string;
   private readonly baseUrl: string;
   private csrfToken = "";

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import threading
+import traceback
 from enum import StrEnum
 
 from liveclip.application.lease_monitor import LeaseMonitor
@@ -24,6 +26,8 @@ from liveclip.domain.state_transitions import (
     TaskKind,
     TaskStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RunOneOutcome(StrEnum):
@@ -85,7 +89,14 @@ class StageTaskRunner:
                     safe_message="The persisted pipeline configuration failed integrity checks",
                 ),
             )
-        except Exception:
+        except Exception as exc:
+            frames = traceback.extract_tb(exc.__traceback__)
+            site = f"{frames[-1].name}:{frames[-1].lineno}" if frames else "unknown"
+            logger.error(
+                "unexpected stage failure error_class=%s error_site=%s",
+                type(exc).__name__,
+                site,
+            )
             return self._record_failure(
                 lease,
                 identity,

@@ -279,7 +279,7 @@ def test_saved_project_view_migration_round_trip(
 
 
 @pytest.mark.integration
-def test_head_repairs_stamped_legacy_asset_scope_columns(
+def test_asset_scope_migration_repairs_stamped_legacy_columns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_root = Path(__file__).resolve().parents[2]
@@ -372,7 +372,9 @@ def test_head_repairs_stamped_legacy_asset_scope_columns(
     finally:
         connection.close()
 
-    command.upgrade(config, "head")
+    # This deliberately partial stamped schema covers only the legacy Asset
+    # repair; later migrations require the complete parent tables.
+    command.upgrade(config, "d2c59b8e4f31")
 
     connection = sqlite3.connect(database_path)
     try:
@@ -449,7 +451,7 @@ def test_head_removes_legacy_render_task_unique_constraint(
 
 
 @pytest.mark.integration
-def test_head_stales_proxies_that_predate_no_blur_contract(
+def test_no_blur_migration_stales_pre_contract_proxies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_root = Path(__file__).resolve().parents[2]
@@ -480,6 +482,16 @@ def test_head_stales_proxies_that_predate_no_blur_contract(
             (dirty_run, "8" * 32, "edit-plan-v1.caption-v2"),
             (clean_run, "9" * 32, "edit-plan-v1.caption-v2.clean-proxy-v1"),
         ):
+            connection.execute(
+                """
+                INSERT INTO projects (
+                    id, name, source_request_path, current_generation,
+                    current_pipeline_run_id, revision_epoch, created_at, updated_at
+                ) VALUES (?, 'migration fixture', '/synthetic/read-only.mp4',
+                          1, ?, 0, ?, ?)
+                """,
+                (project_id, run_id, instant, instant),
+            )
             connection.execute(
                 """
                 INSERT INTO pipeline_runs (
@@ -521,6 +533,11 @@ def test_head_stales_proxies_that_predate_no_blur_contract(
                 (clip_id, project_id, run_id, key, instant),
             )
         for revision_id, clip_id, layout in (
+            ("a" * 32, dirty_clip, "center_crop"),
+            ("b" * 32, clean_clip, "center_crop"),
+            ("c" * 32, manual_clip, "center_crop"),
+            ("d" * 32, queued_clip, "center_crop"),
+            ("0" * 32, running_clip, "center_crop"),
             (blur_final_revision, blur_final_clip, "vertical_blur_background"),
             (center_final_revision, center_final_clip, "center_crop"),
             (current_proxy_revision, current_proxy_clip, "center_crop"),
@@ -663,6 +680,7 @@ def test_head_stales_proxies_that_predate_no_blur_contract(
                     instant,
                 ),
             )
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         connection.commit()
     finally:
         connection.close()

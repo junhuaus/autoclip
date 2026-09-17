@@ -40,6 +40,64 @@ def test_process_runner_bounds_stdout_head_and_stderr_tail() -> None:
     assert result.stderr.endswith("stderr-final-marker")
 
 
+def test_process_start_observer_distinguishes_missing_executable(tmp_path: Path) -> None:
+    starts = []
+    with pytest.raises(FileNotFoundError):
+        run_cancellable_process(
+            [str(tmp_path / "missing-executable")],
+            timeout_seconds=5,
+            on_started=lambda: starts.append(True),
+        )
+    assert not starts
+
+
+def test_process_start_observer_survives_post_launch_pipe_error(monkeypatch) -> None:
+    starts = []
+    read = process_module._PipeReader._read
+
+    def failing_reader(self):
+        if self._thread.name.endswith("stdout"):
+            try:
+                assert self._stream.read(1) == b"x"
+                self._error = OSError("synthetic post-launch pipe error")
+            finally:
+                self._done.set()
+        else:
+            read(self)
+
+    monkeypatch.setattr(process_module._PipeReader, "_read", failing_reader)
+    with pytest.raises(OSError, match="synthetic post-launch"):
+        run_cancellable_process(
+            [sys.executable, "-u", "-c", "import time;print('x');time.sleep(30)"],
+            timeout_seconds=5,
+            poll_seconds=0.01,
+            on_started=lambda: starts.append(True),
+        )
+    assert starts == [True]
+
+
+def test_failed_start_observer_terminates_its_launched_process(monkeypatch) -> None:
+    processes = []
+    popen = subprocess.Popen
+
+    def track(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    def fail():
+        raise RuntimeError("synthetic observer failure")
+
+    monkeypatch.setattr(process_module.subprocess, "Popen", track)
+    with pytest.raises(RuntimeError, match="synthetic observer"):
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=5,
+            on_started=fail,
+        )
+    assert len(processes) == 1 and processes[0].poll() is not None
+
+
 def test_process_timeout_preserves_bounded_stdout_and_stderr_evidence() -> None:
     started = time.monotonic()
     with pytest.raises(subprocess.TimeoutExpired) as caught:

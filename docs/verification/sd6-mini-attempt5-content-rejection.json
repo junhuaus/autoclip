@@ -1,0 +1,91 @@
+{
+  "artifacts": {
+    "edit_plans_sha256": "1666e6edf487c810ba6139724c615391a7baeaf99cb27182b2fbcc37e0e516d7",
+    "no_review_clips_sha256": "e3b1c6f0925a1b9914b1a400b8403b84186442445d7f610232510e28058b6f38",
+    "product_log_sha256": "941d6d8e23a33c9c042b20d01af094415d2847b920d437b1ff427d1e4b73d142",
+    "rough_candidates_sha256": "c997fe75efe83e622702668e351e68455ab297ccfeda860b286de626946c3245"
+  },
+  "attempt": "mini-attempt5-frozen-anchor",
+  "candidate_count": 2,
+  "codex_launch_cap": 64,
+  "codex_launches": 31,
+  "database_sha256": "d19fc7cd313468765f37e331cebe309cbb21e9c455c90526d61199e45694e2cb",
+  "delivery_count": 0,
+  "failure_reason": "no_selectable_clip_after_deterministic_quality_gates",
+  "foreign_key_violations": 0,
+  "probe_receipt_sha256": "939dbf408eafbd52a491aec0662fad96ae38b6392ff852a911de7d175eb09a1e",
+  "project_id": "b934c1e7a53741288c6f364e61cbf227",
+  "provider_status": {
+    "codex_cli:invalid": {
+      "calls": 1
+    },
+    "codex_cli:succeeded": {
+      "calls": 30
+    },
+    "mlx:succeeded": {
+      "calls": 4
+    }
+  },
+  "quick_check": "ok",
+  "rejected": [
+    {
+      "candidate_id": "unit_chain_0b72dd7d068f1fca_34_80",
+      "content_decision": "keep",
+      "duration_ms": 92760,
+      "publish_status": "manual",
+      "quality_flags": [
+        "asr_meaning_reversal"
+      ],
+      "risk_flags": [
+        "music_rights_review",
+        "asr_uncertain"
+      ],
+      "score": 88,
+      "validation_notes": [
+        "blocking_quality_gate"
+      ]
+    },
+    {
+      "candidate_id": "unit_chain_bdf14aa243afcb7f_01",
+      "content_decision": "repair_boundary",
+      "duration_ms": 90380,
+      "publish_status": "manual",
+      "quality_flags": [],
+      "risk_flags": [
+        "absolute_claim",
+        "commercial_claim",
+        "music_rights_review",
+        "asr_uncertain"
+      ],
+      "score": 86,
+      "validation_notes": [
+        "content_keep_gate"
+      ]
+    }
+  ],
+  "run_id": "85e067ff90e740cc9dfe1afb303e4cb3",
+  "schema_version": "1",
+  "selected_count": 0,
+  "semantic_invocations": {
+    "boundary_review": 2,
+    "discovery": 2,
+    "global_review": 1,
+    "link_review": 22,
+    "topic_chain": 2
+  },
+  "source_excerpt_sha256": "670b4e7f80b3c56161d050edd504ebe840846d9c2447aa38f1a3e1e6e9fc50b2",
+  "stages": {
+    "candidates": "succeeded",
+    "edit": "succeeded",
+    "ingest": "succeeded",
+    "preprocess": "succeeded",
+    "proxy_render": "succeeded",
+    "transcribe": "succeeded"
+  },
+  "status": "PRESERVED_FAIL",
+  "token_totals": {
+    "input_tokens": 495458,
+    "output_tokens": 31789,
+    "reasoning_output_tokens": 14573
+  }
+}

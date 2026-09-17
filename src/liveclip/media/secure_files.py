@@ -29,6 +29,34 @@ _FileIdentity = tuple[int, int, int, int, int]
 _DirectoryIdentity = tuple[int, int]
 
 
+def cross_launch_source_stat_matches(
+    observed_path: Path,
+    metadata: os.stat_result,
+    *,
+    expected_path: Path,
+    expected_size_bytes: int,
+    expected_mtime_ns: int,
+    expected_inode: int | None,
+) -> bool:
+    """Match a persisted source reference across process and mount lifetimes.
+
+    ``st_dev`` is deliberately absent. On macOS it identifies the current mount
+    instance and can change after a reboot or volume remount even when the same
+    path and inode still refer to byte-identical media. Callers that consume
+    source bytes must additionally verify the persisted SHA-256 while the file
+    is pinned. ``PinnedRegularFile.validate_binding`` retains the stricter
+    current-open identity, including device and ctime, for TOCTOU protection.
+    """
+
+    return (
+        observed_path == expected_path
+        and stat.S_ISREG(metadata.st_mode)
+        and metadata.st_size == expected_size_bytes
+        and metadata.st_mtime_ns == expected_mtime_ns
+        and (expected_inode is None or metadata.st_ino == expected_inode)
+    )
+
+
 @dataclass(slots=True)
 class PinnedRegularFile:
     """One component-anchored regular file held open across child processes."""
@@ -598,6 +626,7 @@ def publish_regular_file_immutable_no_follow(
     remove_source: bool = True,
     block_size: int = 1024 * 1024,
     expected_sha256: str | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> str:
     """Stream one stable regular file into an immutable no-follow destination."""
 
@@ -625,13 +654,17 @@ def publish_regular_file_immutable_no_follow(
         )
         digest = hashlib.sha256()
         copied = 0
+        if progress is not None:
+            progress(0, source_metadata.st_size)
         while True:
             block = os.read(source_fd, block_size)
             if not block:
                 break
             digest.update(block)
-            copied += len(block)
             _write_all(temporary_fd, block)
+            copied += len(block)
+            if progress is not None:
+                progress(copied, source_metadata.st_size)
         if copied != source_metadata.st_size:
             raise SecureFileError("artifact source changed size while reading")
         _assert_stable_regular_endpoint(
@@ -1141,14 +1174,19 @@ def _open_parent(path: Path, *, create: bool) -> tuple[int, str]:
 
 def _open_directory(path: Path, *, create: bool, mode: int) -> int:
     flags = _directory_flags()
+    search_flags = flags | getattr(os, "O_SEARCH", 0)
     try:
         descriptor = os.open(path.anchor, flags)
     except OSError as exc:  # pragma: no cover - a valid absolute anchor is expected
         raise SecureFileError("artifact directory anchor cannot be opened safely") from exc
     try:
-        for component in path.parts[1:]:
+        components = path.parts[1:]
+        for index, component in enumerate(components):
+            # Intermediate descriptors only anchor the next openat. The final
+            # directory keeps read capability for listing and durable fsync.
+            component_flags = flags if index == len(components) - 1 else search_flags
             try:
-                child = os.open(component, flags, dir_fd=descriptor)
+                child = os.open(component, component_flags, dir_fd=descriptor)
             except FileNotFoundError as exc:
                 if not create:
                     raise SecureFileMissing("artifact directory does not exist") from exc
@@ -1161,7 +1199,7 @@ def _open_directory(path: Path, *, create: bool, mode: int) -> int:
                         "artifact directory could not be created safely"
                     ) from mkdir_exc
                 try:
-                    child = os.open(component, flags, dir_fd=descriptor)
+                    child = os.open(component, component_flags, dir_fd=descriptor)
                 except OSError as open_exc:
                     raise SecureFileError(
                         "artifact directory chain is not symlink-free"

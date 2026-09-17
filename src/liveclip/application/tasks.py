@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Protocol
 
-from liveclip.domain.state_transitions import TaskKind
+from liveclip.domain.state_transitions import TaskKind, TaskStatus
 
 
 class TaskQueueTransientError(RuntimeError):
@@ -73,3 +73,17 @@ class TaskQueuePort(Protocol):
         *,
         now: datetime | None = None,
     ) -> HeartbeatResult | None: ...
+
+    def defer_completion(
+        self,
+        lease: TaskLease,
+        *,
+        wait_ms: int | None,
+        now: datetime | None = None,
+    ) -> TaskStatus | None:
+        """End the owned attempt as deferred without spending retry budget.
+
+        A bounded wait returns to queued with not_before; None parks the goal
+        in completion-only WAITING until an explicit authorized wake.
+        """
+        ...

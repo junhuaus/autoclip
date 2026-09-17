@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -11,7 +12,7 @@ from fastapi import APIRouter, Cookie, Depends, FastAPI, Header, Query, Request,
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import BeforeValidator, ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -40,6 +41,12 @@ from liveclip.api.schemas import (
     ClipDetailResponse,
     ClipPatchRequest,
     ClipSummaryResponse,
+    CompletionExistingRunCreateRequest,
+    CompletionGoalResponse,
+    CompletionNewProjectCreateRequest,
+    CompletionPresetCreateRequest,
+    CompletionPresetsResponse,
+    CompletionVersionCommandRequest,
     DeliveryCreateRequest,
     DeliveryDetailResponse,
     EditPackageCreateRequest,
@@ -83,6 +90,16 @@ from liveclip.application.comments import (
     ClipCommentThreads,
     CommentConflict,
 )
+from liveclip.application.completion import (
+    CompletionConflict,
+    CompletionOptions,
+    CompletionSelectionSubmission,
+    CompletionSnapshot,
+)
+from liveclip.application.completion_presets import (
+    list_completion_presets,
+    resolve_completion_preset,
+)
 from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
@@ -105,6 +122,7 @@ from liveclip.application.identity import (
 )
 from liveclip.application.media_assets import MediaAssetInvalid
 from liveclip.application.pipeline import (
+    ActionNotReady,
     PipelineConflict,
     PipelineRunConfig,
     ProjectSnapshot,
@@ -553,6 +571,209 @@ def create_app(
             project_id,
             body,
             correlation_id=_correlation_id(request),
+        )
+
+    def completion_response(request: Request, goal: CompletionSnapshot) -> CompletionGoalResponse:
+        download_url = None
+        if goal.delivery_id is not None:
+            active = _runtime(request)
+            delivery = _require_delivery_access(active, _caller(request), goal.delivery_id)
+            if delivery.status.value == "succeeded" and delivery.zip_asset_id is not None:
+                active.media_asset_service.resolve(
+                    delivery.zip_asset_id, required_kind="delivery_zip"
+                )
+                download_url = _delivery_response(security, delivery).download_url
+        return CompletionGoalResponse(goal=goal, download_url=download_url)
+
+    def completion_readiness_guard() -> None:
+        ensure_processing_ready(provider_readiness)
+
+    @protected.get("/completion-presets", response_model=CompletionPresetsResponse)
+    def get_completion_presets() -> CompletionPresetsResponse:
+        return CompletionPresetsResponse(presets=list_completion_presets())
+
+    @protected.post(
+        "/completion-goals/from-preset", status_code=202, response_model=CompletionGoalResponse
+    )
+    def create_completion_from_preset(
+        body: Annotated[
+            CompletionPresetCreateRequest,
+            BeforeValidator(
+                lambda value: CompletionPresetCreateRequest.model_validate_json(json.dumps(value))
+            ),
+        ],
+        request: Request,
+        response: Response,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _workspace_user_from_caller(active, caller)
+        preset = resolve_completion_preset(body.preset_id)
+        job = JobCreateRequest(
+            input_path=body.input_path,
+            clip_profile=preset.clip_profile,
+            clipping_algorithm=preset.clipping_algorithm,
+            semantic_profile=preset.semantic_profile,
+            top_n=preset.top_n,
+            minimum_clip_seconds=preset.minimum_clip_seconds,
+            maximum_clip_seconds=preset.maximum_clip_seconds,
+            semantic_target_clip_seconds=preset.target_clip_seconds,
+            semantic_score_threshold=preset.semantic_score_threshold,
+            semantic_full_context_budget_ratio=preset.semantic_full_context_budget_ratio,
+            semantic_model_context_tokens=preset.semantic_model_context_tokens,
+        )
+        goal = active.completion_service.create_project_and_run_with_goal(
+            source_path=Path(body.input_path),
+            config=_pipeline_config(configured, job),
+            max_stage_retries=configured.max_stage_retries,
+            actor_user_id=actor.user_id,
+            options=CompletionOptions(
+                selection_policy=body.selection_policy,
+                include_zip=preset.include_zip,
+                preset_id=preset.preset_id.value,
+            ),
+            idempotency=build_idempotency_context(
+                raw_key=idempotency_key,
+                caller_scope=caller.caller_scope,
+                operation_scope="POST:/api/v1/completion-goals/from-preset",
+                request_payload=body.model_dump(mode="json"),
+            ),
+            readiness_guard=completion_readiness_guard,
+        )
+        response.headers["Location"] = f"/api/v1/completion-goals/{goal.intent_id}"
+        response.headers["Retry-After"] = "1"
+        return completion_response(request, goal)
+
+    # FastAPI has already decoded JSON into Python containers. Revalidate using
+    # the frozen DTO's JSON semantics: enum strings and arrays are valid wire
+    # values, while strict scalar types and forbidden extra fields stay enforced.
+    @protected.post("/completion-goals", status_code=202, response_model=CompletionGoalResponse)
+    def create_completion_goal(
+        body: Annotated[
+            CompletionNewProjectCreateRequest,
+            BeforeValidator(
+                lambda value: CompletionNewProjectCreateRequest.model_validate_json(
+                    json.dumps(value)
+                )
+            ),
+        ],
+        request: Request,
+        response: Response,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _workspace_user_from_caller(active, caller)
+        goal = active.completion_service.create_project_and_run_with_goal(
+            source_path=Path(body.job.input_path),
+            config=_pipeline_config(configured, body.job),
+            max_stage_retries=configured.max_stage_retries,
+            actor_user_id=actor.user_id,
+            options=body.options,
+            idempotency=build_idempotency_context(
+                raw_key=idempotency_key,
+                caller_scope=caller.caller_scope,
+                operation_scope="POST:/api/v1/completion-goals",
+                request_payload=body.model_dump(mode="json"),
+            ),
+            readiness_guard=completion_readiness_guard,
+        )
+        response.headers["Location"] = f"/api/v1/completion-goals/{goal.intent_id}"
+        response.headers["Retry-After"] = "1"
+        return completion_response(request, goal)
+
+    @protected.post(
+        "/runs/{run_id}/completion-goals", status_code=202, response_model=CompletionGoalResponse
+    )
+    def create_run_completion_goal(
+        run_id: str,
+        body: Annotated[
+            CompletionExistingRunCreateRequest,
+            BeforeValidator(
+                lambda value: CompletionExistingRunCreateRequest.model_validate_json(
+                    json.dumps(value)
+                )
+            ),
+        ],
+        request: Request,
+        response: Response,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _workspace_user_from_caller(active, caller)
+        run = _require_run_access(active, caller, run_id)
+        goal = active.completion_service.create_for_existing_run(
+            project_id=run.project_id,
+            run_id=run_id,
+            actor_user_id=actor.user_id,
+            options=body.options,
+            idempotency=build_idempotency_context(
+                raw_key=idempotency_key,
+                caller_scope=caller.caller_scope,
+                operation_scope=f"POST:/api/v1/runs/{run_id}/completion-goals",
+                request_payload=body.model_dump(mode="json"),
+            ),
+        )
+        response.headers["Location"] = f"/api/v1/completion-goals/{goal.intent_id}"
+        response.headers["Retry-After"] = "1"
+        return completion_response(request, goal)
+
+    @protected.get("/completion-goals/{intent_id}", response_model=CompletionGoalResponse)
+    def get_completion_goal(intent_id: str, request: Request) -> CompletionGoalResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return completion_response(
+            request, active.completion_service.get(intent_id, actor_user_id=actor.user_id)
+        )
+
+    @protected.post("/completion-goals/{intent_id}/resume", response_model=CompletionGoalResponse)
+    def resume_completion_goal(
+        intent_id: str, body: CompletionVersionCommandRequest, request: Request
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return completion_response(
+            request,
+            active.completion_service.resume(
+                intent_id, actor_user_id=actor.user_id, expected_version=body.expected_version
+            ),
+        )
+
+    @protected.post("/completion-goals/{intent_id}/cancel", response_model=CompletionGoalResponse)
+    def cancel_completion_goal(
+        intent_id: str, body: CompletionVersionCommandRequest, request: Request
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return completion_response(
+            request,
+            active.completion_service.cancel(
+                intent_id, actor_user_id=actor.user_id, expected_version=body.expected_version
+            ),
+        )
+
+    @protected.post(
+        "/completion-goals/{intent_id}/selection", response_model=CompletionGoalResponse
+    )
+    def select_completion_goal(
+        intent_id: str,
+        body: Annotated[
+            CompletionSelectionSubmission,
+            BeforeValidator(
+                lambda value: CompletionSelectionSubmission.model_validate_json(json.dumps(value))
+            ),
+        ],
+        request: Request,
+    ) -> CompletionGoalResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        return completion_response(
+            request,
+            active.completion_service.submit_selection(
+                intent_id, body, actor_user_id=actor.user_id
+            ),
         )
 
     @protected.post(
@@ -2022,6 +2243,7 @@ def _pipeline_config(
         semantic_target_clip_seconds=body.semantic_target_clip_seconds,
         semantic_score_threshold=body.semantic_score_threshold,
         semantic_profile=body.semantic_profile,
+        clip_profile=body.clip_profile,
         semantic_full_context_budget_ratio=(
             body.semantic_full_context_budget_ratio
             if body.semantic_full_context_budget_ratio is not None
@@ -2441,6 +2663,17 @@ def _install_exception_handlers(app: FastAPI) -> None:
             message="Idempotency-Key was already used for a different request",
         )
 
+    @app.exception_handler(CompletionConflict)
+    async def completion_conflict_handler(
+        request: Request, _exc: CompletionConflict
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=409,
+            code="COMPLETION_CONFLICT",
+            message="Completion goal state conflicts with request",
+        )
+
     @app.exception_handler(PipelineConflict)
     @app.exception_handler(ProjectManagementConflict)
     @app.exception_handler(ProjectLifecycleConflict)
@@ -2499,6 +2732,15 @@ def _install_exception_handlers(app: FastAPI) -> None:
             request,
             status_code=422,
             code="INVALID_SOURCE_MEDIA",
+            message=str(exc),
+        )
+
+    @app.exception_handler(ActionNotReady)
+    async def action_not_ready_handler(request: Request, exc: ActionNotReady) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=503,
+            code="ACTION_NOT_READY",
             message=str(exc),
         )
 

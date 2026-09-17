@@ -1,0 +1,360 @@
+{
+  "$defs": {
+    "ChainCandidateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "natural_subunit": {
+          "default": false,
+          "title": "Natural Subunit",
+          "type": "boolean"
+        },
+        "natural_split_evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Natural Split Evidence Cue Ids",
+          "type": "array"
+        },
+        "variant_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Of"
+        },
+        "variant_relationship": {
+          "anyOf": [
+            {
+              "enum": [
+                "short_version_of",
+                "long_version_of"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Relationship"
+        },
+        "origin_kind": {
+          "enum": [
+            "derived",
+            "chain_new"
+          ],
+          "title": "Origin Kind",
+          "type": "string"
+        },
+        "original_candidate_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Original Candidate Ids",
+          "type": "array"
+        },
+        "origin_reason": {
+          "minLength": 1,
+          "title": "Origin Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "source_topic_id",
+        "topic_chain_id",
+        "source_fragment_ids",
+        "start_cue_id",
+        "end_cue_id",
+        "central_question",
+        "learning_outcome",
+        "title",
+        "summary",
+        "evidence_cue_ids",
+        "origin_kind",
+        "original_candidate_ids",
+        "origin_reason"
+      ],
+      "title": "ChainCandidateV5",
+      "type": "object"
+    },
+    "ClipProfile": {
+      "description": "Independent editorial units with different deterministic duration contracts.",
+      "enum": [
+        "short_highlight",
+        "mini_lesson"
+      ],
+      "title": "ClipProfile",
+      "type": "string"
+    },
+    "SourceDispositionV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original_candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Original Candidate Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "derived_unit_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Derived Unit Ids",
+          "type": "array"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original_candidate_id",
+        "topic_chain_id",
+        "derived_unit_ids",
+        "rejection_reason",
+        "evidence_cue_ids"
+      ],
+      "title": "SourceDispositionV5",
+      "type": "object"
+    },
+    "TopicChainStatusV4": {
+      "enum": [
+        "open",
+        "closed",
+        "rejected"
+      ],
+      "title": "TopicChainStatusV4",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "5",
+      "default": "5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "semantic-v5-lineage-v1",
+      "default": "semantic-v5-lineage-v1",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "topic_chain_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Topic Chain Id",
+      "type": "string"
+    },
+    "central_question": {
+      "maxLength": 320,
+      "minLength": 1,
+      "title": "Central Question",
+      "type": "string"
+    },
+    "learning_outcome": {
+      "maxLength": 320,
+      "minLength": 1,
+      "title": "Learning Outcome",
+      "type": "string"
+    },
+    "topic_outline": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Topic Outline",
+      "type": "array"
+    },
+    "left_closed": {
+      "title": "Left Closed",
+      "type": "boolean"
+    },
+    "right_closed": {
+      "title": "Right Closed",
+      "type": "boolean"
+    },
+    "chain_status": {
+      "$ref": "#/$defs/TopicChainStatusV4"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/ChainCandidateV5"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "rejection_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "topic_too_long_without_natural_split",
+            "topic_not_closed",
+            "no_complete_profile_candidate",
+            "not_a_single_teaching_objective"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Rejection Reason"
+    },
+    "evidence_cue_ids": {
+      "items": {
+        "minimum": 1,
+        "type": "integer"
+      },
+      "minItems": 1,
+      "title": "Evidence Cue Ids",
+      "type": "array"
+    },
+    "source_dispositions": {
+      "items": {
+        "$ref": "#/$defs/SourceDispositionV5"
+      },
+      "title": "Source Dispositions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "topic_chain_id",
+    "central_question",
+    "learning_outcome",
+    "topic_outline",
+    "left_closed",
+    "right_closed",
+    "chain_status",
+    "candidates",
+    "rejection_reason",
+    "evidence_cue_ids",
+    "source_dispositions"
+  ],
+  "title": "TopicChainReviewV5",
+  "type": "object"
+}

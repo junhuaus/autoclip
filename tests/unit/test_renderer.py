@@ -9,9 +9,11 @@ import pytest
 
 import liveclip.renderer.ffmpeg as renderer_module
 import liveclip.renderer.task_handler as render_task_handler
+from liveclip.db import render_repository
 from liveclip.domain.edit_plan import Effect, Layout
 from liveclip.media.artifacts import ArtifactPublicationError
 from liveclip.media.process import ProcessCancelled
+from liveclip.media.secure_files import open_pinned_regular_file
 from liveclip.renderer.ffmpeg import (
     FFmpegRenderCancelled,
     FFmpegRenderError,
@@ -52,6 +54,81 @@ def make_request(tmp_path: Path) -> RenderRequest:
 
 def fake_quality_for(path: Path) -> SimpleNamespace:
     return SimpleNamespace(media_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+
+
+def test_render_source_checks_survive_mount_device_change(tmp_path: Path) -> None:
+    source = (tmp_path / "source.ts").resolve()
+    source.write_bytes(b"same immutable render source")
+    metadata = source.stat()
+    historical_device = metadata.st_dev + 1
+    source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
+    work = SimpleNamespace(
+        source_path=source,
+        source_size_bytes=metadata.st_size,
+        source_mtime_ns=metadata.st_mtime_ns,
+        source_device=historical_device,
+        source_inode=metadata.st_ino,
+        source_sha256=source_sha256,
+    )
+
+    render_task_handler._assert_source_identity(work)
+    with open_pinned_regular_file(source) as pinned:
+        render_task_handler._assert_pinned_source_content(
+            work,
+            pinned,
+            cancel_requested=lambda: False,
+        )
+        render_task_handler._assert_pinned_source_binding(
+            work,
+            pinned,
+            cancel_requested=lambda: False,
+        )
+
+    row = SimpleNamespace(
+        source_sha256=source_sha256,
+        video_stream_index=0,
+        audio_stream_index=1,
+        source_size_bytes=metadata.st_size,
+        source_mtime_ns=metadata.st_mtime_ns,
+        source_device=historical_device,
+        source_inode=metadata.st_ino,
+    )
+    spec = {
+        "source_sha256": source_sha256,
+        "source_streams": {"video": 0, "audio": 1},
+        "source_identity": {
+            "size_bytes": metadata.st_size,
+            "mtime_ns": metadata.st_mtime_ns,
+            "device": historical_device,
+            "inode": metadata.st_ino,
+        },
+    }
+    assert render_repository._source_matches_persisted_identity(source, row, spec)
+    assert render_repository._source_matches_work_identity(work)
+
+
+def test_render_source_content_still_rejects_hash_change(tmp_path: Path) -> None:
+    source = (tmp_path / "source.ts").resolve()
+    source.write_bytes(b"current render source")
+    metadata = source.stat()
+    work = SimpleNamespace(
+        source_path=source,
+        source_size_bytes=metadata.st_size,
+        source_mtime_ns=metadata.st_mtime_ns,
+        source_device=metadata.st_dev + 1,
+        source_inode=metadata.st_ino,
+        source_sha256="f" * 64,
+    )
+
+    with (
+        open_pinned_regular_file(source) as pinned,
+        pytest.raises(ValueError, match="content changed"),
+    ):
+        render_task_handler._assert_pinned_source_content(
+            work,
+            pinned,
+            cancel_requested=lambda: False,
+        )
 
 
 def test_failed_render_diagnostic_write_failure_is_visible_but_path_free(

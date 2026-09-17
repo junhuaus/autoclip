@@ -26,9 +26,71 @@ Amendment, 2026-08-19: `semantic_global` is the recommended new-run algorithm. I
 
 Amendment, 2026-08-22: `semantic_windowed` supersedes Full-first as the recommended new-run algorithm; `semantic_global` remains an explicit comparison mode. Discovery scans 120-second logical windows at a 60-second step, batching four logical windows into one deduplicated 300-second request with a half-open 240-second candidate-ownership interval. Each batch may return zero or many candidates and structured open-topic evidence. Either adjacent side reporting an unfinished outer-edge topic triggers a 180-second union review across that boundary. Global Review receives candidate source text, local context and boundary results rather than rereading the whole livestream. Discovery does not score or finally reject; Python does not infer semantic identity from overlap, adjacency, keywords or punctuation. It only schedules/caches calls and enforces Schema, cue/time, one continuous 45–90 second range, strict `score > 75`, risk gates, Top-N ceiling and FFmpeg safety. Base batches use bounded concurrency and independent cache keys so local reruns are faster and failures are isolated.
 
+Amendment, 2026-09-02: the existing single bounded structure/domain repair must receive the complete deterministic validation result before it is spent. For Discovery this includes the exact stage-domain rules for immutable source identity/range, chronological non-overlapping topic coverage, batch candidate ownership, boundary-bridge crossing and continuous referencing-topic spans in addition to JSON Schema and generic cue checks. A repaired result is not entitled to a second repair; repeated invalidity fails explicitly as provider output invalid while retaining call evidence and valid independent caches.
+
+Amendment, 2026-09-02: at the user's explicit request, accuracy and repeatability take priority over ASR speed. LiveClip adds an opt-in `mlx-codex` mode using one pinned, unquantized MLX Whisper `large-v3` FP16 snapshot on Apple Silicon, temperature-zero deterministic greedy decoding and one inference worker. Previous-window text conditioning and the generic product vocabulary prompt are disabled after full-input evidence showed that they caused long repetition loops at chunk/window boundaries. Decode windows rejected by the pinned runtime's compression-ratio or average-log-probability thresholds are omitted and counted instead of being published as transcript. Audio remains local; the resulting bounded transcript still goes to the existing Codex editorial provider. The exact package version, model revision, model bytes, thresholds and decode contract are frozen into the PipelineRun ASR contract. There is no implicit model download or cloud/Mock fallback. `openrouter-codex` remains the default until real labelled Chinese accuracy and repeated-run evidence justify a separate default decision.
+
+Amendment, 2026-09-03: Windowed Global Review must remain inside the immutable configured token budget even when a local ASR emits unusually fine-grained cues. It first retains the existing object transport and adapts only the extra candidate context guard from 30 to 15 seconds. If that still does not fit, it losslessly encodes repeated candidates, topics, input units, boundary reports, semantic contexts and cue fields as rows with explicit columns, omits normalization columns only when every value is absent, and may reduce only the extra guard from 15 to zero in five-second steps. Every Discovery candidate, complete linked topic, boundary-bridge report, source cue and deterministic calculated fact remains present; Python does not rank, merge or discard semantic evidence to fit. The request fails closed if the compact zero-extra-context form still exceeds budget. Provider preflight, repair and dynamic response Schema must rehydrate either representation identically.
+
+Amendment, 2026-09-04: a Global Review `manual_review` decision is advisory risk provenance, not candidate deletion or a default-delivery block. Every deterministically valid `keep` result—automatic or manual-review—must have final score strictly greater than 75, become an EditPlan revision and clean review render, and enter default selection. Manual-review provenance remains visible as the system-owned `manual_review` risk flag in review and Delivery metadata. Explicit manual selection may still exclude any clip. Deterministic `rejected` results never become renderable revisions or enter Delivery.
+
+Amendment, 2026-09-04: current Global Review uses the versioned accuracy-first v2 contract. It must return exactly one independent six-dimension scorecard for every Discovery candidate before consolidation; rejection groups remain audit records and cannot stand in for those scores. An advancing candidate and every duplicate representative map back to a retained `keep` clip whose deterministically recomputed score is strictly above the configured threshold. A `no_general_value` rejection whose own score is above that threshold is invalid and receives the one bounded repair. To keep output bounded, full clip records are emitted only for retained results. Historical v1 Global Review Prompt/Schema loading remains installed for immutable run and cache replay. New-run editorial defaults use `gpt-5.6-sol`; Codex Discovery stays at medium reasoning and only the final v2 Global Review uses high reasoning. The accepted 13-clip `8-30.ts` portfolio is a checked-in regression reference for later consistency evaluation, not a forced output count or source-specific production rule.
+
+Amendment, 2026-09-09: new recommended `semantic_windowed` runs use high-recall
+`semantic_windowed_v2` Discovery, separately cached candidate Boundary Review and candidate-level
+`semantic_global_v3` review. Discovery never receives the score threshold or Top-N and keeps risky
+topics discoverable. Boundary Review sees each proposed interval plus at most 180 seconds of local
+source, must judge the actual continuous opening, ending and internal content, and either keep it,
+return one concrete 45--90-second repair, or drop it. Global Review sees every candidate, the boundary
+result, Discovery cue evidence and candidate-local context—not the whole livestream—and returns one
+content decision, independent publication status, fixed six-dimension scorecard, quality flags, risk
+flags and duplicate audit row per candidate. Python recomputes totals and counts and treats every
+unresolved quality flag as a non-compensable gate: title/source mismatch and ASR meaning reversal
+block publication, while unresolved boundary, cleanliness, padding, mixed-topic and weaker-duplicate
+flags drop the candidate. Automatic materialization requires score strictly above 75, one actual
+continuous 45--90-second interval, no quality flag and `publish_status=auto`; manual and
+blocked rows remain auditable but do not enter an automatic Delivery. Top-N is applied once to this
+final eligible automatic set, never used to limit Discovery or fill a quota. Pipeline config v6
+records all three Prompt versions and hashes; v1/v2 review and config v2--v5 remain installed for
+immutable replay.
+
+Amendment, 2026-09-11: LiveClip adds an explicit `mini_lesson` Clip Profile alongside the
+default-compatible `short_highlight`. `short_highlight` remains one 45--90-second micro-point with a
+60-second target. `mini_lesson` is one 90--300-second central teaching objective with a 180-second
+target and may contain tightly related definitions, steps, explanation, demonstration, practice and
+conclusion. Mini-lesson Discovery keeps the existing 120-second logical windows, 60-second step,
+four-window batches and deterministic ownership, but emits boundary Topic Fragments. Either open side
+schedules a local 180-second Link Review; only its Agent decision can connect two Fragments, and an
+open confirmed link iteratively schedules the next boundary. Python assembles these explicit links
+into auditable Topic Chains without using time distance, text similarity, keywords or punctuation as
+semantic evidence. A separate Agent reviews each complete Chain, and a Chain above 300 seconds may
+produce only Agent-identified natural teaching subunits; otherwise it is rejected as
+`topic_too_long_without_natural_split`. Boundary and Global Review then run independently for the
+requested Profile. Mini-lesson scores are recomputed from 20/20/15/15/10/10/10 dimensions, 75 is
+insufficient, Top-N is only a post-gate ceiling, and only `auto` results enter automatic FFmpeg.
+Manual, blocked, rejected, weaker duplicate and cross-Profile variant records remain in Schema v4
+audit data. The first release permits exactly one continuous source interval and no jump cuts.
+
+Amendment, 2026-09-14: the high-level `auto VIDEO` path now persists a
+versioned-preset Completion goal and returns or observes that saved identity;
+an independent Worker performs the six stages and default selection, then
+builds immutable Delivery when eligible. Manual selection remains an
+authorized user action. The CLI prints the caller-scoped request
+key before creation so the same source and options can recover a lost
+response. `--no-watch` returns saved IDs; Ctrl-C stops only observation.
+`resume PROJECT_ID` authorizes goal lookup, requires an exact goal ID when
+ambiguous, observes a manual-selection wait or exhausted coordination budget
+without changing it, and explicitly wakes only eligible `needs_action` through
+the version-fenced application service. Web saves a confirmed goal ID before
+clearing pending-create identity, polls under current authority after reload,
+and hides stale state or signed links when access fails. Read-only watchers
+never claim Worker tasks, reset retries, select clips or publish a ZIP before
+the bound Asset commits. Both presets remain experimental until real
+content/audio and long-input acceptance.
+
 ## Product outcome
 
-LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video and chooses compatibility Algorithm A/B v1, experimental B v2, Full-first comparison mode, or recommended `semantic_windowed`. LiveClip imports and analyzes it, uses configured cloud ASR plus OpenAI/Codex editorial understanding, produces up to a configurable number of highlights, renders their clean vertical masters, supports human review and revision, and creates an immutable versioned delivery package from the selected subset.
+LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video and chooses compatibility Algorithm A/B v1, experimental B v2, Full-first comparison mode, or recommended `semantic_windowed`. LiveClip imports and analyzes it, uses the explicitly configured local or cloud ASR plus OpenAI/Codex editorial understanding, produces up to a configurable number of highlights, renders their clean vertical masters, supports default or manual user selection and revision, and creates an immutable versioned delivery package from the selected subset.
 
 The complete flow is:
 
@@ -62,17 +124,23 @@ Required commands:
 
 ```bash
 liveclip doctor
+liveclip auto /absolute/path/live.mp4
 liveclip run --input /absolute/path/live.mp4 --top-n 15 --wait
 liveclip status PROJECT_ID
+liveclip status PROJECT_ID --watch
+liveclip stage RUN_ID transcribe
+liveclip stage RUN_ID candidates
 liveclip clips PROJECT_ID
+liveclip select PROJECT_ID
+liveclip select PROJECT_ID --mode manual --clips 1,3,5
 liveclip review CLIP_ID --approve
 liveclip review CLIP_ID --start 125.5 --end 183.2 --title 修改后的标题 --approve
 liveclip review CLIP_ID --reject --reason 内容不完整
 liveclip rerender CLIP_ID --wait
-liveclip deliver PROJECT_ID --zip
+liveclip package PROJECT_ID --zip
 ```
 
-`run --wait` processes through successful review proxies and leaves every candidate in `pending_review`.
+`auto VIDEO` is the high-level default path. It uses the versioned short-highlight `semantic_windowed` preset: Top 15, a 45–90-second range, a 60-second target and threshold 75. It saves a durable goal so an independent Worker can process all six stages, apply default selection and create the immutable ZIP Delivery without Project-ID shell plumbing in the initiating command. The caller may instead request the versioned `mini_lesson` profile or manual selection. `run --wait` remains the configurable lower-level path: it processes through successful clean masters and leaves every new candidate ready for selection unless `--finish` is explicitly supplied. `select` is the ordinary selection surface: default mode selects all newly generated candidates without overriding an existing manual exclusion; manual mode atomically selects the named IDs/list numbers and excludes the rest. Selection creates the formal package by default and `--no-package` separates the two operations. `package` and the compatibility alias `deliver` use the same immutable Delivery service. `stage` accepts each of the six fixed stage names, runs unmet dependencies, stops immediately after the requested stage and never duplicates stage business rules in the CLI. On an interactive terminal, foreground lower-level commands redraw one fixed eight-step Text UI every two seconds rather than scrolling. `auto` and `resume` watch saved Completion state without owning work. The observation includes current-stage elapsed time, ASR progress, active Delivery attempt counts, cancellation state, Worker lease freshness and the latest refresh time. Non-TTY output remains bounded plain text suitable for logs.
 
 ### REST API
 
@@ -132,7 +200,7 @@ Material compatibility changes require evidence, an alternative, and an ADR in `
 - Reject traversal, nonexistent paths, and symlink escape.
 - Never alter or overwrite source media and do not copy it by default.
 - ffprobe media and require both audio and video streams.
-- Stream SHA-256 without loading a large file into memory; persist source stat identity and metadata.
+- Stream SHA-256 without loading a large file into memory; persist source stat identity and metadata. Treat the persisted device ID as audit evidence rather than a cross-launch rejection key because macOS can renumber a mounted volume after reboot/remount; cross-launch acceptance still requires the same strict real path, regular-file type, size, nanosecond mtime, inode when available, and full pinned SHA-256.
 - Give every Project an isolated generated-data directory.
 - Recognize duplicate fingerprints for information/cache purposes without merging explicitly separate Projects.
 - Recheck the referenced source for mutation before dependent processing and publication.
@@ -144,12 +212,13 @@ Material compatibility changes require evidence, an alternative, and an ADR in `
 - Persist a chunk manifest with absolute source offsets, duration, bytes, hash, and cache key.
 - Persist `silencedetect` signals and resume from verified successful chunks.
 - Cancellation stops subprocesses safely; partial files never count as success.
-- Provide `ASRProvider` with OpenRouter, OpenAI and Mock implementations.
+- Provide `ASRProvider` with local MLX, OpenRouter, OpenAI and Mock implementations.
+- Local accuracy mode accepts only the pinned full-precision Whisper `large-v3` snapshot, validates exact regular-file bytes before processing, uses fixed deterministic decode settings and never downloads a model during a Pipeline run.
 - Preserve Chinese text; support configured domain vocabulary hints through each Provider's documented parameter. For OpenRouter, use JSON `provider.options.groq.prompt`; never claim its ignored multipart `prompt` was applied.
 - Save real segment times and, only when supported, real word times. Unsupported word timing is explicitly `unavailable`.
 - Convert local chunk times to the canonical source timebase and deduplicate overlap using time and text evidence.
-- Retry timeouts, genuine 429 rate limits, and retryable 5xx with bounded exponential backoff and jitter. Do not blindly retry authentication, quota, invalid model, or deterministic parameter errors.
-- Default concurrency is one, configurable. Cache successful results and persist request count, retries, latency, audio seconds, request ID, and usage.
+- Retry timeouts, genuine 429 rate limits, retryable 5xx, and malformed successful ASR responses with bounded exponential backoff and jitter. A response retry must reuse verified successful chunk caches and must not switch to Mock. Do not blindly retry authentication, quota, invalid model, or deterministic parameter errors.
+- Cloud ASR concurrency defaults to four and is configurable from one through eight. Local MLX ASR always freezes concurrency at one. Submit only one bounded batch at a time; cache each successful chunk before propagating a peer failure, and persist request count, retries, latency, audio seconds, request ID, and usage.
 - Produce `transcript.json`, `transcript.srt`, and durable segments.
 - Mock is allowed only for tests, development, and no-key Demo. Cloud smoke never falls back to Mock.
 
@@ -158,6 +227,15 @@ Current official API findings and URLs are recorded in `docs/research/openai-aud
 ### Candidate generation and AI editing
 
 Algorithm A candidate generation must work without an LLM. It uses punctuation/sentence closure, pauses, speech density, volume/silence signals, topical continuity, context, duration constraints, hook signals, and expression closure. It first produces approximately 30–50 rough candidates for normal long input, records boundaries/text/context/rule score/reasons, then deduplicates by time overlap, text n-grams, and Jaccard similarity. A rule-ranked fallback selects top-N when cloud editing fails. Algorithm B instead requires the configured discovery Agent and, for current runs, the configured continuous-consolidation Agent. Provider failure or invalid output is discarded and must never silently invoke A. Consolidation is limited to one continuous source interval in phase one; discontinuous montage remains out of scope.
+
+For new `semantic_windowed` runs, Discovery is high recall and does no final scoring or risk-based
+suppression. A separately cached Boundary Review evaluates each real continuous source interval before
+candidate-level Global Review. Global Review independently scores every Discovery candidate exactly
+once and records content decision, publication decision, semantic duplicate relationships and
+structured rejection evidence. Python validates complete candidate-ID coverage, cue/time facts,
+continuous boundaries, duration, exact score arithmetic, enumerated gates and the final Top-N ceiling.
+It never invents semantic quality, upgrades a model rejection, materializes manual/blocked content or
+forces a reference clip count. Historical `semantic_global_v1/v2` behavior remains replayable.
 
 `LLMProvider` has OpenAI Responses, Codex CLI and Mock implementations. Both real implementations use strict structured output, send only one bounded candidate plus small context and quality signals, enable no tools, and treat transcript content as untrusted data rather than instructions. Codex uses controlled non-interactive execution and saved local authentication; it receives text only after ASR. They return value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted caption/effect selections. Layout is system-owned and absent from the model wire schema. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
 
@@ -205,12 +283,12 @@ Project (derived): imported | processing | pending_review | ready_for_delivery |
 
 Transitions are centralized and tested. Required durable concepts include WorkspaceUser, ProjectMember, Project, SourceMedia, PipelineRun, StageRun/attempt, Task, Asset, AudioChunk, Transcript/Segment, CandidateClip, EditPlanRevision/captions, RenderJob, ReviewDecision, Delivery/DeliveryClip, ApiUsage, and idempotency records. Every Project has exactly one owner membership; Project listings and resource reads are server-side membership-scoped.
 
-SQLite uses WAL, foreign keys, busy timeout, Alembic migrations, short explicit transactions, atomic task claims, default single heavy-task concurrency, leases, heartbeat, expiry, worker ID and fencing token, retry counts, crash recovery, safe cancellation, stage idempotency, artifact/input/dependency fingerprints, and persisted failure classification. External I/O never holds a write transaction.
+SQLite uses WAL, foreign keys, busy timeout, Alembic migrations, short explicit transactions, atomic task claims, default single heavy-task concurrency, leases, heartbeat, expiry, worker ID and fencing token, retry counts, crash recovery, safe cancellation, stage idempotency, artifact/input/dependency fingerprints, and persisted failure classification. An explicit retry may resume an unambiguous terminal cancelled Stage while preserving verified succeeded Stages; ambiguous cancelled task graphs fail closed. External I/O never holds a write transaction.
 
 ## Security and privacy invariants
 
 - Source video and all image/video/database/generated artifacts remain local.
-- ASR uploads only prepared audio chunks.
+- Cloud ASR uploads only prepared audio chunks. `mlx-codex` uploads no audio; it reads verified chunks locally.
 - LLM receives only candidate transcript/context and necessary metadata.
 - The ASR/API key comes only from local environment and never enters DB, logs, UI, errors, Git, or conversation requirements. Codex CLI authentication stays in the CLI credential store and is never copied into LiveClip state.
 - Authorization headers/tokens/credentials are redacted.

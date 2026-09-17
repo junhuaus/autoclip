@@ -1,0 +1,34 @@
+{
+  "base_sha": "6009b23859564b2bfdc193eee366afd990b9ef5d",
+  "coder_session_id": "01a0a75e-8d1b-7202-86a0-b3e7e5b4bd4c",
+  "failure_class": "successor_clone_toolchain_path_rewrite",
+  "gateway_ran": false,
+  "last_error": "coder reported BLOCKED because correlated Runner diagnostics were absent from its repair context and all fixed gates remained blockers",
+  "product_source_fingerprint": "bdc9b93fb55db73c336e7c78e8d7d5fdefeef89453f53bbd02679004344a9569",
+  "reviewer_findings": [],
+  "run_id": "20260915T231518Z-3cc4a9a1",
+  "runner_results": [
+    {
+      "command_id": "lint",
+      "duration_seconds": 31.214,
+      "failure": ".venv/bin/mypy shebang resolved to Main Python outside the Runner sandbox",
+      "qa_id": "20260915T232511Z-5c8e",
+      "status": "FAIL"
+    },
+    {
+      "command_id": "e2e",
+      "duration_seconds": 49.338,
+      "qa_id": "20260915T232543Z-ccbe",
+      "status": "FAIL"
+    },
+    {
+      "command_id": "test",
+      "duration_seconds": 24.115,
+      "qa_id": "20260915T232632Z-4d04",
+      "status": "FAIL"
+    }
+  ],
+  "state": "blocked",
+  "tester_verdict": "READY",
+  "toolchain_fingerprint": "000d910422b4f0652b91993fe62267eddd7a1746376fc034615ddd4a97f6d9b7"
+}

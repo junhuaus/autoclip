@@ -44,16 +44,23 @@ from liveclip.providers.telemetry import (
 
 CODEX_LLM_CONTRACT_PREFIX = "codex-cli-editorial-v2"
 CODEX_LLM_UNPROBED_CONTRACT = f"{CODEX_LLM_CONTRACT_PREFIX}.not-executed"
-SUPPORTED_CODEX_CLI_VERSION = "0.147.0"
-CODEX_SECURITY_PROFILE_VERSION = "tool-free-v2"
+SUPPORTED_CODEX_CLI_VERSION = "0.154.0"
+CODEX_SECURITY_PROFILE_VERSION = "tool-free-v3"
 _SAFE_MODEL = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _SAFE_CONTRACT = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
-_VERSION = re.compile(r"^codex-cli\s+([0-9]+\.[0-9]+\.[0-9]+)$")
+_VERSION = re.compile(rb"codex-cli ([0-9]+\.[0-9]+\.[0-9]+)(?:\r?\n)?")
 _REPAIRABLE_FAILURES = frozenset({"CODEX_CLI_OUTPUT_INVALID", "CODEX_CLI_EDIT_PLAN_INVALID"})
 # This profile is deliberately explicit and version-pinned. A future Codex CLI
 # may add a new tool surface, so an unreviewed version is rejected before use.
+# Inventory: docs/verification/sd6-codex-cli-0154-feature-inventory.json.
+# Include removed authority flags as well as active tools. code_mode_host is
+# solely local transport; code mode and its tool surfaces remain disabled.
 CODEX_DISABLED_FEATURES = (
+    "apply_patch_freeform",
+    "apply_patch_preserve_line_endings",
+    "apply_patch_streaming_events",
     "apps",
+    "apps_mcp_path_override",
     "artifact",
     "auth_elicitation",
     "browser_use",
@@ -61,46 +68,90 @@ CODEX_DISABLED_FEATURES = (
     "browser_use_full_cdp_access",
     "code_mode",
     "code_mode_buffered_exec",
-    "code_mode_host",
+    "code_mode_interrupt",
     "code_mode_only",
+    "code_mode_prewarm",
+    "codex_git_commit",
+    "collaboration_modes",
     "computer_use",
     "default_mode_request_user_input",
     "deferred_executor",
     "deferred_tool_world_state",
+    "enable_fanout",
     "enable_mcp_apps",
     "exec_permission_approvals",
     "executor_capability_discovery",
     "external_agent_memory_import",
     "goals",
     "guardian_approval",
+    "guardian_enhanced_node_repl_transcripts",
+    "guardian_ext",
+    "guardian_node_repl_transcript_images",
+    "guardian_reuse_parent_compaction",
+    "guardianv2",
+    "guardianv2.thread_context",
     "hooks",
     "image_generation",
     "in_app_browser",
+    "in_app_chat",
+    "in_app_dictation",
+    "in_app_local_automation",
+    "js_repl",
+    "js_repl_tools_only",
     "mcp_2026_07_28",
+    "mcp_oauth_refresh_coordination",
     "memories",
     "multi_agent",
+    "multi_agent_mode",
     "multi_agent_v2",
     "network_proxy",
+    "non_prefixed_mcp_tool_names",
+    "plugin_hooks",
     "plugin_sharing",
     "plugins",
+    "powershell_shell_version",
+    "psp",
     "realtime_conversation",
+    "recommended_plugins",
+    "remote_control",
     "remote_plugin",
     "request_permissions_tool",
+    "request_rule",
+    "search_tool",
+    "send_async_message",
     "shell_snapshot",
+    "shell_snapshot_v2",
     "shell_tool",
+    "shell_zsh_fork",
+    "skill_env_var_dependency_prompt",
     "skill_mcp_dependency_install",
     "skill_search",
+    "sleep_tool",
     "standalone_web_search",
     "tool_call_mcp_elicitation",
+    "tool_search",
+    "tool_search_always_defer_mcp_tools",
     "tool_suggest",
+    "unavailable_dummy_tools",
+    "undo",
     "unified_exec",
+    "unified_exec_tty",
+    "unified_exec_zsh_fork",
+    "use_agent_identity",
     "view_image",
+    "web_search_cached",
+    "web_search_request",
     "workspace_dependencies",
+    "worktrees",
+    "write_stdin_approval",
 )
 # Codex CLI 0.147.0 emits a non-fatal ``error`` item when its optional PATH
 # alias setup is unavailable. It is diagnostic metadata, not a tool call. Keep
 # the allowlist closed: command/file/network/MCP item types still fail the run.
 _SAFE_CODEX_ITEM_TYPES = frozenset({"agent_message", "error", "reasoning"})
+_APP_SERVER_PERMISSION_ERROR = (
+    "failed to initialize in-process app-server client: Operation not permitted"
+)
 _CHILD_ENV_KEYS = frozenset(
     {
         "CODEX_HOME",
@@ -160,7 +211,6 @@ def codex_cli_contract_version(configured: str = "codex") -> str:
             [executable, "--version"],
             stdin=subprocess.DEVNULL,
             capture_output=True,
-            text=True,
             shell=False,
             timeout=10,
             env=_codex_environment(),
@@ -168,11 +218,10 @@ def codex_cli_contract_version(configured: str = "codex") -> str:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ProviderConfigurationError("Codex CLI version probe failed") from exc
-    first_line = result.stdout.strip().splitlines()[:1]
-    match = _VERSION.fullmatch(first_line[0]) if result.returncode == 0 and first_line else None
+    match = _VERSION.fullmatch(result.stdout) if result.returncode == 0 else None
     if match is None:
         raise ProviderConfigurationError("Codex CLI returned an unsupported version response")
-    version = match.group(1)
+    version = match.group(1).decode("ascii")
     if version != SUPPORTED_CODEX_CLI_VERSION:
         raise ProviderConfigurationError(
             "Codex CLI version has not been reviewed for the tool-free security profile"
@@ -574,7 +623,10 @@ class CodexCLILLMProvider:
                         called_at=called_at,
                         started=started,
                         status=ProviderCallStatus.FAILED,
-                        failure_code="CODEX_CLI_REQUEST_FAILED",
+                        failure_code=_codex_process_failure_code(
+                            result.stderr,
+                            stdout=result.stdout,
+                        ),
                         request_id=request_id,
                         usage=usage,
                     ),
@@ -624,6 +676,8 @@ class CodexCLILLMProvider:
             self._executable,
             "--ask-for-approval",
             "never",
+            "--enable",
+            "code_mode_host",
             *disabled_features,
             "exec",
             "--ephemeral",
@@ -829,6 +883,68 @@ def _codex_metadata(stdout: str) -> tuple[str | None, dict[str, int] | None, boo
                 bounded[key] = value
         usage = bounded or None
     return request_id, usage, unsafe_tool_event
+
+
+def _codex_process_failure_code(stderr: str, *, stdout: str = "") -> str:
+    evidence = "\n".join((stderr, _codex_error_event_evidence(stdout))).casefold()
+    if _APP_SERVER_PERMISSION_ERROR.casefold() in evidence:
+        return "CODEX_CLI_APP_SERVER_PERMISSION_DENIED"
+    if any(
+        marker in evidence
+        for marker in (
+            "context_length_exceeded",
+            "maximum context length",
+            "input is too long",
+            "prompt is too long",
+            "too many tokens",
+        )
+    ) or ("context window" in evidence and any(word in evidence for word in ("exceed", "large"))):
+        return "CODEX_CLI_CONTEXT_WINDOW_EXCEEDED"
+    if any(marker in evidence for marker in ("invalid_json_schema", "invalid json schema")) or (
+        any(marker in evidence for marker in ("output schema", "json_schema"))
+        and any(word in evidence for word in ("invalid", "unsupported", "not supported"))
+    ):
+        return "CODEX_CLI_OUTPUT_SCHEMA_REJECTED"
+    if any(marker in evidence for marker in ("rate_limit", "rate limit", "too many requests")):
+        return "CODEX_CLI_RATE_LIMITED"
+    if any(marker in evidence for marker in ("insufficient_quota", "quota exceeded")):
+        return "CODEX_CLI_QUOTA_EXHAUSTED"
+    if any(
+        marker in evidence
+        for marker in ("authentication failed", "invalid api key", "login required", "unauthorized")
+    ):
+        return "CODEX_CLI_AUTH_FAILED"
+    if any(marker in evidence for marker in ("model_not_found", "model not found")):
+        return "CODEX_CLI_MODEL_UNAVAILABLE"
+    if any(
+        marker in evidence
+        for marker in ("service unavailable", "server overloaded", "internal server error")
+    ):
+        return "CODEX_CLI_SERVICE_UNAVAILABLE"
+    return "CODEX_CLI_REQUEST_FAILED"
+
+
+def _codex_error_event_evidence(stdout: str) -> str:
+    """Keep only bounded Codex failure events for in-memory classification."""
+
+    evidence: list[str] = []
+    for raw_line in stdout.splitlines():
+        if len(raw_line.encode("utf-8")) > 128 * 1024:
+            continue
+        try:
+            event = json.loads(raw_line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item")
+        if event.get("type") not in {"error", "turn.failed"} and not (
+            isinstance(item, dict) and item.get("type") == "error"
+        ):
+            continue
+        serialized = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        evidence.append(serialized[:16_384])
+    return "\n".join(evidence)[:32_768]
 
 
 def _codex_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:

@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     transcription_model: str = Field(
         default="whisper-1", validation_alias="OPENAI_TRANSCRIPTION_MODEL"
     )
-    llm_model: str = Field(default="gpt-5.6-terra", validation_alias="OPENAI_LLM_MODEL")
+    llm_model: str = Field(default="gpt-5.6-sol", validation_alias="OPENAI_LLM_MODEL")
     openrouter_api_key: SecretStr | None = Field(
         default=None,
         validation_alias="OPENROUTER_API_KEY",
@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     openrouter_asr_model: str = Field(
         default="openai/whisper-large-v3",
         validation_alias="OPENROUTER_ASR_MODEL",
+    )
+    mlx_asr_model_path: Path = Field(
+        default=Path("data/models/whisper-large-v3-mlx"),
+        validation_alias="LIVECLIP_MLX_ASR_MODEL_PATH",
     )
     codex_executable: str = Field(
         default="codex",
@@ -92,7 +96,10 @@ class Settings(BaseSettings):
         le=25_000_000,
         validation_alias="ASR_MAX_CHUNK_BYTES",
     )
-    asr_concurrency: int = Field(default=1, ge=1, le=8, validation_alias="ASR_CONCURRENCY")
+    # Four 90-second chunks keep the default OpenRouter workload bounded while
+    # hiding most per-request latency. Operators can lower this when their
+    # account has a stricter concurrency limit.
+    asr_concurrency: int = Field(default=4, ge=1, le=8, validation_alias="ASR_CONCURRENCY")
     asr_vocabulary_prompt: str = Field(
         default="LiveClip、直播、高光、切片",
         max_length=1_000,
@@ -171,10 +178,11 @@ class Settings(BaseSettings):
             "mock-codex",
             "openai-codex",
             "openrouter-codex",
+            "mlx-codex",
         }:
             raise ValueError(
                 "LIVECLIP_AI_PROVIDER must be mock, openai, mock-codex, "
-                "openai-codex, or openrouter-codex"
+                "openai-codex, openrouter-codex, or mlx-codex"
             )
         return normalized
 
@@ -239,6 +247,12 @@ class Settings(BaseSettings):
             value = (base_dir or Path.cwd()) / value
         return value.resolve(strict=False)
 
+    def resolved_mlx_asr_model_path(self, base_dir: Path | None = None) -> Path:
+        value = self.mlx_asr_model_path.expanduser()
+        if not value.is_absolute():
+            value = (base_dir or Path.cwd()) / value
+        return value.resolve(strict=False)
+
     def public_summary(self, base_dir: Path | None = None) -> dict[str, object]:
         return {
             "data_dir": str(self.resolved_data_dir(base_dir)),
@@ -263,6 +277,8 @@ class Settings(BaseSettings):
             "transcription_model": (
                 self.openrouter_asr_model
                 if self.ai_provider == "openrouter-codex"
+                else "openai/whisper-large-v3"
+                if self.ai_provider == "mlx-codex"
                 else self.transcription_model
             ),
             "llm_model": self.llm_model,

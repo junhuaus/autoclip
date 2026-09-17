@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "changed_files", "tests_run", "remaining"],
+  "properties": {
+    "verdict": {"enum": ["IMPLEMENTED", "BLOCKED"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "changed_files": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+    "tests_run": {"type": "array", "items": {"type": "string"}, "maxItems": 50},
+    "remaining": {"type": "array", "items": {"type": "string"}, "maxItems": 50}
+  }
+}

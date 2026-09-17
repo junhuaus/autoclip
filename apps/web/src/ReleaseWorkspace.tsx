@@ -10,6 +10,7 @@ import type {
   ReleaseCaptionMode,
   ReleaseChecklist,
   ReleaseItemSnapshot,
+  ReleaseItemsResponse,
   ReleaseItemStatus,
   ReleaseMetricRequest,
   ReleasePlatform,
@@ -335,6 +336,19 @@ function ReleaseCard({
     if (status === "succeeded" || status === "failed") onChanged();
   }, [onChanged, packageQuery.data?.release_package.status]);
 
+  const synchronizeRelease = async (snapshot: ReleaseItemSnapshot) => {
+    const queryKey = ["releases", project.project_id];
+    await queryClient.cancelQueries({ queryKey, exact: true });
+    queryClient.setQueryData<ReleaseItemsResponse>(queryKey, (current) =>
+      current ? {
+        ...current,
+        releases: current.releases.map((item) =>
+          item.release_item_id === snapshot.release_item_id ? snapshot : item,
+        ),
+      } : current,
+    );
+    onChanged();
+  };
   const saveMutation = useMutation({
     mutationFn: () =>
       api.updateReleaseItem(release.release_item_id, {
@@ -351,7 +365,7 @@ function ReleaseCard({
         planned_publish_at: toIsoOrNull(plannedAt),
         checklist,
       }),
-    onSuccess: onChanged,
+    onSuccess: synchronizeRelease,
   });
   const approvalMutation = useMutation({
     mutationFn: (target: ReleaseApprovalStatus) =>
@@ -360,9 +374,9 @@ function ReleaseCard({
         target,
         reason: approvalReason.trim(),
       }),
-    onSuccess: () => {
+    onSuccess: async (snapshot) => {
+      await synchronizeRelease(snapshot);
       setApprovalReason("");
-      onChanged();
     },
   });
   const statusMutation = useMutation({
@@ -380,7 +394,7 @@ function ReleaseCard({
           : {}),
         ...(resultNotes.trim() ? { result_notes: resultNotes.trim() } : {}),
       }),
-    onSuccess: onChanged,
+    onSuccess: synchronizeRelease,
   });
   const packageMutation = useMutation({
     mutationFn: () =>
@@ -401,6 +415,8 @@ function ReleaseCard({
       api.addReleaseMetric(release.release_item_id, body),
     onSuccess: onChanged,
   });
+  const versionMutationPending = saveMutation.isPending || approvalMutation.isPending ||
+    statusMutation.isPending || packageMutation.isPending;
   const submitMetric = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -520,7 +536,7 @@ function ReleaseCard({
             <label key={name}><input type="checkbox" checked={checklist[name as keyof ReleaseChecklist]} disabled={name === "first_frame_confirmed" && !previewMediaUrl} onChange={(event) => setChecklist((value) => ({ ...value, [name]: event.target.checked }))} />{label}</label>
           ))}
         </fieldset>
-        {canManage && canUpdate ? <button type="button" className="button button-primary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? "保存中…" : canSyncStale ? "同步到当前剪辑版本" : "保存发布设置"}</button> : null}
+        {canManage && canUpdate ? <button type="button" className="button button-primary" disabled={versionMutationPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? "保存中…" : canSyncStale ? "同步到当前剪辑版本" : "保存发布设置"}</button> : null}
       </details>
 
       <section className={`release-preflight ${release.preflight.passed ? "release-preflight-pass" : "release-preflight-blocked"}`}>
@@ -533,12 +549,12 @@ function ReleaseCard({
         <section className="release-approval-actions">
           <label>审核或状态说明<input value={approvalReason} maxLength={1_000} onChange={(event) => setApprovalReason(event.target.value)} placeholder="提交、批准或退回时必填" /></label>
           <div className="button-row">
-            {canManage && ["draft", "changes_requested"].includes(release.approval_status) ? <button type="button" className="button button-secondary" disabled={!approvalReason.trim() || approvalMutation.isPending || release.stale} onClick={() => approvalMutation.mutate("pending_review")}>提交发布审核</button> : null}
-            {canManage && release.approval_status === "pending_review" ? <button type="button" className="button button-ghost" disabled={!approvalReason.trim() || approvalMutation.isPending || release.stale} onClick={() => approvalMutation.mutate("draft")}>撤回审核</button> : null}
-            {canApprove && release.approval_status === "pending_review" ? <><button type="button" className="button button-primary" disabled={!approvalReason.trim() || approvalMutation.isPending || release.stale} onClick={() => approvalMutation.mutate("approved")}>批准发布</button><button type="button" className="button button-danger-ghost" disabled={!approvalReason.trim() || approvalMutation.isPending || release.stale} onClick={() => approvalMutation.mutate("changes_requested")}>退回修改</button></> : null}
-            {canApprove && release.approval_status === "approved" ? <button type="button" className="button button-danger-ghost" disabled={!approvalReason.trim() || approvalMutation.isPending || release.stale} onClick={() => approvalMutation.mutate("changes_requested")}>撤销批准并退回修改</button> : null}
-            {canManage && release.approval_status === "approved" && release.status === "draft" ? <button type="button" className="button button-primary" disabled={!release.preflight.passed || statusMutation.isPending || release.stale} onClick={() => statusMutation.mutate("ready")}>标记可发布</button> : null}
-            {canManage && release.status === "ready" && release.planned_publish_at ? <button type="button" className="button button-secondary" disabled={statusMutation.isPending || release.stale} onClick={() => statusMutation.mutate("scheduled_external")}>记录外部排期</button> : null}
+            {canManage && ["draft", "changes_requested"].includes(release.approval_status) ? <button type="button" className="button button-secondary" disabled={!approvalReason.trim() || versionMutationPending || release.stale} onClick={() => approvalMutation.mutate("pending_review")}>提交发布审核</button> : null}
+            {canManage && release.approval_status === "pending_review" ? <button type="button" className="button button-ghost" disabled={!approvalReason.trim() || versionMutationPending || release.stale} onClick={() => approvalMutation.mutate("draft")}>撤回审核</button> : null}
+            {canApprove && release.approval_status === "pending_review" ? <><button type="button" className="button button-primary" disabled={!approvalReason.trim() || versionMutationPending || release.stale} onClick={() => approvalMutation.mutate("approved")}>批准发布</button><button type="button" className="button button-danger-ghost" disabled={!approvalReason.trim() || versionMutationPending || release.stale} onClick={() => approvalMutation.mutate("changes_requested")}>退回修改</button></> : null}
+            {canApprove && release.approval_status === "approved" ? <button type="button" className="button button-danger-ghost" disabled={!approvalReason.trim() || versionMutationPending || release.stale} onClick={() => approvalMutation.mutate("changes_requested")}>撤销批准并退回修改</button> : null}
+            {canManage && release.approval_status === "approved" && release.status === "draft" ? <button type="button" className="button button-primary" disabled={!release.preflight.passed || versionMutationPending || release.stale} onClick={() => statusMutation.mutate("ready")}>标记可发布</button> : null}
+            {canManage && release.status === "ready" && release.planned_publish_at ? <button type="button" className="button button-secondary" disabled={versionMutationPending || release.stale} onClick={() => statusMutation.mutate("scheduled_external")}>记录外部排期</button> : null}
           </div>
         </section>
       ) : null}
@@ -546,17 +562,17 @@ function ReleaseCard({
       {["ready", "scheduled_external"].includes(release.status) ? (
         <section className="release-package-actions">
           <div><strong>平台交付包</strong><p>始终生成可完整下载的 ZIP，包含平台视频、封面、发布文案、清单和校验信息。</p></div>
-          <button type="button" className="button button-primary" disabled={!canManage || !release.preflight.passed || packageInFlight || release.stale} onClick={() => packageMutation.mutate()}>{packageInFlight ? "正在生成…" : "生成平台包"}</button>
+          <button type="button" className="button button-primary" disabled={!canManage || !release.preflight.passed || versionMutationPending || packageInFlight || release.stale} onClick={() => packageMutation.mutate()}>{packageInFlight ? "正在生成…" : "生成平台包"}</button>
         </section>
       ) : null}
-      {packageQuery.data ? <div className={`notice ${packageQuery.data.release_package.status === "failed" ? "notice-error" : ""}`}><StatusBadge status={packageQuery.data.release_package.status} /><span>{packageQuery.data.release_package.package_version}</span>{packageQuery.data.release_package.safe_error_message ? <span>{packageQuery.data.release_package.safe_error_message}</span> : null}{packageQuery.data.download_url ? <a className="button button-primary" href={packageQuery.data.download_url} download>{packageQuery.data.download_kind === "zip" ? "下载平台 ZIP" : "下载 Manifest"}</a> : null}{packageQuery.data.release_package.status === "failed" && canManage && ["ready", "scheduled_external"].includes(release.status) && !release.stale ? <button type="button" className="button button-secondary" disabled={packageInFlight} onClick={() => packageMutation.mutate()}>重试生成新版本</button> : null}</div> : null}
-      {release.packages.length > 0 ? <ul className="release-package-history">{release.packages.map((item) => <li key={item.release_package_id}><span>{item.package_version}</span><StatusBadge status={item.status} /><span>{item.published_artifact ? "已发布使用" : item.current ? "当前版本" : "历史版本"}</span>{item.safe_error_message ? <span className="form-error">{item.safe_error_message}</span> : null}{item.status === "succeeded" ? <button type="button" className="button button-ghost" onClick={() => setActivePackageId(item.release_package_id)}>查看下载</button> : null}{item.status === "failed" && canManage && ["ready", "scheduled_external"].includes(release.status) && !release.stale ? <button type="button" className="button button-ghost" disabled={packageInFlight} onClick={() => packageMutation.mutate()}>重试生成新版本</button> : null}{item.release_package_id === packageQuery.data?.release_package.release_package_id && packageQuery.data.download_url ? <a href={packageQuery.data.download_url} download>下载</a> : null}</li>)}</ul> : null}
+      {packageQuery.data ? <div className={`notice ${packageQuery.data.release_package.status === "failed" ? "notice-error" : ""}`}><StatusBadge status={packageQuery.data.release_package.status} /><span>{packageQuery.data.release_package.package_version}</span>{packageQuery.data.release_package.safe_error_message ? <span>{packageQuery.data.release_package.safe_error_message}</span> : null}{packageQuery.data.download_url ? <a className="button button-primary" href={packageQuery.data.download_url} download>{packageQuery.data.download_kind === "zip" ? "下载平台 ZIP" : "下载 Manifest"}</a> : null}{packageQuery.data.release_package.status === "failed" && canManage && ["ready", "scheduled_external"].includes(release.status) && !release.stale ? <button type="button" className="button button-secondary" disabled={versionMutationPending || packageInFlight} onClick={() => packageMutation.mutate()}>重试生成新版本</button> : null}</div> : null}
+      {release.packages.length > 0 ? <ul className="release-package-history">{release.packages.map((item) => <li key={item.release_package_id}><span>{item.package_version}</span><StatusBadge status={item.status} /><span>{item.published_artifact ? "已发布使用" : item.current ? "当前版本" : "历史版本"}</span>{item.safe_error_message ? <span className="form-error">{item.safe_error_message}</span> : null}{item.status === "succeeded" ? <button type="button" className="button button-ghost" onClick={() => setActivePackageId(item.release_package_id)}>查看下载</button> : null}{item.status === "failed" && canManage && ["ready", "scheduled_external"].includes(release.status) && !release.stale ? <button type="button" className="button button-ghost" disabled={versionMutationPending || packageInFlight} onClick={() => packageMutation.mutate()}>重试生成新版本</button> : null}{item.release_package_id === packageQuery.data?.release_package.release_package_id && packageQuery.data.download_url ? <a href={packageQuery.data.download_url} download>下载</a> : null}</li>)}</ul> : null}
 
       {["ready", "scheduled_external"].includes(release.status) && canManage ? (
         <details className="release-publish-evidence">
           <summary>记录外部发布结果</summary>
           <div className="release-editor-grid"><label>实际发布包<select aria-label="实际发布包" value={publicationPackageId} onChange={(event) => setPublicationPackageId(event.target.value)}><option value="">请选择当前成功包</option>{currentSucceededPackages.map((item) => <option key={item.release_package_id} value={item.release_package_id}>{item.package_version} · 视频 {item.video_sha256.slice(0, 12)}…</option>)}</select></label><label>实际发布时间<input type="datetime-local" value={publishedAt} onChange={(event) => setPublishedAt(event.target.value)} /></label><label>发布链接<input type="url" value={externalUrl} placeholder="https://…" onChange={(event) => setExternalUrl(event.target.value)} /></label><label>平台内容 ID<input value={externalId} onChange={(event) => setExternalId(event.target.value)} /></label><label className="release-wide">结果说明<textarea value={resultNotes} onChange={(event) => setResultNotes(event.target.value)} /></label></div>
-          <button type="button" className="button button-primary" disabled={statusMutation.isPending || !publicationPackageId || !publishedAt || (!externalUrl.trim() && !externalId.trim()) || !["ready_to_publish", "published"].includes(project.lifecycle)} onClick={() => statusMutation.mutate("published")}>确认已在外部发布</button>
+          <button type="button" className="button button-primary" disabled={versionMutationPending || !publicationPackageId || !publishedAt || (!externalUrl.trim() && !externalId.trim()) || !["ready_to_publish", "published"].includes(project.lifecycle)} onClick={() => statusMutation.mutate("published")}>确认已在外部发布</button>
           {currentSucceededPackages.length === 0 ? <p className="hint">先生成并完成当前版本的平台 ZIP，才能记录发布。</p> : null}
           {!['ready_to_publish', 'published'].includes(project.lifecycle) ? <p className="hint">先在“任务与生命周期”中将项目推进到“待发布”。</p> : null}
         </details>
@@ -586,7 +602,7 @@ function ReleaseCard({
               <button
                 type="button"
                 className="button button-danger-ghost"
-                disabled={!resultNotes.trim() || statusMutation.isPending}
+                disabled={!resultNotes.trim() || versionMutationPending}
                 onClick={() => statusMutation.mutate("failed")}
               >
                 记录发布失败
@@ -596,7 +612,7 @@ function ReleaseCard({
               <button
                 type="button"
                 className="button button-secondary"
-                disabled={statusMutation.isPending}
+                disabled={versionMutationPending}
                 onClick={() => statusMutation.mutate("draft")}
               >
                 返回准备中
@@ -605,7 +621,7 @@ function ReleaseCard({
             <button
               type="button"
               className="button button-danger-ghost"
-              disabled={!resultNotes.trim() || statusMutation.isPending}
+              disabled={!resultNotes.trim() || versionMutationPending}
               onClick={() => statusMutation.mutate("withdrawn")}
             >
               撤回发布任务

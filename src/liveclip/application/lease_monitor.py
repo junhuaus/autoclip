@@ -65,7 +65,17 @@ class LeaseMonitor:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=max(1.0, self._poll_seconds + 1.0))
+        # Database operations are bounded by their adapter, but may legitimately
+        # outlast the polling interval (for example while SQLite waits for a
+        # writer lock).  Cleanup must not race such an in-flight operation.
+        self._thread.join()
+        if self._thread.is_alive():  # Defensive: join() without a timeout is a barrier.
+            raise RuntimeError("lease monitor did not terminate")
+        # A caller may have entered refresh() just before the stop signal. Drain
+        # that operation too; queued callers will see the signal and do no work.
+        # This lock is deliberately acquired only after joining the monitor.
+        with self._operation_lock:
+            pass
 
     def _observe_once(self) -> None:
         if self._observe is not None:
@@ -78,6 +88,11 @@ class LeaseMonitor:
         extends_lease: bool,
     ) -> None:
         with self._operation_lock:
+            # Coordinate foreground refreshes with stop as well as the monitor
+            # thread.  An operation that acquired the lock before stop is
+            # allowed to drain; queued operations are discarded.
+            if self._stop.is_set():
+                return
             try:
                 result = operation(self._lease)
             except Exception:

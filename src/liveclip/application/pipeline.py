@@ -2,17 +2,30 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.application.authorization import ProjectAction
 from liveclip.application.idempotency import IdempotencyContext
+from liveclip.domain.clip_profile import ClipProfile, clip_profile_spec
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
+from liveclip.domain.semantic_validation import (
+    CURRENT_SEMANTIC_EXECUTION,
+    CURRENT_SEMANTIC_LINEAGE,
+    CURRENT_SEMANTIC_TRANSPORT,
+    CURRENT_SEMANTIC_VALIDATION,
+    LEGACY_SEMANTIC_VALIDATION,
+    SemanticExecutionContract,
+    SemanticLineageContract,
+    SemanticTransportContract,
+    SemanticValidationContract,
+)
 from liveclip.domain.state_transitions import (
     FailureClass,
     PipelineRunStatus,
@@ -53,7 +66,9 @@ class _PipelineRunConfigFields(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     run_scope: Literal["full", "import"] = "full"
-    provider: str = Field(pattern=r"^(mock|openai|mock-codex|openai-codex|openrouter-codex)$")
+    provider: str = Field(
+        pattern=r"^(mock|openai|mock-codex|openai-codex|openrouter-codex|mlx-codex)$"
+    )
     top_n: int = Field(ge=1, le=100)
     minimum_clip_ms: int = Field(ge=1_000, le=600_000)
     maximum_clip_ms: int = Field(ge=1_000, le=1_800_000)
@@ -65,7 +80,7 @@ class _PipelineRunConfigFields(BaseModel):
     preview_width: int = Field(ge=180, le=2_160)
     preview_height: int = Field(ge=320, le=3_840)
     video_encoder: str = Field(pattern=r"^(auto|h264_videotoolbox|libx264)$")
-    asr_concurrency: int = Field(default=1, ge=1, le=8)
+    asr_concurrency: int = Field(default=4, ge=1, le=8)
     asr_vocabulary_prompt: str = Field(
         default="LiveClip、直播、高光、切片",
         max_length=1_000,
@@ -209,7 +224,7 @@ class _PipelineRunConfigV4(_PipelineRunConfigV3):
         return self
 
 
-class PipelineRunConfig(_PipelineRunConfigV4):
+class _PipelineRunConfigV5(_PipelineRunConfigV4):
     """Immutable v5 snapshot with Full-first semantic-global clipping."""
 
     schema_version: Literal["5"] = "5"  # type: ignore[assignment]
@@ -228,7 +243,7 @@ class PipelineRunConfig(_PipelineRunConfigV4):
         pattern=r"^[a-f0-9]{64}$",
     )
     semantic_global_review_skill_version: str = Field(
-        default="semantic_global_v1.global_review",
+        default="semantic_global_v2.global_review",
         min_length=1,
         max_length=64,
         pattern=r"^[A-Za-z0-9_.-]+$",
@@ -256,7 +271,7 @@ class PipelineRunConfig(_PipelineRunConfigV4):
     semantic_prompt_debug: bool = False
 
     @model_validator(mode="after")
-    def validate_semantic_global_config(self) -> PipelineRunConfig:
+    def validate_semantic_global_config(self) -> _PipelineRunConfigV5:
         if self.clipping_algorithm == "b" and self.semantic_continuous_merge_enabled:
             raise ValueError("algorithm B v1 cannot enable experimental continuous consolidation")
         if self.clipping_algorithm == "b_v2_experimental" and not (
@@ -287,17 +302,236 @@ class PipelineRunConfig(_PipelineRunConfigV4):
         return self
 
 
+class _PipelineRunConfigV6(_PipelineRunConfigV5):
+    """Immutable v6 snapshot with candidate Boundary Review and Global Review v3."""
+
+    schema_version: Literal["6"] = "6"  # type: ignore[assignment]
+    semantic_global_review_skill_version: str = Field(
+        default="semantic_global_v3.global_review",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_boundary_review_skill_version: str = Field(
+        default="semantic_global_v3.boundary_review",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_boundary_review_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def validate_boundary_review_config(self) -> _PipelineRunConfigV6:
+        if (
+            self.clipping_algorithm in {"semantic_global", "semantic_windowed"}
+            and self.semantic_global_review_skill_version == "semantic_global_v3.global_review"
+            and self.semantic_boundary_review_skill_sha256 == "0" * 64
+        ):
+            raise ValueError("semantic global v3 requires a Boundary Review Skill hash")
+        return self
+
+
+class _PipelineRunConfigV7(_PipelineRunConfigV6):
+    """Immutable v7 snapshot with an explicit mini-lesson Topic Chain Profile."""
+
+    schema_version: Literal["7"] = "7"  # type: ignore[assignment]
+    clip_profile: ClipProfile = ClipProfile.SHORT_HIGHLIGHT
+    semantic_link_review_skill_version: str = Field(
+        default="semantic_topic_chain_v1.link_review",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_link_review_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    semantic_topic_chain_skill_version: str = Field(
+        default="semantic_topic_chain_v1.topic_chain",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_topic_chain_skill_sha256: str = Field(
+        default="0" * 64,
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    semantic_result_schema_version: Literal["4"] = "4"
+
+    @model_validator(mode="after")
+    def validate_clip_profile_config(self) -> _PipelineRunConfigV7:
+        if self.clip_profile != ClipProfile.MINI_LESSON:
+            return self
+        if self.clipping_algorithm != "semantic_windowed":
+            raise ValueError("mini_lesson requires semantic_windowed Topic Chain processing")
+        spec = clip_profile_spec(self.clip_profile)
+        if (
+            self.minimum_clip_ms,
+            self.semantic_target_clip_ms,
+            self.maximum_clip_ms,
+        ) != (
+            spec.minimum_duration_ms,
+            spec.target_duration_ms,
+            spec.maximum_duration_ms,
+        ):
+            raise ValueError("mini_lesson duration bounds are fixed at 90/180/300 seconds")
+        if "0" * 64 in {
+            self.semantic_discovery_skill_sha256,
+            self.semantic_link_review_skill_sha256,
+            self.semantic_topic_chain_skill_sha256,
+            self.semantic_boundary_review_skill_sha256,
+            self.semantic_global_review_skill_sha256,
+        }:
+            raise ValueError("mini_lesson requires every Topic Chain Prompt fingerprint")
+        expected_versions = (
+            "semantic_topic_chain_v1.discovery",
+            "semantic_topic_chain_v1.link_review",
+            "semantic_topic_chain_v1.topic_chain",
+            "semantic_topic_chain_v1.boundary_review",
+            "semantic_topic_chain_v1.global_review",
+        )
+        actual_versions = (
+            self.semantic_discovery_skill_version,
+            self.semantic_link_review_skill_version,
+            self.semantic_topic_chain_skill_version,
+            self.semantic_boundary_review_skill_version,
+            self.semantic_global_review_skill_version,
+        )
+        if actual_versions != expected_versions:
+            raise ValueError("mini_lesson requires the installed Topic Chain v1 contracts")
+        return self
+
+
+class PipelineRunConfig(_PipelineRunConfigV7):
+    """Immutable v8 snapshot with an independently versioned quality validator."""
+
+    schema_version: Literal["8"] = "8"  # type: ignore[assignment]
+    semantic_validation_contract: SemanticValidationContract = CURRENT_SEMANTIC_VALIDATION
+
+
+class PipelineRunConfigV9(PipelineRunConfig):
+    """New mini runs preserve explicit V5 lineage and the accepted quality contract."""
+
+    schema_version: Literal["9"] = "9"  # type: ignore[assignment]
+    semantic_result_schema_version: Literal["5"] = "5"  # type: ignore[assignment]
+    clip_profile: ClipProfile = ClipProfile.MINI_LESSON
+    semantic_lineage_contract: SemanticLineageContract = CURRENT_SEMANTIC_LINEAGE
+    semantic_validation_contract: Literal["semantic-v4-quality-v2"] = "semantic-v4-quality-v2"
+    semantic_discovery_skill_version: str = Field(
+        default="semantic_topic_chain_v2.discovery",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_topic_chain_skill_version: str = Field(
+        default="semantic_topic_chain_v2.topic_chain",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    semantic_boundary_review_skill_version: str = Field(
+        default="semantic_topic_chain_v2.boundary_review",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+
+    @model_validator(mode="after")
+    def validate_clip_profile_config(self) -> PipelineRunConfigV9:
+        if (
+            self.clip_profile != ClipProfile.MINI_LESSON
+            or self.clipping_algorithm != "semantic_windowed"
+        ):
+            raise ValueError("v9 requires mini_lesson semantic_windowed processing")
+        spec = clip_profile_spec(self.clip_profile)
+        if (self.minimum_clip_ms, self.semantic_target_clip_ms, self.maximum_clip_ms) != (
+            spec.minimum_duration_ms,
+            spec.target_duration_ms,
+            spec.maximum_duration_ms,
+        ):
+            raise ValueError("mini_lesson duration bounds are fixed at 90/180/300 seconds")
+        stages = ("discovery", "link_review", "topic_chain", "boundary_review", "global_review")
+        expected = (
+            "semantic_topic_chain_v2.discovery",
+            "semantic_topic_chain_v1.link_review",
+            "semantic_topic_chain_v2.topic_chain",
+            "semantic_topic_chain_v2.boundary_review",
+            "semantic_topic_chain_v1.global_review",
+        )
+        if tuple(getattr(self, f"semantic_{stage}_skill_version") for stage in stages) != expected:
+            raise ValueError("v9 requires the installed lineage and quality prompt contracts")
+        if any(getattr(self, f"semantic_{stage}_skill_sha256") == "0" * 64 for stage in stages):
+            raise ValueError("v9 requires all five prompt fingerprints")
+        return self
+
+
+class PipelineRunConfigV10(PipelineRunConfig):
+    """New non-mini runs use measured, lossless semantic request transport."""
+
+    schema_version: Literal["10"] = "10"  # type: ignore[assignment]
+    semantic_transport_contract: SemanticTransportContract = CURRENT_SEMANTIC_TRANSPORT
+
+    @model_validator(mode="after")
+    def validate_transport_profile(self) -> PipelineRunConfigV10:
+        if self.clip_profile == ClipProfile.MINI_LESSON:
+            raise ValueError("new mini_lesson transport requires v11 lineage")
+        return self
+
+
+class PipelineRunConfigV11(PipelineRunConfigV9):
+    """New mini runs bind lossless transport alongside unchanged V5 lineage."""
+
+    schema_version: Literal["11"] = "11"  # type: ignore[assignment]
+    semantic_transport_contract: SemanticTransportContract = CURRENT_SEMANTIC_TRANSPORT
+
+
+class PipelineRunConfigV12(PipelineRunConfigV10):
+    """Bounded semantic invocations with immutable run-scoped repair accounting."""
+
+    schema_version: Literal["12"] = "12"  # type: ignore[assignment]
+    semantic_execution_contract: SemanticExecutionContract = CURRENT_SEMANTIC_EXECUTION
+
+
+class PipelineRunConfigV13(PipelineRunConfigV11):
+    """Mini lineage plus bounded, durably accounted semantic invocations."""
+
+    schema_version: Literal["13"] = "13"  # type: ignore[assignment]
+    semantic_execution_contract: SemanticExecutionContract = CURRENT_SEMANTIC_EXECUTION
+
+
+PipelineConfig = Annotated[
+    PipelineRunConfig
+    | PipelineRunConfigV9
+    | PipelineRunConfigV10
+    | PipelineRunConfigV11
+    | PipelineRunConfigV12
+    | PipelineRunConfigV13,
+    Field(discriminator="schema_version"),
+]
+
+
 def load_persisted_pipeline_config(
     payload: Mapping[str, object] | object,
     stored_fingerprint: str,
-) -> PipelineRunConfig:
-    """Load v5 or adapt exact, fingerprinted historical v2/v3/v4 snapshots in memory."""
+) -> PipelineConfig:
+    """Load exact v8--v13 snapshots or adapt fingerprinted historical v2--v7 in memory."""
 
     if not isinstance(payload, Mapping) or payload.get("schema_version") not in {
         "2",
         "3",
         "4",
         "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
     }:
         raise PipelineConfigInvalid("legacy pipeline config cannot be resumed safely")
     version = payload.get("schema_version")
@@ -308,6 +542,22 @@ def load_persisted_pipeline_config(
         if version == "3"
         else _PipelineRunConfigV4
         if version == "4"
+        else _PipelineRunConfigV5
+        if version == "5"
+        else _PipelineRunConfigV6
+        if version == "6"
+        else _PipelineRunConfigV7
+        if version == "7"
+        else PipelineRunConfigV13
+        if version == "13"
+        else PipelineRunConfigV12
+        if version == "12"
+        else PipelineRunConfigV11
+        if version == "11"
+        else PipelineRunConfigV10
+        if version == "10"
+        else PipelineRunConfigV9
+        if version == "9"
         else PipelineRunConfig
     )
     required_fields = frozenset(model.model_fields)
@@ -326,7 +576,11 @@ def load_persisted_pipeline_config(
     if isinstance(persisted, PipelineRunConfig):
         return persisted
     upgraded = persisted.model_dump(mode="python")
-    upgraded["schema_version"] = "5"
+    upgraded["schema_version"] = "8"
+    upgraded["semantic_validation_contract"] = LEGACY_SEMANTIC_VALIDATION
+    if isinstance(persisted, _PipelineRunConfigV7):
+        # Preserve the exact mini profile and all five frozen prompt identities.
+        return PipelineRunConfig.model_validate(upgraded)
     if isinstance(persisted, _PipelineRunConfigV2):
         upgraded.update(
             clipping_algorithm="a",
@@ -347,24 +601,44 @@ def load_persisted_pipeline_config(
         and persisted.semantic_continuous_merge_enabled
     ):
         upgraded["clipping_algorithm"] = "b_v2_experimental"
+    if not isinstance(persisted, _PipelineRunConfigV5):
+        upgraded.update(
+            semantic_profile="general",
+            semantic_discovery_skill_version="semantic_global_v1.discovery",
+            semantic_discovery_skill_sha256="0" * 64,
+            semantic_global_review_skill_version="semantic_global_v1.global_review",
+            semantic_global_review_skill_sha256="0" * 64,
+            semantic_full_context_budget_ratio=0.58,
+            semantic_model_context_tokens=128_000,
+            semantic_tokenizer_name="o200k_base",
+            semantic_output_reserve_tokens=16_000,
+            semantic_safety_margin_tokens=1_000,
+            semantic_fallback_target_ms=900_000,
+            semantic_fallback_minimum_ms=600_000,
+            semantic_fallback_maximum_ms=1_200_000,
+            semantic_fallback_context_guard_ms=30_000,
+            semantic_global_context_ms=90_000,
+            semantic_no_render=False,
+            semantic_prompt_debug=False,
+        )
     upgraded.update(
-        semantic_profile="general",
-        semantic_discovery_skill_version="semantic_global_v1.discovery",
-        semantic_discovery_skill_sha256="0" * 64,
-        semantic_global_review_skill_version="semantic_global_v1.global_review",
-        semantic_global_review_skill_sha256="0" * 64,
-        semantic_full_context_budget_ratio=0.58,
-        semantic_model_context_tokens=128_000,
-        semantic_tokenizer_name="o200k_base",
-        semantic_output_reserve_tokens=16_000,
-        semantic_safety_margin_tokens=1_000,
-        semantic_fallback_target_ms=900_000,
-        semantic_fallback_minimum_ms=600_000,
-        semantic_fallback_maximum_ms=1_200_000,
-        semantic_fallback_context_guard_ms=30_000,
-        semantic_global_context_ms=90_000,
-        semantic_no_render=False,
-        semantic_prompt_debug=False,
+        semantic_boundary_review_skill_version="semantic_global_v3.boundary_review",
+        semantic_boundary_review_skill_sha256="0" * 64,
+    )
+    if isinstance(persisted, _PipelineRunConfigV6):
+        upgraded["semantic_boundary_review_skill_version"] = (
+            persisted.semantic_boundary_review_skill_version
+        )
+        upgraded["semantic_boundary_review_skill_sha256"] = (
+            persisted.semantic_boundary_review_skill_sha256
+        )
+    upgraded.update(
+        clip_profile=ClipProfile.SHORT_HIGHLIGHT,
+        semantic_link_review_skill_version="semantic_topic_chain_v1.link_review",
+        semantic_link_review_skill_sha256="0" * 64,
+        semantic_topic_chain_skill_version="semantic_topic_chain_v1.topic_chain",
+        semantic_topic_chain_skill_sha256="0" * 64,
+        semantic_result_schema_version="4",
     )
     return PipelineRunConfig.model_validate(upgraded)
 
@@ -385,6 +659,28 @@ class StageSnapshot(BaseModel):
     retry_count: int = Field(ge=0)
     error_code: str | None = None
     safe_error_message: str | None = None
+    started_at: datetime | None = None
+    updated_at: datetime | None = None
+    completed_units: int | None = Field(default=None, ge=0)
+    total_units: int | None = Field(default=None, ge=1)
+    unit_label: str | None = None
+    activity_count: int | None = Field(default=None, ge=1)
+    activity_label: str | None = None
+
+    @model_validator(mode="after")
+    def validate_units(self) -> StageSnapshot:
+        values = (self.completed_units, self.total_units, self.unit_label)
+        if any(value is not None for value in values) and any(value is None for value in values):
+            raise ValueError("stage unit progress must be complete or absent")
+        if (
+            self.completed_units is not None
+            and self.total_units is not None
+            and self.completed_units > self.total_units
+        ):
+            raise ValueError("completed stage units cannot exceed total units")
+        if (self.activity_count is None) != (self.activity_label is None):
+            raise ValueError("stage activity progress must be complete or absent")
+        return self
 
 
 class RunSnapshot(BaseModel):
@@ -397,6 +693,8 @@ class RunSnapshot(BaseModel):
     cancellation_requested: bool
     error_code: str | None = None
     safe_error_message: str | None = None
+    active_task_heartbeat_at: datetime | None = None
+    active_task_lease_expires_at: datetime | None = None
     stages: tuple[StageSnapshot, ...]
 
 
@@ -450,7 +748,7 @@ class StageWork(BaseModel):
     project_id: str
     stage: PipelineStage
     source_path: Path
-    config: PipelineRunConfig
+    config: PipelineConfig
     input_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     generation: int = Field(ge=1)
     revision_epoch: int = Field(ge=0)
@@ -484,6 +782,53 @@ class StageExecutionRepository(Protocol):
     ) -> TaskStatus | None: ...
 
     def cancel_stage(self, lease: LeaseIdentity) -> bool: ...
+
+
+PipelineCapability = Literal["asr", "semantic"]
+
+
+@dataclass(frozen=True, slots=True)
+class ActionReadiness:
+    required: tuple[PipelineCapability, ...]
+    satisfied: tuple[PipelineCapability, ...]
+    blocking_issues: tuple[str, ...]
+
+
+class ActionNotReady(PipelineConflict):
+    def __init__(self, readiness: ActionReadiness) -> None:
+        self.readiness = readiness
+        super().__init__("Remaining actions are blocked: " + ", ".join(readiness.blocking_issues))
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineRecoveryActions:
+    run_id: str
+    config: PipelineConfig
+    remaining_stages: tuple[PipelineStage, ...]
+    required: tuple[PipelineCapability, ...]
+    state_fingerprint: str
+
+
+ActionReadinessCheck = Callable[[PipelineConfig, tuple[PipelineCapability, ...]], ActionReadiness]
+
+
+def required_pipeline_capabilities(
+    config: PipelineConfig,
+    remaining_stages: tuple[PipelineStage, ...],
+    *,
+    edit_committed: bool = False,
+) -> tuple[PipelineCapability, ...]:
+    if config.run_scope == "import":
+        return ()
+    required: list[PipelineCapability] = []
+    if PipelineStage.TRANSCRIBE in remaining_stages:
+        required.append("asr")
+    if (PipelineStage.EDIT in remaining_stages and not edit_committed) or (
+        PipelineStage.CANDIDATES in remaining_stages
+        and config.clipping_algorithm in {"semantic_global", "semantic_windowed"}
+    ):
+        required.append("semantic")
+    return tuple(required)
 
 
 class PipelineRepository(Protocol):
@@ -521,7 +866,11 @@ class PipelineRepository(Protocol):
 
     def request_run_cancel(self, run_id: str) -> RunSnapshot: ...
 
-    def retry_failed_run(self, run_id: str) -> RunSnapshot: ...
+    def recovery_actions(self, run_id: str) -> PipelineRecoveryActions: ...
+
+    def retry_failed_run(
+        self, run_id: str, *, expected_actions: PipelineRecoveryActions | None = None
+    ) -> RunSnapshot: ...
 
 
 class PipelineService:
@@ -530,8 +879,10 @@ class PipelineService:
         repository: PipelineRepository,
         *,
         forbidden_source_roots: tuple[Path, ...] = (),
+        readiness_check: ActionReadinessCheck | None = None,
     ) -> None:
         self._repository = repository
+        self._readiness_check = readiness_check
         self._forbidden_source_roots = tuple(
             root.expanduser().resolve(strict=False) for root in forbidden_source_roots
         )
@@ -587,7 +938,7 @@ class PipelineService:
     ) -> CreatedPipeline:
         payload = config.model_dump(mode="python")
         payload["run_scope"] = "import"
-        import_config = PipelineRunConfig.model_validate(payload)
+        import_config = type(config).model_validate(payload)
         return self.create_project_and_run(
             source_path=source_path,
             config=import_config,
@@ -629,4 +980,7 @@ class PipelineService:
         return self._repository.request_run_cancel(run_id)
 
     def retry(self, run_id: str) -> RunSnapshot:
-        return self._repository.retry_failed_run(run_id)
+        actions = self._repository.recovery_actions(run_id)
+        if self._readiness_check is not None:
+            self._readiness_check(actions.config, actions.required)
+        return self._repository.retry_failed_run(run_id, expected_actions=actions)

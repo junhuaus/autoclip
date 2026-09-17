@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -13,20 +15,36 @@ from liveclip.application.pipeline import (
     StageWork,
 )
 from liveclip.application.stage_execution import StageCancelled, StageExecutionError
+from liveclip.clipping_skills.semantic_global_v1 import load_semantic_global_prompt
+from liveclip.clipping_skills.semantic_global_v2 import load_semantic_global_v2_review_prompt
+from liveclip.clipping_skills.semantic_global_v3 import (
+    load_semantic_global_v3_boundary_prompt,
+    load_semantic_global_v3_review_prompt,
+)
 from liveclip.domain.state_transitions import FailureClass, PipelineStage
 from liveclip.media.artifacts import ArtifactPublicationError
+from liveclip.media.fingerprint import stream_sha256
 from liveclip.media.ingest import MediaIngestCancelled
+from liveclip.media.models import SourceMediaMetadata
 from liveclip.media.preprocess import AudioPreprocessTransientError
+from liveclip.media.secure_files import open_pinned_regular_file
+from liveclip.pipeline.semantic_global import (
+    GlobalReviewStatisticsV3,
+    ReviewDecision,
+    ValidatedGlobalReviewV3,
+)
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.providers.asr.openrouter import (
     OPENROUTER_ASR_CONTRACT_VERSION,
     OpenRouterASRProvider,
 )
+from liveclip.providers.llm.structured import CodexStructuredLLMProvider, StructuredProviderError
 from liveclip.providers.telemetry import (
     ProviderCallRecord,
     ProviderCallStatus,
     ProviderCancelled,
     ProviderConfigurationError,
+    ProviderTransientError,
 )
 from liveclip.renderer.ffmpeg import FFmpegRenderError, RenderAttemptDiagnostic
 from liveclip.renderer.quality import MediaValidationError
@@ -86,6 +104,139 @@ def _lease() -> LeaseIdentity:
     return LeaseIdentity(task_id="1" * 32, worker_id="worker", lease_token="b" * 64)
 
 
+def test_semantic_global_materializes_selected_and_manual_review_clips() -> None:
+    selected = SimpleNamespace(decision=ReviewDecision.SELECTED, clip=SimpleNamespace(risks=()))
+    manual = SimpleNamespace(
+        decision=ReviewDecision.MANUAL_REVIEW,
+        clip=SimpleNamespace(risks=(SimpleNamespace(type=SimpleNamespace(value="music_rights")),)),
+    )
+    validated = cast(
+        Any,
+        SimpleNamespace(selected=(selected,), manual_review=(manual,)),
+    )
+    retained = stage_handler_module._retained_global_review_clips(validated)
+
+    assert retained[0] is selected
+    assert retained[1] is manual
+    assert stage_handler_module._global_review_risk_flags(cast(Any, manual)) == (
+        "manual_review",
+        "music_rights",
+    )
+
+
+def test_v3_assembler_materializes_only_automatic_selected_results() -> None:
+    selected = cast(Any, object())
+    manual = cast(Any, object())
+    blocked = cast(Any, object())
+    validated = ValidatedGlobalReviewV3(
+        selected=(selected,),
+        manual_review=(manual,),
+        blocked=(blocked,),
+        rejected=(),
+        top_n_excluded=(),
+        statistics=GlobalReviewStatisticsV3(
+            discovery_candidate_count=3,
+            boundary_kept_count=3,
+            boundary_repaired_count=0,
+            boundary_dropped_count=0,
+            eligible_before_top_n_count=1,
+            selected_count=1,
+            manual_count=1,
+            blocked_count=1,
+            rejected_count=0,
+            top_n_excluded_count=0,
+            suspicious_exact_top_n=False,
+        ),
+        validation_notes=(),
+    )
+
+    assert stage_handler_module._materialized_global_review_clips(validated) == (selected,)
+
+
+def _source_metadata(path: Path, *, device: int) -> SourceMediaMetadata:
+    metadata = path.stat()
+    return SourceMediaMetadata(
+        resolved_path=path,
+        filename=path.name,
+        size_bytes=metadata.st_size,
+        sha256=stream_sha256(path),
+        duration_ms=10_000,
+        format_name="mpegts",
+        video_stream_index=0,
+        video_codec="hevc",
+        video_width=1088,
+        video_height=1920,
+        video_frame_rate=25.0,
+        video_rotation_degrees=0,
+        audio_stream_index=1,
+        audio_codec="aac",
+        audio_sample_rate_hz=48_000,
+        audio_channels=2,
+        mtime_ns=metadata.st_mtime_ns,
+        inode=metadata.st_ino,
+        device=device,
+    )
+
+
+def test_pipeline_source_validation_survives_mount_device_change(
+    tmp_path: Path,
+) -> None:
+    source_path = (tmp_path / "source.ts").resolve()
+    source_path.write_bytes(b"same immutable source bytes")
+    source = _source_metadata(source_path, device=source_path.stat().st_dev + 1)
+
+    with open_pinned_regular_file(source_path) as pinned:
+        stage_handler_module._validate_pinned_pipeline_source(
+            source,
+            pinned,
+            cancel_requested=lambda: False,
+        )
+        stage_handler_module._validate_pinned_pipeline_source_binding(
+            source,
+            pinned,
+            cancel_requested=lambda: False,
+        )
+
+
+def test_pipeline_source_validation_still_rejects_hash_change(tmp_path: Path) -> None:
+    source_path = (tmp_path / "source.ts").resolve()
+    source_path.write_bytes(b"current source bytes")
+    source = _source_metadata(
+        source_path,
+        device=source_path.stat().st_dev + 1,
+    ).model_copy(update={"sha256": "f" * 64})
+
+    with (
+        open_pinned_regular_file(source_path) as pinned,
+        pytest.raises(ValueError, match="changed after import"),
+    ):
+        stage_handler_module._validate_pinned_pipeline_source(
+            source,
+            pinned,
+            cancel_requested=lambda: False,
+        )
+
+
+def _invalid_provider_response() -> ProviderTransientError:
+    return ProviderTransientError(
+        ProviderCallRecord(
+            call_id="a" * 32,
+            operation_key="b" * 64,
+            subject_id="chunk_000001",
+            provider="openrouter",
+            operation="audio.transcriptions",
+            model="openai/whisper-large-v3",
+            request_id="gen_retryable_001",
+            request_count=1,
+            retry_count=0,
+            latency_ms=25,
+            status=ProviderCallStatus.INVALID,
+            failure_code="OPENROUTER_ASR_RESPONSE_INVALID",
+            called_at=datetime.now(UTC),
+        )
+    )
+
+
 @pytest.mark.parametrize(
     ("error", "failure_class", "error_code"),
     [
@@ -99,6 +250,26 @@ def _lease() -> LeaseIdentity:
             MediaValidationError("bad media"),
             FailureClass.DETERMINISTIC,
             "RENDER_VALIDATION_FAILED",
+        ),
+        (
+            _invalid_provider_response(),
+            FailureClass.TRANSIENT,
+            "PROXY_RENDER_PROVIDER_TEMPORARY",
+        ),
+        (
+            StructuredProviderError("STRUCTURED_OUTPUT_INVALID", ()),
+            FailureClass.DETERMINISTIC,
+            "PROXY_RENDER_PROVIDER_OUTPUT_INVALID",
+        ),
+        (
+            StructuredProviderError("STRUCTURED_TOOL_EVENT", ()),
+            FailureClass.DETERMINISTIC,
+            "PROXY_RENDER_PROVIDER_INVALID",
+        ),
+        (
+            StructuredProviderError("CODEX_CLI_APP_SERVER_PERMISSION_DENIED", ()),
+            FailureClass.DETERMINISTIC,
+            "PROXY_RENDER_CODEX_NESTED_SESSION",
         ),
     ],
 )
@@ -256,6 +427,45 @@ def test_openrouter_mode_dispatches_only_the_openrouter_asr_adapter() -> None:
         provider._client.close()
 
 
+def test_mlx_mode_dispatches_only_the_local_asr_adapter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = (tmp_path / "large-v3").resolve()
+    contract = "mlx-asr-large-v3-fp16-greedy-v4." + "a" * 32
+    observed: dict[str, object] = {}
+
+    def fake_provider(**kwargs: object) -> SimpleNamespace:
+        observed.update(kwargs)
+        return SimpleNamespace(contract_version=contract, provider_name="mlx")
+
+    monkeypatch.setattr(stage_handler_module, "MLXASRProvider", fake_provider)
+    baseline = _work()
+    config = baseline.config.model_copy(
+        update={
+            "provider": "mlx-codex",
+            "transcription_model": "openai/whisper-large-v3",
+            "asr_contract_version": contract,
+            "asr_concurrency": 1,
+        }
+    )
+    handlers = PipelineStageHandlers(
+        data_dir=tmp_path,
+        allowed_media_roots=(),
+        assets=object(),  # type: ignore[arg-type]
+        state=object(),  # type: ignore[arg-type]
+        mlx_asr_model_path=model_path,
+    )
+
+    provider = handlers._asr_provider(baseline.model_copy(update={"config": config}))
+
+    assert provider.provider_name == "mlx"
+    assert observed == {
+        "model_path": model_path,
+        "model_name": "openai/whisper-large-v3",
+    }
+
+
 def test_mock_runtime_rejects_persisted_openai_work_before_any_handler() -> None:
     handler = FailingProxyHandlers(AssertionError("provider mode fence was bypassed"))
     handler._runtime_provider = "mock"
@@ -271,6 +481,109 @@ def test_mock_runtime_rejects_persisted_openai_work_before_any_handler() -> None
 
     assert raised.value.failure_class == FailureClass.DETERMINISTIC
     assert raised.value.error_code == "PROXY_RENDER_PROVIDER_INVALID"
+
+
+def test_accuracy_first_codex_global_review_gets_high_reasoning_and_timeout_headroom(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handlers = PipelineStageHandlers(
+        data_dir=tmp_path,
+        allowed_media_roots=(),
+        assets=object(),  # type: ignore[arg-type]
+        state=object(),  # type: ignore[arg-type]
+        codex_executable="codex",
+    )
+    config = _work().config.model_copy(
+        update={
+            "provider": "openrouter-codex",
+            "openai_request_timeout_seconds": 300.0,
+            "llm_model": "gpt-5.6-terra",
+        }
+    )
+    work = _work().model_copy(update={"config": config})
+    prompt = load_semantic_global_v2_review_prompt("general")
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.resolve_codex_executable",
+        lambda _configured: "/usr/bin/true",
+    )
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.codex_cli_contract_version",
+        lambda _configured: config.llm_contract_version,
+    )
+
+    provider = handlers._structured_provider(work, prompt)
+
+    assert isinstance(provider, CodexStructuredLLMProvider)
+    assert provider.reasoning_effort == "high"
+    assert provider.timeout_seconds == 600.0
+
+
+def test_v3_global_uses_high_reasoning_while_boundary_review_stays_medium(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handlers = PipelineStageHandlers(
+        data_dir=tmp_path,
+        allowed_media_roots=(),
+        assets=object(),  # type: ignore[arg-type]
+        state=object(),  # type: ignore[arg-type]
+        codex_executable="codex",
+    )
+    config = _work().config.model_copy(update={"provider": "openrouter-codex"})
+    work = _work().model_copy(update={"config": config})
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.resolve_codex_executable",
+        lambda _configured: "/usr/bin/true",
+    )
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.codex_cli_contract_version",
+        lambda _configured: config.llm_contract_version,
+    )
+
+    global_provider = handlers._structured_provider(
+        work,
+        load_semantic_global_v3_review_prompt("general"),
+    )
+    boundary_provider = handlers._structured_provider(
+        work,
+        load_semantic_global_v3_boundary_prompt("general"),
+    )
+
+    assert isinstance(global_provider, CodexStructuredLLMProvider)
+    assert isinstance(boundary_provider, CodexStructuredLLMProvider)
+    assert global_provider.reasoning_effort == "high"
+    assert global_provider.timeout_seconds == 600.0
+    assert boundary_provider.reasoning_effort == "medium"
+
+
+def test_legacy_codex_global_review_keeps_historical_medium_reasoning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handlers = PipelineStageHandlers(
+        data_dir=tmp_path,
+        allowed_media_roots=(),
+        assets=object(),  # type: ignore[arg-type]
+        state=object(),  # type: ignore[arg-type]
+        codex_executable="codex",
+    )
+    config = _work().config.model_copy(update={"provider": "openrouter-codex"})
+    work = _work().model_copy(update={"config": config})
+    prompt = load_semantic_global_prompt("global_review", "general")
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.resolve_codex_executable",
+        lambda _configured: "/usr/bin/true",
+    )
+    monkeypatch.setattr(
+        "liveclip.providers.llm.codex.codex_cli_contract_version",
+        lambda _configured: config.llm_contract_version,
+    )
+
+    provider = handlers._structured_provider(work, prompt)
+
+    assert isinstance(provider, CodexStructuredLLMProvider)
+    assert provider.reasoning_effort == "medium"
 
 
 class _CancelledCallState:

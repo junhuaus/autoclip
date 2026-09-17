@@ -21,7 +21,7 @@ from liveclip.providers.openai_retry import OpenAIRetryPolicy
 from liveclip.providers.telemetry import (
     ProviderCallStatus,
     ProviderConfigurationError,
-    ProviderDeterministicError,
+    ProviderTransientError,
 )
 
 
@@ -356,8 +356,8 @@ def test_partial_word_timestamp_text_is_unavailable_not_available(tmp_path: Path
                 {
                     "id": 0,
                     "seek": 0,
-                    "start": 0.0,
-                    "end": 2.251,
+                    "start": 2.5,
+                    "end": 3.001,
                     "text": "超出音频边界",
                     "tokens": [],
                     "temperature": 0.0,
@@ -368,7 +368,7 @@ def test_partial_word_timestamp_text_is_unavailable_not_available(tmp_path: Path
             ]
         ),
     ],
-    ids=["missing-segments", "empty-alignment", "outside-tolerance"],
+    ids=["missing-segments", "empty-alignment", "fully-outside"],
 )
 def test_absent_or_out_of_bounds_segment_alignment_is_rejected(
     tmp_path: Path, payload: dict[str, Any]
@@ -380,7 +380,7 @@ def test_absent_or_out_of_bounds_segment_alignment_is_rejected(
 
     with (
         _sdk_provider([reply]) as (provider, _captured, _sdk),
-        pytest.raises(ProviderDeterministicError) as caught,
+        pytest.raises(ProviderTransientError) as caught,
     ):
         provider.transcribe(chunk)
 

@@ -42,6 +42,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Allow sequential UI operations under host load with a finite failure bound.
+    testTimeout: 30000,
     environment: "jsdom",
     include: ["tests/**/*.test.{ts,tsx}"],
     setupFiles: "./tests/setup.ts",

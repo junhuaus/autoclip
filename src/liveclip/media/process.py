@@ -108,6 +108,7 @@ def run_cancellable_process(
     pass_fds: Sequence[int] = (),
     stdin_stream: BinaryIO | None = None,
     env: Mapping[str, str] | None = None,
+    on_started: Callable[[], None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run an argv-only child with bounded output, timeout, and cancellation."""
 
@@ -139,6 +140,17 @@ def run_cancellable_process(
         pass_fds=inherited_fds,
         env=dict(env) if env is not None else None,
     )
+    if on_started is not None:
+        try:
+            on_started()
+        except BaseException:
+            try:
+                _terminate_process_group(process)
+            finally:
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        stream.close()
+            raise
     stdout_pipe = getattr(process, "stdout", None)
     stderr_pipe = getattr(process, "stderr", None)
     if stdout_pipe is None or stderr_pipe is None:

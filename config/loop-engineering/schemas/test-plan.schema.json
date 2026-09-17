@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "strategy", "required_command_ids", "gaps"],
+  "properties": {
+    "verdict": {"enum": ["READY", "BLOCKED"]},
+    "strategy": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 50},
+    "required_command_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+    "gaps": {"type": "array", "items": {"type": "string"}, "maxItems": 50}
+  }
+}

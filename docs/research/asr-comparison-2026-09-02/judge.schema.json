@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "metric_name",
+    "acoustic_accuracy_measured",
+    "system_a",
+    "system_b",
+    "preferred_system",
+    "confidence",
+    "pairwise_findings",
+    "conclusion",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1"},
+    "metric_name": {"type": "string", "const": "codex_text_only_quality_proxy"},
+    "acoustic_accuracy_measured": {"type": "boolean", "const": false},
+    "system_a": {"$ref": "#/$defs/systemEvaluation"},
+    "system_b": {"$ref": "#/$defs/systemEvaluation"},
+    "preferred_system": {"type": "string", "enum": ["a", "b", "tie"]},
+    "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+    "pairwise_findings": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start_ms", "system_a_text", "system_b_text", "assessment"],
+        "properties": {
+          "start_ms": {"type": "integer", "minimum": 0},
+          "system_a_text": {"type": "string", "maxLength": 1000},
+          "system_b_text": {"type": "string", "maxLength": 1000},
+          "assessment": {"type": "string", "maxLength": 1000}
+        }
+      }
+    },
+    "conclusion": {"type": "string", "minLength": 1, "maxLength": 3000},
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    }
+  },
+  "$defs": {
+    "systemEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quality_score",
+        "chinese_fluency",
+        "contextual_coherence",
+        "terminology_consistency",
+        "completeness_proxy",
+        "timestamp_continuity",
+        "strengths",
+        "suspected_errors"
+      ],
+      "properties": {
+        "quality_score": {"type": "number", "minimum": 0, "maximum": 100},
+        "chinese_fluency": {"type": "number", "minimum": 0, "maximum": 10},
+        "contextual_coherence": {"type": "number", "minimum": 0, "maximum": 10},
+        "terminology_consistency": {"type": "number", "minimum": 0, "maximum": 10},
+        "completeness_proxy": {"type": "number", "minimum": 0, "maximum": 10},
+        "timestamp_continuity": {"type": "number", "minimum": 0, "maximum": 10},
+        "strengths": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "suspected_errors": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start_ms", "text", "reason"],
+            "properties": {
+              "start_ms": {"type": "integer", "minimum": 0},
+              "text": {"type": "string", "maxLength": 1000},
+              "reason": {"type": "string", "maxLength": 1000}
+            }
+          }
+        }
+      }
+    }
+  }
+}

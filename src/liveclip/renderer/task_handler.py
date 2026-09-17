@@ -20,6 +20,7 @@ from liveclip.media.artifacts import (
 from liveclip.media.secure_files import (
     PinnedRegularFile,
     SecureFileError,
+    cross_launch_source_stat_matches,
     hash_regular_file_no_follow,
     open_pinned_regular_file,
 )
@@ -299,19 +300,14 @@ def _assert_source_identity(work: RenderWork) -> None:
         metadata = work.source_path.stat()
     except (OSError, RuntimeError) as exc:
         raise ValueError("source media is no longer available") from exc
-    observed = (
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        getattr(metadata, "st_dev", None),
-        getattr(metadata, "st_ino", None),
-    )
-    expected = (
-        work.source_size_bytes,
-        work.source_mtime_ns,
-        work.source_device,
-        work.source_inode,
-    )
-    if observed != expected:
+    if not cross_launch_source_stat_matches(
+        work.source_path,
+        metadata,
+        expected_path=work.source_path,
+        expected_size_bytes=work.source_size_bytes,
+        expected_mtime_ns=work.source_mtime_ns,
+        expected_inode=work.source_inode,
+    ):
         raise ValueError("source media changed while the render was executing")
 
 
@@ -341,22 +337,16 @@ def _assert_pinned_source_content(
 ) -> None:
     _check_cancel(cancel_requested)
     metadata = pinned.metadata
-    observed = (
+    identity_matches = cross_launch_source_stat_matches(
         pinned.path,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        getattr(metadata, "st_dev", None),
-        getattr(metadata, "st_ino", None),
-    )
-    expected = (
-        work.source_path,
-        work.source_size_bytes,
-        work.source_mtime_ns,
-        work.source_device,
-        work.source_inode,
+        metadata,
+        expected_path=work.source_path,
+        expected_size_bytes=work.source_size_bytes,
+        expected_mtime_ns=work.source_mtime_ns,
+        expected_inode=work.source_inode,
     )
     if (
-        observed != expected
+        not identity_matches
         or pinned.sha256(cancel_requested=cancel_requested) != work.source_sha256
     ):
         raise ValueError("source media content changed while the render was executing")
@@ -371,21 +361,14 @@ def _assert_pinned_source_binding(
 ) -> None:
     _check_cancel(cancel_requested)
     metadata = pinned.metadata
-    observed = (
+    if not cross_launch_source_stat_matches(
         pinned.path,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        getattr(metadata, "st_dev", None),
-        getattr(metadata, "st_ino", None),
-    )
-    expected = (
-        work.source_path,
-        work.source_size_bytes,
-        work.source_mtime_ns,
-        work.source_device,
-        work.source_inode,
-    )
-    if observed != expected:
+        metadata,
+        expected_path=work.source_path,
+        expected_size_bytes=work.source_size_bytes,
+        expected_mtime_ns=work.source_mtime_ns,
+        expected_inode=work.source_inode,
+    ):
         raise ValueError("source media identity changed while the render was executing")
     pinned.validate_binding()
 

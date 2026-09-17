@@ -68,6 +68,7 @@ class EditPackageStatus(StrEnum):
 
 class TaskStatus(StrEnum):
     QUEUED = "queued"
+    WAITING = "waiting"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
@@ -78,6 +79,7 @@ class TaskKind(StrEnum):
     STAGE = "stage"
     RENDER = "render"
     DELIVERY = "delivery"
+    COMPLETION = "completion"
 
 
 class ResourceClass(StrEnum):
@@ -93,6 +95,7 @@ class FailureClass(StrEnum):
 class AttemptOutcome(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    DEFERRED = "deferred"
     FAILED = "failed"
     CANCELLED = "cancelled"
     LOST_LEASE = "lost_lease"
@@ -128,7 +131,10 @@ _PIPELINE_TRANSITIONS = {
     ),
     PipelineRunStatus.FAILED: frozenset({PipelineRunStatus.QUEUED}),
     PipelineRunStatus.COMPLETED: frozenset(),
-    PipelineRunStatus.CANCELLED: frozenset(),
+    # A cancelled durable run may be explicitly resumed. Repository-level
+    # resume validation keeps all completed stages immutable and requeues only
+    # the first safely resumable cancelled stage plus its downstream stages.
+    PipelineRunStatus.CANCELLED: frozenset({PipelineRunStatus.QUEUED}),
 }
 
 _STAGE_TRANSITIONS = {
@@ -141,7 +147,7 @@ _STAGE_TRANSITIONS = {
     StageRunStatus.FAILED: frozenset({StageRunStatus.QUEUED}),
     StageRunStatus.SUCCEEDED: frozenset(),
     StageRunStatus.SKIPPED: frozenset(),
-    StageRunStatus.CANCELLED: frozenset(),
+    StageRunStatus.CANCELLED: frozenset({StageRunStatus.QUEUED}),
 }
 
 _RENDER_TRANSITIONS = {
@@ -170,9 +176,11 @@ _EDIT_PACKAGE_TRANSITIONS = {
 
 _TASK_TRANSITIONS = {
     TaskStatus.QUEUED: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED}),
+    TaskStatus.WAITING: frozenset({TaskStatus.QUEUED, TaskStatus.CANCELLED}),
     TaskStatus.RUNNING: frozenset(
         {
             TaskStatus.QUEUED,
+            TaskStatus.WAITING,
             TaskStatus.SUCCEEDED,
             TaskStatus.FAILED,
             TaskStatus.CANCELLED,
@@ -180,7 +188,7 @@ _TASK_TRANSITIONS = {
     ),
     TaskStatus.FAILED: frozenset({TaskStatus.QUEUED}),
     TaskStatus.SUCCEEDED: frozenset(),
-    TaskStatus.CANCELLED: frozenset(),
+    TaskStatus.CANCELLED: frozenset({TaskStatus.QUEUED}),
 }
 
 _ASSET_TRANSITIONS = {

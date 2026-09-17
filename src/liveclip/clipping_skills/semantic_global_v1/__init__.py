@@ -8,7 +8,14 @@ from typing import Literal
 
 import yaml
 
-SemanticStage = Literal["discovery", "global_review", "boundary_refinement"]
+SemanticStage = Literal[
+    "discovery",
+    "link_review",
+    "topic_chain",
+    "boundary_review",
+    "global_review",
+    "boundary_refinement",
+]
 SemanticProfile = Literal["general", "vocal_coach_live"]
 
 

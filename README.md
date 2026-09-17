@@ -1,6 +1,11 @@
 # LiveClip
 
-LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It turns a local 2–4 hour video into reviewable 9:16 clips, lets a user adjust and approve exact revisions, and creates immutable MP4/SRT/manifest/ZIP deliveries.
+Stable-delivery engineering update: SD-1A, SD-1B, SD-2 and SD-3 are accepted and integrated.
+New V12/V13 runs use bounded semantic execution, durable invocation evidence and readiness
+checks for the remaining work. [Current engineering evidence](docs/verification/stable-delivery-sd3-accepted-2026-09-13.md)
+is separate from real content acceptance. SD-4 and later work continue in [STATUS](STATUS.md).
+
+LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon Macs. It turns a local 2–4 hour video into selectable 9:16 clips, lets a user adjust and keep exact revisions, and creates immutable MP4/SRT/manifest/ZIP deliveries.
 
 > Development status: the LiveClip v1 baseline is `delivered`. The selected real chain—OpenRouter `openai/whisper-large-v3` ASR followed by the local Codex CLI editor—has processed the repository's read-only 46:20 input: 33/33 ASR chunks succeeded, Codex scored 41 candidates, and 15 non-degraded clean review clips were produced. The current “高光时刻” board uses one full-width horizontal row per clip, exposes the AI-authored high-impact sentence, keeps grounded keywords as editor-only navigation, and supports atomic multi-candidate review without A/B variants or another ASR call. The authoritative evidence and remaining limits are in [STATUS.md](STATUS.md).
 
@@ -8,7 +13,7 @@ LiveClip is a local-first Chinese livestream highlight editor for Apple Silicon 
 
 Typer CLI, FastAPI and a single Worker call the same application services and pure domain rules. SQLite stores both domain state and a fenced durable task queue. FFmpeg performs deterministic local media work. In the default real mode, OpenRouter receives prepared audio chunks for Whisper transcription and the locally installed Codex CLI receives bounded transcript data for editorial scoring. The direct OpenAI ASR/Responses path remains available. Source video frames and all generated assets remain local. See [Solution](docs/SOLUTION.md) and [architecture diagrams](docs/architecture.md).
 
-ASR (“automatic speech recognition”) is the stage that turns Chinese speech into timestamped text. Codex CLI is the editor after ASR: it reads that text, scores content, suggests safe boundaries and writes titles. Codex cannot directly listen to the video, so a Codex login does not replace `OPENROUTER_API_KEY` for real ASR.
+ASR (“automatic speech recognition”) is the stage that turns Chinese speech into timestamped text. Codex CLI is the editor after ASR: it reads that text, scores content, suggests safe boundaries and writes titles. Codex cannot directly listen to the video. The default `openrouter-codex` path therefore needs `OPENROUTER_API_KEY`; the opt-in `mlx-codex` path instead performs ASR locally with pinned model bytes.
 
 ## Development environment
 
@@ -35,6 +40,31 @@ make e2e
 make demo
 ```
 
+## Autonomous loop engineering
+
+The `liveclip-v2/loop-engineering` branch adds a developer-only control plane; it is not part of the
+six-stage media runtime. Requirements move through fresh Planner, Coder, Reviewer, Tester and Gateway
+roles. Only Coder is writable, and only inside an isolated candidate workspace. The outer Runner ignores model-authored commands and executes the
+checked-in argv allowlist from `loop-engineering.yaml` with `shell=False` inside a deny-default macOS
+sandbox. Dependencies are sealed outside Coder authority before it starts, and gates execute a retained
+source snapshot matching the exact current worktree. A run reaches `done` only when review has no P0/P1,
+all required command evidence is current, correlated and passing against identical before/after
+worktree/toolchain state, and the independent Gateway returns PASS. Only then does the trusted outer
+process publish the accepted candidate to the current branch.
+
+```bash
+make loop-profiles       # one-time, refuses to overwrite different ~/.codex profiles
+make loop-doctor
+make loop-init REQUIREMENT=docs/requirements/my-change.md
+make loop-run RUN_ID=YYYYMMDDTHHMMSSZ-xxxxxxxx
+make loop-status RUN_ID=YYYYMMDDTHHMMSSZ-xxxxxxxx
+```
+
+`make loop-run REQUIREMENT=...` creates and runs in one command. It invokes cloud-backed Codex and may
+modify the current branch, so start from a clean, dedicated branch. Durable state and Agent event logs
+live under ignored `.loop/runs`; test requests and reports remain append-only under `qa/`. See
+[Loop Engineering](docs/loop-engineering.md) and [ADR-026](docs/adr/026-loop-engineering-control-plane.md).
+
 `make setup` uses uv to provision a project-local native Python and installs frontend dependencies when the Web lockfile exists. For the normal Codex-backed real chain, authenticate Codex once, then configure ASR locally:
 
 ```bash
@@ -50,25 +80,88 @@ make doctor
 
 Never put a real key in `.env.example`, Git or a Codex conversation. Revoke the Key that was previously exposed before using LiveClip. `openrouter-codex` means OpenRouter Whisper Large V3 ASR plus the installed Codex CLI editor. The Codex process reuses saved ChatGPT authentication; inference is still cloud-based and no local model weights are installed. See [OpenRouter setup](docs/integrations/openrouter.md).
 
+For accuracy-first local ASR on Apple Silicon, install the pinned full-precision model and select the
+explicit mode; the default remains unchanged until labelled acceptance:
+
+```bash
+make setup-local-asr
+# In ignored .env.local:
+# LIVECLIP_AI_PROVIDER=mlx-codex
+# LIVECLIP_MLX_ASR_MODEL_PATH=./data/models/whisper-large-v3-mlx
+make doctor
+```
+
+Local MLX ASR uses one worker and uploads no audio. Codex remains cloud-backed and receives the bounded
+transcript for editorial work. See [local MLX ASR setup](docs/integrations/mlx-asr.md).
+
 ## CLI workflow
+
+Start the independent Worker in one terminal (or use `make dev`):
+
+```bash
+liveclip-worker
+```
+
+In another terminal, save a durable completion goal with the default
+short-highlight preset:
+
+```bash
+liveclip auto /absolute/path/live.ts
+```
+
+`auto` persists a Project, run and goal through the same versioned preset
+service as API/Web. It prints the request key before creation, then watches
+saved state; it does not process media in the initiating CLI. If the response
+is lost, retry the same `--request-key`, source and options. `--no-watch`
+returns the saved IDs immediately. `Ctrl-C` stops observation without
+cancelling Worker work. The short preset uses `semantic_windowed`, Top 15,
+45–90 seconds, a 60-second target and score threshold 75. Both presets
+remain experimental pending real content/audio acceptance. Use the lower-level
+commands below for stage-by-stage execution or custom clipping parameters.
+
+To request complete 90--300-second teaching units instead, select the independent mini-lesson
+profile; the default command above is unchanged:
+
+```bash
+liveclip auto --clip-profile mini_lesson /absolute/path/live.ts
+```
+
+This mode links Agent-identified Topic Fragments across as many adjacent logical-window boundaries as
+needed, then performs its own Boundary Review, score, risk gate and Top-N. It does not enlarge a short
+candidate to five minutes or use live interaction as padding. Only automatic results render; manual,
+blocked and rejected candidates remain in the Schema v4 audit artifact.
+
+Use `--selection-policy manual` to stop at authorized selection instead of
+automatically selecting candidates. Reconnect with `liveclip resume PROJECT_ID`
+(`--intent-id ID` when a Project has several goals). Resume observes a manual
+wait without selecting clips; it explicitly wakes only an eligible blocked
+goal through the version-fenced service. The CLI and Web show the current
+attempt's Delivery phase, work count and Worker lease freshness separately.
+They expose a ZIP link only after the bound Delivery Asset commits.
 
 ```bash
 liveclip doctor
 liveclip run --input /absolute/path/live.mp4 --top-n 15 --wait
 liveclip status PROJECT_ID
+liveclip status PROJECT_ID --watch
+liveclip stage RUN_ID transcribe
+liveclip stage RUN_ID candidates
 liveclip clips PROJECT_ID
+liveclip select PROJECT_ID                         # 默认选择全部新候选并生成交付包
+liveclip select PROJECT_ID --mode manual --clips 1,3,5
+liveclip select PROJECT_ID --mode manual --interactive
 liveclip review CLIP_ID --approve
 liveclip review CLIP_ID --start 125.5 --end 183.2 --title 修改后的标题 --approve
 liveclip review CLIP_ID --subtitle-text "修订后的整段字幕" --approve
 liveclip review CLIP_ID --reject --reason "内容不完整"
 liveclip rerender CLIP_ID --wait
-liveclip deliver PROJECT_ID --zip
+liveclip package PROJECT_ID --zip
 liveclip export-review PROJECT_ID --zip
 liveclip db-backup
 liveclip db-restore --backup /absolute/path/backup.sqlite3 --output /absolute/path/restored/liveclip.sqlite3
 ```
 
-All commands above are implemented. `review` creates an immutable human revision when title/boundary/subtitle fields change, `rerender` queues or foreground-executes the current revision, and `deliver` creates a new immutable delivery version. Foreground CLI processing uses the same SQLite lease/idempotency mechanism as Worker processing.
+All commands above are implemented. The normal product flow is selection rather than an approval ceremony: `auto` saves the complete default intent for the independent Worker, while `select` uses the AI-retained set as the default selection or applies one atomic manual selection and packages the selected set unless `--no-package` is given. `review` remains a compatibility command for editing or choosing one exact revision; `package` and its compatibility alias `deliver` create the same immutable delivery version. `stage` runs only through one named stage and stops, so ingest, preprocessing, transcription, Discovery, Global Review and rendering are each independently operable from CLI. The default `auto` watch and `resume` read the saved Completion state without processing media or claiming work. Foreground `run --wait`, `retry --wait` and `stage` redraw one fixed terminal dashboard every two seconds instead of appending frames. It shows the active-stage timer, ASR chunk counts, completed semantic-model-call activity, cancellation state and a refresh clock. `status --watch` attaches the same read-only dashboard to an already-running Project without taking over or cancelling its work. Redirected/non-TTY output remains plain text. Foreground processing uses the same SQLite lease/idempotency mechanism as Worker processing.
 
 For new semantic clipping work, choose `semantic_windowed` explicitly (the Web selects it by default;
 the bare CLI/API default remains A for backward-compatible automation):
@@ -91,7 +184,14 @@ and does no final scoring. Global Review receives candidate source text, nearby 
 results—not the whole livestream—and owns duplicate/merge/split decisions and all final scoring. Python maps
 global cue IDs to source milliseconds, accepts only one continuous 45–90 second range, recomputes the
 six score fields, requires a score strictly greater than 75, applies risk/manual-review gates and uses
-Top-N only as a ceiling. `--no-render` persists the final plan without FFmpeg. `--prompt-debug` prints
+Top-N only as a ceiling. Both automatic and manual-review `keep` results get clean review renders and
+enter default selection when their deterministically recomputed score is strictly greater than 75;
+manual-review risk provenance remains visible in Delivery metadata. Current Global Review also requires
+one independent six-field scorecard for every Discovery candidate before consolidation. A rejection
+group cannot replace those scorecards, and `no_general_value` cannot suppress an above-threshold
+candidate. New runs default to Sol with medium Discovery reasoning and high reasoning only for this
+final review; historical v1 Prompt/Schema routes remain installed for exact replay. `--no-render` persists the final
+plan without FFmpeg. `--prompt-debug` prints
 only loaded Prompt files, version/hash, profile, token estimate and window mode; it never
 prints the transcript.
 
@@ -202,6 +302,16 @@ make dev
 
 This serializes any pending SQLite migration, starts FastAPI at `http://127.0.0.1:8765`, the durable Worker and Vite at `http://127.0.0.1:5173`, prints the addresses, and stops all child processes on Ctrl+C. The home page is a video-editor “我的项目” workspace with personal project/workload counts, search, lifecycle filters, owner/member/role context and a focused next action. New Projects are private: only the creator/owner sees one until members are explicitly added. An owner may instead make a Project workspace-visible, which gives other active accounts read-only viewer access. A creator can add editors/reviewers/viewers, remove non-assigned non-owners or explicitly transfer ownership from the Project page; the former owner becomes an editor. The Web hides or disables mutations using capabilities returned by the server.
 
+On “我的项目”, “按方案创建” offers the experimental “短高光” and “完整小课”
+presets. Enter an absolute video path under an allowed media root, choose
+default or manual selection, and submit. LiveClip saves one durable
+Completion goal and shows the new Project immediately; it does not show a
+ZIP link until Delivery succeeds. If the browser loses the response,
+re-enter the same path and options in the same tab after reload and retry:
+the pending request key is reused so the existing Project is recovered.
+The presets are engineering-verified but still need real Chinese content,
+audio and long-source acceptance before release recommendations.
+
 The review console shows Pipeline progress and candidates, plays signed Range-enabled clean review/delivery masters, edits revisions/captions, approves or rejects one or several selected candidates atomically, rerenders changed revisions, and creates/downloads versioned deliveries. It intentionally omits a separate full-livestream transcript panel. “高光时刻” is a one-column list: every full-width row places the vertical video on the left and editorial content on the right, followed by the row's complete subtitle section at the bottom. The persisted EditPlan `hook` is presented as “高光语句”—AI-authored, candidate-grounded copy suitable for editorial consideration as on-screen text. Grounded terms are explicitly labelled “编辑关键词”; they are editor navigation metadata, not audience-facing copy. Clicking a keyword or subtitle seeks only that row's video. Segment-level keyword windows come from the existing ASR transcript and are labelled honestly when word timing is unavailable, without repeating ASR. The clean master is generated immediately after selection and contains no LiveClip-generated title or captions; score, title, high-impact sentence, reason, risks and caption cues remain separate metadata. Approval keeps that exact master, pending/rejected clips are omitted, and Delivery performs no second render. An optional approved burned derivative may write text into the picture. Each current clean master also offers individual MP4/SRT download. Owners and editors can separately tick “选择导出” on any number of current rows and create an immutable “剪辑交接包”: clean MP4, matching editable SRT, JSON/CSV descriptions, high-impact sentences, keyword times, thumbnails, checksums and a Chinese Jianying/CapCut import guide. It uses portable interchange files rather than claiming an undocumented Jianying private draft format. Provider diagnostics live under the top-right account/system menu, keeping the editor's dashboard task-focused. An optional Bearer token is held only in page memory.
 
 The v0.2 development line adds local login and administrator “成员管理” and “项目治理” pages while package version `0.1.0` remains the stable baseline. To opt in without committing a credential, put a 12–128 character value in ignored `.env.local` as `LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD`; it initializes only a missing password for `LIVECLIP_WORKSPACE_USERNAME`. Restart `make dev`, sign in, then create editors/reviewers as ordinary members and grant their Project roles inside each private Project. Clearing the environment variable does not erase a configured password. Administrator disable, password reset and system-role changes revoke existing browser sessions.
@@ -267,13 +377,19 @@ make smoke-cloud INPUT=/absolute/path/to/media/short.mp4
 
 Missing configuration exits with `not_run` before cloud work. Keys are read only from the local environment and are never printed.
 
-For normal real video processing with the Codex editor, keep `LIVECLIP_AI_PROVIDER=openrouter-codex`, configure the OpenRouter ASR prerequisites locally, run `make doctor`, then use `liveclip run ... --wait` or the Web page. No path silently falls back to Mock. `openai-codex` remains an explicit alternative for an OpenAI Platform ASR key.
+For normal real video processing with the Codex editor, keep `LIVECLIP_AI_PROVIDER=openrouter-codex`, configure the OpenRouter ASR prerequisites locally, run `make doctor`, then use `liveclip run ... --wait` or the Web page. `mlx-codex` is the explicit local-ASR alternative and `openai-codex` remains the direct OpenAI Platform ASR alternative. No path silently falls back to another provider or Mock. If a durable run fails after doing useful work, resume that exact run instead of creating a new Project:
+
+```bash
+liveclip retry PIPELINE_RUN_ID --wait
+```
+
+Verified per-chunk ASR and semantic caches are reused; only failed or still-pending work calls a Provider.
 
 ## Data and privacy
 
 - Source video is a read-only path reference below `LIVECLIP_ALLOWED_MEDIA_ROOTS`, outside `LIVECLIP_DATA_DIR`, and is not copied by default. Keep imports in `input/` or another dedicated media root, never under `data/projects/`.
 - Video frames, SQLite, transcripts, intermediate/generated videos and deliveries stay under the local data directory.
-- Prepared audio chunks are uploaded to the configured ASR provider. In `openrouter-codex`, they pass through OpenRouter to its selected upstream Whisper host.
+- Prepared audio chunks are uploaded only for cloud ASR. In `openrouter-codex`, they pass through OpenRouter to its selected upstream Whisper host; in `mlx-codex`, verified audio stays on the Mac.
 - Only bounded candidate transcript/context and metadata are sent to the LLM provider. Codex receives them through stdin, never argv, and runs with executable tools disabled.
 - The API key is read from local environment only and is excluded from database, logs, UI, errors and Git.
 - Saved Codex authentication stays in the Codex credential store and is not copied into LiveClip data.
@@ -282,7 +398,7 @@ Default project data will live under `data/projects`; Demo-owned data lives unde
 
 ## Recovery and troubleshooting
 
-Use `liveclip status`, the API run retry endpoint, or the Web retry action for failed durable work. Expired leases are recovered by the same queue; stale revision renders cannot enter a Delivery. Consult structured local logs, then resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
+Use `liveclip status`, `liveclip retry PIPELINE_RUN_ID --wait`, the API run retry endpoint, or the Web retry action for failed durable work or an unambiguously cancelled Stage. Retry preserves succeeded Stages and verified caches. Expired leases are recovered by the same queue; stale revision renders cannot enter a Delivery. Consult structured local logs, then resume engineering work using [AGENTS.md](AGENTS.md), the [Living ExecPlan](docs/exec-plans/liveclip-v1.md), and [STATUS.md](STATUS.md).
 
 Before a migration, ownership operation or destructive retention action, create a consistent backup. The command uses SQLite's online backup API, includes committed WAL data, requires `quick_check=ok`, zero foreign-key violations and one Alembic revision, computes SHA-256, and atomically publishes a new file without overwrite:
 
@@ -309,9 +425,10 @@ See the [database backup and recovery runbook](docs/operations/database-recovery
 - OpenRouter smoke says `not_run`: set `openrouter-codex`, an allowed root and a safe local Key in `.env.local`; it never substitutes Mock.
 - Web shows `OPENROUTER_ASR_NOT_CONFIGURED`: configure a safe Key only in ignored `.env.local`; a successful `codex login` alone cannot transcribe audio.
 - Web shows `OPENAI_ASR_NOT_CONFIGURED`: the explicit `openai-codex`/`openai` mode needs an OpenAI Platform key.
+- Web or Doctor shows `MLX_ASR_NOT_READY`: run `make setup-local-asr`, keep the exact configured model path, and run Doctor from an ordinary Apple Silicon terminal with Metal access.
 - Web shows `CODEX_CLI_NOT_READY`: run `codex login` and `liveclip doctor`. LiveClip never asks you to paste that credential into the page.
 - Provider status did not change after editing `.env` or logging in: restart `make dev`; health intentionally uses one startup preflight rather than launching Codex on every unauthenticated poll.
-- A transient timeout/429/5xx is eligible for bounded task/provider retry. Authentication, invalid media, unsafe paths, bad parameters and integrity failures are deterministic; correct the input/configuration, then explicitly retry or start a new run.
+- A transient timeout/429/5xx or malformed HTTP-200 ASR response is eligible for bounded retry. Successful chunk caches survive the retry. Authentication, invalid media, unsafe paths, bad parameters and integrity failures remain deterministic; correct the input/configuration, then explicitly retry or start a new run.
 - VideoToolbox failure is nonblocking: Doctor records the real encode attempt and rendering automatically uses `libx264`.
 
 Known development-host differences are tracked in Solution: current PATH Python and Node are unsuitable defaults, FFmpeg lacks subtitles/drawtext but supports the deterministic raster-overlay path, and VideoToolbox is unavailable inside the Codex sandbox while succeeding on the host. `libx264` is the automatic fallback.

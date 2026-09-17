@@ -1,11 +1,11 @@
 import { HttpResponse, http } from "msw";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 
 import { LiveClipApiClient } from "../src/api";
 import { ReleaseWorkspace } from "../src/ReleaseWorkspace";
-import type { PlatformPreset, ReleaseItemSnapshot } from "../src/types";
+import type { PlatformPreset, ReleaseItemSnapshot, ReleaseItemsResponse } from "../src/types";
 import { clipSummary, project } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
@@ -161,6 +161,142 @@ function releaseList(
     preview_media_urls: previewMediaUrls,
   };
 }
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+it("synchronizes chained mutations before delayed lists complete and fences pending actions", async () => {
+  const initial: ReleaseItemSnapshot = {
+    ...readyRelease, status: "draft", approval_status: "draft", management_version: 1,
+  };
+  const unrelated = { ...readyRelease, release_item_id: "release-2", title: "其他任务" };
+  const envelope = releaseList([initial, unrelated]);
+  const obsolete = deferred();
+  const convergence = deferred();
+  const gates = [deferred(), deferred(), deferred(), deferred(), deferred()];
+  const bodies: Array<{ expected_management_version: number; target?: string }> = [];
+  let current = initial;
+  let listCalls = 0;
+  let obsoleteReturned = false;
+  server.use(
+    http.get("/api/v1/projects/project-1/releases", async () => {
+      listCalls += 1;
+      if (listCalls === 1) return HttpResponse.json(envelope);
+      if (listCalls === 2) {
+        await obsolete.promise;
+        obsoleteReturned = true;
+        return HttpResponse.json(envelope);
+      }
+      await convergence.promise;
+      return HttpResponse.json(releaseList([current, unrelated]));
+    }),
+    http.patch("/api/v1/releases/release-1", async ({ request }) => {
+      bodies.push(await request.json() as typeof bodies[number]);
+      await gates[0].promise;
+      current = { ...initial, management_version: 2, edit_plan_revision: 2,
+        current_edit_plan_revision: 2, title: "服务端保存标题" };
+      return HttpResponse.json(current);
+    }),
+    http.post("/api/v1/releases/release-1/:action", async ({ request, params }) => {
+      const body = await request.json() as typeof bodies[number];
+      bodies.push(body);
+      await gates[bodies.length - 1].promise;
+      current = {
+        ...current,
+        management_version: [2, 7, 11, 16, 23][bodies.length - 1],
+        ...(params.action === "approval"
+          ? { approval_status: body.target as ReleaseItemSnapshot["approval_status"] }
+          : { status: body.target as ReleaseItemSnapshot["status"] }),
+      };
+      return HttpResponse.json(current);
+    }),
+  );
+  const user = userEvent.setup();
+  const { client, unmount } = renderWithClient(
+    <ReleaseWorkspace api={new LiveClipApiClient()} project={project}
+      clips={[clipSummary]} onProjectChanged={() => undefined} />,
+  );
+  const key = ["releases", "project-1"];
+  try {
+    const heading = await screen.findByRole("heading", { name: initial.title });
+    let card = within(heading.closest("article")!);
+    await user.click(card.getByText("发布文案、封面与合规清单"));
+    await user.type(card.getByLabelText("审核或状态说明"), "确认提交");
+    void client.refetchQueries({ queryKey: key });
+    await waitFor(() => expect(listCalls).toBe(2));
+    await user.click(card.getByRole("button", { name: "保存发布设置" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(card.getByRole("button", { name: "提交发布审核" })).toBeDisabled();
+    await act(async () => { gates[0].resolve(); });
+    await waitFor(() => expect(card.getByRole("button", { name: "保存发布设置" })).toBeEnabled());
+    expect(client.getQueryData<ReleaseItemsResponse>(key)).toEqual({
+      ...envelope, releases: [current, unrelated],
+    });
+    await waitFor(() => expect(listCalls).toBe(3));
+    await act(async () => { obsolete.resolve(); });
+    await waitFor(() => expect(obsoleteReturned).toBe(true));
+    expect(card.getByRole("heading", { name: "服务端保存标题" })).toBeInTheDocument();
+
+    for (const [index, label, version, state] of [
+      [1, "提交发布审核", 2, "待发布审核"],
+      [2, "批准发布", 7, "发布审核通过"],
+      [3, "标记可发布", 11, "可发布"],
+      [4, "记录外部排期", 16, "外部已排期"],
+    ] as const) {
+      if (index === 2) await user.type(card.getByLabelText("审核或状态说明"), "确认批准");
+      await user.click(card.getByRole("button", { name: label }));
+      await waitFor(() => expect(bodies).toHaveLength(index + 1));
+      expect(bodies[index].expected_management_version).toBe(version);
+      expect(card.getByRole("button", { name: "保存发布设置" })).toBeDisabled();
+      await act(async () => { gates[index].resolve(); });
+      if (index >= 3) {
+        await waitFor(() => expect(client.getQueryData<ReleaseItemsResponse>(key)?.releases[0].status).toBe(current.status));
+        card = within(screen.getByRole("heading", { name: "服务端保存标题" }).closest("article")!);
+        await user.click(card.getByText("发布文案、封面与合规清单"));
+      }
+      await waitFor(() => expect(card.getByRole("button", { name: "保存发布设置" })).toBeEnabled());
+      expect(card.getByText(state, { exact: true })).toBeInTheDocument();
+      expect(client.getQueryData<ReleaseItemsResponse>(key)).toEqual({
+        ...envelope, releases: [current, unrelated],
+      });
+      if (index <= 2) expect(card.getByLabelText("审核或状态说明")).toHaveValue("");
+    }
+    expect(bodies[0].expected_management_version).toBe(1);
+  } finally {
+    unmount();
+    obsolete.resolve();
+    convergence.resolve();
+    gates.forEach((gate) => gate.resolve());
+    client.clear();
+  }
+});
+
+it("keeps a genuine version conflict visible without retry or cache replacement", async () => {
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/projects/project-1/releases", () => HttpResponse.json(releaseList([readyRelease]))),
+    http.patch("/api/v1/releases/release-1", () => {
+      calls += 1;
+      return HttpResponse.json({ error: { code: "STATE_CONFLICT", message: "发布任务版本冲突" } }, { status: 409 });
+    }),
+  );
+  const user = userEvent.setup();
+  const { client } = renderWithClient(
+    <ReleaseWorkspace api={new LiveClipApiClient()} project={project}
+      clips={[clipSummary]} onProjectChanged={() => undefined} />,
+  );
+  await screen.findByRole("heading", { name: readyRelease.title });
+  const before = client.getQueryData(["releases", "project-1"]);
+  await user.click(screen.getByText("发布文案、封面与合规清单"));
+  await user.click(screen.getByRole("button", { name: "保存发布设置" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("发布任务版本冲突");
+  expect(screen.getByRole("button", { name: "保存发布设置" })).toBeEnabled();
+  expect(calls).toBe(1);
+  expect(client.getQueryData(["releases", "project-1"])).toBe(before);
+});
 
 it("creates a platform release task from an unrejected pending highlight", async () => {
   let created: ReleaseItemSnapshot | null = null;

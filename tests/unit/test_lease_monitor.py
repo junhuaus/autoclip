@@ -81,3 +81,47 @@ def test_observed_missing_lease_is_fenced_without_heartbeat() -> None:
         assert monitor.lost_lease is True
     finally:
         monitor.stop()
+
+
+def test_stop_drains_in_flight_operation_and_rejects_queued_refresh() -> None:
+    lease = _lease()
+    entered = threading.Event()
+    release = threading.Event()
+    stop_returned = threading.Event()
+    calls = []
+
+    def heartbeat(_: TaskLease) -> HeartbeatResult:
+        calls.append("heartbeat")
+        entered.set()
+        assert release.wait(timeout=2)
+        return HeartbeatResult(
+            lease_expires_at=datetime.now(UTC) + timedelta(seconds=30),
+            cancellation_requested=False,
+        )
+
+    monitor = LeaseMonitor(
+        heartbeat=heartbeat,
+        observe=None,
+        lease=lease,
+        heartbeat_seconds=30,
+    )
+    monitor.start()
+    active = threading.Thread(target=monitor.refresh)
+    active.start()
+    assert entered.wait(timeout=1)
+
+    stopper = threading.Thread(target=lambda: (monitor.stop(), stop_returned.set()))
+    queued = threading.Thread(target=monitor.refresh)
+    stopper.start()
+    assert monitor._stop.wait(timeout=1)
+    queued.start()
+    assert not stop_returned.wait(timeout=0.05)
+    release.set()
+    active.join(timeout=1)
+    queued.join(timeout=1)
+    stopper.join(timeout=1)
+
+    assert stop_returned.is_set()
+    assert calls == ["heartbeat"]
+    monitor.refresh()
+    assert calls == ["heartbeat"]

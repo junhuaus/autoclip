@@ -6,17 +6,27 @@ import subprocess
 import tempfile
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, Generic, Literal, Protocol, TypeVar, cast
+from typing import Any, Generic, Literal, Protocol, TypedDict, TypeVar, cast
 
 from openai import OpenAI
-from pydantic import BaseModel, ValidationError
+from openai.lib._parsing._responses import type_to_text_format_param
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from liveclip.clipping_skills.semantic_global_v1 import SemanticGlobalPromptBundle
+from liveclip.domain.clip_profile import ClipProfile, clip_profile_spec
+from liveclip.domain.semantic_validation import (
+    CURRENT_SEMANTIC_EXECUTION,
+    CURRENT_SEMANTIC_TRANSPORT,
+    CURRENT_SEMANTIC_VALIDATION,
+    SemanticExecutionContract,
+    SemanticTransportContract,
+)
 from liveclip.media.process import ProcessCancelled, run_cancellable_process
 from liveclip.media.secure_files import (
     SecureFileError,
@@ -29,11 +39,19 @@ from liveclip.pipeline.semantic_global import (
     BoundaryCompactness,
     BoundaryRefinementItem,
     BoundaryRefinementOutput,
+    BoundaryReviewItemV3,
+    BoundaryReviewOutputV3,
+    BoundaryTopicReport,
+    CandidateAssessment,
+    CandidateAssessmentDisposition,
+    CandidateGlobalReviewV3,
     CandidateStatus,
     ClipOrigin,
+    ContentDecisionV3,
     CoverageDecision,
     CoverageDecisionValue,
     CoverageReasonCode,
+    CueRange,
     DiscoveryCandidate,
     DiscoveryOutput,
     DiscoveryTopicUnit,
@@ -43,19 +61,74 @@ from liveclip.pipeline.semantic_global import (
     FollowingCueRelation,
     GlobalReviewClip,
     GlobalReviewOutput,
+    GlobalReviewOutputV2,
+    GlobalReviewOutputV3,
     GlobalReviewSummary,
     NoCandidateReasonCode,
     OpeningRelevance,
+    PublishStatusV3,
     ReviewStatus,
     RiskAssessment,
     ScoreDimensions,
+    ScoreDimensionsV3,
+    SemanticCue,
+    SemanticGlobalConfig,
+    SemanticInputUnit,
+    SemanticTimeRange,
     SourceFidelity,
+    TokenEstimator,
+    namespace_discovery_output,
+    semantic_request_tokens,
+    transport_record_objects,
+    validate_discovery_output,
+)
+from liveclip.pipeline.semantic_lineage import (
+    LINEAGE_CONTRACT,
+    DiscoveryBatchOutputV5,
+    TopicChainReviewV5,
+    collect_response_errors_v5,
+    parse_raw_response_v5,
+    parse_response_v5,
+)
+from liveclip.pipeline.semantic_profiles import (
+    BoundaryEvidenceV4,
+    BoundaryReviewV4,
+    CandidateGlobalReviewV4,
+    ChainCandidateV4,
+    ContentDecisionV4,
+    DiscoveryBatchOutputV4,
+    DiscoveryCandidateV4,
+    GlobalReviewOutputV4,
+    InterruptionReviewV4,
+    InterruptionSeverityV4,
+    LinkRelationshipV4,
+    LinkReviewV4,
+    LogicalWindowDiscoveryV4,
+    MiniLessonScoresV4,
+    PublishStatusV4,
+    ShortHighlightScoresV4,
+    TimeRangeV4,
+    TopicBoundaryV4,
+    TopicChainReviewV4,
+    TopicChainStatusV4,
+    TopicFragmentV4,
+    quality_preflight_errors_v4,
+)
+from liveclip.pipeline.semantic_transport import (
+    TRANSPORT_INSTRUCTIONS,
+    RequestMeasurement,
+    canonical_json,
+    copy_json,
+    decode_transport,
+    measure_request,
+    transport_options,
 )
 from liveclip.prompts import EditingPromptBundle
 from liveclip.providers.llm.codex import (
     CodexCLILLMProvider,
     _codex_environment,
     _codex_metadata,
+    _codex_process_failure_code,
     codex_cli_contract_version,
 )
 from liveclip.providers.llm.openai import (
@@ -64,6 +137,11 @@ from liveclip.providers.llm.openai import (
     _request_id,
     _response_model,
     _usage_payload,
+)
+from liveclip.providers.llm.semantic_lineage import (
+    LineageResponseContext,
+    is_lineage_response,
+    prepare_lineage_context,
 )
 from liveclip.providers.openai_retry import (
     OpenAIRetryCancelled,
@@ -81,6 +159,10 @@ from liveclip.providers.telemetry import (
 StructuredModel = TypeVar("StructuredModel", bound=BaseModel)
 
 
+class _ProcessStartOptions(TypedDict, total=False):
+    on_started: Callable[[], None]
+
+
 class StructuredProviderError(RuntimeError):
     def __init__(
         self,
@@ -88,11 +170,13 @@ class StructuredProviderError(RuntimeError):
         call_records: tuple[ProviderCallRecord, ...],
         *,
         repair_attempts: tuple[dict[str, object], ...] = (),
+        diagnostic_relative_path: str | None = None,
     ) -> None:
         super().__init__("structured model output could not be validated")
         self.code = code
         self.call_records = call_records
         self.repair_attempts = repair_attempts
+        self.diagnostic_relative_path = diagnostic_relative_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,9 +226,20 @@ class StructuredLLMProvider(Protocol):
 class MockStructuredLLMProvider:
     contract_version = "mock-structured-v1"
 
-    def __init__(self, *, prompts: SemanticGlobalPromptBundle, model_name: str) -> None:
+    def __init__(
+        self,
+        *,
+        prompts: SemanticGlobalPromptBundle,
+        model_name: str,
+        semantic_budget: SemanticGlobalConfig | None = None,
+        transport_contract: SemanticTransportContract | None = None,
+        execution_contract: SemanticExecutionContract | None = None,
+    ) -> None:
         self._prompts = prompts
         self._model_name = model_name
+        self._semantic_budget = semantic_budget or SemanticGlobalConfig()
+        self._transport_contract = _transport_contract(transport_contract)
+        self._execution_contract = _execution_contract(execution_contract)
 
     @property
     def provider_name(self) -> str:
@@ -170,13 +265,52 @@ class MockStructuredLLMProvider:
         response_model: type[StructuredModel],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
+        return self._generate(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            cancel_requested=cancel_requested,
+            phase="initial",
+        )
+
+    def _generate(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[StructuredModel],
+        cancel_requested: Callable[[], bool],
+        phase: str,
+    ) -> StructuredCallResult[StructuredModel]:
         if cancel_requested():
             raise ProviderCancelled()
+        if self._transport_contract is not None:
+            prepared = _prepare_transport_request(
+                payload=payload,
+                instructions=self._prompts.instructions
+                if phase == "initial"
+                else self._prompts.repair,
+                response_model=response_model,
+                config=self._semantic_budget,
+                model_name=self.model_name,
+                wire="codex",
+            )
+            _guard_transport_budget(
+                prepared, phase=phase, payload=payload, semantic_stage=self._prompts.stage
+            )
+            payload = decode_transport(prepared.payload, contract=self._transport_contract)
+        called_at = datetime.now(UTC) if self._execution_contract is not None else None
+        context = _lineage_request_context(payload, response_model, self._prompts)
         # Validate through JSON so strict tuple fields receive JSON arrays exactly as
         # they do from the real providers. ``model_validate`` would reject those
         # Python lists under the response models' strict configuration.
-        output = response_model.model_validate_json(
-            json.dumps(_mock_payload(payload, response_model), ensure_ascii=False)
+        raw = json.dumps(_mock_payload(payload, response_model), ensure_ascii=False)
+        if context is not None and (errors := context.errors(raw)):
+            raise ValueError(" | ".join(errors))
+        output = (
+            parse_response_v5(response_model, raw)
+            if context is not None
+            else response_model.model_validate_json(raw)
         )
         record = _record(
             provider=self.provider_name,
@@ -184,8 +318,9 @@ class MockStructuredLLMProvider:
             contract=self.contract_version,
             prompts=self._prompts,
             subject_id=subject_id,
-            phase="initial",
+            phase=phase,
             payload=payload,
+            called_at=called_at,
             status=ProviderCallStatus.SUCCEEDED,
             latency_ms=0,
         )
@@ -200,11 +335,16 @@ class MockStructuredLLMProvider:
         validation_errors: tuple[str, ...],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
-        result = self.generate(
+        result = self._generate(
             subject_id=subject_id,
-            payload=payload,
+            payload=(
+                {**payload, "validation_errors": list(validation_errors)}
+                if self._transport_contract is not None
+                else payload
+            ),
             response_model=response_model,
             cancel_requested=cancel_requested,
+            phase="repair",
         )
         record = result.call_records[0].model_copy(
             update={"operation": f"responses.semantic.{self._prompts.stage}.repair"}
@@ -224,12 +364,18 @@ class OpenAIStructuredLLMProvider:
         timeout_seconds: float,
         retry_policy: OpenAIRetryPolicy,
         client: Any | None = None,
+        semantic_budget: SemanticGlobalConfig | None = None,
+        transport_contract: SemanticTransportContract | None = None,
+        execution_contract: SemanticExecutionContract | None = None,
     ) -> None:
         if client is None and not api_key:
             raise ProviderConfigurationError("OPENAI_API_KEY is not configured")
         self._prompts = prompts
         self._model_name = model_name
         self._retry_policy = retry_policy
+        self._semantic_budget = semantic_budget or SemanticGlobalConfig()
+        self._transport_contract = _transport_contract(transport_contract)
+        self._execution_contract = _execution_contract(execution_contract)
         self._client = client or OpenAI(api_key=api_key, max_retries=0, timeout=timeout_seconds)
 
     @property
@@ -256,6 +402,12 @@ class OpenAIStructuredLLMProvider:
         response_model: type[StructuredModel],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
+        # Own the complete request across I/O, retries, diagnostics and the sole
+        # repair. A caller's nested mutations must never replace V5 authority.
+        if self._transport_contract is not None:
+            payload = cast(dict[str, object], copy_json(payload))
+        elif is_lineage_response(response_model):
+            payload = deepcopy(payload)
         try:
             return self._request(
                 subject_id=subject_id,
@@ -272,13 +424,22 @@ class OpenAIStructuredLLMProvider:
             try:
                 repaired = self._request(
                     subject_id=subject_id,
-                    payload=_schema_repair_payload(payload, exc),
+                    payload=_schema_repair_payload(
+                        payload, exc, preserve_complete=self._transport_contract is not None
+                    ),
+                    validation_payload=payload,
                     response_model=response_model,
                     phase="repair",
                     instructions=self._prompts.repair,
                     cancel_requested=cancel_requested,
                     repaired=True,
                 )
+            except ProviderCancelled as repair_cancel:
+                if self._execution_contract is None:
+                    raise
+                raise ProviderCancelled(
+                    call_records=(*exc.call_records, *repair_cancel.call_records),
+                ) from repair_cancel
             except StructuredProviderError as repair_exc:
                 raise StructuredProviderError(
                     repair_exc.code,
@@ -301,6 +462,10 @@ class OpenAIStructuredLLMProvider:
         validation_errors: tuple[str, ...],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
+        if self._transport_contract is not None:
+            payload = cast(dict[str, object], copy_json(payload))
+        elif is_lineage_response(response_model):
+            payload = deepcopy(payload)
         return self._request(
             subject_id=subject_id,
             payload={**payload, "validation_errors": list(validation_errors)},
@@ -321,11 +486,56 @@ class OpenAIStructuredLLMProvider:
         instructions: str,
         cancel_requested: Callable[[], bool],
         repaired: bool,
+        validation_payload: dict[str, object] | None = None,
     ) -> StructuredCallResult[StructuredModel]:
         started = time.monotonic()
+        lineage_context = _lineage_request_context(
+            validation_payload or payload, response_model, self._prompts
+        )
+        prepared = None
+        if self._transport_contract is not None:
+            prepared = _prepare_transport_request(
+                payload=payload,
+                instructions=instructions,
+                response_model=response_model,
+                config=self._semantic_budget,
+                model_name=self.model_name,
+                wire="openai",
+            )
+            _guard_transport_budget(
+                prepared, phase=phase, payload=payload, semantic_stage=self._prompts.stage
+            )
+            instructions = prepared.instructions
+        else:
+            _guard_current_repair_budget(
+                phase=phase,
+                payload=payload,
+                instructions=instructions,
+                response_model=response_model,
+                config=self._semantic_budget,
+            )
+
+        raw_output_text: str | None = None
+        raw_output_parts: list[dict[str, object]] = []
+        raw_failure_code: str | None = None
+        current_contract = self._transport_contract is not None or (
+            _structured_validation_payload(validation_payload or payload).get("validation_contract")
+            == CURRENT_SEMANTIC_VALIDATION
+        )
 
         def request() -> object:
-            return self._client.responses.parse(
+            nonlocal raw_output_text, raw_output_parts, raw_failure_code
+            raw_output_text = None
+            raw_output_parts = []
+            raw_failure_code = None
+            # Delay SDK schema parsing so a nested ValidationError cannot discard
+            # the original business JSON needed by the single repair attempt.
+            responses = (
+                self._client.responses.with_raw_response
+                if current_contract
+                else self._client.responses
+            )
+            response: Any = responses.parse(
                 model=self.model_name,
                 instructions=instructions,
                 input=[
@@ -334,7 +544,9 @@ class OpenAIStructuredLLMProvider:
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": _untrusted_payload(payload),
+                                "text": prepared.input_text
+                                if prepared
+                                else _untrusted_payload(payload),
                             }
                         ],
                     }
@@ -344,7 +556,18 @@ class OpenAIStructuredLLMProvider:
                 store=False,
                 max_output_tokens=16_000,
             )
+            if current_contract:
+                raw_output_parts = _raw_structured_response_parts(response.text)
+                raw_failure_code = _raw_structured_response_failure_code(
+                    response.text, raw_output_parts
+                )
+                raw_output_text = (
+                    str(raw_output_parts[0]["output_text"]) if len(raw_output_parts) == 1 else None
+                )
+                return response.parse()
+            return response
 
+        called_at = datetime.now(UTC) if self._execution_contract is not None else None
         try:
             execution = call_openai_with_retry(
                 request,
@@ -352,6 +575,23 @@ class OpenAIStructuredLLMProvider:
                 cancel_requested=cancel_requested,
             )
         except OpenAIRetryCancelled as exc:
+            if self._execution_contract is not None and exc.request_count:
+                record = _record(
+                    provider=self.provider_name,
+                    model=self.model_name,
+                    contract=self.contract_version,
+                    prompts=self._prompts,
+                    subject_id=subject_id,
+                    phase=phase,
+                    payload=payload,
+                    called_at=called_at,
+                    status=ProviderCallStatus.CANCELLED,
+                    latency_ms=exc.latency_ms,
+                    failure_code="OPENAI_CANCELLED",
+                    request_count=exc.request_count,
+                    retry_count=exc.retry_count,
+                )
+                raise ProviderCancelled(record) from exc
             raise ProviderCancelled() from exc
         except OpenAIRetryFailure as exc:
             record = _record(
@@ -362,6 +602,7 @@ class OpenAIStructuredLLMProvider:
                 subject_id=subject_id,
                 phase=phase,
                 payload=payload,
+                called_at=called_at,
                 status=ProviderCallStatus.FAILED,
                 latency_ms=exc.latency_ms,
                 failure_code=exc.failure_code,
@@ -371,6 +612,7 @@ class OpenAIStructuredLLMProvider:
             )
             raise StructuredProviderError("PROVIDER_ERROR", (record,)) from exc
         except ValidationError as exc:
+            failure_code = raw_failure_code or "STRUCTURED_OUTPUT_INVALID"
             record = _record(
                 provider=self.provider_name,
                 model=self.model_name,
@@ -379,11 +621,31 @@ class OpenAIStructuredLLMProvider:
                 subject_id=subject_id,
                 phase=phase,
                 payload=payload,
+                called_at=called_at,
                 status=ProviderCallStatus.INVALID,
                 latency_ms=int((time.monotonic() - started) * 1_000),
-                failure_code="STRUCTURED_OUTPUT_INVALID",
+                failure_code=failure_code,
             )
-            raise StructuredProviderError("STRUCTURED_OUTPUT_INVALID", (record,)) from exc
+            attempts: tuple[dict[str, object], ...] = ()
+            if current_contract:
+                attempts = (
+                    _structured_invalid_attempt(
+                        phase=phase,
+                        raw_output=raw_output_text,
+                        error=exc,
+                        complete_errors=True,
+                        request_payload=validation_payload or payload,
+                        business_output_parts=(
+                            raw_output_parts if len(raw_output_parts) > 1 else None
+                        ),
+                        response_model=response_model,
+                    ),
+                )
+            if attempts:
+                attempts[0]["failure_code"] = failure_code
+            raise StructuredProviderError(
+                failure_code, (record,), repair_attempts=attempts
+            ) from exc
         response = execution.value
         parsed = getattr(response, "output_parsed", None)
         status = getattr(response, "status", None)
@@ -391,15 +653,40 @@ class OpenAIStructuredLLMProvider:
         repair_attempts: tuple[dict[str, object], ...] = ()
         if status != "completed":
             invalid_code = "STRUCTURED_RESPONSE_INCOMPLETE"
+        elif lineage_context is not None and raw_failure_code is not None:
+            invalid_code = raw_failure_code
         elif _has_refusal(response):
             invalid_code = "STRUCTURED_RESPONSE_REFUSED"
-        elif _has_unexpected_output(response):
+        elif _has_unexpected_output(response) or (current_contract and len(raw_output_parts) > 1):
             invalid_code = "STRUCTURED_UNEXPECTED_OUTPUT"
+        elif lineage_context is not None:
+            if raw_output_text is None:
+                invalid_code = "STRUCTURED_OUTPUT_MISSING"
+            else:
+                preflight_errors = lineage_context.errors(raw_output_text)
+                if preflight_errors:
+                    invalid_code = "STRUCTURED_OUTPUT_INVALID"
+                    repair_attempts = (
+                        _structured_invalid_attempt(
+                            phase=phase,
+                            raw_output=raw_output_text,
+                            error=ValueError("lineage response validation failed"),
+                            complete_errors=True,
+                            validation_errors=preflight_errors,
+                            request_payload=validation_payload or payload,
+                            response_model=response_model,
+                        ),
+                    )
+                else:
+                    parsed = parse_response_v5(response_model, raw_output_text)
         elif not isinstance(parsed, response_model):
             invalid_code = "STRUCTURED_OUTPUT_MISSING"
         else:
             parsed_payload = parsed.model_dump(mode="json")
-            preflight_errors = _structured_preflight_errors(payload, parsed_payload)
+            preflight_errors = _structured_preflight_errors(
+                validation_payload or payload,
+                parsed_payload,
+            )
             if preflight_errors:
                 invalid_code = "STRUCTURED_OUTPUT_INVALID"
                 repair_attempts = (
@@ -411,8 +698,25 @@ class OpenAIStructuredLLMProvider:
                             separators=(",", ":"),
                         ),
                         error=ValueError(" | ".join(preflight_errors)),
+                        complete_errors=current_contract,
+                        validation_errors=preflight_errors,
+                        request_payload=validation_payload or payload,
                     ),
                 )
+        if current_contract and invalid_code is not None and not repair_attempts:
+            # A non-completed/refused/unexpected response can still contain business
+            # JSON. Preserve only extracted output text, never the transport envelope.
+            attempt = _structured_invalid_attempt(
+                phase=phase,
+                raw_output=raw_output_text,
+                error=ValueError(invalid_code),
+                complete_errors=True,
+                business_output_parts=(raw_output_parts if len(raw_output_parts) > 1 else None),
+                response_model=response_model,
+                request_payload=validation_payload or payload,
+            )
+            attempt["failure_code"] = invalid_code
+            repair_attempts = (attempt,)
         record = _record(
             provider=self.provider_name,
             model=self.model_name,
@@ -421,6 +725,7 @@ class OpenAIStructuredLLMProvider:
             subject_id=subject_id,
             phase=phase,
             payload=payload,
+            called_at=called_at,
             status=(
                 ProviderCallStatus.SUCCEEDED if invalid_code is None else ProviderCallStatus.INVALID
             ),
@@ -455,11 +760,18 @@ class CodexStructuredLLMProvider:
         timeout_seconds: float,
         contract_version: str,
         reasoning_effort: Literal["low", "medium", "high", "xhigh"] = "high",
+        semantic_budget: SemanticGlobalConfig | None = None,
+        transport_contract: SemanticTransportContract | None = None,
+        execution_contract: SemanticExecutionContract | None = None,
     ) -> None:
         if reasoning_effort not in {"low", "medium", "high", "xhigh"}:
             raise ProviderConfigurationError("Codex structured reasoning effort is invalid")
         self._prompts = prompts
         self._reasoning_effort = reasoning_effort
+        self._semantic_budget = semantic_budget or SemanticGlobalConfig()
+        self._transport_contract = _transport_contract(transport_contract)
+        self._execution_contract = _execution_contract(execution_contract)
+        self._timeout_seconds = timeout_seconds
         editing_prompts = EditingPromptBundle(
             version=prompts.version,
             initial=prompts.instructions,
@@ -498,6 +810,10 @@ class CodexStructuredLLMProvider:
     def reasoning_effort(self) -> str:
         return self._reasoning_effort
 
+    @property
+    def timeout_seconds(self) -> float:
+        return self._timeout_seconds
+
     def generate(
         self,
         *,
@@ -506,6 +822,12 @@ class CodexStructuredLLMProvider:
         response_model: type[StructuredModel],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
+        # Own the complete request across I/O, retries, diagnostics and the sole
+        # repair. A caller's nested mutations must never replace V5 authority.
+        if self._transport_contract is not None:
+            payload = cast(dict[str, object], copy_json(payload))
+        elif is_lineage_response(response_model):
+            payload = deepcopy(payload)
         try:
             return self._request(
                 subject_id=subject_id,
@@ -522,13 +844,33 @@ class CodexStructuredLLMProvider:
             try:
                 repaired = self._request(
                     subject_id=subject_id,
-                    payload=_schema_repair_payload(payload, exc),
+                    payload=_schema_repair_payload(
+                        payload, exc, preserve_complete=self._transport_contract is not None
+                    ),
+                    validation_payload=payload,
                     response_model=response_model,
                     phase="repair",
                     instructions=self._prompts.repair,
                     cancel_requested=cancel_requested,
                     repaired=True,
                 )
+            except ProviderConfigurationError as repair_error:
+                if self._execution_contract is None:
+                    raise
+                raise StructuredProviderError(
+                    "PROVIDER_CONFIGURATION",
+                    exc.call_records,
+                    repair_attempts=(
+                        *exc.repair_attempts,
+                        {"phase": "repair_not_started", "provider_call_executed": False},
+                    ),
+                ) from repair_error
+            except ProviderCancelled as repair_cancel:
+                if self._execution_contract is None:
+                    raise
+                raise ProviderCancelled(
+                    call_records=(*exc.call_records, *repair_cancel.call_records),
+                ) from repair_cancel
             except StructuredProviderError as repair_exc:
                 raise StructuredProviderError(
                     repair_exc.code,
@@ -551,6 +893,10 @@ class CodexStructuredLLMProvider:
         validation_errors: tuple[str, ...],
         cancel_requested: Callable[[], bool] = lambda: False,
     ) -> StructuredCallResult[StructuredModel]:
+        if self._transport_contract is not None:
+            payload = cast(dict[str, object], copy_json(payload))
+        elif is_lineage_response(response_model):
+            payload = deepcopy(payload)
         return self._request(
             subject_id=subject_id,
             payload={**payload, "validation_errors": list(validation_errors)},
@@ -571,9 +917,46 @@ class CodexStructuredLLMProvider:
         instructions: str,
         cancel_requested: Callable[[], bool],
         repaired: bool,
+        validation_payload: dict[str, object] | None = None,
     ) -> StructuredCallResult[StructuredModel]:
         started = time.monotonic()
-        prompt = f"{instructions}\n\n{_untrusted_payload(payload)}"
+        lineage_context = _lineage_request_context(
+            validation_payload or payload, response_model, self._prompts
+        )
+        prepared = None
+        if self._transport_contract is not None:
+            prepared = _prepare_transport_request(
+                payload=payload,
+                instructions=instructions,
+                response_model=response_model,
+                config=self._semantic_budget,
+                model_name=self.model_name,
+                wire="codex",
+            )
+            _guard_transport_budget(
+                prepared, phase=phase, payload=payload, semantic_stage=self._prompts.stage
+            )
+            instructions = prepared.instructions
+        else:
+            _guard_current_repair_budget(
+                phase=phase,
+                payload=payload,
+                instructions=instructions,
+                response_model=response_model,
+                config=self._semantic_budget,
+            )
+        current_contract = self._transport_contract is not None or (
+            _structured_validation_payload(validation_payload or payload).get("validation_contract")
+            == CURRENT_SEMANTIC_VALIDATION
+        )
+        prompt = prepared.prompt if prepared else f"{instructions}\n\n{_untrusted_payload(payload)}"
+        schema_text = (
+            prepared.schema_text
+            if prepared
+            else canonical_json(
+                _strict_codex_schema(response_model.model_json_schema(mode="validation"))
+            )
+        )
         temp_root = Path(tempfile.gettempdir()).resolve(strict=True)
         with tempfile.TemporaryDirectory(
             prefix="liveclip-semantic-global-", dir=temp_root
@@ -585,21 +968,30 @@ class CodexStructuredLLMProvider:
             write_text_immutable_no_follow(prompt_path, prompt, max_bytes=4 * 1024 * 1024)
             write_text_immutable_no_follow(
                 schema_path,
-                json.dumps(
-                    _strict_codex_schema(response_model.model_json_schema(mode="validation")),
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ),
+                schema_text,
                 max_bytes=1024 * 1024,
             )
             if codex_cli_contract_version(self._delegate._executable) != self.contract_version:
                 raise ProviderConfigurationError(
                     "Codex CLI identity differs from the persisted run"
                 )
+            if self._execution_contract is not None and cancel_requested():
+                raise ProviderCancelled()
             argv = _with_codex_reasoning_effort(
                 self._delegate._argv(temp_dir, schema_path, output_path),
                 self._reasoning_effort,
+            )
+            called_at = datetime.now(UTC) if self._execution_contract is not None else None
+            process_started = False
+
+            def observe_process_start() -> None:
+                nonlocal process_started
+                process_started = True
+
+            start_options: _ProcessStartOptions = (
+                {"on_started": observe_process_start}
+                if self._execution_contract is not None
+                else {}
             )
             try:
                 with prompt_path.open("rb") as stream:
@@ -609,8 +1001,24 @@ class CodexStructuredLLMProvider:
                         cancel_requested=cancel_requested,
                         stdin_stream=stream,
                         env=_codex_environment(),
+                        **start_options,
                     )
             except ProcessCancelled as exc:
+                if self._execution_contract is not None:
+                    record = _record(
+                        provider=self.provider_name,
+                        model=self.model_name,
+                        contract=self.contract_version,
+                        prompts=self._prompts,
+                        subject_id=subject_id,
+                        phase=phase,
+                        payload=payload,
+                        called_at=called_at,
+                        status=ProviderCallStatus.CANCELLED,
+                        latency_ms=int((time.monotonic() - started) * 1_000),
+                        failure_code="CODEX_CLI_CANCELLED",
+                    )
+                    raise ProviderCancelled(record) from exc
                 raise ProviderCancelled() from exc
             except subprocess.TimeoutExpired as exc:
                 record = _record(
@@ -621,12 +1029,15 @@ class CodexStructuredLLMProvider:
                     subject_id=subject_id,
                     phase=phase,
                     payload=payload,
+                    called_at=called_at,
                     status=ProviderCallStatus.FAILED,
                     latency_ms=int((time.monotonic() - started) * 1_000),
                     failure_code="STRUCTURED_PROVIDER_TIMEOUT",
                 )
                 raise StructuredProviderError("PROVIDER_TIMEOUT", (record,)) from exc
             except OSError as exc:
+                if self._execution_contract is not None and not process_started:
+                    raise ProviderConfigurationError("Codex process could not be started") from exc
                 record = _record(
                     provider=self.provider_name,
                     model=self.model_name,
@@ -635,6 +1046,7 @@ class CodexStructuredLLMProvider:
                     subject_id=subject_id,
                     phase=phase,
                     payload=payload,
+                    called_at=called_at,
                     status=ProviderCallStatus.FAILED,
                     latency_ms=int((time.monotonic() - started) * 1_000),
                     failure_code="STRUCTURED_PROVIDER_ERROR",
@@ -645,21 +1057,30 @@ class CodexStructuredLLMProvider:
             output: StructuredModel | None = None
             repair_attempts: tuple[dict[str, object], ...] = ()
             raw_output: str | None = None
+            preflight_errors: list[str] = []
             if unsafe:
                 failure_code = "STRUCTURED_TOOL_EVENT"
             elif result.returncode != 0:
-                failure_code = "STRUCTURED_PROVIDER_ERROR"
+                failure_code = _codex_process_failure_code(
+                    result.stderr,
+                    stdout=result.stdout,
+                )
             else:
                 try:
                     raw_output = read_regular_text_no_follow(
                         output_path,
                         max_bytes=2 * 1024 * 1024,
                     )
-                    output = response_model.model_validate_json(raw_output)
-                    preflight_errors = _structured_preflight_errors(
-                        payload,
-                        output.model_dump(mode="json"),
-                    )
+                    if lineage_context is not None:
+                        preflight_errors = lineage_context.errors(raw_output)
+                        if not preflight_errors:
+                            output = parse_response_v5(response_model, raw_output)
+                    else:
+                        output = response_model.model_validate_json(raw_output)
+                        preflight_errors = _structured_preflight_errors(
+                            validation_payload or payload,
+                            output.model_dump(mode="json"),
+                        )
                     if preflight_errors:
                         raise ValueError(" | ".join(preflight_errors))
                 except (SecureFileError, ValidationError, ValueError) as exc:
@@ -669,6 +1090,10 @@ class CodexStructuredLLMProvider:
                             phase=phase,
                             raw_output=raw_output,
                             error=exc,
+                            complete_errors=current_contract,
+                            validation_errors=preflight_errors or None,
+                            request_payload=validation_payload or payload,
+                            response_model=response_model,
                         ),
                     )
             record = _record(
@@ -679,6 +1104,7 @@ class CodexStructuredLLMProvider:
                 subject_id=subject_id,
                 phase=phase,
                 payload=payload,
+                called_at=called_at,
                 status=(
                     ProviderCallStatus.SUCCEEDED
                     if failure_code is None
@@ -702,7 +1128,370 @@ class CodexStructuredLLMProvider:
             return StructuredCallResult(output=output, call_records=(record,), repaired=repaired)
 
 
+def _lineage_request_context(
+    payload: dict[str, object],
+    response_model: type[BaseModel],
+    prompts: SemanticGlobalPromptBundle,
+) -> LineageResponseContext | None:
+    try:
+        return prepare_lineage_context(
+            _structured_validation_payload(payload), response_model, prompts=prompts
+        )
+    except ValueError:
+        raise ProviderConfigurationError("invalid immutable lineage request context") from None
+
+
+def _v4_cue_objects(payload: dict[str, object]) -> list[dict[str, object]]:
+    value = payload.get("cues")
+    if not isinstance(value, list):
+        value = payload.get("cue_rows")
+    if not isinstance(value, list):
+        return []
+    return [cast(dict[str, object], cue) for cue in value if isinstance(cue, dict)]
+
+
+def _v4_int(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError("mock v4 transport requires an integer")
+    return value
+
+
+def _mock_discovery_batch_v4(payload: dict[str, object]) -> dict[str, object]:
+    batch_id = str(payload["batch_id"])
+    windows = cast(list[dict[str, object]], payload["logical_windows"])
+    ownership = cast(dict[str, object], payload["ownership_interval"])
+    cues = _v4_cue_objects(payload)
+    fragments: list[TopicFragmentV4] = []
+    candidates: list[DiscoveryCandidateV4] = []
+    logical_outputs: list[LogicalWindowDiscoveryV4] = []
+    populated = [
+        (
+            window,
+            [
+                cue
+                for cue in cues
+                if _v4_int(cue["end_ms"]) > _v4_int(window["start_ms"])
+                and _v4_int(cue["start_ms"]) < _v4_int(window["end_ms"])
+            ],
+        )
+        for window in windows
+    ]
+    nonempty_indices = [index for index, (_window, values) in enumerate(populated) if values]
+    first_nonempty = min(nonempty_indices) if nonempty_indices else -1
+    last_nonempty = max(nonempty_indices) if nonempty_indices else -1
+    for index, (window, window_cues) in enumerate(populated):
+        window_id = str(window["logical_window_id"])
+        fragment_ids: tuple[str, ...] = ()
+        candidate_ids: tuple[str, ...] = ()
+        left_boundary = TopicBoundaryV4()
+        right_boundary = TopicBoundaryV4()
+        if window_cues:
+            fragment_id = f"{batch_id}_fragment_{index + 1:02d}"
+            objective = f"Mock教学目标{batch_id}"
+            evidence = tuple(
+                dict.fromkeys(
+                    (
+                        _v4_int(window_cues[0]["cue_id"]),
+                        _v4_int(window_cues[-1]["cue_id"]),
+                    )
+                )
+            )
+            fragment = TopicFragmentV4(
+                topic_fragment_id=fragment_id,
+                logical_window_id=window_id,
+                topic_summary=f"Mock教学片段{index + 1}",
+                central_question=objective,
+                learning_outcome="理解一个完整的Mock教学过程",
+                start_cue_id=_v4_int(window_cues[0]["cue_id"]),
+                end_cue_id=_v4_int(window_cues[-1]["cue_id"]),
+                touches_left_boundary=index != first_nonempty,
+                touches_right_boundary=index != last_nonempty,
+                left_complete=index == first_nonempty,
+                right_complete=index == last_nonempty,
+                evidence_cue_ids=evidence,
+                possible_profiles=(ClipProfile.MINI_LESSON,),
+                source_batch_id=batch_id,
+            )
+            fragments.append(fragment)
+            fragment_ids = (fragment_id,)
+            open_left = index != first_nonempty
+            open_right = index != last_nonempty
+            if open_left:
+                left_boundary = TopicBoundaryV4(
+                    continues_previous_topic=True,
+                    topic_summary=fragment.topic_summary,
+                    central_question=objective,
+                    continuation_expected=True,
+                    evidence_cue_ids=evidence,
+                    related_fragment_ids=(fragment_id,),
+                )
+            if open_right:
+                right_boundary = TopicBoundaryV4(
+                    topic_unfinished=True,
+                    topic_summary=fragment.topic_summary,
+                    central_question=objective,
+                    continuation_expected=True,
+                    evidence_cue_ids=evidence,
+                    related_fragment_ids=(fragment_id,),
+                )
+            start_ms = _v4_int(window_cues[0]["start_ms"])
+            if _v4_int(ownership["start_ms"]) <= start_ms < _v4_int(ownership["end_ms"]):
+                candidate_id = f"{batch_id}_candidate_{index + 1:02d}"
+                discovery_candidate = DiscoveryCandidateV4(
+                    candidate_id=candidate_id,
+                    source_topic_id=f"{batch_id}_topic",
+                    topic_fragment_ids=(fragment_id,),
+                    topic_summary=fragment.topic_summary,
+                    central_question=objective,
+                    learning_outcome=fragment.learning_outcome,
+                    start_cue_id=fragment.start_cue_id,
+                    end_cue_id=fragment.end_cue_id,
+                    evidence_cue_ids=evidence,
+                    possible_profiles=(ClipProfile.MINI_LESSON,),
+                    source_window_ids=(window_id,),
+                    source_batch_id=batch_id,
+                )
+                candidates.append(discovery_candidate)
+                candidate_ids = (candidate_id,)
+        logical_outputs.append(
+            LogicalWindowDiscoveryV4(
+                logical_window_id=window_id,
+                window_start_ms=_v4_int(window["start_ms"]),
+                window_end_ms=_v4_int(window["end_ms"]),
+                candidate_ids=candidate_ids,
+                fragment_ids=fragment_ids,
+                left_boundary=left_boundary,
+                right_boundary=right_boundary,
+                coverage_notes=("Mock high-recall coverage; not a quality claim.",),
+            )
+        )
+    return DiscoveryBatchOutputV4(
+        batch_id=batch_id,
+        batch_context=TimeRangeV4.model_validate(payload["batch_context"]),
+        ownership_interval=TimeRangeV4.model_validate(payload["ownership_interval"]),
+        logical_windows=tuple(logical_outputs),
+        candidates=tuple(candidates),
+        topic_fragments=tuple(fragments),
+    ).model_dump(mode="json")
+
+
+def _mock_topic_chain_review_v4(payload: dict[str, object]) -> dict[str, object]:
+    chain = cast(dict[str, object], payload["topic_chain"])
+    cues = _v4_cue_objects(payload)
+    profile = ClipProfile(str(payload["clip_profile"]))
+    minimum_ms = _v4_int(cast(dict[str, object], payload["profile_contract"])["minimum_ms"])
+    maximum_ms = _v4_int(cast(dict[str, object], payload["profile_contract"])["maximum_ms"])
+    start_id = _v4_int(chain["source_start_cue_id"])
+    end_id = _v4_int(chain["source_end_cue_id"])
+    cue_map = {_v4_int(cue["cue_id"]): cue for cue in cues}
+    start_cue = cue_map[start_id]
+    full_end = cue_map[end_id]
+    full_duration = _v4_int(full_end["end_ms"]) - _v4_int(start_cue["start_ms"])
+    selected_end = next(
+        (
+            cue_value
+            for cue_value in reversed(cues)
+            if start_id <= _v4_int(cue_value["cue_id"]) <= end_id
+            and minimum_ms
+            <= _v4_int(cue_value["end_ms"]) - _v4_int(start_cue["start_ms"])
+            <= maximum_ms
+        ),
+        None,
+    )
+    candidates: tuple[ChainCandidateV4, ...] = ()
+    rejection_reason: str | None = None
+    if selected_end is None:
+        rejection_reason = "no_complete_profile_candidate"
+    else:
+        natural_subunit = full_duration > maximum_ms
+        evidence = tuple(dict.fromkeys((start_id, _v4_int(selected_end["cue_id"]))))
+        candidates = (
+            ChainCandidateV4(
+                candidate_id=f"{chain['topic_chain_id']}_{profile.value}_01",
+                clip_profile=profile,
+                source_topic_id=f"topic_{chain['topic_chain_id']}",
+                topic_chain_id=str(chain["topic_chain_id"]),
+                source_fragment_ids=tuple(cast(list[str], chain["fragment_ids"])),
+                start_cue_id=start_id,
+                end_cue_id=_v4_int(selected_end["cue_id"]),
+                central_question=str(chain["central_question"]),
+                learning_outcome=str(chain["learning_outcome"]),
+                title="Mock小课程",
+                summary="Mock生成的连续教学单元, 仅用于测试结构化流程。",
+                evidence_cue_ids=evidence,
+                natural_subunit=natural_subunit,
+                natural_split_evidence_cue_ids=(
+                    (_v4_int(selected_end["cue_id"]),) if natural_subunit else ()
+                ),
+            ),
+        )
+    evidence_ids = tuple(
+        dict.fromkeys(
+            (
+                start_id,
+                end_id,
+                *[
+                    _v4_int(value["cue_id"])
+                    for value in cues
+                    if start_id <= _v4_int(value["cue_id"]) <= end_id
+                ][:20],
+            )
+        )
+    )
+    return TopicChainReviewV4(
+        topic_chain_id=str(chain["topic_chain_id"]),
+        central_question=str(chain["central_question"]),
+        learning_outcome=str(chain["learning_outcome"]),
+        topic_outline=tuple(cast(list[str], chain["topic_outline"])),
+        left_closed=True,
+        right_closed=True,
+        chain_status=TopicChainStatusV4.CLOSED,
+        candidates=candidates,
+        rejection_reason=cast(Any, rejection_reason),
+        evidence_cue_ids=evidence_ids,
+    ).model_dump(mode="json")
+
+
+def _mock_global_review_v4(payload: dict[str, object]) -> dict[str, object]:
+    profile = ClipProfile(str(payload["clip_profile"]))
+    candidate_records = cast(list[dict[str, object]], payload["candidates"])
+    boundaries = {
+        str(item["candidate_id"]): item
+        for item in cast(list[dict[str, object]], payload["boundary_reviews"])
+    }
+    reviews: list[CandidateGlobalReviewV4] = []
+    for candidate_record in candidate_records:
+        candidate_id = str(candidate_record["candidate_id"])
+        boundary = boundaries[candidate_id]
+        scores: ShortHighlightScoresV4 | MiniLessonScoresV4
+        if profile == ClipProfile.SHORT_HIGHLIGHT:
+            scores = ShortHighlightScoresV4(
+                independence=16,
+                completeness=16,
+                single_topic=12,
+                viewer_value=16,
+                source_fidelity=12,
+                edit_cleanliness=8,
+            )
+        else:
+            scores = MiniLessonScoresV4(
+                central_objective_clarity=16,
+                completeness_and_closure=16,
+                teaching_structure=12,
+                standalone_understanding=12,
+                information_density=8,
+                edit_cleanliness=8,
+                title_summary_fidelity=8,
+            )
+        reviews.append(
+            CandidateGlobalReviewV4(
+                candidate_id=candidate_id,
+                clip_profile=profile,
+                source_topic_id=str(candidate_record["source_topic_id"]),
+                topic_chain_id=str(candidate_record["topic_chain_id"]),
+                source_fragment_ids=tuple(cast(list[str], candidate_record["source_fragment_ids"])),
+                start_cue_id=_v4_int(boundary["proposed_start_cue_id"]),
+                end_cue_id=_v4_int(boundary["proposed_end_cue_id"]),
+                central_question=str(candidate_record["central_question"]),
+                learning_outcome=str(candidate_record["learning_outcome"]),
+                title=str(candidate_record["title"]),
+                summary=str(candidate_record["summary"]),
+                content_decision=ContentDecisionV4.KEEP,
+                publish_status=PublishStatusV4.AUTO,
+                interruption_review=(),
+                quality_flags=(),
+                risk_flags=(),
+                scores=scores,
+                total_score=scores.total,
+                duplicate_group_id=None,
+                duplicate_of=None,
+                variant_of=cast(str | None, candidate_record.get("variant_of")),
+                variant_relationship=cast(Any, candidate_record.get("variant_relationship")),
+                evidence_cue_ids=tuple(cast(list[int], candidate_record["evidence_cue_ids"])),
+                review_reason="Mock分Profile审核, 不构成真实内容质量结论。",
+            )
+        )
+    return GlobalReviewOutputV4(
+        clip_profile=profile,
+        reviews=tuple(reviews),
+        global_notes=("Mock output is not a quality claim.",),
+    ).model_dump(mode="json")
+
+
 def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
+    if is_lineage_response(model):
+        return _mock_lineage_payload(payload, model)
+    if issubclass(model, DiscoveryBatchOutputV4):
+        return _mock_discovery_batch_v4(payload)
+    if issubclass(model, LinkReviewV4):
+        left_v4 = cast(dict[str, object], payload["left_fragment"])
+        right_v4 = cast(dict[str, object], payload["right_fragment"])
+        same_objective_v4 = str(left_v4["central_question"]) == str(right_v4["central_question"])
+        evidence_v4 = tuple(
+            dict.fromkeys(
+                (
+                    *cast(list[int], left_v4["evidence_cue_ids"]),
+                    *cast(list[int], right_v4["evidence_cue_ids"]),
+                )
+            )
+        )
+        return LinkReviewV4(
+            link_review_id=str(payload["link_review_id"]),
+            left_fragment_id=str(left_v4["topic_fragment_id"]),
+            right_fragment_id=str(right_v4["topic_fragment_id"]),
+            same_topic=same_objective_v4,
+            same_central_objective=same_objective_v4,
+            relationship=(
+                LinkRelationshipV4.NEXT_STEP_SAME_LESSON
+                if same_objective_v4
+                else LinkRelationshipV4.ADJACENT_BUT_INDEPENDENT
+            ),
+            merged_topic_summary="Mock相邻教学片段",
+            central_question=str(left_v4["central_question"]),
+            learning_outcome=str(left_v4["learning_outcome"]),
+            topic_closed_on_right=bool(right_v4["right_complete"]),
+            needs_next_boundary=not bool(right_v4["right_complete"]),
+            evidence_cue_ids=evidence_v4,
+            confidence=0.9,
+        ).model_dump(mode="json")
+    if issubclass(model, TopicChainReviewV4):
+        return _mock_topic_chain_review_v4(payload)
+    if issubclass(model, BoundaryReviewV4):
+        boundary_candidate_v4 = cast(dict[str, object], payload["candidate"])
+        return BoundaryReviewV4(
+            candidate_id=str(boundary_candidate_v4["candidate_id"]),
+            clip_profile=ClipProfile(str(boundary_candidate_v4["clip_profile"])),
+            content_decision=ContentDecisionV4.KEEP,
+            proposed_start_cue_id=_v4_int(boundary_candidate_v4["start_cue_id"]),
+            proposed_end_cue_id=_v4_int(boundary_candidate_v4["end_cue_id"]),
+            opening_complete=True,
+            ending_complete=True,
+            central_objective_complete=True,
+            boundary_compactness="shortest_complete",
+            opening_relevance="direct",
+            ending_relevance="necessary_conclusion",
+            internal_topic_switch=False,
+            contains_padding=False,
+            continuous_source_interval=True,
+            interruption_review=(
+                InterruptionReviewV4(
+                    severity=InterruptionSeverityV4.NONE,
+                    type="none",
+                    description="Mock未发现中断。",
+                    blocking=False,
+                ),
+            ),
+            quality_flags=(),
+            risk_flags=(),
+            evidence=BoundaryEvidenceV4(
+                opening_cue_ids=(_v4_int(boundary_candidate_v4["start_cue_id"]),),
+                core_cue_ids=tuple(cast(list[int], boundary_candidate_v4["evidence_cue_ids"])),
+                ending_cue_ids=(_v4_int(boundary_candidate_v4["end_cue_id"]),),
+            ),
+            review_reason="Mock连续区间边界完整。",
+        ).model_dump(mode="json")
+    if issubclass(model, GlobalReviewOutputV4):
+        return _mock_global_review_v4(payload)
     if model is DiscoveryOutput:
         cues = payload.get("cues")
         runtime = payload.get("runtime")
@@ -791,17 +1580,111 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
             "topic_units": topics,
             "candidates": candidates,
         }
-    if model is GlobalReviewOutput:
+    if issubclass(model, BoundaryReviewOutputV3):
+        raw_candidates = payload.get("candidates")
+        contexts = payload.get("candidate_contexts")
+        if not isinstance(raw_candidates, list) or not isinstance(contexts, list):
+            raise ValueError("mock Boundary Review input is incomplete")
+        context_by_candidate = {
+            str(value["candidate_id"]): value
+            for value in contexts
+            if isinstance(value, dict) and isinstance(value.get("candidate_id"), str)
+        }
+        boundary_reviews: list[dict[str, object]] = []
+        for candidate in raw_candidates:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_id = str(candidate["candidate_id"])
+            context = context_by_candidate.get(candidate_id)
+            context_value = context if isinstance(context, dict) else {}
+            cue_rows_value = context_value.get("cue_rows")
+            cue_rows = cue_rows_value if isinstance(cue_rows_value, list) else []
+            boundary_cue_map = {
+                int(value[0]): value
+                for value in cue_rows
+                if isinstance(value, list) and len(value) >= 4 and isinstance(value[0], int)
+            }
+            start_cue_id = int(candidate["start_cue_id"])
+            end_cue_id = int(candidate["end_cue_id"])
+            opening = boundary_cue_map[start_cue_id][3]
+            closing = boundary_cue_map[end_cue_id][3]
+            boundary_reviews.append(
+                BoundaryReviewItemV3(
+                    candidate_id=candidate_id,
+                    content_decision=ContentDecisionV3.KEEP,
+                    proposed_start_cue_id=start_cue_id,
+                    proposed_end_cue_id=end_cue_id,
+                    opening_relevance=OpeningRelevance.DIRECT,
+                    ending_complete=True,
+                    actual_source_opening_quote=str(opening),
+                    actual_source_closing_quote=str(closing),
+                    irrelevant_internal_cue_ids=(),
+                    quality_flags=(),
+                    risk_flags=(),
+                    evidence_cue_ids=tuple(dict.fromkeys((start_cue_id, end_cue_id))),
+                    review_reason="Mock boundary is the supplied complete continuous interval.",
+                ).model_dump(mode="json")
+            )
+        return {"reviews": boundary_reviews}
+    if issubclass(model, GlobalReviewOutputV3):
+        raw_candidates = payload.get("candidates")
+        raw_boundaries = payload.get("boundary_reviews")
+        if not isinstance(raw_candidates, list) or not isinstance(raw_boundaries, list):
+            raise ValueError("mock v3 Global Review input is incomplete")
+        boundary_map = {
+            str(value["candidate_id"]): value
+            for value in raw_boundaries
+            if isinstance(value, dict) and isinstance(value.get("candidate_id"), str)
+        }
+        global_reviews: list[dict[str, object]] = []
+        for candidate in raw_candidates:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_id = str(candidate["candidate_id"])
+            boundary = cast(dict[str, object], boundary_map[candidate_id])
+            score_dimensions = ScoreDimensionsV3(
+                independence=16,
+                completeness=16,
+                single_topic=12,
+                viewer_value=16,
+                source_fidelity=12,
+                edit_cleanliness=8,
+            )
+            global_reviews.append(
+                CandidateGlobalReviewV3(
+                    candidate_id=candidate_id,
+                    content_decision=ContentDecisionV3(str(boundary["content_decision"])),
+                    publish_status=PublishStatusV3.AUTO,
+                    score_dimensions=score_dimensions,
+                    score=score_dimensions.total,
+                    proposed_start_cue_id=cast(int | None, boundary["proposed_start_cue_id"]),
+                    proposed_end_cue_id=cast(int | None, boundary["proposed_end_cue_id"]),
+                    title="Mock semantic clip",
+                    hook="A bounded mock hook",
+                    payoff="A bounded mock payoff",
+                    quality_flags=(),
+                    risk_flags=(),
+                    duplicate_group_id=None,
+                    duplicate_of=None,
+                    evidence_cue_ids=tuple(cast(list[int], boundary["evidence_cue_ids"])),
+                    review_reason="Deterministic Mock candidate-level review.",
+                ).model_dump(mode="json")
+            )
+        return {
+            "reviews": global_reviews,
+            "global_notes": ["Mock output is not a quality claim."],
+        }
+    if issubclass(model, GlobalReviewOutput):
         discovery = payload.get("discovery")
         if not isinstance(discovery, dict):
             raise ValueError("mock Global Review input is incomplete")
         evidence = payload.get("evidence")
         cue_rows = _collect_cue_objects(evidence)
-        cue_map: dict[int, dict[str, object]] = {}
+        legacy_cue_map: dict[int, dict[str, object]] = {}
         for value in cue_rows:
             cue_id = value.get("cue_id")
             if isinstance(cue_id, int) and not isinstance(cue_id, bool):
-                cue_map[cue_id] = value
+                legacy_cue_map[cue_id] = value
         raw_candidates = discovery.get("candidates", [])
         raw_topics = discovery.get("topic_units", [])
         clips: list[dict[str, object]] = []
@@ -811,8 +1694,8 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
             start_cue_id = int(candidate["start_cue_id"])
             end_cue_id = int(candidate["end_cue_id"])
             try:
-                opening_cue = cue_map[start_cue_id]
-                closing_cue = cue_map[end_cue_id]
+                opening_cue = legacy_cue_map[start_cue_id]
+                closing_cue = legacy_cue_map[end_cue_id]
             except KeyError as exc:
                 raise ValueError("mock Global Review candidate evidence is incomplete") from exc
             risks = tuple(
@@ -849,20 +1732,20 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
                     source_closing_quote=str(closing_cue["original_text"]),
                     end_cue_speaker_role=EndCueSpeakerRole.ANSWERER,
                     end_cue_function=EndCueFunction.SUBSTANTIVE_PAYOFF,
-                    following_cue_id=(end_cue_id + 1 if end_cue_id + 1 in cue_map else None),
+                    following_cue_id=(end_cue_id + 1 if end_cue_id + 1 in legacy_cue_map else None),
                     following_cue_quote=(
-                        str(cue_map[end_cue_id + 1]["original_text"])
-                        if end_cue_id + 1 in cue_map
+                        str(legacy_cue_map[end_cue_id + 1]["original_text"])
+                        if end_cue_id + 1 in legacy_cue_map
                         else None
                     ),
                     following_cue_relation=(
                         FollowingCueRelation.NEW_TOPIC_OR_NOISE
-                        if end_cue_id + 1 in cue_map
+                        if end_cue_id + 1 in legacy_cue_map
                         else FollowingCueRelation.SOURCE_END
                     ),
                     end_boundary_reason=(
                         "The next cue starts a separate source topic."
-                        if end_cue_id + 1 in cue_map
+                        if end_cue_id + 1 in legacy_cue_map
                         else "The clip ends with the supplied source."
                     ),
                     opening_relevance=OpeningRelevance(str(candidate["opening_relevance"])),
@@ -941,7 +1824,7 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
                         duplicate_of_topic_id=None,
                     ).model_dump(mode="json")
                 )
-        return {
+        response: dict[str, object] = {
             "review_summary": GlobalReviewSummary(
                 global_notes=("Mock output is not a semantic quality claim.",),
             ).model_dump(mode="json"),
@@ -950,6 +1833,17 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
             "coverage_decisions": coverage,
             "coverage_notes": [],
         }
+        if issubclass(model, GlobalReviewOutputV2):
+            response["candidate_assessments"] = [
+                CandidateAssessment(
+                    candidate_id=cast(list[str], clip["source_candidate_ids"])[0],
+                    disposition=CandidateAssessmentDisposition.ADVANCE,
+                    score_dimensions=ScoreDimensions.model_validate(clip["score_dimensions"]),
+                    result_clip_id=str(clip["clip_id"]),
+                ).model_dump(mode="json")
+                for clip in clips
+            ]
+        return response
     if model is BoundaryRefinementOutput:
         raw_clips = payload.get("clips")
         if not isinstance(raw_clips, list):
@@ -969,20 +1863,210 @@ def _mock_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[st
     raise ValueError("mock structured provider received an unsupported response model")
 
 
+def _transport_contract(
+    value: SemanticTransportContract | None,
+) -> SemanticTransportContract | None:
+    if value not in (None, CURRENT_SEMANTIC_TRANSPORT):
+        raise ProviderConfigurationError("unsupported semantic transport contract")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedTransportRequest:
+    payload: dict[str, object]
+    instructions: str
+    input_text: str
+    schema_text: str
+    measurement: RequestMeasurement
+
+    @property
+    def prompt(self) -> str:
+        return f"{self.instructions}\n\n{self.input_text}"
+
+
+def _prepare_transport_request(
+    *,
+    payload: dict[str, object],
+    instructions: str,
+    response_model: type[BaseModel],
+    config: SemanticGlobalConfig,
+    model_name: str,
+    wire: Literal["openai", "codex"],
+) -> _PreparedTransportRequest:
+    instructions += TRANSPORT_INSTRUCTIONS
+    counter = TokenEstimator(config.tokenizer_name)
+    schema = (
+        type_to_text_format_param(response_model)
+        if wire == "openai"
+        else _strict_codex_schema(response_model.model_json_schema(mode="validation"))
+    )
+    schema_text = canonical_json(schema)
+    choices: list[_PreparedTransportRequest] = []
+    for option in transport_options(payload):
+        input_text = _untrusted_payload(option)
+        if wire == "openai":
+            # Field order and UTF-8 serialization match the installed Responses.parse
+            # SDK and httpx encoder. Actual captured HTTP bytes guard this boundary.
+            request = json.dumps(
+                {
+                    "input": [
+                        {"role": "user", "content": [{"type": "input_text", "text": input_text}]}
+                    ],
+                    "instructions": instructions,
+                    "max_output_tokens": 16_000,
+                    "model": model_name,
+                    "store": False,
+                    "text": {"format": schema},
+                    "tools": [],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        else:
+            # Both exact files are measured; the separator is conservative framing.
+            request = f"{instructions}\n\n{input_text}\n\n{schema_text}"
+        measurement = measure_request(
+            request,
+            counter=counter,
+            output_allocation_tokens=max(
+                config.output_reserve_tokens, 16_000 if wire == "openai" else 0
+            ),
+            safety_margin_tokens=config.safety_margin_tokens,
+            budget_tokens=int(config.model_context_tokens * config.full_context_budget_ratio),
+        )
+        choices.append(
+            _PreparedTransportRequest(
+                option,
+                instructions,
+                input_text,
+                schema_text,
+                measurement,
+            )
+        )
+    return min(choices, key=lambda choice: choice.measurement.total_tokens)
+
+
+def _guard_transport_budget(
+    request: _PreparedTransportRequest,
+    *,
+    phase: str,
+    payload: dict[str, object],
+    semantic_stage: str,
+) -> None:
+    if request.measurement.fits:
+        return
+    code = (
+        "STRUCTURED_REPAIR_BUDGET_EXCEEDED"
+        if phase == "repair"
+        else "STRUCTURED_INPUT_BUDGET_EXCEEDED"
+    )
+    errors = payload.get("validation_errors", [])
+    evidence: dict[str, object] = {
+        "phase": f"{phase}_budget",
+        "semantic_stage": semantic_stage,
+        "failure_code": code,
+        "validation_errors": [
+            *(errors if isinstance(errors, list) else [errors]),
+            "Complete request exceeds the configured context budget",
+        ],
+        **request.measurement.diagnostics(),
+        "representation": request.payload["representation"],
+        "provider_call_executed": False,
+        "repair_call_executed": False,
+    }
+    if "invalid_output" in payload:
+        evidence["invalid_output"] = copy_json(payload["invalid_output"])
+    raise StructuredProviderError(code, (), repair_attempts=(evidence,))
+
+
+def _guard_current_repair_budget(
+    *,
+    phase: str,
+    payload: dict[str, object],
+    instructions: str,
+    response_model: type[BaseModel],
+    config: SemanticGlobalConfig,
+) -> None:
+    if phase != "repair" or (
+        _structured_validation_payload(payload).get("validation_contract")
+        != CURRENT_SEMANTIC_VALIDATION
+    ):
+        return
+    estimated = semantic_request_tokens(
+        f"{instructions}\n\n{_untrusted_payload(payload)}",
+        {
+            "response_schema": {
+                "type": "json_schema",
+                "name": response_model.__name__,
+                "strict": True,
+                "schema": _strict_codex_schema(response_model.model_json_schema(mode="validation")),
+            }
+        },
+        config=config,
+    )
+    budget = int(config.model_context_tokens * config.full_context_budget_ratio)
+    if estimated > budget:
+        # This is not a Provider call. The caller retains the initial call and audit,
+        # while no repair/network/process attempt is invented for the rejected payload.
+        raise StructuredProviderError(
+            "STRUCTURED_REPAIR_BUDGET_EXCEEDED",
+            (),
+            repair_attempts=(
+                {
+                    "phase": "repair_budget",
+                    "failure_code": "STRUCTURED_REPAIR_BUDGET_EXCEEDED",
+                    "validation_errors": [
+                        "Complete repair request exceeds the configured context budget"
+                    ],
+                    "estimated_total_tokens": estimated,
+                    "budget_tokens": budget,
+                    "repair_call_executed": False,
+                },
+            ),
+        )
+
+
 def _schema_repair_payload(
     payload: dict[str, object],
     error: StructuredProviderError,
+    *,
+    preserve_complete: bool = False,
 ) -> dict[str, object]:
     latest_attempt = error.repair_attempts[-1] if error.repair_attempts else {}
     invalid_output = latest_attempt.get("invalid_output")
     validation_errors = latest_attempt.get("validation_errors", [error.code])
     if not isinstance(validation_errors, list):
         validation_errors = [error.code]
+    current_contract = (
+        payload.get("validation_contract") == CURRENT_SEMANTIC_VALIDATION or preserve_complete
+    )
     combined_errors = [
-        *(str(value)[:1_000] for value in validation_errors),
+        *(str(value) if current_contract else str(value)[:1_000] for value in validation_errors),
         *_structured_preflight_errors(payload, invalid_output),
     ]
-    combined_errors = list(dict.fromkeys(combined_errors))[:200]
+    combined_errors = list(dict.fromkeys(combined_errors))
+    if not current_contract:
+        combined_errors = combined_errors[:200]
+    if current_contract:
+        return {
+            "schema_version": payload.get("schema_version"),
+            "repair_only": True,
+            **(
+                {"validation_contract": payload["validation_contract"]}
+                if "validation_contract" in payload
+                else {}
+            ),
+            "stage": payload.get("stage"),
+            "immutable_request": payload,
+            "invalid_output": invalid_output,
+            "validation_errors": combined_errors,
+            "repair_constraints": (
+                "Repair this exact output using all supplied Schema and quality errors. "
+                "Preserve the immutable request, IDs, source cues and unrelated valid fields. "
+                "Return only the corrected output; do not invent flags or omit candidates."
+            ),
+        }
     immutable_keys = (
         "schema_version",
         "source_id",
@@ -991,28 +2075,43 @@ def _schema_repair_payload(
         "source_range",
         "mode",
         "runtime",
+        "candidate_assessment_contract",
+        "discovery_contract",
+        "top_n_contract",
+        "score_contract",
     )
     immutable_facts = {key: payload[key] for key in immutable_keys if key in payload}
     discovery = payload.get("discovery")
     candidate_ids: list[str] = []
     topic_ids: list[str] = []
     if isinstance(discovery, dict):
-        candidates = discovery.get("candidates")
-        topics = discovery.get("topic_units")
-        if isinstance(candidates, list):
-            candidate_ids = [
-                str(value["candidate_id"])
-                for value in candidates
-                if isinstance(value, dict) and isinstance(value.get("candidate_id"), str)
-            ]
-        if isinstance(topics, list):
-            topic_ids = [
-                str(value["topic_id"])
-                for value in topics
-                if isinstance(value, dict) and isinstance(value.get("topic_id"), str)
-            ]
+        candidates = transport_record_objects(
+            discovery,
+            records_key="candidates",
+            columns_key="candidate_columns",
+        )
+        topics = transport_record_objects(
+            discovery,
+            records_key="topic_units",
+            columns_key="topic_unit_columns",
+        )
+        candidate_ids = [
+            str(value["candidate_id"])
+            for value in candidates
+            if isinstance(value.get("candidate_id"), str)
+        ]
+        topic_ids = [
+            str(value["topic_id"]) for value in topics if isinstance(value.get("topic_id"), str)
+        ]
+    authoritative_candidates = payload.get("candidates")
+    if isinstance(authoritative_candidates, list):
+        candidate_ids = [
+            str(value["candidate_id"])
+            for value in authoritative_candidates
+            if isinstance(value, dict) and isinstance(value.get("candidate_id"), str)
+        ]
     return {
-        "schema_version": "2",
+        "schema_version": payload.get("schema_version", "2"),
         "repair_only": True,
         "provider_error_code": error.code,
         "validation_errors": combined_errors,
@@ -1023,6 +2122,10 @@ def _schema_repair_payload(
         "valid_discovery_topic_ids": topic_ids,
         "preserve_item_ids": _structured_item_ids(invalid_output),
         "authoritative_discovery": discovery if isinstance(discovery, dict) else None,
+        "authoritative_candidates": (
+            authoritative_candidates if isinstance(authoritative_candidates, list) else None
+        ),
+        "authoritative_boundary_reviews": payload.get("boundary_reviews"),
         "affected_evidence": _structured_repair_evidence(payload, invalid_output),
         "authoritative_boundary_quote_options": (
             _structured_authoritative_boundary_quote_options(payload, invalid_output)
@@ -1044,6 +2147,8 @@ def _structured_item_ids(value: object) -> dict[str, list[str]]:
         ("topic_units", "topic_id"),
         ("candidates", "candidate_id"),
         ("clips", "clip_id"),
+        ("candidate_assessments", "candidate_id"),
+        ("reviews", "candidate_id"),
     ):
         items = value.get(collection)
         if isinstance(items, list):
@@ -1072,6 +2177,7 @@ def _structured_authoritative_boundary_quote_options(
     for collection, identifier in (
         ("candidates", "candidate_id"),
         ("clips", "clip_id"),
+        ("reviews", "candidate_id"),
     ):
         items = invalid_output.get(collection)
         if not isinstance(items, list):
@@ -1129,7 +2235,13 @@ def _structured_repair_evidence(
     # facts are actually repairable.
     focus_collections = {
         key: invalid_output.get(key)
-        for key in ("candidates", "clips", "coverage_decisions", "rejected_candidates")
+        for key in (
+            "candidates",
+            "clips",
+            "reviews",
+            "coverage_decisions",
+            "rejected_candidates",
+        )
     }
     ranges = _structured_focus_ranges(focus_collections)
     raw_topics = invalid_output.get("topic_units")
@@ -1173,7 +2285,7 @@ def _collect_cue_objects(value: object) -> list[dict[str, object]]:
     cues: list[dict[str, object]] = []
     if isinstance(value, list):
         if (
-            len(value) == len(GLOBAL_REVIEW_CUE_COLUMNS)
+            4 <= len(value) <= len(GLOBAL_REVIEW_CUE_COLUMNS)
             and isinstance(value[0], int)
             and not isinstance(value[0], bool)
             and isinstance(value[1], int)
@@ -1185,7 +2297,7 @@ def _collect_cue_objects(value: object) -> list[dict[str, object]]:
             return [
                 {
                     key: item
-                    for key, item in zip(GLOBAL_REVIEW_CUE_COLUMNS, value, strict=True)
+                    for key, item in zip(GLOBAL_REVIEW_CUE_COLUMNS, value, strict=False)
                     if item is not None
                 }
             ]
@@ -1215,6 +2327,7 @@ def _structured_focus_ranges(value: object) -> tuple[tuple[int, int], ...]:
             ("ideal_start_cue_id", "ideal_end_cue_id"),
             ("topic_core_start_cue_id", "topic_core_end_cue_id"),
             ("start_cue_id", "end_cue_id"),
+            ("proposed_start_cue_id", "proposed_end_cue_id"),
         ):
             start = value.get(start_key)
             end = value.get(end_key)
@@ -1287,12 +2400,22 @@ def _structured_preflight_errors(
         return []
     validation_payload = _structured_validation_payload(payload)
     errors: list[str] = []
+    errors.extend(quality_preflight_errors_v4(validation_payload, invalid_output))
     source_range = validation_payload.get("source_range")
-    output_range = invalid_output.get("source_range")
-    if isinstance(source_range, dict) and output_range != source_range:
-        errors.append(
-            f"source_range must equal the immutable input value {source_range}, got {output_range}"
-        )
+    is_discovery_output = "topic_units" in invalid_output and "candidates" in invalid_output
+    if is_discovery_output:
+        output_range = invalid_output.get("source_range")
+        if isinstance(source_range, dict) and output_range != source_range:
+            errors.append(
+                "source_range must equal the immutable input value "
+                f"{source_range}, got {output_range}"
+            )
+        source_id = validation_payload.get("source_id")
+        if isinstance(source_id, str) and invalid_output.get("source_id") != source_id:
+            errors.append(
+                f"source_id must equal the immutable input value {source_id}, "
+                f"got {invalid_output.get('source_id')}"
+            )
     topics = invalid_output.get("topic_units")
     if isinstance(topics, list):
         bounded_topics = [
@@ -1345,6 +2468,7 @@ def _structured_preflight_errors(
             maximum=maximum,
         )
     )
+    errors.extend(_discovery_domain_preflight_errors(validation_payload, invalid_output))
     errors.extend(
         _global_review_preflight_errors(
             validation_payload,
@@ -1355,6 +2479,96 @@ def _structured_preflight_errors(
         )
     )
     return errors
+
+
+def _discovery_domain_preflight_errors(
+    payload: dict[str, object],
+    invalid_output: dict[str, object],
+) -> list[str]:
+    """Run the exact Discovery domain validator before the one repair is spent.
+
+    JSON Schema and the generic cross-field checks cannot express window
+    ownership, boundary crossing, topic ordering/overlap or continuous topic
+    references.  The Stage used to discover those constraints only after a
+    provider-level repair had already been consumed.  Rehydrate the immutable
+    input unit for initial requests so the single repair receives the complete
+    domain error set instead of forcing a whole-Stage retry.
+    """
+
+    cues = payload.get("cues")
+    runtime = payload.get("runtime")
+    input_unit_id = payload.get("input_unit_id")
+    source_range = payload.get("source_range")
+    if (
+        not isinstance(cues, list)
+        or not cues
+        or not isinstance(runtime, dict)
+        or not isinstance(input_unit_id, str)
+        or not isinstance(source_range, dict)
+        or "topic_units" not in invalid_output
+        or "candidates" not in invalid_output
+    ):
+        return []
+    logical_windows = payload.get("logical_windows_ms", [])
+    triggering_topics = payload.get("triggering_boundary_topics", [])
+    bridge_boundary = payload.get("bridge_boundary_ms")
+    if not isinstance(logical_windows, list) or not isinstance(triggering_topics, list):
+        return ["Discovery transport windows or boundary topics are invalid"]
+    try:
+        unit = SemanticInputUnit(
+            unit_id=input_unit_id,
+            source_range=CueRange.model_validate_json(json.dumps(source_range)),
+            cues=tuple(
+                SemanticCue.model_validate_json(json.dumps(value, ensure_ascii=False))
+                for value in cues
+            ),
+            estimated_tokens=1,
+            context_range_ms=_optional_semantic_time_range(payload.get("batch_context_ms")),
+            ownership_range_ms=_optional_semantic_time_range(payload.get("ownership_interval_ms")),
+            logical_windows_ms=tuple(
+                SemanticTimeRange.model_validate_json(json.dumps(value))
+                for value in logical_windows
+            ),
+            bridge_boundary_ms=(
+                bridge_boundary
+                if isinstance(bridge_boundary, int) and not isinstance(bridge_boundary, bool)
+                else None
+            ),
+            triggering_boundary_topics=tuple(
+                BoundaryTopicReport.model_validate_json(json.dumps(value, ensure_ascii=False))
+                for value in triggering_topics
+            ),
+        )
+        config = SemanticGlobalConfig(
+            minimum_duration_ms=_runtime_milliseconds(runtime, "minimum_duration_sec"),
+            target_duration_ms=_runtime_milliseconds(runtime, "target_duration_sec"),
+            maximum_duration_ms=_runtime_milliseconds(runtime, "maximum_duration_sec"),
+            score_threshold_exclusive=float(runtime.get("score_threshold_exclusive", 75.0)),
+            max_clips=int(runtime.get("max_clips", 15)),
+            window_duration_ms=_runtime_milliseconds(runtime, "window_duration_sec"),
+            window_overlap_ms=_runtime_milliseconds(runtime, "window_overlap_sec"),
+        )
+        output = DiscoveryOutput.model_validate_json(json.dumps(invalid_output, ensure_ascii=False))
+        normalized, _notes = namespace_discovery_output(output, unit=unit)
+        validate_discovery_output(normalized, unit=unit, config=config)
+    except (TypeError, ValueError, ValidationError) as exc:
+        return [f"Discovery domain validation: {str(exc)[:8_000]}"]
+    return []
+
+
+def _optional_semantic_time_range(value: object) -> SemanticTimeRange | None:
+    return (
+        SemanticTimeRange.model_validate_json(json.dumps(value))
+        if isinstance(value, dict)
+        else None
+    )
+
+
+def _runtime_milliseconds(runtime: dict[str, object], key: str) -> int:
+    value = runtime.get(key)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ValueError(f"runtime.{key} must be numeric")
+    return round(float(value) * 1_000)
 
 
 def _structured_validation_payload(payload: dict[str, object]) -> dict[str, object]:
@@ -1368,6 +2582,12 @@ def _structured_validation_payload(payload: dict[str, object]) -> dict[str, obje
 
     if payload.get("repair_only") is not True:
         return payload
+    original_request = payload.get("immutable_request")
+    if (
+        isinstance(original_request, dict)
+        and original_request.get("validation_contract") == CURRENT_SEMANTIC_VALIDATION
+    ):
+        return dict(original_request)
     immutable = payload.get("immutable_transport_facts")
     validation = dict(immutable) if isinstance(immutable, dict) else {}
     discovery = payload.get("authoritative_discovery")
@@ -1604,6 +2824,132 @@ def _discovery_candidate_preflight_errors(
     return errors
 
 
+def global_review_response_model(
+    payload: dict[str, object],
+    *,
+    require_candidate_assessments: bool = False,
+) -> type[GlobalReviewOutput]:
+    """Bind the wire Schema to the deterministic coverage cardinality.
+
+    Global Review must author exactly one semantic coverage decision for every
+    eligible Discovery topic.  Encoding that already-existing deterministic
+    invariant in the response Schema prevents a long response from reaching
+    local validation with a silently omitted tail.  It does not create or
+    change any editorial decision.
+    """
+
+    coverage_count = len(_global_review_coverage_topic_ids(payload))
+    if coverage_count > 200:
+        raise ValueError("Global Review coverage target exceeds the bounded Schema")
+    if require_candidate_assessments:
+        candidate_count = len(_global_review_candidate_ids(payload))
+        if candidate_count > 100:
+            raise ValueError("Global Review candidate assessment target exceeds the bounded Schema")
+        return create_model(
+            "GlobalReviewOutputV2",
+            __base__=GlobalReviewOutputV2,
+            coverage_decisions=(
+                tuple[CoverageDecision, ...],
+                Field(min_length=coverage_count, max_length=coverage_count),
+            ),
+            candidate_assessments=(
+                tuple[CandidateAssessment, ...],
+                Field(min_length=candidate_count, max_length=candidate_count),
+            ),
+        )
+    model = create_model(
+        "GlobalReviewOutput",
+        __base__=GlobalReviewOutput,
+        coverage_decisions=(
+            tuple[CoverageDecision, ...],
+            Field(min_length=coverage_count, max_length=coverage_count),
+        ),
+    )
+    return model
+
+
+def boundary_review_response_model_v3(
+    payload: dict[str, object],
+) -> type[BoundaryReviewOutputV3]:
+    raw_candidates = payload.get("candidates")
+    candidate_count = len(raw_candidates) if isinstance(raw_candidates, list) else 0
+    if candidate_count < 1 or candidate_count > 100:
+        raise ValueError("Boundary Review candidate count is outside the bounded Schema")
+    return create_model(
+        "BoundaryReviewOutputV3",
+        __base__=BoundaryReviewOutputV3,
+        reviews=(
+            tuple[BoundaryReviewItemV3, ...],
+            Field(min_length=candidate_count, max_length=candidate_count),
+        ),
+    )
+
+
+def global_review_response_model_v3(
+    payload: dict[str, object],
+) -> type[GlobalReviewOutputV3]:
+    raw_candidates = payload.get("candidates")
+    candidate_count = len(raw_candidates) if isinstance(raw_candidates, list) else 0
+    if candidate_count < 1 or candidate_count > 100:
+        raise ValueError("v3 Global Review candidate count is outside the bounded Schema")
+    return create_model(
+        "GlobalReviewOutputV3",
+        __base__=GlobalReviewOutputV3,
+        reviews=(
+            tuple[CandidateGlobalReviewV3, ...],
+            Field(min_length=candidate_count, max_length=candidate_count),
+        ),
+    )
+
+
+def _global_review_candidate_ids(payload: dict[str, object]) -> tuple[str, ...]:
+    discovery = payload.get("discovery")
+    if not isinstance(discovery, dict):
+        return ()
+    raw_candidates = transport_record_objects(
+        discovery,
+        records_key="candidates",
+        columns_key="candidate_columns",
+    )
+    candidate_ids = [
+        str(value["candidate_id"])
+        for value in raw_candidates
+        if isinstance(value.get("candidate_id"), str)
+    ]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ValueError("Global Review candidates contain duplicate IDs")
+    return tuple(candidate_ids)
+
+
+def _global_review_coverage_topic_ids(payload: dict[str, object]) -> tuple[str, ...]:
+    discovery = payload.get("discovery")
+    if not isinstance(discovery, dict):
+        return ()
+    raw_topics = transport_record_objects(
+        discovery,
+        records_key="topic_units",
+        columns_key="topic_unit_columns",
+    )
+    windowed_scope = discovery.get("review_scope") == "candidate_topics_and_boundary_bridges"
+    topic_ids = [
+        str(topic["topic_id"])
+        for topic in raw_topics
+        if isinstance(topic.get("topic_id"), str)
+        and topic.get("value_density") in {"medium", "high"}
+        and (
+            not windowed_scope
+            or bool(_string_list(topic.get("candidate_ids")))
+            or (
+                str(topic["topic_id"]).startswith("bridge_")
+                and topic.get("value_density") == "high"
+            )
+        )
+    ]
+    if len(topic_ids) != len(set(topic_ids)):
+        raise ValueError("Global Review coverage targets contain duplicate topic IDs")
+    return tuple(topic_ids)
+
+
 def _global_review_preflight_errors(
     payload: dict[str, object],
     invalid_output: dict[str, object],
@@ -1622,39 +2968,27 @@ def _global_review_preflight_errors(
         return []
 
     errors: list[str] = []
-    raw_candidates = discovery.get("candidates")
-    raw_topics = discovery.get("topic_units")
-    candidate_records = (
-        [value for value in raw_candidates if isinstance(value, dict)]
-        if isinstance(raw_candidates, list)
-        else []
+    candidate_records = transport_record_objects(
+        discovery,
+        records_key="candidates",
+        columns_key="candidate_columns",
     )
-    topic_records = (
-        [value for value in raw_topics if isinstance(value, dict)]
-        if isinstance(raw_topics, list)
-        else []
+    topic_records = transport_record_objects(
+        discovery,
+        records_key="topic_units",
+        columns_key="topic_unit_columns",
     )
     candidate_ids = {
         str(value["candidate_id"])
         for value in candidate_records
         if isinstance(value.get("candidate_id"), str)
     }
-    windowed_scope = discovery.get("review_scope") == "candidate_topics_and_boundary_bridges"
     topic_map = {
         str(value["topic_id"]): value
         for value in topic_records
         if isinstance(value.get("topic_id"), str)
     }
-    coverage_topic_ids = {
-        topic_id
-        for topic_id, topic in topic_map.items()
-        if topic.get("value_density") in {"medium", "high"}
-        and (
-            not windowed_scope
-            or bool(_string_list(topic.get("candidate_ids")))
-            or (topic_id.startswith("bridge_") and topic.get("value_density") == "high")
-        )
-    }
+    coverage_topic_ids = set(_global_review_coverage_topic_ids(payload))
     clip_records = (
         [value for value in clips if isinstance(value, dict)] if isinstance(clips, list) else []
     )
@@ -1713,6 +3047,7 @@ def _global_review_preflight_errors(
         if isinstance(rejected, list)
         else []
     )
+    rejection_by_candidate: dict[str, dict[str, object]] = {}
     for group_index, group in enumerate(rejected_records):
         label = f"rejected_candidates[{group_index}]"
         if group.get("reason_code") == "risk_requires_manual_review":
@@ -1726,6 +3061,7 @@ def _global_review_preflight_errors(
         if unknown_topics:
             errors.append(f"{label}: references unknown topic IDs {unknown_topics}")
         for candidate_id in group_candidates:
+            rejection_by_candidate[candidate_id] = group
             if candidate_id not in candidate_ids:
                 continue
             if candidate_id in dispositions:
@@ -1764,6 +3100,107 @@ def _global_review_preflight_errors(
                     )
                 )
 
+    assessment_contract = payload.get("candidate_assessment_contract")
+    if isinstance(assessment_contract, dict) and assessment_contract.get("required") is True:
+        assessments = invalid_output.get("candidate_assessments")
+        assessment_records = (
+            [value for value in assessments if isinstance(value, dict)]
+            if isinstance(assessments, list)
+            else []
+        )
+        assessment_ids = [
+            str(value["candidate_id"])
+            for value in assessment_records
+            if isinstance(value.get("candidate_id"), str)
+        ]
+        if len(assessment_ids) != len(set(assessment_ids)):
+            errors.append("candidate assessment IDs must be unique")
+        missing_assessments = sorted(candidate_ids - set(assessment_ids))
+        unexpected_assessments = sorted(set(assessment_ids) - candidate_ids)
+        if missing_assessments or unexpected_assessments:
+            errors.append(
+                "candidate assessments must score every Discovery candidate exactly once: "
+                f"missing={missing_assessments}, unexpected={unexpected_assessments}"
+            )
+        threshold = assessment_contract.get("strict_score_threshold_exclusive")
+        for assessment in assessment_records:
+            assessed_candidate_id = assessment.get("candidate_id")
+            if (
+                not isinstance(assessed_candidate_id, str)
+                or assessed_candidate_id not in candidate_ids
+            ):
+                continue
+            disposition = assessment.get("disposition")
+            result_clip_id = assessment.get("result_clip_id")
+            target_clip = clip_map.get(result_clip_id) if isinstance(result_clip_id, str) else None
+            score = _raw_score_dimensions_total(assessment.get("score_dimensions"))
+            if disposition in {"advance", "duplicate"}:
+                if target_clip is None:
+                    errors.append(
+                        f"{assessed_candidate_id}: advancing/duplicate assessment requires a known "
+                        "result_clip_id"
+                    )
+                    continue
+                if assessed_candidate_id not in _string_list(
+                    target_clip.get("source_candidate_ids")
+                ):
+                    errors.append(
+                        f"{assessed_candidate_id}: result clip must reference the assessed "
+                        "candidate"
+                    )
+                if target_clip.get("editorial_decision") != "keep":
+                    errors.append(
+                        f"{assessed_candidate_id}: result clip must retain editorial value"
+                    )
+                target_score = _raw_score_dimensions_total(target_clip.get("score_dimensions"))
+                if isinstance(threshold, (int, float)) and (
+                    target_score is None or target_score <= float(threshold)
+                ):
+                    errors.append(
+                        f"{assessed_candidate_id}: result clip score must exceed the strict "
+                        "threshold"
+                    )
+                if (
+                    disposition == "advance"
+                    and isinstance(threshold, (int, float))
+                    and (score is None or score <= float(threshold))
+                ):
+                    errors.append(
+                        f"{assessed_candidate_id}: advance score must exceed the strict threshold"
+                    )
+                if assessed_candidate_id in rejection_by_candidate:
+                    errors.append(
+                        f"{assessed_candidate_id}: retained assessment cannot also be rejected"
+                    )
+                continue
+            if disposition == "reject":
+                if result_clip_id is not None:
+                    errors.append(
+                        f"{assessed_candidate_id}: rejected assessment cannot reference a "
+                        "result clip"
+                    )
+                rejection = rejection_by_candidate.get(assessed_candidate_id)
+                if rejection is None:
+                    errors.append(
+                        f"{assessed_candidate_id}: rejected assessment requires rejection audit"
+                    )
+                elif (
+                    rejection.get("reason_code") == "no_general_value"
+                    and isinstance(threshold, (int, float))
+                    and score is not None
+                    and score > float(threshold)
+                ):
+                    errors.append(
+                        f"{assessed_candidate_id}: no_general_value cannot suppress score {score} "
+                        "above the strict threshold"
+                    )
+        for clip_id, clip in clip_map.items():
+            if clip.get("editorial_decision") != "keep":
+                errors.append(
+                    f"{clip_id}: v2 Global Review must not emit full clip records for dropped "
+                    "results"
+                )
+
     missing_dispositions = sorted(candidate_ids - set(dispositions))
     if missing_dispositions:
         errors.append(
@@ -1782,6 +3219,23 @@ def _global_review_preflight_errors(
         )
     )
     return errors
+
+
+def _raw_score_dimensions_total(value: object) -> int | None:
+    if not isinstance(value, dict):
+        return None
+    fields = (
+        "standalone",
+        "general_value",
+        "interest",
+        "completeness",
+        "evidence",
+        "edit_cleanliness",
+    )
+    scores = [value.get(field) for field in fields]
+    if any(not isinstance(score, int) or isinstance(score, bool) for score in scores):
+        return None
+    return sum(cast(int, score) for score in scores)
 
 
 def _global_clip_quality_preflight_errors(
@@ -2384,6 +3838,68 @@ def _strict_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _raw_structured_response_parts(response_text: str) -> list[dict[str, object]]:
+    """Extract indexed business text only, excluding the transport and reasoning."""
+
+    try:
+        envelope = json.loads(response_text)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("output"), list):
+        return []
+    return [
+        {"output_index": output_index, "content_index": content_index, "output_text": part["text"]}
+        for output_index, item in enumerate(envelope["output"])
+        if isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("content"), list)
+        for content_index, part in enumerate(item["content"])
+        if isinstance(part, dict)
+        and part.get("type") == "output_text"
+        and isinstance(part.get("text"), str)
+    ]
+
+
+def _raw_structured_response_failure_code(
+    response_text: str, business_parts: list[dict[str, object]]
+) -> str | None:
+    """Preserve response failure priority if later SDK business parsing raises."""
+
+    try:
+        envelope = json.loads(response_text)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(envelope, dict):
+        return None
+    if envelope.get("status") != "completed":
+        return "STRUCTURED_RESPONSE_INCOMPLETE"
+    output = envelope.get("output")
+    if not isinstance(output, list):
+        return None
+    if any(
+        isinstance(part, dict) and part.get("type") == "refusal"
+        for item in output
+        if isinstance(item, dict)
+        and item.get("type") == "message"
+        and isinstance(item.get("content"), list)
+        for part in item["content"]
+    ):
+        return "STRUCTURED_RESPONSE_REFUSED"
+    if len(business_parts) > 1 or any(
+        not isinstance(item, dict) or item.get("type") not in {"message", "reasoning"}
+        for item in output
+    ):
+        return "STRUCTURED_UNEXPECTED_OUTPUT"
+    return None
+
+
+def _raw_structured_response_text(response_text: str) -> str | None:
+    """Retain the sole business text for the existing single-output repair contract."""
+
+    parts = _raw_structured_response_parts(response_text)
+    return str(parts[0]["output_text"]) if len(parts) == 1 else None
+
+
 def _normalized_text(value: str) -> str:
     return "".join(value.split())
 
@@ -2449,33 +3965,165 @@ def _collect_cue_ids(value: object) -> set[int]:
     return cue_ids
 
 
+def _mock_lineage_payload(payload: dict[str, object], model: type[BaseModel]) -> dict[str, object]:
+    payload = _structured_validation_payload(payload)
+    context = prepare_lineage_context(payload, model)
+    assert context is not None
+    if model is DiscoveryBatchOutputV5:
+        raw = _mock_discovery_batch_v4(payload)
+        for candidate in cast(list[dict[str, object]], raw["candidates"]):
+            candidate.pop("risk_flags", None)
+            candidate["risks"] = []
+    elif model is TopicChainReviewV5:
+        spec = clip_profile_spec(ClipProfile.MINI_LESSON)
+        raw = _mock_topic_chain_review_v4(
+            {
+                **payload,
+                "profile_contract": {
+                    "minimum_ms": spec.minimum_duration_ms,
+                    "maximum_ms": spec.maximum_duration_ms,
+                },
+            }
+        )
+        origins = [route.original_candidate_id for route in context.routes]
+        candidates = cast(list[dict[str, object]], raw["candidates"])
+        for candidate in candidates:
+            candidate.update(
+                origin_kind="derived" if origins else "chain_new",
+                original_candidate_ids=origins,
+                origin_reason="Mock显式来源映射, 仅用于结构测试。",
+            )
+        raw["source_dispositions"] = [
+            {
+                **route.model_dump(mode="json"),
+                "derived_unit_ids": [candidate["candidate_id"] for candidate in candidates],
+                "rejection_reason": None if candidates else "Mock未生成符合时长的教学单元。",
+                "evidence_cue_ids": raw["evidence_cue_ids"],
+            }
+            for route in context.routes
+        ]
+    else:
+        raw = _mock_payload(payload, BoundaryReviewV4)
+        assert context.authority is not None
+        raw["risk_flags"] = list(
+            dict.fromkeys(
+                [risk.flag.value for risk in context.authority.risks]
+                + (["sensitivity_review"] if context.authority.risks else [])
+            )
+        )
+        raw["risk_treatments"] = [
+            {
+                "risk_id": risk.risk_id,
+                "treatment": "uncertain",
+                "reason": "Mock保留全部来源风险, 不证明实际内容安全。",
+                "evidence_cue_ids": [context.unit.start_cue_id] if context.unit is not None else [],
+            }
+            for risk in context.authority.risks
+        ]
+    raw.update(schema_version="5", contract_version=LINEAGE_CONTRACT)
+    return raw
+
+
+def _business_part_validation_errors(
+    text: str,
+    response_model: type[BaseModel],
+    request_payload: dict[str, object] | None,
+) -> list[str]:
+    """Validate every available part independently without choosing an output."""
+
+    if is_lineage_response(response_model) and request_payload is None:
+        return [
+            f"{'.'.join(str(part) for part in error.location)}: {error.message} [{error.code}]"
+            for error in collect_response_errors_v5(response_model, text)
+        ]
+    if is_lineage_response(response_model) and request_payload is not None:
+        context = prepare_lineage_context(
+            _structured_validation_payload(request_payload), response_model
+        )
+        assert context is not None
+        return context.errors(text)
+    errors: list[str] = []
+    value: object
+    try:
+        parsed = response_model.model_validate_json(text)
+    except ValidationError as exc:
+        errors.extend(
+            f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']} [{item['type']}]"
+            for item in exc.errors(include_input=False, include_url=False)
+        )
+        try:
+            value = json.loads(text)
+        except (ValueError, TypeError):
+            value = None
+    else:
+        # Match the ordinary successful SDK path's validated/defaulted representation.
+        value = parsed.model_dump(mode="json")
+    if request_payload is not None:
+        errors.extend(_structured_preflight_errors(request_payload, value))
+    return list(dict.fromkeys(errors))
+
+
 def _structured_invalid_attempt(
     *,
     phase: str,
     raw_output: object,
     error: Exception,
+    complete_errors: bool = False,
+    validation_errors: Sequence[str] | None = None,
+    request_payload: dict[str, object] | None = None,
+    business_output_parts: Sequence[dict[str, object]] | None = None,
+    response_model: type[BaseModel] | None = None,
 ) -> dict[str, object]:
     invalid_output: object = None
+    lineage = response_model is not None and is_lineage_response(response_model)
     if isinstance(raw_output, str):
         try:
-            invalid_output = json.loads(raw_output)
+            invalid_output = (
+                parse_raw_response_v5(raw_output) if lineage else json.loads(raw_output)
+            )
         except (json.JSONDecodeError, ValueError):
-            invalid_output = raw_output[:512_000]
-    validation_errors: list[str]
-    if isinstance(error, ValidationError):
-        validation_errors = [
-            (f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']} [{item['type']}]")[
-                :1_000
-            ]
-            for item in error.errors(include_input=False, include_url=False)[:100]
+            invalid_output = raw_output if complete_errors else raw_output[:512_000]
+    errors: list[str]
+    if complete_errors and validation_errors is not None:
+        errors = list(dict.fromkeys(validation_errors))
+    elif isinstance(error, ValidationError):
+        details = error.errors(include_input=False, include_url=False)
+        if not complete_errors:
+            details = details[:100]
+        errors = [
+            f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']} [{item['type']}]"
+            for item in details
         ]
+        if not complete_errors:
+            errors = [value[:1_000] for value in errors]
     else:
-        validation_errors = [f"{type(error).__name__}: {str(error)[:900]}"]
+        message = str(error) if complete_errors else str(error)[:900]
+        errors = [f"{type(error).__name__}: {message}"]
+    if complete_errors and request_payload is not None and not lineage:
+        errors = list(
+            dict.fromkeys([*errors, *_structured_preflight_errors(request_payload, invalid_output)])
+        )
+    indexed_parts = [dict(part) for part in business_output_parts or ()]
+    if complete_errors and response_model is not None:
+        if lineage and isinstance(raw_output, str):
+            errors.extend(
+                _business_part_validation_errors(raw_output, response_model, request_payload)
+            )
+        for part in indexed_parts:
+            text = part.get("output_text")
+            if not isinstance(text, str):
+                continue
+            part_errors = _business_part_validation_errors(text, response_model, request_payload)
+            part["validation_errors"] = part_errors
+            prefix = f"output[{part['output_index']}].content[{part['content_index']}]: "
+            errors.extend(prefix + error for error in part_errors)
+        errors = list(dict.fromkeys(errors))
     return {
         "phase": phase,
         "failure_code": "STRUCTURED_OUTPUT_INVALID",
-        "validation_errors": validation_errors,
+        "validation_errors": errors,
         "invalid_output": invalid_output,
+        **({"business_output_parts": indexed_parts} if indexed_parts else {}),
     }
 
 
@@ -2537,6 +4185,7 @@ def _record(
     request_id: str | None = None,
     response_model: str | None = None,
     usage: dict[str, Any] | None = None,
+    called_at: datetime | None = None,
 ) -> ProviderCallRecord:
     payload_hash = hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -2561,5 +4210,13 @@ def _record(
         failure_code=failure_code,
         prompt_version=f"{prompts.version}.{prompts.stage}",
         prompt_sha256=prompts.sha256,
-        called_at=datetime.now(UTC),
+        called_at=called_at or datetime.now(UTC),
     )
+
+
+def _execution_contract(
+    value: SemanticExecutionContract | None,
+) -> SemanticExecutionContract | None:
+    if value not in {None, CURRENT_SEMANTIC_EXECUTION}:
+        raise ProviderConfigurationError("unsupported semantic execution contract")
+    return value

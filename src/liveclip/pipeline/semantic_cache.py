@@ -8,6 +8,10 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from liveclip.domain.semantic_validation import (
+    SemanticValidationContract,
+    uses_current_semantic_validation,
+)
 from liveclip.media.secure_files import (
     SecureFileError,
     SecureFileMissing,
@@ -42,7 +46,12 @@ class SemanticStageCacheRecord(BaseModel):
 
     schema_version: str = Field(default="1", pattern=r"^1$")
     algorithm: str = Field(default="semantic_global", pattern=r"^semantic_global$")
-    stage: str = Field(pattern=r"^(discovery|global_review)$")
+    stage: str = Field(
+        pattern=(
+            r"^(discovery|link_review|topic_chain|boundary_review|global_review|"
+            r"final_validation)$"
+        )
+    )
     input_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     provider: str = Field(min_length=1, max_length=40)
     model: str = Field(min_length=1, max_length=100)
@@ -50,9 +59,26 @@ class SemanticStageCacheRecord(BaseModel):
     prompt_version: str = Field(min_length=1, max_length=80)
     prompt_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     provider_contract_version: str = Field(min_length=1, max_length=160)
-    output_schema: str = Field(pattern=r"^(DiscoveryOutput|GlobalReviewOutput)$")
+    output_schema: str = Field(
+        pattern=(
+            r"^(DiscoveryOutput|BoundaryReviewOutputV3|GlobalReviewOutput|"
+            r"GlobalReviewOutputV2|GlobalReviewOutputV3|DiscoveryBatchOutputV4|"
+            r"LinkReviewV4|TopicChainReviewV4|BoundaryReviewV4|GlobalReviewOutputV4|"
+            r"UnifiedSemanticResultV4|DiscoveryBatchOutputV5|TopicChainReviewV5|BoundaryReviewV5)$"
+        )
+    )
     output_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     output: dict[str, object]
+
+
+def semantic_validation_cache_settings(
+    settings: dict[str, object], *, stage: str, contract: SemanticValidationContract
+) -> dict[str, object]:
+    """Preserve legacy keys and unaffected discovery/link/chain cache identities."""
+
+    if stage in {"boundary_review", "global_review"} and uses_current_semantic_validation(contract):
+        return {**settings, "validation_contract": contract}
+    return dict(settings)
 
 
 def semantic_stage_cache_key(
@@ -78,6 +104,7 @@ def semantic_stage_cache_key(
             provider.prompt_sha256,
             provider.contract_version,
             output_model.__name__,
+            _canonical_sha256(output_model.model_json_schema(mode="validation")),
         )
     )
     return hashlib.sha256(identity.encode()).hexdigest()

@@ -1,0 +1,51 @@
+{
+  "base_sha": "6009b23859564b2bfdc193eee366afd990b9ef5d",
+  "coder_resume_count": 1,
+  "coder_session_id": "01a0ac2a-f6a0-72d1-b74f-55ac9f7f6732",
+  "failure_class": "reproduced_frontend_async_wait_defect_under_host_load",
+  "failed_tests": [
+    "apps/web/tests/completion-presets.test.tsx: preserves B's recovery identity when unmounted A succeeds late",
+    "apps/web/tests/completion-presets.test.tsx: keeps the App dialog mounted until its preset request settles",
+    "apps/web/tests/project-discovery-ui.test.tsx: saves, applies, updates and deletes a private project view with version fences",
+    "apps/web/tests/release-workspace.test.tsx: synchronizes chained mutations before delayed lists complete and fences pending actions",
+    "apps/web/tests/review-board.test.tsx: omits the redundant full transcript panel and does not request it",
+    "apps/web/tests/review-flow.test.tsx: edits score and content and exposes the new revision as needing a master"
+  ],
+  "focused_diagnostic": {
+    "failed_tests": 1,
+    "passed_tests": 47,
+    "qa_id": "20260916T222802Z-wdg5",
+    "status": "FAIL"
+  },
+  "gateway_ran": false,
+  "last_error": "six Web tests failed while waiting for asynchronous UI state under host load; a focused five-file rerun reproduced the review-flow loading failure",
+  "product_source_fingerprint": "01aac3f5bdcce057c943c5dd6518fdec580c053b07d5333167c5a3d2d20488c9",
+  "reviewer_findings": [],
+  "run_id": "20260916T213742Z-56deb953",
+  "runner_results": [
+    {
+      "command_id": "lint",
+      "duration_seconds": 42.339,
+      "qa_id": "20260916T214844Z-8d8c",
+      "status": "PASS"
+    },
+    {
+      "command_id": "e2e",
+      "duration_seconds": 254.98,
+      "qa_id": "20260916T214927Z-d5bd",
+      "status": "PASS"
+    },
+    {
+      "command_id": "test",
+      "duration_seconds": 1975.278,
+      "python_tests_passed": 2471,
+      "qa_id": "20260916T215342Z-1441",
+      "status": "FAIL",
+      "web_tests_failed": 6,
+      "web_tests_passed": 74
+    }
+  ],
+  "state": "blocked",
+  "tester_verdict": "READY",
+  "toolchain_fingerprint": "c279e164e424db5fe39f455c0b6832ad05d1aea4d9686bf22a2316cf5db36099"
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
+from threading import Barrier, Lock
 
 import pytest
 
@@ -437,3 +437,114 @@ def test_concurrent_transcription_stops_before_submitting_after_failed_batch(
 
     assert set(provider.called).issubset({"chunk_000", "chunk_001"})
     assert "chunk_000" in provider.called
+
+
+def test_concurrent_transcription_runs_one_bounded_batch_in_parallel_and_merges_in_order(
+    tmp_path: Path,
+) -> None:
+    chunks = tuple(
+        StubChunk(
+            f"chunk_{index:03d}",
+            index * 1_000,
+            (index + 1) * 1_000,
+            tmp_path / f"{index}.m4a",
+        )
+        for index in range(4)
+    )
+
+    class BarrierProvider:
+        provider_name = "mock"
+        model_name = "mock-asr-v1"
+        contract_version = "bounded-concurrency-v1"
+
+        def __init__(self) -> None:
+            self.barrier = Barrier(4, timeout=2)
+
+        def transcribe(self, chunk: StubChunk, **_kwargs: object) -> ASRChunkResult:
+            # A serial implementation times out here. All four workers must be
+            # in flight before any provider call can return.
+            self.barrier.wait()
+            return _result(
+                chunk,
+                (f"segment_{chunk.chunk_id}", 0, 1_000, f"{chunk.chunk_id}。"),
+            )
+
+    document = transcribe_chunks(
+        BarrierProvider(),
+        tuple(reversed(chunks)),
+        source_duration_ms=4_000,
+        output_dir=tmp_path / "parallel",
+        concurrency=4,
+    )
+
+    assert [segment.text for segment in document.segments] == [
+        "chunk_000。",
+        "chunk_001。",
+        "chunk_002。",
+        "chunk_003。",
+    ]
+
+
+def test_retry_reuses_successful_chunks_and_calls_only_failed_or_pending_chunks(
+    tmp_path: Path,
+) -> None:
+    chunks = tuple(
+        StubChunk(
+            f"chunk_{index:03d}",
+            index * 1_000,
+            (index + 1) * 1_000,
+            tmp_path / f"{index}.m4a",
+        )
+        for index in range(3)
+    )
+
+    class FailingProvider:
+        provider_name = "mock"
+        model_name = "mock-asr-v1"
+        contract_version = "same-run-retry-v1"
+
+        def __init__(self, *, fail_chunk: str | None) -> None:
+            self.fail_chunk = fail_chunk
+            self.called: list[str] = []
+
+        def transcribe(self, chunk: StubChunk, **_kwargs: object) -> ASRChunkResult:
+            self.called.append(chunk.chunk_id)
+            if chunk.chunk_id == self.fail_chunk:
+                raise RuntimeError("temporary provider response failure")
+            return _result(
+                chunk,
+                (f"segment_{chunk.chunk_id}", 0, 1_000, f"{chunk.chunk_id}。"),
+            )
+
+    output_dir = tmp_path / "transcript"
+    first = FailingProvider(fail_chunk="chunk_001")
+    with pytest.raises(RuntimeError, match="temporary provider response failure"):
+        transcribe_chunks(
+            first,
+            chunks,
+            source_duration_ms=3_000,
+            output_dir=output_dir,
+        )
+
+    assert first.called == ["chunk_000", "chunk_001"]
+    assert len(tuple((output_dir / "asr-cache").glob("chunk-*.json"))) == 1
+
+    second = FailingProvider(fail_chunk=None)
+    cache_hits: list[tuple[str, bool]] = []
+    document = transcribe_chunks_detailed(
+        second,
+        chunks,
+        source_duration_ms=3_000,
+        output_dir=output_dir,
+        on_chunk_outcome=lambda chunk, _record, _status, hit: cache_hits.append(
+            (chunk.chunk_id, hit)
+        ),
+    ).document
+
+    assert second.called == ["chunk_001", "chunk_002"]
+    assert cache_hits == [
+        ("chunk_000", True),
+        ("chunk_001", False),
+        ("chunk_002", False),
+    ]
+    assert len(document.segments) == 3

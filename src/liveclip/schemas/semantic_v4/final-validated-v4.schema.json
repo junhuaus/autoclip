@@ -1,0 +1,834 @@
+{
+  "$defs": {
+    "CandidateDispositionV4": {
+      "enum": [
+        "selected",
+        "manual",
+        "blocked",
+        "rejected",
+        "top_n_excluded"
+      ],
+      "title": "CandidateDispositionV4",
+      "type": "string"
+    },
+    "CandidateGlobalReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "content_decision": {
+          "$ref": "#/$defs/ContentDecisionV4"
+        },
+        "publish_status": {
+          "$ref": "#/$defs/PublishStatusV4"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlagV4"
+          },
+          "maxItems": 30,
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "risk_flags": {
+          "items": {
+            "$ref": "#/$defs/RiskFlagV4"
+          },
+          "maxItems": 20,
+          "title": "Risk Flags",
+          "type": "array"
+        },
+        "interruption_review": {
+          "items": {
+            "$ref": "#/$defs/InterruptionReviewV4"
+          },
+          "maxItems": 30,
+          "title": "Interruption Review",
+          "type": "array"
+        },
+        "scores": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShortHighlightScoresV4"
+            },
+            {
+              "$ref": "#/$defs/MiniLessonScoresV4"
+            }
+          ],
+          "title": "Scores"
+        },
+        "total_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Total Score",
+          "type": "integer"
+        },
+        "duplicate_group_id": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Group Id"
+        },
+        "duplicate_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of"
+        },
+        "variant_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Of"
+        },
+        "variant_relationship": {
+          "anyOf": [
+            {
+              "enum": [
+                "short_version_of",
+                "long_version_of"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Relationship"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "review_reason": {
+          "maxLength": 800,
+          "minLength": 1,
+          "title": "Review Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "source_topic_id",
+        "topic_chain_id",
+        "source_fragment_ids",
+        "start_cue_id",
+        "end_cue_id",
+        "central_question",
+        "learning_outcome",
+        "title",
+        "summary",
+        "content_decision",
+        "publish_status",
+        "scores",
+        "total_score",
+        "evidence_cue_ids",
+        "review_reason"
+      ],
+      "title": "CandidateGlobalReviewV4",
+      "type": "object"
+    },
+    "ClipProfile": {
+      "description": "Independent editorial units with different deterministic duration contracts.",
+      "enum": [
+        "short_highlight",
+        "mini_lesson"
+      ],
+      "title": "ClipProfile",
+      "type": "string"
+    },
+    "ContentDecisionV4": {
+      "enum": [
+        "keep",
+        "repair_boundary",
+        "drop"
+      ],
+      "title": "ContentDecisionV4",
+      "type": "string"
+    },
+    "CoverageDecisionV4": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_kind": {
+          "enum": [
+            "candidate",
+            "fragment",
+            "topic_chain"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
+        "disposition": {
+          "enum": [
+            "discovered",
+            "linked",
+            "chain_candidate",
+            "selected",
+            "manual",
+            "blocked",
+            "rejected",
+            "top_n_excluded"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_kind",
+        "disposition",
+        "reason"
+      ],
+      "title": "CoverageDecisionV4",
+      "type": "object"
+    },
+    "InterruptionReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/InterruptionSeverityV4"
+        },
+        "type": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Type",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "severity",
+        "type",
+        "description",
+        "blocking"
+      ],
+      "title": "InterruptionReviewV4",
+      "type": "object"
+    },
+    "InterruptionSeverityV4": {
+      "enum": [
+        "none",
+        "minor",
+        "material"
+      ],
+      "title": "InterruptionSeverityV4",
+      "type": "string"
+    },
+    "MiniLessonScoresV4": {
+      "additionalProperties": false,
+      "properties": {
+        "central_objective_clarity": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Central Objective Clarity",
+          "type": "integer"
+        },
+        "completeness_and_closure": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Completeness And Closure",
+          "type": "integer"
+        },
+        "teaching_structure": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Teaching Structure",
+          "type": "integer"
+        },
+        "standalone_understanding": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Standalone Understanding",
+          "type": "integer"
+        },
+        "information_density": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Information Density",
+          "type": "integer"
+        },
+        "edit_cleanliness": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Edit Cleanliness",
+          "type": "integer"
+        },
+        "title_summary_fidelity": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Title Summary Fidelity",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "central_objective_clarity",
+        "completeness_and_closure",
+        "teaching_structure",
+        "standalone_understanding",
+        "information_density",
+        "edit_cleanliness",
+        "title_summary_fidelity"
+      ],
+      "title": "MiniLessonScoresV4",
+      "type": "object"
+    },
+    "ProfileStatisticsV4": {
+      "additionalProperties": false,
+      "properties": {
+        "discovery_candidate_count": {
+          "minimum": 0,
+          "title": "Discovery Candidate Count",
+          "type": "integer"
+        },
+        "boundary_candidate_count": {
+          "minimum": 0,
+          "title": "Boundary Candidate Count",
+          "type": "integer"
+        },
+        "qualified_before_top_n": {
+          "minimum": 0,
+          "title": "Qualified Before Top N",
+          "type": "integer"
+        },
+        "selected_count": {
+          "minimum": 0,
+          "title": "Selected Count",
+          "type": "integer"
+        },
+        "manual_count": {
+          "minimum": 0,
+          "title": "Manual Count",
+          "type": "integer"
+        },
+        "blocked_count": {
+          "minimum": 0,
+          "title": "Blocked Count",
+          "type": "integer"
+        },
+        "rejected_count": {
+          "minimum": 0,
+          "title": "Rejected Count",
+          "type": "integer"
+        },
+        "top_n_excluded_count": {
+          "minimum": 0,
+          "title": "Top N Excluded Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "discovery_candidate_count",
+        "boundary_candidate_count",
+        "qualified_before_top_n",
+        "selected_count",
+        "manual_count",
+        "blocked_count",
+        "rejected_count",
+        "top_n_excluded_count"
+      ],
+      "title": "ProfileStatisticsV4",
+      "type": "object"
+    },
+    "PublishStatusV4": {
+      "enum": [
+        "auto",
+        "manual",
+        "blocked"
+      ],
+      "title": "PublishStatusV4",
+      "type": "string"
+    },
+    "QualityFlagV4": {
+      "enum": [
+        "context_dependent_opening",
+        "incomplete_ending",
+        "irrelevant_intro",
+        "irrelevant_outro",
+        "irrelevant_internal_content",
+        "repeated_live_cta",
+        "equipment_interruption",
+        "padded_to_min_duration",
+        "overextended_to_max_duration",
+        "topic_mixed",
+        "title_source_mismatch",
+        "asr_meaning_reversal",
+        "duplicate_weaker",
+        "central_objective_incomplete",
+        "multi_interval_edit",
+        "topic_too_long_without_natural_split"
+      ],
+      "title": "QualityFlagV4",
+      "type": "string"
+    },
+    "RiskFlagV4": {
+      "enum": [
+        "medical_claim",
+        "health_advice",
+        "absolute_claim",
+        "commercial_claim",
+        "sensitivity_review",
+        "music_rights_review",
+        "minor_privacy",
+        "asr_uncertain"
+      ],
+      "title": "RiskFlagV4",
+      "type": "string"
+    },
+    "ShortHighlightScoresV4": {
+      "additionalProperties": false,
+      "properties": {
+        "independence": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Independence",
+          "type": "integer"
+        },
+        "completeness": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Completeness",
+          "type": "integer"
+        },
+        "single_topic": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Single Topic",
+          "type": "integer"
+        },
+        "viewer_value": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Viewer Value",
+          "type": "integer"
+        },
+        "source_fidelity": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Source Fidelity",
+          "type": "integer"
+        },
+        "edit_cleanliness": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Edit Cleanliness",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "independence",
+        "completeness",
+        "single_topic",
+        "viewer_value",
+        "source_fidelity",
+        "edit_cleanliness"
+      ],
+      "title": "ShortHighlightScoresV4",
+      "type": "object"
+    },
+    "TopicChainStatusV4": {
+      "enum": [
+        "open",
+        "closed",
+        "rejected"
+      ],
+      "title": "TopicChainStatusV4",
+      "type": "string"
+    },
+    "TopicChainV4": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_outline": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Topic Outline",
+          "type": "array"
+        },
+        "source_start_cue_id": {
+          "minimum": 1,
+          "title": "Source Start Cue Id",
+          "type": "integer"
+        },
+        "source_end_cue_id": {
+          "minimum": 1,
+          "title": "Source End Cue Id",
+          "type": "integer"
+        },
+        "left_closed": {
+          "title": "Left Closed",
+          "type": "boolean"
+        },
+        "right_closed": {
+          "title": "Right Closed",
+          "type": "boolean"
+        },
+        "chain_status": {
+          "$ref": "#/$defs/TopicChainStatusV4"
+        },
+        "link_review_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Link Review Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic_chain_id",
+        "fragment_ids",
+        "central_question",
+        "learning_outcome",
+        "topic_outline",
+        "source_start_cue_id",
+        "source_end_cue_id",
+        "left_closed",
+        "right_closed",
+        "chain_status"
+      ],
+      "title": "TopicChainV4",
+      "type": "object"
+    },
+    "ValidatedCandidateV4": {
+      "additionalProperties": false,
+      "properties": {
+        "review": {
+          "$ref": "#/$defs/CandidateGlobalReviewV4"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CandidateDispositionV4"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "validation_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Validation Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "review",
+        "disposition",
+        "start_ms",
+        "end_ms",
+        "duration_ms"
+      ],
+      "title": "ValidatedCandidateV4",
+      "type": "object"
+    },
+    "ValidatedProfileResultV4": {
+      "additionalProperties": false,
+      "properties": {
+        "selected": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Selected",
+          "type": "array"
+        },
+        "manual_review": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Manual Review",
+          "type": "array"
+        },
+        "blocked": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Blocked",
+          "type": "array"
+        },
+        "rejected": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Rejected",
+          "type": "array"
+        },
+        "top_n_excluded": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Top N Excluded",
+          "type": "array"
+        },
+        "statistics": {
+          "$ref": "#/$defs/ProfileStatisticsV4"
+        }
+      },
+      "required": [
+        "statistics"
+      ],
+      "title": "ValidatedProfileResultV4",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "4",
+      "default": "4",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "run_metadata": {
+      "additionalProperties": true,
+      "title": "Run Metadata",
+      "type": "object"
+    },
+    "profiles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ValidatedProfileResultV4"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/ClipProfile"
+      },
+      "title": "Profiles",
+      "type": "object"
+    },
+    "topic_chains": {
+      "items": {
+        "$ref": "#/$defs/TopicChainV4"
+      },
+      "title": "Topic Chains",
+      "type": "array"
+    },
+    "coverage_decisions": {
+      "items": {
+        "$ref": "#/$defs/CoverageDecisionV4"
+      },
+      "title": "Coverage Decisions",
+      "type": "array"
+    },
+    "validation_notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Validation Notes",
+      "type": "array"
+    },
+    "global_review_summary": {
+      "additionalProperties": true,
+      "title": "Global Review Summary",
+      "type": "object"
+    }
+  },
+  "required": [
+    "run_metadata",
+    "profiles",
+    "topic_chains",
+    "coverage_decisions",
+    "validation_notes",
+    "global_review_summary"
+  ],
+  "title": "UnifiedSemanticResultV4",
+  "type": "object"
+}

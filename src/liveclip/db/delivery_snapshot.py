@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import case, select
+from sqlalchemy import case, select, true
 from sqlalchemy.engine import Connection
 
 from liveclip.db.models import (
@@ -42,6 +42,10 @@ from liveclip.renderer.contracts import (
 
 class DeliverySetError(RuntimeError):
     """The current approved clip set is incomplete or not deliverable."""
+
+    def __init__(self, message: str, *, clip_id: str | None = None) -> None:
+        super().__init__(message)
+        self.clip_id = clip_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +87,8 @@ class EligibleDeliverySet:
 def load_eligible_delivery_set(
     connection: Connection,
     project_id: str,
+    *,
+    clip_id: str | None = None,
 ) -> EligibleDeliverySet:
     project = connection.execute(
         select(
@@ -123,6 +129,7 @@ def load_eligible_delivery_set(
             CandidateClipRow.project_id == project_id,
             CandidateClipRow.pipeline_run_id == run_id,
             CandidateClipRow.selected_for_review.is_(True),
+            true() if clip_id is None else CandidateClipRow.id == clip_id,
         )
         .order_by(CandidateClipRow.rank, CandidateClipRow.id)
     ).all()
@@ -230,7 +237,10 @@ def load_eligible_delivery_set(
             or render.quality_report_asset_id is None
             or render.contact_sheet_asset_id is None
         ):
-            raise DeliverySetError("an approved clip lacks its current successful delivery master")
+            raise DeliverySetError(
+                "an approved clip lacks its current successful delivery master",
+                clip_id=str(candidate.id),
+            )
         asset_ids = (
             str(render.asset_id),
             str(render.subtitle_asset_id),
@@ -263,7 +273,9 @@ def load_eligible_delivery_set(
         quality = by_id.get(str(render.quality_report_asset_id))
         contact = by_id.get(str(render.contact_sheet_asset_id))
         if video is None or subtitle is None or quality is None or contact is None:
-            raise DeliverySetError("an approved clip has missing delivery-master assets")
+            raise DeliverySetError(
+                "an approved clip has missing delivery-master assets", clip_id=str(candidate.id)
+            )
         asset_rows = (video, subtitle, quality, contact)
         expected_kinds = {
             str(render.asset_id): (
@@ -287,13 +299,19 @@ def load_eligible_delivery_set(
             or not isinstance(asset.validation_json, dict)
             for asset in asset_rows
         ):
-            raise DeliverySetError("an approved clip delivery-master assets are stale or invalid")
+            raise DeliverySetError(
+                "an approved clip delivery-master assets are stale or invalid",
+                clip_id=str(candidate.id),
+            )
         if not _asset_fingerprints_match_render(
             connection,
             render=render,
             assets=asset_rows,
         ):
-            raise DeliverySetError("an approved clip delivery-master assets are stale or invalid")
+            raise DeliverySetError(
+                "an approved clip delivery-master assets are stale or invalid",
+                clip_id=str(candidate.id),
+            )
         if (
             video.validation_json.get("full_decode") != "passed"
             or subtitle.validation_json.get("timeline") != "clip_relative_ms"
@@ -302,7 +320,10 @@ def load_eligible_delivery_set(
             or not isinstance(contact.validation_json.get("frames"), int)
             or int(contact.validation_json["frames"]) < 3
         ):
-            raise DeliverySetError("an approved clip delivery-master quality contract is invalid")
+            raise DeliverySetError(
+                "an approved clip delivery-master quality contract is invalid",
+                clip_id=str(candidate.id),
+            )
         captions = tuple(
             CaptionCue(
                 start_ms=int(cue.start_ms),

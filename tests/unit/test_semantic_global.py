@@ -10,8 +10,20 @@ import pytest
 
 import liveclip.services.semantic_evaluation as semantic_evaluation
 from liveclip.clipping_skills.semantic_global_v1 import load_semantic_global_prompt
+from liveclip.clipping_skills.semantic_global_v2 import (
+    load_installed_global_review_prompt,
+    load_semantic_global_v2_review_prompt,
+)
+from liveclip.clipping_skills.semantic_global_v3 import (
+    load_semantic_global_v3_boundary_prompt,
+    load_semantic_global_v3_review_prompt,
+)
 from liveclip.clipping_skills.semantic_windowed_v1 import (
     load_semantic_windowed_discovery_prompt,
+)
+from liveclip.clipping_skills.semantic_windowed_v2 import (
+    load_installed_semantic_windowed_discovery_prompt,
+    load_semantic_windowed_v2_discovery_prompt,
 )
 from liveclip.config.settings import Settings
 from liveclip.domain.transcript import TranscriptDocument, TranscriptSegment, WordTimingStatus
@@ -24,10 +36,16 @@ from liveclip.pipeline.semantic_global import (
     BoundaryAlternativeAudit,
     BoundaryAlternativeCompleteness,
     BoundaryCompactness,
+    BoundaryReviewItemV3,
+    BoundaryReviewOutputV3,
     BoundarySide,
     BoundaryTopicReport,
+    CandidateAssessment,
+    CandidateAssessmentDisposition,
+    CandidateGlobalReviewV3,
     CandidateStatus,
     ClipOrigin,
+    ContentDecisionV3,
     CoverageDecision,
     CoverageDecisionValue,
     CoverageReasonCode,
@@ -41,22 +59,31 @@ from liveclip.pipeline.semantic_global import (
     FollowingCueRelation,
     GlobalReviewClip,
     GlobalReviewOutput,
+    GlobalReviewOutputV2,
+    GlobalReviewOutputV3,
     GlobalReviewSummary,
     NoCandidateReasonCode,
     OpeningRelevance,
+    PublishStatusV3,
     QualityFlag,
+    QualityFlagV3,
     RejectedCandidateGroup,
     ReviewDecision,
     ReviewStatus,
     RiskAssessment,
+    RiskAssessmentV3,
     RiskSeverity,
     RiskType,
+    RiskTypeV3,
     ScoreDimensions,
+    ScoreDimensionsV3,
     SemanticGlobalConfig,
     SemanticInputMode,
     SourceFidelity,
     TokenEstimator,
+    build_boundary_review_payload_v3,
     build_global_review_payload,
+    build_global_review_payload_v3,
     discovery_request_payload,
     namespace_discovery_output,
     plan_boundary_bridge_units,
@@ -64,8 +91,11 @@ from liveclip.pipeline.semantic_global import (
     plan_semantic_windowed_input,
     semantic_repair_payload,
     semantic_request_tokens,
+    transport_record_objects,
+    validate_boundary_review_v3,
     validate_discovery_output,
     validate_global_review,
+    validate_global_review_v3,
 )
 from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm.structured import (
@@ -364,6 +394,39 @@ def _review(
     )
 
 
+def _review_v2(
+    *clips: GlobalReviewClip,
+    rejected_candidates: tuple[RejectedCandidateGroup, ...] = (),
+    coverage_decisions: tuple[CoverageDecision, ...] | None = None,
+    candidate_assessments: tuple[CandidateAssessment, ...] | None = None,
+) -> GlobalReviewOutputV2:
+    legacy = _review(
+        *clips,
+        rejected_candidates=rejected_candidates,
+        coverage_decisions=coverage_decisions,
+    )
+    assessments = (
+        tuple(
+            CandidateAssessment(
+                candidate_id=candidate_id,
+                disposition=CandidateAssessmentDisposition.ADVANCE,
+                score_dimensions=clip.score_dimensions,
+                result_clip_id=clip.clip_id,
+            )
+            for clip in clips
+            for candidate_id in clip.source_candidate_ids
+        )
+        if candidate_assessments is None
+        else candidate_assessments
+    )
+    return GlobalReviewOutputV2.model_validate(
+        {
+            **legacy.model_dump(mode="python"),
+            "candidate_assessments": assessments,
+        }
+    )
+
+
 def _risk(
     risk_type: RiskType,
     *,
@@ -374,6 +437,113 @@ def _risk(
         type=risk_type,
         severity=severity,
         reason="测试风险事实",
+        source_cue_ids=(cue_id,),
+    )
+
+
+def _score_v3(total: int = 82) -> ScoreDimensionsV3:
+    if total == 75:
+        return ScoreDimensionsV3(
+            independence=15,
+            completeness=15,
+            single_topic=12,
+            viewer_value=15,
+            source_fidelity=11,
+            edit_cleanliness=7,
+        )
+    if total == 76:
+        return ScoreDimensionsV3(
+            independence=16,
+            completeness=15,
+            single_topic=12,
+            viewer_value=15,
+            source_fidelity=11,
+            edit_cleanliness=7,
+        )
+    assert total == 82
+    return ScoreDimensionsV3(
+        independence=17,
+        completeness=17,
+        single_topic=13,
+        viewer_value=17,
+        source_fidelity=11,
+        edit_cleanliness=7,
+    )
+
+
+def _boundary_v3(
+    candidate_id: str,
+    *,
+    decision: ContentDecisionV3 = ContentDecisionV3.KEEP,
+    start_cue_id: int | None = 179,
+    end_cue_id: int | None = 193,
+    quality_flags: tuple[QualityFlagV3, ...] = (),
+    risks: tuple[RiskAssessmentV3, ...] = (),
+) -> BoundaryReviewItemV3:
+    quote_start = start_cue_id or 179
+    quote_end = end_cue_id or 193
+    return BoundaryReviewItemV3(
+        candidate_id=candidate_id,
+        content_decision=decision,
+        proposed_start_cue_id=start_cue_id,
+        proposed_end_cue_id=end_cue_id,
+        opening_relevance=(
+            OpeningRelevance.NECESSARY_CONTEXT
+            if QualityFlagV3.CONTEXT_DEPENDENT_OPENING in quality_flags
+            else OpeningRelevance.DIRECT
+        ),
+        ending_complete=QualityFlagV3.INCOMPLETE_ENDING not in quality_flags,
+        actual_source_opening_quote=REAL_CUES[quote_start - 1].text,
+        actual_source_closing_quote=REAL_CUES[quote_end - 1].text,
+        irrelevant_internal_cue_ids=(
+            (185,) if QualityFlagV3.IRRELEVANT_INTERNAL_CONTENT in quality_flags else ()
+        ),
+        quality_flags=quality_flags,
+        risk_flags=risks,
+        evidence_cue_ids=(quote_start, quote_end),
+        review_reason="测试边界审查事实",
+    )
+
+
+def _global_v3(
+    candidate_id: str,
+    *,
+    decision: ContentDecisionV3 = ContentDecisionV3.KEEP,
+    publish_status: PublishStatusV3 = PublishStatusV3.AUTO,
+    start_cue_id: int | None = 179,
+    end_cue_id: int | None = 193,
+    quality_flags: tuple[QualityFlagV3, ...] = (),
+    risks: tuple[RiskAssessmentV3, ...] = (),
+    score: ScoreDimensionsV3 | None = None,
+    duplicate_group_id: str | None = None,
+    duplicate_of: str | None = None,
+) -> CandidateGlobalReviewV3:
+    dimensions = score or _score_v3()
+    return CandidateGlobalReviewV3(
+        candidate_id=candidate_id,
+        content_decision=decision,
+        publish_status=publish_status,
+        score_dimensions=dimensions,
+        score=dimensions.total,
+        proposed_start_cue_id=start_cue_id,
+        proposed_end_cue_id=end_cue_id,
+        title="忠实测试标题",
+        hook="忠实测试开头",
+        payoff="忠实测试结论",
+        quality_flags=quality_flags,
+        risk_flags=risks,
+        duplicate_group_id=duplicate_group_id,
+        duplicate_of=duplicate_of,
+        evidence_cue_ids=(start_cue_id or 179, end_cue_id or 193),
+        review_reason="测试候选级全局审查",
+    )
+
+
+def _risk_v3(risk_type: RiskTypeV3, *, cue_id: int = 179) -> RiskAssessmentV3:
+    return RiskAssessmentV3(
+        type=risk_type,
+        severity=RiskSeverity.HIGH,
+        reason="测试结构化风险事实",
         source_cue_ids=(cue_id,),
     )
 
@@ -461,6 +631,44 @@ def test_prompt_bundle_loads_stable_layers_without_eval() -> None:
         load_semantic_global_prompt("discovery", "unknown")
 
 
+def test_accuracy_first_global_review_prompt_is_versioned_and_v1_remains_installed() -> None:
+    legacy = load_installed_global_review_prompt(
+        "semantic_global_v1.global_review",
+        "general",
+    )
+    accuracy_first = load_semantic_global_v2_review_prompt("general")
+
+    assert legacy.version == "semantic_global_v1"
+    assert accuracy_first.version == "semantic_global_v2"
+    assert accuracy_first.sha256 != legacy.sha256
+    assert "candidate_assessments" in accuracy_first.instructions
+    assert "每个 candidate_id 必须恰好出现" in accuracy_first.instructions
+    assert "no_general_value" in accuracy_first.repair
+    assert (
+        load_installed_global_review_prompt(
+            "semantic_global_v2.global_review",
+            "general",
+        ).sha256
+        == accuracy_first.sha256
+    )
+    quality_gate = load_semantic_global_v3_review_prompt("general")
+    boundary = load_semantic_global_v3_boundary_prompt("general")
+    assert quality_gate.version == "semantic_global_v3"
+    assert boundary.stage == "boundary_review"
+    assert "publish_status" in quality_gate.instructions
+    assert "irrelevant_internal_content" in quality_gate.instructions
+    assert "candidate_id 必须恰好返回一条" in quality_gate.instructions
+    assert (
+        load_installed_global_review_prompt(
+            "semantic_global_v3.global_review",
+            "general",
+        ).sha256
+        == quality_gate.sha256
+    )
+    with pytest.raises(RuntimeError, match="not installed"):
+        load_installed_global_review_prompt("semantic_global_v4.global_review", "general")
+
+
 def test_windowed_prompt_bundle_is_compact_versioned_and_profile_specific() -> None:
     vocal = load_semantic_windowed_discovery_prompt("vocal_coach_live")
     general = load_semantic_windowed_discovery_prompt("general")
@@ -485,6 +693,40 @@ def test_windowed_prompt_bundle_is_compact_versioned_and_profile_specific() -> N
         load_semantic_windowed_discovery_prompt("unknown")  # type: ignore[arg-type]
 
 
+def test_windowed_v2_discovery_is_high_recall_and_v1_remains_replayable() -> None:
+    legacy = load_semantic_windowed_discovery_prompt("general")
+    current = load_semantic_windowed_v2_discovery_prompt("general")
+
+    assert current.sha256 != legacy.sha256
+    assert "不执行 75 分门槛" in current.instructions
+    assert "不读取或服从 top_n" in current.instructions
+    assert "风险" in current.instructions
+    assert (
+        load_installed_semantic_windowed_discovery_prompt(
+            "semantic_windowed_v1.discovery",
+            "general",
+        ).sha256
+        == legacy.sha256
+    )
+
+    transcript = _from_srt()
+    unit = plan_semantic_windowed_input(
+        transcript,
+        prompt=current.instructions,
+        config=SemanticGlobalConfig(),
+    ).units[0]
+    payload = discovery_request_payload(
+        unit,
+        source_id="source",
+        mode=SemanticInputMode.WINDOWED,
+        config=SemanticGlobalConfig(),
+        include_final_gates=False,
+    )
+    runtime = cast(dict[str, object], payload["runtime"])
+    assert "score_threshold_exclusive" not in runtime
+    assert "max_clips" not in runtime
+
+
 def test_checked_in_json_schemas_match_runtime_models() -> None:
     schema_root = ROOT / "src/liveclip/schemas/clipping"
     assert json.loads((schema_root / "discovery.schema.json").read_text()) == (
@@ -492,6 +734,15 @@ def test_checked_in_json_schemas_match_runtime_models() -> None:
     )
     assert json.loads((schema_root / "global_review.schema.json").read_text()) == (
         GlobalReviewOutput.model_json_schema(mode="validation")
+    )
+    assert json.loads((schema_root / "global_review_v2.schema.json").read_text()) == (
+        GlobalReviewOutputV2.model_json_schema(mode="validation")
+    )
+    assert json.loads((schema_root / "boundary_review_v3.schema.json").read_text()) == (
+        BoundaryReviewOutputV3.model_json_schema(mode="validation")
+    )
+    assert json.loads((schema_root / "global_review_v3.schema.json").read_text()) == (
+        GlobalReviewOutputV3.model_json_schema(mode="validation")
     )
     candidate_properties = DiscoveryOutput.model_json_schema()["$defs"]["DiscoveryCandidate"][
         "properties"
@@ -532,6 +783,502 @@ def test_codex_schema_adapter_requires_all_properties_and_uses_nullable_values()
             assert_strict(item)
 
     assert_strict(schema)
+
+
+def test_v3_boundary_payload_is_candidate_local_bounded_and_traceable() -> None:
+    transcript = _from_srt()
+    discovery = _discovery(
+        transcript,
+        (_discovery_candidate(candidate_id="window_batch_003_clip03"),),
+    )
+
+    payload = build_boundary_review_payload_v3(
+        transcript,
+        discovery=discovery,
+        output_index=3,
+        config=SemanticGlobalConfig(),
+    )
+
+    assert payload is not None
+    assert payload["candidate_trace"]["source_batch_id"] == "window_batch_003"  # type: ignore[index]
+    contexts = cast(list[dict[str, object]], payload["candidate_contexts"])
+    assert len(contexts) == 1
+    assert cast(float, contexts[0]["context_duration_sec"]) <= 180
+    assert payload["schema_version"] == "3"
+
+
+def test_v3_global_payload_keeps_every_candidate_and_never_uses_full_context() -> None:
+    transcript = _from_srt()
+    candidates = tuple(
+        _discovery_candidate(candidate_id=f"window_batch_003_candidate_{index:02d}")
+        for index in range(1, 4)
+    )
+    discovery = _discovery(transcript, candidates)
+    boundary = BoundaryReviewOutputV3(
+        reviews=tuple(_boundary_v3(value.candidate_id) for value in candidates)
+    )
+
+    payload = build_global_review_payload_v3(
+        transcript,
+        input_plan=plan_semantic_windowed_input(
+            transcript,
+            prompt=load_semantic_windowed_v2_discovery_prompt("general").instructions,
+            config=SemanticGlobalConfig(),
+        ),
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(),
+        prompt=load_semantic_global_v3_review_prompt("general").instructions,
+    )
+
+    assert payload["mode"] == "semantic_context"
+    assert len(cast(list[object], payload["candidates"])) == 3
+    assert len(cast(list[object], payload["boundary_reviews"])) == 3
+    assert "full_context" not in payload
+    assert payload["top_n_contract"] == {
+        "discovery_candidate_count": 3,
+        "top_n": 15,
+        "top_n_is_final_output_ceiling_only": True,
+    }
+
+
+def test_v3_boundary_review_validates_exact_quotes_duration_and_cardinality() -> None:
+    transcript = _from_srt()
+    candidate = _discovery_candidate(candidate_id="clip03")
+    discovery = _discovery(transcript, (candidate,))
+    valid = BoundaryReviewOutputV3(reviews=(_boundary_v3("clip03"),))
+
+    assert (
+        validate_boundary_review_v3(
+            valid,
+            transcript=transcript,
+            discovery=discovery,
+            config=SemanticGlobalConfig(),
+        )
+        == valid
+    )
+
+    wrong_quote = valid.model_copy(
+        update={
+            "reviews": (
+                valid.reviews[0].model_copy(
+                    update={"actual_source_opening_quote": "不是实际源开头"}
+                ),
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="actual opening quote"):
+        validate_boundary_review_v3(
+            wrong_quote,
+            transcript=transcript,
+            discovery=discovery,
+            config=SemanticGlobalConfig(),
+        )
+
+    relabeled_keep = BoundaryReviewOutputV3(
+        reviews=(
+            _boundary_v3("clip03", start_cue_id=180).model_copy(
+                update={"actual_source_opening_quote": REAL_CUES[179].text}
+            ),
+        )
+    )
+    with pytest.raises(ValueError, match="keep must preserve"):
+        validate_boundary_review_v3(
+            relabeled_keep,
+            transcript=transcript,
+            discovery=discovery,
+            config=SemanticGlobalConfig(),
+        )
+
+    unchanged_repair = BoundaryReviewOutputV3(
+        reviews=(
+            _boundary_v3(
+                "clip03",
+                decision=ContentDecisionV3.REPAIR_BOUNDARY,
+            ),
+        )
+    )
+    with pytest.raises(ValueError, match="must propose a changed interval"):
+        validate_boundary_review_v3(
+            unchanged_repair,
+            transcript=transcript,
+            discovery=discovery,
+            config=SemanticGlobalConfig(),
+        )
+
+
+def test_830_named_quality_regressions_apply_non_compensable_v3_gates() -> None:
+    """Named IDs mirror the supplied 8-30 audit; timestamps live only in test evidence."""
+
+    transcript = _from_srt()
+    candidate_ids = (
+        "clip03",
+        "clip04",
+        "clip06",
+        "clip07",
+        "clip08",
+        "clip11",
+        "clip13",
+        "clip14",
+        "clip15",
+        "white_voice_clean",
+    )
+    discovery = _discovery(
+        transcript,
+        tuple(
+            _discovery_candidate(
+                candidate_id=value,
+                start_cue_id=176 if value == "clip06" else 179,
+                source_opening_quote=(
+                    REAL_CUES[175].text if value == "clip06" else REAL_CUES[178].text
+                ),
+            )
+            for value in candidate_ids
+        ),
+    )
+    boundary_flags = {
+        "clip04": (QualityFlagV3.IRRELEVANT_INTERNAL_CONTENT,),
+        "clip07": (QualityFlagV3.CONTEXT_DEPENDENT_OPENING,),
+        "clip08": (
+            QualityFlagV3.IRRELEVANT_INTERNAL_CONTENT,
+            QualityFlagV3.OVEREXTENDED_TO_MAX_DURATION,
+        ),
+        "clip13": (QualityFlagV3.CONTEXT_DEPENDENT_OPENING,),
+    }
+    boundary = BoundaryReviewOutputV3(
+        reviews=tuple(
+            _boundary_v3(
+                candidate_id,
+                decision=(
+                    ContentDecisionV3.REPAIR_BOUNDARY
+                    if candidate_id == "clip06"
+                    else ContentDecisionV3.DROP
+                    if candidate_id in {"clip04", "clip07", "clip08", "clip13"}
+                    else ContentDecisionV3.KEEP
+                ),
+                start_cue_id=(
+                    None if candidate_id in {"clip04", "clip07", "clip08", "clip13"} else 179
+                ),
+                end_cue_id=(
+                    None if candidate_id in {"clip04", "clip07", "clip08", "clip13"} else 193
+                ),
+                quality_flags=boundary_flags.get(candidate_id, ()),
+            )
+            for candidate_id in candidate_ids
+        )
+    )
+    clip14_risks = (
+        _risk_v3(RiskTypeV3.GENERAL_HEALTH_ADVICE),
+        _risk_v3(RiskTypeV3.ABSOLUTE_CLAIM),
+    )
+    clip15_risks = (
+        _risk_v3(RiskTypeV3.IDENTIFIED_PERSON_CLAIM),
+        _risk_v3(RiskTypeV3.REGIONAL_STEREOTYPE),
+        _risk_v3(RiskTypeV3.ABSOLUTE_CLAIM),
+    )
+    reviews = tuple(
+        _global_v3(
+            candidate_id,
+            decision=(
+                ContentDecisionV3.DROP
+                if candidate_id in {"clip04", "clip07", "clip08", "clip13"}
+                else ContentDecisionV3.REPAIR_BOUNDARY
+                if candidate_id == "clip06"
+                else ContentDecisionV3.KEEP
+            ),
+            start_cue_id=(
+                None if candidate_id in {"clip04", "clip07", "clip08", "clip13"} else 179
+            ),
+            end_cue_id=(None if candidate_id in {"clip04", "clip07", "clip08", "clip13"} else 193),
+            quality_flags=(
+                (QualityFlagV3.TITLE_SOURCE_MISMATCH,)
+                if candidate_id == "clip11"
+                else (QualityFlagV3.ASR_MEANING_REVERSAL,)
+                if candidate_id == "clip14"
+                else (QualityFlagV3.DUPLICATE_WEAKER,)
+                if candidate_id == "clip08"
+                else boundary_flags.get(candidate_id, ())
+            ),
+            risks=(
+                clip14_risks
+                if candidate_id == "clip14"
+                else clip15_risks
+                if candidate_id == "clip15"
+                else ()
+            ),
+            duplicate_group_id=("white_voice" if candidate_id == "clip08" else None),
+            duplicate_of=("white_voice_clean" if candidate_id == "clip08" else None),
+        )
+        for candidate_id in candidate_ids
+    )
+
+    result = validate_global_review_v3(
+        GlobalReviewOutputV3(reviews=reviews),
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(max_clips=15),
+    )
+
+    assert {value.review.candidate_id for value in result.selected} == {
+        "clip03",
+        "clip06",
+        "white_voice_clean",
+    }
+    assert {value.review.candidate_id for value in result.blocked} == {
+        "clip11",
+        "clip14",
+        "clip15",
+    }
+    assert {value.review.candidate_id for value in result.rejected} == {
+        "clip04",
+        "clip07",
+        "clip08",
+        "clip13",
+    }
+    assert result.statistics.discovery_candidate_count == 10
+    assert result.statistics.selected_count == 3
+    assert result.statistics.blocked_count == 3
+    assert result.statistics.rejected_count == 4
+    assert result.statistics.boundary_repaired_count == 1
+    assert result.statistics.suspicious_exact_top_n is False
+
+
+@pytest.mark.parametrize(
+    "quality_flag",
+    (
+        QualityFlagV3.IRRELEVANT_INTRO,
+        QualityFlagV3.IRRELEVANT_OUTRO,
+        QualityFlagV3.REPEATED_LIVE_CTA,
+        QualityFlagV3.EQUIPMENT_INTERRUPTION,
+        QualityFlagV3.OVEREXTENDED_TO_MAX_DURATION,
+        QualityFlagV3.TOPIC_MIXED,
+    ),
+)
+def test_v3_unresolved_dirty_interval_flags_cannot_be_compensated_by_score(
+    quality_flag: QualityFlagV3,
+) -> None:
+    transcript = _from_srt()
+    candidate = _discovery_candidate(candidate_id="dirty_interval")
+    discovery = _discovery(transcript, (candidate,))
+    boundary = BoundaryReviewOutputV3(
+        reviews=(_boundary_v3("dirty_interval", quality_flags=(quality_flag,)),)
+    )
+
+    result = validate_global_review_v3(
+        GlobalReviewOutputV3(reviews=(_global_v3("dirty_interval"),)),
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(),
+    )
+
+    assert not result.selected
+    assert result.rejected[0].final_score == 82
+    assert quality_flag in result.rejected[0].quality_flags
+
+
+def test_v3_global_keep_cannot_silently_replace_boundary_review_interval() -> None:
+    transcript = _from_srt()
+    candidate = _discovery_candidate(
+        candidate_id="repaired_boundary",
+        start_cue_id=176,
+        source_opening_quote=REAL_CUES[175].text,
+    )
+    discovery = _discovery(transcript, (candidate,))
+    boundary = BoundaryReviewOutputV3(
+        reviews=(
+            _boundary_v3(
+                "repaired_boundary",
+                decision=ContentDecisionV3.REPAIR_BOUNDARY,
+                start_cue_id=179,
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError, match="keep must use the validated Boundary Review interval"):
+        validate_global_review_v3(
+            GlobalReviewOutputV3(
+                reviews=(
+                    _global_v3(
+                        "repaired_boundary",
+                        decision=ContentDecisionV3.KEEP,
+                        start_cue_id=180,
+                    ),
+                )
+            ),
+            transcript=transcript,
+            discovery_outputs=(discovery,),
+            boundary_outputs=(boundary,),
+            config=SemanticGlobalConfig(),
+        )
+
+
+def test_v3_threshold_top_n_and_manual_counts_are_python_derived() -> None:
+    transcript = _from_srt()
+    candidate_ids = tuple(f"candidate_{index:02d}" for index in range(1, 6))
+    discovery = _discovery(
+        transcript,
+        tuple(
+            _discovery_candidate(
+                candidate_id=value,
+                risks=(
+                    (_risk(RiskType.GENERAL_HEALTH_WARNING, severity=RiskSeverity.HIGH),)
+                    if value == "candidate_05"
+                    else ()
+                ),
+            )
+            for value in candidate_ids
+        ),
+    )
+    boundary = BoundaryReviewOutputV3(reviews=tuple(_boundary_v3(value) for value in candidate_ids))
+    output = GlobalReviewOutputV3(
+        reviews=(
+            _global_v3("candidate_01", score=_score_v3(75)),
+            _global_v3("candidate_02", score=_score_v3(76)),
+            _global_v3("candidate_03"),
+            _global_v3("candidate_04"),
+            _global_v3("candidate_05"),
+        )
+    )
+
+    result = validate_global_review_v3(
+        output,
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(max_clips=2),
+    )
+
+    assert len(result.selected) == 2
+    assert len(result.top_n_excluded) == 1
+    assert len(result.manual_review) == 1
+    assert len(result.rejected) == 1
+    assert result.statistics.eligible_before_top_n_count == 3
+    assert result.statistics.top_n_excluded_count == 1
+
+
+@pytest.mark.parametrize("duration_ms", [45_000, 90_000])
+def test_v3_auto_gate_keeps_inclusive_duration_endpoints(duration_ms: int) -> None:
+    transcript = TranscriptDocument(
+        source_duration_ms=duration_ms,
+        word_timing_status=WordTimingStatus.UNAVAILABLE,
+        segments=(
+            TranscriptSegment(
+                segment_id="cue_1",
+                start_ms=0,
+                end_ms=duration_ms,
+                text="完整独立的测试内容",
+            ),
+        ),
+    )
+    candidate = DiscoveryCandidate(
+        candidate_id="duration_edge",
+        parent_topic="时长边界",
+        viewer_promise="验证时长边界",
+        content_type="teaching",
+        start_cue_id=1,
+        end_cue_id=1,
+        hook="时长边界",
+        payoff="边界合法",
+        standalone_context="完整",
+        evidence_cue_ids=(1,),
+        boundary_notes="单一连续区间",
+        source_opening_quote="完整独立的测试内容",
+        source_closing_quote="完整独立的测试内容",
+        opening_relevance=OpeningRelevance.DIRECT,
+        ending_complete=True,
+        first_complete_payoff_cue_id=1,
+        minimum_duration_extension_cue_ids=(),
+        boundary_compactness=BoundaryCompactness.SHORTEST_COMPLETE,
+        topic_core_start_cue_id=1,
+        topic_core_end_cue_id=1,
+    )
+    discovery = DiscoveryOutput(
+        source_id="duration_source",
+        source_range=CueRange(start_cue_id=1, end_cue_id=1),
+        topic_units=(
+            DiscoveryTopicUnit(
+                topic_id="duration_topic",
+                start_cue_id=1,
+                end_cue_id=1,
+                summary="时长边界",
+                value_density="high",
+                candidate_ids=(candidate.candidate_id,),
+                candidate_status=CandidateStatus.FOUND,
+                no_candidate_reason_code=None,
+            ),
+        ),
+        candidates=(candidate,),
+    )
+    boundary = BoundaryReviewOutputV3(
+        reviews=(
+            BoundaryReviewItemV3(
+                candidate_id=candidate.candidate_id,
+                content_decision=ContentDecisionV3.KEEP,
+                proposed_start_cue_id=1,
+                proposed_end_cue_id=1,
+                opening_relevance=OpeningRelevance.DIRECT,
+                ending_complete=True,
+                actual_source_opening_quote="完整独立的测试内容",
+                actual_source_closing_quote="完整独立的测试内容",
+                evidence_cue_ids=(1,),
+                review_reason="实际连续边界合法",
+            ),
+        )
+    )
+    dimensions = _score_v3()
+    output = GlobalReviewOutputV3(
+        reviews=(
+            CandidateGlobalReviewV3(
+                candidate_id=candidate.candidate_id,
+                content_decision=ContentDecisionV3.KEEP,
+                publish_status=PublishStatusV3.AUTO,
+                score_dimensions=dimensions,
+                score=dimensions.total,
+                proposed_start_cue_id=1,
+                proposed_end_cue_id=1,
+                title="合法时长边界",
+                hook="合法时长边界",
+                payoff="合法时长边界",
+                evidence_cue_ids=(1,),
+                review_reason="超过严格分数门槛",
+            ),
+        )
+    )
+
+    result = validate_global_review_v3(
+        output,
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(),
+    )
+
+    assert len(result.selected) == 1
+    assert result.selected[0].duration_ms == duration_ms
+
+
+def test_exact_top_n_shape_is_audited_but_does_not_create_or_reject_clips() -> None:
+    transcript = _from_srt()
+    candidate_ids = ("candidate_a", "candidate_b")
+    discovery = _discovery(
+        transcript,
+        tuple(_discovery_candidate(candidate_id=value) for value in candidate_ids),
+    )
+    boundary = BoundaryReviewOutputV3(reviews=tuple(_boundary_v3(value) for value in candidate_ids))
+
+    result = validate_global_review_v3(
+        GlobalReviewOutputV3(reviews=tuple(_global_v3(value) for value in candidate_ids)),
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        boundary_outputs=(boundary,),
+        config=SemanticGlobalConfig(max_clips=2),
+    )
+
+    assert len(result.selected) == 2
+    assert result.rejected == ()
+    assert result.statistics.suspicious_exact_top_n is True
 
 
 def test_semantic_codex_uses_explicit_high_reasoning_without_mutating_base_argv() -> None:
@@ -582,6 +1329,39 @@ def test_provider_schema_repair_receives_invalid_output_and_precise_errors() -> 
     assert repair["valid_cue_ids"] == [1, 2]
     assert "cues" not in cast(dict[str, object], repair["immutable_transport_facts"])
     assert "Never return empty arrays" in str(repair["repair_scope"])
+
+
+def test_v3_boundary_domain_repair_keeps_only_current_batch_authority() -> None:
+    transcript = _from_srt()
+    discovery = _discovery(
+        transcript,
+        (_discovery_candidate(candidate_id="window_batch_003_candidate_01"),),
+    )
+    payload = build_boundary_review_payload_v3(
+        transcript,
+        discovery=discovery,
+        output_index=3,
+        config=SemanticGlobalConfig(),
+    )
+    assert payload is not None
+    invalid = BoundaryReviewOutputV3(
+        reviews=(
+            _boundary_v3("window_batch_003_candidate_01").model_copy(
+                update={"actual_source_opening_quote": "错误引用"}
+            ),
+        )
+    )
+
+    repair = semantic_repair_payload(
+        payload,
+        invalid,
+        validation_errors=("actual opening quote must equal source",),
+    )
+
+    assert repair["schema_version"] == "3"
+    assert repair["valid_discovery_candidate_ids"] == ["window_batch_003_candidate_01"]
+    assert 179 in cast(list[int], repair["valid_cue_ids"])
+    assert repair["preserve_item_ids"] == {"reviews": ["window_batch_003_candidate_01"]}
 
 
 def test_real_8163_uses_full_context_with_128k_o200k_budget() -> None:
@@ -751,7 +1531,7 @@ def test_semantic_eval_repairs_false_duration_rejection_once(
 ) -> None:
     transcript = _from_srt()
     discovery = _discovery(transcript)
-    false_duration_review = GlobalReviewOutput(
+    false_duration_review = GlobalReviewOutputV2(
         review_summary=GlobalReviewSummary(
             global_notes=("模型误称完整呼吸片段超过最长时长",),
         ),
@@ -779,8 +1559,23 @@ def test_semantic_eval_repairs_false_duration_rejection_once(
             ),
         ),
         coverage_notes=(),
+        candidate_assessments=(
+            CandidateAssessment(
+                candidate_id="candidate_001",
+                disposition=CandidateAssessmentDisposition.REJECT,
+                score_dimensions=ScoreDimensions(
+                    standalone=15,
+                    general_value=15,
+                    interest=15,
+                    completeness=15,
+                    evidence=7,
+                    edit_cleanliness=7,
+                ),
+                result_clip_id=None,
+            ),
+        ),
     )
-    repaired_review = _review(_review_clip())
+    repaired_review = _review_v2(_review_clip())
     providers: list[_FalseDurationProvider] = []
 
     def provider_factory(
@@ -967,6 +1762,41 @@ def test_windowed_plan_batches_four_overlapping_logical_windows() -> None:
     )
     assert payload["input_mode"] == "windowed"
     assert len(payload["logical_windows_ms"]) == 4
+
+
+def test_windowed_plan_skips_long_silent_intermission_without_changing_timestamps() -> None:
+    transcript = TranscriptDocument(
+        source_duration_ms=1_200_000,
+        word_timing_status=WordTimingStatus.UNAVAILABLE,
+        segments=(
+            TranscriptSegment(
+                segment_id="before_silence",
+                start_ms=10_000,
+                end_ms=20_000,
+                text="静音前内容",
+            ),
+            TranscriptSegment(
+                segment_id="after_silence",
+                start_ms=900_000,
+                end_ms=910_000,
+                text="静音后内容",
+            ),
+        ),
+    )
+
+    plan = plan_semantic_windowed_input(
+        transcript,
+        prompt="短窗口",
+        config=SemanticGlobalConfig(),
+    )
+
+    assert [unit.context_range_ms.model_dump() for unit in plan.units] == [
+        {"start_ms": 0, "end_ms": 300_000},
+        {"start_ms": 720_000, "end_ms": 1_020_000},
+    ]
+    assert [unit.cues[0].start_ms for unit in plan.units] == [10_000, 900_000]
+    assert plan.units[0].ownership_range_ms.end_ms == 240_000
+    assert plan.units[1].ownership_range_ms.start_ms == 720_000
 
 
 def test_windowed_global_review_uses_candidate_context_not_full_livestream() -> None:
@@ -1641,6 +2471,130 @@ def test_global_review_recomputes_score_and_uses_exclusive_threshold() -> None:
     assert "exclusive_score_gate" in " ".join(result.validation_notes)
 
 
+def test_v2_global_review_rejects_unscored_candidate_omission() -> None:
+    transcript = _from_srt()
+    discovery = _discovery(transcript)
+    output = _review_v2(
+        rejected_candidates=(
+            RejectedCandidateGroup(
+                candidate_ids=("candidate_001",),
+                topic_ids=("topic_breathing",),
+                reason_code=CoverageReasonCode.NO_GENERAL_VALUE,
+                reason="候选不进入最终组合",
+            ),
+        ),
+        candidate_assessments=(),
+    )
+
+    with pytest.raises(ValueError, match="score every Discovery candidate exactly once"):
+        validate_global_review(
+            output,
+            transcript=transcript,
+            discovery_outputs=(discovery,),
+            config=SemanticGlobalConfig(),
+            require_candidate_assessments=True,
+        )
+
+
+def test_v2_global_review_cannot_hide_above_threshold_score_in_no_value_group() -> None:
+    transcript = _from_srt()
+    discovery = _discovery(transcript)
+    score_76 = ScoreDimensions(
+        standalone=16,
+        general_value=16,
+        interest=16,
+        completeness=16,
+        evidence=6,
+        edit_cleanliness=6,
+    )
+    output = _review_v2(
+        rejected_candidates=(
+            RejectedCandidateGroup(
+                candidate_ids=("candidate_001",),
+                topic_ids=("topic_breathing",),
+                reason_code=CoverageReasonCode.NO_GENERAL_VALUE,
+                reason="候选不进入最终组合",
+            ),
+        ),
+        candidate_assessments=(
+            CandidateAssessment(
+                candidate_id="candidate_001",
+                disposition=CandidateAssessmentDisposition.REJECT,
+                score_dimensions=score_76,
+                result_clip_id=None,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="no_general_value cannot suppress score 76"):
+        validate_global_review(
+            output,
+            transcript=transcript,
+            discovery_outputs=(discovery,),
+            config=SemanticGlobalConfig(),
+            require_candidate_assessments=True,
+        )
+
+
+def test_v2_global_review_maps_independently_scored_duplicate_to_kept_clip() -> None:
+    transcript = _from_srt()
+    candidates = (
+        _discovery_candidate(candidate_id="candidate_primary"),
+        _discovery_candidate(candidate_id="candidate_duplicate"),
+    )
+    discovery = _discovery(transcript, candidates)
+    clip = _review_clip(
+        clip_id="clip_representative",
+        source_candidate_ids=("candidate_primary", "candidate_duplicate"),
+    )
+    output = _review_v2(
+        clip,
+        candidate_assessments=(
+            CandidateAssessment(
+                candidate_id="candidate_primary",
+                disposition=CandidateAssessmentDisposition.ADVANCE,
+                score_dimensions=clip.score_dimensions,
+                result_clip_id=clip.clip_id,
+            ),
+            CandidateAssessment(
+                candidate_id="candidate_duplicate",
+                disposition=CandidateAssessmentDisposition.DUPLICATE,
+                score_dimensions=clip.score_dimensions,
+                result_clip_id=clip.clip_id,
+            ),
+        ),
+    )
+
+    validated = validate_global_review(
+        output,
+        transcript=transcript,
+        discovery_outputs=(discovery,),
+        config=SemanticGlobalConfig(),
+        require_candidate_assessments=True,
+    )
+
+    assert [value.clip.clip_id for value in validated.selected] == ["clip_representative"]
+
+
+def test_830_best_portfolio_fixture_keeps_all_thirteen_above_threshold_clips() -> None:
+    fixture_path = Path(__file__).parents[1] / "fixtures" / "8-30-best-portfolio.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    clips = cast(list[dict[str, object]], payload["clips"])
+    threshold = cast(int, payload["strict_score_threshold_exclusive"])
+
+    assert payload["transcript_time_text_sha256"] == (
+        "f882915ca8fac667a1c238cffb04337933a42b5224f6afe09b6d7f0b54f90da2"
+    )
+    assert len(clips) == 13
+    assert [clip["rank"] for clip in clips] == list(range(1, 14))
+    assert all(cast(int, clip["score"]) > threshold for clip in clips)
+    assert len({(clip["source_start_ms"], clip["source_end_ms"]) for clip in clips}) == len(clips)
+    assert all(
+        45_000 <= cast(int, clip["source_end_ms"]) - cast(int, clip["source_start_ms"]) <= 90_000
+        for clip in clips
+    )
+
+
 def test_global_review_risk_gate_excludes_high_medical_diagnosis_from_selected() -> None:
     transcript = _from_srt()
     medical = _risk(
@@ -1861,6 +2815,59 @@ def test_windowed_global_review_adapts_context_guard_without_dropping_candidates
         for candidate_id in cast(list[object], context["candidate_ids"])
     }
     assert transported_candidates == {f"candidate_{index:03d}" for index in range(1, 16)}
+
+
+def test_windowed_global_review_uses_columnar_fallback_before_rejecting_dense_input() -> None:
+    class DenseTransportEstimator:
+        def count(self, value: str) -> int:
+            if not value.startswith("{"):
+                return 0
+            compact = '"transport_format":"rows_follow_declared_columns"' in value
+            if not compact or '"candidate_context_guard_ms":15000' in value:
+                return 10_000
+            if '"candidate_context_guard_ms":10000' in value:
+                return 9_000
+            return 0
+
+    transcript = _from_srt()
+    config = SemanticGlobalConfig(
+        model_context_tokens=16_000,
+        full_context_budget_ratio=0.8,
+        output_reserve_tokens=2_000,
+        safety_margin_tokens=1_000,
+    )
+    plan = plan_semantic_windowed_input(transcript, prompt="Discovery", config=config)
+    candidates = tuple(
+        _discovery_candidate(candidate_id=f"candidate_{index:03d}") for index in range(1, 16)
+    )
+
+    payload = build_global_review_payload(
+        transcript,
+        input_plan=plan,
+        discovery_outputs=(_discovery(transcript, candidates),),
+        config=config,
+        prompt="Global Review",
+        estimator=cast(TokenEstimator, DenseTransportEstimator()),
+    )
+
+    evidence = cast(dict[str, object], payload["evidence"])
+    discovery = cast(dict[str, object], payload["discovery"])
+    assert evidence["candidate_context_guard_ms"] == 10_000
+    assert evidence["transport_format"] == "rows_follow_declared_columns"
+    assert discovery["transport_format"] == "rows_follow_declared_columns"
+    assert discovery["topic_unit_columns"]
+    assert discovery["candidate_columns"]
+    restored_candidates = transport_record_objects(
+        discovery,
+        records_key="candidates",
+        columns_key="candidate_columns",
+    )
+    assert {value["candidate_id"] for value in restored_candidates} == {
+        f"candidate_{index:03d}" for index in range(1, 16)
+    }
+    contexts = cast(list[list[object]], evidence["semantic_contexts"])
+    assert contexts
+    assert all(isinstance(value, list) for value in contexts)
 
 
 def test_false_duration_rejection_for_breathing_uses_python_6845_seconds() -> None:
@@ -3037,4 +4044,105 @@ def test_semantic_stage_cache_is_stage_prompt_and_input_scoped(tmp_path: Path) -
             output_model=DiscoveryOutput,
         )
         != key
+    )
+
+
+def test_semantic_stage_cache_round_trips_accuracy_first_review(tmp_path: Path) -> None:
+    output = _review_v2(_review_clip())
+    prompt = load_semantic_global_v2_review_prompt("general")
+    provider = MockStructuredLLMProvider(prompts=prompt, model_name="mock-llm-v1")
+    payload: dict[str, object] = {
+        "source_hash": "a" * 64,
+        "algorithm": "semantic_windowed",
+        "candidate_assessment_contract": {"required": True, "candidate_count": 1},
+    }
+    settings: dict[str, object] = {"context_tokens": 128_000, "temperature": 0}
+    key = semantic_stage_cache_key(
+        stage="global_review",
+        payload=payload,
+        provider=provider,
+        model_settings=settings,
+        output_model=GlobalReviewOutputV2,
+    )
+
+    write_semantic_stage_cache(
+        cache_dir=tmp_path,
+        cache_key=key,
+        stage="global_review",
+        payload=payload,
+        provider=provider,
+        model_settings=settings,
+        output=output,
+    )
+
+    assert (
+        load_semantic_stage_cache(
+            cache_dirs=(tmp_path,),
+            cache_key=key,
+            stage="global_review",
+            payload=payload,
+            provider=provider,
+            model_settings=settings,
+            output_model=GlobalReviewOutputV2,
+        )
+        == output
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "output", "output_model", "prompt"),
+    [
+        (
+            "boundary_review",
+            BoundaryReviewOutputV3(reviews=(_boundary_v3("candidate_001"),)),
+            BoundaryReviewOutputV3,
+            load_semantic_global_v3_boundary_prompt("general"),
+        ),
+        (
+            "global_review",
+            GlobalReviewOutputV3(reviews=(_global_v3("candidate_001"),)),
+            GlobalReviewOutputV3,
+            load_semantic_global_v3_review_prompt("general"),
+        ),
+    ],
+)
+def test_semantic_stage_cache_round_trips_v3_candidate_stages(
+    tmp_path: Path,
+    stage: str,
+    output: BoundaryReviewOutputV3 | GlobalReviewOutputV3,
+    output_model: type[BoundaryReviewOutputV3] | type[GlobalReviewOutputV3],
+    prompt: Any,
+) -> None:
+    provider = MockStructuredLLMProvider(prompts=prompt, model_name="mock-llm-v1")
+    payload: dict[str, object] = {"schema_version": "3", "candidate_id": "candidate_001"}
+    settings: dict[str, object] = {"context_tokens": 128_000, "temperature": 0}
+    key = semantic_stage_cache_key(
+        stage=stage,
+        payload=payload,
+        provider=provider,
+        model_settings=settings,
+        output_model=output_model,
+    )
+
+    write_semantic_stage_cache(
+        cache_dir=tmp_path,
+        cache_key=key,
+        stage=stage,
+        payload=payload,
+        provider=provider,
+        model_settings=settings,
+        output=output,
+    )
+
+    assert (
+        load_semantic_stage_cache(
+            cache_dirs=(tmp_path,),
+            cache_key=key,
+            stage=stage,
+            payload=payload,
+            provider=provider,
+            model_settings=settings,
+            output_model=output_model,
+        )
+        == output
     )

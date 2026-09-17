@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -7,6 +8,7 @@ from pydantic import ValidationError
 import liveclip.bootstrap as bootstrap_module
 from liveclip.bootstrap import pipeline_config_from_settings
 from liveclip.config.settings import Settings
+from liveclip.providers.asr.mlx import MLX_ASR_MODEL, MLX_ASR_UNPROBED_CONTRACT
 from liveclip.providers.asr.mock import MOCK_ASR_CONTRACT_VERSION
 from liveclip.providers.asr.openai import OPENAI_ASR_CONTRACT_VERSION
 from liveclip.providers.asr.openrouter import OPENROUTER_ASR_CONTRACT_VERSION
@@ -28,6 +30,7 @@ def test_real_runtime_defaults_to_openrouter_asr_and_codex_editing() -> None:
 
     assert settings.ai_provider == "openrouter-codex"
     assert settings.codex_executable == "codex"
+    assert settings.asr_concurrency == 4
 
 
 def test_settings_allow_full_context_high_reasoning_timeout() -> None:
@@ -42,7 +45,8 @@ def test_settings_reject_excessive_llm_timeout() -> None:
 
 
 @pytest.mark.parametrize(
-    "provider", ("mock", "openai", "mock-codex", "openai-codex", "openrouter-codex")
+    "provider",
+    ("mock", "openai", "mock-codex", "openai-codex", "openrouter-codex", "mlx-codex"),
 )
 def test_settings_accept_explicit_provider_modes(provider: str) -> None:
     assert Settings(ai_provider=provider, _env_file=None).ai_provider == provider
@@ -87,12 +91,79 @@ def test_codex_editing_modes_keep_asr_selection_explicit_and_fingerprinted(
     config = pipeline_config_from_settings(settings)
 
     assert config.provider == mode
+    assert config.asr_concurrency == 4
     assert config.transcription_model == asr_model
     assert config.asr_contract_version == asr_contract
-    assert config.llm_model == "gpt-5.6-terra"
+    assert config.llm_model == "gpt-5.6-sol"
     assert config.llm_contract_version == contract
     assert config.llm_input_price_per_million is None
     assert config.llm_output_price_per_million is None
+
+
+def test_mlx_codex_uses_pinned_local_model_contract_and_single_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = (tmp_path / "large-v3").resolve()
+    asr_contract = "mlx-asr-large-v3-fp16-greedy-v4." + "b" * 32
+    llm_contract = "codex-cli-editorial-v2.0.146.0." + "a" * 64
+    observed: list[Path] = []
+
+    def inspect(path: Path) -> SimpleNamespace:
+        observed.append(path)
+        return SimpleNamespace(contract_version=asr_contract)
+
+    monkeypatch.setattr(bootstrap_module, "inspect_mlx_model", inspect)
+    monkeypatch.setattr(
+        bootstrap_module,
+        "codex_cli_contract_version",
+        lambda _executable: llm_contract,
+    )
+    settings = Settings(
+        ai_provider="mlx-codex",
+        mlx_asr_model_path=model_path,
+        asr_concurrency=8,
+        _env_file=None,
+    )
+
+    config = pipeline_config_from_settings(settings)
+
+    assert observed == [model_path]
+    assert config.provider == "mlx-codex"
+    assert config.transcription_model == MLX_ASR_MODEL
+    assert config.asr_contract_version == asr_contract
+    assert config.asr_concurrency == 1
+    assert config.llm_contract_version == llm_contract
+
+
+def test_mlx_import_config_does_not_probe_model_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bootstrap_module,
+        "inspect_mlx_model",
+        lambda _path: (_ for _ in ()).throw(AssertionError("must not inspect local model")),
+    )
+
+    config = pipeline_config_from_settings(
+        Settings(ai_provider="mlx-codex", _env_file=None),
+        run_scope="import",
+    )
+
+    assert config.asr_contract_version == MLX_ASR_UNPROBED_CONTRACT
+    assert config.llm_contract_version == CODEX_LLM_UNPROBED_CONTRACT
+
+
+def test_mlx_model_path_resolves_without_appearing_in_public_summary(tmp_path: Path) -> None:
+    settings = Settings(
+        ai_provider="mlx-codex",
+        mlx_asr_model_path=Path("models/large-v3"),
+        _env_file=None,
+    )
+
+    assert settings.resolved_mlx_asr_model_path(tmp_path) == (tmp_path / "models/large-v3")
+    assert "mlx_asr_model_path" not in settings.public_summary(tmp_path)
+    assert settings.public_summary(tmp_path)["transcription_model"] == MLX_ASR_MODEL
 
 
 def test_mock_mode_remains_explicit_for_tests_and_demo() -> None:

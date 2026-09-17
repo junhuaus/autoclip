@@ -1,13 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+import hashlib
+import os
+import stat
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import BinaryIO, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from liveclip.domain.transcript import WordTimingStatus
 from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
+
+MAX_ASR_CHUNK_BYTES = 25_000_000
 
 
 @runtime_checkable
@@ -147,3 +153,56 @@ def audio_path_for_chunk(chunk: AudioChunkLike) -> Path:
         if isinstance(value, (str, Path)):
             return Path(value)
     raise TypeError("audio chunk must expose path or audio_path")
+
+
+@contextmanager
+def open_validated_audio_chunk(
+    chunk: AudioChunkLike,
+    *,
+    maximum_bytes: int = MAX_ASR_CHUNK_BYTES,
+) -> Iterator[BinaryIO]:
+    """Pin and verify one generated chunk before any Provider consumes its bytes."""
+
+    from liveclip.providers.telemetry import ProviderConfigurationError
+
+    if maximum_bytes <= 0:
+        raise ValueError("maximum ASR chunk bytes must be positive")
+    path = audio_path_for_chunk(chunk)
+    expected_size = getattr(chunk, "size_bytes", None)
+    expected_sha256 = getattr(chunk, "sha256", None)
+    if not isinstance(expected_size, int) or isinstance(expected_size, bool) or expected_size <= 0:
+        raise ProviderConfigurationError("audio chunk size metadata is missing")
+    if not isinstance(expected_sha256, str) or len(expected_sha256) != 64:
+        raise ProviderConfigurationError("audio chunk fingerprint metadata is missing")
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise ProviderConfigurationError("audio chunk is not readable") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ProviderConfigurationError("audio chunk must be a regular non-symlink file")
+    if metadata.st_size != expected_size or metadata.st_size > maximum_bytes:
+        raise ProviderConfigurationError("audio chunk size does not match the safe manifest")
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ProviderConfigurationError("audio chunk could not be opened safely") from exc
+    handle = os.fdopen(descriptor, "rb")
+    try:
+        opened = os.fstat(handle.fileno())
+        if (opened.st_dev, opened.st_ino, opened.st_size) != (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_size,
+        ):
+            raise ProviderConfigurationError("audio chunk changed while opening")
+        digest = hashlib.sha256()
+        while block := handle.read(1024 * 1024):
+            digest.update(block)
+        if digest.hexdigest() != expected_sha256:
+            raise ProviderConfigurationError("audio chunk fingerprint does not match the manifest")
+        handle.seek(0)
+        yield handle
+    finally:
+        handle.close()

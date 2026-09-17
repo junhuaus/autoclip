@@ -53,6 +53,7 @@ from liveclip.domain.state_transitions import (
     transition_task,
 )
 from liveclip.media.fingerprint import stream_sha256
+from liveclip.media.secure_files import cross_launch_source_stat_matches
 from liveclip.renderer.contracts import (
     FFMPEG_RENDERER_CONTRACT_VERSION,
     RENDER_SPEC_SCHEMA_VERSION,
@@ -723,19 +724,24 @@ def _source_matches_persisted_identity(
         }
     ):
         return False
-    observed = {
-        "size_bytes": metadata.st_size,
-        "mtime_ns": metadata.st_mtime_ns,
-        "device": getattr(metadata, "st_dev", None),
-        "inode": getattr(metadata, "st_ino", None),
-    }
     persisted = {
         "size_bytes": int(row.source_size_bytes),  # type: ignore[attr-defined]
         "mtime_ns": int(row.source_mtime_ns),  # type: ignore[attr-defined]
         "device": int(row.source_device) if row.source_device is not None else None,  # type: ignore[attr-defined]
         "inode": int(row.source_inode) if row.source_inode is not None else None,  # type: ignore[attr-defined]
     }
-    return identity == persisted == observed
+    return identity == persisted and cross_launch_source_stat_matches(
+        source_path,
+        metadata,
+        expected_path=source_path,
+        expected_size_bytes=int(row.source_size_bytes),  # type: ignore[attr-defined]
+        expected_mtime_ns=int(row.source_mtime_ns),  # type: ignore[attr-defined]
+        expected_inode=(
+            int(row.source_inode)  # type: ignore[attr-defined]
+            if row.source_inode is not None  # type: ignore[attr-defined]
+            else None
+        ),
+    )
 
 
 def _source_matches_work_identity(work: RenderWork) -> bool:
@@ -745,11 +751,13 @@ def _source_matches_work_identity(work: RenderWork) -> bool:
         metadata = work.source_path.stat()
     except (OSError, RuntimeError):
         return False
-    return (
-        metadata.st_size == work.source_size_bytes
-        and metadata.st_mtime_ns == work.source_mtime_ns
-        and getattr(metadata, "st_dev", None) == work.source_device
-        and getattr(metadata, "st_ino", None) == work.source_inode
+    return cross_launch_source_stat_matches(
+        work.source_path,
+        metadata,
+        expected_path=work.source_path,
+        expected_size_bytes=work.source_size_bytes,
+        expected_mtime_ns=work.source_mtime_ns,
+        expected_inode=work.source_inode,
     )
 
 

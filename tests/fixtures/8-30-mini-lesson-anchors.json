@@ -1,0 +1,52 @@
+{
+  "schema_version": "1",
+  "transcript_sha256": "29b8751643ecc38a7183ab0c837a011cbca1e70a56de0788cd66292dbf364120",
+  "anchors": [
+    {
+      "anchor_id": "air_mix_leak_breathy_voice",
+      "start_ms": 1637560,
+      "end_ms": 1742560,
+      "expected": "auto",
+      "risk_flags": []
+    },
+    {
+      "anchor_id": "first_four_learning_steps",
+      "start_ms": 1890420,
+      "end_ms": 2160060,
+      "expected": "auto",
+      "risk_flags": []
+    },
+    {
+      "anchor_id": "balanced_weak_air_mix",
+      "start_ms": 2162360,
+      "end_ms": 2283640,
+      "expected": "auto",
+      "risk_flags": []
+    },
+    {
+      "anchor_id": "beginner_pharyngeal_voice",
+      "start_ms": 2406320,
+      "end_ms": 2548360,
+      "expected": "manual",
+      "risk_flags": ["health_advice", "absolute_claim"]
+    },
+    {
+      "anchor_id": "student_high_note_diagnosis",
+      "start_ms": 4864000,
+      "end_ms": 5009680,
+      "expected": "manual",
+      "risk_flags": ["music_rights_review", "health_advice"]
+    },
+    {
+      "anchor_id": "nasal_position_live_correction",
+      "start_ms": 6037980,
+      "end_ms": 6280040,
+      "expected": "manual",
+      "risk_flags": ["music_rights_review", "health_advice"]
+    }
+  ],
+  "negative_ranges": [
+    {"start_ms": 597000, "end_ms": 847000},
+    {"start_ms": 1110000, "end_ms": 1345000}
+  ]
+}

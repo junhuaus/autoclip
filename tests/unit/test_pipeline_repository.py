@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.engine import Engine
 
+from liveclip.application.authorization import ProjectAction
 from liveclip.application.pipeline import (
     LeaseIdentity,
     PipelineRunConfig,
@@ -19,14 +20,22 @@ from liveclip.application.pipeline import (
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.db.base import Base, new_id
+from liveclip.db.current_project_authority import (
+    CurrentProjectAccessDenied,
+    CurrentProjectRunChanged,
+    require_current_project_action,
+)
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import (
+    ApiUsageRow,
     AssetRow,
     PipelineRunRow,
+    ProjectMemberRow,
     ProjectRow,
     SourceMediaRow,
     StageRunRow,
     TaskRow,
+    WorkspaceUserRow,
 )
 from liveclip.db.pipeline_repository import (
     DeterministicRetryRejected,
@@ -40,7 +49,9 @@ from liveclip.domain.state_transitions import (
     PipelineRunStatus,
     PipelineStage,
     ProjectStatus,
+    ResourceClass,
     StageRunStatus,
+    TaskKind,
     TaskStatus,
 )
 
@@ -64,6 +75,18 @@ V5_SEMANTIC_GLOBAL_FIELDS = (
     "semantic_global_context_ms",
     "semantic_no_render",
     "semantic_prompt_debug",
+)
+V6_BOUNDARY_REVIEW_FIELDS = (
+    "semantic_boundary_review_skill_version",
+    "semantic_boundary_review_skill_sha256",
+)
+V7_CLIP_PROFILE_FIELDS = (
+    "clip_profile",
+    "semantic_link_review_skill_version",
+    "semantic_link_review_skill_sha256",
+    "semantic_topic_chain_skill_version",
+    "semantic_topic_chain_skill_sha256",
+    "semantic_result_schema_version",
 )
 
 
@@ -106,9 +129,12 @@ def _create(service: PipelineService, suffix: str = "a") -> tuple[str, str]:
 
 def test_exact_historical_v2_config_loads_as_algorithm_a() -> None:
     payload = _config().model_dump(mode="json")
+    del payload["semantic_validation_contract"]
     payload["schema_version"] = "2"
     for field in (
         *V5_SEMANTIC_GLOBAL_FIELDS,
+        *V6_BOUNDARY_REVIEW_FIELDS,
+        *V7_CLIP_PROFILE_FIELDS,
         "clipping_algorithm",
         "semantic_skill_version",
         "semantic_skill_sha256",
@@ -131,7 +157,7 @@ def test_exact_historical_v2_config_loads_as_algorithm_a() -> None:
         hashlib.sha256(serialized.encode()).hexdigest(),
     )
 
-    assert restored.schema_version == "5"
+    assert restored.schema_version == "8"
     assert restored.clipping_algorithm == "a"
     assert restored.top_n == 3
 
@@ -139,9 +165,12 @@ def test_exact_historical_v2_config_loads_as_algorithm_a() -> None:
 def test_exact_historical_v3_config_loads_without_continuous_merge() -> None:
     current = _config()
     payload = current.model_dump(mode="json")
+    del payload["semantic_validation_contract"]
     payload["schema_version"] = "3"
     for field in (
         *V5_SEMANTIC_GLOBAL_FIELDS,
+        *V6_BOUNDARY_REVIEW_FIELDS,
+        *V7_CLIP_PROFILE_FIELDS,
         "semantic_target_clip_ms",
         "semantic_continuous_merge_enabled",
         "semantic_consolidation_skill_version",
@@ -160,15 +189,20 @@ def test_exact_historical_v3_config_loads_without_continuous_merge() -> None:
         hashlib.sha256(serialized.encode()).hexdigest(),
     )
 
-    assert restored.schema_version == "5"
+    assert restored.schema_version == "8"
     assert restored.semantic_continuous_merge_enabled is False
     assert restored.semantic_target_clip_ms == restored.maximum_clip_ms
 
 
 def test_exact_experimental_v4_config_loads_without_becoming_semantic_global() -> None:
     payload = _config().model_dump(mode="json")
+    del payload["semantic_validation_contract"]
     payload["schema_version"] = "4"
-    for field in V5_SEMANTIC_GLOBAL_FIELDS:
+    for field in (
+        *V5_SEMANTIC_GLOBAL_FIELDS,
+        *V6_BOUNDARY_REVIEW_FIELDS,
+        *V7_CLIP_PROFILE_FIELDS,
+    ):
         del payload[field]
     serialized = json.dumps(
         payload,
@@ -182,9 +216,33 @@ def test_exact_experimental_v4_config_loads_without_becoming_semantic_global() -
         hashlib.sha256(serialized.encode()).hexdigest(),
     )
 
-    assert restored.schema_version == "5"
+    assert restored.schema_version == "8"
     assert restored.clipping_algorithm == "a"
     assert restored.semantic_discovery_skill_sha256 == "0" * 64
+
+
+def test_exact_historical_v5_config_keeps_v2_contract_when_upgraded() -> None:
+    payload = _config().model_dump(mode="json")
+    del payload["semantic_validation_contract"]
+    payload["schema_version"] = "5"
+    payload["semantic_global_review_skill_version"] = "semantic_global_v2.global_review"
+    for field in (*V6_BOUNDARY_REVIEW_FIELDS, *V7_CLIP_PROFILE_FIELDS):
+        del payload[field]
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+    restored = load_persisted_pipeline_config(
+        payload,
+        hashlib.sha256(serialized.encode()).hexdigest(),
+    )
+
+    assert restored.schema_version == "8"
+    assert restored.semantic_global_review_skill_version == ("semantic_global_v2.global_review")
+    assert restored.semantic_boundary_review_skill_sha256 == "0" * 64
 
 
 def test_pipeline_service_rechecks_data_directory_source_before_database_insert(
@@ -355,6 +413,152 @@ def test_cancel_queued_run_is_immediately_terminal(
     assert set(statuses) == {TaskStatus.CANCELLED.value}
 
 
+def _insert_completion_task(
+    engine: Engine, run_id: str, *, status: TaskStatus = TaskStatus.QUEUED
+) -> str:
+    task_id = new_id()
+    lease = status == TaskStatus.RUNNING
+    with engine.begin() as connection:
+        connection.execute(
+            insert(TaskRow).values(
+                id=task_id,
+                kind=TaskKind.COMPLETION.value,
+                target_id=new_id(),
+                operation_key=f"completion:{task_id}",
+                input_fingerprint="f" * 64,
+                resource_class=ResourceClass.CHEAP.value,
+                pipeline_run_id=run_id,
+                status=status.value,
+                priority=50,
+                not_before=NOW,
+                expected_generation=1,
+                attempt_count=int(lease),
+                retry_count=0,
+                manual_retry_count=0,
+                max_retries=3,
+                worker_id="completion-worker" if lease else None,
+                lease_token="completion-lease" if lease else None,
+                heartbeat_at=NOW if lease else None,
+                lease_expires_at=NOW + timedelta(seconds=30) if lease else None,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+    return task_id
+
+
+@pytest.mark.parametrize("status", [TaskStatus.QUEUED, TaskStatus.WAITING])
+def test_processing_cancel_preserves_completion_goal_task(
+    pipeline_context: tuple[Engine, PipelineService], status: TaskStatus
+) -> None:
+    engine, service = pipeline_context
+    _, run_id = _create(service)
+    task_id = _insert_completion_task(engine, run_id, status=status)
+
+    assert service.cancel(run_id).status == PipelineRunStatus.CANCELLED
+    with engine.connect() as connection:
+        actual = connection.execute(
+            select(TaskRow.status, TaskRow.cancellation_requested_at).where(TaskRow.id == task_id)
+        ).one()
+    assert actual == (status.value, None)
+
+
+def test_running_completion_does_not_delay_processing_cancel(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    _, run_id = _create(service)
+    with engine.begin() as connection:
+        connection.execute(
+            update(PipelineRunRow)
+            .where(PipelineRunRow.id == run_id)
+            .values(status=PipelineRunStatus.RUNNING.value, started_at=NOW)
+        )
+    task_id = _insert_completion_task(engine, run_id, status=TaskStatus.RUNNING)
+
+    assert service.cancel(run_id).status == PipelineRunStatus.CANCELLED
+    with engine.connect() as connection:
+        actual = connection.execute(
+            select(TaskRow.status, TaskRow.cancellation_requested_at).where(TaskRow.id == task_id)
+        ).one()
+    assert actual == (TaskStatus.RUNNING.value, None)
+
+
+def test_new_generation_ignores_old_completion_coordination(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    project_id, run_id = _create(service)
+    with engine.begin() as connection:
+        connection.execute(
+            update(PipelineRunRow)
+            .where(PipelineRunRow.id == run_id)
+            .values(status=PipelineRunStatus.COMPLETED.value, progress=100)
+        )
+        connection.execute(
+            update(TaskRow)
+            .where(TaskRow.pipeline_run_id == run_id)
+            .values(status=TaskStatus.SUCCEEDED.value, completed_at=NOW)
+        )
+    task_id = _insert_completion_task(engine, run_id)
+
+    next_run = service.create_run(project_id=project_id, config=_config(), max_stage_retries=3)
+
+    assert next_run.run_id != run_id
+    with engine.connect() as connection:
+        old_task = connection.scalar(select(TaskRow.status).where(TaskRow.id == task_id))
+    assert old_task == TaskStatus.QUEUED.value
+
+
+def test_completion_effect_authority_rechecks_current_role_and_run(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    project_id, run_id = _create(service)
+    with engine.connect() as connection:
+        actor_id = connection.scalar(select(ProjectRow.owner_id).where(ProjectRow.id == project_id))
+    assert actor_id is not None
+
+    def check(action: ProjectAction) -> None:
+        with engine.begin() as connection:
+            require_current_project_action(
+                connection,
+                project_id=project_id,
+                actor_user_id=actor_id,
+                action=action,
+                expected_run_id=run_id,
+                expected_generation=1,
+            )
+
+    check("review_clip")
+    with engine.begin() as connection:
+        connection.execute(
+            update(ProjectMemberRow)
+            .where(ProjectMemberRow.project_id == project_id)
+            .values(role="editor")
+        )
+    check("deliver")
+    with pytest.raises(CurrentProjectAccessDenied):
+        check("review_clip")
+
+    with engine.begin() as connection:
+        connection.execute(
+            update(WorkspaceUserRow).where(WorkspaceUserRow.id == actor_id).values(is_active=False)
+        )
+    with pytest.raises(CurrentProjectAccessDenied):
+        check("deliver")
+
+    with engine.begin() as connection:
+        connection.execute(
+            update(WorkspaceUserRow).where(WorkspaceUserRow.id == actor_id).values(is_active=True)
+        )
+        connection.execute(
+            update(ProjectRow).where(ProjectRow.id == project_id).values(current_generation=2)
+        )
+    with pytest.raises(CurrentProjectRunChanged):
+        check("deliver")
+
+
 def test_cancel_running_run_remains_requested_until_owner_acknowledges(
     pipeline_context: tuple[Engine, PipelineService],
 ) -> None:
@@ -477,7 +681,17 @@ def test_deterministic_failed_run_requires_a_new_generation(
         service.retry(run_id)
 
 
-@pytest.mark.parametrize("error_code", ["UNEXPECTED_STAGE_ERROR", "EDIT_OUTPUT_INVALID"])
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        "UNEXPECTED_STAGE_ERROR",
+        "CANDIDATES_OUTPUT_INVALID",
+        "EDIT_OUTPUT_INVALID",
+        "PROXY_RENDER_OUTPUT_INVALID",
+        "CANDIDATES_CODEX_NESTED_SESSION",
+        "EDIT_CODEX_NESTED_SESSION",
+    ],
+)
 def test_local_implementation_failure_can_be_manually_retried_after_repair(
     pipeline_context: tuple[Engine, PipelineService],
     error_code: str,
@@ -523,6 +737,94 @@ def test_local_implementation_failure_can_be_manually_retried_after_repair(
             )
         ).one()
     assert task == (TaskStatus.QUEUED.value, 0, 1)
+
+
+def test_legacy_asr_response_invalid_can_be_retried_from_provider_evidence(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    project_id, run_id = _create(service)
+    with engine.begin() as connection:
+        failed_stage = connection.scalar(
+            select(StageRunRow.id).where(
+                StageRunRow.pipeline_run_id == run_id,
+                StageRunRow.stage == PipelineStage.TRANSCRIBE.value,
+            )
+        )
+        assert failed_stage is not None
+        task_id = connection.scalar(
+            select(TaskRow.id).where(TaskRow.pipeline_run_id == run_id).limit(1)
+        )
+        assert task_id is not None
+        failure_values = {
+            "failure_class": FailureClass.DETERMINISTIC.value,
+            "error_code": "TRANSCRIBE_PROVIDER_INVALID",
+        }
+        connection.execute(
+            update(PipelineRunRow)
+            .where(PipelineRunRow.id == run_id)
+            .values(status=PipelineRunStatus.FAILED.value, **failure_values)
+        )
+        connection.execute(
+            update(StageRunRow)
+            .where(StageRunRow.id == failed_stage)
+            .values(status=StageRunStatus.FAILED.value, **failure_values)
+        )
+        connection.execute(
+            update(TaskRow)
+            .where(TaskRow.id == task_id)
+            .values(
+                target_id=failed_stage,
+                stage_run_id=failed_stage,
+                status=TaskStatus.FAILED.value,
+                retry_count=3,
+                **failure_values,
+            )
+        )
+        connection.execute(
+            insert(ApiUsageRow).values(
+                id=new_id(),
+                project_id=project_id,
+                pipeline_run_id=run_id,
+                stage_run_id=failed_stage,
+                provider="openrouter",
+                operation="audio.transcriptions",
+                model="openai/whisper-large-v3",
+                request_id="gen_legacy_invalid_001",
+                request_count=1,
+                retry_count=0,
+                latency_ms=25,
+                audio_seconds=90.0,
+                usage_json={"failure_code": "OPENROUTER_ASR_RESPONSE_INVALID"},
+                status="invalid",
+                called_at=NOW,
+            )
+        )
+
+    snapshot = service.retry(run_id)
+
+    assert snapshot.status == PipelineRunStatus.QUEUED
+    assert snapshot.stages[0].status == StageRunStatus.QUEUED
+
+
+def test_provider_invalid_without_response_evidence_still_requires_new_run(
+    pipeline_context: tuple[Engine, PipelineService],
+) -> None:
+    engine, service = pipeline_context
+    _, run_id = _create(service)
+    with engine.begin() as connection:
+        connection.execute(
+            update(PipelineRunRow)
+            .where(PipelineRunRow.id == run_id)
+            .values(
+                status=PipelineRunStatus.FAILED.value,
+                failure_class=FailureClass.DETERMINISTIC.value,
+                error_code="TRANSCRIBE_PROVIDER_INVALID",
+            )
+        )
+
+    with pytest.raises(DeterministicRetryRejected, match="new run"):
+        service.retry(run_id)
 
 
 def test_completed_pipeline_without_decisions_is_pending_review(
@@ -742,6 +1044,24 @@ def test_cancel_after_transient_requeue_terminally_cancels_stage_and_run(
     assert all(stage.status == StageRunStatus.CANCELLED for stage in snapshot.stages)
     with engine.connect() as connection:
         assert set(connection.scalars(select(TaskRow.status))) == {TaskStatus.CANCELLED.value}
+
+    resumed = service.retry(run_id)
+
+    assert resumed.status == PipelineRunStatus.QUEUED
+    assert all(stage.status == StageRunStatus.QUEUED for stage in resumed.stages)
+    with engine.connect() as connection:
+        task = connection.execute(
+            select(
+                TaskRow.status,
+                TaskRow.retry_count,
+                TaskRow.manual_retry_count,
+                TaskRow.cancellation_requested_at,
+            )
+        ).one()
+    assert task.status == TaskStatus.QUEUED.value
+    assert task.retry_count == 0
+    assert task.manual_retry_count == 1
+    assert task.cancellation_requested_at is None
 
 
 def test_stage_claim_and_exhausted_lease_recovery_keep_aggregate_consistent(

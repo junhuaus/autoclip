@@ -14,6 +14,7 @@ from liveclip.application.deliveries import (
     DeliveryPersistence,
     DeliveryWork,
 )
+from liveclip.application.delivery_progress import DeliveryProgressPhase, DeliveryProgressSink
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.delivery.package import (
     DeliveryClipInput,
@@ -22,6 +23,7 @@ from liveclip.delivery.package import (
     delivery_checksums_text,
     delivery_index_html,
     normalize_srt,
+    report_delivery_progress,
     safe_filename_component,
     verify_pinned_zip_members,
 )
@@ -58,6 +60,7 @@ class DeliveryTaskHandler:
         lease: LeaseIdentity,
         *,
         cancel_requested: Callable[[], bool],
+        progress: DeliveryProgressSink | None = None,
     ) -> DeliveryPersistence:
         _check_cancel(cancel_requested)
         project_dir = project_directory(self._data_dir, work.project_id)
@@ -129,6 +132,8 @@ class DeliveryTaskHandler:
                 delivery_id=work.delivery_id,
                 snapshot_fingerprint=work.snapshot_fingerprint,
                 created_at=work.created_at,
+                progress=progress,
+                check_cancel=lambda: _check_cancel(cancel_requested),
             )
             expected_manifest_sha256 = result.manifest_sha256
             expected_zip_sha256 = result.zip_sha256
@@ -143,9 +148,13 @@ class DeliveryTaskHandler:
             inputs=clips,
             expected_manifest_sha256=expected_manifest_sha256,
             expected_zip_sha256=expected_zip_sha256,
+            progress=progress,
+            check_cancel=lambda: _check_cancel(cancel_requested),
         )
         _check_cancel(cancel_requested)
         manifest_clips = _manifest_clips(validated.manifest)
+        asset_total = 2 if work.include_zip else 1
+        report_delivery_progress(progress, DeliveryProgressPhase.COMMITTING_ASSETS, 0, asset_total)
         committed_manifest = self._assets.commit(
             lease,
             manifest_reservation,
@@ -160,6 +169,7 @@ class DeliveryTaskHandler:
             expected_sha256=validated.manifest_sha256,
         )
         committed_zip = None
+        report_delivery_progress(progress, DeliveryProgressPhase.COMMITTING_ASSETS, 1, asset_total)
         if zip_reservation is not None:
             committed_zip = self._assets.commit(
                 lease,
@@ -173,6 +183,9 @@ class DeliveryTaskHandler:
                     "members": len(work.clips) * 2 + 3,
                 },
                 expected_sha256=validated.zip_sha256,
+            )
+            report_delivery_progress(
+                progress, DeliveryProgressPhase.COMMITTING_ASSETS, 2, asset_total
             )
         return DeliveryPersistence(
             manifest_asset_id=committed_manifest.asset_id,
@@ -240,7 +253,23 @@ def _validate_existing_delivery(
     inputs: tuple[DeliveryClipInput, ...],
     expected_manifest_sha256: str | None,
     expected_zip_sha256: str | None,
+    progress: DeliveryProgressSink | None = None,
+    check_cancel: Callable[[], None] | None = None,
 ) -> _ValidatedDelivery:
+    # Count the handler's exact final directory reread, plus its ZIP-member reread.
+    # Builder validation and earlier metadata parsing are intentionally uncounted.
+    member_count = len(work.clips) * 2 + 3
+    total = member_count * 2 + 1 if work.include_zip else member_count
+    verified = 0
+
+    def verified_members(count: int) -> None:
+        nonlocal verified
+        verified += count
+        if check_cancel is not None:
+            check_cancel()
+        report_delivery_progress(progress, DeliveryProgressPhase.VERIFYING_PACKAGE, verified, total)
+
+    verified_members(0)
     try:
         require_directory_no_follow(destination)
     except SecureFileError as exc:
@@ -356,6 +385,7 @@ def _validate_existing_delivery(
                     for name, evidence in disk_evidence.items()
                     if name != "delivery.zip"
                 },
+                progress=verified_members,
             )
         elif expected_zip_sha256 is not None:
             raise DeliveryError("non-ZIP delivery has an unexpected committed ZIP hash")
@@ -365,6 +395,7 @@ def _validate_existing_delivery(
                 disk_evidence,
                 rehash=True,
             )
+            verified_members(len(disk_evidence))
         except SecureFileError as exc:
             raise DeliveryError("existing delivery members are not stable and exact") from exc
         return _ValidatedDelivery(

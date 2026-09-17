@@ -89,6 +89,18 @@ test("creates, reviews, rerenders and downloads one visible delivery flow", asyn
       });
       return;
     }
+    if (path === "/api/v1/completion-presets" && method === "GET") {
+      await route.fulfill({
+        json: {
+          schema_version: "1",
+          presets: [
+            { schema_version: "1", preset_id: "short_highlight_v1", display_name_zh: "短高光", clip_profile: "short_highlight", minimum_clip_seconds: 45, target_clip_seconds: 60, maximum_clip_seconds: 90, default_selection_policy: "default", acceptance_status: "experimental" },
+            { schema_version: "1", preset_id: "mini_lesson_v1", display_name_zh: "完整小课", clip_profile: "mini_lesson", minimum_clip_seconds: 90, target_clip_seconds: 180, maximum_clip_seconds: 300, default_selection_policy: "default", acceptance_status: "experimental" },
+          ],
+        },
+      });
+      return;
+    }
     if (path === "/api/v1/deliveries/delivery-1/download") {
       await route.fulfill({
         status: 200,

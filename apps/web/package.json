@@ -14,7 +14,7 @@
     "test:run": "vitest run",
     "e2e": "npm run e2e:mock && npm run e2e:real",
     "e2e:mock": "bash ../../scripts/check_test_browser.sh && playwright test --config playwright.config.ts",
-    "e2e:real": "bash ../../scripts/run_real_browser_e2e.sh"
+    "e2e:real": "bash ../../scripts/run_real_browser_e2e.sh && LIVECLIP_E2E_SCENARIO=completion LIVECLIP_E2E_API_PORT=18766 LIVECLIP_E2E_WEB_PORT=15175 bash ../../scripts/run_real_browser_e2e.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "5.101.4",

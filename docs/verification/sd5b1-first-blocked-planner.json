@@ -1,0 +1,118 @@
+{
+  "acceptance_criteria": [
+    "An authorized Completion GET observes multiple intermediate copy and ZIP counts while a real disposable Worker processes synthetic FFmpeg media. Counts survive a fresh connection/process restart and reflect completed producer actions, not elapsed time or predicted compression.",
+    "Every required first, phase-boundary and final event is durable. Within an attempt phases advance monotonically, counts never decrease, completed never exceeds an exact total, and unknown totals may become exact only once. Retries use a new TaskAttempt ID and independent counters.",
+    "Fault tests independently invalidate worker ID, lease token, expiry, attempt number, Task/Delivery linkage, generation, revision epoch and package fingerprint. Invalid callbacks cannot persist progress or replace current read authority.",
+    "Lease loss returns LOST_LEASE without failing, cancelling or withdrawing a successor's work. Current-owner transient progress-write failure follows bounded retry and safe cleanup; exhaustion remains an honest incomplete/blocked outcome.",
+    "Failure after manifest or ZIP Asset commit leaves that Asset committed and Completion incomplete. Restart/adoption verifies retained package bytes and Asset bindings before success, without claiming skipped copy or ZIP work.",
+    "Copy short writes, source mutation/hash mismatch, ZIP failure and cancellation do not report work ahead of successful operations or publish false success. Existing no-follow, immutable publication and cancellation regression tests remain passing.",
+    "Reads return null before Delivery exists; queued and terminal projections have no counters. Heartbeat-only updates do not advance business progress, and stale or previous attempts never appear as current work.",
+    "Unauthorized requests retain existing not-found behavior. Repeated GETs do not enqueue, retry, cancel, renew leases or modify business/progress rows. No ZIP URL appears before the bound Delivery succeeds with committed manifest and ZIP Assets.",
+    "No-ZIP delivery and existing low-level helper/API defaults remain compatible; the only response addition is the frozen nullable field. Existing migration and shared contract tests pass without protected-file edits.",
+    "Independent retained-artifact inspection verifies actual MP4/SRT/manifest/ZIP members, sizes and SHA-256 values against package and Asset evidence. Synthetic evidence makes no real-content, audio-quality, hardware or long-duration claim.",
+    "Fresh allowlisted lint/full-test evidence, Reviewer/Tester results, Gateway and sealed-source/artifact audit all correlate to the exact candidate. No failed, stale, mutated or uncorrelated deterministic evidence or unresolved P0/P1 is waived."
+  ],
+  "architecture": [
+    "Keep the existing dependency direction. DeliveryTaskRunner obtains a repository-backed DeliveryProgressSink and passes it through DeliveryTaskHandler.execute to package producers. SQLAlchemy remains in repositories; secure file helpers receive optional typed numeric callbacks with compatible defaults.",
+    "Persist absolute phase-local events using the frozen pairs: copying_hashing/bytes, writing_metadata/files, writing_zip/bytes, verifying_package/members, committing_assets/assets. ZIP bytes mean uncompressed pinned input accepted by the writer. Unknown totals remain null; an exact total cannot change within a phase.",
+    "Resolve TaskAttemptRow.id from authoritative Task ownership on every write. Validate Delivery/Task linkage, Project generation, revision epoch, immutable package fingerprint, attempt number, worker ID, exact lease token, running state and lease expiry before updating the per-attempt row.",
+    "Use short independent writer transactions. Preserve ADR047's package-file-lock then short DB-write order; never acquire .delivery.lock while holding a DB writer transaction. Persist first events, phase boundaries and final counts; bound intermediate byte-event coalescing by time and bytes.",
+    "CompletionRepository.get adds the strict version-one projection only after its existing actor check. Read current attempt authority and Task heartbeat separately from business advancement; derive terminal phases from authoritative outcomes. Reads perform no queue mutation.",
+    "Reuse Main's frozen migration c84f5d1a702e and existing nullable Completion/Web fields. No additional schema, dependency, route or Web UI changes are planned. Shared helper callers retain their existing behavior when callbacks are omitted.",
+    "Preserve pinned no-follow inputs, complete source identity/digest validation, validated FFmpeg argv with shell=False, atomic publication and asset-ID serving. Events contain no paths, credentials, transcripts or executable data."
+  ],
+  "risks": [
+    "The broader SD-5 plan historically permits changing totals; the newer frozen B1 requirement and ADR047 require immutable exact phase totals. Main should reconcile documentation without expanding Coder ownership.",
+    "ZIP creation includes validation and the handler validates again. Instrumenting both naively can regress phases or double-count members; define the counted verification pass/work set before emitting its exact total.",
+    "SQLite contention under the package lock can delay progress and heartbeats. Keep writer waits bounded and audit that no writer waits for .delivery.lock.",
+    "Callback exceptions can bypass ordinary cleanup or be swallowed by broad exception handlers. Explicit exception ordering and faults before publication and after each Asset commit are required.",
+    "Shared secure-file and ZIP helpers have callers outside Delivery. Optional callback defaults and compatibility tests must prevent changes to those package flows.",
+    "The strict snapshot has no separate active-without-event phase. Keep pre-first-event and expired-owner reads truthful without inventing work counts or exposing historical authority.",
+    "Migration and documentation are Main-owned. Real database deployment requires the documented WAL checkpoint and hashed backup; use disposable databases for B1 validation and do not touch real Project data.",
+    "Formal execution, retained artifacts and publication have not been performed by this read-only planning session. CLI/TUI/Web observation and real content/audio/hardware/2h/4h acceptance remain separate work."
+  ],
+  "summary": "Implement SD-5 B1 against the frozen ADR047 contract: durable producer counters, attempt-fenced persistence, and authorized Completion reads. The repository contains the shared DTO and migration; runtime implementation and formal acceptance remain pending. This plan authorizes no protected-file changes and claims no new test evidence.",
+  "tasks": [
+    {
+      "depends_on": [],
+      "description": "Implement the fenced repository sink and its creation interface. Bind immutable work identity but re-resolve current TaskAttempt authority inside every independent writer transaction. Enforce forward-only phases, nondecreasing counts, exact-total immutability and truthful business_advanced_at. Distinguish lost authority from transient persistence failure; do not convert validation defects into retryable database errors.",
+      "files": [
+        "src/liveclip/db/delivery_repository.py",
+        "tests/integration/test_delivery_progress.py"
+      ],
+      "id": "T1"
+    },
+    {
+      "depends_on": [
+        "T1"
+      ],
+      "description": "Instrument immutable copy, metadata publication and pinned ZIP operations with optional callbacks. Count a copy block only after its complete write, including short-write handling, while preserving final source size/inode/digest checks. Aggregate absolute counts across clips. Begin metadata with subtitles already safely written during the copy loop. Count ZIP input only after writer acceptance and verified members only after exact reread/hash. Define a bounded event-coalescing policy that always flushes required boundary/final events and preserves cancellation checks.",
+      "files": [
+        "src/liveclip/media/secure_files.py",
+        "src/liveclip/delivery/package.py",
+        "tests/unit/test_secure_files.py",
+        "tests/integration/test_completion_delivery.py"
+      ],
+      "id": "T2"
+    },
+    {
+      "depends_on": [
+        "T1",
+        "T2"
+      ],
+      "description": "Wire the sink from DeliveryTaskRunner through DeliveryTaskHandler.execute. Report actual verification and successful fenced Asset commits. Coordinate repeated validation passes so counters never regress or change an exact total. Existing-package adoption skips copy/metadata/ZIP creation and reports only repeated verification/commit work. Catch DeliveryProgressLostLease before generic failures and stop without modifying a successor. Route DeliveryProgressWriteFailed through existing bounded transient recovery after safe temporary cleanup. Preserve committed Assets and published packages after post-commit progress failure; retry must validate bytes and transfer or confirm Asset ownership before Completion can succeed.",
+      "files": [
+        "src/liveclip/application/delivery_runner.py",
+        "src/liveclip/delivery/task_handler.py",
+        "src/liveclip/delivery/package.py",
+        "src/liveclip/db/delivery_repository.py",
+        "tests/integration/test_completion_worker.py",
+        "tests/integration/test_delivery_progress.py"
+      ],
+      "id": "T3"
+    },
+    {
+      "depends_on": [
+        "T1",
+        "T3"
+      ],
+      "description": "Add authorized delivery_progress projection to CompletionRepository.get, including its existing early-return blocker path. Return null before Delivery creation and queued without counters before active work. Join only the authoritative current attempt; suppress stale attempt counters. Derive heartbeat and lease freshness from Task state, preserve safe Completion blocking codes, and produce counter-free terminal phases from bound outcomes. Preserve the existing successful-Delivery and committed manifest/ZIP Asset download gate.",
+      "files": [
+        "src/liveclip/db/completion_repository.py",
+        "tests/integration/test_completion_api.py",
+        "tests/integration/test_delivery_progress.py"
+      ],
+      "id": "T4"
+    },
+    {
+      "depends_on": [
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "description": "Build disposable SQLite/Worker/FFmpeg integration cases with media large enough to expose intermediate producer counters. Inject copy/hash and ZIP failures, database write failure, lease expiry, late old-worker callbacks, restart, cancellation, and existing-package adoption, including failure after an Asset commit. Exercise authorized concurrent reads and retain synthetic MP4/SRT/manifest/ZIP evidence for independent inspection. Run focused diagnostics through the established trusted execution path; diagnostic success is not formal acceptance.",
+      "files": [
+        "tests/unit/test_secure_files.py",
+        "tests/integration/test_completion_delivery.py",
+        "tests/integration/test_completion_worker.py",
+        "tests/integration/test_completion_api.py",
+        "tests/integration/test_delivery_progress.py"
+      ],
+      "id": "T5"
+    },
+    {
+      "depends_on": [
+        "T5"
+      ],
+      "description": "Trusted Main coordinates fresh read-only Reviewer and Tester, fixed allowlisted sandbox Runner lint/full tests, Gateway and independent sealed-source/artifact audit. Verify the exact candidate and allowed-file diff, correlate fresh evidence and retain failed results. Main alone maintains ExecPlan, STATUS, recovery instructions and QA evidence; any protected-file implementation need requires a newly frozen candidate. Publish the exact accepted source only after all deterministic and semantic gates pass, then record publication identity and outstanding B2/SD-6 acceptance.",
+      "files": [
+        "docs/exec-plans/liveclip-sd5-presets-and-progress.md",
+        "STATUS.md",
+        "qa/pipeline.jsonl",
+        "qa/test-report.md"
+      ],
+      "id": "T6"
+    }
+  ],
+  "verdict": "READY"
+}

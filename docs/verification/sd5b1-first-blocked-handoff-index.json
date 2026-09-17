@@ -1,0 +1,60 @@
+{
+  "coder_changed_paths": [
+    "src/liveclip/application/delivery_runner.py",
+    "src/liveclip/db/delivery_repository.py",
+    "src/liveclip/db/completion_repository.py",
+    "src/liveclip/delivery/task_handler.py",
+    "src/liveclip/delivery/package.py",
+    "src/liveclip/media/secure_files.py",
+    "tests/unit/test_secure_files.py",
+    "tests/integration/test_delivery_progress.py"
+  ],
+  "coder_session_id": "01a09f61-e297-7cc0-989d-d8f91ffbf0a6",
+  "files": {
+    "sd5b1-accepted-qa-pipeline.jsonl": {
+      "bytes": 507971,
+      "sha256": "8917288ebd04ab24c6aa6cd44881aca46b140ed3359e4d58942545e3b3def0cf"
+    },
+    "sd5b1-accepted-qa-report.md": {
+      "bytes": 570718,
+      "sha256": "0f73b9fb48dba93bd38202fbbbb6ece8df94a26b732072e4bf19838506c8cd0f"
+    },
+    "sd5b1-first-blocked-coder.json": {
+      "bytes": 1210,
+      "sha256": "edd23b8de9f32651c1dccd118a65c42b90d7dba5d430a0ae29f92546900a5c8a"
+    },
+    "sd5b1-first-blocked-planner.json": {
+      "bytes": 12106,
+      "sha256": "c4b866495fc5da180310dbe51f66449ce5a08cba8f824fb9e78a480abdc8924b"
+    },
+    "sd5b1-first-blocked-reviewer.json": {
+      "bytes": 2308,
+      "sha256": "1e47eca501b503557ae37c95ed2001e11958a073452d4357d764363a2477d5e9"
+    },
+    "sd5b1-first-blocked-source-clone.json": {
+      "bytes": 388029,
+      "sha256": "8a9ca171acf18b17dd1ba60ec0c6a29b6024042891f0c9fac550922dc183ece5"
+    },
+    "sd5b1-first-blocked-tester.json": {
+      "bytes": 3668,
+      "sha256": "e1ace025426c777c295a7f0377683ff0928e272408f9aad778f192ef55cf4458"
+    },
+    "sd5b1-first-freeze-source.json": {
+      "bytes": 382240,
+      "sha256": "b353ea87717557e8fecec31c5858be3977c22a0deb5863ad2490a12e11247863"
+    }
+  },
+  "gate": "SD5B1_FIRST_BLOCKED_ROLE_VISIBLE_HANDOFF",
+  "prior_run": "20260914T100238Z-15c257d5",
+  "prior_state": "blocked",
+  "qa_request_ids": 1017,
+  "real_project_data_copied": false,
+  "role_verdicts": {
+    "coder": "IMPLEMENTED",
+    "planner": "READY",
+    "reviewer": "FAIL",
+    "tester": "BLOCKED"
+  },
+  "source_media_copied": false,
+  "status": "PASS"
+}

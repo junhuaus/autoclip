@@ -1,0 +1,46 @@
+{
+  "attempt": "mini-attempt4-metal-successor",
+  "candidate_count": 0,
+  "cloud_asr_key_injected": false,
+  "codex_launch_cap": 64,
+  "codex_launches": 27,
+  "codex_usage": {
+    "input_tokens": 478185,
+    "output_tokens": 29045,
+    "reasoning_output_tokens": 11884
+  },
+  "created_utc": "2026-09-15T21:01:12.770059Z",
+  "delivery_count": 0,
+  "elapsed_seconds": 559.168,
+  "exit_code": 1,
+  "foreign_key_violations": 0,
+  "gate": "SD6_MINI_ATTEMPT4_CONTENT_REJECTION_EVIDENCE",
+  "no_review_clips_sha256": "e3b1c6f0925a1b9914b1a400b8403b84186442445d7f610232510e28058b6f38",
+  "product_log_sha256": "bb9744dd9d3b6fdf65fc67e13bdaf9cab8f94ff402d454cc55ad5c89ee20eac4",
+  "project_id": "2cc3763dfee24c42bd5b94e7dbc76ce6",
+  "qa_id": "20260915T205029Z-mn04",
+  "reason": "no_agent_proposal_above_threshold",
+  "rough_candidates_sha256": "28ed6f3c74948d6bfefba1e4962aecb18fe94abf410508666ddc48f6723c558f",
+  "run_id": "7a292ae18e4c4ad1afbe7e4da14373bc",
+  "semantic_units": {
+    "discovery_succeeded": 2,
+    "discovery_succeeded_after_repair": 1,
+    "link_review_succeeded": 13,
+    "link_review_succeeded_after_repair": 2,
+    "topic_chain_succeeded": 9
+  },
+  "source_excerpt_sha256": "c489e92823081f085c40c066ff09211c23d4f02bfbdc52b7ab9ac9243c085162",
+  "sqlite_quick_check": "ok",
+  "stage_states": {
+    "candidates": "succeeded",
+    "edit": "succeeded",
+    "ingest": "succeeded",
+    "preprocess": "succeeded",
+    "proxy_render": "succeeded",
+    "transcribe": "succeeded"
+  },
+  "status": "PASS",
+  "terminal_state": "completed_without_selectable_candidate",
+  "transcript_segments": 129,
+  "truth_table_contradiction_recurred": false
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "architecture_assessment", "findings"],
+  "properties": {
+    "verdict": {"enum": ["PASS", "FAIL"]},
+    "architecture_assessment": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "findings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "summary", "evidence", "fix"],
+        "properties": {
+          "severity": {"enum": ["P0", "P1", "P2", "P3"]},
+          "summary": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "evidence": {"type": "string", "minLength": 1, "maxLength": 4000},
+          "fix": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    }
+  }
+}

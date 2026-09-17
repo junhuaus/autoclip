@@ -3,8 +3,8 @@
 .env.*
 !.env.example
 OPENROUTER_SETUP.md
-.venv/
-.python/
+/.venv
+/.python
 .cache/
 .pytest_cache/
 .ruff_cache/
@@ -17,6 +17,7 @@ build/
 htmlcov/
 .coverage
 coverage.xml
+.loop/
 
 node_modules/
 *.tsbuildinfo
@@ -40,6 +41,9 @@ apps/web/test-results/
 
 data/demo/*
 !data/demo/.gitkeep
+data/asr-evaluations/
+data/evaluations/
+data/models/
 data/projects/*
 !data/projects/.gitkeep
 

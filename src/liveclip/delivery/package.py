@@ -10,13 +10,19 @@ import stat
 import unicodedata
 import uuid
 import zipfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from liveclip.application.delivery_progress import (
+    PHASE_UNITS,
+    DeliveryProgressEvent,
+    DeliveryProgressPhase,
+    DeliveryProgressSink,
+)
 from liveclip.domain.keywords import KeywordOccurrence, KeywordTimingPrecision
 from liveclip.domain.time import ms_to_srt
 from liveclip.media.secure_files import (
@@ -38,6 +44,23 @@ from liveclip.media.secure_files import (
 
 class DeliveryError(RuntimeError):
     pass
+
+
+def report_delivery_progress(
+    sink: DeliveryProgressSink | None,
+    phase: DeliveryProgressPhase,
+    completed: int,
+    total: int | None,
+) -> None:
+    if sink is not None:
+        sink.advance(
+            DeliveryProgressEvent(
+                phase=phase,
+                unit=PHASE_UNITS[phase],
+                completed=completed,
+                total=total,
+            )
+        )
 
 
 class DeliveryClipInput(BaseModel):
@@ -110,6 +133,8 @@ def create_delivery(
     delivery_id: str | None = None,
     snapshot_fingerprint: str | None = None,
     created_at: datetime | None = None,
+    progress: DeliveryProgressSink | None = None,
+    check_cancel: Callable[[], None] | None = None,
 ) -> DeliveryResult:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", project_id):
         raise DeliveryError("project ID is invalid")
@@ -164,6 +189,8 @@ def create_delivery(
                 clips=approved,
                 include_zip=include_zip,
                 created_at=created_at or datetime.now(UTC),
+                progress=progress,
+                check_cancel=check_cancel,
             )
             try:
                 with ExitStack() as pinned_stack:
@@ -215,6 +242,8 @@ def _build_delivery(
     clips: Sequence[DeliveryClipInput],
     include_zip: bool,
     created_at: datetime,
+    progress: DeliveryProgressSink | None = None,
+    check_cancel: Callable[[], None] | None = None,
 ) -> DeliveryResult:
     clips_dir = temporary / "clips"
     subtitles_dir = temporary / "subtitles"
@@ -226,6 +255,21 @@ def _build_delivery(
     manifest_clips: list[dict[str, object]] = []
     archive_members: list[PurePosixPath] = []
     member_sha256: dict[str, str] = {}
+    copied = 0
+    clip_copied = 0
+
+    def copy_progress(completed: int, total: int) -> None:
+        nonlocal clip_copied
+        if check_cancel is not None:
+            check_cancel()
+        clip_copied = completed
+        report_delivery_progress(
+            progress,
+            DeliveryProgressPhase.COPYING_HASHING,
+            copied + completed,
+            None,
+        )
+
     for index, clip in enumerate(clips, start=1):
         stem = f"{index:02d}-{safe_filename_component(clip.title)}"
         video_relative = PurePosixPath("clips") / f"{stem}.mp4"
@@ -236,7 +280,9 @@ def _build_delivery(
             clip.final_video_path,
             video_target,
             expected_sha256=clip.final_video_sha256,
+            progress=copy_progress,
         )
+        copied += clip_copied
         normalized_subtitle = normalize_srt(clip.subtitle_srt)
         subtitle_payload = normalized_subtitle.encode("utf-8")
         subtitle_hash = hashlib.sha256(subtitle_payload).hexdigest()
@@ -271,6 +317,14 @@ def _build_delivery(
         member_sha256[video_relative.as_posix()] = video_hash
         member_sha256[subtitle_relative.as_posix()] = subtitle_hash
 
+    report_delivery_progress(progress, DeliveryProgressPhase.COPYING_HASHING, copied, copied)
+    metadata_total = len(clips) + 3
+    report_delivery_progress(
+        progress,
+        DeliveryProgressPhase.WRITING_METADATA,
+        len(clips),
+        metadata_total,
+    )
     manifest: dict[str, object] = {
         "schema_version": "1",
         "project_id": project_id,
@@ -297,6 +351,12 @@ def _build_delivery(
     except SecureFileError as exc:
         raise DeliveryError("delivery manifest could not be published safely") from exc
     archive_members.append(PurePosixPath("manifest.json"))
+    report_delivery_progress(
+        progress,
+        DeliveryProgressPhase.WRITING_METADATA,
+        len(clips) + 1,
+        metadata_total,
+    )
     member_sha256["manifest.json"] = manifest_sha256
 
     index_payload = delivery_index_html(manifest).encode("utf-8")
@@ -310,6 +370,12 @@ def _build_delivery(
     except SecureFileError as exc:
         raise DeliveryError("delivery index could not be published safely") from exc
     archive_members.append(PurePosixPath("index.html"))
+    report_delivery_progress(
+        progress,
+        DeliveryProgressPhase.WRITING_METADATA,
+        len(clips) + 2,
+        metadata_total,
+    )
     member_sha256["index.html"] = index_sha256
 
     checksums_payload = delivery_checksums_text(member_sha256).encode("utf-8")
@@ -323,6 +389,12 @@ def _build_delivery(
     except SecureFileError as exc:
         raise DeliveryError("delivery checksums could not be published safely") from exc
     archive_members.append(PurePosixPath("checksums.sha256"))
+    report_delivery_progress(
+        progress,
+        DeliveryProgressPhase.WRITING_METADATA,
+        metadata_total,
+        metadata_total,
+    )
     member_sha256["checksums.sha256"] = checksums_sha256
     zip_path: Path | None = None
     zip_sha256: str | None = None
@@ -334,6 +406,8 @@ def _build_delivery(
             members=tuple(archive_members),
             manifest=manifest,
             expected_sha256=member_sha256,
+            progress=progress,
+            check_cancel=check_cancel,
         )
         member_sha256["delivery.zip"] = zip_sha256
     return DeliveryResult(
@@ -641,13 +715,20 @@ def _next_delivery_version(deliveries_dir: Path) -> int:
     return value
 
 
-def _copy_no_clobber(source: Path, destination: Path, *, expected_sha256: str) -> str:
+def _copy_no_clobber(
+    source: Path,
+    destination: Path,
+    *,
+    expected_sha256: str,
+    progress: Callable[[int, int], None] | None = None,
+) -> str:
     try:
         observed = publish_regular_file_immutable_no_follow(
             source,
             destination,
             remove_source=False,
             expected_sha256=expected_sha256,
+            progress=progress,
         )
     except SecureFileHashMismatch as exc:
         raise DeliveryError("delivery source video differs from its committed hash") from exc
@@ -709,6 +790,8 @@ def _create_and_verify_zip(
     members: tuple[PurePosixPath, ...],
     manifest: dict[str, object],
     expected_sha256: dict[str, str],
+    progress: DeliveryProgressSink | None = None,
+    check_cancel: Callable[[], None] | None = None,
 ) -> str:
     names = validate_zip_members(member.as_posix() for member in members)
     if set(names) != set(expected_sha256):
@@ -720,6 +803,19 @@ def _create_and_verify_zip(
                 expected_sha256=expected_sha256,
                 stack=stack,
             )
+            written = 0
+            total = sum(member.size_bytes for member in pinned_members.values())
+
+            def accepted(size: int) -> None:
+                nonlocal written
+                written += size
+                if check_cancel is not None:
+                    check_cancel()
+                report_delivery_progress(
+                    progress, DeliveryProgressPhase.WRITING_ZIP, written, total
+                )
+
+            accepted(0)
             output = stack.enter_context(create_pinned_regular_file_no_follow(output_path))
             with (
                 os.fdopen(os.dup(output.descriptor), mode="w+b") as output_stream,
@@ -731,7 +827,12 @@ def _create_and_verify_zip(
                 ) as archive,
             ):
                 for name in names:
-                    _write_pinned_zip_member(archive, name, pinned_members[name])
+                    if progress is None and check_cancel is None:
+                        _write_pinned_zip_member(archive, name, pinned_members[name])
+                    else:
+                        _write_pinned_zip_member(
+                            archive, name, pinned_members[name], progress=accepted
+                        )
             output.seal_after_write()
             zip_sha256 = output.sha256()
             verify_pinned_zip_members(
@@ -776,6 +877,8 @@ def _write_pinned_zip_member(
     archive: zipfile.ZipFile,
     name: str,
     evidence: PinnedFileEvidence,
+    *,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     info = zipfile.ZipInfo(filename=name)
     info.create_system = 3
@@ -792,9 +895,13 @@ def _write_pinned_zip_member(
             )
             if not block:
                 break
-            writer.write(block)
+            accepted = writer.write(block)
+            if accepted != len(block):
+                raise DeliveryError("ZIP writer did not accept the complete input block")
             digest.update(block)
             offset += len(block)
+            if progress is not None:
+                progress(accepted)
     if offset != evidence.size_bytes or digest.hexdigest() != evidence.sha256:
         raise DeliveryError("ZIP member changed while streaming from its pinned source")
     evidence.pinned.validate_binding()
@@ -806,6 +913,7 @@ def verify_pinned_zip_members(
     expected_sha256: dict[str, str],
     expected_manifest: dict[str, object],
     expected_sizes: dict[str, int] | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     """Verify every ZIP member from a held archive FD against exact hashes."""
 
@@ -827,6 +935,8 @@ def verify_pinned_zip_members(
                     raise DeliveryError("ZIP member size differs from its pinned source")
                 if hash_zip_member(archive, name) != expected_sha256[name]:
                     raise DeliveryError("ZIP member hash differs from its pinned source")
+                if progress is not None:
+                    progress(1)
             archived_manifest = json.loads(
                 read_zip_member_bounded(
                     archive,

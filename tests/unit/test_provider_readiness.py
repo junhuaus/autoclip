@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -118,6 +119,69 @@ def test_whitespace_only_openrouter_key_is_not_ready(monkeypatch: pytest.MonkeyP
 
     assert readiness.asr_ready is False
     assert readiness.blocking_issues == ("OPENROUTER_ASR_NOT_CONFIGURED",)
+
+
+def test_mlx_codex_is_ready_without_cloud_key_when_model_and_codex_are_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = (tmp_path / "large-v3").resolve()
+    observed: list[Path] = []
+    monkeypatch.setattr(
+        readiness_module,
+        "assert_mlx_asr_ready",
+        lambda path: observed.append(path),
+    )
+    monkeypatch.setattr(
+        readiness_module,
+        "assert_codex_cli_ready",
+        lambda _configured: "codex-cli-editorial-v2.0.146.0." + "a" * 64,
+    )
+
+    readiness = require_processing_ready(
+        Settings(
+            ai_provider="mlx-codex",
+            mlx_asr_model_path=model_path,
+            openai_api_key=None,
+            openrouter_api_key=None,
+            _env_file=None,
+        )
+    )
+
+    assert observed == [model_path]
+    assert readiness.asr_provider == "mlx"
+    assert readiness.llm_provider == "codex_cli"
+    assert readiness.processing_ready is True
+    assert readiness.blocking_issues == ()
+
+
+def test_mlx_readiness_failure_is_bounded_and_does_not_expose_model_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_path = (tmp_path / "secret-model-location").resolve()
+
+    def unavailable(_path: Path) -> None:
+        raise ProviderConfigurationError(f"missing model at {model_path}")
+
+    monkeypatch.setattr(readiness_module, "assert_mlx_asr_ready", unavailable)
+    monkeypatch.setattr(
+        readiness_module,
+        "assert_codex_cli_ready",
+        lambda _configured: "codex-cli-editorial-v2.0.146.0." + "a" * 64,
+    )
+
+    readiness = assess_provider_readiness(
+        Settings(
+            ai_provider="mlx-codex",
+            mlx_asr_model_path=model_path,
+            _env_file=None,
+        )
+    )
+
+    assert readiness.asr_ready is False
+    assert readiness.blocking_issues == ("MLX_ASR_NOT_READY",)
+    assert str(model_path) not in repr(readiness)
 
 
 def test_codex_probe_failure_is_safe_and_does_not_silently_select_mock(

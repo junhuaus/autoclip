@@ -1,13 +1,20 @@
 import { HttpResponse, delay, http } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "../src/App";
 import type { ProjectSnapshot } from "../src/types";
 import { project, projectSearchPage } from "./fixtures";
 import { server } from "./server";
 import { renderWithClient } from "./test-utils";
+
+beforeEach(() => {
+  server.use(http.get("/api/v1/completion-presets", () => HttpResponse.json({
+    schema_version: "1",
+    presets: [],
+  })));
+});
 
 describe("project list states", () => {
   it("defaults to overlapping semantic windows and keeps comparison modes explicit", async () => {
@@ -53,6 +60,78 @@ describe("project list states", () => {
     expect(await screen.findByText("还没有项目")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "创建第一个视频项目" })).toBeEnabled();
     expect(screen.queryByText(/Mock ASR/)).not.toBeInTheDocument();
+  });
+
+  it("shows a preset-created Project in the dashboard without refreshing", async () => {
+    const user = userEvent.setup();
+    const createdProject: ProjectSnapshot = {
+      ...project,
+      project_id: "preset-project-1",
+      name: "方案新建项目",
+      status: "processing",
+      lifecycle: "processing",
+    };
+    let created = false;
+    let searchCount = 0;
+    server.use(
+      http.get("/api/v1/completion-presets", () => HttpResponse.json({
+        schema_version: "1",
+        presets: [{
+          schema_version: "1",
+          preset_id: "short_highlight_v1",
+          display_name_zh: "短高光",
+          clip_profile: "short_highlight",
+          minimum_clip_seconds: 45,
+          target_clip_seconds: 60,
+          maximum_clip_seconds: 90,
+          default_selection_policy: "default",
+          acceptance_status: "experimental",
+        }],
+      })),
+      http.get("/api/v1/projects/search", () => {
+        searchCount += 1;
+        return HttpResponse.json(projectSearchPage(created ? [createdProject] : []));
+      }),
+      http.post("/api/v1/completion-goals/from-preset", () => {
+        created = true;
+        return HttpResponse.json({
+          goal: {
+            intent_id: "preset-goal-1",
+            project_id: createdProject.project_id,
+            run_id: "preset-run-1",
+            generation: 1,
+            requester_user_id: "owner-1",
+            actor_user_id: "owner-1",
+            options: {
+              schema_version: "1", target: "delivery", selection_policy: "default",
+              include_zip: true, preset_id: "short_highlight_v1",
+            },
+            status: "queued",
+            version: 1,
+            selection_submitted: false,
+            delivery_id: null,
+            outcome: null,
+            blocking_code: null,
+            safe_error_message: null,
+          },
+          download_url: null,
+        }, { status: 202 });
+      }),
+    );
+
+    renderWithClient(<App />);
+    await screen.findByText("还没有项目");
+    await user.click(screen.getByRole("button", { name: "＋ 新建项目" }));
+    const dialog = screen.getByRole("dialog", { name: "导入一段本地视频" });
+    await within(dialog).findByText(/短高光 · 实验性/);
+    await user.type(within(dialog).getByLabelText("方案视频路径"), "/tmp/preset-source.mp4");
+    await user.click(within(dialog).getByRole("button", { name: "按方案创建" }));
+    expect(await within(dialog).findByText("处理目标已保存：preset-goal-1")).toBeInTheDocument();
+    expect(within(dialog).getByText("当前状态：queued")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/下载交付包/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "取消" }));
+    expect(await screen.findByText("方案新建项目")).toBeInTheDocument();
+    expect(searchCount).toBeGreaterThanOrEqual(2);
   });
 
   it("renders only the stable safe API error and retry affordance", async () => {

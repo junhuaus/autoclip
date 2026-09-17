@@ -45,6 +45,7 @@ GLOBAL_REVIEW_SEMANTIC_CONTEXT_MODE = "semantic_context"
 GLOBAL_REVIEW_ADJACENT_CONTEXT_CUES = 2
 GLOBAL_REVIEW_PREFERRED_CANDIDATE_CONTEXT_MS = 30_000
 GLOBAL_REVIEW_MINIMUM_CANDIDATE_CONTEXT_MS = 15_000
+GLOBAL_REVIEW_COMPACT_MINIMUM_CANDIDATE_CONTEXT_MS = 0
 GLOBAL_REVIEW_CANDIDATE_CONTEXT_STEP_MS = 5_000
 DURATION_REJECTION_AUDIT_TOLERANCE_MS = 1_000
 GLOBAL_REVIEW_CUE_COLUMNS = (
@@ -97,8 +98,9 @@ class SemanticGlobalConfig(BaseModel):
             raise ValueError("fallback duration must satisfy minimum <= target <= maximum")
         if self.window_overlap_ms >= self.window_duration_ms:
             raise ValueError("semantic window overlap must be shorter than the window")
-        if self.window_duration_ms < self.maximum_duration_ms:
-            raise ValueError("semantic window must fit the maximum clip duration")
+        # A logical window is transport context, not a semantic clip boundary.
+        # Topic Chain profiles may intentionally assemble a complete candidate
+        # across several windows before applying their own duration gate.
         budget = int(self.model_context_tokens * self.full_context_budget_ratio)
         if self.output_reserve_tokens + self.safety_margin_tokens >= budget:
             raise ValueError("semantic global output reserve leaves no bounded input budget")
@@ -220,6 +222,164 @@ class RiskAssessment(BaseModel):
     severity: RiskSeverity
     reason: BoundedText = Field(max_length=400)
     source_cue_ids: tuple[int, ...] = Field(min_length=1, max_length=80)
+
+
+class QualityFlagV3(StrEnum):
+    """Agent-authored semantic facts consumed by the v3 deterministic gate."""
+
+    CONTEXT_DEPENDENT_OPENING = "context_dependent_opening"
+    INCOMPLETE_ENDING = "incomplete_ending"
+    IRRELEVANT_INTRO = "irrelevant_intro"
+    IRRELEVANT_OUTRO = "irrelevant_outro"
+    IRRELEVANT_INTERNAL_CONTENT = "irrelevant_internal_content"
+    REPEATED_LIVE_CTA = "repeated_live_cta"
+    EQUIPMENT_INTERRUPTION = "equipment_interruption"
+    PADDED_TO_MIN_DURATION = "padded_to_min_duration"
+    OVEREXTENDED_TO_MAX_DURATION = "overextended_to_max_duration"
+    TOPIC_MIXED = "topic_mixed"
+    TITLE_SOURCE_MISMATCH = "title_source_mismatch"
+    ASR_MEANING_REVERSAL = "asr_meaning_reversal"
+    DUPLICATE_WEAKER = "duplicate_weaker"
+
+
+class RiskTypeV3(StrEnum):
+    MUSIC_RIGHTS = "music_rights"
+    GENERAL_HEALTH_ADVICE = "general_health_advice"
+    MEDICAL_DIAGNOSTIC_CLAIM = "medical_diagnostic_claim"
+    ABSOLUTE_CLAIM = "absolute_claim"
+    IDENTIFIED_PERSON_CLAIM = "identified_person_claim"
+    REGIONAL_STEREOTYPE = "regional_stereotype"
+    COMMERCIAL_CLAIM = "commercial_claim"
+    SENSITIVITY_REVIEW = "sensitivity_review"
+
+
+class RiskAssessmentV3(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    type: RiskTypeV3
+    severity: RiskSeverity
+    reason: BoundedText = Field(max_length=400)
+    source_cue_ids: tuple[int, ...] = Field(min_length=1, max_length=80)
+
+
+class ContentDecisionV3(StrEnum):
+    KEEP = "keep"
+    REPAIR_BOUNDARY = "repair_boundary"
+    DROP = "drop"
+
+
+class PublishStatusV3(StrEnum):
+    AUTO = "auto"
+    MANUAL = "manual"
+    BLOCKED = "blocked"
+
+
+class ScoreDimensionsV3(BaseModel):
+    """Fixed 100-point rubric; totals are recomputed by Python."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    independence: int = Field(ge=0, le=20)
+    completeness: int = Field(ge=0, le=20)
+    single_topic: int = Field(ge=0, le=15)
+    viewer_value: int = Field(ge=0, le=20)
+    source_fidelity: int = Field(ge=0, le=15)
+    edit_cleanliness: int = Field(ge=0, le=10)
+
+    @property
+    def total(self) -> int:
+        return (
+            self.independence
+            + self.completeness
+            + self.single_topic
+            + self.viewer_value
+            + self.source_fidelity
+            + self.edit_cleanliness
+        )
+
+
+class BoundaryReviewItemV3(BaseModel):
+    """One Agent judgment about the candidate's actual continuous source interval."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    candidate_id: SafeIdentifier
+    content_decision: ContentDecisionV3
+    proposed_start_cue_id: int | None = Field(default=None, ge=1)
+    proposed_end_cue_id: int | None = Field(default=None, ge=1)
+    opening_relevance: OpeningRelevance
+    ending_complete: bool
+    actual_source_opening_quote: BoundedText = Field(max_length=400)
+    actual_source_closing_quote: BoundedText = Field(max_length=400)
+    irrelevant_internal_cue_ids: tuple[int, ...] = Field(default_factory=tuple, max_length=80)
+    quality_flags: tuple[QualityFlagV3, ...] = Field(default_factory=tuple, max_length=20)
+    risk_flags: tuple[RiskAssessmentV3, ...] = Field(default_factory=tuple, max_length=20)
+    evidence_cue_ids: tuple[int, ...] = Field(min_length=1, max_length=120)
+    review_reason: BoundedText = Field(max_length=600)
+
+    @model_validator(mode="after")
+    def validate_boundary_disposition(self) -> BoundaryReviewItemV3:
+        if (self.proposed_start_cue_id is None) != (self.proposed_end_cue_id is None):
+            raise ValueError("boundary proposal requires both start and end cue IDs")
+        if self.content_decision != ContentDecisionV3.DROP and self.proposed_start_cue_id is None:
+            raise ValueError("kept or repaired boundary requires a concrete continuous interval")
+        return self
+
+
+class BoundaryReviewOutputV3(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    reviews: tuple[BoundaryReviewItemV3, ...] = Field(min_length=1, max_length=100)
+
+
+class CandidateGlobalReviewV3(BaseModel):
+    """Compact candidate-level review used by the v3 production contract."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    candidate_id: SafeIdentifier
+    content_decision: ContentDecisionV3
+    publish_status: PublishStatusV3
+    score_dimensions: ScoreDimensionsV3
+    score: int = Field(ge=0, le=100)
+    proposed_start_cue_id: int | None = Field(default=None, ge=1)
+    proposed_end_cue_id: int | None = Field(default=None, ge=1)
+    title: BoundedText = Field(max_length=40)
+    hook: BoundedText = Field(max_length=160)
+    payoff: BoundedText = Field(max_length=240)
+    quality_flags: tuple[QualityFlagV3, ...] = Field(default_factory=tuple, max_length=20)
+    risk_flags: tuple[RiskAssessmentV3, ...] = Field(default_factory=tuple, max_length=20)
+    duplicate_group_id: SafeIdentifier | None = None
+    duplicate_of: SafeIdentifier | None = None
+    evidence_cue_ids: tuple[int, ...] = Field(min_length=1, max_length=120)
+    review_reason: BoundedText = Field(max_length=600)
+
+    @model_validator(mode="after")
+    def validate_review_facts(self) -> CandidateGlobalReviewV3:
+        if self.score != self.score_dimensions.total:
+            raise ValueError("score must equal the six deterministic score dimensions")
+        if (self.proposed_start_cue_id is None) != (self.proposed_end_cue_id is None):
+            raise ValueError("review proposal requires both start and end cue IDs")
+        if self.content_decision != ContentDecisionV3.DROP and self.proposed_start_cue_id is None:
+            raise ValueError("kept or repaired content requires a concrete continuous interval")
+        if self.duplicate_of == self.candidate_id:
+            raise ValueError("duplicate candidate cannot reference itself")
+        if QualityFlagV3.DUPLICATE_WEAKER in self.quality_flags and (
+            self.duplicate_group_id is None or self.duplicate_of is None
+        ):
+            raise ValueError("duplicate_weaker requires duplicate group and representative")
+        if self.duplicate_of is not None and QualityFlagV3.DUPLICATE_WEAKER not in (
+            self.quality_flags
+        ):
+            raise ValueError("duplicate_of is reserved for duplicate_weaker audit rows")
+        return self
+
+
+class GlobalReviewOutputV3(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    reviews: tuple[CandidateGlobalReviewV3, ...] = Field(min_length=1, max_length=100)
+    global_notes: tuple[str, ...] = Field(default_factory=tuple, max_length=60)
 
 
 class BoundarySide(StrEnum):
@@ -418,6 +578,31 @@ class ScoreDimensions(BaseModel):
         )
 
 
+class CandidateAssessmentDisposition(StrEnum):
+    """One independently scored disposition for every Discovery candidate."""
+
+    ADVANCE = "advance"
+    DUPLICATE = "duplicate"
+    REJECT = "reject"
+
+
+class CandidateAssessment(BaseModel):
+    """Compact recall ledger used by the v2 Global Review contract.
+
+    Full clip records are intentionally reserved for retained results.  This
+    small record makes the Agent score every Discovery proposal before global
+    consolidation, so a large rejection group can no longer hide unscored
+    candidates.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    candidate_id: SafeIdentifier
+    disposition: CandidateAssessmentDisposition
+    score_dimensions: ScoreDimensions
+    result_clip_id: SafeIdentifier | None = None
+
+
 class GlobalReviewSummary(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -542,6 +727,14 @@ class GlobalReviewOutput(BaseModel):
     coverage_notes: tuple[str, ...] = Field(max_length=50)
 
 
+class GlobalReviewOutputV2(GlobalReviewOutput):
+    """Accuracy-first response with complete per-candidate score evidence."""
+
+    candidate_assessments: tuple[CandidateAssessment, ...] = Field(
+        max_length=100,
+    )
+
+
 class BoundaryRefinementItem(BaseModel):
     """A score-neutral source-boundary patch for one reviewed clip."""
 
@@ -664,6 +857,51 @@ class ValidatedGlobalReview:
     validation_notes: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ValidatedCandidateReviewV3:
+    review: CandidateGlobalReviewV3
+    discovery_candidate: DiscoveryCandidate
+    boundary_review: BoundaryReviewItemV3
+    decision: ReviewDecision
+    publish_status: PublishStatusV3
+    start_ms: int
+    end_ms: int
+    duration_ms: int
+    final_score: int
+    quality_flags: tuple[QualityFlagV3, ...]
+    risk_flags: tuple[RiskAssessmentV3, ...]
+    validation_notes: tuple[str, ...]
+
+
+class GlobalReviewStatisticsV3(BaseModel):
+    """All v3 counts are Python-derived after every deterministic gate."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    discovery_candidate_count: int = Field(ge=0)
+    boundary_kept_count: int = Field(ge=0)
+    boundary_repaired_count: int = Field(ge=0)
+    boundary_dropped_count: int = Field(ge=0)
+    eligible_before_top_n_count: int = Field(ge=0)
+    selected_count: int = Field(ge=0)
+    manual_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    rejected_count: int = Field(ge=0)
+    top_n_excluded_count: int = Field(ge=0)
+    suspicious_exact_top_n: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedGlobalReviewV3:
+    selected: tuple[ValidatedCandidateReviewV3, ...]
+    manual_review: tuple[ValidatedCandidateReviewV3, ...]
+    blocked: tuple[ValidatedCandidateReviewV3, ...]
+    rejected: tuple[ValidatedCandidateReviewV3, ...]
+    top_n_excluded: tuple[ValidatedCandidateReviewV3, ...]
+    statistics: GlobalReviewStatisticsV3
+    validation_notes: tuple[str, ...]
+
+
 @dataclass(slots=True)
 class _ContextRequest:
     candidate_ids: list[str]
@@ -685,6 +923,81 @@ class TokenEstimator:
         return len(self._encoding.encode(value, disallowed_special=()))
 
 
+class SemanticPlanningBudgetError(ValueError):
+    """Trusted planning estimate; this is not a serialized provider request."""
+
+    def __init__(self, message: str, *, diagnostics: dict[str, object]) -> None:
+        super().__init__(message)
+        self.diagnostics = diagnostics
+
+
+def _planning_budget_failure(
+    message: str,
+    *,
+    enabled: bool,
+    stage: str,
+    component: str,
+    measured_payload: str,
+    prompt_tokens: int,
+    payload_tokens: int,
+    config: SemanticGlobalConfig,
+) -> ValueError:
+    if not enabled:
+        return ValueError(message)
+    return SemanticPlanningBudgetError(
+        message,
+        diagnostics={
+            "phase": "initial_budget",
+            "semantic_stage": stage,
+            "measurement_basis": "semantic_planning_estimate",
+            "measured_component": component,
+            "planning_payload_sha256": hashlib.sha256(measured_payload.encode()).hexdigest(),
+            "planning_payload_bytes": len(measured_payload.encode()),
+            "prompt_tokens": prompt_tokens,
+            "planning_payload_tokens": payload_tokens,
+            "estimated_input_tokens": prompt_tokens + payload_tokens,
+            "configured_output_reserve_tokens": config.output_reserve_tokens,
+            "safety_margin_tokens": config.safety_margin_tokens,
+            "estimated_total_tokens": (
+                prompt_tokens
+                + payload_tokens
+                + config.output_reserve_tokens
+                + config.safety_margin_tokens
+            ),
+            "budget_tokens": int(config.model_context_tokens * config.full_context_budget_ratio),
+            "tokenizer_name": config.tokenizer_name,
+            "provider_call_executed": False,
+            "repair_call_executed": False,
+            "validation_errors": [message],
+        },
+    )
+
+
+def _payload_budget_failure(
+    message: str,
+    *,
+    enabled: bool,
+    prompt: str,
+    payload: dict[str, object],
+    config: SemanticGlobalConfig,
+    estimator: TokenEstimator | None,
+) -> ValueError:
+    if not enabled:
+        return ValueError(message)
+    counter = estimator or TokenEstimator(config.tokenizer_name)
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return _planning_budget_failure(
+        message,
+        enabled=True,
+        stage="global_review",
+        component="request_payload",
+        measured_payload=serialized,
+        prompt_tokens=counter.count(prompt),
+        payload_tokens=counter.count(serialized),
+        config=config,
+    )
+
+
 def transcript_cues(transcript: TranscriptDocument) -> tuple[SemanticCue, ...]:
     return tuple(
         SemanticCue(
@@ -704,6 +1017,7 @@ def plan_semantic_input(
     prompt: str,
     config: SemanticGlobalConfig,
     estimator: TokenEstimator | None = None,
+    structured_budget_errors: bool = False,
 ) -> SemanticInputPlan:
     cues = transcript_cues(transcript)
     if not cues:
@@ -741,13 +1055,23 @@ def plan_semantic_input(
             - config.safety_margin_tokens
         )
         if per_unit_budget <= 0:
-            raise ValueError("semantic global prompt leaves no fallback transcript budget")
+            raise _planning_budget_failure(
+                "semantic global prompt leaves no fallback transcript budget",
+                enabled=structured_budget_errors,
+                stage="discovery",
+                component="transcript_cues",
+                measured_payload=transcript_payload,
+                prompt_tokens=prompt_tokens,
+                payload_tokens=transcript_tokens,
+                config=config,
+            )
         units = _fallback_units(
             cues,
             config=config,
             estimator=resolved_estimator,
             transcript_token_budget=per_unit_budget,
             prompt_tokens=prompt_tokens,
+            structured_budget_errors=structured_budget_errors,
         )
         mode = SemanticInputMode.FALLBACK
     return SemanticInputPlan(
@@ -770,6 +1094,7 @@ def plan_semantic_windowed_input(
     prompt: str,
     config: SemanticGlobalConfig,
     estimator: TokenEstimator | None = None,
+    structured_budget_errors: bool = False,
 ) -> SemanticInputPlan:
     """Plan bounded rolling semantic windows regardless of full-context capacity.
 
@@ -788,7 +1113,16 @@ def plan_semantic_windowed_input(
         budget_tokens - prompt_tokens - config.output_reserve_tokens - config.safety_margin_tokens
     )
     if per_unit_budget <= 0:
-        raise ValueError("semantic window prompt leaves no transcript budget")
+        raise _planning_budget_failure(
+            "semantic window prompt leaves no transcript budget",
+            enabled=structured_budget_errors,
+            stage="discovery",
+            component="transcript_cues",
+            measured_payload=_cues_payload(cues),
+            prompt_tokens=prompt_tokens,
+            payload_tokens=transcript_tokens,
+            config=config,
+        )
     units = _rolling_window_units(
         cues,
         source_duration_ms=transcript.source_duration_ms,
@@ -796,6 +1130,7 @@ def plan_semantic_windowed_input(
         estimator=resolved_estimator,
         transcript_token_budget=per_unit_budget,
         prompt_tokens=prompt_tokens,
+        structured_budget_errors=structured_budget_errors,
     )
     return SemanticInputPlan(
         mode=SemanticInputMode.WINDOWED,
@@ -818,6 +1153,7 @@ def plan_boundary_bridge_units(
     discovery_outputs: tuple[DiscoveryOutput, ...],
     config: SemanticGlobalConfig,
     estimator: TokenEstimator | None = None,
+    structured_budget_errors: bool = False,
 ) -> tuple[SemanticInputUnit, ...]:
     """Create a fixed adjacent-window union for each reported open batch edge."""
 
@@ -843,8 +1179,15 @@ def plan_boundary_bridge_units(
     ):
         if not previous_unit.logical_windows_ms or not current_unit.logical_windows_ms:
             raise ValueError("window batch lacks its logical-window audit")
-        if current_unit.ownership_range_ms is None:
+        previous_ownership = previous_unit.ownership_range_ms
+        current_ownership = current_unit.ownership_range_ms
+        if previous_ownership is None or current_ownership is None:
             raise ValueError("window batch lacks its ownership interval")
+        if previous_ownership.end_ms != current_ownership.start_ms:
+            # Empty speech batches are deliberately absent from the plan. A
+            # silent gap is a hard transport boundary, not an adjacent-window
+            # continuation that needs an Agent bridge call.
+            continue
         triggering_reports = (
             *_transport_risk_boundary_reports(
                 unit=previous_unit,
@@ -863,7 +1206,7 @@ def plan_boundary_bridge_units(
             continue
         left_window = previous_unit.logical_windows_ms[-1]
         right_window = current_unit.logical_windows_ms[0]
-        boundary_ms = current_unit.ownership_range_ms.start_ms
+        boundary_ms = current_ownership.start_ms
         context_start_ms = left_window.start_ms
         context_end_ms = right_window.end_ms
         selected = _cues_for_time_range(
@@ -873,7 +1216,16 @@ def plan_boundary_bridge_units(
         )
         unit_tokens = resolved_estimator.count(_cues_payload(selected))
         if unit_tokens > transcript_budget:
-            raise ValueError("semantic boundary bridge exceeds the transcript token budget")
+            raise _planning_budget_failure(
+                "semantic boundary bridge exceeds the transcript token budget",
+                enabled=structured_budget_errors,
+                stage="discovery",
+                component="bridge_cues",
+                measured_payload=_cues_payload(selected),
+                prompt_tokens=input_plan.prompt_tokens,
+                payload_tokens=unit_tokens,
+                config=config,
+            )
         bridges.append(
             SemanticInputUnit(
                 unit_id=f"bridge_{len(bridges) + 1:03d}",
@@ -1284,6 +1636,162 @@ def combine_discovery_outputs(
     }
 
 
+def transport_record_objects(
+    container: dict[str, object],
+    *,
+    records_key: str,
+    columns_key: str,
+) -> list[dict[str, object]]:
+    """Read either ordinary JSON objects or a declared columnar transport.
+
+    Global Review can carry dozens of candidates and topics. Repeating the
+    same field names for every record wastes context without adding evidence,
+    so an over-budget request may encode those records as rows accompanied by
+    an explicit column list. This reader keeps deterministic validation and
+    repair code independent of the chosen wire representation.
+    """
+
+    records = container.get(records_key)
+    if not isinstance(records, list):
+        return []
+    if all(isinstance(value, dict) for value in records):
+        return [value for value in records if isinstance(value, dict)]
+    columns = container.get(columns_key)
+    if (
+        not isinstance(columns, list)
+        or not columns
+        or not all(isinstance(value, str) and value for value in columns)
+        or len(columns) != len(set(columns))
+    ):
+        return []
+    result: list[dict[str, object]] = []
+    for row in records:
+        if not isinstance(row, list) or len(row) != len(columns):
+            return []
+        result.append(dict(zip(columns, row, strict=True)))
+    return result
+
+
+def _compact_record_collection(
+    container: dict[str, object],
+    *,
+    records_key: str,
+    columns_key: str,
+) -> None:
+    records = transport_record_objects(
+        container,
+        records_key=records_key,
+        columns_key=columns_key,
+    )
+    if not records:
+        return
+    columns = list(records[0])
+    if any(list(record) != columns for record in records):
+        raise ValueError(f"{records_key} records do not share one transport schema")
+    container[columns_key] = columns
+    container[records_key] = [[record[column] for column in columns] for record in records]
+
+
+def _compact_windowed_discovery_transport(discovery: dict[str, object]) -> dict[str, object]:
+    compact = dict(discovery)
+    _compact_record_collection(
+        compact,
+        records_key="topic_units",
+        columns_key="topic_unit_columns",
+    )
+    _compact_record_collection(
+        compact,
+        records_key="candidates",
+        columns_key="candidate_columns",
+    )
+    raw_units = discovery.get("input_units")
+    if not isinstance(raw_units, list):
+        raise ValueError("combined Discovery input unit transport is invalid")
+    input_unit_columns = (
+        "discovery_unit",
+        "start_cue_id",
+        "end_cue_id",
+        "starts_inside_open_topic",
+        "ends_inside_open_topic",
+        "boundary_topics",
+    )
+    boundary_topic_columns = (
+        "side",
+        "topic_summary",
+        "viewer_promise",
+        "continuation_expected",
+        "evidence_cue_ids",
+        "related_candidate_ids",
+    )
+    unit_rows: list[list[object]] = []
+    for unit in raw_units:
+        if not isinstance(unit, dict) or not isinstance(unit.get("source_range"), dict):
+            raise ValueError("combined Discovery input unit row is invalid")
+        source_range = unit["source_range"]
+        assert isinstance(source_range, dict)
+        boundary_topics = unit.get("boundary_topics")
+        if not isinstance(boundary_topics, list) or not all(
+            isinstance(value, dict) for value in boundary_topics
+        ):
+            raise ValueError("combined Discovery boundary topic transport is invalid")
+        unit_rows.append(
+            [
+                unit.get("discovery_unit"),
+                source_range.get("start_cue_id"),
+                source_range.get("end_cue_id"),
+                unit.get("starts_inside_open_topic"),
+                unit.get("ends_inside_open_topic"),
+                [
+                    [topic.get(column) for column in boundary_topic_columns]
+                    for topic in boundary_topics
+                    if isinstance(topic, dict)
+                ],
+            ]
+        )
+    compact["input_unit_columns"] = list(input_unit_columns)
+    compact["boundary_topic_columns"] = list(boundary_topic_columns)
+    compact["input_units"] = unit_rows
+    compact["transport_format"] = "rows_follow_declared_columns"
+    return compact
+
+
+def _compact_semantic_context_transport(evidence: dict[str, object]) -> dict[str, object]:
+    raw_contexts = evidence.get("semantic_contexts")
+    if not isinstance(raw_contexts, list):
+        raise ValueError("Global Review semantic context transport is invalid")
+    columns = (
+        "context_id",
+        "candidate_ids",
+        "topic_ids",
+        "parent_topics",
+        "start_cue_id",
+        "end_cue_id",
+        "cue_rows",
+    )
+    rows: list[list[object]] = []
+    for context in raw_contexts:
+        if not isinstance(context, dict) or not isinstance(context.get("source_range"), dict):
+            raise ValueError("Global Review semantic context row is invalid")
+        source_range = context["source_range"]
+        assert isinstance(source_range, dict)
+        rows.append(
+            [
+                context.get("context_id"),
+                context.get("candidate_ids"),
+                context.get("topic_ids"),
+                context.get("parent_topics"),
+                source_range.get("start_cue_id"),
+                source_range.get("end_cue_id"),
+                context.get("cue_rows"),
+            ]
+        )
+    compact = dict(evidence)
+    compact["semantic_context_columns"] = list(columns)
+    compact["semantic_contexts"] = rows
+    compact["transport_format"] = "rows_follow_declared_columns"
+    return compact
+
+
 def build_global_review_payload(
     transcript: TranscriptDocument,
     *,
@@ -1292,9 +1800,15 @@ def build_global_review_payload(
     config: SemanticGlobalConfig,
     prompt: str = "",
     estimator: TokenEstimator | None = None,
+    require_candidate_assessments: bool = False,
+    structured_budget_errors: bool = False,
 ) -> dict[str, object]:
     cues = transcript_cues(transcript)
+    cue_columns = _global_review_cue_columns(cues)
     discovery = combine_discovery_outputs(discovery_outputs, cues=cues)
+    discovery_candidates_transport = discovery.get("candidates")
+    if not isinstance(discovery_candidates_transport, list):
+        raise ValueError("combined Discovery candidate transport is invalid")
     windowed_review = input_plan.mode == SemanticInputMode.WINDOWED
     if windowed_review:
         # Window Discovery persists a complete topic map for audit, but Global
@@ -1315,7 +1829,7 @@ def build_global_review_payload(
             or (str(topic["topic_id"]).startswith("bridge_") and topic["value_density"] == "high")
         ]
     semantic_evidence: dict[str, object] = {
-        "cue_columns": list(GLOBAL_REVIEW_CUE_COLUMNS),
+        "cue_columns": list(cue_columns),
         "semantic_contexts": _global_semantic_contexts(
             cues,
             discovery_outputs=discovery_outputs,
@@ -1324,11 +1838,12 @@ def build_global_review_payload(
                 GLOBAL_REVIEW_PREFERRED_CANDIDATE_CONTEXT_MS if windowed_review else 0
             ),
             include_topic_catalog=not windowed_review,
+            cue_columns=cue_columns,
         ),
     }
     full_evidence: dict[str, object] = {
-        "cue_columns": list(GLOBAL_REVIEW_CUE_COLUMNS),
-        "full_transcript_rows": _global_cue_rows(cues),
+        "cue_columns": list(cue_columns),
+        "full_transcript_rows": _global_cue_rows(cues, columns=cue_columns),
     }
     # Put the authoritative source evidence before the fallible Discovery
     # index in serialized model transport.  Global Review must form its own
@@ -1341,6 +1856,13 @@ def build_global_review_payload(
         "evidence": semantic_evidence,
         "discovery": discovery,
     }
+    if require_candidate_assessments:
+        payload["candidate_assessment_contract"] = {
+            "schema_version": "1",
+            "required": True,
+            "candidate_count": len(discovery_candidates_transport),
+            "strict_score_threshold_exclusive": config.score_threshold_exclusive,
+        }
     if windowed_review:
         discovery["review_scope"] = "candidate_topics_and_boundary_bridges"
         # Candidate evidence is the only expandable transport guard in the
@@ -1358,7 +1880,7 @@ def build_global_review_payload(
             -GLOBAL_REVIEW_CANDIDATE_CONTEXT_STEP_MS,
         ):
             payload["evidence"] = {
-                "cue_columns": list(GLOBAL_REVIEW_CUE_COLUMNS),
+                "cue_columns": list(cue_columns),
                 "candidate_context_guard_ms": context_guard_ms,
                 "semantic_contexts": _global_semantic_contexts(
                     cues,
@@ -1366,6 +1888,7 @@ def build_global_review_payload(
                     adjacent_cue_count=GLOBAL_REVIEW_ADJACENT_CONTEXT_CUES,
                     candidate_context_ms=context_guard_ms,
                     include_topic_catalog=False,
+                    cue_columns=cue_columns,
                 ),
             }
             if (
@@ -1378,7 +1901,49 @@ def build_global_review_payload(
                 <= hard_budget
             ):
                 return payload
-        raise ValueError("Global Review semantic context package exceeds its token budget")
+        compact_discovery = _compact_windowed_discovery_transport(discovery)
+        for context_guard_ms in range(
+            GLOBAL_REVIEW_MINIMUM_CANDIDATE_CONTEXT_MS,
+            GLOBAL_REVIEW_COMPACT_MINIMUM_CANDIDATE_CONTEXT_MS - 1,
+            -GLOBAL_REVIEW_CANDIDATE_CONTEXT_STEP_MS,
+        ):
+            compact_evidence = _compact_semantic_context_transport(
+                {
+                    "cue_columns": list(cue_columns),
+                    "candidate_context_guard_ms": context_guard_ms,
+                    "semantic_contexts": _global_semantic_contexts(
+                        cues,
+                        discovery_outputs=discovery_outputs,
+                        adjacent_cue_count=GLOBAL_REVIEW_ADJACENT_CONTEXT_CUES,
+                        candidate_context_ms=context_guard_ms,
+                        include_topic_catalog=False,
+                        cue_columns=cue_columns,
+                    ),
+                }
+            )
+            compact_payload = {
+                **payload,
+                "evidence": compact_evidence,
+                "discovery": compact_discovery,
+            }
+            if (
+                _semantic_request_tokens(
+                    prompt,
+                    compact_payload,
+                    config=config,
+                    estimator=estimator,
+                )
+                <= hard_budget
+            ):
+                return compact_payload
+        raise _payload_budget_failure(
+            "Global Review semantic context package exceeds its token budget",
+            enabled=structured_budget_errors,
+            prompt=prompt,
+            payload=compact_payload,
+            config=config,
+            estimator=estimator,
+        )
     if input_plan.mode == SemanticInputMode.FULL_CONTEXT:
         full_payload = {**payload, "mode": input_plan.mode.value, "evidence": full_evidence}
         full_request_tokens = _semantic_request_tokens(
@@ -1402,8 +1967,284 @@ def build_global_review_payload(
     )
     hard_budget = int(config.model_context_tokens * config.full_context_budget_ratio)
     if request_tokens > hard_budget:
-        raise ValueError("Global Review semantic context package exceeds its token budget")
+        raise _payload_budget_failure(
+            "Global Review semantic context package exceeds its token budget",
+            enabled=structured_budget_errors,
+            prompt=prompt,
+            payload=payload,
+            config=config,
+            estimator=estimator,
+        )
     return payload
+
+
+def discovery_candidate_trace(
+    discovery: DiscoveryOutput,
+    *,
+    output_index: int,
+) -> dict[str, object]:
+    """Build structural provenance without assigning semantic meaning in Python."""
+
+    candidate_ids = [candidate.candidate_id for candidate in discovery.candidates]
+    source_batch_id = f"discovery_output_{output_index:03d}"
+    if candidate_ids:
+        first = candidate_ids[0]
+        parts = first.split("_")
+        if len(parts) >= 3 and parts[0:2] == ["window", "batch"]:
+            source_batch_id = "_".join(parts[:3])
+        elif len(parts) >= 2 and parts[0] == "bridge":
+            source_batch_id = "_".join(parts[:2])
+    return {
+        "discovery_output_index": output_index,
+        "source_batch_id": source_batch_id,
+        "source_range": discovery.source_range.model_dump(mode="json"),
+        "candidate_ids": candidate_ids,
+        "boundary_topics": [value.model_dump(mode="json") for value in discovery.boundary_topics],
+    }
+
+
+def build_boundary_review_payload_v3(
+    transcript: TranscriptDocument,
+    *,
+    discovery: DiscoveryOutput,
+    output_index: int,
+    config: SemanticGlobalConfig,
+) -> dict[str, object] | None:
+    """Build candidate-local, at-most-180-second contexts for one Discovery batch."""
+
+    if not discovery.candidates:
+        return None
+    cues = transcript_cues(transcript)
+    cue_map = {cue.cue_id: cue for cue in cues}
+    linked_topics: dict[str, list[str]] = {value.candidate_id: [] for value in discovery.candidates}
+    for topic in discovery.topic_units:
+        for candidate_id in topic.candidate_ids:
+            if candidate_id in linked_topics:
+                linked_topics[candidate_id].append(topic.topic_id)
+    trace = discovery_candidate_trace(discovery, output_index=output_index)
+    candidates: list[dict[str, object]] = []
+    contexts: list[dict[str, object]] = []
+    for candidate in discovery.candidates:
+        start, end = _validated_interval(candidate.start_cue_id, candidate.end_cue_id, cue_map)
+        lower_ms = max(0, start.start_ms - 30_000)
+        upper_ms = min(transcript.source_duration_ms, end.end_ms + 30_000)
+        if upper_ms - lower_ms > 180_000:
+            excess = upper_ms - lower_ms - 180_000
+            lower_ms += excess // 2
+            upper_ms -= excess - excess // 2
+        evidence = tuple(cue for cue in cues if cue.end_ms >= lower_ms and cue.start_ms <= upper_ms)
+        candidate_payload = candidate.model_dump(mode="json")
+        candidate_payload.update(
+            {
+                "calculated_start_time_ms": start.start_ms,
+                "calculated_end_time_ms": end.end_ms,
+                "calculated_duration_sec": (end.end_ms - start.start_ms) / 1_000,
+                "actual_source_opening_quote": start.original_text,
+                "actual_source_closing_quote": end.original_text,
+                "linked_topic_ids": linked_topics[candidate.candidate_id],
+                "source_batch_id": trace["source_batch_id"],
+                "source_window": trace["source_range"],
+            }
+        )
+        candidates.append(candidate_payload)
+        contexts.append(
+            {
+                "candidate_id": candidate.candidate_id,
+                "context_duration_sec": (evidence[-1].end_ms - evidence[0].start_ms) / 1_000,
+                "source_range": {
+                    "start_cue_id": evidence[0].cue_id,
+                    "end_cue_id": evidence[-1].cue_id,
+                },
+                "cue_rows": _global_cue_rows(evidence),
+            }
+        )
+    return {
+        "schema_version": "3",
+        "runtime": _runtime_payload(config),
+        "candidate_trace": trace,
+        "cue_columns": list(GLOBAL_REVIEW_CUE_COLUMNS),
+        "candidates": candidates,
+        "candidate_contexts": contexts,
+    }
+
+
+def validate_boundary_review_v3(
+    output: BoundaryReviewOutputV3,
+    *,
+    transcript: TranscriptDocument,
+    discovery: DiscoveryOutput,
+    config: SemanticGlobalConfig,
+) -> BoundaryReviewOutputV3:
+    """Validate structure, cue facts, continuity, duration, and exact boundary quotes only."""
+
+    expected = {candidate.candidate_id: candidate for candidate in discovery.candidates}
+    actual_ids = [review.candidate_id for review in output.reviews]
+    if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != set(expected):
+        raise ValueError(
+            "Boundary Review must return every batch candidate exactly once: "
+            f"missing={sorted(set(expected) - set(actual_ids))}, "
+            f"unexpected={sorted(set(actual_ids) - set(expected))}"
+        )
+    cue_map = {cue.cue_id: cue for cue in transcript_cues(transcript)}
+    errors: list[str] = []
+    for review in output.reviews:
+        candidate = expected[review.candidate_id]
+        reference_start_id = review.proposed_start_cue_id or candidate.start_cue_id
+        reference_end_id = review.proposed_end_cue_id or candidate.end_cue_id
+        try:
+            proposed_identity = (reference_start_id, reference_end_id)
+            candidate_identity = (candidate.start_cue_id, candidate.end_cue_id)
+            if (
+                review.content_decision == ContentDecisionV3.KEEP
+                and proposed_identity != candidate_identity
+            ):
+                raise ValueError("keep must preserve the Discovery boundary")
+            if (
+                review.content_decision == ContentDecisionV3.REPAIR_BOUNDARY
+                and proposed_identity == candidate_identity
+            ):
+                raise ValueError("repair_boundary must propose a changed interval")
+            start, end = _validated_interval(reference_start_id, reference_end_id, cue_map)
+            if review.actual_source_opening_quote != start.original_text:
+                raise ValueError("actual opening quote must equal the proposed source start cue")
+            if review.actual_source_closing_quote != end.original_text:
+                raise ValueError("actual closing quote must equal the proposed source end cue")
+            if review.content_decision != ContentDecisionV3.DROP:
+                duration_ms = end.end_ms - start.start_ms
+                if not config.minimum_duration_ms <= duration_ms <= config.maximum_duration_ms:
+                    raise ValueError(
+                        f"proposed duration {duration_ms / 1_000:.3f}s is outside runtime bounds"
+                    )
+            referenced_cues = {
+                *review.evidence_cue_ids,
+                *review.irrelevant_internal_cue_ids,
+                *(cue_id for risk in review.risk_flags for cue_id in risk.source_cue_ids),
+            }
+            if any(cue_id not in cue_map for cue_id in referenced_cues):
+                raise ValueError("review evidence contains an unknown cue ID")
+            if review.content_decision != ContentDecisionV3.DROP and any(
+                cue_id < reference_start_id or cue_id > reference_end_id
+                for cue_id in review.irrelevant_internal_cue_ids
+            ):
+                raise ValueError("irrelevant internal evidence must stay inside the final interval")
+        except ValueError as exc:
+            errors.append(f"{review.candidate_id}: {exc}")
+    if errors:
+        raise ValueError("Boundary Review validation errors: " + " | ".join(errors))
+    return output
+
+
+def build_global_review_payload_v3(
+    transcript: TranscriptDocument,
+    *,
+    input_plan: SemanticInputPlan,
+    discovery_outputs: tuple[DiscoveryOutput, ...],
+    boundary_outputs: tuple[BoundaryReviewOutputV3, ...],
+    config: SemanticGlobalConfig,
+    prompt: str,
+    estimator: TokenEstimator | None = None,
+    structured_budget_errors: bool = False,
+) -> dict[str, object]:
+    """Build a candidate/local-context review package without full-stream transcript transport."""
+
+    candidates = [candidate for output in discovery_outputs for candidate in output.candidates]
+    boundary_reviews = [review for output in boundary_outputs for review in output.reviews]
+    boundary_map = {review.candidate_id: review for review in boundary_reviews}
+    if len(boundary_map) != len(boundary_reviews) or set(boundary_map) != {
+        value.candidate_id for value in candidates
+    }:
+        raise ValueError("v3 Global Review requires one validated Boundary Review per candidate")
+    candidate_topics: dict[str, list[dict[str, object]]] = {
+        candidate.candidate_id: [] for candidate in candidates
+    }
+    for output in discovery_outputs:
+        for topic in output.topic_units:
+            compact_topic: dict[str, object] = {
+                "topic_id": topic.topic_id,
+                "summary": topic.summary,
+                "value_density": topic.value_density,
+            }
+            for candidate_id in topic.candidate_ids:
+                if candidate_id in candidate_topics:
+                    candidate_topics[candidate_id].append(compact_topic)
+    traces: dict[str, dict[str, object]] = {}
+    for index, output in enumerate(discovery_outputs, start=1):
+        trace = discovery_candidate_trace(output, output_index=index)
+        for candidate in output.candidates:
+            traces[candidate.candidate_id] = trace
+    compact_candidates = [
+        {
+            "candidate_id": candidate.candidate_id,
+            "parent_topic": candidate.parent_topic,
+            "viewer_promise": candidate.viewer_promise,
+            "content_type": candidate.content_type,
+            "discovery_start_cue_id": candidate.start_cue_id,
+            "discovery_end_cue_id": candidate.end_cue_id,
+            "discovery_evidence_cue_ids": list(candidate.evidence_cue_ids),
+            "discovery_quality_flags": [value.value for value in candidate.quality_flags],
+            "discovery_risks": [value.model_dump(mode="json") for value in candidate.risks],
+            "linked_topics": candidate_topics[candidate.candidate_id],
+            "source_trace": traces[candidate.candidate_id],
+        }
+        for candidate in candidates
+    ]
+    hard_budget = int(config.model_context_tokens * config.full_context_budget_ratio)
+    cue_columns = _global_review_cue_columns(transcript_cues(transcript))
+    for context_guard_ms in range(
+        GLOBAL_REVIEW_PREFERRED_CANDIDATE_CONTEXT_MS,
+        GLOBAL_REVIEW_COMPACT_MINIMUM_CANDIDATE_CONTEXT_MS - 1,
+        -GLOBAL_REVIEW_CANDIDATE_CONTEXT_STEP_MS,
+    ):
+        evidence = {
+            "cue_columns": list(cue_columns),
+            "candidate_context_guard_ms": context_guard_ms,
+            "semantic_contexts": _global_semantic_contexts(
+                transcript_cues(transcript),
+                discovery_outputs=discovery_outputs,
+                adjacent_cue_count=GLOBAL_REVIEW_ADJACENT_CONTEXT_CUES,
+                candidate_context_ms=context_guard_ms,
+                include_topic_catalog=False,
+                cue_columns=cue_columns,
+            ),
+        }
+        payload: dict[str, object] = {
+            "schema_version": "3",
+            "mode": GLOBAL_REVIEW_SEMANTIC_CONTEXT_MODE,
+            "discovery_input_mode": input_plan.mode.value,
+            "runtime": _runtime_payload(config),
+            "top_n_contract": {
+                "discovery_candidate_count": len(candidates),
+                "top_n": config.max_clips,
+                "top_n_is_final_output_ceiling_only": True,
+            },
+            "score_contract": {
+                "threshold_exclusive": config.score_threshold_exclusive,
+                "dimensions": {
+                    "independence": 20,
+                    "completeness": 20,
+                    "single_topic": 15,
+                    "viewer_value": 20,
+                    "source_fidelity": 15,
+                    "edit_cleanliness": 10,
+                },
+            },
+            "candidates": compact_candidates,
+            "boundary_reviews": [value.model_dump(mode="json") for value in boundary_reviews],
+            "evidence": evidence,
+        }
+        if (
+            _semantic_request_tokens(prompt, payload, config=config, estimator=estimator)
+            <= hard_budget
+        ):
+            return payload
+    raise _payload_budget_failure(
+        "v3 Global Review candidate context package exceeds its token budget",
+        enabled=structured_budget_errors,
+        prompt=prompt,
+        payload=payload,
+        config=config,
+        estimator=estimator,
+    )
 
 
 def boundary_refinement_target_ids(output: GlobalReviewOutput) -> tuple[str, ...]:
@@ -1643,6 +2484,7 @@ def validate_global_review(
     discovery_outputs: tuple[DiscoveryOutput, ...],
     config: SemanticGlobalConfig,
     input_mode: SemanticInputMode | None = None,
+    require_candidate_assessments: bool = False,
 ) -> ValidatedGlobalReview:
     cues = transcript_cues(transcript)
     cue_map = {cue.cue_id: cue for cue in cues}
@@ -1694,6 +2536,19 @@ def validate_global_review(
         )
     except ValueError as exc:
         preflight_errors.append(f"rejected_candidates: {exc}")
+    if require_candidate_assessments:
+        try:
+            if not isinstance(output, GlobalReviewOutputV2):
+                raise ValueError("v2 Global Review requires candidate_assessments")
+            _validate_candidate_assessments(
+                output.candidate_assessments,
+                discovery_ids=discovery_ids,
+                clip_map=clip_map,
+                rejected_groups=output.rejected_candidates,
+                score_threshold_exclusive=config.score_threshold_exclusive,
+            )
+        except ValueError as exc:
+            preflight_errors.append(f"candidate_assessments: {exc}")
     for clip in output.clips:
         try:
             if any(value not in discovery_ids for value in clip.source_candidate_ids):
@@ -1852,6 +2707,275 @@ def validate_global_review(
     )
 
 
+_V3_REJECTING_QUALITY_FLAGS = frozenset(
+    {
+        QualityFlagV3.CONTEXT_DEPENDENT_OPENING,
+        QualityFlagV3.INCOMPLETE_ENDING,
+        QualityFlagV3.IRRELEVANT_INTRO,
+        QualityFlagV3.IRRELEVANT_OUTRO,
+        QualityFlagV3.IRRELEVANT_INTERNAL_CONTENT,
+        QualityFlagV3.REPEATED_LIVE_CTA,
+        QualityFlagV3.EQUIPMENT_INTERRUPTION,
+        QualityFlagV3.PADDED_TO_MIN_DURATION,
+        QualityFlagV3.OVEREXTENDED_TO_MAX_DURATION,
+        QualityFlagV3.TOPIC_MIXED,
+        QualityFlagV3.DUPLICATE_WEAKER,
+    }
+)
+_V3_BLOCKING_QUALITY_FLAGS = frozenset(
+    {
+        QualityFlagV3.TITLE_SOURCE_MISMATCH,
+        QualityFlagV3.ASR_MEANING_REVERSAL,
+    }
+)
+_V3_MANUAL_RISK_TYPES = frozenset(
+    {
+        RiskTypeV3.MUSIC_RIGHTS,
+        RiskTypeV3.GENERAL_HEALTH_ADVICE,
+        RiskTypeV3.COMMERCIAL_CLAIM,
+        RiskTypeV3.SENSITIVITY_REVIEW,
+    }
+)
+_V3_BLOCKING_RISK_TYPES = frozenset(
+    {
+        RiskTypeV3.MEDICAL_DIAGNOSTIC_CLAIM,
+        RiskTypeV3.ABSOLUTE_CLAIM,
+        RiskTypeV3.IDENTIFIED_PERSON_CLAIM,
+        RiskTypeV3.REGIONAL_STEREOTYPE,
+    }
+)
+
+
+def validate_global_review_v3(
+    output: GlobalReviewOutputV3,
+    *,
+    transcript: TranscriptDocument,
+    discovery_outputs: tuple[DiscoveryOutput, ...],
+    boundary_outputs: tuple[BoundaryReviewOutputV3, ...],
+    config: SemanticGlobalConfig,
+) -> ValidatedGlobalReviewV3:
+    """Apply deterministic v3 gates to Agent-authored facts without semantic heuristics."""
+
+    candidates = {
+        candidate.candidate_id: candidate
+        for discovery in discovery_outputs
+        for candidate in discovery.candidates
+    }
+    boundary_reviews = {
+        review.candidate_id: review
+        for boundary_output in boundary_outputs
+        for review in boundary_output.reviews
+    }
+    if len(boundary_reviews) != sum(len(value.reviews) for value in boundary_outputs):
+        raise ValueError("Boundary Review candidate IDs must be globally unique")
+    if set(boundary_reviews) != set(candidates):
+        raise ValueError("v3 Global Review input is missing candidate Boundary Reviews")
+    review_ids = [review.candidate_id for review in output.reviews]
+    if len(review_ids) != len(set(review_ids)) or set(review_ids) != set(candidates):
+        raise ValueError(
+            "v3 Global Review must review every Discovery candidate exactly once: "
+            f"missing={sorted(set(candidates) - set(review_ids))}, "
+            f"unexpected={sorted(set(review_ids) - set(candidates))}"
+        )
+    cue_map = {cue.cue_id: cue for cue in transcript_cues(transcript)}
+    review_map = {review.candidate_id: review for review in output.reviews}
+    for review in output.reviews:
+        if review.duplicate_of is not None and review.duplicate_of not in review_map:
+            raise ValueError(f"{review.candidate_id}: duplicate target is not a reviewed candidate")
+
+    selected: list[ValidatedCandidateReviewV3] = []
+    manual: list[ValidatedCandidateReviewV3] = []
+    blocked: list[ValidatedCandidateReviewV3] = []
+    rejected: list[ValidatedCandidateReviewV3] = []
+    validation_notes: list[str] = []
+    for review in output.reviews:
+        candidate = candidates[review.candidate_id]
+        boundary = boundary_reviews[review.candidate_id]
+        start_cue_id = review.proposed_start_cue_id or candidate.start_cue_id
+        end_cue_id = review.proposed_end_cue_id or candidate.end_cue_id
+        boundary_start_cue_id = boundary.proposed_start_cue_id or candidate.start_cue_id
+        boundary_end_cue_id = boundary.proposed_end_cue_id or candidate.end_cue_id
+        if (
+            boundary.content_decision != ContentDecisionV3.DROP
+            and review.content_decision == ContentDecisionV3.KEEP
+            and (start_cue_id, end_cue_id) != (boundary_start_cue_id, boundary_end_cue_id)
+        ):
+            raise ValueError(
+                f"{review.candidate_id}: keep must use the validated Boundary Review interval"
+            )
+        start, end = _validated_interval(start_cue_id, end_cue_id, cue_map)
+        duration_ms = end.end_ms - start.start_ms
+        referenced_cues = {
+            *review.evidence_cue_ids,
+            *(cue_id for risk in review.risk_flags for cue_id in risk.source_cue_ids),
+        }
+        if any(cue_id not in cue_map for cue_id in referenced_cues):
+            raise ValueError(f"{review.candidate_id}: Global Review references an unknown cue ID")
+        quality_flags = tuple(dict.fromkeys((*boundary.quality_flags, *review.quality_flags)))
+        risk_flags, risk_notes = _merge_v3_risks_for_interval(
+            _v3_discovery_risks(candidate),
+            boundary.risk_flags,
+            review.risk_flags,
+            start_cue_id=start_cue_id,
+            end_cue_id=end_cue_id,
+        )
+        notes = list(risk_notes)
+        decision = ReviewDecision.SELECTED
+        publish_status = review.publish_status
+        if boundary.content_decision == ContentDecisionV3.DROP:
+            decision = ReviewDecision.REJECTED
+            notes.append("boundary_review_drop_gate")
+        elif review.content_decision == ContentDecisionV3.DROP:
+            decision = ReviewDecision.REJECTED
+            notes.append("global_content_drop_gate")
+        elif not config.minimum_duration_ms <= duration_ms <= config.maximum_duration_ms:
+            decision = ReviewDecision.REJECTED
+            notes.append("duration_gate")
+        elif set(quality_flags) & _V3_REJECTING_QUALITY_FLAGS:
+            decision = ReviewDecision.REJECTED
+            notes.append("non_compensable_quality_drop_gate")
+        elif set(quality_flags) & _V3_BLOCKING_QUALITY_FLAGS:
+            decision = ReviewDecision.MANUAL_REVIEW
+            publish_status = PublishStatusV3.BLOCKED
+            notes.append("non_compensable_quality_block_gate")
+        elif review.score_dimensions.total <= config.score_threshold_exclusive:
+            decision = ReviewDecision.REJECTED
+            notes.append("exclusive_score_gate")
+        elif any(value.type in _V3_BLOCKING_RISK_TYPES for value in risk_flags):
+            decision = ReviewDecision.MANUAL_REVIEW
+            publish_status = PublishStatusV3.BLOCKED
+            notes.append("risk_block_gate")
+        elif review.publish_status == PublishStatusV3.BLOCKED:
+            decision = ReviewDecision.MANUAL_REVIEW
+            notes.append("agent_publish_block_gate")
+        elif any(value.type in _V3_MANUAL_RISK_TYPES for value in risk_flags):
+            decision = ReviewDecision.MANUAL_REVIEW
+            publish_status = PublishStatusV3.MANUAL
+            notes.append("risk_manual_gate")
+        elif review.publish_status == PublishStatusV3.MANUAL:
+            decision = ReviewDecision.MANUAL_REVIEW
+            notes.append("agent_publish_manual_gate")
+        elif review.publish_status != PublishStatusV3.AUTO:
+            raise ValueError(f"{review.candidate_id}: unsupported publication status")
+        validated = ValidatedCandidateReviewV3(
+            review=review,
+            discovery_candidate=candidate,
+            boundary_review=boundary,
+            decision=decision,
+            publish_status=publish_status,
+            start_ms=start.start_ms,
+            end_ms=end.end_ms,
+            duration_ms=duration_ms,
+            final_score=review.score_dimensions.total,
+            quality_flags=quality_flags,
+            risk_flags=risk_flags,
+            validation_notes=tuple(notes),
+        )
+        if decision == ReviewDecision.SELECTED:
+            selected.append(validated)
+        elif decision == ReviewDecision.REJECTED:
+            rejected.append(validated)
+        elif publish_status == PublishStatusV3.BLOCKED:
+            blocked.append(validated)
+        else:
+            manual.append(validated)
+        validation_notes.extend(f"{review.candidate_id}:{note}" for note in notes)
+
+    validated_by_id = {
+        value.review.candidate_id: value for value in (*selected, *manual, *blocked, *rejected)
+    }
+    for value in validated_by_id.values():
+        duplicate_of = value.review.duplicate_of
+        if duplicate_of is None:
+            continue
+        representative = validated_by_id[duplicate_of]
+        if representative.decision == ReviewDecision.REJECTED or (
+            QualityFlagV3.DUPLICATE_WEAKER in representative.quality_flags
+        ):
+            raise ValueError(
+                f"{value.review.candidate_id}: duplicate representative must be a stronger "
+                "retained candidate"
+            )
+
+    selected.sort(key=lambda value: (-value.final_score, value.start_ms, value.review.candidate_id))
+    eligible_before_top_n_count = len(selected)
+    top_n_excluded = selected[config.max_clips :]
+    selected = selected[: config.max_clips]
+    for value in top_n_excluded:
+        validation_notes.append(f"{value.review.candidate_id}:top_n_ceiling_excluded")
+    manual.sort(key=lambda value: (value.start_ms, value.review.candidate_id))
+    blocked.sort(key=lambda value: (value.start_ms, value.review.candidate_id))
+    rejected.sort(key=lambda value: (value.start_ms, value.review.candidate_id))
+    boundary_values = tuple(boundary_reviews.values())
+    statistics = GlobalReviewStatisticsV3(
+        discovery_candidate_count=len(candidates),
+        boundary_kept_count=sum(
+            value.content_decision == ContentDecisionV3.KEEP for value in boundary_values
+        ),
+        boundary_repaired_count=sum(
+            value.content_decision == ContentDecisionV3.REPAIR_BOUNDARY for value in boundary_values
+        ),
+        boundary_dropped_count=sum(
+            value.content_decision == ContentDecisionV3.DROP for value in boundary_values
+        ),
+        eligible_before_top_n_count=eligible_before_top_n_count,
+        selected_count=len(selected),
+        manual_count=len(manual),
+        blocked_count=len(blocked),
+        rejected_count=len(rejected),
+        top_n_excluded_count=len(top_n_excluded),
+        suspicious_exact_top_n=(
+            len(candidates) == config.max_clips and eligible_before_top_n_count == config.max_clips
+        ),
+    )
+    return ValidatedGlobalReviewV3(
+        selected=tuple(selected),
+        manual_review=tuple(manual),
+        blocked=tuple(blocked),
+        rejected=tuple(rejected),
+        top_n_excluded=tuple(top_n_excluded),
+        statistics=statistics,
+        validation_notes=tuple(validation_notes),
+    )
+
+
+def _merge_v3_risks_for_interval(
+    *groups: tuple[RiskAssessmentV3, ...],
+    start_cue_id: int,
+    end_cue_id: int,
+) -> tuple[tuple[RiskAssessmentV3, ...], tuple[str, ...]]:
+    values: dict[tuple[object, ...], RiskAssessmentV3] = {}
+    notes: list[str] = []
+    for group_index, group in enumerate(groups):
+        for risk in group:
+            if any(cue_id < start_cue_id or cue_id > end_cue_id for cue_id in risk.source_cue_ids):
+                notes.append(f"risk_evidence_outside_final_interval_removed:{group_index}")
+                continue
+            key = (risk.type, risk.severity, risk.reason, risk.source_cue_ids)
+            values[key] = risk
+    return tuple(values.values()), tuple(dict.fromkeys(notes))
+
+
+def _v3_discovery_risks(candidate: DiscoveryCandidate) -> tuple[RiskAssessmentV3, ...]:
+    mapping = {
+        RiskType.MUSIC_RIGHTS_REVIEW: RiskTypeV3.MUSIC_RIGHTS,
+        RiskType.GENERAL_HEALTH_WARNING: RiskTypeV3.GENERAL_HEALTH_ADVICE,
+        RiskType.MEDICAL_DIAGNOSIS_HIGH: RiskTypeV3.MEDICAL_DIAGNOSTIC_CLAIM,
+        RiskType.ABSOLUTE_CLAIM: RiskTypeV3.ABSOLUTE_CLAIM,
+        RiskType.COMMERCIAL_CLAIM: RiskTypeV3.COMMERCIAL_CLAIM,
+        RiskType.SENSITIVITY_REVIEW: RiskTypeV3.SENSITIVITY_REVIEW,
+    }
+    return tuple(
+        RiskAssessmentV3(
+            type=mapping[value.type],
+            severity=value.severity,
+            reason=value.reason,
+            source_cue_ids=value.source_cue_ids,
+        )
+        for value in candidate.risks
+    )
+
+
 def _validated_coverage_decision(
     decision: CoverageDecision,
     *,
@@ -1995,6 +3119,92 @@ def _global_candidate_dispositions(
     if missing:
         raise ValueError(f"Global Review omitted Discovery candidate dispositions: {missing}")
     return dispositions
+
+
+def _validate_candidate_assessments(
+    assessments: tuple[CandidateAssessment, ...],
+    *,
+    discovery_ids: set[str],
+    clip_map: dict[str, GlobalReviewClip],
+    rejected_groups: tuple[RejectedCandidateGroup, ...],
+    score_threshold_exclusive: float,
+) -> None:
+    assessment_ids = [value.candidate_id for value in assessments]
+    if len(assessment_ids) != len(set(assessment_ids)):
+        raise ValueError("candidate assessment IDs must be unique")
+    if set(assessment_ids) != discovery_ids:
+        missing = sorted(discovery_ids - set(assessment_ids))
+        unexpected = sorted(set(assessment_ids) - discovery_ids)
+        raise ValueError(
+            "candidate assessments must score every Discovery candidate exactly once: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+    rejected_by_candidate: dict[str, RejectedCandidateGroup] = {}
+    for group in rejected_groups:
+        for candidate_id in group.candidate_ids:
+            rejected_by_candidate[candidate_id] = group
+
+    for assessment in assessments:
+        clip = (
+            clip_map.get(assessment.result_clip_id)
+            if assessment.result_clip_id is not None
+            else None
+        )
+        if assessment.disposition in {
+            CandidateAssessmentDisposition.ADVANCE,
+            CandidateAssessmentDisposition.DUPLICATE,
+        }:
+            if clip is None:
+                raise ValueError(
+                    f"{assessment.candidate_id}: advancing/duplicate assessment requires a "
+                    "known result_clip_id"
+                )
+            if assessment.candidate_id not in clip.source_candidate_ids:
+                raise ValueError(
+                    f"{assessment.candidate_id}: result clip must reference the assessed candidate"
+                )
+            if clip.editorial_decision != EditorialDecision.KEEP:
+                raise ValueError(
+                    f"{assessment.candidate_id}: result clip must retain editorial value"
+                )
+            if clip.score_dimensions.total <= score_threshold_exclusive:
+                raise ValueError(
+                    f"{assessment.candidate_id}: result clip score must exceed the strict threshold"
+                )
+            if assessment.disposition == CandidateAssessmentDisposition.ADVANCE and (
+                assessment.score_dimensions.total <= score_threshold_exclusive
+            ):
+                raise ValueError(
+                    f"{assessment.candidate_id}: advance score must exceed the strict threshold"
+                )
+            if assessment.candidate_id in rejected_by_candidate:
+                raise ValueError(
+                    f"{assessment.candidate_id}: retained assessment cannot also be rejected"
+                )
+            continue
+
+        if assessment.result_clip_id is not None:
+            raise ValueError(
+                f"{assessment.candidate_id}: rejected assessment cannot reference a result clip"
+            )
+        rejected_group = rejected_by_candidate.get(assessment.candidate_id)
+        if rejected_group is None:
+            raise ValueError(
+                f"{assessment.candidate_id}: rejected assessment requires rejection audit"
+            )
+        if (
+            rejected_group.reason_code == CoverageReasonCode.NO_GENERAL_VALUE
+            and assessment.score_dimensions.total > score_threshold_exclusive
+        ):
+            raise ValueError(
+                f"{assessment.candidate_id}: no_general_value cannot suppress score "
+                f"{assessment.score_dimensions.total} above the strict threshold"
+            )
+
+    for clip in clip_map.values():
+        if clip.editorial_decision != EditorialDecision.KEEP:
+            raise ValueError("v2 Global Review must not emit full clip records for dropped results")
 
 
 def _validate_coverage_decisions(
@@ -2769,16 +3979,26 @@ def discovery_request_payload(
     source_id: str,
     mode: SemanticInputMode,
     config: SemanticGlobalConfig,
+    include_final_gates: bool = True,
 ) -> dict[str, object]:
+    runtime = _runtime_payload(config)
+    if not include_final_gates:
+        runtime.pop("score_threshold_exclusive")
+        runtime.pop("max_clips")
     payload: dict[str, object] = {
         "schema_version": "2",
         "source_id": source_id,
         "input_mode": mode.value,
         "input_unit_id": unit.unit_id,
         "source_range": unit.source_range.model_dump(mode="json"),
-        "runtime": _runtime_payload(config),
+        "runtime": runtime,
         "cues": _cue_dicts(unit.cues),
     }
+    if not include_final_gates:
+        payload["discovery_contract"] = {
+            "high_recall": True,
+            "score_and_top_n_are_downstream_only": True,
+        }
     if unit.context_range_ms is not None:
         payload["batch_context_ms"] = unit.context_range_ms.model_dump(mode="json")
     if unit.ownership_range_ms is not None:
@@ -2825,16 +4045,35 @@ def semantic_repair_payload(
             for cue in evidence_cues
             if isinstance((cue_id := cue.get("cue_id")), int) and not isinstance(cue_id, bool)
         )
+    local_contexts = request_payload.get("candidate_contexts")
+    if local_contexts is not None:
+        local_cues = _transport_cue_objects(local_contexts)
+        available_cues.extend(local_cues)
+        valid_cue_ids.extend(
+            cue_id
+            for cue in local_cues
+            if isinstance((cue_id := cue.get("cue_id")), int) and not isinstance(cue_id, bool)
+        )
     discovery = request_payload.get("discovery")
     candidate_ids: list[str] = []
     if isinstance(discovery, dict):
-        candidates = discovery.get("candidates")
-        if isinstance(candidates, list):
-            candidate_ids = [
-                str(candidate["candidate_id"])
-                for candidate in candidates
-                if isinstance(candidate, dict) and "candidate_id" in candidate
-            ]
+        candidates = transport_record_objects(
+            discovery,
+            records_key="candidates",
+            columns_key="candidate_columns",
+        )
+        candidate_ids = [
+            str(candidate["candidate_id"])
+            for candidate in candidates
+            if "candidate_id" in candidate
+        ]
+    authoritative_candidates = request_payload.get("candidates")
+    if isinstance(authoritative_candidates, list):
+        candidate_ids = [
+            str(candidate["candidate_id"])
+            for candidate in authoritative_candidates
+            if isinstance(candidate, dict) and isinstance(candidate.get("candidate_id"), str)
+        ]
     invalid_payload = invalid_output.model_dump(mode="json")
     focus_ranges = _repair_ranges(invalid_payload)
     topic_gap_ranges = _topic_gap_ranges(
@@ -2849,7 +4088,7 @@ def semantic_repair_payload(
         available_cues=available_cues,
     )
     return {
-        "schema_version": "2",
+        "schema_version": request_payload.get("schema_version", "2"),
         "repair_only": True,
         "validation_errors": list(validation_errors),
         "immutable_transport_facts": {
@@ -2861,6 +4100,10 @@ def semantic_repair_payload(
                 "source_range",
                 "mode",
                 "runtime",
+                "candidate_assessment_contract",
+                "discovery_contract",
+                "top_n_contract",
+                "score_contract",
             )
             if key in request_payload
         },
@@ -2878,6 +4121,10 @@ def semantic_repair_payload(
         ),
         "authoritative_boundary_quote_options": boundary_quote_options,
         "authoritative_discovery": discovery if isinstance(discovery, dict) else None,
+        "authoritative_candidates": (
+            authoritative_candidates if isinstance(authoritative_candidates, list) else None
+        ),
+        "authoritative_boundary_reviews": request_payload.get("boundary_reviews"),
         "affected_evidence": affected_evidence,
         "invalid_output": invalid_payload,
     }
@@ -2928,6 +4175,8 @@ def _repair_item_ids(value: dict[str, object]) -> dict[str, list[str]]:
         ("topic_units", "topic_id"),
         ("candidates", "candidate_id"),
         ("clips", "clip_id"),
+        ("candidate_assessments", "candidate_id"),
+        ("reviews", "candidate_id"),
     ):
         items = value.get(collection)
         if not isinstance(items, list):
@@ -2965,6 +4214,7 @@ def _authoritative_boundary_quote_options(
     for collection, identifier in (
         ("candidates", "candidate_id"),
         ("clips", "clip_id"),
+        ("reviews", "candidate_id"),
     ):
         items = value.get(collection)
         if not isinstance(items, list):
@@ -2972,8 +4222,8 @@ def _authoritative_boundary_quote_options(
         for item in items:
             if not isinstance(item, dict) or not isinstance(item.get(identifier), str):
                 continue
-            start = item.get("start_cue_id")
-            end = item.get("end_cue_id")
+            start = item.get("start_cue_id", item.get("proposed_start_cue_id"))
+            end = item.get("end_cue_id", item.get("proposed_end_cue_id"))
             if (
                 not isinstance(start, int)
                 or isinstance(start, bool)
@@ -3023,6 +4273,7 @@ def _repair_ranges(value: object) -> tuple[tuple[int, int], ...]:
             ("ideal_start_cue_id", "ideal_end_cue_id"),
             ("topic_core_start_cue_id", "topic_core_end_cue_id"),
             ("start_cue_id", "end_cue_id"),
+            ("proposed_start_cue_id", "proposed_end_cue_id"),
         ):
             start = value.get(start_key)
             end = value.get(end_key)
@@ -3077,6 +4328,7 @@ def _rolling_window_units(
     estimator: TokenEstimator,
     transcript_token_budget: int,
     prompt_tokens: int,
+    structured_budget_errors: bool = False,
 ) -> tuple[SemanticInputUnit, ...]:
     """Create four-window batches while transmitting each source cue only once."""
 
@@ -3088,14 +4340,27 @@ def _rolling_window_units(
     while batch_start_ms < source_duration_ms:
         context_end_ms = min(source_duration_ms, batch_start_ms + context_span_ms)
         ownership_end_ms = min(source_duration_ms, batch_start_ms + ownership_span_ms)
-        selected = _cues_for_time_range(
-            cues,
-            start_ms=batch_start_ms,
-            end_ms=context_end_ms,
+        selected = tuple(
+            cue for cue in cues if cue.end_ms > batch_start_ms and cue.start_ms < context_end_ms
         )
+        if not selected:
+            # A livestream can contain long intermissions without speech. Empty
+            # time batches carry no semantic input, so keep the source timeline
+            # intact and resume at the next fixed ownership interval.
+            batch_start_ms += ownership_span_ms
+            continue
         unit_tokens = estimator.count(_cues_payload(selected))
         if unit_tokens > transcript_token_budget:
-            raise ValueError("semantic window batch exceeds the transcript token budget")
+            raise _planning_budget_failure(
+                "semantic window batch exceeds the transcript token budget",
+                enabled=structured_budget_errors,
+                stage="discovery",
+                component="window_cues",
+                measured_payload=_cues_payload(selected),
+                prompt_tokens=prompt_tokens,
+                payload_tokens=unit_tokens,
+                config=config,
+            )
         logical_windows = tuple(
             SemanticTimeRange(
                 start_ms=logical_start,
@@ -3149,6 +4414,7 @@ def _fallback_units(
     estimator: TokenEstimator,
     transcript_token_budget: int,
     prompt_tokens: int,
+    structured_budget_errors: bool = False,
 ) -> tuple[SemanticInputUnit, ...]:
     units: list[SemanticInputUnit] = []
     start_index = 0
@@ -3167,8 +4433,33 @@ def _fallback_units(
         selected = cues[start_index : end_index + 1]
         duration = selected[-1].end_ms - selected[0].start_ms
         if duration < config.fallback_minimum_duration_ms and end_index < len(cues) - 1:
+            if structured_budget_errors:
+                prospective_payload = _cues_payload(cues[start_index : end_index + 2])
+                prospective_tokens = estimator.count(prospective_payload)
+                if prospective_tokens > transcript_token_budget:
+                    raise _planning_budget_failure(
+                        "token budget cannot fit the minimum fallback transcript duration",
+                        enabled=True,
+                        stage="discovery",
+                        component="fallback_cues",
+                        measured_payload=prospective_payload,
+                        prompt_tokens=prompt_tokens,
+                        payload_tokens=prospective_tokens,
+                        config=config,
+                    )
             raise ValueError("token budget cannot fit the minimum fallback transcript duration")
         unit_tokens = estimator.count(_cues_payload(selected))
+        if structured_budget_errors and unit_tokens > transcript_token_budget:
+            raise _planning_budget_failure(
+                "semantic fallback unit exceeds the transcript token budget",
+                enabled=True,
+                stage="discovery",
+                component="fallback_cues",
+                measured_payload=_cues_payload(selected),
+                prompt_tokens=prompt_tokens,
+                payload_tokens=unit_tokens,
+                config=config,
+            )
         units.append(
             SemanticInputUnit(
                 unit_id=f"fallback_{len(units) + 1:03d}",
@@ -3202,6 +4493,7 @@ def _global_semantic_contexts(
     adjacent_cue_count: int,
     candidate_context_ms: int = 0,
     include_topic_catalog: bool = True,
+    cue_columns: tuple[str, ...] = GLOBAL_REVIEW_CUE_COLUMNS,
 ) -> list[dict[str, object]]:
     """Build complete semantic evidence without making semantic decisions.
 
@@ -3303,7 +4595,7 @@ def _global_semantic_contexts(
                     "start_cue_id": evidence[0].cue_id,
                     "end_cue_id": evidence[-1].cue_id,
                 },
-                "cue_rows": _global_cue_rows(evidence),
+                "cue_rows": _global_cue_rows(evidence, columns=cue_columns),
             }
         )
     return contexts
@@ -3349,20 +4641,20 @@ def _cue_dicts(cues: tuple[SemanticCue, ...]) -> list[dict[str, object]]:
     return [cue.model_dump(mode="json", exclude_none=True) for cue in cues]
 
 
-def _global_cue_rows(cues: tuple[SemanticCue, ...]) -> list[list[object]]:
+def _global_review_cue_columns(cues: tuple[SemanticCue, ...]) -> tuple[str, ...]:
+    if all(cue.normalized_text is None and cue.normalization_note is None for cue in cues):
+        return GLOBAL_REVIEW_CUE_COLUMNS[:4]
+    return GLOBAL_REVIEW_CUE_COLUMNS
+
+
+def _global_cue_rows(
+    cues: tuple[SemanticCue, ...],
+    *,
+    columns: tuple[str, ...] = GLOBAL_REVIEW_CUE_COLUMNS,
+) -> list[list[object]]:
     """Serialize repeated Global Review evidence without repeated JSON keys."""
 
-    return [
-        [
-            cue.cue_id,
-            cue.start_ms,
-            cue.end_ms,
-            cue.original_text,
-            cue.normalized_text,
-            cue.normalization_note,
-        ]
-        for cue in cues
-    ]
+    return [[getattr(cue, column) for column in columns] for cue in cues]
 
 
 def _transport_cue_objects(value: object) -> list[dict[str, object]]:
@@ -3370,7 +4662,7 @@ def _transport_cue_objects(value: object) -> list[dict[str, object]]:
 
     if isinstance(value, list):
         if (
-            len(value) == len(GLOBAL_REVIEW_CUE_COLUMNS)
+            4 <= len(value) <= len(GLOBAL_REVIEW_CUE_COLUMNS)
             and isinstance(value[0], int)
             and not isinstance(value[0], bool)
             and isinstance(value[1], int)
@@ -3382,7 +4674,7 @@ def _transport_cue_objects(value: object) -> list[dict[str, object]]:
             return [
                 {
                     key: item
-                    for key, item in zip(GLOBAL_REVIEW_CUE_COLUMNS, value, strict=True)
+                    for key, item in zip(GLOBAL_REVIEW_CUE_COLUMNS, value, strict=False)
                     if item is not None
                 }
             ]

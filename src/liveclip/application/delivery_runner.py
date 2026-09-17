@@ -5,6 +5,10 @@ import threading
 from enum import StrEnum
 
 from liveclip.application.deliveries import DeliveryConflict, DeliveryRepository, DeliverySnapshot
+from liveclip.application.delivery_progress import (
+    DeliveryProgressLostLease,
+    DeliveryProgressWriteFailed,
+)
 from liveclip.application.edit_packages import (
     EditPackageConflict,
     EditPackagePersistence,
@@ -129,10 +133,17 @@ class DeliveryTaskRunner:
         )
         monitor.start()
         try:
+            factory = getattr(self._repository, "progress_sink", None)
+            progress_options = (
+                {"progress": factory(identity, work, attempt_number=lease.attempt_number)}
+                if factory is not None
+                else {}
+            )
             persistence = self._handler.execute(
                 work,
                 identity,
                 cancel_requested=monitor.should_stop,
+                **progress_options,
             )
             monitor.refresh()
             if monitor.cancel_requested:
@@ -146,6 +157,19 @@ class DeliveryTaskRunner:
             if self._repository.complete_delivery(identity, work, persistence):
                 return DeliveryRunOutcome.SUCCEEDED
             return DeliveryRunOutcome.LOST_LEASE
+        except DeliveryProgressLostLease:
+            return (
+                DeliveryRunOutcome.CANCELLED
+                if self._queue.acknowledge_cancel(lease)
+                else DeliveryRunOutcome.LOST_LEASE
+            )
+        except DeliveryProgressWriteFailed:
+            return self._fail(
+                lease,
+                failure_class=FailureClass.TRANSIENT,
+                error_code="DELIVERY_PROGRESS_WRITE_TEMPORARY",
+                safe_message="Delivery progress could not be saved and may be retried",
+            )
         except DeliveryTaskCancelled:
             return (
                 DeliveryRunOutcome.CANCELLED

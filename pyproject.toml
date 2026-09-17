@@ -32,6 +32,12 @@ dependencies = [
 liveclip = "liveclip.cli.app:app"
 liveclip-worker = "liveclip.worker:main"
 
+[project.optional-dependencies]
+local-asr = [
+    "mlx-whisper==0.4.3",
+    "numpy>=1.26,<2.5",
+]
+
 [dependency-groups]
 dev = [
   "mypy>=1.16,<2",
@@ -46,6 +52,7 @@ packages = ["src/liveclip"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
   "integration: uses real local subprocesses/files/SQLite but no paid cloud API",

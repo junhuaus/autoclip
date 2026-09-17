@@ -59,10 +59,12 @@ def test_cli_foreground_run_status_and_clips_share_persisted_services(
         assert match is not None
         project_id = match.group(1)
 
-        status_result = runner.invoke(app, ["status", project_id])
+        status_result = runner.invoke(app, ["status", project_id, "--watch"])
         assert status_result.exit_code == 0, status_result.output
         assert "Project status: pending_review" in status_result.output
-        assert " - proxy_render: succeeded (100%)" in status_result.output
+        assert re.search(r"✓ 6/8\s+切片渲染\s+完成\s+\[█{10}\]\s+100%", status_result.output)
+        assert re.search(r"▶ 7/8\s+切片选择\s+已选 0/3 · 待选 3", status_result.output)
+        assert re.search(r"○ 8/8\s+生成交付包\s+等待", status_result.output)
 
         clips_result = runner.invoke(app, ["clips", project_id])
         assert clips_result.exit_code == 0, clips_result.output
@@ -90,7 +92,7 @@ def test_cli_foreground_run_status_and_clips_share_persisted_services(
         )
         assert review_result.exit_code == 0, review_result.output
         assert "EditPlan revision: 2" in review_result.output
-        assert "Review status: approved" in review_result.output
+        assert "Selection status: approved" in review_result.output
         assert "Hook: " in review_result.output
         assert "Captions (" in review_result.output
         assert "clip-relative" in review_result.output
@@ -99,15 +101,18 @@ def test_cli_foreground_run_status_and_clips_share_persisted_services(
         assert render_result.exit_code == 0, render_result.output
         assert "Render status: succeeded" in render_result.output
 
-        delivery_result = runner.invoke(app, ["deliver", project_id, "--zip"])
-        assert delivery_result.exit_code == 0, delivery_result.output
-        assert "Delivery version: v001" in delivery_result.output
-        assert "Delivery status: succeeded" in delivery_result.output
+        selection_result = runner.invoke(app, ["select", project_id])
+        assert selection_result.exit_code == 0, selection_result.output
+        assert "模式       default" in selection_result.output
+        assert "已选择     3" in selection_result.output
+        assert "Delivery version: v001" in selection_result.output
+        assert "Delivery status: succeeded" in selection_result.output
         assert (data_dir / project_id / "deliveries" / "v001" / "delivery.zip").is_file()
 
         delivered_status = runner.invoke(app, ["status", project_id])
         assert delivered_status.exit_code == 0, delivered_status.output
         assert "Project status: delivered" in delivered_status.output
+        assert re.search(r"✓ 8/8\s+生成交付包\s+完成", delivered_status.output)
         assert (data_dir / "liveclip.sqlite3").is_file()
     finally:
         get_settings.cache_clear()

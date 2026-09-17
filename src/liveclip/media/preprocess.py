@@ -24,6 +24,7 @@ from liveclip.media.secure_files import (
     PinnedRegularFile,
     SecureFileError,
     SecureFileMissing,
+    cross_launch_source_stat_matches,
     ensure_directory_no_follow,
     hash_regular_file_no_follow,
     open_pinned_regular_file,
@@ -690,13 +691,13 @@ def _validate_source_reference(source: SourceMediaMetadata) -> None:
         current = current_path.stat()
     except (OSError, RuntimeError) as exc:
         raise AudioPreprocessError("source media is no longer available") from exc
-    identity_matches = (
-        current_path == source.resolved_path
-        and current_path.is_file()
-        and current.st_size == source.size_bytes
-        and current.st_mtime_ns == source.mtime_ns
-        and (source.inode is None or current.st_ino == source.inode)
-        and (source.device is None or current.st_dev == source.device)
+    identity_matches = cross_launch_source_stat_matches(
+        current_path,
+        current,
+        expected_path=source.resolved_path,
+        expected_size_bytes=source.size_bytes,
+        expected_mtime_ns=source.mtime_ns,
+        expected_inode=source.inode,
     )
     if not identity_matches:
         raise AudioPreprocessError("source media changed after import")
@@ -707,22 +708,16 @@ def _validate_pinned_source_identity(
     pinned: PinnedRegularFile,
 ) -> None:
     metadata = pinned.metadata
-    observed = (
+    if not cross_launch_source_stat_matches(
         pinned.path,
-        metadata.st_size,
-        metadata.st_mtime_ns,
-        getattr(metadata, "st_ino", None),
-        getattr(metadata, "st_dev", None),
-    )
-    expected = (
-        source.resolved_path,
-        source.size_bytes,
-        source.mtime_ns,
-        source.inode,
-        source.device,
-    )
-    if observed != expected:
+        metadata,
+        expected_path=source.resolved_path,
+        expected_size_bytes=source.size_bytes,
+        expected_mtime_ns=source.mtime_ns,
+        expected_inode=source.inode,
+    ):
         raise AudioPreprocessError("source media changed after import")
+    pinned.validate_binding()
 
 
 def _write_complete_manifest_immutable(manifest: AudioChunkManifest, path: Path) -> None:

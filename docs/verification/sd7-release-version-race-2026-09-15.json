@@ -1,0 +1,34 @@
+{
+  "classification": "DETERMINISTIC_CLIENT_VERSION_RACE_EXPOSED_BY_FULL_SUITE",
+  "credential_values_recorded": false,
+  "failed_formal_run": "20260915T002909Z-a9483528",
+  "failed_runner_log_sha256": "c1ced0d9761a2c8139e4bcddcfab477cb7ece638ebaa0cc6fa7094ea32d26aa3",
+  "failed_runner_qa_id": "20260915T004233Z-e801",
+  "failed_screenshot_sha256": "3ed94eb0dcb8637de37b8b3574c1ec6cc1f533136d370a18d339ece07c091786",
+  "failed_trace_sha256": "8ffcc8862875661e35e842bf00ff7156520109d52b66549af200170ea8a4d21c",
+  "first_mutation": {
+    "method": "PATCH",
+    "request_expected_management_version": 1,
+    "response_management_version": 2,
+    "status": 200
+  },
+  "inherited_hermetic_paths": {
+    "scripts/run_real_browser_e2e.sh": "c568708549a453651c1c7dda97a466856ab344976de65787a9095f712df7df8b",
+    "tests/unit/test_b2_synthetic_worker.py": "e9dc947f8ed0c5f45f508898b244e951e2f5eb9dbdc6e77d7f17c365ee75aca5"
+  },
+  "next_mutation": {
+    "error_code": "STATE_CONFLICT",
+    "method": "POST",
+    "path_shape": "/api/v1/releases/{id}/approval",
+    "request_expected_management_version": 1,
+    "status": 409
+  },
+  "pre_failure_passes": {
+    "python": 2426,
+    "web": 78,
+    "web_mock_chrome": true
+  },
+  "server_cas_preserved": true,
+  "status": "FAIL_RETAINED",
+  "unchanged_b2_worker_sha256": "294fdc3d778267883aafd5c1ea78c1f54a570afa7925eb3e4d4435505e895cd4"
+}

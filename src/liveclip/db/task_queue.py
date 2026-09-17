@@ -23,6 +23,7 @@ from liveclip.db.base import new_id
 from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
     CandidateClipRow,
+    CompletionIntentRow,
     DeliveryRow,
     EditPackageRow,
     PipelineRunRow,
@@ -100,6 +101,12 @@ class TaskSpec:
             raise ValueError("input fingerprint must be a lowercase SHA-256")
         if self.kind == TaskKind.STAGE and self.stage_run_id != self.target_id:
             raise ValueError("stage task target must be its StageRun ID")
+        if self.kind == TaskKind.COMPLETION and (
+            self.pipeline_run_id is None
+            or self.stage_run_id is not None
+            or self.resource_class != ResourceClass.CHEAP
+        ):
+            raise ValueError("completion task requires a run and cheap coordination resource")
         if self.priority < 0 or self.max_retries < 0:
             raise ValueError("priority and max retries must be nonnegative")
         if self.not_before is not None:
@@ -231,6 +238,7 @@ class SQLiteTaskQueue:
         now: datetime | None = None,
         pipeline_run_id: str | None = None,
         task_kind: TaskKind | None = None,
+        completion_process_only: bool = False,
     ) -> TaskLease | None:
         _validate_worker_id(worker_id)
         if pipeline_run_id is not None:
@@ -248,6 +256,18 @@ class SQLiteTaskQueue:
                     select(TaskRow.id)
                     .where(
                         TaskRow.status == TaskStatus.QUEUED.value,
+                        exists(
+                            select(CompletionIntentRow.id).where(
+                                CompletionIntentRow.id == TaskRow.target_id,
+                                CompletionIntentRow.target == "process_only",
+                                CompletionIntentRow.pipeline_run_id == TaskRow.pipeline_run_id,
+                                CompletionIntentRow.generation == TaskRow.expected_generation,
+                                CompletionIntentRow.status.in_(["queued", "waiting_work"]),
+                                TaskRow.kind == TaskKind.COMPLETION.value,
+                            )
+                        )
+                        if completion_process_only
+                        else true(),
                         TaskRow.kind == task_kind.value if task_kind is not None else true(),
                         TaskRow.pipeline_run_id == pipeline_run_id
                         if pipeline_run_id is not None
@@ -360,6 +380,21 @@ class SQLiteTaskQueue:
         except Exception:
             _cleanup_failed_claim_attempt(created_attempt)
             raise
+
+    def claim_process_only(
+        self, *, worker_id: str, now: datetime | None = None
+    ) -> TaskLease | None:
+        """Claim only supported goals; delivery goals remain untouched."""
+        return self.claim(
+            worker_id=worker_id,
+            now=now,
+            task_kind=TaskKind.COMPLETION,
+            completion_process_only=True,
+        )
+
+    def claim_completion(self, *, worker_id: str, now: datetime | None = None) -> TaskLease | None:
+        """Claim either completion target; no ordinary pipeline task can join."""
+        return self.claim(worker_id=worker_id, now=now, task_kind=TaskKind.COMPLETION)
 
     def heartbeat(
         self,
@@ -569,6 +604,34 @@ class SQLiteTaskQueue:
             )
             return target
 
+    def defer_completion(
+        self,
+        lease: TaskLease,
+        *,
+        wait_ms: int | None,
+        now: datetime | None = None,
+    ) -> TaskStatus | None:
+        if lease.kind != TaskKind.COMPLETION:
+            raise ValueError("only completion tasks may defer without retry")
+        if wait_ms is not None and (
+            isinstance(wait_ms, bool)
+            or not isinstance(wait_ms, int)
+            or not 1_000 <= wait_ms <= 300_000
+        ):
+            raise ValueError("completion wait must be 1-300 seconds or a human wait")
+        target = TaskStatus.WAITING if wait_ms is None else TaskStatus.QUEUED
+        with begin_immediate(self._engine) as connection:
+            instant = _now(now)
+            if not finish_completion_attempt(
+                connection,
+                lease,
+                now=instant,
+                status=target,
+                wait_ms=wait_ms,
+            ):
+                return None
+            return target
+
     def request_cancel(self, task_id: str, *, now: datetime | None = None) -> TaskStatus:
         _validate_identifier(task_id, "task ID")
         instant = _now(now)
@@ -577,7 +640,7 @@ class SQLiteTaskQueue:
             if status is None:
                 raise TaskQueueError("task does not exist")
             current = TaskStatus(str(status))
-            if current == TaskStatus.QUEUED:
+            if current in {TaskStatus.QUEUED, TaskStatus.WAITING}:
                 _fail_task_dependents(
                     connection,
                     task_id=task_id,
@@ -588,7 +651,7 @@ class SQLiteTaskQueue:
                 )
                 connection.execute(
                     update(TaskRow)
-                    .where(TaskRow.id == task_id, TaskRow.status == TaskStatus.QUEUED.value)
+                    .where(TaskRow.id == task_id, TaskRow.status == current.value)
                     .values(
                         status=TaskStatus.CANCELLED.value,
                         cancellation_requested_at=instant,
@@ -873,6 +936,7 @@ class SQLiteTaskQueue:
             update(TaskRow)
             .where(
                 TaskRow.pipeline_run_id == pipeline_run_id,
+                TaskRow.kind != TaskKind.COMPLETION.value,
                 TaskRow.status == TaskStatus.QUEUED.value,
             )
             .values(
@@ -923,6 +987,192 @@ class SQLiteTaskQueue:
                 diagnostic_relative_path=diagnostic_relative_path,
             )
         )
+
+
+def insert_completion_task(
+    connection: Connection,
+    *,
+    intent_id: str,
+    run_id: str,
+    generation: int,
+    fingerprint: str,
+    now: datetime,
+) -> str:
+    """Insert the single coordination task as part of goal creation."""
+    task_id = new_id()
+    connection.execute(
+        insert(TaskRow).values(
+            id=task_id,
+            kind=TaskKind.COMPLETION.value,
+            target_id=intent_id,
+            operation_key=f"completion:{intent_id}",
+            input_fingerprint=fingerprint,
+            resource_class=ResourceClass.CHEAP.value,
+            pipeline_run_id=run_id,
+            expected_generation=generation,
+            status=TaskStatus.QUEUED.value,
+            priority=100,
+            not_before=now,
+            attempt_count=0,
+            retry_count=0,
+            manual_retry_count=0,
+            max_retries=3,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return task_id
+
+
+def owns_completion_lease(connection: Connection, lease: TaskLease, *, now: datetime) -> bool:
+    """Authenticate both persisted lease rows before caller-owned business effects."""
+    if lease.kind != TaskKind.COMPLETION:
+        return False
+    return (
+        connection.scalar(
+            select(TaskRow.id).where(
+                *_owned_unexpired_lease(lease, now),
+                TaskRow.kind == TaskKind.COMPLETION.value,
+                TaskRow.target_id == lease.target_id,
+                TaskRow.attempt_count == lease.attempt_number,
+                TaskRow.cancellation_requested_at.is_(None),
+                exists(
+                    select(TaskAttemptRow.id).where(
+                        TaskAttemptRow.task_id == lease.task_id,
+                        TaskAttemptRow.worker_id == lease.worker_id,
+                        TaskAttemptRow.lease_token == lease.lease_token,
+                        TaskAttemptRow.attempt_number == lease.attempt_number,
+                        TaskAttemptRow.outcome == AttemptOutcome.RUNNING.value,
+                        TaskAttemptRow.lease_expires_at > now,
+                    )
+                ),
+            )
+        )
+        is not None
+    )
+
+
+def finish_completion_attempt(
+    connection: Connection,
+    lease: TaskLease,
+    *,
+    now: datetime,
+    status: TaskStatus,
+    wait_ms: int | None = None,
+) -> bool:
+    """Fence and finish both queue rows in the caller's goal transaction."""
+    if status not in {
+        TaskStatus.QUEUED,
+        TaskStatus.WAITING,
+        TaskStatus.SUCCEEDED,
+        TaskStatus.CANCELLED,
+    }:
+        raise ValueError("invalid completion task outcome")
+    if status == TaskStatus.QUEUED and (
+        isinstance(wait_ms, bool) or not isinstance(wait_ms, int) or not 1_000 <= wait_ms <= 300_000
+    ):
+        raise ValueError("completion wait must be 1-300 seconds")
+    attempt = connection.scalar(
+        select(TaskAttemptRow.id).where(
+            TaskAttemptRow.task_id == lease.task_id,
+            TaskAttemptRow.worker_id == lease.worker_id,
+            TaskAttemptRow.lease_token == lease.lease_token,
+            TaskAttemptRow.attempt_number == lease.attempt_number,
+            TaskAttemptRow.outcome == AttemptOutcome.RUNNING.value,
+            TaskAttemptRow.lease_expires_at > now,
+        )
+    )
+    if attempt is None or lease.kind != TaskKind.COMPLETION:
+        return False
+    values: dict[str, object] = {
+        "status": status.value,
+        "worker_id": None,
+        "lease_token": None,
+        "heartbeat_at": None,
+        "lease_expires_at": None,
+        "updated_at": now,
+    }
+    if status == TaskStatus.QUEUED:
+        assert wait_ms is not None
+        values["not_before"] = now + timedelta(milliseconds=wait_ms)
+    if status in {TaskStatus.SUCCEEDED, TaskStatus.CANCELLED}:
+        values["completed_at"] = now
+    changed = connection.scalar(
+        update(TaskRow)
+        .where(
+            *_owned_unexpired_lease(lease, now),
+            TaskRow.kind == TaskKind.COMPLETION.value,
+            TaskRow.target_id == lease.target_id,
+            TaskRow.attempt_count == lease.attempt_number,
+            TaskRow.cancellation_requested_at.is_not(None)
+            if status == TaskStatus.CANCELLED
+            else TaskRow.cancellation_requested_at.is_(None),
+        )
+        .values(**values)
+        .returning(TaskRow.id)
+    )
+    if changed is None:
+        return False
+    outcome = (
+        AttemptOutcome.SUCCEEDED
+        if status == TaskStatus.SUCCEEDED
+        else AttemptOutcome.CANCELLED
+        if status == TaskStatus.CANCELLED
+        else AttemptOutcome.DEFERRED
+    )
+    connection.execute(
+        update(TaskAttemptRow)
+        .where(TaskAttemptRow.id == attempt)
+        .values(
+            outcome=outcome.value,
+            finished_at=now,
+        )
+    )
+    return True
+
+
+def wake_completion_task(connection: Connection, task_id: str, *, now: datetime) -> bool:
+    return (
+        connection.scalar(
+            update(TaskRow)
+            .where(
+                TaskRow.id == task_id,
+                TaskRow.kind == TaskKind.COMPLETION.value,
+                TaskRow.status == TaskStatus.WAITING.value,
+                TaskRow.cancellation_requested_at.is_(None),
+            )
+            .values(status=TaskStatus.QUEUED.value, not_before=now, updated_at=now)
+            .returning(TaskRow.id)
+        )
+        is not None
+    )
+
+
+def cancel_completion_task(connection: Connection, task_id: str, *, now: datetime) -> None:
+    """Cancel only coordination; running attempts retain their owner."""
+    connection.execute(
+        update(TaskRow)
+        .where(
+            TaskRow.id == task_id,
+            TaskRow.kind == TaskKind.COMPLETION.value,
+            TaskRow.status.in_([TaskStatus.QUEUED.value, TaskStatus.WAITING.value]),
+        )
+        .values(
+            status=TaskStatus.CANCELLED.value,
+            cancellation_requested_at=now,
+            completed_at=now,
+            updated_at=now,
+        )
+    )
+    connection.execute(
+        update(TaskRow)
+        .where(
+            TaskRow.id == task_id,
+            TaskRow.kind == TaskKind.COMPLETION.value,
+            TaskRow.status == TaskStatus.RUNNING.value,
+        )
+        .values(cancellation_requested_at=now, updated_at=now)
+    )
 
 
 def _owned_unexpired_lease(lease: TaskLease, instant: datetime) -> tuple[ColumnElement[bool], ...]:

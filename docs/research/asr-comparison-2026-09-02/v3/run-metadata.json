@@ -1,0 +1,31 @@
+{
+  "call": {
+    "contract": "codex-cli-editorial-v2.0.147.0.a2baf14eec9daa2fff6a16fecbf161fcd78dcf3d2afa6478182e250767c63a3a",
+    "elapsed_seconds": 229.685,
+    "model": "gpt-5.6-sol",
+    "provider": "codex_cli",
+    "reasoning_effort": "max",
+    "runtime_version": "0.147.0",
+    "thread_id": "01a064bb-ad3a-7ea2-803c-2b7c80b39b6f",
+    "usage": {
+      "cache_write_input_tokens": 0,
+      "cached_input_tokens": 0,
+      "input_tokens": 115281,
+      "output_tokens": 12488,
+      "reasoning_output_tokens": 9840
+    }
+  },
+  "generated_at": "2026-09-03T00:50:45.174271+00:00",
+  "mapping_disclosed_after_judging": {
+    "system_a": "openrouter",
+    "system_b": "mlx"
+  },
+  "metric_name": "codex_text_only_quality_proxy",
+  "prompt_sha256": "7d6f7b54c3093acc785c5e66c24d374ce89e5975ea8d30d26cca426f7a4f66da",
+  "schema_sha256": "3ab06fcabde4f186436204bc8e34b7f4f5a878396a1f10130747d714ae042bf9",
+  "schema_version": "1",
+  "transcript_sha256": {
+    "mlx": "680c7f6f1eca2f05120bfacc7439f51b1d608c1b8c140f930be20596e305fe65",
+    "openrouter": "f9b62475a0ffdace4ac52232b1b0186326218768bb98543ffe29ad8a6b7387d4"
+  }
+}

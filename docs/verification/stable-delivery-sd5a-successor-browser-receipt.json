@@ -1,0 +1,16 @@
+{
+  "browser_evidence_sha256": "dd43f1656bae8d578573c064351c0cc655e301b077ac26eaee89ee1afbe85e22",
+  "code_filemap_sha256": "59c238971920d814fae1d60e01b28ffb40e9b0e69366757393a4c64dea30e3de",
+  "created_utc": "2026-09-14T06:52:39.836236+00:00",
+  "disposable_fixture_removed": true,
+  "download_url": null,
+  "gate": "SD5A_SUCCESSOR_PREFORMAL_REAL_BROWSER",
+  "goal_status": "queued",
+  "lost_response_replayed_same_goal": true,
+  "project_visible_and_opened_without_reload": true,
+  "projects_after_replay": 1,
+  "retained_screenshot": "docs/verification/stable-delivery-sd5a-successor-browser.png",
+  "screenshot_sha256": "14e80c9e37704865e3829241a4fce7ddccb57fa79b382ec01bf0b90d1b3d0507",
+  "source_fingerprint_before_receipt": "bb40bf284c168ca66dce45eec0bc1d7859a83583c5d5a31f36cda422c18690d9",
+  "status": "PASS"
+}

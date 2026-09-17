@@ -330,18 +330,9 @@ class SqlAlchemyReviewRepository:
             context = _load_current_context(connection, clip_id)
             if command.expected_revision != int(context["current_revision"]):
                 raise ReviewConflict("clip revision changed; reload before reviewing")
-            current_plan = edit_plan_from_json_data(context["plan_json"])
-            if (
-                command.status == ReviewStatus.APPROVED
-                and current_plan.layout is not Layout.CENTER_CROP
-            ):
-                raise ReviewConflict(
-                    "clip must be revised to the required center-crop layout before approval"
-                )
-            decision_changed = _record_review_decision(
+            decision_changed = record_review_decision_on_connection(
                 connection,
-                clip_id=clip_id,
-                revision_id=str(context["revision_id"]),
+                context=context,
                 command=command,
                 decided_at=now,
             )
@@ -385,16 +376,7 @@ class SqlAlchemyReviewRepository:
                 if str(context["project_id"]) != project_id:
                     raise ReviewConflict("batch review clip does not belong to this project")
                 item_command = item.command()
-                if item_command.expected_revision != int(context["current_revision"]):
-                    raise ReviewConflict("clip revision changed; reload before batch reviewing")
-                current_plan = edit_plan_from_json_data(context["plan_json"])
-                if (
-                    item_command.status == ReviewStatus.APPROVED
-                    and current_plan.layout is not Layout.CENTER_CROP
-                ):
-                    raise ReviewConflict(
-                        "clip must be revised to the required center-crop layout before approval"
-                    )
+                _validate_review_command(context, item_command)
                 contexts.append((context, item_command))
 
             changed_clip_ids: list[str] = []
@@ -518,6 +500,58 @@ def _record_review_decision(
         )
     )
     return True
+
+
+def record_review_decision_on_connection(
+    connection: Connection,
+    *,
+    context: RowMapping,
+    command: ReviewCommand,
+    decided_at: datetime,
+) -> bool:
+    """Apply the existing review rules inside a caller-owned transaction."""
+    _validate_review_command(context, command)
+    return _record_review_decision(
+        connection,
+        clip_id=str(context["id"]),
+        revision_id=str(context["revision_id"]),
+        command=command,
+        decided_at=decided_at,
+    )
+
+
+def _validate_review_command(context: RowMapping, command: ReviewCommand) -> None:
+    if command.expected_revision != int(context["current_revision"]):
+        raise ReviewConflict("clip revision changed; reload before batch reviewing")
+    current_plan = edit_plan_from_json_data(context["plan_json"])
+    if command.status == ReviewStatus.APPROVED and current_plan.layout is not Layout.CENTER_CROP:
+        raise ReviewConflict(
+            "clip must be revised to the required center-crop layout before approval"
+        )
+
+
+def load_current_review_context(connection: Connection, clip_id: str) -> RowMapping:
+    """Load the canonical current review context on a caller-owned connection."""
+    return _load_current_context(connection, clip_id)
+
+
+def invalidate_review_effects_on_connection(
+    connection: Connection,
+    *,
+    project_id: str,
+    generation: int,
+    changed_clip_ids: tuple[str, ...],
+    instant: datetime,
+) -> None:
+    """Reuse review invalidation when a composed selection changes decisions."""
+    if not changed_clip_ids:
+        return
+    _invalidate_active_deliveries(
+        connection, project_id=project_id, generation=generation, instant=instant
+    )
+    invalidate_active_release_packages(
+        connection, instant=instant, candidate_clip_ids=changed_clip_ids
+    )
 
 
 def _load_current_context(connection: Connection, clip_id: str) -> RowMapping:

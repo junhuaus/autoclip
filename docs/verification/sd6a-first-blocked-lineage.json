@@ -1,0 +1,59 @@
+{
+  "artifacts": {
+    "coder": [
+      {
+        "path": ".loop/runs/20260915T031428Z-183c2855/artifacts/coder/001.json",
+        "sha256": "5c8b46d809b7c31b4265500f6e608df48a47a349d35fd3c3f5277cff0d8f72d9"
+      }
+    ],
+    "planner": [
+      {
+        "path": ".loop/runs/20260915T031428Z-183c2855/artifacts/planner/001.json",
+        "sha256": "570a96cf0761cd68e211e0db71d4dc8295f9229e5e714436fc15fca4aea554fa"
+      }
+    ],
+    "reviewer": [
+      {
+        "path": ".loop/runs/20260915T031428Z-183c2855/artifacts/reviewer/001.json",
+        "sha256": "3cc695d95f22b368a2e915682948e80708030ec4194e2042b3d6846a41e6bdad"
+      }
+    ],
+    "tester": [
+      {
+        "path": ".loop/runs/20260915T031428Z-183c2855/artifacts/tester/001.json",
+        "sha256": "0e3ae6abf08c5cad6b2bbbb0e4ad4379ca839e167f8f51b74ba6be5a6b22e41c"
+      }
+    ]
+  },
+  "assurance_fingerprint": "2f8ed6150ad58ca671819bc4599917ea435ed9bc253e7841eac8a868b6411806",
+  "assurance_hashes": {
+    "src/liveclip/providers/llm/codex.py": "02e841116ecd2f0dff75b792020f4b07760e9e30041b69f8c41d14cfd56ab336",
+    "tests/unit/test_codex_llm.py": "649c71d7810b32b7d6b5df62dd3e98344bd3ed48cbddbce1313169ac0a300fe6"
+  },
+  "changed_paths": [
+    "src/liveclip/providers/llm/codex.py",
+    "tests/unit/test_codex_llm.py"
+  ],
+  "coder_session_id": "01a0a314-42be-7451-975b-01f83496ba84",
+  "created_utc": "2026-09-15T03:29:33.053999+00:00",
+  "failed_real_probe_preserved": true,
+  "failed_real_probe_qa_id": "20260915T030822Z-f274",
+  "gate": "SD6A_0154_FIRST_BLOCKED_LINEAGE",
+  "gateway_count": 0,
+  "predecessor_fingerprint": "3e538324927957729a1d73e7214b1692370df4a9679300b575228fa76fba95fc",
+  "predecessor_hashes": {
+    "src/liveclip/providers/llm/codex.py": "00fd034cbf328c27b9e599888d3933273048240a1e023c1519f2c4d5bc339a45",
+    "tests/unit/test_codex_llm.py": "f74a1fe6c370cfaf3ed14acb081fa9a109a37b6c0dab26b5d485b3b3dca7d0a8"
+  },
+  "publication_occurred": false,
+  "qa_baseline_count": 1046,
+  "review_finding": "P2 bare-CR version output accepted after text-mode universal-newline normalization",
+  "review_verdict": "FAIL",
+  "run_id": "20260915T031428Z-183c2855",
+  "runner_command_count": 0,
+  "source_paths": 2218,
+  "state_sha256": "18cc3080d7738d8e70d0825548ed730843be3f069cae301af52733e48ca27022",
+  "status": "PASS",
+  "terminal_state": "blocked",
+  "tester_verdict": "BLOCKED"
+}

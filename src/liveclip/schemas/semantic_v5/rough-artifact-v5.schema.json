@@ -1,0 +1,1849 @@
+{
+  "$defs": {
+    "BoundarySide": {
+      "enum": [
+        "left",
+        "right"
+      ],
+      "title": "BoundarySide",
+      "type": "string"
+    },
+    "BoundaryTopicReport": {
+      "additionalProperties": false,
+      "properties": {
+        "side": {
+          "$ref": "#/$defs/BoundarySide"
+        },
+        "topic_summary": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "viewer_promise": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Viewer Promise",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "continuation_expected": {
+          "title": "Continuation Expected",
+          "type": "boolean"
+        },
+        "related_candidate_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Related Candidate Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "side",
+        "topic_summary",
+        "viewer_promise",
+        "evidence_cue_ids",
+        "continuation_expected"
+      ],
+      "title": "BoundaryTopicReport",
+      "type": "object"
+    },
+    "CandidateClip": {
+      "additionalProperties": false,
+      "description": "A deterministic rough candidate; transcript fields remain untrusted data.",
+      "properties": {
+        "candidate_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "source_start_ms": {
+          "minimum": 0,
+          "title": "Source Start Ms",
+          "type": "integer"
+        },
+        "source_end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Source End Ms",
+          "type": "integer"
+        },
+        "allowed_start_ms": {
+          "minimum": 0,
+          "title": "Allowed Start Ms",
+          "type": "integer"
+        },
+        "allowed_end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Allowed End Ms",
+          "type": "integer"
+        },
+        "text": {
+          "maxLength": 24000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "context_before": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Context Before",
+          "type": "string"
+        },
+        "context_after": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Context After",
+          "type": "string"
+        },
+        "rule_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Rule Score",
+          "type": "number"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "segment_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "title": "Segment Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "source_start_ms",
+        "source_end_ms",
+        "allowed_start_ms",
+        "allowed_end_ms",
+        "text",
+        "rule_score",
+        "reasons",
+        "segment_ids"
+      ],
+      "title": "CandidateClip",
+      "type": "object"
+    },
+    "ChainCandidateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "natural_subunit": {
+          "default": false,
+          "title": "Natural Subunit",
+          "type": "boolean"
+        },
+        "natural_split_evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Natural Split Evidence Cue Ids",
+          "type": "array"
+        },
+        "variant_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Of"
+        },
+        "variant_relationship": {
+          "anyOf": [
+            {
+              "enum": [
+                "short_version_of",
+                "long_version_of"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Relationship"
+        },
+        "origin_kind": {
+          "enum": [
+            "derived",
+            "chain_new"
+          ],
+          "title": "Origin Kind",
+          "type": "string"
+        },
+        "original_candidate_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Original Candidate Ids",
+          "type": "array"
+        },
+        "origin_reason": {
+          "minLength": 1,
+          "title": "Origin Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "source_topic_id",
+        "topic_chain_id",
+        "source_fragment_ids",
+        "start_cue_id",
+        "end_cue_id",
+        "central_question",
+        "learning_outcome",
+        "title",
+        "summary",
+        "evidence_cue_ids",
+        "origin_kind",
+        "original_candidate_ids",
+        "origin_reason"
+      ],
+      "title": "ChainCandidateV5",
+      "type": "object"
+    },
+    "ClipProfile": {
+      "description": "Independent editorial units with different deterministic duration contracts.",
+      "enum": [
+        "short_highlight",
+        "mini_lesson"
+      ],
+      "title": "ClipProfile",
+      "type": "string"
+    },
+    "CueRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_cue_id",
+        "end_cue_id"
+      ],
+      "title": "CueRange",
+      "type": "object"
+    },
+    "DiscoveryBatchOutputV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "batch_context": {
+          "$ref": "#/$defs/TimeRangeV4"
+        },
+        "ownership_interval": {
+          "$ref": "#/$defs/TimeRangeV4"
+        },
+        "logical_windows": {
+          "items": {
+            "$ref": "#/$defs/LogicalWindowDiscoveryV5"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Logical Windows",
+          "type": "array"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryCandidateV5"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "topic_fragments": {
+          "items": {
+            "$ref": "#/$defs/TopicFragmentV5"
+          },
+          "title": "Topic Fragments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batch_id",
+        "batch_context",
+        "ownership_interval",
+        "logical_windows",
+        "candidates",
+        "topic_fragments"
+      ],
+      "title": "DiscoveryBatchOutputV5",
+      "type": "object"
+    },
+    "DiscoveryCandidateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Topic Fragment Ids",
+          "type": "array"
+        },
+        "topic_summary": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "possible_profiles": {
+          "items": {
+            "$ref": "#/$defs/ClipProfile"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Possible Profiles",
+          "type": "array"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryRiskV5"
+          },
+          "title": "Risks",
+          "type": "array"
+        },
+        "source_window_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Source Window Ids",
+          "type": "array"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "source_topic_id",
+        "topic_fragment_ids",
+        "topic_summary",
+        "central_question",
+        "learning_outcome",
+        "start_cue_id",
+        "end_cue_id",
+        "evidence_cue_ids",
+        "possible_profiles",
+        "risks",
+        "source_window_ids",
+        "source_batch_id"
+      ],
+      "title": "DiscoveryCandidateV5",
+      "type": "object"
+    },
+    "DiscoveryRiskV5": {
+      "additionalProperties": false,
+      "properties": {
+        "risk_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Risk Id",
+          "type": "string"
+        },
+        "flag": {
+          "$ref": "#/$defs/RiskFlagV4"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "risk_id",
+        "flag",
+        "reason",
+        "evidence_cue_ids"
+      ],
+      "title": "DiscoveryRiskV5",
+      "type": "object"
+    },
+    "LinkRelationshipV4": {
+      "enum": [
+        "continuation",
+        "supporting_example",
+        "next_step_same_lesson",
+        "summary_same_lesson",
+        "adjacent_but_independent",
+        "topic_switch",
+        "uncertain"
+      ],
+      "title": "LinkRelationshipV4",
+      "type": "string"
+    },
+    "LinkReviewRequestV4": {
+      "additionalProperties": false,
+      "properties": {
+        "link_review_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Link Review Id",
+          "type": "string"
+        },
+        "boundary_ms": {
+          "minimum": 0,
+          "title": "Boundary Ms",
+          "type": "integer"
+        },
+        "context_range": {
+          "$ref": "#/$defs/TimeRangeV4"
+        },
+        "left_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Left Window Id",
+          "type": "string"
+        },
+        "right_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Right Window Id",
+          "type": "string"
+        },
+        "left_fragment": {
+          "$ref": "#/$defs/TopicFragmentV4"
+        },
+        "right_fragment": {
+          "$ref": "#/$defs/TopicFragmentV4"
+        }
+      },
+      "required": [
+        "link_review_id",
+        "boundary_ms",
+        "context_range",
+        "left_window_id",
+        "right_window_id",
+        "left_fragment",
+        "right_fragment"
+      ],
+      "title": "LinkReviewRequestV4",
+      "type": "object"
+    },
+    "LinkReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "link_review_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Link Review Id",
+          "type": "string"
+        },
+        "left_fragment_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Left Fragment Id",
+          "type": "string"
+        },
+        "right_fragment_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Right Fragment Id",
+          "type": "string"
+        },
+        "same_topic": {
+          "title": "Same Topic",
+          "type": "boolean"
+        },
+        "same_central_objective": {
+          "title": "Same Central Objective",
+          "type": "boolean"
+        },
+        "relationship": {
+          "$ref": "#/$defs/LinkRelationshipV4"
+        },
+        "merged_topic_summary": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Merged Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_closed_on_right": {
+          "title": "Topic Closed On Right",
+          "type": "boolean"
+        },
+        "needs_next_boundary": {
+          "title": "Needs Next Boundary",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 160,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "link_review_id",
+        "left_fragment_id",
+        "right_fragment_id",
+        "same_topic",
+        "same_central_objective",
+        "relationship",
+        "merged_topic_summary",
+        "central_question",
+        "learning_outcome",
+        "topic_closed_on_right",
+        "needs_next_boundary",
+        "evidence_cue_ids",
+        "confidence"
+      ],
+      "title": "LinkReviewV4",
+      "type": "object"
+    },
+    "LogicalWindowDiscoveryV5": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Logical Window Id",
+          "type": "string"
+        },
+        "window_start_ms": {
+          "minimum": 0,
+          "title": "Window Start Ms",
+          "type": "integer"
+        },
+        "window_end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Window End Ms",
+          "type": "integer"
+        },
+        "candidate_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "fragment_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "left_boundary": {
+          "$ref": "#/$defs/TopicBoundaryV5"
+        },
+        "right_boundary": {
+          "$ref": "#/$defs/TopicBoundaryV5"
+        },
+        "coverage_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Coverage Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "logical_window_id",
+        "window_start_ms",
+        "window_end_ms",
+        "left_boundary",
+        "right_boundary"
+      ],
+      "title": "LogicalWindowDiscoveryV5",
+      "type": "object"
+    },
+    "MiniLessonArtifactConfigV5": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "semantic_windowed",
+          "default": "semantic_windowed",
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "clip_profile": {
+          "const": "mini_lesson",
+          "default": "mini_lesson",
+          "title": "Clip Profile",
+          "type": "string"
+        },
+        "minimum_clip_ms": {
+          "const": 90000,
+          "default": 90000,
+          "title": "Minimum Clip Ms",
+          "type": "integer"
+        },
+        "target_clip_ms": {
+          "const": 180000,
+          "default": 180000,
+          "title": "Target Clip Ms",
+          "type": "integer"
+        },
+        "maximum_clip_ms": {
+          "const": 300000,
+          "default": 300000,
+          "title": "Maximum Clip Ms",
+          "type": "integer"
+        },
+        "top_n": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Top N",
+          "type": "integer"
+        },
+        "top_n_phase": {
+          "const": "after_final_validation",
+          "default": "after_final_validation",
+          "title": "Top N Phase",
+          "type": "string"
+        }
+      },
+      "required": [
+        "top_n"
+      ],
+      "title": "MiniLessonArtifactConfigV5",
+      "type": "object"
+    },
+    "RiskFlagV4": {
+      "enum": [
+        "medical_claim",
+        "health_advice",
+        "absolute_claim",
+        "commercial_claim",
+        "sensitivity_review",
+        "music_rights_review",
+        "minor_privacy",
+        "asr_uncertain"
+      ],
+      "title": "RiskFlagV4",
+      "type": "string"
+    },
+    "RoughLineageStateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "project_id": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "config_fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "source_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Hash",
+          "type": "string"
+        },
+        "input_plan": {
+          "$ref": "#/$defs/SemanticInputPlan"
+        },
+        "local_discovery_outputs": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryBatchOutputV5"
+          },
+          "title": "Local Discovery Outputs",
+          "type": "array"
+        },
+        "discovery_outputs": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryBatchOutputV5"
+          },
+          "title": "Discovery Outputs",
+          "type": "array"
+        },
+        "link_review_requests": {
+          "items": {
+            "$ref": "#/$defs/LinkReviewRequestV4"
+          },
+          "title": "Link Review Requests",
+          "type": "array"
+        },
+        "link_reviews": {
+          "items": {
+            "$ref": "#/$defs/LinkReviewV4"
+          },
+          "title": "Link Reviews",
+          "type": "array"
+        },
+        "topic_chains": {
+          "items": {
+            "$ref": "#/$defs/TopicChainV4"
+          },
+          "title": "Topic Chains",
+          "type": "array"
+        },
+        "topic_chain_reviews": {
+          "items": {
+            "$ref": "#/$defs/TopicChainReviewV5"
+          },
+          "title": "Topic Chain Reviews",
+          "type": "array"
+        },
+        "candidate_slot_map": {
+          "patternProperties": {
+            "^[A-Za-z0-9_-]+$": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 96,
+            "minLength": 1
+          },
+          "title": "Candidate Slot Map",
+          "type": "object"
+        },
+        "prompt_files": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Prompt Files",
+          "type": "object"
+        },
+        "stage_audits": {
+          "additionalProperties": true,
+          "title": "Stage Audits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "run_id",
+        "project_id",
+        "config_fingerprint",
+        "source_hash",
+        "input_plan",
+        "local_discovery_outputs",
+        "discovery_outputs",
+        "link_review_requests",
+        "link_reviews",
+        "topic_chains",
+        "topic_chain_reviews",
+        "candidate_slot_map",
+        "prompt_files",
+        "stage_audits"
+      ],
+      "title": "RoughLineageStateV5",
+      "type": "object"
+    },
+    "SemanticCue": {
+      "additionalProperties": false,
+      "properties": {
+        "cue_id": {
+          "minimum": 1,
+          "title": "Cue Id",
+          "type": "integer"
+        },
+        "segment_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "original_text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Original Text",
+          "type": "string"
+        },
+        "normalized_text": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalized Text"
+        },
+        "normalization_note": {
+          "anyOf": [
+            {
+              "maxLength": 240,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalization Note"
+        }
+      },
+      "required": [
+        "cue_id",
+        "segment_id",
+        "start_ms",
+        "end_ms",
+        "original_text"
+      ],
+      "title": "SemanticCue",
+      "type": "object"
+    },
+    "SemanticInputMode": {
+      "enum": [
+        "full_context",
+        "fallback",
+        "windowed",
+        "boundary_bridge"
+      ],
+      "title": "SemanticInputMode",
+      "type": "string"
+    },
+    "SemanticInputPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/SemanticInputMode"
+        },
+        "tokenizer_name": {
+          "title": "Tokenizer Name",
+          "type": "string"
+        },
+        "context_window_tokens": {
+          "title": "Context Window Tokens",
+          "type": "integer"
+        },
+        "budget_ratio": {
+          "title": "Budget Ratio",
+          "type": "number"
+        },
+        "prompt_tokens": {
+          "title": "Prompt Tokens",
+          "type": "integer"
+        },
+        "transcript_tokens": {
+          "title": "Transcript Tokens",
+          "type": "integer"
+        },
+        "output_reserve_tokens": {
+          "title": "Output Reserve Tokens",
+          "type": "integer"
+        },
+        "safety_margin_tokens": {
+          "title": "Safety Margin Tokens",
+          "type": "integer"
+        },
+        "budget_tokens": {
+          "title": "Budget Tokens",
+          "type": "integer"
+        },
+        "units": {
+          "items": {
+            "$ref": "#/$defs/SemanticInputUnit"
+          },
+          "minItems": 1,
+          "title": "Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "mode",
+        "tokenizer_name",
+        "context_window_tokens",
+        "budget_ratio",
+        "prompt_tokens",
+        "transcript_tokens",
+        "output_reserve_tokens",
+        "safety_margin_tokens",
+        "budget_tokens",
+        "units"
+      ],
+      "title": "SemanticInputPlan",
+      "type": "object"
+    },
+    "SemanticInputUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "unit_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Unit Id",
+          "type": "string"
+        },
+        "source_range": {
+          "$ref": "#/$defs/CueRange"
+        },
+        "cues": {
+          "items": {
+            "$ref": "#/$defs/SemanticCue"
+          },
+          "minItems": 1,
+          "title": "Cues",
+          "type": "array"
+        },
+        "estimated_tokens": {
+          "minimum": 1,
+          "title": "Estimated Tokens",
+          "type": "integer"
+        },
+        "context_range_ms": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticTimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ownership_range_ms": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticTimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "logical_windows_ms": {
+          "items": {
+            "$ref": "#/$defs/SemanticTimeRange"
+          },
+          "maxItems": 12,
+          "title": "Logical Windows Ms",
+          "type": "array"
+        },
+        "bridge_boundary_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bridge Boundary Ms"
+        },
+        "triggering_boundary_topics": {
+          "items": {
+            "$ref": "#/$defs/BoundaryTopicReport"
+          },
+          "maxItems": 20,
+          "title": "Triggering Boundary Topics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "unit_id",
+        "source_range",
+        "cues",
+        "estimated_tokens"
+      ],
+      "title": "SemanticInputUnit",
+      "type": "object"
+    },
+    "SemanticTimeRange": {
+      "additionalProperties": false,
+      "properties": {
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "SemanticTimeRange",
+      "type": "object"
+    },
+    "SourceDispositionV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original_candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Original Candidate Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "derived_unit_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Derived Unit Ids",
+          "type": "array"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original_candidate_id",
+        "topic_chain_id",
+        "derived_unit_ids",
+        "rejection_reason",
+        "evidence_cue_ids"
+      ],
+      "title": "SourceDispositionV5",
+      "type": "object"
+    },
+    "TimeRangeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "TimeRangeV4",
+      "type": "object"
+    },
+    "TopicBoundaryV5": {
+      "additionalProperties": false,
+      "properties": {
+        "continues_previous_topic": {
+          "default": false,
+          "title": "Continues Previous Topic",
+          "type": "boolean"
+        },
+        "topic_unfinished": {
+          "default": false,
+          "title": "Topic Unfinished",
+          "type": "boolean"
+        },
+        "topic_summary": {
+          "default": "",
+          "maxLength": 320,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "default": "",
+          "maxLength": 320,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "continuation_expected": {
+          "default": false,
+          "title": "Continuation Expected",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "related_candidate_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Related Candidate Ids",
+          "type": "array"
+        },
+        "related_fragment_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Related Fragment Ids",
+          "type": "array"
+        }
+      },
+      "title": "TopicBoundaryV5",
+      "type": "object"
+    },
+    "TopicChainReviewV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_outline": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Topic Outline",
+          "type": "array"
+        },
+        "left_closed": {
+          "title": "Left Closed",
+          "type": "boolean"
+        },
+        "right_closed": {
+          "title": "Right Closed",
+          "type": "boolean"
+        },
+        "chain_status": {
+          "$ref": "#/$defs/TopicChainStatusV4"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/ChainCandidateV5"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "topic_too_long_without_natural_split",
+                "topic_not_closed",
+                "no_complete_profile_candidate",
+                "not_a_single_teaching_objective"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "source_dispositions": {
+          "items": {
+            "$ref": "#/$defs/SourceDispositionV5"
+          },
+          "title": "Source Dispositions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic_chain_id",
+        "central_question",
+        "learning_outcome",
+        "topic_outline",
+        "left_closed",
+        "right_closed",
+        "chain_status",
+        "candidates",
+        "rejection_reason",
+        "evidence_cue_ids",
+        "source_dispositions"
+      ],
+      "title": "TopicChainReviewV5",
+      "type": "object"
+    },
+    "TopicChainStatusV4": {
+      "enum": [
+        "open",
+        "closed",
+        "rejected"
+      ],
+      "title": "TopicChainStatusV4",
+      "type": "string"
+    },
+    "TopicChainV4": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_outline": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Topic Outline",
+          "type": "array"
+        },
+        "source_start_cue_id": {
+          "minimum": 1,
+          "title": "Source Start Cue Id",
+          "type": "integer"
+        },
+        "source_end_cue_id": {
+          "minimum": 1,
+          "title": "Source End Cue Id",
+          "type": "integer"
+        },
+        "left_closed": {
+          "title": "Left Closed",
+          "type": "boolean"
+        },
+        "right_closed": {
+          "title": "Right Closed",
+          "type": "boolean"
+        },
+        "chain_status": {
+          "$ref": "#/$defs/TopicChainStatusV4"
+        },
+        "link_review_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Link Review Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic_chain_id",
+        "fragment_ids",
+        "central_question",
+        "learning_outcome",
+        "topic_outline",
+        "source_start_cue_id",
+        "source_end_cue_id",
+        "left_closed",
+        "right_closed",
+        "chain_status"
+      ],
+      "title": "TopicChainV4",
+      "type": "object"
+    },
+    "TopicFragmentV4": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_fragment_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Fragment Id",
+          "type": "string"
+        },
+        "logical_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Logical Window Id",
+          "type": "string"
+        },
+        "topic_summary": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "touches_left_boundary": {
+          "title": "Touches Left Boundary",
+          "type": "boolean"
+        },
+        "touches_right_boundary": {
+          "title": "Touches Right Boundary",
+          "type": "boolean"
+        },
+        "left_complete": {
+          "title": "Left Complete",
+          "type": "boolean"
+        },
+        "right_complete": {
+          "title": "Right Complete",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 120,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "possible_profiles": {
+          "items": {
+            "$ref": "#/$defs/ClipProfile"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Possible Profiles",
+          "type": "array"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_fragment_id",
+        "logical_window_id",
+        "topic_summary",
+        "central_question",
+        "learning_outcome",
+        "start_cue_id",
+        "end_cue_id",
+        "touches_left_boundary",
+        "touches_right_boundary",
+        "left_complete",
+        "right_complete",
+        "evidence_cue_ids",
+        "possible_profiles",
+        "source_batch_id"
+      ],
+      "title": "TopicFragmentV4",
+      "type": "object"
+    },
+    "TopicFragmentV5": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_fragment_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Fragment Id",
+          "type": "string"
+        },
+        "logical_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Logical Window Id",
+          "type": "string"
+        },
+        "topic_summary": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "touches_left_boundary": {
+          "title": "Touches Left Boundary",
+          "type": "boolean"
+        },
+        "touches_right_boundary": {
+          "title": "Touches Right Boundary",
+          "type": "boolean"
+        },
+        "left_complete": {
+          "title": "Left Complete",
+          "type": "boolean"
+        },
+        "right_complete": {
+          "title": "Right Complete",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 120,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "possible_profiles": {
+          "items": {
+            "$ref": "#/$defs/ClipProfile"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Possible Profiles",
+          "type": "array"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_fragment_id",
+        "logical_window_id",
+        "topic_summary",
+        "central_question",
+        "learning_outcome",
+        "start_cue_id",
+        "end_cue_id",
+        "touches_left_boundary",
+        "touches_right_boundary",
+        "left_complete",
+        "right_complete",
+        "evidence_cue_ids",
+        "possible_profiles",
+        "source_batch_id"
+      ],
+      "title": "TopicFragmentV5",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "5",
+      "default": "5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "semantic-v5-lineage-v1",
+      "default": "semantic-v5-lineage-v1",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "config": {
+      "$ref": "#/$defs/MiniLessonArtifactConfigV5"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateClip"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "semantic_v5": {
+      "$ref": "#/$defs/RoughLineageStateV5"
+    }
+  },
+  "required": [
+    "config",
+    "candidates",
+    "semantic_v5"
+  ],
+  "title": "MiniLessonRoughArtifactV5",
+  "type": "object"
+}

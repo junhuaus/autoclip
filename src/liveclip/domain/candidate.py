@@ -18,7 +18,7 @@ class CandidateClip(BaseModel):
     context_after: str = Field(default="", max_length=4_000)
     rule_score: float = Field(ge=0, le=100)
     reasons: tuple[str, ...] = Field(min_length=1, max_length=12)
-    segment_ids: tuple[str, ...] = Field(min_length=1, max_length=256)
+    segment_ids: tuple[str, ...] = Field(min_length=1, max_length=1_024)
 
     @model_validator(mode="after")
     def validate_boundaries(self) -> CandidateClip:

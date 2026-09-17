@@ -95,10 +95,104 @@ GET    /projects/{project_id}/deliveries
 GET    /deliveries/{delivery_id}
 GET    /deliveries/{delivery_id}/download
 
+GET    /completion-presets
+POST   /completion-goals/from-preset
+POST   /completion-goals
+POST   /runs/{run_id}/completion-goals
+GET    /completion-goals/{intent_id}
+POST   /completion-goals/{intent_id}/selection
+POST   /completion-goals/{intent_id}/resume
+POST   /completion-goals/{intent_id}/cancel
+
 GET    /media/{asset_id}
 ```
 
-`GET /health` includes a credential-free startup Provider preflight. It reports the configured combined mode, ASR and LLM adapter names, independent readiness booleans, stable blocking issue codes and explicit Mock warnings. For example, a logged-in Codex editor without OpenRouter ASR configuration reports `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false`, `processing_ready=false`, and `OPENROUTER_ASR_NOT_CONFIGURED`. “Ready” means only that local configuration/executable/login preflight passed; it does not prove remote quota, model entitlement or service availability. It never returns a key, token, credential path or raw CLI output. The check is captured once at API startup so an unauthenticated health poll cannot repeatedly spawn the Codex CLI; restart `make dev` after changing `.env`/`.env.local` or Codex login.
+## Durable completion goals
+
+`GET /completion-presets` requires authentication and returns the immutable
+experimental `short_highlight_v1` (“短高光”) and `mini_lesson_v1`
+(“完整小课”) descriptors, including clip-duration bounds and default
+selection policy. `POST /completion-goals/from-preset` requires
+`Idempotency-Key` and a strict body such as
+`{"input_path":"/absolute/path/live.ts","preset_id":"short_highlight_v1","selection_policy":"default"}`.
+The server resolves the preset configuration and atomically creates one
+Project, PipelineRun and durable Completion goal. It returns the same
+202, `Location`, `Retry-After` and `CompletionGoalResponse` contract as
+the lower-level create route. Retrying the same caller/key/body after a
+lost response returns the same goal; reusing the key for changed values
+returns 409. A new request requires an allowed read-only source path and
+current processing readiness. Both presets remain experimental until
+real model, content and audio acceptance. Creation returns a saved goal;
+the authorized goal GET reports later Delivery progress. Neither route
+returns a ZIP URL before the bound Asset commits.
+
+`POST /completion-goals` accepts a strict `{"job": JobCreateRequest,
+"options": CompletionOptions}` body and requires `Idempotency-Key`. It creates
+one Project, PipelineRun and durable goal in the same idempotent transaction;
+`POST /runs/{run_id}/completion-goals` instead attaches a goal to the currently
+authorized run with `{"options": CompletionOptions}`. Both return 202 with
+`Location: /api/v1/completion-goals/{intent_id}`, `Retry-After: 1`, and
+`{"goal": CompletionSnapshot, "download_url": null}` until a bound Delivery
+succeeds. Repeating the same key, caller and canonical body recovers the same
+goal after a lost response; conflicting reuse returns 409. A genuinely new
+Project request requires an absolute source under an allowed root outside
+generated data and current processing readiness. Replay of an already
+committed request does not require the source or Provider to remain available.
+
+`CompletionOptions` v1 has `target` (`delivery` or `process_only`),
+`selection_policy` (`default` or `manual`), `include_zip` and optional
+`preset_id`. Processing-only requires `include_zip=false` and default
+selection. The Worker reconciles the saved exact Project/run/generation after
+the initiating client exits. `GET /completion-goals/{intent_id}` only observes
+it; it does not claim work, reset retries or cancel. Status is `queued`,
+`waiting_work`, `waiting_selection`, `needs_action`, `succeeded` or
+`cancelled`. A successful outcome is `processed`, `delivered`,
+`no_eligible_clips`, `no_selected_clips` or `cancelled`; only `delivered` has
+a package.
+
+For a Delivery goal, `GET /completion-goals/{intent_id}` includes the
+versioned `goal.delivery_progress` projection once a Delivery exists. Its
+`phase` is `queued`, `copying_hashing`, `writing_metadata`, `writing_zip`,
+`verifying_package`, `committing_assets`, `succeeded`, `failed` or
+`cancelled`. Active `completed`/`total` counts belong only to that phase;
+the unit is `bytes`, `files`, `members` or `assets`. An unknown total is
+`null`, never an estimated percentage. Queued and terminal projections
+have no work count. `business_advanced_at` records durable producer work;
+`worker_heartbeat_at` and `lease_fresh` describe lease liveness, not
+business progress. A new attempt has its own `attempt_id` and counter;
+stale or replaced attempts cannot update the authorized projection.
+Polling only reads committed state and never starts or cancels work.
+
+The high-level CLI `liveclip auto VIDEO` resolves the same frozen preset and
+selection-policy options, prints its caller-scoped request key before create,
+and saves a goal for an independent `liveclip-worker`. It can return the IDs
+with `--no-watch` or observe through read-only watch; interruption stops only
+that observation. After an uncertain response, retry the same key, source and
+options. `liveclip resume PROJECT_ID` authorizes lookup and requires
+`--intent-id` if several goals belong to the Project. It observes manual
+selection and exhausted coordination without mutation, and explicitly
+version-fences only an eligible `needs_action` resume. Web retains a confirmed
+goal ID across reload and polls it under current authority; failed authority
+checks hide stale state and signed links. Neither watcher performs Worker
+processing or changes selection.
+
+Manual selection uses `POST /completion-goals/{intent_id}/selection` with an
+`expected_version` and `selected` entries containing `clip_id` and
+`expected_revision`. An intentionally empty `selected` array is distinct
+from no submission. Resume and explicit cancellation each use
+`{"expected_version": N}`. Current Project authority, bound generation,
+selection revisions and version fences are checked at action commit; stale
+or conflicting changes return 409. Polling or closing a page never cancels
+the goal. A successful Delivery response supplies a short-lived signed
+`download_url` through the existing Delivery/Asset-ID route only after the
+committed ZIP Asset resolves. It never returns a raw local media path.
+
+Run retry accepts a failed PipelineRun or a terminal cancelled PipelineRun with one unambiguous
+cancelled stage Task. It preserves succeeded Stages and verified caches, clears the resumed Task's
+cancellation/lease fields, and requeues only cancelled downstream Stages. Other terminal states and
+ambiguous cancelled task graphs return conflict.
+
+`GET /health` includes a credential-free startup Provider preflight. It reports the configured combined mode, ASR and LLM adapter names, independent readiness booleans, stable blocking issue codes and explicit Mock warnings. For example, a logged-in Codex editor without OpenRouter ASR configuration reports `mode=openrouter-codex`, `asr_provider=openrouter`, `llm_provider=codex_cli`, `llm_ready=true`, `asr_ready=false`, `processing_ready=false`, and `OPENROUTER_ASR_NOT_CONFIGURED`. The local alternative reports `mode=mlx-codex`, `asr_provider=mlx` and `MLX_ASR_NOT_READY` when the pinned package, Metal runtime, FFmpeg or exact model snapshot is unavailable. Cloud “ready” means only that local configuration/executable/login preflight passed; it does not prove remote quota, model entitlement or service availability. MLX “ready” includes local runtime import and full model-byte verification but does not prove transcript accuracy. Health never returns a key, token, credential path or raw CLI output. The check is captured once at API startup so an unauthenticated health poll cannot repeatedly spawn Codex or rehash large model weights; restart `make dev` after changing `.env`/`.env.local`, model bytes or Codex login.
 
 `GET /session` returns safe user identity, credential kind, expiry and—only for a cookie session—the CSRF value. Project DTOs include safe `owner`, `members`, `visibility`, `current_user_role`, `lifecycle`, `management_version`, `assignee`, `priority`, `due_at`, `updated_at`, server-derived `allowed_actions`, and server-derived `allowed_lifecycle_transitions`. The Web consumes these capabilities instead of maintaining another role/transition matrix. Administrator user responses expose status and password-configured boolean but never hashes. `DELETE /admin/users/{id}` is a recoverable soft disable. The service refuses to disable/demote the last active administrator. `GET/POST/PATCH/DELETE /admin/users...` never trusts only the request-start actor snapshot: every repository operation rechecks the current enabled administrator row inside the same short `BEGIN IMMEDIATE`; create/update/reset returns the post-mutation user list from that transaction, so a concurrent or self role change cannot commit successfully and then produce a misleading forbidden response.
 
@@ -128,6 +222,24 @@ Permanent purge is a two-request workflow. `GET .../purge-plan` returns Project 
   "maximum_clip_seconds": 90
 }
 ```
+
+`clip_profile` defaults to `short_highlight`. A mini-lesson request uses the independent fixed
+90/180/300-second Profile with `semantic_windowed`:
+
+```json
+{
+  "input_path": "/absolute/allowed/live.mp4",
+  "clipping_algorithm": "semantic_windowed",
+  "clip_profile": "mini_lesson",
+  "minimum_clip_seconds": 90,
+  "semantic_target_clip_seconds": 180,
+  "maximum_clip_seconds": 300,
+  "top_n": 15
+}
+```
+
+The same fields are accepted by `POST /projects/{id}/runs`. Only automatic mini-lesson results create
+FFmpeg work; manual, blocked and rejected results remain Schema v4 audit records.
 
 The accepted response is immediately pollable:
 

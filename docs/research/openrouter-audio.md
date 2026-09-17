@@ -35,7 +35,7 @@ OpenRouter 的当前 STT 文档列出 WAV、MP3、FLAC、M4A、OGG、WebM 与 AA
 - SDK 的底层 JSON POST 加 raw-response 模式用于在解析正文前读取 `X-Generation-Id`；请求体使用官方 `input_audio` 与 `provider.options.groq.prompt` 结构。
 - SDK 响应模型允许额外字段，因此 LiveClip 在应用边界重新校验根字段、文本、有限数值时间、句段和词对齐。
 - `usage.seconds`/`usage.cost` 若存在必须是有限非负数；通过校验后才保存，代码不硬编码价格。
-- HTTP 200 但 JSON 或时间戳结构无效时，记录 `OPENROUTER_ASR_RESPONSE_INVALID`，不重试、不切换 Mock。
+- HTTP 200 但 JSON 或时间戳结构无效时，记录 `OPENROUTER_ASR_RESPONSE_INVALID`，由持久化 Stage 做有界重试并复用成功分块；不在 Adapter 内立即重复计费，也绝不切换 Mock。句段时间按与已验证音频区间的交集保存，完全在分块外的句段被丢弃；非空转写若没有任何有效交集才按无效响应处理。可选词级时间继续执行严格的一秒尾部上限，失败时只降级为 `unavailable`。
 - 普通 `x-request-id` 不得冒充 generation ID；缺少 `X-Generation-Id` 的 200 响应也按无效 Provider 响应持久化。
 
 ## 重试与确定性失败

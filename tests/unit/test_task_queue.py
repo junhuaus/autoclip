@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 from sqlalchemy import func, insert, select, update
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
+import liveclip.db.task_queue as task_queue_module
 from liveclip.db.base import Base
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.models import DeliveryRow, PipelineRunRow, ProjectRow, TaskAttemptRow, TaskRow
@@ -170,6 +172,130 @@ def test_complete_is_fenced_and_idempotent(
             select(TaskAttemptRow.outcome).where(TaskAttemptRow.task_id == task_id)
         )
     assert outcome == AttemptOutcome.SUCCEEDED.value
+
+
+def test_completion_deferral_preserves_retries_and_parks_human_wait(
+    queue_context: tuple[Engine, SQLiteTaskQueue],
+) -> None:
+    engine, queue = queue_context
+    spec = TaskSpec(
+        kind=TaskKind.COMPLETION,
+        target_id="i" * 32,
+        operation_key="completion:goal-i",
+        input_fingerprint="d" * 64,
+        pipeline_run_id=RUN_ID,
+        resource_class=ResourceClass.CHEAP,
+        expected_generation=1,
+    )
+    task_id = queue.enqueue(spec, now=NOW).task_id
+    first = queue.claim(worker_id="completion-worker", now=NOW, task_kind=TaskKind.COMPLETION)
+    assert first is not None
+    assert queue.defer_completion(first, wait_ms=5_000, now=NOW + timedelta(seconds=1)) == (
+        TaskStatus.QUEUED
+    )
+    assert queue.claim(worker_id="completion-worker", now=NOW + timedelta(seconds=5)) is None
+    second = queue.claim(
+        worker_id="completion-worker",
+        now=NOW + timedelta(seconds=6),
+        task_kind=TaskKind.COMPLETION,
+    )
+    assert second is not None
+    assert queue.defer_completion(second, wait_ms=None, now=NOW + timedelta(seconds=7)) == (
+        TaskStatus.WAITING
+    )
+    assert queue.claim(worker_id="completion-worker", now=NOW + timedelta(days=1)) is None
+    with engine.connect() as connection:
+        task = connection.execute(
+            select(TaskRow.status, TaskRow.attempt_count, TaskRow.retry_count).where(
+                TaskRow.id == task_id
+            )
+        ).one()
+        outcomes = connection.scalars(
+            select(TaskAttemptRow.outcome)
+            .where(TaskAttemptRow.task_id == task_id)
+            .order_by(TaskAttemptRow.attempt_number)
+        ).all()
+    assert task == (TaskStatus.WAITING.value, 2, 0)
+    assert outcomes == [AttemptOutcome.DEFERRED.value, AttemptOutcome.DEFERRED.value]
+    assert queue.request_cancel(task_id, now=NOW + timedelta(days=1)) == TaskStatus.CANCELLED
+
+
+def test_completion_deferral_uses_clock_after_writer_lock(
+    queue_context: tuple[Engine, SQLiteTaskQueue],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine, queue = queue_context
+    task_id = queue.enqueue(
+        TaskSpec(
+            kind=TaskKind.COMPLETION,
+            target_id="j" * 32,
+            operation_key="completion:goal-j",
+            input_fingerprint="e" * 64,
+            pipeline_run_id=RUN_ID,
+            resource_class=ResourceClass.CHEAP,
+            expected_generation=1,
+        ),
+        now=NOW,
+    ).task_id
+    lease = queue.claim(worker_id="completion-worker", now=NOW, task_kind=TaskKind.COMPLETION)
+    assert lease is not None
+    entered = Event()
+    clock = [NOW + timedelta(seconds=1)]
+    original_begin = task_queue_module.begin_immediate
+    original_now = task_queue_module._now
+
+    @contextmanager
+    def observed_begin(target_engine: Engine) -> Iterator[Connection]:
+        entered.set()
+        with original_begin(target_engine) as connection:
+            yield connection
+
+    def controlled_now(value: datetime | None) -> datetime:
+        return clock[0] if value is None else original_now(value)
+
+    monkeypatch.setattr(task_queue_module, "begin_immediate", observed_begin)
+    monkeypatch.setattr(task_queue_module, "_now", controlled_now)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with original_begin(engine):
+            future = executor.submit(queue.defer_completion, lease, wait_ms=1_000)
+            assert entered.wait(5)
+            clock[0] = NOW + timedelta(seconds=11)
+        assert future.result(timeout=5) is None
+    with engine.connect() as connection:
+        state = connection.execute(
+            select(TaskRow.status, TaskRow.retry_count).where(TaskRow.id == task_id)
+        ).one()
+        outcome = connection.scalar(
+            select(TaskAttemptRow.outcome).where(TaskAttemptRow.task_id == task_id)
+        )
+    assert state == (TaskStatus.RUNNING.value, 0)
+    assert outcome == AttemptOutcome.RUNNING.value
+    assert queue.recover_expired(now=NOW + timedelta(seconds=11)).requeued == 1
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                select(TaskAttemptRow.outcome).where(TaskAttemptRow.task_id == task_id)
+            )
+            == AttemptOutcome.LOST_LEASE.value
+        )
+
+    successor = queue.claim(
+        worker_id="completion-worker",
+        now=NOW + timedelta(seconds=11),
+        task_kind=TaskKind.COMPLETION,
+    )
+    assert successor is not None
+    entered.clear()
+    clock[0] = NOW + timedelta(seconds=12)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with original_begin(engine):
+            future = executor.submit(queue.defer_completion, successor, wait_ms=1_000)
+            assert entered.wait(5)
+            clock[0] = NOW + timedelta(seconds=13)
+        assert future.result(timeout=5) == TaskStatus.QUEUED
+    with engine.connect() as connection:
+        scheduled = connection.scalar(select(TaskRow.not_before).where(TaskRow.id == task_id))
+    assert scheduled == NOW + timedelta(seconds=14)
 
 
 def test_heavy_singleton_does_not_block_a_cheap_task(

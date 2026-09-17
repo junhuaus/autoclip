@@ -13,6 +13,11 @@ from liveclip.application.comments import (
     ReplyToClipCommentThread,
     UpdateClipCommentThreadStatus,
 )
+from liveclip.application.completion import CompletionOptions, CompletionSnapshot
+from liveclip.application.completion_preset_contract import (
+    CompletionPresetId,
+    CompletionPresetSummary,
+)
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.edit_packages import (
     EditPackageItem,
@@ -47,6 +52,8 @@ from liveclip.application.releases import (
 )
 from liveclip.application.reviewing import BatchReviewCommand, BatchReviewItem, ClipDetail
 from liveclip.application.workspace import WorkspaceMembership, WorkspaceUser
+from liveclip.domain.clip_profile import ClipProfile
+from liveclip.domain.completion import CompletionSelectionPolicy
 from liveclip.domain.edit_plan import MAX_CAPTION_CUES, CaptionCue
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.releases import PlatformPreset, ReleasePlatform
@@ -63,6 +70,7 @@ class JobCreateRequest(ApiRequestModel):
         "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
     ] = "a"
     semantic_profile: Literal["general", "vocal_coach_live"] = "general"
+    clip_profile: ClipProfile = ClipProfile.SHORT_HIGHLIGHT
     semantic_target_clip_seconds: int | None = Field(default=None, ge=1, le=600)
     semantic_score_threshold: float | None = Field(default=None, ge=0, le=100)
     semantic_full_context_budget_ratio: float | None = Field(default=None, ge=0.1, le=0.8)
@@ -100,11 +108,55 @@ class JobCreateRequest(ApiRequestModel):
         return self
 
 
+class CompletionNewProjectCreateRequest(ApiRequestModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    job: JobCreateRequest
+    options: CompletionOptions = Field(default_factory=CompletionOptions)
+
+
+class CompletionExistingRunCreateRequest(ApiRequestModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    options: CompletionOptions = Field(default_factory=CompletionOptions)
+
+
+class CompletionVersionCommandRequest(ApiRequestModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    expected_version: int = Field(ge=1)
+
+
+class CompletionGoalResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    goal: CompletionSnapshot
+    download_url: str | None = None
+
+
+class CompletionPresetCreateRequest(ApiRequestModel):
+    """High-level source and named preset, resolved only by the server."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    input_path: str = Field(min_length=1, max_length=4_096)
+    preset_id: CompletionPresetId
+    selection_policy: CompletionSelectionPolicy = CompletionSelectionPolicy.DEFAULT
+
+
+class CompletionPresetsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1"] = "1"
+    presets: tuple[CompletionPresetSummary, ...]
+
+
 class RunCreateRequest(ApiRequestModel):
     clipping_algorithm: Literal[
         "a", "b", "b_v2_experimental", "semantic_global", "semantic_windowed"
     ] = "a"
     semantic_profile: Literal["general", "vocal_coach_live"] = "general"
+    clip_profile: ClipProfile = ClipProfile.SHORT_HIGHLIGHT
     semantic_target_clip_seconds: int | None = Field(default=None, ge=1, le=600)
     semantic_score_threshold: float | None = Field(default=None, ge=0, le=100)
     semantic_full_context_budget_ratio: float | None = Field(default=None, ge=0.1, le=0.8)
@@ -511,8 +563,8 @@ class AcceptedTaskResponse(BaseModel):
 class ProviderHealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["mock", "openai", "mock-codex", "openai-codex", "openrouter-codex"]
-    asr_provider: Literal["mock", "openai", "openrouter"]
+    mode: Literal["mock", "openai", "mock-codex", "openai-codex", "openrouter-codex", "mlx-codex"]
+    asr_provider: Literal["mock", "openai", "openrouter", "mlx"]
     llm_provider: Literal["mock", "openai", "codex_cli"]
     asr_ready: bool
     llm_ready: bool

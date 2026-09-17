@@ -1,0 +1,98 @@
+{
+  "accepted_code_map_sha256": "0f1a8350ea82c1cb943045687e4226a25b2e9c22973ba18ca8cd85cd8f9a6338",
+  "accepted_global_review_sha256": "fef9173cbeb2175ddb1aff30f9c4c6efdaf22718e5fce01af3fbbfe99a686073",
+  "accepted_passes_both_profiles": true,
+  "accepted_source_fingerprint": "473cc6555e843e780990d12c535629dffe52178504337d834e78a5380c3f5c8a",
+  "baseline_code_map_sha256": "040ba392f18eec988e8fcfdf9c0e896ad22d4c2da541710c3090c9e7e0719fad",
+  "baseline_global_review_sha256": "6192687da97782e0655c43b7c44fdf3ecce86a5d3c7d8febfb348a0792b6d88e",
+  "baseline_root_role": "unpublished delivery worktree before CAS publication",
+  "changed_paths": [
+    "src/liveclip/clipping_skills/semantic_topic_chain_v1/stages/global_review.md",
+    "tests/unit/test_semantic_lineage_prompts.py"
+  ],
+  "created_utc": "2026-09-16T20:31:54.784349+00:00",
+  "gate": "SD6_MINI_GLOBAL_FINAL_DECISION_NEGATIVE_BASELINE",
+  "head": "6009b23859564b2bfdc193eee366afd990b9ef5d",
+  "original_fails_both_profiles": true,
+  "parent_gateway_blocker": "Provide authenticated, run-correlated evidence that this evaluated regression fails against the original pre-change prompt for both general and vocal_coach_live, paired with current passing results. The supplied bundle establishes only current-source success. Preserve the unpublished candidate and obtain this evidence through the trusted authorized workflow before repeating Gateway review.",
+  "parent_gateway_verdict": "FAIL",
+  "parent_run_id": "20260915T233253Z-b58e24b3",
+  "parent_runner_qa_ids": [
+    "20260915T234139Z-5f53",
+    "20260915T234218Z-fd37",
+    "20260915T234629Z-6297"
+  ],
+  "parent_runner_statuses": [
+    "PASS",
+    "PASS",
+    "PASS"
+  ],
+  "profiles": {
+    "general": {
+      "accepted_clause_presence": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "accepted_composed_sha256": "1fde19afe244c929ff8792df28fd103feba23db3337ca85faa6849eb7f22be63",
+      "accepted_resources": {
+        "src/liveclip/clipping_skills/semantic_global_v1/profiles/general.md": "fedef40a894fe3d084bb8bf57681eb07c3e224084dbb491f67b785960394992d",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/main.md": "2ba1ff44ba7ea360a2f86b2cea931b4408e6a6eaa22fbd8097c8163b0158b879",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/profiles/mini_lesson.md": "16aef8b563e5fad0263f46200fdb58d719551d821ec25039955481493c2f2ce7",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/stages/global_review.md": "fef9173cbeb2175ddb1aff30f9c4c6efdaf22718e5fce01af3fbbfe99a686073"
+      },
+      "baseline_clause_presence": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "baseline_composed_sha256": "9e6ba86a0b325b383eb3cad75ad1bd78f9cd4f793adcafcc62f8d6733a2f406f",
+      "baseline_resources": {
+        "src/liveclip/clipping_skills/semantic_global_v1/profiles/general.md": "fedef40a894fe3d084bb8bf57681eb07c3e224084dbb491f67b785960394992d",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/main.md": "2ba1ff44ba7ea360a2f86b2cea931b4408e6a6eaa22fbd8097c8163b0158b879",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/profiles/mini_lesson.md": "16aef8b563e5fad0263f46200fdb58d719551d821ec25039955481493c2f2ce7",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/stages/global_review.md": "6192687da97782e0655c43b7c44fdf3ecce86a5d3c7d8febfb348a0792b6d88e"
+      },
+      "regression_result": "BASELINE_FAIL_ACCEPTED_PASS"
+    },
+    "vocal_coach_live": {
+      "accepted_clause_presence": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "accepted_composed_sha256": "5215993093ab1ad7902775e5c4a7d12593fa37cdcc352e5fc11bf7cc5289693e",
+      "accepted_resources": {
+        "src/liveclip/clipping_skills/semantic_global_v1/profiles/vocal_coach_live.md": "04fb2ff64fac8b4c15e9b0c5e3ee83d02d49b8da607d0d7cf114a3e60f703046",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/main.md": "2ba1ff44ba7ea360a2f86b2cea931b4408e6a6eaa22fbd8097c8163b0158b879",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/profiles/mini_lesson.md": "16aef8b563e5fad0263f46200fdb58d719551d821ec25039955481493c2f2ce7",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/stages/global_review.md": "fef9173cbeb2175ddb1aff30f9c4c6efdaf22718e5fce01af3fbbfe99a686073"
+      },
+      "baseline_clause_presence": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "baseline_composed_sha256": "465fd658bf5eec6e46d3cb90eb22296a9cd5091846ada8dfa67154dcc38495ac",
+      "baseline_resources": {
+        "src/liveclip/clipping_skills/semantic_global_v1/profiles/vocal_coach_live.md": "04fb2ff64fac8b4c15e9b0c5e3ee83d02d49b8da607d0d7cf114a3e60f703046",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/main.md": "2ba1ff44ba7ea360a2f86b2cea931b4408e6a6eaa22fbd8097c8163b0158b879",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/profiles/mini_lesson.md": "16aef8b563e5fad0263f46200fdb58d719551d821ec25039955481493c2f2ce7",
+        "src/liveclip/clipping_skills/semantic_topic_chain_v1/stages/global_review.md": "6192687da97782e0655c43b7c44fdf3ecce86a5d3c7d8febfb348a0792b6d88e"
+      },
+      "regression_result": "BASELINE_FAIL_ACCEPTED_PASS"
+    }
+  },
+  "qa_id": "20260916T203108Z-gneg",
+  "required_clauses": [
+    "当前 Global Review 中，`boundary_reviews` 提供的是已经解决边界问题的最终 Boundary 区间。",
+    "必须独立判断该给定的精确区间，不得照抄上游历史 `repair_boundary` 决定。",
+    "该精确区间可接受时，`content_decision` 返回 `keep`，否则返回 `drop`。",
+    "即使其他通用或 Profile 指导讨论边界调整，当前 Global Review 也不得返回 `repair_boundary`， 不得提出第二次边界修复。"
+  ],
+  "status": "PASS"
+}

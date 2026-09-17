@@ -4,17 +4,14 @@ import base64
 import hashlib
 import json
 import math
-import os
 import re
-import stat
 import traceback
 import unicodedata
 import uuid
-from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, BinaryIO
+from typing import Any
 
 from openai import OpenAI
 from openai.types.audio.transcription_verbose import TranscriptionVerbose
@@ -27,6 +24,7 @@ from liveclip.providers.asr.base import (
     LocalASRSegment,
     LocalASRWord,
     audio_path_for_chunk,
+    open_validated_audio_chunk,
 )
 from liveclip.providers.openai_retry import (
     OpenAIRetryCancelled,
@@ -43,8 +41,11 @@ from liveclip.providers.telemetry import (
     ProviderTransientError,
 )
 
-_MAX_OPENAI_AUDIO_BYTES = 25_000_000
-_TIMELINE_TOLERANCE_MS = 250
+_TIMELINE_START_TOLERANCE_MS = 250
+# Whisper-compatible backends can report optional word timing slightly beyond
+# the exact AAC chunk boundary. Keep word timing strict; segment intervals use
+# source intersection because their text can still overlap verified audio.
+_TIMELINE_END_TOLERANCE_MS = 1_000
 OPENAI_ASR_CONTRACT_VERSION = "openai-asr-whisper-timestamps-v4"
 _OPENAI_RAW_RESPONSE_HEADER = "X-Stainless-Raw-Response"
 
@@ -145,7 +146,7 @@ class _TimestampASRProvider:
             contract_version=self.contract_version,
         )
         duration_ms = chunk.source_end_ms - chunk.source_start_ms
-        with _validated_audio_handle(chunk) as handle:
+        with open_validated_audio_chunk(chunk) as handle:
             request_fields: dict[str, Any] = {
                 "model": self.model_name,
                 "language": language,
@@ -290,7 +291,12 @@ class _TimestampASRProvider:
                     failure_code=f"{self._failure_prefix}_ASR_RESPONSE_INVALID",
                     request_id=request_id,
                 )
-                raise ProviderDeterministicError(invalid) from exc
+                # A syntactically successful provider response can still be
+                # truncated or malformed by an upstream serving path. The
+                # request itself was valid, so let the durable stage retry use
+                # already committed per-chunk caches instead of misreporting a
+                # local configuration error.
+                raise ProviderTransientError(invalid) from exc
             if self._request_id_header is None:
                 request_id = request_id or _request_id(response)
         success_record: ProviderCallRecord | None = None
@@ -350,7 +356,7 @@ class _TimestampASRProvider:
                     request_id=request_id,
                 )
             )
-            raise ProviderDeterministicError(invalid) from exc
+            raise ProviderTransientError(invalid) from exc
 
 
 class OpenAIASRProvider(_TimestampASRProvider):
@@ -383,49 +389,6 @@ class OpenAIASRProvider(_TimestampASRProvider):
             credential_name="OPENAI_API_KEY",
             failure_prefix="OPENAI",
         )
-
-
-@contextmanager
-def _validated_audio_handle(chunk: AudioChunkLike) -> Iterator[BinaryIO]:
-    path = audio_path_for_chunk(chunk)
-    expected_size = getattr(chunk, "size_bytes", None)
-    expected_sha256 = getattr(chunk, "sha256", None)
-    if not isinstance(expected_size, int) or isinstance(expected_size, bool) or expected_size <= 0:
-        raise ProviderConfigurationError("audio chunk size metadata is missing")
-    if not isinstance(expected_sha256, str) or len(expected_sha256) != 64:
-        raise ProviderConfigurationError("audio chunk fingerprint metadata is missing")
-    try:
-        metadata = path.lstat()
-    except OSError as exc:
-        raise ProviderConfigurationError("audio chunk is not readable") from exc
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-        raise ProviderConfigurationError("audio chunk must be a regular non-symlink file")
-    if metadata.st_size != expected_size or metadata.st_size > _MAX_OPENAI_AUDIO_BYTES:
-        raise ProviderConfigurationError("audio chunk size does not match the safe manifest")
-
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        descriptor = os.open(path, flags)
-    except OSError as exc:
-        raise ProviderConfigurationError("audio chunk could not be opened safely") from exc
-    handle = os.fdopen(descriptor, "rb")
-    try:
-        opened = os.fstat(handle.fileno())
-        if (opened.st_dev, opened.st_ino, opened.st_size) != (
-            metadata.st_dev,
-            metadata.st_ino,
-            metadata.st_size,
-        ):
-            raise ProviderConfigurationError("audio chunk changed while opening")
-        digest = hashlib.sha256()
-        while block := handle.read(1024 * 1024):
-            digest.update(block)
-        if digest.hexdigest() != expected_sha256:
-            raise ProviderConfigurationError("audio chunk fingerprint does not match the manifest")
-        handle.seek(0)
-        yield handle
-    finally:
-        handle.close()
 
 
 def _map_verbose_response(
@@ -461,11 +424,14 @@ def _map_verbose_response(
         text = segment.text.strip()
         if not text:
             continue
-        start_ms, end_ms = _bounded_interval(
+        interval = _source_interval_intersection(
             _finite_seconds(segment.start),
             _finite_seconds(segment.end),
             duration_ms=chunk_duration_ms,
         )
+        if interval is None:
+            continue
+        start_ms, end_ms = interval
         segments.append(
             LocalASRSegment(
                 segment_id=f"{provider}_{index:06d}",
@@ -474,6 +440,9 @@ def _map_verbose_response(
                 text=text,
             )
         )
+
+    if response.text.strip() and not segments:
+        raise ValueError("nonempty transcription has no source-overlapping segments")
 
     assigned_words = _assign_optional_words(raw_words, segments)
     if assigned_words is not None:
@@ -644,16 +613,35 @@ def _safe_text_length(value: object) -> int | None:
     return len(value) if isinstance(value, str) else None
 
 
-def _bounded_interval(start: float, end: float, *, duration_ms: int) -> tuple[int, int]:
+def _bounded_interval(
+    start: float,
+    end: float,
+    *,
+    duration_ms: int,
+) -> tuple[int, int]:
     start_ms = seconds_to_ms(start)
     end_ms = seconds_to_ms(end)
-    if start_ms < -_TIMELINE_TOLERANCE_MS or end_ms > duration_ms + _TIMELINE_TOLERANCE_MS:
+    if (
+        start_ms < -_TIMELINE_START_TOLERANCE_MS
+        or end_ms > duration_ms + _TIMELINE_END_TOLERANCE_MS
+    ):
         raise ValueError("provider timestamp exceeds the audio chunk")
     start_ms = max(0, start_ms)
     end_ms = min(duration_ms, end_ms)
     if end_ms <= start_ms:
         raise ValueError("provider timestamp interval is empty")
     return start_ms, end_ms
+
+
+def _source_interval_intersection(
+    start: float,
+    end: float,
+    *,
+    duration_ms: int,
+) -> tuple[int, int] | None:
+    start_ms = max(0, seconds_to_ms(start))
+    end_ms = min(duration_ms, seconds_to_ms(end))
+    return (start_ms, end_ms) if end_ms > start_ms else None
 
 
 def _finite_seconds(value: object) -> float:

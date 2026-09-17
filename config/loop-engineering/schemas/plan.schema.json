@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "architecture", "tasks", "acceptance_criteria", "risks"],
+  "properties": {
+    "verdict": {"enum": ["READY", "NEEDS_INPUT"]},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "architecture": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 30},
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 60,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description", "depends_on", "files"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Z0-9_-]{1,40}$"},
+          "description": {"type": "string", "minLength": 1, "maxLength": 2000},
+          "depends_on": {"type": "array", "items": {"type": "string"}, "maxItems": 20},
+          "files": {"type": "array", "items": {"type": "string"}, "maxItems": 50}
+        }
+      }
+    },
+    "acceptance_criteria": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 50},
+    "risks": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 30}
+  }
+}

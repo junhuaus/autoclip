@@ -36,8 +36,8 @@ export type EditPackageStatus = "queued" | "creating" | "succeeded" | "failed";
 export type RenderKind = "proxy" | "final";
 
 export interface ProviderHealth {
-  mode: "mock" | "openai" | "mock-codex" | "openai-codex" | "openrouter-codex";
-  asr_provider: "mock" | "openai" | "openrouter";
+  mode: "mock" | "openai" | "mock-codex" | "openai-codex" | "openrouter-codex" | "mlx-codex";
+  asr_provider: "mock" | "openai" | "openrouter" | "mlx";
   llm_provider: "mock" | "openai" | "codex_cli";
   asr_ready: boolean;
   llm_ready: boolean;
@@ -434,6 +434,7 @@ export interface JobCreateRequest {
   input_path: string;
   clipping_algorithm?: "a" | "b" | "b_v2_experimental" | "semantic_global" | "semantic_windowed";
   semantic_profile?: "general" | "vocal_coach_live";
+  clip_profile?: "short_highlight" | "mini_lesson";
   semantic_target_clip_seconds?: number;
   semantic_score_threshold?: number;
   semantic_full_context_budget_ratio?: number;
@@ -450,6 +451,95 @@ export interface AcceptedPipelineResponse {
   run_id: string;
   status: string;
   status_url: string;
+}
+
+export type CompletionPresetId = "short_highlight_v1" | "mini_lesson_v1";
+export type CompletionSelectionPolicy = "default" | "manual";
+export type CompletionIntentStatus =
+  | "queued"
+  | "waiting_work"
+  | "waiting_selection"
+  | "needs_action"
+  | "succeeded"
+  | "cancelled";
+export type CompletionOutcome =
+  | "processed"
+  | "delivered"
+  | "no_eligible_clips"
+  | "no_selected_clips"
+  | "cancelled";
+
+export interface CompletionPresetSummary {
+  schema_version: "1";
+  preset_id: CompletionPresetId;
+  display_name_zh: string;
+  clip_profile: "short_highlight" | "mini_lesson";
+  minimum_clip_seconds: number;
+  target_clip_seconds: number;
+  maximum_clip_seconds: number;
+  default_selection_policy: CompletionSelectionPolicy;
+  acceptance_status: "experimental";
+}
+
+export interface CompletionPresetsResponse {
+  schema_version: "1";
+  presets: CompletionPresetSummary[];
+}
+
+export interface CompletionPresetCreateRequest {
+  input_path: string;
+  preset_id: CompletionPresetId;
+  selection_policy: CompletionSelectionPolicy;
+}
+
+export interface CompletionGoalSnapshot {
+  intent_id: string;
+  project_id: string;
+  run_id: string;
+  generation: number;
+  requester_user_id: string;
+  actor_user_id: string;
+  options: {
+    schema_version: "1";
+    target: "process_only" | "delivery";
+    selection_policy: CompletionSelectionPolicy;
+    include_zip: boolean;
+    preset_id: string | null;
+  };
+  status: CompletionIntentStatus;
+  version: number;
+  selection_submitted: boolean;
+  delivery_id: string | null;
+  outcome: CompletionOutcome | null;
+  blocking_code: string | null;
+  safe_error_message: string | null;
+  delivery_progress: DeliveryProgressSnapshot | null;
+}
+
+export interface DeliveryProgressSnapshot {
+  schema_version: "1";
+  phase:
+    | "queued"
+    | "copying_hashing"
+    | "writing_metadata"
+    | "writing_zip"
+    | "verifying_package"
+    | "committing_assets"
+    | "succeeded"
+    | "failed"
+    | "cancelled";
+  unit: "bytes" | "files" | "members" | "assets" | null;
+  completed: number | null;
+  total: number | null;
+  attempt_id: string | null;
+  business_advanced_at: string | null;
+  worker_heartbeat_at: string | null;
+  lease_fresh: boolean;
+}
+
+export interface CompletionGoalResponse {
+  goal: CompletionGoalSnapshot;
+  download_url: string | null;
 }
 
 export interface TranscriptSegment {

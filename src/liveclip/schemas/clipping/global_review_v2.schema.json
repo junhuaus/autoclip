@@ -1,0 +1,929 @@
+{
+  "$defs": {
+    "BoundaryAlternativeAudit": {
+      "additionalProperties": false,
+      "description": "Agent-authored semantic challenge to a rejected ideal range.\n\nPython validates only cue existence, duration and relation to the attempted\nrange.  Whether the alternative actually fulfils its stated promise remains\nan Agent judgment, recorded so a rejection cannot silently skip a viable\nshorter, extended or re-bounded continuous clip.",
+      "properties": {
+        "completeness": {
+          "$ref": "#/$defs/BoundaryAlternativeCompleteness"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "viewer_promise": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Viewer Promise",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_cue_id",
+        "end_cue_id",
+        "viewer_promise",
+        "completeness",
+        "reason"
+      ],
+      "title": "BoundaryAlternativeAudit",
+      "type": "object"
+    },
+    "BoundaryAlternativeCompleteness": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ],
+      "title": "BoundaryAlternativeCompleteness",
+      "type": "string"
+    },
+    "BoundaryCompactness": {
+      "enum": [
+        "shortest_complete",
+        "contains_removable_context"
+      ],
+      "title": "BoundaryCompactness",
+      "type": "string"
+    },
+    "CandidateAssessment": {
+      "additionalProperties": false,
+      "description": "Compact recall ledger used by the v2 Global Review contract.\n\nFull clip records are intentionally reserved for retained results.  This\nsmall record makes the Agent score every Discovery proposal before global\nconsolidation, so a large rejection group can no longer hide unscored\ncandidates.",
+      "properties": {
+        "candidate_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CandidateAssessmentDisposition"
+        },
+        "result_clip_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Clip Id"
+        },
+        "score_dimensions": {
+          "$ref": "#/$defs/ScoreDimensions"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "disposition",
+        "score_dimensions"
+      ],
+      "title": "CandidateAssessment",
+      "type": "object"
+    },
+    "CandidateAssessmentDisposition": {
+      "description": "One independently scored disposition for every Discovery candidate.",
+      "enum": [
+        "advance",
+        "duplicate",
+        "reject"
+      ],
+      "title": "CandidateAssessmentDisposition",
+      "type": "string"
+    },
+    "ClipOrigin": {
+      "enum": [
+        "discovery",
+        "global_review_recovery"
+      ],
+      "title": "ClipOrigin",
+      "type": "string"
+    },
+    "CoverageDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary_alternatives": {
+          "items": {
+            "$ref": "#/$defs/BoundaryAlternativeAudit"
+          },
+          "maxItems": 12,
+          "title": "Boundary Alternatives",
+          "type": "array"
+        },
+        "clip_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Clip Ids",
+          "type": "array"
+        },
+        "decision": {
+          "$ref": "#/$defs/CoverageDecisionValue"
+        },
+        "duplicate_of_clip_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of Clip Id"
+        },
+        "duplicate_of_topic_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of Topic Id"
+        },
+        "ideal_end_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ideal End Cue Id"
+        },
+        "ideal_start_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ideal Start Cue Id"
+        },
+        "model_claimed_duration_sec": {
+          "anyOf": [
+            {
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Claimed Duration Sec"
+        },
+        "reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/CoverageReasonCode"
+        },
+        "topic_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_id",
+        "decision",
+        "reason_code",
+        "reason"
+      ],
+      "title": "CoverageDecision",
+      "type": "object"
+    },
+    "CoverageDecisionValue": {
+      "enum": [
+        "represented",
+        "manual_review",
+        "rejected"
+      ],
+      "title": "CoverageDecisionValue",
+      "type": "string"
+    },
+    "CoverageReasonCode": {
+      "enum": [
+        "represented_by_clip",
+        "no_general_value",
+        "incomplete_topic",
+        "cannot_form_continuous_clip",
+        "duration_too_short",
+        "duration_too_long",
+        "duplicate_of_other_topic",
+        "risk_requires_manual_review",
+        "asr_too_uncertain"
+      ],
+      "title": "CoverageReasonCode",
+      "type": "string"
+    },
+    "EditorialDecision": {
+      "enum": [
+        "keep",
+        "drop"
+      ],
+      "title": "EditorialDecision",
+      "type": "string"
+    },
+    "EndCueFunction": {
+      "enum": [
+        "substantive_payoff",
+        "same_promise_clarification",
+        "rhetorical_closure",
+        "listener_response",
+        "new_topic_or_question",
+        "noise_or_unknown"
+      ],
+      "title": "EndCueFunction",
+      "type": "string"
+    },
+    "EndCueSpeakerRole": {
+      "enum": [
+        "answerer",
+        "listener",
+        "unknown"
+      ],
+      "title": "EndCueSpeakerRole",
+      "type": "string"
+    },
+    "FollowingCueRelation": {
+      "description": "The semantic relationship between a proposed end and its next source cue.",
+      "enum": [
+        "continues_same_utterance",
+        "required_same_promise",
+        "optional_or_redundant",
+        "new_topic_or_noise",
+        "source_end"
+      ],
+      "title": "FollowingCueRelation",
+      "type": "string"
+    },
+    "GlobalReviewClip": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary_compactness": {
+          "$ref": "#/$defs/BoundaryCompactness"
+        },
+        "clip_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "content_type": {
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Content Type",
+          "type": "string"
+        },
+        "editorial_decision": {
+          "$ref": "#/$defs/EditorialDecision"
+        },
+        "end_boundary_reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "End Boundary Reason",
+          "type": "string"
+        },
+        "end_cue_function": {
+          "$ref": "#/$defs/EndCueFunction"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "end_cue_speaker_role": {
+          "$ref": "#/$defs/EndCueSpeakerRole"
+        },
+        "ending_complete": {
+          "title": "Ending Complete",
+          "type": "boolean"
+        },
+        "first_complete_payoff_cue_id": {
+          "minimum": 1,
+          "title": "First Complete Payoff Cue Id",
+          "type": "integer"
+        },
+        "following_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Following Cue Id"
+        },
+        "following_cue_quote": {
+          "anyOf": [
+            {
+              "maxLength": 400,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Following Cue Quote"
+        },
+        "following_cue_relation": {
+          "$ref": "#/$defs/FollowingCueRelation"
+        },
+        "hook": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "irrelevant_intro_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Irrelevant Intro Cue Ids",
+          "type": "array"
+        },
+        "irrelevant_outro_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Irrelevant Outro Cue Ids",
+          "type": "array"
+        },
+        "minimum_duration_extension_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Minimum Duration Extension Cue Ids",
+          "type": "array"
+        },
+        "opening_relevance": {
+          "$ref": "#/$defs/OpeningRelevance"
+        },
+        "origin": {
+          "$ref": "#/$defs/ClipOrigin"
+        },
+        "parent_topic": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Parent Topic",
+          "type": "string"
+        },
+        "payoff": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Payoff",
+          "type": "string"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlag"
+          },
+          "maxItems": 12,
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "review_reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Review Reason",
+          "type": "string"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/RiskAssessment"
+          },
+          "maxItems": 12,
+          "title": "Risks",
+          "type": "array"
+        },
+        "score_dimensions": {
+          "$ref": "#/$defs/ScoreDimensions"
+        },
+        "source_candidate_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Source Candidate Ids",
+          "type": "array"
+        },
+        "source_closing_quote": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Closing Quote",
+          "type": "string"
+        },
+        "source_fidelity": {
+          "$ref": "#/$defs/SourceFidelity"
+        },
+        "source_fidelity_notes": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Fidelity Notes",
+          "type": "string"
+        },
+        "source_opening_promise": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Source Opening Promise",
+          "type": "string"
+        },
+        "source_opening_quote": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Opening Quote",
+          "type": "string"
+        },
+        "source_topic_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Source Topic Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "topic_core_end_cue_id": {
+          "minimum": 1,
+          "title": "Topic Core End Cue Id",
+          "type": "integer"
+        },
+        "topic_core_start_cue_id": {
+          "minimum": 1,
+          "title": "Topic Core Start Cue Id",
+          "type": "integer"
+        },
+        "viewer_promise": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Viewer Promise",
+          "type": "string"
+        },
+        "viewer_promise_matches_source_opening": {
+          "title": "Viewer Promise Matches Source Opening",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "clip_id",
+        "source_topic_ids",
+        "origin",
+        "editorial_decision",
+        "review_status",
+        "start_cue_id",
+        "end_cue_id",
+        "parent_topic",
+        "viewer_promise",
+        "title",
+        "content_type",
+        "hook",
+        "payoff",
+        "source_opening_quote",
+        "source_opening_promise",
+        "viewer_promise_matches_source_opening",
+        "source_closing_quote",
+        "end_cue_speaker_role",
+        "end_cue_function",
+        "following_cue_relation",
+        "end_boundary_reason",
+        "opening_relevance",
+        "ending_complete",
+        "first_complete_payoff_cue_id",
+        "minimum_duration_extension_cue_ids",
+        "boundary_compactness",
+        "source_fidelity",
+        "source_fidelity_notes",
+        "topic_core_start_cue_id",
+        "topic_core_end_cue_id",
+        "score_dimensions",
+        "review_reason"
+      ],
+      "title": "GlobalReviewClip",
+      "type": "object"
+    },
+    "GlobalReviewSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "global_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Global Notes",
+          "type": "array"
+        }
+      },
+      "title": "GlobalReviewSummary",
+      "type": "object"
+    },
+    "OpeningRelevance": {
+      "enum": [
+        "direct",
+        "necessary_context",
+        "irrelevant"
+      ],
+      "title": "OpeningRelevance",
+      "type": "string"
+    },
+    "QualityFlag": {
+      "enum": [
+        "context_dependent_opening",
+        "irrelevant_intro",
+        "irrelevant_outro",
+        "repeated_live_cta",
+        "sales_heavy",
+        "asr_uncertain",
+        "topic_not_closed",
+        "incomplete_ending",
+        "topic_switch_inside",
+        "source_title_mismatch",
+        "padded_with_irrelevant_content"
+      ],
+      "title": "QualityFlag",
+      "type": "string"
+    },
+    "RejectedCandidateGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary_alternatives": {
+          "items": {
+            "$ref": "#/$defs/BoundaryAlternativeAudit"
+          },
+          "maxItems": 12,
+          "title": "Boundary Alternatives",
+          "type": "array"
+        },
+        "candidate_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "duplicate_of_clip_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of Clip Id"
+        },
+        "duplicate_of_topic_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of Topic Id"
+        },
+        "ideal_end_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ideal End Cue Id"
+        },
+        "ideal_start_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ideal Start Cue Id"
+        },
+        "model_claimed_duration_sec": {
+          "anyOf": [
+            {
+              "maximum": 86400,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Claimed Duration Sec"
+        },
+        "reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/CoverageReasonCode"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/RiskAssessment"
+          },
+          "maxItems": 12,
+          "title": "Risks",
+          "type": "array"
+        },
+        "topic_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Topic Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_ids",
+        "reason_code",
+        "reason"
+      ],
+      "title": "RejectedCandidateGroup",
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "clear",
+        "manual"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "RiskAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/RiskSeverity"
+        },
+        "source_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Source Cue Ids",
+          "type": "array"
+        },
+        "type": {
+          "$ref": "#/$defs/RiskType"
+        }
+      },
+      "required": [
+        "type",
+        "severity",
+        "reason",
+        "source_cue_ids"
+      ],
+      "title": "RiskAssessment",
+      "type": "object"
+    },
+    "RiskSeverity": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "RiskSeverity",
+      "type": "string"
+    },
+    "RiskType": {
+      "enum": [
+        "medical_diagnosis_high",
+        "general_health_warning",
+        "absolute_claim",
+        "commercial_claim",
+        "sensitivity_review",
+        "music_rights_review"
+      ],
+      "title": "RiskType",
+      "type": "string"
+    },
+    "ScoreDimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Completeness",
+          "type": "integer"
+        },
+        "edit_cleanliness": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Edit Cleanliness",
+          "type": "integer"
+        },
+        "evidence": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Evidence",
+          "type": "integer"
+        },
+        "general_value": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "General Value",
+          "type": "integer"
+        },
+        "interest": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Interest",
+          "type": "integer"
+        },
+        "standalone": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Standalone",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "standalone",
+        "general_value",
+        "interest",
+        "completeness",
+        "evidence",
+        "edit_cleanliness"
+      ],
+      "title": "ScoreDimensions",
+      "type": "object"
+    },
+    "SourceFidelity": {
+      "enum": [
+        "faithful",
+        "unsupported_reframe"
+      ],
+      "title": "SourceFidelity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Accuracy-first response with complete per-candidate score evidence.",
+  "properties": {
+    "candidate_assessments": {
+      "items": {
+        "$ref": "#/$defs/CandidateAssessment"
+      },
+      "maxItems": 100,
+      "title": "Candidate Assessments",
+      "type": "array"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/GlobalReviewClip"
+      },
+      "maxItems": 100,
+      "title": "Clips",
+      "type": "array"
+    },
+    "coverage_decisions": {
+      "items": {
+        "$ref": "#/$defs/CoverageDecision"
+      },
+      "maxItems": 200,
+      "title": "Coverage Decisions",
+      "type": "array"
+    },
+    "coverage_notes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Coverage Notes",
+      "type": "array"
+    },
+    "rejected_candidates": {
+      "items": {
+        "$ref": "#/$defs/RejectedCandidateGroup"
+      },
+      "maxItems": 100,
+      "title": "Rejected Candidates",
+      "type": "array"
+    },
+    "review_summary": {
+      "$ref": "#/$defs/GlobalReviewSummary"
+    }
+  },
+  "required": [
+    "review_summary",
+    "clips",
+    "rejected_candidates",
+    "coverage_decisions",
+    "coverage_notes",
+    "candidate_assessments"
+  ],
+  "title": "GlobalReviewOutputV2",
+  "type": "object"
+}

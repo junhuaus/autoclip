@@ -1,0 +1,37 @@
+{
+  "base_sha": "6009b23859564b2bfdc193eee366afd990b9ef5d",
+  "coder_session_id": "01a0a721-85a2-7a42-8885-03bac5a21f50",
+  "gateway_ran": false,
+  "last_error": "runner environment error: test",
+  "reviewer_findings": [],
+  "run_id": "20260915T215821Z-d1ef69c8",
+  "runner_results": [
+    {
+      "command_id": "lint",
+      "duration_seconds": 39.557,
+      "exit_code": 2,
+      "qa_id": "20260915T221938Z-8b23",
+      "status": "FAIL"
+    },
+    {
+      "command_id": "e2e",
+      "duration_seconds": 353.738,
+      "exit_code": 0,
+      "qa_id": "20260915T222018Z-2d39",
+      "status": "PASS"
+    },
+    {
+      "command_id": "test",
+      "duration_seconds": 2450.001,
+      "exit_code": -15,
+      "log_sha256": "98d34a17fc64a5c03544357588c0719e3d9d63813b83be3db3086e94bb4169ff",
+      "progress_at_termination": "2471 collected; reached 24 percent in tests/unit/test_b2_synthetic_worker.py",
+      "qa_id": "20260915T222612Z-fbb4",
+      "status": "ERROR"
+    }
+  ],
+  "source_fingerprint": "a0dec4913fece8b40478f2b5710925629d5c34597f5c25d883bb038679fa8fd4",
+  "state": "blocked",
+  "tester_verdict": "READY",
+  "toolchain_fingerprint": "349f26388de609a03ee80327e7aa8b6ded6d8ab399096c21c634f178f4d09f53"
+}

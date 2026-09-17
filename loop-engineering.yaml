@@ -1,0 +1,58 @@
+version: 1
+codex_executable: codex
+
+roles:
+  planner:
+    profile: liveclip-loop-planner
+    sandbox: read-only
+    schema: config/loop-engineering/schemas/plan.schema.json
+    prompt: config/loop-engineering/prompts/planner.md
+    ephemeral: true
+  coder:
+    profile: liveclip-loop-coder
+    sandbox: workspace-write
+    schema: config/loop-engineering/schemas/coding.schema.json
+    prompt: config/loop-engineering/prompts/coder.md
+    ephemeral: false
+  reviewer:
+    profile: liveclip-loop-reviewer
+    sandbox: read-only
+    schema: config/loop-engineering/schemas/review.schema.json
+    prompt: config/loop-engineering/prompts/reviewer.md
+    ephemeral: true
+  tester:
+    profile: liveclip-loop-tester
+    sandbox: read-only
+    schema: config/loop-engineering/schemas/test-plan.schema.json
+    prompt: config/loop-engineering/prompts/tester.md
+    ephemeral: true
+  gateway:
+    profile: liveclip-loop-gateway
+    sandbox: read-only
+    schema: config/loop-engineering/schemas/gateway.schema.json
+    prompt: config/loop-engineering/prompts/gateway.md
+    ephemeral: true
+
+commands:
+  lint:
+    argv: [make, lint]
+    timeout_seconds: 900
+    required_for_final: true
+  e2e:
+    argv: [make, e2e]
+    timeout_seconds: 900
+    required_for_final: true
+  test:
+    argv: [make, test]
+    timeout_seconds: 2400
+    required_for_final: true
+  doctor:
+    argv: [make, doctor]
+    timeout_seconds: 300
+    required_for_final: false
+
+limits:
+  max_plan_cycles: 2
+  max_code_cycles: 3
+  log_limit_bytes: 1000000
+  requirement_limit_bytes: 131072

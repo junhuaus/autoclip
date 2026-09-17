@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from sqlalchemy import insert, select, update
 from sqlalchemy.engine import Connection, Engine
 
+from liveclip.application.semantic_units import SemanticInvocationStore
 from liveclip.application.stage_execution import (
     CommittedStageAsset,
     PersistedCandidate,
@@ -61,6 +62,16 @@ class StageDataConflict(RuntimeError):
 class SqlAlchemyStageStateStore:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
+
+    @property
+    def semantic_invocations(self) -> SemanticInvocationStore:
+        from liveclip.db.semantic_units import SqlAlchemySemanticInvocationStore
+
+        return SqlAlchemySemanticInvocationStore(self._engine)
+
+    def assert_mutation_fence(self, fence: StageMutationFence) -> None:
+        with begin_immediate(self._engine) as connection:
+            _assert_mutation_fence(connection, fence)
 
     def save_source(
         self,
@@ -353,6 +364,49 @@ class SqlAlchemyStageStateStore:
                     call_record,
                     cache_hit=cache_hit,
                 )
+            statuses = tuple(
+                str(value)
+                for value in connection.scalars(
+                    select(AudioChunkRow.provider_status)
+                    .where(AudioChunkRow.pipeline_run_id == fence.run_id)
+                    .order_by(AudioChunkRow.chunk_index)
+                )
+            )
+            if statuses:
+                completed = sum(value == ProviderCallStatus.SUCCEEDED.value for value in statuses)
+                stage_progress = min(99, int(completed * 100 / len(statuses)))
+                now = datetime.now(UTC)
+                stage_ordinal = connection.scalar(
+                    select(StageRunRow.ordinal).where(StageRunRow.id == fence.stage_run_id)
+                )
+                stage_count = len(
+                    tuple(
+                        connection.scalars(
+                            select(StageRunRow.id).where(
+                                StageRunRow.pipeline_run_id == fence.run_id
+                            )
+                        )
+                    )
+                )
+                if not isinstance(stage_ordinal, int) or stage_count <= 0:
+                    raise StageDataConflict("ASR progress cannot resolve its Pipeline stage")
+                run_progress = int((stage_ordinal * 100 + stage_progress) / stage_count)
+                connection.execute(
+                    update(StageRunRow)
+                    .where(
+                        StageRunRow.id == fence.stage_run_id,
+                        StageRunRow.status == StageRunStatus.RUNNING.value,
+                    )
+                    .values(progress=stage_progress, updated_at=now)
+                )
+                connection.execute(
+                    update(PipelineRunRow)
+                    .where(
+                        PipelineRunRow.id == fence.run_id,
+                        PipelineRunRow.status == PipelineRunStatus.RUNNING.value,
+                    )
+                    .values(progress=run_progress, updated_at=now)
+                )
 
     def record_provider_calls(
         self,
@@ -460,8 +514,6 @@ class SqlAlchemyStageStateStore:
         *,
         candidates: Sequence[CandidateClip],
     ) -> tuple[PersistedCandidate, ...]:
-        if not candidates:
-            raise StageDataConflict("candidate generation produced no clips")
         with begin_immediate(self._engine) as connection:
             _assert_mutation_fence(connection, fence)
             existing = self._load_candidates(connection, run_id=fence.run_id)

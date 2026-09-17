@@ -1,0 +1,63 @@
+{
+  "budget_plan_sha256": "f8913befeb2f3944348f9b2b5cadeab2ba080318df64a5c5bd5c31e0ea5100c3",
+  "cloud_asr_key_injected": false,
+  "codex_guard_sha256": "dcd0cc13d1705b5ceda9e9b1c9f64e808057ac02adcbb70b694bc2656e70a9ae",
+  "codex_launch_cap": 64,
+  "codex_launches": 9,
+  "codex_usage": {
+    "input_tokens": 136171,
+    "output_tokens": 21099,
+    "reasoning_output_tokens": 7780
+  },
+  "created_utc": "2026-09-15T05:04:29.995260Z",
+  "delivery_count": 0,
+  "elapsed_seconds": 426.218,
+  "failed_outcome_relative_path": "runs/g001/semantic-units/e0b3da610f92466e87c75fca6bf4a0bc/4f1df0752158423095cba055576ea050.json",
+  "failed_outcome_sha256": "14228497490e6249ee2fca88a37ac616f619b1941a7f27bd35a58a621b140117",
+  "failed_subject_id": "link_4f874c4e7ffafc38",
+  "foreign_key_violations": 0,
+  "gate": "SD6_MINI_ATTEMPT2_FAILURE_EVIDENCE",
+  "guard_counter_preserved": 9,
+  "initial_relation_state": {
+    "relationship": "next_step_same_lesson",
+    "same_central_objective": false,
+    "same_topic": true
+  },
+  "mlx_calls_succeeded": 4,
+  "pipeline_failure": {
+    "class": "deterministic",
+    "code": "CANDIDATES_PROVIDER_OUTPUT_INVALID",
+    "safe_message": "The candidates model output remained invalid after bounded repair"
+  },
+  "product_log_sha256": "c57c70951b7b25b66ff35465945da7f62831eca9db927fc3f548ce7ad40492aa",
+  "profile": "mini_lesson",
+  "project_id": "a81b58c45fd148f28fdc247847ea9349",
+  "qa_id": "20260915T045700Z-mn02",
+  "recommended_next_action": "Formally clarify the link-review initial and repair prompt mapping; keep validator, model authority, repair count, guard, Runner and tool-free boundaries unchanged.",
+  "repair_relation_state": {
+    "relationship": "next_step_same_lesson",
+    "same_central_objective": false,
+    "same_topic": false
+  },
+  "run_id": "9dea3e8250854d91a3f9476fb55c70a3",
+  "semantic_units": {
+    "discovery_succeeded_after_repair": 2,
+    "link_review_exhausted_after_repair": 1,
+    "link_review_succeeded": 3
+  },
+  "source_excerpt_sha256": "c489e92823081f085c40c066ff09211c23d4f02bfbdc52b7ab9ac9243c085162",
+  "sqlite_quick_check": "ok",
+  "stage_states": {
+    "candidates": "failed",
+    "edit": "queued",
+    "ingest": "succeeded",
+    "preprocess": "succeeded",
+    "proxy_render": "queued",
+    "transcribe": "succeeded"
+  },
+  "status": "PASS",
+  "terminal_state": "failed",
+  "transcript_segments": 129,
+  "unchanged_retry_run": false,
+  "validation_error": "link relationship contradicts same-topic/objective decision"
+}

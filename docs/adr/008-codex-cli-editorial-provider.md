@@ -18,7 +18,7 @@ Add explicit combined modes while retaining the existing adapters. ADR-009 later
 - `openai`: OpenAI timestamp ASR plus OpenAI Responses editing.
 - `mock`: Mock ASR plus Mock editing for deterministic Demo/tests.
 
-The Codex adapter uses `codex exec` non-interactively with the saved CLI login. It sends the bounded, explicitly untrusted candidate payload only through stdin; transcript text never appears in argv. Each run is ephemeral, ignores user configuration/rules, uses a private temporary working directory, `read-only` sandbox and approval policy `never`. Codex CLI 0.146.0 is pinned to a reviewed profile that disables every known apps/browser/computer/shell/MCP/plugin/multi-agent/search/tool surface; any JSONL item other than agent message/reasoning is rejected. It passes a strict editorial-only JSON Schema, captures bounded JSONL thread/usage evidence, performs local Pydantic/EditPlan validation, allows one repair, then degrades deterministically without claiming success.
+The Codex adapter uses `codex exec` non-interactively with the saved CLI login. It sends the bounded, explicitly untrusted candidate payload only through stdin; transcript text never appears in argv. Each run is ephemeral, ignores user configuration/rules, uses a private temporary working directory, `read-only` sandbox and approval policy `never`. Codex CLI 0.154.0 is pinned to reviewed profile `tool-free-v3`: the complete installed inventory has 140 features, only the required local `code_mode_host` transport is enabled, and 88 known authority-bearing surfaces are explicitly disabled. Version output is captured as bytes and validated exactly; any JSONL item other than agent message/reasoning is rejected. The adapter passes a strict editorial-only JSON Schema, captures bounded JSONL thread/usage evidence, performs local Pydantic/EditPlan validation, allows one repair, then degrades deterministically without claiming success. ADR049 records the formal acceptance and publication evidence; earlier 0.146/0.147 profiles are historical contract identities and are rejected by the current adapter.
 
 Only an allowlist of non-secret, non-proxy environment variables reaches the child. `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `CODEX_API_KEY`, the LiveClip API token, credential-bearing proxy URLs, prompts, raw stderr and transcript text are not persisted. Resolved executable path, executable bytes/size, exact CLI version and security-profile version are hashed into the immutable Pipeline contract and rechecked before each call.
 
@@ -33,3 +33,6 @@ The existing pure Responses provider and `make smoke-cloud` remain supported. `m
 Rejected alternatives are treating Codex as an audio transcriber, granting the model executable tools, inheriting arbitrary user Codex configuration/MCPs, passing transcript text in argv, or silently switching to Mock after failure.
 
 Official and local verification evidence is recorded in `docs/research/codex-cli-editor.md`.
+The accepted 0.154 profile and bounded real-source verification are recorded in
+`docs/adr/049-codex-cli-0154-editorial-profile.md` and
+`docs/verification/sd6-codex-cli-0154-accepted-2026-09-15.md`.

@@ -24,6 +24,7 @@ from liveclip.providers.telemetry import (
     ProviderCallStatus,
     ProviderConfigurationError,
     ProviderDeterministicError,
+    ProviderTransientError,
 )
 
 
@@ -288,6 +289,7 @@ def test_openrouter_partial_optional_words_do_not_claim_complete_word_timing(
     (
         {"word": "你好", "start": 0.5, "end": 0.5},
         {"word": None, "start": 0.1, "end": 0.5},
+        {"word": "你好", "start": 0.1, "end": 120.0},
     ),
 )
 def test_openrouter_invalid_optional_word_keeps_valid_segments(
@@ -310,6 +312,52 @@ def test_openrouter_invalid_optional_word_keeps_valid_segments(
     assert result.request_id == "gen_invalid_word_001"
 
 
+@pytest.mark.parametrize(
+    ("start", "end", "expected_start_ms", "expected_end_ms"),
+    ((0.1, 120.0, 100, 2_000), (-120.0, 0.5, 0, 500)),
+)
+def test_openrouter_intersects_segments_with_verified_audio(
+    tmp_path: Path,
+    start: float,
+    end: float,
+    expected_start_ms: int,
+    expected_end_ms: int,
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                segments=[{"id": 0, "start": start, "end": end, "text": "你好世界"}],
+            ),
+            headers={"X-Generation-Id": "gen_tail_drift_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / f"timeline-{start}-{end}.m4a"))
+
+    assert result.segments[0].start_ms == expected_start_ms
+    assert result.segments[0].end_ms == expected_end_ms
+
+
+def test_openrouter_discards_segments_entirely_outside_verified_audio(tmp_path: Path) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=_payload(
+                segments=[
+                    {"id": 0, "start": 0.1, "end": 1.9, "text": "你好世界"},
+                    {"id": 1, "start": 90.0, "end": 120.0, "text": "音频外文本"},
+                ],
+            ),
+            headers={"X-Generation-Id": "gen_outside_segment_001"},
+        )
+
+    with _provider(handler) as provider:
+        result = provider.transcribe(_chunk(tmp_path / "outside-segment.m4a"))
+
+    assert [segment.text for segment in result.segments] == ["你好世界"]
+
+
 def test_openrouter_never_treats_x_request_id_as_generation_id(tmp_path: Path) -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -320,7 +368,7 @@ def test_openrouter_never_treats_x_request_id_as_generation_id(tmp_path: Path) -
 
     with (
         _provider(handler) as provider,
-        pytest.raises(ProviderDeterministicError) as raised,
+        pytest.raises(ProviderTransientError) as raised,
     ):
         provider.transcribe(_chunk(tmp_path / "no-generation.m4a"))
 
@@ -341,7 +389,7 @@ def test_openrouter_rejects_overlong_generation_id_instead_of_truncating(tmp_pat
 
     with (
         _provider(handler) as provider,
-        pytest.raises(ProviderDeterministicError) as raised,
+        pytest.raises(ProviderTransientError) as raised,
     ):
         provider.transcribe(_chunk(tmp_path / "overlong-generation.m4a"))
 
@@ -434,7 +482,7 @@ def test_openrouter_auth_failure_keeps_safe_generation_id_without_retry(tmp_path
     assert "secret body" not in str(raised.value)
 
 
-def test_openrouter_200_invalid_json_is_durable_invalid_not_retried(tmp_path: Path) -> None:
+def test_openrouter_200_invalid_json_is_durable_and_stage_retryable(tmp_path: Path) -> None:
     calls = 0
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -451,7 +499,7 @@ def test_openrouter_200_invalid_json_is_durable_invalid_not_retried(tmp_path: Pa
 
     with (
         _provider(handler) as provider,
-        pytest.raises(ProviderDeterministicError) as raised,
+        pytest.raises(ProviderTransientError) as raised,
     ):
         provider.transcribe(_chunk(tmp_path / "invalid-json.m4a"))
 
@@ -496,7 +544,7 @@ def test_openrouter_rejects_sdk_permissive_malformed_verbose_json(
 
     with (
         _provider(handler) as provider,
-        pytest.raises(ProviderDeterministicError) as raised,
+        pytest.raises(ProviderTransientError) as raised,
     ):
         provider.transcribe(_chunk(tmp_path / "shape.m4a"))
 
@@ -513,7 +561,7 @@ def test_invalid_segment_records_only_bounded_shape_metadata(tmp_path: Path) -> 
 
     with (
         _provider(handler) as provider,
-        pytest.raises(ProviderDeterministicError) as raised,
+        pytest.raises(ProviderTransientError) as raised,
     ):
         provider.transcribe(_chunk(tmp_path / "shape-safe.m4a"))
 

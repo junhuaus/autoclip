@@ -1,0 +1,2417 @@
+{
+  "$defs": {
+    "AttributedRiskV5": {
+      "additionalProperties": false,
+      "properties": {
+        "risk_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Risk Id",
+          "type": "string"
+        },
+        "flag": {
+          "$ref": "#/$defs/RiskFlagV4"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "local_risk_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Local Risk Id",
+          "type": "string"
+        },
+        "original_candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Original Candidate Id",
+          "type": "string"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        },
+        "source_window_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Window Ids",
+          "type": "array"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "risk_id",
+        "flag",
+        "reason",
+        "evidence_cue_ids",
+        "local_risk_id",
+        "original_candidate_id",
+        "source_batch_id",
+        "source_window_ids",
+        "source_fragment_ids"
+      ],
+      "title": "AttributedRiskV5",
+      "type": "object"
+    },
+    "BoundaryAuthorityV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "context_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Context Cue Ids",
+          "type": "array"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/AttributedRiskV5"
+          },
+          "title": "Risks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "context_cue_ids",
+        "risks"
+      ],
+      "title": "BoundaryAuthorityV5",
+      "type": "object"
+    },
+    "BoundaryEvidenceV4": {
+      "additionalProperties": false,
+      "properties": {
+        "opening_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Opening Cue Ids",
+          "type": "array"
+        },
+        "core_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 160,
+          "minItems": 1,
+          "title": "Core Cue Ids",
+          "type": "array"
+        },
+        "ending_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Ending Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "opening_cue_ids",
+        "core_cue_ids",
+        "ending_cue_ids"
+      ],
+      "title": "BoundaryEvidenceV4",
+      "type": "object"
+    },
+    "BoundaryReviewV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "content_decision": {
+          "$ref": "#/$defs/ContentDecisionV4"
+        },
+        "proposed_start_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Start Cue Id"
+        },
+        "proposed_end_cue_id": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed End Cue Id"
+        },
+        "opening_complete": {
+          "title": "Opening Complete",
+          "type": "boolean"
+        },
+        "ending_complete": {
+          "title": "Ending Complete",
+          "type": "boolean"
+        },
+        "central_objective_complete": {
+          "title": "Central Objective Complete",
+          "type": "boolean"
+        },
+        "boundary_compactness": {
+          "enum": [
+            "shortest_complete",
+            "contains_removable_context"
+          ],
+          "title": "Boundary Compactness",
+          "type": "string"
+        },
+        "opening_relevance": {
+          "enum": [
+            "direct",
+            "necessary_context",
+            "irrelevant"
+          ],
+          "title": "Opening Relevance",
+          "type": "string"
+        },
+        "ending_relevance": {
+          "enum": [
+            "necessary_conclusion",
+            "redundant",
+            "incomplete"
+          ],
+          "title": "Ending Relevance",
+          "type": "string"
+        },
+        "internal_topic_switch": {
+          "title": "Internal Topic Switch",
+          "type": "boolean"
+        },
+        "contains_padding": {
+          "title": "Contains Padding",
+          "type": "boolean"
+        },
+        "continuous_source_interval": {
+          "default": true,
+          "title": "Continuous Source Interval",
+          "type": "boolean"
+        },
+        "interruption_review": {
+          "items": {
+            "$ref": "#/$defs/InterruptionReviewV4"
+          },
+          "maxItems": 30,
+          "title": "Interruption Review",
+          "type": "array"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlagV4"
+          },
+          "maxItems": 30,
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "risk_flags": {
+          "items": {
+            "$ref": "#/$defs/RiskFlagV4"
+          },
+          "maxItems": 20,
+          "title": "Risk Flags",
+          "type": "array"
+        },
+        "evidence": {
+          "$ref": "#/$defs/BoundaryEvidenceV4"
+        },
+        "review_reason": {
+          "maxLength": 800,
+          "minLength": 1,
+          "title": "Review Reason",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "risk_treatments": {
+          "items": {
+            "$ref": "#/$defs/RiskTreatmentV5"
+          },
+          "title": "Risk Treatments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "content_decision",
+        "opening_complete",
+        "ending_complete",
+        "central_objective_complete",
+        "boundary_compactness",
+        "opening_relevance",
+        "ending_relevance",
+        "internal_topic_switch",
+        "contains_padding",
+        "evidence",
+        "review_reason",
+        "risk_treatments"
+      ],
+      "title": "BoundaryReviewV5",
+      "type": "object"
+    },
+    "CandidateDispositionV4": {
+      "enum": [
+        "selected",
+        "manual",
+        "blocked",
+        "rejected",
+        "top_n_excluded"
+      ],
+      "title": "CandidateDispositionV4",
+      "type": "string"
+    },
+    "CandidateGlobalReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "content_decision": {
+          "$ref": "#/$defs/ContentDecisionV4"
+        },
+        "publish_status": {
+          "$ref": "#/$defs/PublishStatusV4"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlagV4"
+          },
+          "maxItems": 30,
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "risk_flags": {
+          "items": {
+            "$ref": "#/$defs/RiskFlagV4"
+          },
+          "maxItems": 20,
+          "title": "Risk Flags",
+          "type": "array"
+        },
+        "interruption_review": {
+          "items": {
+            "$ref": "#/$defs/InterruptionReviewV4"
+          },
+          "maxItems": 30,
+          "title": "Interruption Review",
+          "type": "array"
+        },
+        "scores": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShortHighlightScoresV4"
+            },
+            {
+              "$ref": "#/$defs/MiniLessonScoresV4"
+            }
+          ],
+          "title": "Scores"
+        },
+        "total_score": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Total Score",
+          "type": "integer"
+        },
+        "duplicate_group_id": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Group Id"
+        },
+        "duplicate_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duplicate Of"
+        },
+        "variant_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Of"
+        },
+        "variant_relationship": {
+          "anyOf": [
+            {
+              "enum": [
+                "short_version_of",
+                "long_version_of"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Relationship"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "review_reason": {
+          "maxLength": 800,
+          "minLength": 1,
+          "title": "Review Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "source_topic_id",
+        "topic_chain_id",
+        "source_fragment_ids",
+        "start_cue_id",
+        "end_cue_id",
+        "central_question",
+        "learning_outcome",
+        "title",
+        "summary",
+        "content_decision",
+        "publish_status",
+        "scores",
+        "total_score",
+        "evidence_cue_ids",
+        "review_reason"
+      ],
+      "title": "CandidateGlobalReviewV4",
+      "type": "object"
+    },
+    "ChainCandidateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "natural_subunit": {
+          "default": false,
+          "title": "Natural Subunit",
+          "type": "boolean"
+        },
+        "natural_split_evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Natural Split Evidence Cue Ids",
+          "type": "array"
+        },
+        "variant_of": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Of"
+        },
+        "variant_relationship": {
+          "anyOf": [
+            {
+              "enum": [
+                "short_version_of",
+                "long_version_of"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Variant Relationship"
+        },
+        "origin_kind": {
+          "enum": [
+            "derived",
+            "chain_new"
+          ],
+          "title": "Origin Kind",
+          "type": "string"
+        },
+        "original_candidate_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Original Candidate Ids",
+          "type": "array"
+        },
+        "origin_reason": {
+          "minLength": 1,
+          "title": "Origin Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "clip_profile",
+        "source_topic_id",
+        "topic_chain_id",
+        "source_fragment_ids",
+        "start_cue_id",
+        "end_cue_id",
+        "central_question",
+        "learning_outcome",
+        "title",
+        "summary",
+        "evidence_cue_ids",
+        "origin_kind",
+        "original_candidate_ids",
+        "origin_reason"
+      ],
+      "title": "ChainCandidateV5",
+      "type": "object"
+    },
+    "ClipProfile": {
+      "description": "Independent editorial units with different deterministic duration contracts.",
+      "enum": [
+        "short_highlight",
+        "mini_lesson"
+      ],
+      "title": "ClipProfile",
+      "type": "string"
+    },
+    "ContentDecisionV4": {
+      "enum": [
+        "keep",
+        "repair_boundary",
+        "drop"
+      ],
+      "title": "ContentDecisionV4",
+      "type": "string"
+    },
+    "DiscoveryBatchOutputV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "batch_context": {
+          "$ref": "#/$defs/TimeRangeV4"
+        },
+        "ownership_interval": {
+          "$ref": "#/$defs/TimeRangeV4"
+        },
+        "logical_windows": {
+          "items": {
+            "$ref": "#/$defs/LogicalWindowDiscoveryV5"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Logical Windows",
+          "type": "array"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryCandidateV5"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "topic_fragments": {
+          "items": {
+            "$ref": "#/$defs/TopicFragmentV5"
+          },
+          "title": "Topic Fragments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "batch_id",
+        "batch_context",
+        "ownership_interval",
+        "logical_windows",
+        "candidates",
+        "topic_fragments"
+      ],
+      "title": "DiscoveryBatchOutputV5",
+      "type": "object"
+    },
+    "DiscoveryCandidateV5": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "source_topic_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Topic Id",
+          "type": "string"
+        },
+        "topic_fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Topic Fragment Ids",
+          "type": "array"
+        },
+        "topic_summary": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "possible_profiles": {
+          "items": {
+            "$ref": "#/$defs/ClipProfile"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Possible Profiles",
+          "type": "array"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryRiskV5"
+          },
+          "title": "Risks",
+          "type": "array"
+        },
+        "source_window_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Source Window Ids",
+          "type": "array"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "source_topic_id",
+        "topic_fragment_ids",
+        "topic_summary",
+        "central_question",
+        "learning_outcome",
+        "start_cue_id",
+        "end_cue_id",
+        "evidence_cue_ids",
+        "possible_profiles",
+        "risks",
+        "source_window_ids",
+        "source_batch_id"
+      ],
+      "title": "DiscoveryCandidateV5",
+      "type": "object"
+    },
+    "DiscoveryRiskV5": {
+      "additionalProperties": false,
+      "properties": {
+        "risk_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Risk Id",
+          "type": "string"
+        },
+        "flag": {
+          "$ref": "#/$defs/RiskFlagV4"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "risk_id",
+        "flag",
+        "reason",
+        "evidence_cue_ids"
+      ],
+      "title": "DiscoveryRiskV5",
+      "type": "object"
+    },
+    "FinalPartitionV5": {
+      "additionalProperties": false,
+      "properties": {
+        "selected": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Selected",
+          "type": "array"
+        },
+        "manual": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Manual",
+          "type": "array"
+        },
+        "blocked": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Blocked",
+          "type": "array"
+        },
+        "rejected": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Rejected",
+          "type": "array"
+        },
+        "top_n_excluded": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Top N Excluded",
+          "type": "array"
+        }
+      },
+      "required": [
+        "selected",
+        "manual",
+        "blocked",
+        "rejected",
+        "top_n_excluded"
+      ],
+      "title": "FinalPartitionV5",
+      "type": "object"
+    },
+    "GlobalReviewOutputV4": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "4",
+          "default": "4",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "clip_profile": {
+          "$ref": "#/$defs/ClipProfile"
+        },
+        "reviews": {
+          "items": {
+            "$ref": "#/$defs/CandidateGlobalReviewV4"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Reviews",
+          "type": "array"
+        },
+        "global_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 80,
+          "title": "Global Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "clip_profile",
+        "reviews"
+      ],
+      "title": "GlobalReviewOutputV4",
+      "type": "object"
+    },
+    "InterruptionReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/InterruptionSeverityV4"
+        },
+        "type": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Type",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "severity",
+        "type",
+        "description",
+        "blocking"
+      ],
+      "title": "InterruptionReviewV4",
+      "type": "object"
+    },
+    "InterruptionSeverityV4": {
+      "enum": [
+        "none",
+        "minor",
+        "material"
+      ],
+      "title": "InterruptionSeverityV4",
+      "type": "string"
+    },
+    "LineageCountsV5": {
+      "additionalProperties": false,
+      "properties": {
+        "originals": {
+          "minimum": 0,
+          "title": "Originals",
+          "type": "integer"
+        },
+        "units": {
+          "minimum": 0,
+          "title": "Units",
+          "type": "integer"
+        },
+        "derived_units": {
+          "minimum": 0,
+          "title": "Derived Units",
+          "type": "integer"
+        },
+        "chain_new_units": {
+          "minimum": 0,
+          "title": "Chain New Units",
+          "type": "integer"
+        },
+        "terminal_paths": {
+          "minimum": 0,
+          "title": "Terminal Paths",
+          "type": "integer"
+        },
+        "rejected_source_paths": {
+          "minimum": 0,
+          "title": "Rejected Source Paths",
+          "type": "integer"
+        },
+        "selected": {
+          "minimum": 0,
+          "title": "Selected",
+          "type": "integer"
+        },
+        "manual": {
+          "minimum": 0,
+          "title": "Manual",
+          "type": "integer"
+        },
+        "blocked": {
+          "minimum": 0,
+          "title": "Blocked",
+          "type": "integer"
+        },
+        "rejected": {
+          "minimum": 0,
+          "title": "Rejected",
+          "type": "integer"
+        },
+        "top_n_excluded": {
+          "minimum": 0,
+          "title": "Top N Excluded",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "originals",
+        "units",
+        "derived_units",
+        "chain_new_units",
+        "terminal_paths",
+        "rejected_source_paths",
+        "selected",
+        "manual",
+        "blocked",
+        "rejected",
+        "top_n_excluded"
+      ],
+      "title": "LineageCountsV5",
+      "type": "object"
+    },
+    "LineageLedgerV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "batches": {
+          "items": {
+            "$ref": "#/$defs/DiscoveryBatchOutputV5"
+          },
+          "title": "Batches",
+          "type": "array"
+        },
+        "chains": {
+          "items": {
+            "$ref": "#/$defs/TopicChainV4"
+          },
+          "title": "Chains",
+          "type": "array"
+        },
+        "reviews": {
+          "items": {
+            "$ref": "#/$defs/TopicChainReviewV5"
+          },
+          "title": "Reviews",
+          "type": "array"
+        },
+        "originals": {
+          "items": {
+            "$ref": "#/$defs/OriginalLineageV5"
+          },
+          "title": "Originals",
+          "type": "array"
+        },
+        "outcomes": {
+          "items": {
+            "$ref": "#/$defs/UnitOutcomeV5"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "chain_new_outcomes": {
+          "items": {
+            "$ref": "#/$defs/UnitOutcomeV5"
+          },
+          "title": "Chain New Outcomes",
+          "type": "array"
+        },
+        "partition": {
+          "$ref": "#/$defs/FinalPartitionV5"
+        },
+        "counts": {
+          "$ref": "#/$defs/LineageCountsV5"
+        }
+      },
+      "required": [
+        "batches",
+        "chains",
+        "reviews",
+        "originals",
+        "outcomes",
+        "chain_new_outcomes",
+        "partition",
+        "counts"
+      ],
+      "title": "LineageLedgerV5",
+      "type": "object"
+    },
+    "LogicalWindowDiscoveryV5": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Logical Window Id",
+          "type": "string"
+        },
+        "window_start_ms": {
+          "minimum": 0,
+          "title": "Window Start Ms",
+          "type": "integer"
+        },
+        "window_end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Window End Ms",
+          "type": "integer"
+        },
+        "candidate_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "fragment_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "left_boundary": {
+          "$ref": "#/$defs/TopicBoundaryV5"
+        },
+        "right_boundary": {
+          "$ref": "#/$defs/TopicBoundaryV5"
+        },
+        "coverage_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Coverage Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "logical_window_id",
+        "window_start_ms",
+        "window_end_ms",
+        "left_boundary",
+        "right_boundary"
+      ],
+      "title": "LogicalWindowDiscoveryV5",
+      "type": "object"
+    },
+    "MiniLessonScoresV4": {
+      "additionalProperties": false,
+      "properties": {
+        "central_objective_clarity": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Central Objective Clarity",
+          "type": "integer"
+        },
+        "completeness_and_closure": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Completeness And Closure",
+          "type": "integer"
+        },
+        "teaching_structure": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Teaching Structure",
+          "type": "integer"
+        },
+        "standalone_understanding": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Standalone Understanding",
+          "type": "integer"
+        },
+        "information_density": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Information Density",
+          "type": "integer"
+        },
+        "edit_cleanliness": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Edit Cleanliness",
+          "type": "integer"
+        },
+        "title_summary_fidelity": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Title Summary Fidelity",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "central_objective_clarity",
+        "completeness_and_closure",
+        "teaching_structure",
+        "standalone_understanding",
+        "information_density",
+        "edit_cleanliness",
+        "title_summary_fidelity"
+      ],
+      "title": "MiniLessonScoresV4",
+      "type": "object"
+    },
+    "OriginalLineageV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original": {
+          "$ref": "#/$defs/DiscoveryCandidateV5"
+        },
+        "risks": {
+          "items": {
+            "$ref": "#/$defs/AttributedRiskV5"
+          },
+          "title": "Risks",
+          "type": "array"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/TerminalPathV5"
+          },
+          "title": "Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original",
+        "risks",
+        "paths"
+      ],
+      "title": "OriginalLineageV5",
+      "type": "object"
+    },
+    "ProfileStatisticsV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original_candidate_count": {
+          "minimum": 0,
+          "title": "Original Candidate Count",
+          "type": "integer"
+        },
+        "derived_unit_count": {
+          "minimum": 0,
+          "title": "Derived Unit Count",
+          "type": "integer"
+        },
+        "chain_new_unit_count": {
+          "minimum": 0,
+          "title": "Chain New Unit Count",
+          "type": "integer"
+        },
+        "boundary_candidate_count": {
+          "minimum": 0,
+          "title": "Boundary Candidate Count",
+          "type": "integer"
+        },
+        "qualified_before_top_n": {
+          "minimum": 0,
+          "title": "Qualified Before Top N",
+          "type": "integer"
+        },
+        "selected_count": {
+          "minimum": 0,
+          "title": "Selected Count",
+          "type": "integer"
+        },
+        "manual_count": {
+          "minimum": 0,
+          "title": "Manual Count",
+          "type": "integer"
+        },
+        "blocked_count": {
+          "minimum": 0,
+          "title": "Blocked Count",
+          "type": "integer"
+        },
+        "rejected_count": {
+          "minimum": 0,
+          "title": "Rejected Count",
+          "type": "integer"
+        },
+        "top_n_excluded_count": {
+          "minimum": 0,
+          "title": "Top N Excluded Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "original_candidate_count",
+        "derived_unit_count",
+        "chain_new_unit_count",
+        "boundary_candidate_count",
+        "qualified_before_top_n",
+        "selected_count",
+        "manual_count",
+        "blocked_count",
+        "rejected_count",
+        "top_n_excluded_count"
+      ],
+      "title": "ProfileStatisticsV5",
+      "type": "object"
+    },
+    "PublishStatusV4": {
+      "enum": [
+        "auto",
+        "manual",
+        "blocked"
+      ],
+      "title": "PublishStatusV4",
+      "type": "string"
+    },
+    "QualityFlagV4": {
+      "enum": [
+        "context_dependent_opening",
+        "incomplete_ending",
+        "irrelevant_intro",
+        "irrelevant_outro",
+        "irrelevant_internal_content",
+        "repeated_live_cta",
+        "equipment_interruption",
+        "padded_to_min_duration",
+        "overextended_to_max_duration",
+        "topic_mixed",
+        "title_source_mismatch",
+        "asr_meaning_reversal",
+        "duplicate_weaker",
+        "central_objective_incomplete",
+        "multi_interval_edit",
+        "topic_too_long_without_natural_split"
+      ],
+      "title": "QualityFlagV4",
+      "type": "string"
+    },
+    "RiskFlagV4": {
+      "enum": [
+        "medical_claim",
+        "health_advice",
+        "absolute_claim",
+        "commercial_claim",
+        "sensitivity_review",
+        "music_rights_review",
+        "minor_privacy",
+        "asr_uncertain"
+      ],
+      "title": "RiskFlagV4",
+      "type": "string"
+    },
+    "RiskTreatmentV5": {
+      "additionalProperties": false,
+      "properties": {
+        "risk_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Risk Id",
+          "type": "string"
+        },
+        "treatment": {
+          "enum": [
+            "applies",
+            "uncertain",
+            "outside_final_span",
+            "resolved_in_context",
+            "dropped_candidate"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "risk_id",
+        "treatment",
+        "reason",
+        "evidence_cue_ids"
+      ],
+      "title": "RiskTreatmentV5",
+      "type": "object"
+    },
+    "ShortHighlightScoresV4": {
+      "additionalProperties": false,
+      "properties": {
+        "independence": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Independence",
+          "type": "integer"
+        },
+        "completeness": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Completeness",
+          "type": "integer"
+        },
+        "single_topic": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Single Topic",
+          "type": "integer"
+        },
+        "viewer_value": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Viewer Value",
+          "type": "integer"
+        },
+        "source_fidelity": {
+          "maximum": 15,
+          "minimum": 0,
+          "title": "Source Fidelity",
+          "type": "integer"
+        },
+        "edit_cleanliness": {
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Edit Cleanliness",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "independence",
+        "completeness",
+        "single_topic",
+        "viewer_value",
+        "source_fidelity",
+        "edit_cleanliness"
+      ],
+      "title": "ShortHighlightScoresV4",
+      "type": "object"
+    },
+    "SourceDispositionV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original_candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Original Candidate Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "derived_unit_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Derived Unit Ids",
+          "type": "array"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original_candidate_id",
+        "topic_chain_id",
+        "derived_unit_ids",
+        "rejection_reason",
+        "evidence_cue_ids"
+      ],
+      "title": "SourceDispositionV5",
+      "type": "object"
+    },
+    "TerminalPathV5": {
+      "additionalProperties": false,
+      "properties": {
+        "original_candidate_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Original Candidate Id",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "unit_id": {
+          "anyOf": [
+            {
+              "maxLength": 96,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit Id"
+        },
+        "disposition": {
+          "enum": [
+            "selected",
+            "manual",
+            "blocked",
+            "rejected",
+            "top_n_excluded"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "original_candidate_id",
+        "topic_chain_id",
+        "unit_id",
+        "disposition",
+        "rejection_reason",
+        "evidence_cue_ids"
+      ],
+      "title": "TerminalPathV5",
+      "type": "object"
+    },
+    "TimeRangeV4": {
+      "additionalProperties": false,
+      "properties": {
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ms",
+        "end_ms"
+      ],
+      "title": "TimeRangeV4",
+      "type": "object"
+    },
+    "TopicBoundaryV5": {
+      "additionalProperties": false,
+      "properties": {
+        "continues_previous_topic": {
+          "default": false,
+          "title": "Continues Previous Topic",
+          "type": "boolean"
+        },
+        "topic_unfinished": {
+          "default": false,
+          "title": "Topic Unfinished",
+          "type": "boolean"
+        },
+        "topic_summary": {
+          "default": "",
+          "maxLength": 320,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "default": "",
+          "maxLength": 320,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "continuation_expected": {
+          "default": false,
+          "title": "Continuation Expected",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "related_candidate_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Related Candidate Ids",
+          "type": "array"
+        },
+        "related_fragment_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "title": "Related Fragment Ids",
+          "type": "array"
+        }
+      },
+      "title": "TopicBoundaryV5",
+      "type": "object"
+    },
+    "TopicChainReviewV5": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "5",
+          "default": "5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "semantic-v5-lineage-v1",
+          "default": "semantic-v5-lineage-v1",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_outline": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Topic Outline",
+          "type": "array"
+        },
+        "left_closed": {
+          "title": "Left Closed",
+          "type": "boolean"
+        },
+        "right_closed": {
+          "title": "Right Closed",
+          "type": "boolean"
+        },
+        "chain_status": {
+          "$ref": "#/$defs/TopicChainStatusV4"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/ChainCandidateV5"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "topic_too_long_without_natural_split",
+                "topic_not_closed",
+                "no_complete_profile_candidate",
+                "not_a_single_teaching_objective"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rejection Reason"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "source_dispositions": {
+          "items": {
+            "$ref": "#/$defs/SourceDispositionV5"
+          },
+          "title": "Source Dispositions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic_chain_id",
+        "central_question",
+        "learning_outcome",
+        "topic_outline",
+        "left_closed",
+        "right_closed",
+        "chain_status",
+        "candidates",
+        "rejection_reason",
+        "evidence_cue_ids",
+        "source_dispositions"
+      ],
+      "title": "TopicChainReviewV5",
+      "type": "object"
+    },
+    "TopicChainStatusV4": {
+      "enum": [
+        "open",
+        "closed",
+        "rejected"
+      ],
+      "title": "TopicChainStatusV4",
+      "type": "string"
+    },
+    "TopicChainV4": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_chain_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Chain Id",
+          "type": "string"
+        },
+        "fragment_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "topic_outline": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Topic Outline",
+          "type": "array"
+        },
+        "source_start_cue_id": {
+          "minimum": 1,
+          "title": "Source Start Cue Id",
+          "type": "integer"
+        },
+        "source_end_cue_id": {
+          "minimum": 1,
+          "title": "Source End Cue Id",
+          "type": "integer"
+        },
+        "left_closed": {
+          "title": "Left Closed",
+          "type": "boolean"
+        },
+        "right_closed": {
+          "title": "Right Closed",
+          "type": "boolean"
+        },
+        "chain_status": {
+          "$ref": "#/$defs/TopicChainStatusV4"
+        },
+        "link_review_ids": {
+          "items": {
+            "maxLength": 96,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Link Review Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "topic_chain_id",
+        "fragment_ids",
+        "central_question",
+        "learning_outcome",
+        "topic_outline",
+        "source_start_cue_id",
+        "source_end_cue_id",
+        "left_closed",
+        "right_closed",
+        "chain_status"
+      ],
+      "title": "TopicChainV4",
+      "type": "object"
+    },
+    "TopicFragmentV5": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_fragment_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Topic Fragment Id",
+          "type": "string"
+        },
+        "logical_window_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Logical Window Id",
+          "type": "string"
+        },
+        "topic_summary": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Topic Summary",
+          "type": "string"
+        },
+        "central_question": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Central Question",
+          "type": "string"
+        },
+        "learning_outcome": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Learning Outcome",
+          "type": "string"
+        },
+        "start_cue_id": {
+          "minimum": 1,
+          "title": "Start Cue Id",
+          "type": "integer"
+        },
+        "end_cue_id": {
+          "minimum": 1,
+          "title": "End Cue Id",
+          "type": "integer"
+        },
+        "touches_left_boundary": {
+          "title": "Touches Left Boundary",
+          "type": "boolean"
+        },
+        "touches_right_boundary": {
+          "title": "Touches Right Boundary",
+          "type": "boolean"
+        },
+        "left_complete": {
+          "title": "Left Complete",
+          "type": "boolean"
+        },
+        "right_complete": {
+          "title": "Right Complete",
+          "type": "boolean"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 120,
+          "minItems": 1,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "possible_profiles": {
+          "items": {
+            "$ref": "#/$defs/ClipProfile"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Possible Profiles",
+          "type": "array"
+        },
+        "source_batch_id": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Source Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_fragment_id",
+        "logical_window_id",
+        "topic_summary",
+        "central_question",
+        "learning_outcome",
+        "start_cue_id",
+        "end_cue_id",
+        "touches_left_boundary",
+        "touches_right_boundary",
+        "left_complete",
+        "right_complete",
+        "evidence_cue_ids",
+        "possible_profiles",
+        "source_batch_id"
+      ],
+      "title": "TopicFragmentV5",
+      "type": "object"
+    },
+    "UnitOutcomeV5": {
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/ChainCandidateV5"
+        },
+        "disposition": {
+          "enum": [
+            "selected",
+            "manual",
+            "blocked",
+            "rejected",
+            "top_n_excluded"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "authority": {
+          "$ref": "#/$defs/BoundaryAuthorityV5"
+        },
+        "boundary": {
+          "$ref": "#/$defs/BoundaryReviewV5"
+        }
+      },
+      "required": [
+        "unit",
+        "disposition",
+        "authority",
+        "boundary"
+      ],
+      "title": "UnitOutcomeV5",
+      "type": "object"
+    },
+    "ValidatedCandidateV4": {
+      "additionalProperties": false,
+      "properties": {
+        "review": {
+          "$ref": "#/$defs/CandidateGlobalReviewV4"
+        },
+        "disposition": {
+          "$ref": "#/$defs/CandidateDispositionV4"
+        },
+        "start_ms": {
+          "minimum": 0,
+          "title": "Start Ms",
+          "type": "integer"
+        },
+        "end_ms": {
+          "exclusiveMinimum": 0,
+          "title": "End Ms",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "validation_notes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 40,
+          "title": "Validation Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "review",
+        "disposition",
+        "start_ms",
+        "end_ms",
+        "duration_ms"
+      ],
+      "title": "ValidatedCandidateV4",
+      "type": "object"
+    },
+    "ValidatedProfileResultV5": {
+      "additionalProperties": false,
+      "properties": {
+        "selected": {
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Selected",
+          "type": "array"
+        },
+        "manual_review": {
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Manual Review",
+          "type": "array"
+        },
+        "blocked": {
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Blocked",
+          "type": "array"
+        },
+        "rejected": {
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Rejected",
+          "type": "array"
+        },
+        "top_n_excluded": {
+          "items": {
+            "$ref": "#/$defs/ValidatedCandidateV4"
+          },
+          "title": "Top N Excluded",
+          "type": "array"
+        },
+        "statistics": {
+          "$ref": "#/$defs/ProfileStatisticsV5"
+        }
+      },
+      "required": [
+        "selected",
+        "manual_review",
+        "blocked",
+        "rejected",
+        "top_n_excluded",
+        "statistics"
+      ],
+      "title": "ValidatedProfileResultV5",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "5",
+      "default": "5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "semantic-v5-lineage-v1",
+      "default": "semantic-v5-lineage-v1",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "project_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "config_fingerprint": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Config Fingerprint",
+      "type": "string"
+    },
+    "source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Hash",
+      "type": "string"
+    },
+    "validation_contract": {
+      "const": "semantic-v4-quality-v2",
+      "default": "semantic-v4-quality-v2",
+      "title": "Validation Contract",
+      "type": "string"
+    },
+    "run_metadata": {
+      "additionalProperties": true,
+      "title": "Run Metadata",
+      "type": "object"
+    },
+    "profiles": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ValidatedProfileResultV5"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/ClipProfile"
+      },
+      "title": "Profiles",
+      "type": "object"
+    },
+    "lineage": {
+      "$ref": "#/$defs/LineageLedgerV5"
+    },
+    "candidate_slot_map": {
+      "patternProperties": {
+        "^[A-Za-z0-9_-]+$": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 96,
+        "minLength": 1
+      },
+      "title": "Candidate Slot Map",
+      "type": "object"
+    },
+    "persistent_candidate_ids": {
+      "patternProperties": {
+        "^[A-Za-z0-9_-]+$": {
+          "pattern": "^[a-f0-9]{32}$",
+          "type": "string"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 96,
+        "minLength": 1
+      },
+      "title": "Persistent Candidate Ids",
+      "type": "object"
+    },
+    "global_review": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GlobalReviewOutputV4"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stage_audits": {
+      "additionalProperties": true,
+      "title": "Stage Audits",
+      "type": "object"
+    }
+  },
+  "required": [
+    "run_id",
+    "project_id",
+    "config_fingerprint",
+    "source_hash",
+    "run_metadata",
+    "profiles",
+    "lineage",
+    "candidate_slot_map",
+    "persistent_candidate_ids",
+    "global_review",
+    "stage_audits"
+  ],
+  "title": "UnifiedSemanticResultV5",
+  "type": "object"
+}

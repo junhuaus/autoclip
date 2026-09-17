@@ -1,9 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 
 import { server } from "./server";
+
+// Allow mocked requests to settle under host load while keeping failures bounded.
+configure({ asyncUtilTimeout: 5000 });
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();

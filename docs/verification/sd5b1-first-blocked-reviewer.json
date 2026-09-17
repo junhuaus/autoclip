@@ -1,0 +1,18 @@
+{
+  "architecture_assessment": "The implementation generally preserves dependency direction, independent fenced transactions, immutable publication, authorized reads, and post-Asset-commit recovery. Two gaps remain in cancellation behavior and required restart validation. This was a read-only source review; tests and retained artifacts were not independently executed or verified.",
+  "findings": [
+    {
+      "evidence": "delivery_repository.py:160 rejects cancellation_requested_at as lost authority. delivery_runner.py:160 immediately returns LOST_LEASE for that exception. If cancellation reaches SQLite after the producer's monitor check but before sink.advance(), the Worker exits without calling acknowledge_cancel, leaving the owned Task running until expiry/recovery. The cancellation test at test_delivery_progress.py:282 toggles a local boolean and does not exercise this database race.",
+      "fix": "On DeliveryProgressLostLease, attempt the queue's existing ownership-fenced cancellation acknowledgement before returning LOST_LEASE. Add a test that persists cancellation immediately before a progress write while the monitor has not observed it; assert prompt CANCELLED and unchanged successor ownership.",
+      "severity": "P2",
+      "summary": "A cancellation observed by the progress sink bypasses cancellation acknowledgement."
+    },
+    {
+      "evidence": "test_delivery_progress.py:71 runs run_worker in a ThreadPoolExecutor and observes GET synchronously inside its callback. The durability test at line 147 only disposes database connections. The adoption test at line 370 manually retries in the same process. test_completion_worker.py:75 reopens the runtime before packaging starts. These do not demonstrate the required restart after intermediate producer counters have persisted.",
+      "fix": "Add a disposable subprocess Worker test that observes intermediate copy/ZIP counters, stops the process after a durable event, reads through a fresh process, and resumes with a new attempt. Assert stale-counter suppression, independent retry counters, safe retained-package adoption, and no premature download URL.",
+      "severity": "P2",
+      "summary": "The tests do not establish progress durability across an interrupted Worker process."
+    }
+  ],
+  "verdict": "FAIL"
+}

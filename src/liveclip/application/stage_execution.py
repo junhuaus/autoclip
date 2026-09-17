@@ -5,7 +5,7 @@ import json
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from liveclip.application.pipeline import LeaseIdentity, StageWork
 from liveclip.domain.candidate import CandidateClip
@@ -14,6 +14,9 @@ from liveclip.domain.state_transitions import FailureClass, PipelineStage
 from liveclip.domain.transcript import TranscriptDocument
 from liveclip.media.models import AudioChunkManifest, SourceMediaMetadata
 from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
+
+if TYPE_CHECKING:
+    from liveclip.application.semantic_units import SemanticInvocationStore
 
 
 class StageCancelled(RuntimeError):
@@ -109,6 +112,11 @@ class ProxyRenderPersistence:
 
 
 class StageStateStore(Protocol):
+    @property
+    def semantic_invocations(self) -> SemanticInvocationStore: ...
+
+    def assert_mutation_fence(self, fence: StageMutationFence) -> None: ...
+
     def save_source(
         self,
         fence: StageMutationFence,

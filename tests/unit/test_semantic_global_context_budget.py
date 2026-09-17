@@ -56,6 +56,18 @@ _V5_FIELDS = (
     "semantic_no_render",
     "semantic_prompt_debug",
 )
+_V6_FIELDS = (
+    "semantic_boundary_review_skill_version",
+    "semantic_boundary_review_skill_sha256",
+)
+_V7_FIELDS = (
+    "clip_profile",
+    "semantic_link_review_skill_version",
+    "semantic_link_review_skill_sha256",
+    "semantic_topic_chain_skill_version",
+    "semantic_topic_chain_skill_sha256",
+    "semantic_result_schema_version",
+)
 
 
 def _pipeline_config() -> PipelineRunConfig:
@@ -78,9 +90,10 @@ def _pipeline_config() -> PipelineRunConfig:
 @pytest.mark.parametrize(
     ("version", "removed_fields"),
     (
-        ("2", _V3_FIELDS + _V4_FIELDS + _V5_FIELDS),
-        ("3", _V4_FIELDS + _V5_FIELDS),
-        ("4", _V5_FIELDS),
+        ("2", _V3_FIELDS + _V4_FIELDS + _V5_FIELDS + _V6_FIELDS + _V7_FIELDS),
+        ("3", _V4_FIELDS + _V5_FIELDS + _V6_FIELDS + _V7_FIELDS),
+        ("4", _V5_FIELDS + _V6_FIELDS + _V7_FIELDS),
+        ("5", _V6_FIELDS + _V7_FIELDS),
     ),
 )
 def test_historical_configs_upgrade_to_provider_aligned_context_reserves(
@@ -88,6 +101,7 @@ def test_historical_configs_upgrade_to_provider_aligned_context_reserves(
     removed_fields: tuple[str, ...],
 ) -> None:
     payload = _pipeline_config().model_dump(mode="json")
+    del payload["semantic_validation_contract"]
     payload["schema_version"] = version
     for field in removed_fields:
         del payload[field]
@@ -248,3 +262,86 @@ def _rich_discovery(transcript: TranscriptDocument) -> DiscoveryOutput:
 
 def _cue_text(index: int) -> str:
     return f"第{index}句 老师讲发声动作、原因、练习、条件和结论。"
+
+
+@pytest.mark.parametrize(
+    "path", ["global_prompt", "window_prompt", "window_cue", "fallback", "global_v2", "global_v3"]
+)
+def test_new_planning_budget_error_is_typed_and_legacy_error_is_unchanged(path) -> None:
+    from liveclip.pipeline.semantic_global import (
+        SemanticPlanningBudgetError,
+        build_global_review_payload_v3,
+        plan_semantic_windowed_input,
+    )
+
+    transcript = _rich_transcript()
+    config = SemanticGlobalConfig(model_context_tokens=32_768)
+    long_prompt = "完整预算指令 " * 8_000
+
+    def invoke(enabled):
+        if path in {"global_prompt", "window_prompt", "window_cue", "fallback"}:
+            planner = (
+                plan_semantic_input
+                if path in {"global_prompt", "fallback"}
+                else plan_semantic_windowed_input
+            )
+            return planner(
+                transcript,
+                prompt=long_prompt if path.endswith("prompt") else "短指令",
+                config=config,
+                structured_budget_errors=enabled,
+            )
+        plan = plan_semantic_input(transcript, prompt="短指令", config=SemanticGlobalConfig())
+        kwargs = dict(
+            input_plan=plan, config=config, prompt=long_prompt, structured_budget_errors=enabled
+        )
+        if path == "global_v3":
+            return build_global_review_payload_v3(
+                transcript, discovery_outputs=(), boundary_outputs=(), **kwargs
+            )
+        return build_global_review_payload(
+            transcript, discovery_outputs=(_rich_discovery(transcript),), **kwargs
+        )
+
+    with pytest.raises(ValueError) as legacy:
+        invoke(False)
+    assert type(legacy.value) is ValueError
+    with pytest.raises(SemanticPlanningBudgetError) as current:
+        invoke(True)
+    assert str(current.value) == str(legacy.value)
+    diagnostic = current.value.diagnostics
+    assert diagnostic["measurement_basis"] == "semantic_planning_estimate"
+    assert diagnostic["semantic_stage"] == (
+        "global_review" if path.startswith("global_v") else "discovery"
+    )
+    assert diagnostic["estimated_total_tokens"] > diagnostic["budget_tokens"]
+    assert (
+        diagnostic["estimated_input_tokens"]
+        == diagnostic["prompt_tokens"] + diagnostic["planning_payload_tokens"]
+    )
+    assert diagnostic["estimated_total_tokens"] == diagnostic["estimated_input_tokens"] + 17_000
+    assert diagnostic["configured_output_reserve_tokens"] == 16_000
+    assert diagnostic["planning_payload_bytes"] > 0
+    assert len(diagnostic["planning_payload_sha256"]) == 64
+    assert diagnostic["provider_call_executed"] is diagnostic["repair_call_executed"] is False
+    assert diagnostic["validation_errors"] == [str(current.value)]
+
+
+def test_new_fallback_rejects_one_oversized_cue_without_changing_legacy_plan() -> None:
+    from liveclip.pipeline.semantic_global import SemanticPlanningBudgetError
+
+    transcript = TranscriptDocument(
+        source_duration_ms=60_000,
+        word_timing_status=WordTimingStatus.UNAVAILABLE,
+        segments=(
+            TranscriptSegment(segment_id="large", start_ms=0, end_ms=60_000, text="声" * 3_900),
+        ),
+    )
+    config = SemanticGlobalConfig(model_context_tokens=32_768)
+    historical = plan_semantic_input(transcript, prompt="短指令", config=config)
+    assert historical.mode is SemanticInputMode.FALLBACK
+    with pytest.raises(SemanticPlanningBudgetError) as raised:
+        plan_semantic_input(
+            transcript, prompt="短指令", config=config, structured_budget_errors=True
+        )
+    assert raised.value.diagnostics["estimated_total_tokens"] > historical.budget_tokens

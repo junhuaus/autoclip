@@ -2,6 +2,8 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminUsers } from "./AdminUsers";
+import { CompletionCreate } from "./CompletionCreate";
+import { CompletionWatch } from "./CompletionWatch";
 import { AdminStorage } from "./AdminStorage";
 import { AdminGovernance } from "./AdminGovernance";
 import { LiveClipApiClient, createIdempotencyKey, errorMessage } from "./api";
@@ -145,6 +147,8 @@ export function App() {
   const [authVersion, setAuthVersion] = useState(0);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [completionCreateBusy, setCompletionCreateBusy] = useState(false);
+  const [confirmedGoal, setConfirmedGoal] = useState<{ id: string; api: LiveClipApiClient } | null>(null);
   const [clippingAlgorithm, setClippingAlgorithm] = useState<
     "a" | "b" | "b_v2_experimental" | "semantic_global" | "semantic_windowed"
   >("semantic_windowed");
@@ -555,11 +559,22 @@ export function App() {
         </main>
       )}
 
+      <CompletionWatch key={authVersion} api={api} intentId={confirmedGoal?.api === api ? confirmedGoal.id : undefined} />
+
       {showCreate ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false); }}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !completionCreateBusy) setShowCreate(false); }}>
           <section className="panel create-dialog" role="dialog" aria-modal="true" aria-labelledby="create-title">
-            <div className="section-heading"><div><p className="eyebrow">新建项目</p><h2 id="create-title">导入一段本地视频</h2></div><button type="button" className="button button-ghost" onClick={() => setShowCreate(false)}>取消</button></div>
-            <form className="create-form" onSubmit={createProject}>
+            <div className="section-heading"><div><p className="eyebrow">新建项目</p><h2 id="create-title">导入一段本地视频</h2></div><button type="button" className="button button-ghost" disabled={completionCreateBusy} onClick={() => setShowCreate(false)}>取消</button></div>
+            <CompletionCreate
+              key={`${activeToken}:${authVersion}`}
+              api={api}
+              onBusyChange={setCompletionCreateBusy}
+              onCreated={(created) => { setConfirmedGoal({ id: created.goal.intent_id, api }); void queryClient.invalidateQueries({ queryKey: ["project-search"] }); }}
+              onOpenProject={(projectId) => { setShowCreate(false); setSelectedProjectId(projectId); }}
+              disabled={createMutation.isPending}
+            />
+            <h3>自定义处理</h3>
+            <form className="create-form" onSubmit={(event) => { if (completionCreateBusy) event.preventDefault(); else createProject(event); }}>
               <label>本地视频绝对路径<input name="input_path" type="text" required maxLength={4_096} placeholder="/Users/you/Videos/live.mp4" autoFocus /></label>
               <fieldset className="algorithm-picker">
                 <legend>切片算法</legend>
@@ -598,7 +613,7 @@ export function App() {
               {clippingAlgorithm === "b" ? <p className="hint">B v1 固定按 120 秒窗口、60 秒步长复现历史结果。</p> : null}
               {clippingAlgorithm === "b_v2_experimental" ? <p className="hint">实验模式保留时间邻接归并，仅用于比较，不是推荐默认。</p> : null}
               <div className="create-assignment"><span>项目负责人</span><strong>{currentUser?.display_name ?? "当前用户"}</strong><small>创建后可在项目内添加编辑与审核成员。</small></div>
-              <button type="submit" className="button button-primary" disabled={createMutation.isPending || !processingReady}>{createMutation.isPending ? "正在创建…" : "创建并开始处理"}</button>
+              <button type="submit" className="button button-primary" disabled={completionCreateBusy || createMutation.isPending || !processingReady}>{createMutation.isPending ? "正在创建…" : "创建并开始处理"}</button>
               {!processingReady ? <p className="hint">AI 处理链路未就绪，请在右上角设置中检查配置。</p> : null}
               {createMutation.isError ? <p className="form-error" role="alert">{errorMessage(createMutation.error)}</p> : null}
             </form>

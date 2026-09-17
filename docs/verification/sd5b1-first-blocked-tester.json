@@ -1,0 +1,25 @@
+{
+  "gaps": [
+    "Confirmed review finding: delivery_repository.py rejects persisted cancellation as lost authority, while delivery_runner.py immediately returns LOST_LEASE without cancellation acknowledgement. The current cancellation test toggles a local boolean and misses this race.",
+    "Confirmed restart coverage gap: the Worker observation test uses ThreadPoolExecutor and synchronous GET calls inside the progress callback; durability disposes connections, and adoption retries in the same process. These do not establish interrupted-process durability or independent concurrent observation.",
+    "Source attribution remains unresolved: the supplied base SHA is HEAD, but its diff includes 91 tracked files and protected/unrelated changes; Completion repository and several relevant tests are untracked. A trusted frozen-input-to-candidate comparison is needed before attributing edits to this cycle.",
+    "Existing artifact assertions compare ZIP members and video/Asset hashes within the producer test. Independent retained-artifact inspection, exact expected-member validation and playable MP4/readable SRT evidence remain unverified.",
+    "No deterministic commands or artifact inspection were executed in this read-only session. Actual allowlist argv, sandbox dependencies and retained-output locations were not supplied; Runner must verify these. Browser, FFmpeg, SQLite and project-local tool availability can limit execution.",
+    "The supplied review is FAIL with two unresolved P2 findings affecting explicit cancellation/restart acceptance. Passing lint/full tests alone cannot close those gaps. Synthetic checks provide no real-content, audio-quality, hardware or long-duration acceptance."
+  ],
+  "required_command_ids": [
+    "doctor",
+    "lint",
+    "test"
+  ],
+  "strategy": [
+    "Runner should resolve doctor, lint and test through its trusted allowlist. Require fresh results correlated to the exact sealed candidate, including untracked source files; skipped tests and prior SD-5 A results are not B1 acceptance.",
+    "Prioritize the cancellation race: persist cancellation immediately before sink.advance while the monitor has not observed it. Require prompt ownership-fenced CANCELLED; repeat after successor takeover and assert successor state remains unchanged.",
+    "Add a disposable subprocess Worker interruption test after intermediate copy and ZIP events. Read persisted progress from a fresh process, recover with a new TaskAttempt, reject late callbacks, suppress previous counters and withhold download URLs until validated completion.",
+    "Exercise every authority fence independently, phase/count monotonicity, immutable exact totals, required first/boundary/final writes and bounded coalescing. Verify heartbeat-only updates do not advance business progress.",
+    "Inject short writes, source mutation/hash mismatch, ZIP failure, cancellation, SQLite contention and progress-write failures before publication and after each Asset commit. Verify bounded retries, safe cleanup, retained committed Assets and adoption that counts only repeated work.",
+    "Verify authorized GET behavior for absent, queued, active, expired, retrying and terminal work; unauthorized not-found responses; unchanged business/progress rows across repeated reads; no-ZIP and callback-default compatibility; migration/shared-contract regressions.",
+    "Independently inspect retained synthetic MP4/SRT/manifest/ZIP artifacts: exact member set, sizes, SHA-256 values, readable media/subtitles and committed Asset bindings. Require sealed-source/artifact audit, fresh review and Gateway before publication."
+  ],
+  "verdict": "BLOCKED"
+}

@@ -1,0 +1,290 @@
+{
+  "$defs": {
+    "BoundaryEvidenceV4": {
+      "additionalProperties": false,
+      "properties": {
+        "opening_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Opening Cue Ids",
+          "type": "array"
+        },
+        "core_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 160,
+          "minItems": 1,
+          "title": "Core Cue Ids",
+          "type": "array"
+        },
+        "ending_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "minItems": 1,
+          "title": "Ending Cue Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "opening_cue_ids",
+        "core_cue_ids",
+        "ending_cue_ids"
+      ],
+      "title": "BoundaryEvidenceV4",
+      "type": "object"
+    },
+    "ClipProfile": {
+      "description": "Independent editorial units with different deterministic duration contracts.",
+      "enum": [
+        "short_highlight",
+        "mini_lesson"
+      ],
+      "title": "ClipProfile",
+      "type": "string"
+    },
+    "ContentDecisionV4": {
+      "enum": [
+        "keep",
+        "repair_boundary",
+        "drop"
+      ],
+      "title": "ContentDecisionV4",
+      "type": "string"
+    },
+    "InterruptionReviewV4": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/InterruptionSeverityV4"
+        },
+        "type": {
+          "maxLength": 96,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Type",
+          "type": "string"
+        },
+        "evidence_cue_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 80,
+          "title": "Evidence Cue Ids",
+          "type": "array"
+        },
+        "description": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "severity",
+        "type",
+        "description",
+        "blocking"
+      ],
+      "title": "InterruptionReviewV4",
+      "type": "object"
+    },
+    "InterruptionSeverityV4": {
+      "enum": [
+        "none",
+        "minor",
+        "material"
+      ],
+      "title": "InterruptionSeverityV4",
+      "type": "string"
+    },
+    "QualityFlagV4": {
+      "enum": [
+        "context_dependent_opening",
+        "incomplete_ending",
+        "irrelevant_intro",
+        "irrelevant_outro",
+        "irrelevant_internal_content",
+        "repeated_live_cta",
+        "equipment_interruption",
+        "padded_to_min_duration",
+        "overextended_to_max_duration",
+        "topic_mixed",
+        "title_source_mismatch",
+        "asr_meaning_reversal",
+        "duplicate_weaker",
+        "central_objective_incomplete",
+        "multi_interval_edit",
+        "topic_too_long_without_natural_split"
+      ],
+      "title": "QualityFlagV4",
+      "type": "string"
+    },
+    "RiskFlagV4": {
+      "enum": [
+        "medical_claim",
+        "health_advice",
+        "absolute_claim",
+        "commercial_claim",
+        "sensitivity_review",
+        "music_rights_review",
+        "minor_privacy",
+        "asr_uncertain"
+      ],
+      "title": "RiskFlagV4",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "clip_profile": {
+      "$ref": "#/$defs/ClipProfile"
+    },
+    "content_decision": {
+      "$ref": "#/$defs/ContentDecisionV4"
+    },
+    "proposed_start_cue_id": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Proposed Start Cue Id"
+    },
+    "proposed_end_cue_id": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Proposed End Cue Id"
+    },
+    "opening_complete": {
+      "title": "Opening Complete",
+      "type": "boolean"
+    },
+    "ending_complete": {
+      "title": "Ending Complete",
+      "type": "boolean"
+    },
+    "central_objective_complete": {
+      "title": "Central Objective Complete",
+      "type": "boolean"
+    },
+    "boundary_compactness": {
+      "enum": [
+        "shortest_complete",
+        "contains_removable_context"
+      ],
+      "title": "Boundary Compactness",
+      "type": "string"
+    },
+    "opening_relevance": {
+      "enum": [
+        "direct",
+        "necessary_context",
+        "irrelevant"
+      ],
+      "title": "Opening Relevance",
+      "type": "string"
+    },
+    "ending_relevance": {
+      "enum": [
+        "necessary_conclusion",
+        "redundant",
+        "incomplete"
+      ],
+      "title": "Ending Relevance",
+      "type": "string"
+    },
+    "internal_topic_switch": {
+      "title": "Internal Topic Switch",
+      "type": "boolean"
+    },
+    "contains_padding": {
+      "title": "Contains Padding",
+      "type": "boolean"
+    },
+    "continuous_source_interval": {
+      "default": true,
+      "title": "Continuous Source Interval",
+      "type": "boolean"
+    },
+    "interruption_review": {
+      "items": {
+        "$ref": "#/$defs/InterruptionReviewV4"
+      },
+      "maxItems": 30,
+      "title": "Interruption Review",
+      "type": "array"
+    },
+    "quality_flags": {
+      "items": {
+        "$ref": "#/$defs/QualityFlagV4"
+      },
+      "maxItems": 30,
+      "title": "Quality Flags",
+      "type": "array"
+    },
+    "risk_flags": {
+      "items": {
+        "$ref": "#/$defs/RiskFlagV4"
+      },
+      "maxItems": 20,
+      "title": "Risk Flags",
+      "type": "array"
+    },
+    "evidence": {
+      "$ref": "#/$defs/BoundaryEvidenceV4"
+    },
+    "review_reason": {
+      "maxLength": 800,
+      "minLength": 1,
+      "title": "Review Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "clip_profile",
+    "content_decision",
+    "opening_complete",
+    "ending_complete",
+    "central_objective_complete",
+    "boundary_compactness",
+    "opening_relevance",
+    "ending_relevance",
+    "internal_topic_switch",
+    "contains_padding",
+    "evidence",
+    "review_reason"
+  ],
+  "title": "BoundaryReviewV4",
+  "type": "object"
+}

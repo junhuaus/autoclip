@@ -1,0 +1,24 @@
+{
+  "schema_version": "1",
+  "source_sha256": "818b669972b4e3f75f5358685ec231cd7daaaaa250c6525188291151c1109943",
+  "transcript_time_text_sha256": "f882915ca8fac667a1c238cffb04337933a42b5224f6afe09b6d7f0b54f90da2",
+  "reference_project_id": "d77d8b48cc194897a3e488b83bad9510",
+  "reference_run_id": "a446bdd3c2ed448185ee0f71b26750da",
+  "reference_delivery_id": "81fdfe69f891430fa6bf2553b658cd63",
+  "strict_score_threshold_exclusive": 75,
+  "clips": [
+    {"rank": 1, "title": "用自然哈欠感找歌唱内口腔通道", "score": 89, "source_start_ms": 878860, "source_end_ms": 949680},
+    {"rank": 2, "title": "闭口音别咬太清：保持和开口音同一位置", "score": 82, "source_start_ms": 1110080, "source_end_ms": 1160060},
+    {"rank": 3, "title": "平衡混是什么：把强混的支撑用到假声上", "score": 82, "source_start_ms": 2162360, "source_end_ms": 2207860},
+    {"rank": 4, "title": "唱歌声音发白、卡高音时，气息该落到哪里", "score": 80, "source_start_ms": 537500, "source_end_ms": 597240},
+    {"rank": 5, "title": "讲者列出的四种混声类型", "score": 77, "source_start_ms": 1549100, "source_end_ms": 1617400},
+    {"rank": 6, "title": "气混和漏气怎么区分：看能否控制带气", "score": 76, "source_start_ms": 1637560, "source_end_ms": 1691660},
+    {"rank": 7, "title": "气混和气声的区别：一个在混声，一个可在真声", "score": 85, "source_start_ms": 1693480, "source_end_ms": 1741680},
+    {"rank": 8, "title": "学唱歌的前两步：真声，再强混", "score": 85, "source_start_ms": 1890420, "source_end_ms": 1959540},
+    {"rank": 9, "title": "强混和假声，会把高音唱出不同情绪", "score": 86, "source_start_ms": 1966260, "source_end_ms": 2052460},
+    {"rank": 10, "title": "零基础何时练验音：先有支撑和通道", "score": 83, "source_start_ms": 2576340, "source_end_ms": 2622040},
+    {"rank": 11, "title": "如何核验一位线上教师是否自称属实", "score": 84, "source_start_ms": 3707000, "source_end_ms": 3758300},
+    {"rank": 12, "title": "讲者称学唱歌前要先排查的两类基础问题", "score": 76, "source_start_ms": 3983220, "source_end_ms": 4040780},
+    {"rank": 13, "title": "鼻音太靠前时，试试把咬字往后放", "score": 85, "source_start_ms": 6037980, "source_end_ms": 6095180}
+  ]
+}

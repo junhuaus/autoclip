@@ -14,6 +14,7 @@ from liveclip.clipping_skills.semantic_global_v1 import (
     SemanticProfile,
     load_semantic_global_prompt,
 )
+from liveclip.clipping_skills.semantic_global_v2 import load_semantic_global_v2_review_prompt
 from liveclip.clipping_skills.semantic_windowed_v1 import (
     load_semantic_windowed_discovery_prompt,
 )
@@ -30,6 +31,7 @@ from liveclip.pipeline.semantic_global import (
     BoundaryRefinementOutput,
     DiscoveryOutput,
     GlobalReviewOutput,
+    GlobalReviewOutputV2,
     SemanticGlobalConfig,
     SemanticInputMode,
     SemanticInputPlan,
@@ -58,6 +60,7 @@ from liveclip.providers.llm.structured import (
     StructuredCallResult,
     StructuredLLMProvider,
     StructuredProviderError,
+    global_review_response_model,
 )
 from liveclip.providers.openai_retry import OpenAIRetryPolicy
 from liveclip.providers.telemetry import ProviderCallRecord
@@ -79,7 +82,7 @@ def run_semantic_evaluation(
     global_review_cache_dir: Path | None = None,
     boundary_refinement_enabled: bool = False,
     discovery_reasoning_effort: EvaluationReasoningEffort = "medium",
-    global_review_reasoning_effort: EvaluationReasoningEffort = "medium",
+    global_review_reasoning_effort: EvaluationReasoningEffort = "high",
     algorithm: Literal["semantic_global", "semantic_windowed"] = "semantic_global",
 ) -> dict[str, object]:
     """Run the two semantic stages directly against a trusted local SRT fixture."""
@@ -93,7 +96,7 @@ def run_semantic_evaluation(
         if algorithm == "semantic_windowed"
         else load_semantic_global_prompt("discovery", profile)
     )
-    review_prompt = load_semantic_global_prompt("global_review", profile)
+    review_prompt = load_semantic_global_v2_review_prompt(profile)
     boundary_prompt = (
         load_semantic_global_prompt("boundary_refinement", profile)
         if algorithm == "semantic_windowed" and boundary_refinement_enabled
@@ -597,6 +600,11 @@ def run_semantic_evaluation(
         discovery_outputs=tuple(discoveries),
         config=resolved_config,
         prompt=review_prompt.instructions,
+        require_candidate_assessments=True,
+    )
+    global_output_model = global_review_response_model(
+        global_payload,
+        require_candidate_assessments=True,
     )
     global_review_reuse: dict[str, object] | None = None
     if global_review_cache_dir is not None:
@@ -628,7 +636,7 @@ def run_semantic_evaluation(
         agent_outputs = agent_envelope.get("outputs")
         if not isinstance(agent_outputs, list) or not agent_outputs:
             raise ValueError("global review checkpoint has no Agent output")
-        cached_review = GlobalReviewOutput.model_validate_json(
+        cached_review = global_output_model.model_validate_json(
             json.dumps(agent_outputs[-1], ensure_ascii=False, separators=(",", ":"))
         )
         review = StructuredCallResult(
@@ -645,7 +653,7 @@ def run_semantic_evaluation(
             review = review_provider.generate(
                 subject_id=subject_id,
                 payload=global_payload,
-                response_model=GlobalReviewOutput,
+                response_model=global_output_model,
             )
         except StructuredProviderError as exc:
             calls.extend(exc.call_records)
@@ -675,6 +683,7 @@ def run_semantic_evaluation(
             discovery_outputs=tuple(discoveries),
             config=resolved_config,
             input_mode=plan.mode,
+            require_candidate_assessments=True,
         )
     except ValueError as exc:
         repair_events.append(
@@ -710,7 +719,7 @@ def run_semantic_evaluation(
                     raw_review,
                     validation_errors=(str(exc)[:8_000],),
                 ),
-                response_model=GlobalReviewOutput,
+                response_model=global_output_model,
                 validation_errors=(str(exc)[:8_000],),
             )
         except StructuredProviderError as repair_exc:
@@ -743,6 +752,7 @@ def run_semantic_evaluation(
                 discovery_outputs=tuple(discoveries),
                 config=resolved_config,
                 input_mode=plan.mode,
+                require_candidate_assessments=True,
             )
         except ValueError as repair_validation_exc:
             _write_json(
@@ -799,6 +809,7 @@ def run_semantic_evaluation(
                     discovery_outputs=tuple(discoveries),
                     config=resolved_config,
                     input_mode=plan.mode,
+                    require_candidate_assessments=True,
                 )
             except ValueError as exc:
                 repair_events.append(
@@ -833,6 +844,7 @@ def run_semantic_evaluation(
                     discovery_outputs=tuple(discoveries),
                     config=resolved_config,
                     input_mode=plan.mode,
+                    require_candidate_assessments=True,
                 )
                 _write_json(
                     output_dir / "boundary-refinement-agent-raw.json",
@@ -1386,7 +1398,12 @@ def _provider(
 ) -> StructuredLLMProvider:
     if mode == "mock" or settings.ai_provider == "mock":
         return MockStructuredLLMProvider(prompts=prompts, model_name="mock-llm-v1")
-    if settings.ai_provider in {"mock-codex", "openai-codex", "openrouter-codex"}:
+    if settings.ai_provider in {
+        "mock-codex",
+        "openai-codex",
+        "openrouter-codex",
+        "mlx-codex",
+    }:
         contract = codex_cli_contract_version(settings.codex_executable)
         return CodexStructuredLLMProvider(
             prompts=prompts,
@@ -1963,6 +1980,15 @@ def _validate_repair_preservation(
             )
         if any(value.lower() in reserved for value in after_clips):
             raise ValueError("Global Review repair introduced a placeholder clip ID")
+        if isinstance(before, GlobalReviewOutputV2) and isinstance(after, GlobalReviewOutputV2):
+            before_assessments = {value.candidate_id for value in before.candidate_assessments}
+            after_assessments = {value.candidate_id for value in after.candidate_assessments}
+            missing_assessments = before_assessments - after_assessments
+            if missing_assessments:
+                raise ValueError(
+                    "Global Review repair removed candidate assessments: "
+                    f"{sorted(missing_assessments)}"
+                )
         return
     raise ValueError("structured repair changed the response stage model")
 

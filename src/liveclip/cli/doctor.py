@@ -16,6 +16,11 @@ from typing import Literal
 from liveclip.config import Settings
 from liveclip.config.fonts import available_chinese_fonts
 from liveclip.db.engine import assert_supported_sqlite_runtime
+from liveclip.providers.asr.mlx import (
+    MLX_ASR_MODEL,
+    MLX_WHISPER_VERSION,
+    assert_mlx_asr_ready,
+)
 from liveclip.providers.llm.codex import (
     assert_codex_cli_ready,
     resolve_codex_executable,
@@ -82,6 +87,7 @@ def run_doctor(settings: Settings) -> DoctorReport:
             _allowed_roots_check(settings),
             _openai_check(settings),
             _openrouter_check(settings),
+            _mlx_asr_check(settings),
             _codex_check(settings),
             _video_encoder_check(ffmpeg_path, ffprobe_path),
         ]
@@ -358,8 +364,51 @@ def _openrouter_check(settings: Settings) -> DoctorCheck:
     )
 
 
+def _mlx_asr_check(settings: Settings) -> DoctorCheck:
+    selected = settings.ai_provider == "mlx-codex"
+    if not selected:
+        return DoctorCheck(
+            "mlx_asr",
+            "pass",
+            "Local MLX ASR provider is not selected",
+            {"selected": False, "model": MLX_ASR_MODEL},
+        )
+    model_path = settings.resolved_mlx_asr_model_path()
+    try:
+        snapshot = assert_mlx_asr_ready(model_path)
+    except ProviderConfigurationError as exc:
+        return DoctorCheck(
+            "mlx_asr",
+            "fail",
+            "Selected local MLX ASR provider is unavailable",
+            {
+                "selected": True,
+                "model": MLX_ASR_MODEL,
+                "runtime_version": MLX_WHISPER_VERSION,
+                "error": exc.__class__.__name__,
+            },
+        )
+    return DoctorCheck(
+        "mlx_asr",
+        "pass",
+        "Full-precision local Whisper large-v3 snapshot is ready",
+        {
+            "selected": True,
+            "model": MLX_ASR_MODEL,
+            "runtime_version": MLX_WHISPER_VERSION,
+            "model_snapshot": snapshot.sha256,
+            "weights_size_bytes": snapshot.weights_size_bytes,
+        },
+    )
+
+
 def _codex_check(settings: Settings) -> DoctorCheck:
-    selected = settings.ai_provider in {"mock-codex", "openai-codex", "openrouter-codex"}
+    selected = settings.ai_provider in {
+        "mock-codex",
+        "openai-codex",
+        "openrouter-codex",
+        "mlx-codex",
+    }
     if not selected:
         return DoctorCheck(
             "codex_cli",

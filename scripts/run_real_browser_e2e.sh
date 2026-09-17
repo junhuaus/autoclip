@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Keep disposable Mock fixtures independent of inherited or dotenv credentials.
+export LIVECLIP_AI_PROVIDER="mock"
+export OPENAI_API_KEY=""
+export OPENROUTER_API_KEY=""
+
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${PROJECT_DIR}/.venv/bin"
 WEB_DIR="${PROJECT_DIR}/apps/web"
@@ -9,6 +14,8 @@ E2E_API_PORT="${LIVECLIP_E2E_API_PORT:-18765}"
 E2E_WEB_PORT="${LIVECLIP_E2E_WEB_PORT:-15174}"
 E2E_TOKEN="liveclip-real-browser-test-token"
 E2E_PASSWORD="liveclip real browser password 2026"
+E2E_SCENARIO="${LIVECLIP_E2E_SCENARIO:-legacy}"
+E2E_SPEC="review-delivery-real.spec.ts"
 E2E_ROOT=""
 E2E_ROOT_DEVICE=""
 E2E_ROOT_INODE=""
@@ -16,6 +23,7 @@ E2E_LOG_DIR=""
 API_PID=""
 WORKER_PID=""
 VITE_PID=""
+WAIT_PID=""
 PIDS=()
 CLEANED=0
 
@@ -23,6 +31,11 @@ if [[ ! "${E2E_API_PORT}" =~ ^[0-9]+$ || ! "${E2E_WEB_PORT}" =~ ^[0-9]+$ ]]; the
   echo "LiveClip browser E2E ports must be integers" >&2
   exit 2
 fi
+case "${E2E_SCENARIO}" in
+  legacy) ;;
+  completion|b2) E2E_SPEC="completion-goal-real.spec.ts" ;;
+  *) echo "Unknown LiveClip browser E2E scenario" >&2; exit 2 ;;
+esac
 if [[ ! -x "${VENV_DIR}/python" || ! -x "${VENV_DIR}/uvicorn" || ! -x "${VENV_DIR}/liveclip-worker" ]]; then
   echo "LiveClip Python environment is missing; run make setup first" >&2
   exit 1
@@ -50,6 +63,9 @@ cleanup() {
   if [[ -n "${WORKER_PID}" ]]; then
     kill -INT "${WORKER_PID}" 2>/dev/null || true
   fi
+  if [[ -n "${WAIT_PID}" ]]; then
+    kill -TERM "${WAIT_PID}" 2>/dev/null || true
+  fi
   for pid in "${API_PID}" "${VITE_PID}"; do
     if [[ -n "${pid}" ]]; then
       kill -TERM "${pid}" 2>/dev/null || true
@@ -75,6 +91,9 @@ cleanup() {
   for pid in "${PIDS[@]:-}"; do
     wait "${pid}" 2>/dev/null || true
   done
+  if [[ -n "${WAIT_PID}" ]]; then
+    wait "${WAIT_PID}" 2>/dev/null || true
+  fi
 
   if [[ "${status}" -ne 0 && -n "${E2E_LOG_DIR}" && -d "${E2E_LOG_DIR}" ]]; then
     echo "LiveClip real browser E2E failed; bounded service log tails follow" >&2
@@ -134,12 +153,18 @@ fi
 # The allocating process returns the directory identity before any fixture or
 # configuration command can replace it unnoticed.
 E2E_INPUT="$("${VENV_DIR}/python" "${PROJECT_DIR}/scripts/e2e_fixture.py" \
-  create --root "${E2E_ROOT}" \
+  create --root "${E2E_ROOT}" --scenario "${E2E_SCENARIO}" \
   --expected-device "${E2E_ROOT_DEVICE}" \
   --expected-inode "${E2E_ROOT_INODE}")"
 E2E_DATA_DIR="${E2E_ROOT}/projects"
 E2E_LOG_DIR="${E2E_ROOT}/logs"
 mkdir -p "${E2E_LOG_DIR}"
+if [[ "${E2E_SCENARIO}" != "legacy" ]]; then
+  export LIVECLIP_E2E_B2_PAUSES="${E2E_ROOT}/b2-pauses"
+  export LIVECLIP_E2E_OBSERVER_CLOSED_MARKER="${E2E_LOG_DIR}/completion-observer-closed.json"
+  export LIVECLIP_E2E_WAIT_MARKER="${E2E_LOG_DIR}/completion-waiting.json"
+  export LIVECLIP_E2E_DOWNLOAD_RECEIPT="${E2E_LOG_DIR}/completion-browser-download.json"
+fi
 
 export PATH="${NODE_BIN_DIR}:${PATH}"
 export LIVECLIP_DATA_DIR="${E2E_DATA_DIR}"
@@ -149,8 +174,6 @@ export LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD="${E2E_PASSWORD}"
 export LIVECLIP_API_HOST="127.0.0.1"
 export LIVECLIP_API_PORT="${E2E_API_PORT}"
 export LIVECLIP_CORS_ORIGINS="http://127.0.0.1:${E2E_WEB_PORT}"
-export LIVECLIP_AI_PROVIDER="mock"
-export OPENAI_API_KEY=""
 export ASR_CHUNK_SECONDS="10"
 export ASR_CHUNK_OVERLAP_SECONDS="1"
 export DEFAULT_TOP_N="1"
@@ -162,6 +185,7 @@ export FINAL_RENDER_WIDTH="360"
 export FINAL_RENDER_HEIGHT="640"
 export LIVECLIP_VIDEO_ENCODER="libx264"
 export WORKER_LEASE_SECONDS="30"
+if [[ "${E2E_SCENARIO}" == "b2" ]]; then export WORKER_LEASE_SECONDS="120"; fi
 export WORKER_HEARTBEAT_SECONDS="5"
 export MAX_STAGE_RETRIES="1"
 export LOG_LEVEL="INFO"
@@ -189,7 +213,13 @@ cd "${PROJECT_DIR}"
 API_PID="$!"
 PIDS+=("${API_PID}")
 
-"${VENV_DIR}/liveclip-worker" >"${E2E_LOG_DIR}/worker.log" 2>&1 &
+if [[ "${E2E_SCENARIO}" == "b2" ]]; then
+  "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/b2_synthetic_worker.py" \
+    --root "${E2E_ROOT}" --expected-device "${E2E_ROOT_DEVICE}" \
+    --expected-inode "${E2E_ROOT_INODE}" >"${E2E_LOG_DIR}/worker.log" 2>&1 &
+else
+  "${VENV_DIR}/liveclip-worker" >"${E2E_LOG_DIR}/worker.log" 2>&1 &
+fi
 WORKER_PID="$!"
 PIDS+=("${WORKER_PID}")
 
@@ -233,11 +263,40 @@ curl --fail --silent --show-error \
   "http://127.0.0.1:${E2E_API_PORT}/api/v1/projects" \
   | "${VENV_DIR}/python" -c 'import json, sys; assert json.load(sys.stdin) == []'
 
-"${WEB_DIR}/node_modules/.bin/playwright" test \
-  --config "${WEB_DIR}/playwright.real.config.ts"
+if [[ "${E2E_SCENARIO}" != "legacy" ]]; then
+  "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/e2e_fixture.py" \
+    watch-completion --root "${E2E_ROOT}" \
+    --expected-device "${E2E_ROOT_DEVICE}" \
+    --expected-inode "${E2E_ROOT_INODE}" >"${E2E_LOG_DIR}/waiting.log" 2>&1 &
+  WAIT_PID="$!"
+fi
+
+PLAYWRIGHT_JSON_OUTPUT_FILE="${E2E_LOG_DIR}/playwright-results.json" \
+  "${WEB_DIR}/node_modules/.bin/playwright" test \
+  --reporter=list,json --config "${WEB_DIR}/playwright.real.config.ts" "${E2E_SPEC}"
+
+# Required scenarios must execute: Playwright itself exits successfully on skips.
+"${VENV_DIR}/python" "${PROJECT_DIR}/scripts/verify_completion_retained.py" \
+  --browser-report "${E2E_LOG_DIR}/playwright-results.json" --scenario "${E2E_SCENARIO}"
 
 assert_owned_processes_alive
 "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/e2e_fixture.py" \
-  verify --root "${E2E_ROOT}" \
+  verify --root "${E2E_ROOT}" --scenario "${E2E_SCENARIO}" \
+  --retain-packages \
   --expected-device "${E2E_ROOT_DEVICE}" \
   --expected-inode "${E2E_ROOT_INODE}"
+
+# The completion proof must remain reconstructable after the disposable SQLite
+# fixture and all source artifacts are removed. Check the retained package
+# only after owned processes have stopped and identity-bound cleanup passed.
+if [[ "${E2E_SCENARIO}" != "legacy" ]]; then
+  cleanup 0
+  "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/verify_completion_retained.py" \
+    --root "${PROJECT_DIR}" --removed-fixture-root "${E2E_ROOT}" \
+    --prove-rejection --scenario "${E2E_SCENARIO}"
+fi
+if [[ "${E2E_SCENARIO}" == "completion" ]]; then
+  # Keep B2 off both the legacy and just-stopped completion listener pairs.
+  LIVECLIP_E2E_API_PORT=18767 LIVECLIP_E2E_WEB_PORT=15176 \
+    LIVECLIP_E2E_SCENARIO=b2 bash "${PROJECT_DIR}/scripts/run_real_browser_e2e.sh"
+fi

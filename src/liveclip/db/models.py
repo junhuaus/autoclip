@@ -20,6 +20,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from liveclip.db.base import Base, UTCDateTime, new_id, utc_now
+from liveclip.domain.completion import (
+    CompletionIntentStatus,
+    CompletionOutcome,
+    CompletionSelectionPolicy,
+    CompletionTarget,
+)
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.releases import (
     ReleaseApprovalStatus,
@@ -366,6 +372,15 @@ class TaskRow(Base):
             name="stage_task_target_matches",
         ),
         CheckConstraint(
+            "kind <> 'completion' OR (pipeline_run_id IS NOT NULL AND stage_run_id IS NULL "
+            "AND resource_class = 'cheap')",
+            name="completion_task_shape",
+        ),
+        CheckConstraint(
+            "status <> 'waiting' OR kind = 'completion'",
+            name="waiting_task_is_completion",
+        ),
+        CheckConstraint(
             f"failure_class IS NULL OR failure_class IN ({_enum_sql(FailureClass)})",
             name="task_failure_class_allowed",
         ),
@@ -461,6 +476,101 @@ class TaskAttemptRow(Base):
     temp_identity: Mapped[str | None] = mapped_column(String(160))
 
 
+class CompletionIntentRow(Base):
+    __tablename__ = "completion_intents"
+    __table_args__ = (
+        UniqueConstraint(
+            "requester_user_id",
+            "idempotency_key_sha256",
+            name="completion_request_identity",
+        ),
+        CheckConstraint("generation > 0", name="completion_generation_positive"),
+        CheckConstraint("version > 0", name="completion_version_positive"),
+        CheckConstraint(
+            f"target IN ({_enum_sql(CompletionTarget)})",
+            name="completion_target_allowed",
+        ),
+        CheckConstraint(
+            f"selection_policy IN ({_enum_sql(CompletionSelectionPolicy)})",
+            name="completion_selection_policy_allowed",
+        ),
+        CheckConstraint(
+            f"status IN ({_enum_sql(CompletionIntentStatus)})",
+            name="completion_status_allowed",
+        ),
+        CheckConstraint(
+            f"outcome_code IS NULL OR outcome_code IN ({_enum_sql(CompletionOutcome)})",
+            name="completion_outcome_allowed",
+        ),
+        CheckConstraint("options_schema_version = '1'", name="completion_options_schema_v1"),
+        CheckConstraint(
+            "length(canonical_request_sha256) = 64 AND length(idempotency_key_sha256) = 64",
+            name="completion_request_hash_shape",
+        ),
+        CheckConstraint(
+            "target <> 'process_only' OR selection_policy = 'default'",
+            name="completion_processing_selection_shape",
+        ),
+        CheckConstraint(
+            "status <> 'waiting_selection' OR "
+            "(target = 'delivery' AND selection_policy = 'manual' AND selection_submitted = 0)",
+            name="completion_manual_wait_shape",
+        ),
+        CheckConstraint(
+            "delivery_id IS NULL OR target = 'delivery'",
+            name="completion_delivery_target_shape",
+        ),
+        CheckConstraint(
+            "(status = 'succeeded' AND outcome_code IS NOT NULL AND completed_at IS NOT NULL) "
+            "OR (status = 'cancelled' AND outcome_code = 'cancelled' "
+            "AND completed_at IS NOT NULL) "
+            "OR (status NOT IN ('succeeded', 'cancelled') AND outcome_code IS NULL)",
+            name="completion_terminal_outcome_shape",
+        ),
+        Index("ix_completion_project_state", "project_id", "status", "created_at"),
+        Index("ix_completion_run_state", "pipeline_run_id", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    pipeline_run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    requester_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    actor_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    target: Mapped[str] = mapped_column(String(20), nullable=False)
+    selection_policy: Mapped[str] = mapped_column(String(20), nullable=False)
+    options_schema_version: Mapped[str] = mapped_column(String(8), nullable=False, default="1")
+    options_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    canonical_request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=CompletionIntentStatus.QUEUED.value
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    selection_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    selection_checkpoint_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    render_action_keys_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    delivery_action_key: Mapped[str | None] = mapped_column(String(160))
+    delivery_id: Mapped[str | None] = mapped_column(String(32))
+    outcome_code: Mapped[str | None] = mapped_column(String(40))
+    blocking_code: Mapped[str | None] = mapped_column(String(80))
+    safe_error_message: Mapped[str | None] = mapped_column(String(500))
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
 class AssetRow(Base):
     __tablename__ = "assets"
     __table_args__ = (
@@ -495,6 +605,79 @@ class AssetRow(Base):
     revision_epoch: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
     committed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class SemanticUnitInvocationRow(Base):
+    """Append-only invocation ownership; expected outcome hash is independent of Asset."""
+
+    __tablename__ = "semantic_unit_invocations"
+    __table_args__ = (
+        UniqueConstraint(
+            "stage_run_id",
+            "semantic_stage",
+            "subject_id",
+            "request_key",
+            "invocation_number",
+            name="semantic_unit_invocation_number",
+        ),
+        CheckConstraint("generation > 0", name="semantic_unit_generation_positive"),
+        CheckConstraint("invocation_number BETWEEN 1 AND 3", name="semantic_unit_invocation_bound"),
+        CheckConstraint(
+            "execution_contract = 'semantic-bounded-units-v1'",
+            name="semantic_unit_contract",
+        ),
+        CheckConstraint(
+            "disposition IS NULL OR disposition IN "
+            "('succeeded','transient','exhausted','cancelled')",
+            name="semantic_unit_disposition",
+        ),
+        CheckConstraint(
+            "disposition != 'transient' OR repair_spent = 0",
+            name="semantic_unit_repair_exhaustion",
+        ),
+        CheckConstraint(
+            "outcome_size_bytes IS NULL OR outcome_size_bytes > 0",
+            name="semantic_unit_outcome_size",
+        ),
+        Index(
+            "ix_semantic_unit_history",
+            "pipeline_run_id",
+            "semantic_stage",
+            "subject_id",
+            "request_key",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    pipeline_run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    stage_run_id: Mapped[str] = mapped_column(
+        ForeignKey("stage_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    producer_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("task_attempts.id", ondelete="CASCADE"), nullable=False
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    semantic_stage: Mapped[str] = mapped_column(String(40), nullable=False)
+    subject_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_contract: Mapped[str] = mapped_column(String(40), nullable=False)
+    invocation_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    disposition: Mapped[str | None] = mapped_column(String(16))
+    repair_spent: Mapped[bool | None] = mapped_column(Boolean)
+    outcome_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL")
+    )
+    outcome_sha256: Mapped[str | None] = mapped_column(String(64))
+    outcome_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    outcome_relative_path: Mapped[str | None] = mapped_column(String(500))
 
 
 class AudioChunkRow(Base):
@@ -903,6 +1086,53 @@ class DeliveryRow(Base):
     safe_error_message: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class DeliveryProgressRow(Base):
+    """Last producer event for one immutable Delivery Task attempt."""
+
+    __tablename__ = "delivery_progress"
+    __table_args__ = (
+        CheckConstraint("schema_version = '1'", name="delivery_progress_schema_v1"),
+        CheckConstraint("attempt_number > 0", name="delivery_progress_attempt_positive"),
+        CheckConstraint("expected_generation > 0", name="delivery_progress_generation_positive"),
+        CheckConstraint("expected_revision_epoch >= 0", name="delivery_progress_epoch_nonnegative"),
+        CheckConstraint(
+            "length(package_fingerprint) = 64", name="delivery_progress_fingerprint_shape"
+        ),
+        CheckConstraint("completed >= 0", name="delivery_progress_completed_nonnegative"),
+        CheckConstraint(
+            "total IS NULL OR total >= completed", name="delivery_progress_total_bound"
+        ),
+        CheckConstraint(
+            "(phase = 'copying_hashing' AND unit = 'bytes') OR "
+            "(phase = 'writing_metadata' AND unit = 'files') OR "
+            "(phase = 'writing_zip' AND unit = 'bytes') OR "
+            "(phase = 'verifying_package' AND unit = 'members') OR "
+            "(phase = 'committing_assets' AND unit = 'assets')",
+            name="delivery_progress_phase_unit",
+        ),
+    )
+
+    delivery_id: Mapped[str] = mapped_column(
+        ForeignKey("deliveries.id", ondelete="CASCADE"), primary_key=True
+    )
+    task_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("task_attempts.id", ondelete="CASCADE"), primary_key=True, unique=True
+    )
+    schema_version: Mapped[str] = mapped_column(String(8), nullable=False, default="1")
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_revision_epoch: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    package_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    phase: Mapped[str] = mapped_column(String(32), nullable=False)
+    unit: Mapped[str] = mapped_column(String(16), nullable=False)
+    completed: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    total: Mapped[int | None] = mapped_column(BigInteger)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    business_advanced_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=utc_now
+    )
 
 
 class DeliveryClipRow(Base):

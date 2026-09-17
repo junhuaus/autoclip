@@ -1,0 +1,36 @@
+{
+  "base_sha": "6009b23859564b2bfdc193eee366afd990b9ef5d",
+  "coder_session_id": "01a0a76d-d7e8-79f3-918d-0df689a1a2e5",
+  "gateway_blocker": "authenticated run-correlated negative-baseline evidence was missing for both general and vocal_coach_live",
+  "gateway_ran": true,
+  "gateway_route": "BLOCKED",
+  "gateway_verdict": "FAIL",
+  "product_source_fingerprint": "473cc6555e843e780990d12c535629dffe52178504337d834e78a5380c3f5c8a",
+  "reviewer_findings": [],
+  "run_id": "20260915T233253Z-b58e24b3",
+  "runner_results": [
+    {
+      "command_id": "lint",
+      "duration_seconds": 39.64,
+      "qa_id": "20260915T234139Z-5f53",
+      "status": "PASS"
+    },
+    {
+      "command_id": "e2e",
+      "duration_seconds": 250.665,
+      "qa_id": "20260915T234218Z-fd37",
+      "status": "PASS"
+    },
+    {
+      "command_id": "test",
+      "duration_seconds": 1604.684,
+      "python_tests": 2471,
+      "qa_id": "20260915T234629Z-6297",
+      "status": "PASS",
+      "web_tests": 80
+    }
+  ],
+  "state": "blocked",
+  "tester_verdict": "READY",
+  "toolchain_fingerprint": "0debc63f1a293e09fb7470e35e558227db5b37e24ba1ed873f01843bc26bab38"
+}

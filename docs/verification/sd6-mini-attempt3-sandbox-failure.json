@@ -1,0 +1,22 @@
+{
+  "attempt": "mini-attempt3-post-sd6b-prompt",
+  "cloud_asr_key_injected": false,
+  "codex_launch_cap": 64,
+  "codex_launches": 0,
+  "created_utc": "2026-09-15T18:55:30.153879Z",
+  "delivery_count": 0,
+  "elapsed_seconds": 2.403,
+  "exit_code": 1,
+  "failure_code": "MLX_ASR_NOT_READY",
+  "failure_detail": "The managed execution sandbox exposed no Metal device to mlx.core.",
+  "gate": "SD6_MINI_ATTEMPT3_SANDBOX_FAILURE_EVIDENCE",
+  "guard_counter_absent": true,
+  "model_calls": 0,
+  "product_log_sha256": "730b4f0b03008d7968e356c88fb7ee8460208a6ec29380e1c6ce8cfc64ac083b",
+  "probe_receipt_sha256": "813b46e9d63b3855d047eb777330867abac8985720e2bb466d1ada3563873a17",
+  "qa_id": "20260915T185515Z-mn03",
+  "run_root": ".loop/development/sd6-acceptance-preparation/runs/mini_lesson-attempt3-718edba37f4d4d39a9f661066bd67087",
+  "source_excerpt_sha256": "c489e92823081f085c40c066ff09211c23d4f02bfbdc52b7ab9ac9243c085162",
+  "status": "PASS",
+  "terminal_state": "failed"
+}

@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "LinkRelationshipV4": {
+      "enum": [
+        "continuation",
+        "supporting_example",
+        "next_step_same_lesson",
+        "summary_same_lesson",
+        "adjacent_but_independent",
+        "topic_switch",
+        "uncertain"
+      ],
+      "title": "LinkRelationshipV4",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "link_review_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Link Review Id",
+      "type": "string"
+    },
+    "left_fragment_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Left Fragment Id",
+      "type": "string"
+    },
+    "right_fragment_id": {
+      "maxLength": 96,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Right Fragment Id",
+      "type": "string"
+    },
+    "same_topic": {
+      "title": "Same Topic",
+      "type": "boolean"
+    },
+    "same_central_objective": {
+      "title": "Same Central Objective",
+      "type": "boolean"
+    },
+    "relationship": {
+      "$ref": "#/$defs/LinkRelationshipV4"
+    },
+    "merged_topic_summary": {
+      "maxLength": 400,
+      "minLength": 1,
+      "title": "Merged Topic Summary",
+      "type": "string"
+    },
+    "central_question": {
+      "maxLength": 320,
+      "minLength": 1,
+      "title": "Central Question",
+      "type": "string"
+    },
+    "learning_outcome": {
+      "maxLength": 320,
+      "minLength": 1,
+      "title": "Learning Outcome",
+      "type": "string"
+    },
+    "topic_closed_on_right": {
+      "title": "Topic Closed On Right",
+      "type": "boolean"
+    },
+    "needs_next_boundary": {
+      "title": "Needs Next Boundary",
+      "type": "boolean"
+    },
+    "evidence_cue_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 160,
+      "minItems": 1,
+      "title": "Evidence Cue Ids",
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    }
+  },
+  "required": [
+    "link_review_id",
+    "left_fragment_id",
+    "right_fragment_id",
+    "same_topic",
+    "same_central_objective",
+    "relationship",
+    "merged_topic_summary",
+    "central_question",
+    "learning_outcome",
+    "topic_closed_on_right",
+    "needs_next_boundary",
+    "evidence_cue_ids",
+    "confidence"
+  ],
+  "title": "LinkReviewV4",
+  "type": "object"
+}

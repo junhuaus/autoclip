@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +12,7 @@ from liveclip.media.secure_files import (
     SecureFileError,
     create_directory_exclusive_no_follow,
     create_pinned_regular_file_no_follow,
+    cross_launch_source_stat_matches,
     ensure_directory_no_follow,
     publish_directory_no_replace_no_follow,
     publish_regular_file_immutable_no_follow,
@@ -18,6 +20,46 @@ from liveclip.media.secure_files import (
     remove_tree_no_follow,
     write_bytes_immutable_no_follow,
 )
+
+
+def test_cross_launch_source_stat_ignores_mount_device_but_not_stable_fields(
+    tmp_path: Path,
+) -> None:
+    source = (tmp_path / "source.ts").resolve()
+    source.write_bytes(b"stable source bytes")
+    current = source.stat()
+    remounted = SimpleNamespace(
+        st_mode=current.st_mode,
+        st_size=current.st_size,
+        st_mtime_ns=current.st_mtime_ns,
+        st_ino=current.st_ino,
+        st_dev=current.st_dev + 1,
+    )
+
+    assert cross_launch_source_stat_matches(
+        source,
+        remounted,  # type: ignore[arg-type]
+        expected_path=source,
+        expected_size_bytes=current.st_size,
+        expected_mtime_ns=current.st_mtime_ns,
+        expected_inode=current.st_ino,
+    )
+    assert not cross_launch_source_stat_matches(
+        source,
+        SimpleNamespace(**{**vars(remounted), "st_size": current.st_size + 1}),  # type: ignore[arg-type]
+        expected_path=source,
+        expected_size_bytes=current.st_size,
+        expected_mtime_ns=current.st_mtime_ns,
+        expected_inode=current.st_ino,
+    )
+    assert not cross_launch_source_stat_matches(
+        source,
+        SimpleNamespace(**{**vars(remounted), "st_ino": current.st_ino + 1}),  # type: ignore[arg-type]
+        expected_path=source,
+        expected_size_bytes=current.st_size,
+        expected_mtime_ns=current.st_mtime_ns,
+        expected_inode=current.st_ino,
+    )
 
 
 def test_directory_creation_rejects_ancestor_symlink_without_escape(tmp_path: Path) -> None:
@@ -503,6 +545,27 @@ def test_read_rejects_ancestor_and_endpoint_symlinks(tmp_path: Path) -> None:
         read_regular_file_no_follow(endpoint, max_bytes=2)
 
 
+@pytest.mark.skipif(
+    not hasattr(os, "O_SEARCH"), reason="OS lacks search-only directory descriptors"
+)
+def test_read_and_publish_through_search_only_ancestor(tmp_path: Path) -> None:
+    ancestor = tmp_path / "search-only"
+    allowed = ancestor / "allowed"
+    allowed.mkdir(parents=True)
+    source = allowed / "source.txt"
+    source.write_bytes(b"source bytes")
+    destination = allowed / "published.txt"
+    ancestor.chmod(0o111)
+    try:
+        with pytest.raises(PermissionError):
+            list(ancestor.iterdir())
+        assert read_regular_file_no_follow(source, max_bytes=100) == b"source bytes"
+        write_bytes_immutable_no_follow(destination, b"published bytes", max_bytes=100)
+        assert read_regular_file_no_follow(destination, max_bytes=100) == b"published bytes"
+    finally:
+        ancestor.chmod(0o700)
+
+
 def test_remove_tree_does_not_follow_nested_or_target_symlinks(tmp_path: Path) -> None:
     ancestor = tmp_path / "attempts"
     target = ancestor / "task" / "lease" / "runs"
@@ -711,3 +774,55 @@ def test_remove_tree_is_ancestor_constrained_and_rejects_endpoint_swap(
     outside.mkdir()
     with pytest.raises(SecureFileError, match="escaped"):
         remove_tree_no_follow(outside, required_ancestor=ancestor)
+
+
+def test_copy_progress_follows_complete_short_writes(tmp_path, monkeypatch):
+    source = tmp_path / "input.mp4"
+    payload = b"synthetic read-only bytes" * 200
+    source.write_bytes(payload)
+    destination = tmp_path / "output.mp4"
+    write = secure_files.os.write
+    written = 0
+    events = []
+
+    def short_write(fd, value):
+        nonlocal written
+        count = write(fd, value[:7])
+        written += count
+        return count
+
+    def progress(completed, total):
+        assert completed == written
+        assert total == len(payload)
+        events.append(completed)
+
+    monkeypatch.setattr(secure_files.os, "write", short_write)
+    publish_regular_file_immutable_no_follow(
+        source,
+        destination,
+        remove_source=False,
+        block_size=256,
+        progress=progress,
+    )
+    assert events[0] == 0 and events[-1] == len(payload) and len(events) > 3
+    assert destination.read_bytes() == source.read_bytes() == payload
+
+
+def test_copy_callback_failure_cleans_temporary_without_publishing(tmp_path):
+    source = tmp_path / "input.mp4"
+    source.write_bytes(b"synthetic" * 100)
+    destination = tmp_path / "output.mp4"
+
+    def fail(completed, total):
+        if completed:
+            raise RuntimeError("required progress write failed")
+
+    with pytest.raises(RuntimeError, match="required progress"):
+        publish_regular_file_immutable_no_follow(
+            source,
+            destination,
+            remove_source=False,
+            block_size=64,
+            progress=fail,
+        )
+    assert list(tmp_path.iterdir()) == [source]

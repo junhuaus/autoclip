@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from liveclip.application.pipeline import (
     DeterministicRetryRejected,
     LeaseIdentity,
     PipelineConflict,
+    PipelineRecoveryActions,
     PipelineResourceNotFound,
     PipelineRunConfig,
     ProjectSnapshot,
@@ -25,6 +27,7 @@ from liveclip.application.pipeline import (
     StageWork,
     WorkspaceMember,
     load_persisted_pipeline_config,
+    required_pipeline_capabilities,
 )
 from liveclip.application.stage_execution import stage_output_fingerprint
 from liveclip.application.tasks import validate_task_diagnostic_relative_path
@@ -33,6 +36,7 @@ from liveclip.db.delivery_snapshot import DeliverySetError, load_eligible_delive
 from liveclip.db.engine import begin_immediate
 from liveclip.db.idempotency import load_idempotent_resource, record_idempotent_resource
 from liveclip.db.models import (
+    ApiUsageRow,
     AssetRow,
     AudioChunkRow,
     AuditEventRow,
@@ -78,6 +82,7 @@ from liveclip.domain.state_transitions import (
     transition_render,
     transition_stage_run,
 )
+from liveclip.providers.telemetry import ProviderCallStatus
 
 
 class StageFenceLost(PipelineConflict, StageLeaseLost):
@@ -85,8 +90,79 @@ class StageFenceLost(PipelineConflict, StageLeaseLost):
 
 
 _MANUALLY_RETRYABLE_DETERMINISTIC_CODES = frozenset(
-    {"UNEXPECTED_STAGE_ERROR", "EDIT_OUTPUT_INVALID"}
+    {
+        "ACTION_NOT_READY",
+        "UNEXPECTED_STAGE_ERROR",
+        "CANDIDATES_OUTPUT_INVALID",
+        "EDIT_OUTPUT_INVALID",
+        "PROXY_RENDER_OUTPUT_INVALID",
+        "CANDIDATES_CODEX_NESTED_SESSION",
+        "EDIT_CODEX_NESTED_SESSION",
+    }
 )
+_RETRYABLE_ASR_RESPONSE_FAILURE_CODES = frozenset(
+    {"OPENAI_ASR_RESPONSE_INVALID", "OPENROUTER_ASR_RESPONSE_INVALID"}
+)
+
+
+def insert_project_and_run(
+    connection: Connection,
+    *,
+    project_id: str,
+    run_id: str,
+    source_path: Path,
+    config: PipelineRunConfig,
+    max_stage_retries: int,
+    owner_id: str | None,
+    now: datetime,
+) -> None:
+    """Insert the initial graph in the caller's transaction; never commit here."""
+    resolved_owner_id = owner_id or _default_workspace_user_id(connection)
+    owner_exists = connection.scalar(
+        select(WorkspaceUserRow.id).where(
+            WorkspaceUserRow.id == resolved_owner_id,
+            WorkspaceUserRow.is_active.is_(True),
+        )
+    )
+    if owner_exists is None:
+        raise PipelineConflict("workspace owner does not exist")
+    connection.execute(
+        insert(ProjectRow).values(
+            id=project_id,
+            name=source_path.stem[:200] or "LiveClip project",
+            owner_id=resolved_owner_id,
+            visibility="private",
+            lifecycle=ProjectLifecycle.PROCESSING.value,
+            management_version=1,
+            assignee_user_id=resolved_owner_id,
+            priority=ProjectPriority.NORMAL.value,
+            source_request_path=str(source_path),
+            current_generation=1,
+            current_pipeline_run_id=run_id,
+            revision_epoch=0,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    connection.execute(
+        insert(ProjectMemberRow).values(
+            id=new_id(),
+            project_id=project_id,
+            user_id=resolved_owner_id,
+            role="owner",
+            created_at=now,
+        )
+    )
+    _insert_pipeline_run(
+        connection,
+        project_id=project_id,
+        run_id=run_id,
+        generation=1,
+        source_path=source_path,
+        config=config,
+        max_stage_retries=max_stage_retries,
+        now=now,
+    )
 
 
 class SqlAlchemyPipelineRepository:
@@ -142,50 +218,14 @@ class SqlAlchemyPipelineRepository:
                 if replay_project_id is None:
                     raise PipelineConflict("idempotent pipeline resource no longer exists")
                 return CreatedPipeline(project_id=str(replay_project_id), run_id=replay_run_id)
-            resolved_owner_id = owner_id or _default_workspace_user_id(connection)
-            owner_exists = connection.scalar(
-                select(WorkspaceUserRow.id).where(
-                    WorkspaceUserRow.id == resolved_owner_id,
-                    WorkspaceUserRow.is_active.is_(True),
-                )
-            )
-            if owner_exists is None:
-                raise PipelineConflict("workspace owner does not exist")
-            connection.execute(
-                insert(ProjectRow).values(
-                    id=project_id,
-                    name=source_path.stem[:200] or "LiveClip project",
-                    owner_id=resolved_owner_id,
-                    visibility="private",
-                    lifecycle=ProjectLifecycle.PROCESSING.value,
-                    management_version=1,
-                    assignee_user_id=resolved_owner_id,
-                    priority=ProjectPriority.NORMAL.value,
-                    source_request_path=str(source_path),
-                    current_generation=1,
-                    current_pipeline_run_id=run_id,
-                    revision_epoch=0,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            connection.execute(
-                insert(ProjectMemberRow).values(
-                    id=new_id(),
-                    project_id=project_id,
-                    user_id=resolved_owner_id,
-                    role="owner",
-                    created_at=now,
-                )
-            )
-            _insert_pipeline_run(
+            insert_project_and_run(
                 connection,
                 project_id=project_id,
                 run_id=run_id,
-                generation=1,
                 source_path=source_path,
                 config=config,
                 max_stage_retries=max_stage_retries,
+                owner_id=owner_id,
                 now=now,
             )
             record_idempotent_resource(
@@ -255,6 +295,7 @@ class SqlAlchemyPipelineRepository:
                     .select_from(TaskRow)
                     .where(
                         TaskRow.pipeline_run_id == current_run_id,
+                        TaskRow.kind != TaskKind.COMPLETION.value,
                         TaskRow.status.in_([TaskStatus.QUEUED.value, TaskStatus.RUNNING.value]),
                     )
                 )
@@ -359,14 +400,49 @@ class SqlAlchemyPipelineRepository:
             )
             if run is None:
                 raise PipelineResourceNotFound("pipeline run does not exist")
+            audio_chunk_statuses = tuple(
+                str(value)
+                for value in connection.scalars(
+                    select(AudioChunkRow.provider_status)
+                    .where(AudioChunkRow.pipeline_run_id == run_id)
+                    .order_by(AudioChunkRow.chunk_index)
+                )
+            )
+            successful_provider_calls = {
+                str(stage_run_id): int(count)
+                for stage_run_id, count in connection.execute(
+                    select(ApiUsageRow.stage_run_id, func.count())
+                    .where(
+                        ApiUsageRow.pipeline_run_id == run_id,
+                        ApiUsageRow.stage_run_id.is_not(None),
+                        ApiUsageRow.status == ProviderCallStatus.SUCCEEDED.value,
+                    )
+                    .group_by(ApiUsageRow.stage_run_id)
+                )
+            }
+            active_task = (
+                connection.execute(
+                    select(TaskRow.heartbeat_at, TaskRow.lease_expires_at)
+                    .where(
+                        TaskRow.pipeline_run_id == run_id,
+                        TaskRow.status == TaskStatus.RUNNING.value,
+                    )
+                    .order_by(TaskRow.updated_at.desc(), TaskRow.id)
+                )
+                .mappings()
+                .first()
+            )
             stages = connection.execute(
                 select(
+                    StageRunRow.id,
                     StageRunRow.stage,
                     StageRunRow.status,
                     StageRunRow.progress,
                     StageRunRow.retry_count,
                     StageRunRow.error_code,
                     StageRunRow.safe_error_message,
+                    StageRunRow.started_at,
+                    StageRunRow.updated_at,
                 )
                 .where(StageRunRow.pipeline_run_id == run_id)
                 .order_by(StageRunRow.ordinal)
@@ -379,6 +455,42 @@ class SqlAlchemyPipelineRepository:
                     retry_count=int(stage["retry_count"]),
                     error_code=_optional_string(stage["error_code"]),
                     safe_error_message=_optional_string(stage["safe_error_message"]),
+                    started_at=stage["started_at"],
+                    updated_at=stage["updated_at"],
+                    completed_units=(
+                        sum(
+                            value == ProviderCallStatus.SUCCEEDED.value
+                            for value in audio_chunk_statuses
+                        )
+                        if str(stage["stage"]) == PipelineStage.TRANSCRIBE.value
+                        and audio_chunk_statuses
+                        else None
+                    ),
+                    total_units=(
+                        len(audio_chunk_statuses)
+                        if str(stage["stage"]) == PipelineStage.TRANSCRIBE.value
+                        and audio_chunk_statuses
+                        else None
+                    ),
+                    unit_label=(
+                        "audio chunks"
+                        if str(stage["stage"]) == PipelineStage.TRANSCRIBE.value
+                        and audio_chunk_statuses
+                        else None
+                    ),
+                    activity_count=(
+                        successful_provider_calls.get(str(stage["id"]))
+                        if str(stage["stage"])
+                        in {PipelineStage.CANDIDATES.value, PipelineStage.EDIT.value}
+                        else None
+                    ),
+                    activity_label=(
+                        "model calls"
+                        if str(stage["stage"])
+                        in {PipelineStage.CANDIDATES.value, PipelineStage.EDIT.value}
+                        and successful_provider_calls.get(str(stage["id"])) is not None
+                        else None
+                    ),
                 )
                 for stage in stages
             )
@@ -390,6 +502,12 @@ class SqlAlchemyPipelineRepository:
             cancellation_requested=run["cancellation_requested_at"] is not None,
             error_code=_optional_string(run["error_code"]),
             safe_error_message=_optional_string(run["safe_error_message"]),
+            active_task_heartbeat_at=(
+                active_task["heartbeat_at"] if active_task is not None else None
+            ),
+            active_task_lease_expires_at=(
+                active_task["lease_expires_at"] if active_task is not None else None
+            ),
             stages=stage_snapshots,
         )
 
@@ -642,6 +760,7 @@ class SqlAlchemyPipelineRepository:
                     update(TaskRow)
                     .where(
                         TaskRow.pipeline_run_id == run_id,
+                        TaskRow.kind != TaskKind.COMPLETION.value,
                         TaskRow.status == TaskStatus.QUEUED.value,
                     )
                     .values(
@@ -661,6 +780,7 @@ class SqlAlchemyPipelineRepository:
                     update(TaskRow)
                     .where(
                         TaskRow.pipeline_run_id == run_id,
+                        TaskRow.kind != TaskKind.COMPLETION.value,
                         TaskRow.status == TaskStatus.QUEUED.value,
                     )
                     .values(
@@ -686,6 +806,7 @@ class SqlAlchemyPipelineRepository:
                     update(TaskRow)
                     .where(
                         TaskRow.pipeline_run_id == run_id,
+                        TaskRow.kind != TaskKind.COMPLETION.value,
                         TaskRow.status == TaskStatus.RUNNING.value,
                     )
                     .values(cancellation_requested_at=now, updated_at=now)
@@ -695,6 +816,7 @@ class SqlAlchemyPipelineRepository:
                     .select_from(TaskRow)
                     .where(
                         TaskRow.pipeline_run_id == run_id,
+                        TaskRow.kind != TaskKind.COMPLETION.value,
                         TaskRow.status == TaskStatus.RUNNING.value,
                     )
                 )
@@ -737,9 +859,22 @@ class SqlAlchemyPipelineRepository:
                 )
         return self.get_run(run_id)
 
-    def retry_failed_run(self, run_id: str) -> RunSnapshot:
+    def recovery_actions(self, run_id: str) -> PipelineRecoveryActions:
+        with self._engine.connect() as connection:
+            return _recovery_actions(connection, run_id)
+
+    def retry_failed_run(
+        self, run_id: str, *, expected_actions: PipelineRecoveryActions | None = None
+    ) -> RunSnapshot:
         now = datetime.now(UTC)
         with begin_immediate(self._engine) as connection:
+            if (
+                expected_actions is not None
+                and _recovery_actions(connection, run_id) != expected_actions
+            ):
+                raise PipelineConflict(
+                    "remaining actions changed during readiness; inspect and retry"
+                )
             run = connection.execute(
                 select(
                     PipelineRunRow.status,
@@ -750,27 +885,56 @@ class SqlAlchemyPipelineRepository:
             if run is None:
                 raise PipelineResourceNotFound("pipeline run does not exist")
             current = PipelineRunStatus(str(run[0]))
-            if current != PipelineRunStatus.FAILED:
-                raise PipelineConflict("only a failed pipeline run can be retried")
-            if (
-                run[1] == FailureClass.DETERMINISTIC.value
-                and run[2] not in _MANUALLY_RETRYABLE_DETERMINISTIC_CODES
+            if current not in {PipelineRunStatus.FAILED, PipelineRunStatus.CANCELLED}:
+                raise PipelineConflict("only a failed or cancelled pipeline run can be retried")
+            deterministic_failed = (
+                current == PipelineRunStatus.FAILED and run[1] == FailureClass.DETERMINISTIC.value
+            )
+            if deterministic_failed and not (
+                run[2] in _MANUALLY_RETRYABLE_DETERMINISTIC_CODES
+                or _has_legacy_retryable_asr_response_evidence(
+                    connection,
+                    run_id=run_id,
+                    error_code=str(run[2]) if run[2] is not None else None,
+                )
             ):
                 raise DeterministicRetryRejected(
                     "deterministic failure requires changed input or configuration and a new run"
                 )
             transition_pipeline_run(current, PipelineRunStatus.QUEUED)
-            failed_stage_id = connection.scalar(
-                select(StageRunRow.id)
+            resumable_stage_status = (
+                StageRunStatus.FAILED
+                if current == PipelineRunStatus.FAILED
+                else StageRunStatus.CANCELLED
+            )
+            resumable_stage = connection.execute(
+                select(StageRunRow.id, StageRunRow.ordinal)
                 .where(
                     StageRunRow.pipeline_run_id == run_id,
-                    StageRunRow.status == StageRunStatus.FAILED.value,
+                    StageRunRow.status == resumable_stage_status.value,
                 )
                 .order_by(StageRunRow.ordinal)
                 .limit(1)
+            ).one_or_none()
+            if resumable_stage is None:
+                raise PipelineConflict("pipeline has no resumable stage")
+            resumable_stage_id = str(resumable_stage.id)
+            resumable_stage_ordinal = int(resumable_stage.ordinal)
+
+            resumable_task_status = (
+                TaskStatus.FAILED if current == PipelineRunStatus.FAILED else TaskStatus.CANCELLED
             )
-            if failed_stage_id is None:
-                raise PipelineConflict("failed pipeline has no failed stage to retry")
+            resumable_task_ids = tuple(
+                connection.scalars(
+                    select(TaskRow.id).where(
+                        TaskRow.stage_run_id == resumable_stage_id,
+                        TaskRow.kind == TaskKind.STAGE.value,
+                        TaskRow.status == resumable_task_status.value,
+                    )
+                )
+            )
+            if len(resumable_task_ids) != 1:
+                raise PipelineConflict("pipeline stage has no unambiguous resumable task")
             connection.execute(
                 update(PipelineRunRow)
                 .where(PipelineRunRow.id == run_id)
@@ -798,7 +962,11 @@ class SqlAlchemyPipelineRepository:
                 )
             connection.execute(
                 update(StageRunRow)
-                .where(StageRunRow.id == failed_stage_id)
+                .where(
+                    StageRunRow.pipeline_run_id == run_id,
+                    StageRunRow.ordinal >= resumable_stage_ordinal,
+                    StageRunRow.status == resumable_stage_status.value,
+                )
                 .values(
                     status=StageRunStatus.QUEUED.value,
                     failure_class=None,
@@ -811,14 +979,19 @@ class SqlAlchemyPipelineRepository:
             retried = connection.execute(
                 update(TaskRow)
                 .where(
-                    TaskRow.stage_run_id == failed_stage_id,
-                    TaskRow.status == TaskStatus.FAILED.value,
+                    TaskRow.id == resumable_task_ids[0],
+                    TaskRow.status == resumable_task_status.value,
                 )
                 .values(
                     status=TaskStatus.QUEUED.value,
                     retry_count=0,
                     manual_retry_count=TaskRow.manual_retry_count + 1,
                     not_before=now,
+                    cancellation_requested_at=None,
+                    worker_id=None,
+                    lease_token=None,
+                    heartbeat_at=None,
+                    lease_expires_at=None,
                     failure_class=None,
                     error_code=None,
                     safe_error_message=None,
@@ -828,7 +1001,7 @@ class SqlAlchemyPipelineRepository:
                 .returning(TaskRow.id)
             ).scalar_one_or_none()
             if retried is None:
-                raise PipelineConflict("failed stage has no failed task to retry")
+                raise PipelineConflict("pipeline stage has no resumable task")
         return self.get_run(run_id)
 
     def start_or_resume_stage(self, lease: LeaseIdentity) -> StageWork:
@@ -1424,6 +1597,7 @@ def _cancel_owned_stage(
         update(TaskRow)
         .where(
             TaskRow.pipeline_run_id == pipeline_run_id,
+            TaskRow.kind != TaskKind.COMPLETION.value,
             TaskRow.status == TaskStatus.QUEUED.value,
         )
         .values(
@@ -1593,6 +1767,61 @@ def _insert_pipeline_run(
         )
 
 
+def _recovery_actions(connection: Connection, run_id: str) -> PipelineRecoveryActions:
+    run = (
+        connection.execute(select(PipelineRunRow).where(PipelineRunRow.id == run_id))
+        .mappings()
+        .one_or_none()
+    )
+    if run is None:
+        raise PipelineResourceNotFound("pipeline run does not exist")
+    config = load_persisted_pipeline_config(run["config_json"], str(run["config_fingerprint"]))
+    stages = connection.execute(
+        select(StageRunRow.id, StageRunRow.stage, StageRunRow.status, StageRunRow.input_fingerprint)
+        .where(StageRunRow.pipeline_run_id == run_id)
+        .order_by(StageRunRow.ordinal)
+    ).all()
+    remaining = tuple(
+        PipelineStage(row.stage)
+        for row in stages
+        if row.status not in {StageRunStatus.SUCCEEDED.value, StageRunStatus.SKIPPED.value}
+        and (config.run_scope != "import" or row.stage == PipelineStage.INGEST.value)
+    )
+    # A committed edit checkpoint can finish database publication without inference.
+    # The handler revalidates its bytes, source and domain bindings before using it.
+    edits = tuple(row for row in stages if row.stage == PipelineStage.EDIT.value)
+    edit_assets = connection.execute(
+        select(AssetRow.id, AssetRow.sha256, AssetRow.size_bytes, AssetRow.relative_path)
+        .join(TaskAttemptRow, TaskAttemptRow.id == AssetRow.producer_attempt_id)
+        .join(TaskRow, TaskRow.id == TaskAttemptRow.task_id)
+        .where(
+            AssetRow.project_id == run["project_id"],
+            AssetRow.generation == run["generation"],
+            AssetRow.kind == "edit_plans",
+            AssetRow.status == AssetStatus.COMMITTED.value,
+            TaskRow.pipeline_run_id == run_id,
+            TaskRow.stage_run_id == (edits[0].id if edits else ""),
+            AssetRow.input_fingerprint == (edits[0].input_fingerprint if edits else ""),
+        )
+    ).all()
+    evidence = {
+        "run": dict(run),
+        "stages": [tuple(row) for row in stages],
+        "edit_assets": [tuple(row) for row in edit_assets],
+    }
+    return PipelineRecoveryActions(
+        run_id=run_id,
+        config=config,
+        remaining_stages=remaining,
+        required=required_pipeline_capabilities(
+            config, remaining, edit_committed=len(edit_assets) == 1
+        ),
+        state_fingerprint=hashlib.sha256(
+            json.dumps(evidence, sort_keys=True, default=str).encode()
+        ).hexdigest(),
+    )
+
+
 def _ingest_input_fingerprint(config_fingerprint: str, source_path: Path) -> str:
     return hashlib.sha256(f"{config_fingerprint}\0{source_path}\0ingest-v1".encode()).hexdigest()
 
@@ -1749,7 +1978,9 @@ def _validate_stage_checkpoint(
 
     if stage == PipelineStage.CANDIDATES:
         _require_asset_kinds(kind_counts, {"rough_candidates": 1}, stage)
-        candidate_count = _checkpoint_count(checkpoint, "candidate_count")
+        # Semantic quality gates may legitimately produce an auditable zero-result
+        # run. Non-semantic handlers still reject an empty candidate analysis.
+        candidate_count = _checkpoint_count(checkpoint, "candidate_count", allow_zero=True)
         actual_candidates = connection.scalar(
             select(func.count())
             .select_from(CandidateClipRow)
@@ -2005,6 +2236,35 @@ def _workspace_member(row: RowMapping) -> WorkspaceMember:
 
 def _optional_string(value: object) -> str | None:
     return str(value) if value is not None else None
+
+
+def _has_legacy_retryable_asr_response_evidence(
+    connection: Connection,
+    *,
+    run_id: str,
+    error_code: str | None,
+) -> bool:
+    """Permit recovery of response-invalid runs created before retry classification was fixed."""
+
+    if error_code != "TRANSCRIBE_PROVIDER_INVALID":
+        return False
+    usage_values = connection.scalars(
+        select(ApiUsageRow.usage_json)
+        .join(StageRunRow, StageRunRow.id == ApiUsageRow.stage_run_id)
+        .where(
+            ApiUsageRow.pipeline_run_id == run_id,
+            ApiUsageRow.operation == "audio.transcriptions",
+            ApiUsageRow.status == "invalid",
+            StageRunRow.pipeline_run_id == run_id,
+            StageRunRow.stage == PipelineStage.TRANSCRIBE.value,
+            StageRunRow.status == StageRunStatus.FAILED.value,
+        )
+    )
+    return any(
+        isinstance(value, dict)
+        and value.get("failure_code") in _RETRYABLE_ASR_RESPONSE_FAILURE_CODES
+        for value in usage_values
+    )
 
 
 def _validate_failure(error_code: str, safe_message: str, retry_delay_ms: int) -> None:

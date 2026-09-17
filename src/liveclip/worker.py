@@ -53,24 +53,23 @@ def run_worker(
     try:
         with worker_signal_handlers(), LiveClipRuntime.open(settings) as runtime:
             print(f"LiveClip worker started: {worker_id}", flush=True)
+            categories = (
+                runtime.stage_runner.run_one,
+                runtime.render_runner.run_one,
+                runtime.delivery_runner.run_one,
+                runtime.completion_runner.run_once,
+            )
+            cursor = 0
             while True:
-                outcome = runtime.stage_runner.run_one(worker_id=worker_id)
-                if outcome == RunOneOutcome.BUSY:
-                    handled = False
-                elif outcome == RunOneOutcome.IDLE:
-                    render_outcome = runtime.render_runner.run_one(worker_id=worker_id)
-                    if render_outcome.value == RunOneOutcome.BUSY.value:
-                        handled = False
-                    elif render_outcome.value == RunOneOutcome.IDLE.value:
-                        delivery_outcome = runtime.delivery_runner.run_one(worker_id=worker_id)
-                        handled = delivery_outcome.value not in {
-                            RunOneOutcome.IDLE.value,
-                            RunOneOutcome.BUSY.value,
-                        }
-                    else:
-                        handled = True
-                else:
+                handled = False
+                for offset in range(len(categories)):
+                    index = (cursor + offset) % len(categories)
+                    outcome = categories[index](worker_id=worker_id)
+                    if outcome.value in {RunOneOutcome.IDLE.value, RunOneOutcome.BUSY.value}:
+                        continue
                     handled = True
+                    cursor = (index + 1) % len(categories)
+                    break
                 if once:
                     return 0
                 if not handled:

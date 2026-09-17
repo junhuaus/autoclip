@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "route", "assessments", "blockers"],
+  "properties": {
+    "verdict": {"enum": ["PASS", "FAIL"]},
+    "route": {"enum": ["DONE", "REWORK_PLAN", "REWORK_CODE", "BLOCKED"]},
+    "assessments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "architecture", "quality", "security", "maintainability"],
+      "properties": {
+        "result": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "architecture": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "quality": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "security": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "maintainability": {"type": "string", "minLength": 1, "maxLength": 2000}
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "string"}, "maxItems": 50}
+  }
+}
