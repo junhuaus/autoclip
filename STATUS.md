@@ -1,8 +1,28 @@
 # LiveClip status snapshot
 
-Updated: 2026-09-17 03:09 UTC
+Updated: 2026-09-17 03:32 UTC
 
 ## Current focus: SD-6 mini real acceptance, attempt 7
+
+**Resume blocked by local prerequisites; attempt 7 remains unconsumed.**
+QA `20260917T033200Z-a7ready` reconciled 1,107 inherited QA pairs. This
+checkout lacks the source, documented pinned model directory, virtual
+environment, FFmpeg and ffprobe. Darwin/x86_64 is the process architecture;
+hardware queries were denied, so Apple Silicon/Metal is unverified. Zero
+model calls, no guard created or consumed, and no new Delivery. Setup,
+doctor and full hardware preflight were not run. Evidence:
+[prerequisite inventory](docs/verification/sd6-mini-attempt7-resume-blocked.json).
+
+Branch: `main`; starting commit: `6a3b949b2dd852fc6cf11ec648620bd569ddb8de`.
+Only Main-owned handoff/QA evidence changes are being committed; accepted
+product and control-plane code are unchanged. This is a blocked handoff,
+not SD-6 completion.
+
+Resume prompt: Read AGENTS.md and the three SD-6 plans. Restore exact
+read-only `input/8-30.ts` and the pinned local model on supported Apple Silicon,
+prepare the project toolchain, reconstruct the attempt-7 freeze and register
+its full hardware preflight. Only after PASS run the one 64-launch/25-minute
+attempt. Preserve append-only QA and all acceptance boundaries.
 
 The engineering baseline through SD-5 A/B1/B2 and SD-7 is accepted and
 published. SD-6A accepted the exact Codex CLI 0.154 `tool-free-v3` profile,

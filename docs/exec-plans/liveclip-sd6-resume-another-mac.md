@@ -94,3 +94,26 @@ decode, SRT bounds and visual frames; do not claim listening, editorial,
 hardware, long-input or end-to-end acceptance without the corresponding actual
 evidence. Update this plan, the SD-6 plan and `STATUS.md`, commit the result and
 push `main`.
+
+## Cross-Mac resume check, 2026-09-17 03:32 UTC
+
+QA `20260917T033200Z-a7ready` reconciled all 1,107 inherited request/report
+pairs and recorded the current prerequisite block. This clean `main` checkout
+at `6a3b949b2dd852fc6cf11ec648620bd569ddb8de` has no `input/8-30.ts`, no
+`data/models/whisper-large-v3-mlx`, no `.venv/bin/python` and no `.loop`.
+Neither FFmpeg nor ffprobe is on PATH. The process reports Darwin/x86_64;
+`hw.optional.arm64` and `sysctl.proc_translated` queries were denied, so this
+check does not establish physical host architecture or Metal availability.
+See [the prerequisite receipt](../verification/sd6-mini-attempt7-resume-blocked.json).
+
+Attempt 7 remains unconsumed. No guard, run database or Delivery was created,
+and no model or credential was accessed. Setup, doctor and full hardware
+preflight were not run: installation cannot restore the missing user media,
+and supported hardware is unverified. Product code and control-plane policy
+remain unchanged; this documentation check is not deterministic Runner acceptance.
+
+Next task: restore the exact source and pinned model on a supported Apple
+Silicon host, install the documented local toolchain, then reconstruct and
+freeze attempt-7 controls and register/pass its complete hardware preflight
+before the single 64-launch/25-minute attempt. Preserve the prior freeze and
+interrupted preflight as historical evidence. Do not mark SD-6 complete.
