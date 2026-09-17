@@ -9,8 +9,10 @@ command clones or fast-forwards the repository and starts the autonomous
 handoff under the workspace-write sandbox with automatic approval review:
 
 ```bash
-repo_dir="$HOME/autoclip"; if [ -d "$repo_dir/.git" ]; then git -C "$repo_dir" switch main && git -C "$repo_dir" pull --ff-only origin main; else git clone --branch main git@github.com:junhuaus/autoclip.git "$repo_dir"; fi && codex exec --approve-for-me --sandbox workspace-write -C "$repo_dir" 'Read AGENTS.md, STATUS.md, docs/exec-plans/liveclip-sd6-resume-another-mac.md, docs/exec-plans/liveclip-sd6-real-acceptance.md, and docs/exec-plans/liveclip-sd6-mini-global-final-decision.md. Resume the documented SD-6 attempt-7 work autonomously to completion without routine questions. Preserve the isolated Coder and deterministic Runner constraints; never use --last; keep source media read-only; never use any exposed OpenRouter key; maintain append-only QA; do not claim Metal, model, content, Delivery, listening, long-input, or end-to-end success without actual evidence. Commit and push main when complete.'
+repo_dir="$HOME/autoclip"; if [ -d "$repo_dir/.git" ]; then git -C "$repo_dir" switch main && git -C "$repo_dir" pull --ff-only origin main; else git clone --branch main git@github.com:junhuaus/autoclip.git "$repo_dir"; fi && "$repo_dir/scripts/resume_codex.sh"
 ```
+
+From an existing clone, the short equivalent is `make resume-codex`.
 
 ## Authorization and operating constraints
 

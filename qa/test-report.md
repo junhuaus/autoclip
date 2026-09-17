@@ -11967,3 +11967,16 @@ Required browser scenario execution: PASS
 ```json
 {"attempt7_result": "unconsumed; full hardware preflight and inference not executed", "blockers": ["Required source media absent", "Pinned local model absent at documented location", "Project virtual environment absent", "FFmpeg and ffprobe absent from PATH", "Apple Silicon/Metal readiness not established"], "checked_at": "2026-09-17T03:32:54.169589+00:00", "executables": {"ffmpeg": null, "ffprobe": null, "node": "/usr/local/bin/node", "python3.12": "/usr/local/bin/python3.12"}, "git_head": "6a3b949b2dd852fc6cf11ec648620bd569ddb8de", "guard_consumed": false, "guard_created": false, "hardware_probes": [{"argv": ["/usr/sbin/sysctl", "-n", "hw.optional.arm64"], "returncode": 1, "stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted", "stdout": ""}, {"argv": ["/usr/sbin/sysctl", "-n", "sysctl.proc_translated"], "returncode": 1, "stderr": "sysctl: sysctl fmt -1 1024 1: Operation not permitted", "stdout": ""}], "model_calls": 0, "platform": "Darwin", "process_architecture": "x86_64", "qa_completed_before_this_check": 1107, "qa_id": "20260917T033200Z-a7ready", "qa_requests_including_this_check": 1108, "required_local_paths": {".loop": false, ".venv/bin/python": false, "data/models/whisper-large-v3-mlx": false, "input/8-30.ts": false}, "scope": "cross-Mac prerequisite inventory, not hardware or inference acceptance", "status": "BLOCKED"}
 ```
+
+### 20260917T034602Z-3c4d
+- ts: 2026-09-17T03:46:03Z
+- command: bash -n scripts/resume_codex.sh
+- cwd: /Users/junhuaxu/Workspace/AGI/liveclip-ai-v2
+- status: PASS
+- duration_seconds: 0.001
+- summary: The checked-in Codex resume entry point passed Bash syntax validation without starting a session.
+- details:
+
+```text
+No syntax errors.
+```

@@ -14,7 +14,7 @@ VENV_BIN := $(PROJECT_ROOT)/.venv/bin
 NODE_LTS_BIN ?= /usr/local/bin
 UV_ENV := UV_CACHE_DIR=$(UV_CACHE_DIR_LOCAL) UV_PYTHON_INSTALL_DIR=$(UV_PYTHON_DIR_LOCAL)
 
-.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status
+.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status resume-codex
 
 setup:
 	@command -v $(UV) >/dev/null || { echo "uv is required: https://docs.astral.sh/uv/"; exit 1; }
@@ -101,3 +101,6 @@ loop-run:
 loop-status:
 	@test -n "$(RUN_ID)" || { echo 'RUN_ID=... is required'; exit 2; }
 	@"$(VENV_BIN)/python" -m tools.loop_engineering status "$(RUN_ID)"
+
+resume-codex:
+	@./scripts/resume_codex.sh
