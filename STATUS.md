@@ -1,6 +1,22 @@
 # LiveClip status snapshot
 
-Updated: 2026-09-17 03:32 UTC
+Updated: 2026-09-17 04:01 UTC
+
+## Latest resume check, 2026-09-17 04:01 UTC
+
+Attempt 7 remains **BLOCKED and unconsumed**. QA
+`sd6-attempt7-prerequisite-recheck-20260917` reconciled 1,109 prior pairs.
+Unsandboxed read-only sysctl confirms Apple Silicon with this process under
+Rosetta; Codex is exactly 0.154.0. Metal remains unverified. Exact source,
+pinned model, project Python, uv, FFmpeg and ffprobe remain unavailable.
+No inference, credential access, guard creation/consumption or Delivery.
+See [current receipt](docs/verification/sd6-mini-attempt7-prerequisite-recheck.json).
+
+Branch `main`, starting HEAD `f27a03df7d95e14a6cfc395980a9184a9052d2f7`.
+Only Main-owned documentation and append-only QA evidence changed.
+Resume: restore exact read-only source and pinned model, prepare native arm64
+tools, reconstruct/freeze attempt 7, and pass registered full hardware
+preflight before the one 64-launch/25-minute attempt. SD-6 is not complete.
 
 ## Current focus: SD-6 mini real acceptance, attempt 7
 

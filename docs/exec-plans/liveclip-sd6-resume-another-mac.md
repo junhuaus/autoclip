@@ -119,3 +119,25 @@ Silicon host, install the documented local toolchain, then reconstruct and
 freeze attempt-7 controls and register/pass its complete hardware preflight
 before the single 64-launch/25-minute attempt. Preserve the prior freeze and
 interrupted preflight as historical evidence. Do not mark SD-6 complete.
+
+## Attempt-7 prerequisite recheck, 2026-09-17 04:01 UTC
+
+QA `sd6-attempt7-prerequisite-recheck-20260917` reconciled 1,109 inherited
+request/report pairs at main `f27a03df7d95e14a6cfc395980a9184a9052d2f7`.
+Read-only hardware queries outside the sandbox returned
+`hw.optional.arm64=1` and `sysctl.proc_translated=1`: Apple Silicon is
+confirmed, with this process running under Rosetta. Codex is exactly 0.154.0.
+This resolves the earlier architecture uncertainty, but does not prove Metal.
+
+The exact source, documented pinned model, project virtual environment, uv,
+FFmpeg and ffprobe remain unavailable. A recursive filename-only search of
+common local source locations was interrupted without a completed inventory;
+absence elsewhere is not established. Setup and full hardware preflight were
+not run. Source restoration remains an external prerequisite. No model or
+credential was accessed, no guard was created or consumed, and no Delivery
+exists for this attempt. SD-6 remains incomplete.
+
+Restore the exact source and pinned model, prepare a native arm64 toolchain,
+then reconstruct/freeze attempt 7 and register/pass its full hardware preflight
+before the single 64-launch/25-minute run. Preserve all historical evidence.
+Receipt: [prerequisite recheck](../verification/sd6-mini-attempt7-prerequisite-recheck.json).

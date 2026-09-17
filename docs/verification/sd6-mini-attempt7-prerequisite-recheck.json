@@ -1,0 +1,66 @@
+{
+  "additional_search": "Recursive filename-only search of common source locations interrupted without a completed inventory; no claim of absence elsewhere.",
+  "blockers": [
+    "Required exact source absent at documented path",
+    "Pinned model absent at documented path",
+    "Project virtual environment, uv, FFmpeg and ffprobe unavailable",
+    "Metal and native arm64 inference runtime not verified"
+  ],
+  "checked_at": "2026-09-17T04:01:17.466040+00:00",
+  "codex_version": {
+    "argv": [
+      "/usr/local/bin/codex",
+      "--version"
+    ],
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "codex-cli 0.154.0"
+  },
+  "delivery_created": false,
+  "executables": {
+    "codex": "/usr/local/bin/codex",
+    "ffmpeg": null,
+    "ffprobe": null,
+    "node": "/usr/local/bin/node",
+    "python3.12": "/usr/local/bin/python3.12",
+    "uv": null
+  },
+  "git_head": "f27a03df7d95e14a6cfc395980a9184a9052d2f7",
+  "guard_consumed": false,
+  "guard_created": false,
+  "hardware_probes": [
+    {
+      "argv": [
+        "/usr/sbin/sysctl",
+        "-n",
+        "hw.optional.arm64"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "1"
+    },
+    {
+      "argv": [
+        "/usr/sbin/sysctl",
+        "-n",
+        "sysctl.proc_translated"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "1"
+    }
+  ],
+  "model_calls": 0,
+  "next_action": "Restore exact source and pinned model; prepare native arm64 toolchain, then reconstruct controls and pass registered full hardware preflight before the one guarded attempt.",
+  "process_architecture": "x86_64",
+  "qa_completed_before_check": 1109,
+  "qa_id": "sd6-attempt7-prerequisite-recheck-20260917",
+  "required_local_paths": {
+    ".loop": false,
+    ".venv/bin/python": false,
+    "data/models/whisper-large-v3-mlx": false,
+    "input/8-30.ts": false
+  },
+  "scope": "prerequisite inventory only; not deterministic Runner or full hardware preflight",
+  "status": "BLOCKED"
+}
