@@ -65,16 +65,18 @@ modify the current branch, so start from a clean, dedicated branch. Durable stat
 live under ignored `.loop/runs`; test requests and reports remain append-only under `qa/`. See
 [Loop Engineering](docs/loop-engineering.md) and [ADR-026](docs/adr/026-loop-engineering-control-plane.md).
 
-To resume the current SD-6 work with the committed authorization and safety
+To start a new Codex session with the committed authorization and safety
 constraints, run this from the repository root:
 
 ```bash
-make resume-codex
+make start-codex
 ```
 
-The checked-in entry point is `scripts/resume_codex.sh`. It starts a new Codex
-session under the workspace-write sandbox with automatic approval review and
-never uses `--last`.
+To resume an existing local session, use `make resume-codex`; it opens the
+session picker and includes non-interactive `codex exec` sessions. For an exact
+non-interactive resume, use `make resume-codex SESSION_ID=<uuid-or-name>`.
+Neither path uses `--last`. The checked-in entry points are
+`scripts/start_codex.sh` and `scripts/resume_codex.sh`.
 
 `make setup` uses uv to provision a project-local native Python and installs frontend dependencies when the Web lockfile exists. For the normal Codex-backed real chain, authenticate Codex once, then configure ASR locally:
 

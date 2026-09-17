@@ -5,14 +5,18 @@ on another Apple Silicon Mac from the `main` branch of
 `git@github.com:junhuaus/autoclip.git`.
 
 After Codex CLI 0.154.0 is installed and authenticated, this single shell
-command clones or fast-forwards the repository and starts the autonomous
-handoff under the workspace-write sandbox with automatic approval review:
+command clones or fast-forwards the repository and starts a new autonomous
+handoff with automatic approval review:
 
 ```bash
-repo_dir="$HOME/autoclip"; if [ -d "$repo_dir/.git" ]; then git -C "$repo_dir" switch main && git -C "$repo_dir" pull --ff-only origin main; else git clone --branch main git@github.com:junhuaus/autoclip.git "$repo_dir"; fi && "$repo_dir/scripts/resume_codex.sh"
+repo_dir="$HOME/autoclip"; if [ -d "$repo_dir/.git" ]; then git -C "$repo_dir" switch main && git -C "$repo_dir" pull --ff-only origin main; else git clone --branch main git@github.com:junhuaus/autoclip.git "$repo_dir"; fi && "$repo_dir/scripts/start_codex.sh"
 ```
 
-From an existing clone, the short equivalent is `make resume-codex`.
+From an existing clone, `make start-codex` starts a new session.
+`make resume-codex` opens the local session picker, including non-interactive
+sessions. `make resume-codex SESSION_ID=<uuid-or-name>` resumes one exact
+session. A Codex session that exists only on another Mac is not carried by Git;
+the exact session must be available in that Mac's Codex session store.
 
 ## Authorization and operating constraints
 
