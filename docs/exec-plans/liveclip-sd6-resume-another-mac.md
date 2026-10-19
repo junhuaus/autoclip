@@ -145,3 +145,111 @@ Restore the exact source and pinned model, prepare a native arm64 toolchain,
 then reconstruct/freeze attempt 7 and register/pass its full hardware preflight
 before the single 64-launch/25-minute run. Preserve all historical evidence.
 Receipt: [prerequisite recheck](../verification/sd6-mini-attempt7-prerequisite-recheck.json).
+
+
+## Active preparation, 2026-09-17
+
+The user supplied `/Users/junhuaxu/Downloads/8-30.ts` and explicitly requested
+completion of resume preparation. Main copied it without modifying the original
+to read-only `input/8-30.ts`; its 3,143,702,536 bytes match the required SHA-256.
+The starting checkout is clean `main` at
+`2f361fcddc0e63ae62ee62826e27b54bb8204c53`; 1,111 inherited QA pairs reconcile.
+
+Progress (preparation only, not real acceptance):
+
+- [x] Restore and verify the read-only source.
+- [x] Install project-local native arm64 uv and Python 3.12.14.
+- [x] Run `make setup` with the frozen lockfile: Python/Web dependencies,
+  tokenizer cache and Playwright FFmpeg installed; SQLite 3.53.1 is WAL-safe.
+- [x] Recheck the accepted semantic Prompt tests: 18 passed.
+- [x] Install native FFmpeg/ffprobe and Node.
+- [x] Install locked optional MLX runtime and restore/hash-verify pinned model.
+- [x] Run registered host Doctor and Metal hardware checks without inference.
+- [x] Reconstruct and freeze the attempt-7 controls and selected excerpt.
+
+Local preparation scripts and download logs live under ignored
+`.loop/development/sd6-resume-preparation`; these are Main-owned setup evidence,
+not the deterministic Loop Runner or product-code changes. Large public model
+bytes are downloaded at the exact pinned repository revision. The initial slow
+single-connection download was deliberately stopped and its FAIL remains in QA;
+a separate bounded range download verifies exact ranges and final model SHA.
+Partial files never count as a model. The historical freeze and interrupted
+preflight remain immutable. No attempt starts before the new complete preflight.
+
+
+## Preparation completed, 2026-09-17 06:08 UTC
+
+The earlier missing-source/runtime/model blocker is resolved. Registered Doctor
+(`20260917T060708Z-prep-prep-final-doctor`) is READY, and hardware verification
+(`20260917T060721Z-prep-prep-final-hardware`) passes actual Metal computation,
+pinned model hashing and saved Codex login. No content inference was requested.
+Native VideoToolbox encoding passed; absent FFmpeg text filters select the
+supported Pillow overlay fallback. Source stays read-only and unchanged.
+
+The 300-second excerpt at source 1870–2170 seconds passes full decoding. Its new
+host SHA-256 is `41d74af249b750b21add28ef39662cf3478b9af2e8cfcbdd125a7edb90913760`.
+The reconstructed controls freeze `mlx-codex`, `gpt-5.6-sol`,
+`vocal_coach_live` / `mini_lesson`, top 15, min/max/target 90/300/180 seconds,
+score threshold 75, and the unchanged accepted Global prompt. This explicitly
+records a new local reconstruction, not byte identity with the old host plan.
+
+New plan SHA-256: `34177fbe8d98ddda8ad9d737c7418b55075f0f64f3d8f5fc3e46d8584c4c9dfc`.
+Pipeline config SHA-256: `df847a26189d10656bba29132e8bfa8558f531b02e98aa7a3553fc4b8e30a4ef`.
+Freeze QA `20260917T060753Z-prep-prep-attempt7-freeze` and final preflight QA
+`20260917T060813Z-prep-attempt7-final-preflight` both PASS. Guard fake-provider
+evidence covers concurrent 64-call reservation, refusal before start/after
+expiry/after terminal state, and active-child deadline termination.
+
+Lint, 18 Prompt tests, 69 provider tests and 80 Web tests pass. Initial failed
+install/download/test probes remain in append-only QA alongside successful
+retries. Full project tests, real inference, browser E2E and Delivery acceptance
+were not performed by this preparation. Existing npm audit findings (2 moderate,
+1 high) remain outside scope; dependency locks and product code are unchanged.
+
+Attempt 7 is **prepared, unstarted and unconsumed** (64 launches / 1500 seconds).
+There is no started marker, counter, isolated database or result. SD-6 remains
+incomplete. [Machine-readable preparation evidence](../verification/sd6-mini-attempt7-resume-prepared-20260917.json)
+records hashes and QA correlation. Local ignored controls and model bytes must
+remain on this host; git alone does not transport them.
+
+### Next execution on this prepared host
+
+1. Source `.loop/development/sd6-resume-preparation/environment.sh` from the
+   repository root. Preserve the frozen controls in
+   `.loop/development/sd6-mini-attempt7-native`.
+2. Register and refresh preflight with
+   `.venv/bin/python .loop/development/sd6-resume-preparation/qa.py attempt7-refresh 300 .venv/bin/python .loop/development/sd6-mini-attempt7-native/preflight.py`.
+   It needs host Metal/login access. Any changed pinned input or product file
+   blocks execution; never silently alter the seal. Preflight expires in one hour.
+3. At the actual execution step, register the run using the established execution
+   evidence procedure (the preparation recorder is not formal Runner acceptance).
+   Keep the Mac awake and invoke
+   `/usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-native/launch.py --execute-once`
+   once. The launcher and guard own timeout enforcement; do not delete/reset
+   their markers or counters after interruption. Do not manually sleep the Mac.
+4. Preserve product.log/result.json and independently audit Delivery artifacts,
+   persisted configuration, source identity and model-call/time evidence. A zero
+   process exit is not sufficient to declare SD-6 acceptance. Any Coder work
+   remains in an isolated candidate and resumes only its recorded session ID.
+
+This preparation session stopped before step 3 and made zero content model calls.
+
+
+## Execution completed on the prepared host, 2026-09-17
+
+The instructions above remain historical preparation evidence. They were
+followed under explicit user authorization without resetting any terminal
+state. Attempt 7 and successors 1/2 exposed three guard-reconstruction omissions
+and each stopped before external Codex execution. Successor 3 accepted all
+actual product argv variants and completed the real mini pipeline with 21/64
+Codex launches, but no automatic Delivery: one score-94 candidate was manual for
+real ASR uncertainty and the other failed the content gate at score 65.
+
+A separate bounded current short-profile run over the previously selected
+2050--2350-second anchor then passed end to end. QA
+`20260917T162310Z-rshort` created three clean 1080x1920 H.264/AAC clips and
+Delivery `78c0ce4189764945b16a27ea2fbefbf4`; independent QA
+`20260917T163031Z-prep-current-short-independent-audit` passed SQLite, hashes,
+ZIP, full decode, SRT and viewed-contact-sheet checks. See
+[the evidence receipt](../verification/sd6-current-real-video-clipping-20260917.json).
+Human audio listening and the remaining SD-6 matrix are still open.

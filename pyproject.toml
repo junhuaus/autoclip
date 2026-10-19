@@ -67,6 +67,30 @@ extend-exclude = ["data", "apps/web/node_modules", "apps/web/dist"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+"tools/loop_engineering/m3a_v*_source_freeze.py" = [
+  "E501",
+  "E701",
+  "E702",
+  "I001",
+  "RUF059",
+  "RUF100",
+  "UP012",
+  "UP022",
+  "UP035",
+]
+"tools/loop_engineering/m3s_v*_source_freeze.py" = [
+  "E501",
+  "E701",
+  "E702",
+  "I001",
+  "RUF059",
+  "RUF100",
+  "UP012",
+  "UP022",
+  "UP035",
+]
+
 [tool.ruff.format]
 quote-style = "double"
 

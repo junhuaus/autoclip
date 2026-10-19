@@ -12005,3 +12005,679 @@ No syntax errors.
 ```text
 No syntax errors.
 ```
+
+### 20260917T041909Z-prep-model-download
+- ts: 2026-09-17T04:20:17.686770+00:00
+- command: /usr/bin/curl --fail --location --retry 2 --connect-timeout 30 --max-time 2200 --output data/models/whisper-large-v3-mlx/weights.npz.partial https://huggingface.co/mlx-community/whisper-large-v3-mlx/resolve/49e6aa286ad60c14352c404340ded53710378a11/weights.npz
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 68.511
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": -15, "log": ".loop/development/sd6-resume-preparation/20260917T041909Z-prep-model-download.log", "log_sha256": "2d900d85de54b74306f1ec266451e7aace264c8c986773c9da8dc74efc0d78d9"}
+```
+
+### 20260917T042446Z-prep-prompt-tests
+- ts: 2026-09-17T04:24:46.900044+00:00
+- command: .venv/bin/python -m pytest -q tests/unit/test_semantic_lineage_prompts.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 0.824
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T042446Z-prep-prompt-tests.log", "log_sha256": "ded6db631d20838be4d8f7ce20178bb4378933b08c9509f168068c0960b61d4d"}
+```
+
+### 20260917T042613Z-prep-lint
+- ts: 2026-09-17T04:26:31.502912+00:00
+- command: make lint
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 18.129
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T042613Z-prep-lint.log", "log_sha256": "2d564f9c46eb13aa240c09cb057e7f790966bde1dab2daab45acdd69a459aa8b"}
+```
+
+### 20260917T043240Z-prep-guard-test
+- ts: 2026-09-17T04:32:44.547175+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 4.214
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T043240Z-prep-guard-test.log", "log_sha256": "29f1bb332fe046e8fd3ae291d2a8ecb5ababc08938b78bc98f0ee89cab1c3bd3"}
+```
+
+### 20260917T043551Z-prep-provider-tests
+- ts: 2026-09-17T04:35:52.657119+00:00
+- command: .venv/bin/python -m pytest -q tests/unit/test_codex_llm.py tests/unit/test_mlx_asr.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 0.774
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T043551Z-prep-provider-tests.log", "log_sha256": "4cb02207e4614ec39bb59266778923251c6ce68bae85da8b8f7259347f91a6b5"}
+```
+
+### 20260917T042113Z-prep-local-asr-deps
+- ts: 2026-09-17T04:41:14.023667+00:00
+- command: /usr/bin/env UV_CACHE_DIR=/Users/junhuaxu/autoclip/.cache/uv UV_PYTHON_INSTALL_DIR=/Users/junhuaxu/autoclip/.python /Users/junhuaxu/autoclip/.cache/bootstrap/bin/uv sync --frozen --python 3.12 --managed-python --all-groups --extra local-asr
+- cwd: /Users/junhuaxu/autoclip
+- status: ERROR
+- duration_seconds: 1200.026
+- summary: Preparation command ERROR; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": null, "log": ".loop/development/sd6-resume-preparation/20260917T042113Z-prep-local-asr-deps.log", "log_sha256": "deabc2628de2ed10caefa2be085f57e41272f41adb16e5fe38faf56f5aea8bb6"}
+```
+
+### 20260917T044209Z-prep-excerpt
+- ts: 2026-09-17T04:42:39.160485+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/prepare_excerpt.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 29.183
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044209Z-prep-excerpt.log", "log_sha256": "6d905db3d07e4c65af26b373a70745b47310a8c20274e08c797c5f8539ebbccb"}
+```
+
+### 20260917T044246Z-prep-native-web
+- ts: 2026-09-17T04:42:48.075931+00:00
+- command: npm ci --prefix apps/web --ignore-scripts --cache /Users/junhuaxu/autoclip/.cache/npm --offline
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.762
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044246Z-prep-native-web.log", "log_sha256": "ac3d5f57a0609957ded6b2cfd0dd71beed7b6fa089889abcd959e90441abe799"}
+```
+
+### 20260917T044311Z-prep-native-web-tests
+- ts: 2026-09-17T04:43:11.972932+00:00
+- command: npm run test:run --prefix apps/web
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 0.623
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 1, "log": ".loop/development/sd6-resume-preparation/20260917T044311Z-prep-native-web-tests.log", "log_sha256": "34cdab2f8fa48ff43786bca075ad921e74d42c2b59769e5bd19b2ebd4f9793db"}
+```
+
+### 20260917T044321Z-prep-native-web-network
+- ts: 2026-09-17T04:43:38.043584+00:00
+- command: npm ci --prefix apps/web --ignore-scripts --cache /Users/junhuaxu/autoclip/.cache/npm
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 16.254
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044321Z-prep-native-web-network.log", "log_sha256": "b0537e621a381274157b2248c6fe5d26bbb32ed3480184ced0b023ec91e90bc3"}
+```
+
+### 20260917T044349Z-prep-native-web-tests-retry
+- ts: 2026-09-17T04:43:54.532867+00:00
+- command: npm run test:run --prefix apps/web
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 4.858
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044349Z-prep-native-web-tests-retry.log", "log_sha256": "8c1398cf4147835979464dae494e89a1f5c99ea45dbd65d621ca90ecef73ac18"}
+```
+
+### 20260917T044553Z-prep-browser-path
+- ts: 2026-09-17T04:45:53.736543+00:00
+- command: bash scripts/check_test_browser.sh
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 0.021
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044553Z-prep-browser-path.log", "log_sha256": "dc4da0142db81622ccfacdd1583ff8b33ba2cbdc96712df54fe7253d5d840415"}
+```
+
+### 20260917T042056Z-prep-model-ranges
+- ts: 2026-09-17T04:46:17.021181+00:00
+- command: /usr/local/bin/python3.12 .loop/development/sd6-resume-preparation/download_model.py
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 1520.016
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": -15, "log": ".loop/development/sd6-resume-preparation/20260917T042056Z-prep-model-ranges.log", "log_sha256": "5a700ce3947f8e986943eaf7af845e5c9e226b6c8bd94e3e8b1fb66e601e471b"}
+```
+
+### 20260917T044208Z-prep-local-asr-deps-retry
+- ts: 2026-09-17T04:48:34.639546+00:00
+- command: /usr/bin/env UV_CONCURRENT_DOWNLOADS=4 UV_CACHE_DIR=/Users/junhuaxu/autoclip/.cache/uv UV_PYTHON_INSTALL_DIR=/Users/junhuaxu/autoclip/.python /Users/junhuaxu/autoclip/.cache/bootstrap/bin/uv sync --frozen --python 3.12 --managed-python --all-groups --extra local-asr
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 385.824
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T044208Z-prep-local-asr-deps-retry.log", "log_sha256": "1c51611ca4e204545487e2bf5734f15b45481578bc68acab6462649880aca5b2"}
+```
+
+### 20260917T045024Z-prep-metal
+- ts: 2026-09-17T04:50:25.481421+00:00
+- command: .venv/bin/python -c 'import json,platform; import mlx.core as mx; assert platform.machine()=="arm64"; assert mx.metal.is_available(); a=mx.array([1.0,2.0,3.0]); b=a*a; mx.eval(b); assert b.tolist()==[1.0,4.0,9.0]; print(json.dumps({"architecture":platform.machine(),"metal_available":True,"array_computation":"PASS","model_calls":0}))'
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 0.567
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T045024Z-prep-metal.log", "log_sha256": "34d8a2f73ad62c607427a53d75d43263e70b400cbee0c56aeef130fb3fb07f57"}
+```
+
+### 20260917T045329Z-prep-guard-watchdog-test
+- ts: 2026-09-17T04:53:30.445283+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.388
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T045329Z-prep-guard-watchdog-test.log", "log_sha256": "29f1bb332fe046e8fd3ae291d2a8ecb5ababc08938b78bc98f0ee89cab1c3bd3"}
+```
+
+### 20260917T045402Z-prep-guard-active-deadline
+- ts: 2026-09-17T04:54:04.353259+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 2.078
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T045402Z-prep-guard-active-deadline.log", "log_sha256": "ac52cb5f649e35699070e9e016884b072280ea8aa6601d940e9228992a737bb9"}
+```
+
+### 20260917T045002Z-prep-model-native-download
+- ts: 2026-09-17T04:55:17.451269+00:00
+- command: .venv/bin/python scripts/setup_mlx_asr.py
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 314.922
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": -15, "log": ".loop/development/sd6-resume-preparation/20260917T045002Z-prep-model-native-download.log", "log_sha256": "f7017459d0a730b6cee8ecb67bd5276fb69b5725a811d9001d286b3d8366eb48"}
+```
+
+### 20260917T045521Z-prep-model-resume
+- ts: 2026-09-17T06:03:59.190202+00:00
+- command: /usr/local/bin/python3.12 .loop/development/sd6-resume-preparation/download_model.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 524.486
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T045521Z-prep-model-resume.log", "log_sha256": "4907670e6fb2436c0192c1649615ae8632dbab43c63eac15525537ecbc308b5f"}
+```
+
+### 20260917T060721Z-prep-prep-final-hardware
+- ts: 2026-09-17T06:07:33.357485+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_hardware.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 11.454
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T060721Z-prep-prep-final-hardware.log", "log_sha256": "5059dcf5e258c9825dcf48e690a834c747277fcc8698be08d136eefb185f50fb"}
+```
+
+### 20260917T060708Z-prep-prep-final-doctor
+- ts: 2026-09-17T06:07:33.672684+00:00
+- command: make doctor
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 24.758
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T060708Z-prep-prep-final-doctor.log", "log_sha256": "e98b7cf9fc5dd576b6ee0ec3580c88f10794c855199526aa6b6306440cd29423"}
+```
+
+### 20260917T060753Z-prep-prep-attempt7-freeze
+- ts: 2026-09-17T06:08:01.059315+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-native/freeze.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.631
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T060753Z-prep-prep-attempt7-freeze.log", "log_sha256": "45970840c9a83c308a873bf5f1e4e5e6a5a9f19b203fd49fa86110cab67ae7dd"}
+```
+
+### 20260917T060813Z-prep-attempt7-final-preflight
+- ts: 2026-09-17T06:08:26.505999+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 13.211
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T060813Z-prep-attempt7-final-preflight.log", "log_sha256": "4351bb63c4ebcfd9276491c86e0519a0588883550d4693e41d22d3b751a30ddd"}
+```
+
+### 20260917T061832Z-prep-attempt7-refresh
+- ts: 2026-09-17T06:18:45.134205+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 13.128
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T061832Z-prep-attempt7-refresh.log", "log_sha256": "1f153f5c4478f854d63f409d109a2322e2e60b21d9710efb1dbf85405c72dc11"}
+```
+
+### 20260917T061849Z-mn07
+- ts: 2026-09-17T06:19:29Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: BLOCKED
+- duration_seconds: 0
+- summary: Automatic approval review rejected external Codex transcript processing before process creation. Attempt 7 remains unstarted and unconsumed.
+- details:
+
+```json
+{"attempt_data_absent":true,"counter_absent":true,"model_calls":0,"process_started":false,"reason":"explicit authorization required for transcript-derived content transmission through the saved Codex login and unique acceptance-budget consumption","result_absent":true,"started_absent":true,"status":"BLOCKED"}
+```
+
+### 20260917T062703Z-prep-attempt7-authorized-refresh
+- ts: 2026-09-17T06:27:16.275931+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 13.197
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T062703Z-prep-attempt7-authorized-refresh.log", "log_sha256": "8683ce351a681b70dd1b902b02a44d9727dd6799ecf090eefbafeea359ba3a0e"}
+```
+
+### 20260917T062719Z-mn07a
+- ts: 2026-09-17T06:30:43Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 49.545
+- summary: Attempt 7 is terminal after the reconstructed guard rejected the product's frozen Codex global-option prefix before external model execution. Four local MLX chunks succeeded; no guard token, external Codex model call, candidate, render or Delivery exists.
+- details:
+
+```json
+{"codex_guard_launches":0,"codex_provider_attempts_failed_before_external_cli":2,"delivery_count":0,"error_code":"CANDIDATES_PROVIDER_INVALID","exit_code":1,"local_mlx_calls_succeeded":4,"plan_sha256":"34177fbe8d98ddda8ad9d737c7418b55075f0f64f3d8f5fc3e46d8584c4c9dfc","product_log_sha256":"bf36d038d762e169cf2e6988e298009eb4157e46255ac7e5589f7ad2b0effeb5","reason":"reconstructed guard required args[0] == exec, while the frozen product places reviewed global security flags before exec","result_sha256":"4dc7a3acd545b5f76ec59311d34da6197c5888fbac64379aa034ca2f65f0a7cd","run_id":"3afb09ead8f84dfb81c1d08e5cbf9a40","sqlite_sha256":"e8643a3bea2652a5c0e2a3aa75a40ba5bb3bb2b796b28684331cf73b50df8e05","status":"FAIL","transcript_segments":127}
+```
+
+### 20260917T063209Z-prep-guard-successor-argv
+- ts: 2026-09-17T06:32:10.906099+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard_successor.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.17
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T063209Z-prep-guard-successor-argv.log", "log_sha256": "a35d874d36c2746bf4dd7b66d90f9d95a633070321edc883dd38fac5a7b800f2"}
+```
+
+### 20260917T063226Z-prep-attempt7-successor1-freeze
+- ts: 2026-09-17T06:32:33.761672+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor1-native/freeze.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.614
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T063226Z-prep-attempt7-successor1-freeze.log", "log_sha256": "8b2804161fae35de9c20c0095469e79165e3dfbb20f95d19d874577c67f94e95"}
+```
+
+### 20260917T063241Z-prep-attempt7-successor1-preflight
+- ts: 2026-09-17T06:32:54.786343+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor1-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 13.166
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T063241Z-prep-attempt7-successor1-preflight.log", "log_sha256": "4a9e0181d9be1ac4302d66e18cfb2d545944ca92ac53cee964c54cd772bcacbc"}
+```
+
+### 20260917T063259Z-mn07s1
+- ts: 2026-09-17T06:33:38Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-successor1-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: BLOCKED
+- duration_seconds: 0
+- summary: Automatic approval review requires explicit authorization for the additional successor budget after terminal attempt 7. The successor remains unstarted and unconsumed.
+- details:
+
+```json
+{"attempt_data_absent":true,"counter_absent":true,"model_calls":0,"plan_sha256":"1b8f611f0acfdd2223573f496b8671a8d15c133a09310ef3110d31ba48923942","process_started":false,"reason":"explicit authorization required for a new successor 64-launch/1500-second budget after terminal attempt 7","result_absent":true,"started_absent":true,"status":"BLOCKED"}
+```
+
+### 20260917T153852Z-prep-attempt7-successor1-authorized-refresh
+- ts: 2026-09-17T15:39:06.539688+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor1-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 14.531
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T153852Z-prep-attempt7-successor1-authorized-refresh.log", "log_sha256": "92c6919370cb55d728b693c2f2dc199eaeaa3287968318219d7e499a21909377"}
+```
+
+### 20260917T153910Z-mn07s1a
+- ts: 2026-09-17T15:40:49Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-successor1-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 47.556
+- summary: Successor 1 is terminal after its guard accepted the ordinary provider shape but rejected the semantic structured-provider reasoning option and temporary-directory prefix before external Codex execution. Four local MLX chunks succeeded; no guard token, external Codex model call, render or Delivery exists.
+- details:
+
+```json
+{"codex_guard_launches":0,"codex_provider_attempts_failed_before_external_cli":2,"delivery_count":0,"error_code":"CANDIDATES_PROVIDER_INVALID","exit_code":1,"local_mlx_calls_succeeded":4,"plan_sha256":"1b8f611f0acfdd2223573f496b8671a8d15c133a09310ef3110d31ba48923942","product_log_sha256":"9a8d82882f5b4e40f5b03a44e9c6af39a76771a31c1d7da4f1178af561c97952","reason":"successor guard test covered CodexCLILLMProvider._argv but not structured._with_codex_reasoning_effort or liveclip-semantic-global temporary paths","result_sha256":"d1bfd5f51052f9ea5cc51e6cd69410da181fbe026eb4f9a2866585286534a8a5","run_id":"70059b83baeb46fba43eeab81b4176d6","sqlite_sha256":"daf377735b3e4c6c6f9074c594b0d18897a4a05a8c9c6fafc2bf68563855159d","status":"FAIL","transcript_segments":127}
+```
+
+### 20260917T154218Z-prep-guard-successor2-product-argv
+- ts: 2026-09-17T15:42:19.812070+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard_successor2.py
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 1.664
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 1, "log": ".loop/development/sd6-resume-preparation/20260917T154218Z-prep-guard-successor2-product-argv.log", "log_sha256": "998c6f5fad5fad91a493eb755078a01f2b63fe696af35611cbd562f8d8a14485"}
+```
+
+### 20260917T154251Z-prep-guard-successor2-product-argv-retry
+- ts: 2026-09-17T15:42:53.036564+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard_successor2.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.693
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T154251Z-prep-guard-successor2-product-argv-retry.log", "log_sha256": "a32f43eadb09f8da3181c51a0786eb16f70c0eca7898ae49a1d7d23fb8931e70"}
+```
+
+### 20260917T154313Z-prep-attempt7-successor2-freeze
+- ts: 2026-09-17T15:43:21.156050+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor2-native/freeze.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.235
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T154313Z-prep-attempt7-successor2-freeze.log", "log_sha256": "68b372187388b2de80453d69543d8051c3de2e6e8a80fdb0b3ac5dacdf6495e2"}
+```
+
+### 20260917T154330Z-prep-attempt7-successor2-preflight
+- ts: 2026-09-17T15:43:43.592147+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor2-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 12.801
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T154330Z-prep-attempt7-successor2-preflight.log", "log_sha256": "189f1371e384b62f5284816d24fdb5db87d8c139ef9f12274f1bd87612143d58"}
+```
+
+### 20260917T154351Z-mn07s2
+- ts: 2026-09-17T15:44:18Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-successor2-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: BLOCKED
+- duration_seconds: 0
+- summary: Automatic approval review requires explicit authorization for successor 2's additional budget and external transcript processing. Successor 2 remains unstarted and unconsumed.
+- details:
+
+```json
+{"attempt_data_absent":true,"counter_absent":true,"model_calls":0,"plan_sha256":"a5f4bb556f06054c80b6dcdcd03f83b7a203587ccdcdd4311889909ac503b2e2","process_started":false,"reason":"explicit authorization required for successor 2's new 64-launch/1500-second budget and external transcript processing","result_absent":true,"started_absent":true,"status":"BLOCKED"}
+```
+
+### 20260917T160359Z-mn07s2a
+- ts: 2026-09-17T16:05:03Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-successor2-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 47.082
+- summary: Successor 2 is terminal after its guard accepted the structured temporary path and high-reasoning shape but rejected Discovery's medium-reasoning option before external Codex execution. Four local MLX chunks succeeded; no guard token, external Codex model call, candidate, render or Delivery exists.
+- details:
+
+```json
+{"codex_guard_launches":0,"codex_provider_attempts_failed_before_external_cli":2,"delivery_count":0,"error_code":"CANDIDATES_PROVIDER_INVALID","exit_code":1,"local_mlx_calls_succeeded":4,"plan_sha256":"a5f4bb556f06054c80b6dcdcd03f83b7a203587ccdcdd4311889909ac503b2e2","product_log_sha256":"7f54ef476c458a944fcd64036f80f50aa83c6e86f3eab3239fdb1d2824baae94","reason":"successor-2 guard allowlisted only high reasoning while Discovery uses medium; rejected before external CLI","result_sha256":"0487bdd34a444eedaab57317ce77a975b410a78e081052e59e8e99055a53d3ac","run_id":"9568b549304e465f98a1215be16e65f2","sqlite_sha256":"6300a588bd2ae736c57d2fef11a480909d0a6797789965dddef19339593f95f3","status":"FAIL","transcript_segments":127}
+```
+
+### 20260917T160340Z-prep-attempt7-successor2-authorized-refresh
+- ts: 2026-09-17T16:03:53.819439+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor2-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 13.18
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T160340Z-prep-attempt7-successor2-authorized-refresh.log", "log_sha256": "592ae3967f163aba0186e16a1649192929f3b136edbf5e6d93efb02e467aafba"}
+```
+
+### 20260917T160843Z-prep-guard-successor3-all-product-argv
+- ts: 2026-09-17T16:08:45.192377+00:00
+- command: .venv/bin/python .loop/development/sd6-resume-preparation/check_guard_successor3.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.781
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T160843Z-prep-guard-successor3-all-product-argv.log", "log_sha256": "171c446e4940b29e143cebe3bd8d940062e385bb78a58edd7bee518183e67603"}
+```
+
+### 20260917T160850Z-prep-attempt7-successor3-freeze
+- ts: 2026-09-17T16:08:57.242236+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor3-native/freeze.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.238
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T160850Z-prep-attempt7-successor3-freeze.log", "log_sha256": "52d836e0f8669688bb5d0822807ea770a1f01820fd8a292c67f7f4a20148ae38"}
+```
+
+### 20260917T160900Z-prep-attempt7-successor3-preflight
+- ts: 2026-09-17T16:09:13.732317+00:00
+- command: .venv/bin/python .loop/development/sd6-mini-attempt7-successor3-native/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 12.773
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T160900Z-prep-attempt7-successor3-preflight.log", "log_sha256": "0c7e199689a8c5867a7ccab2c8580bd92840642c5b5ab776043788bb28fdc8f7"}
+```
+
+### 20260917T161848Z-prep-current-short-excerpt
+- ts: 2026-09-17T16:19:14.158768+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/prepare_excerpt.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 25.534
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T161848Z-prep-current-short-excerpt.log", "log_sha256": "c59c40e36bfa9ee638994d0273d1e0ce539e75d0d2693602cec7f8f06160f823"}
+```
+
+### 20260917T162217Z-prep-current-short-guard-all-argv
+- ts: 2026-09-17T16:22:19.617890+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/check_guard.py
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 1.799
+- summary: Preparation command FAIL; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 1, "log": ".loop/development/sd6-resume-preparation/20260917T162217Z-prep-current-short-guard-all-argv.log", "log_sha256": "3fdf1eeb318ba4fb36c751ca31365a4ecb7e45e87f72bf666bb923f1f748e030"}
+```
+
+### 20260917T162235Z-prep-current-short-guard-all-argv-retry
+- ts: 2026-09-17T16:22:37.285181+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/check_guard.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 1.345
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T162235Z-prep-current-short-guard-all-argv-retry.log", "log_sha256": "c73ae12252a335c361da084a2f4745da020b42efd2eebea838835f6059c4e7e6"}
+```
+
+### 20260917T162242Z-prep-current-short-freeze
+- ts: 2026-09-17T16:22:49.572566+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/freeze.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.026
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T162242Z-prep-current-short-freeze.log", "log_sha256": "0f004c13fde228f7d8b398810eac1e1dcef55a7c10b211d6ec6c5db1eccf3a36"}
+```
+
+### 20260917T162254Z-prep-current-short-preflight
+- ts: 2026-09-17T16:23:06.638261+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/preflight.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 12.367
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T162254Z-prep-current-short-preflight.log", "log_sha256": "9efc58818dde5192a3ac6a5198cfd41698c5e179e11115cd293e2dad32be8a82"}
+```
+
+### 20260917T163031Z-prep-current-short-independent-audit
+- ts: 2026-09-17T16:30:36.095654+00:00
+- command: .venv/bin/python .loop/development/sd6-real-short-current/audit_delivery.py
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 4.739
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T163031Z-prep-current-short-independent-audit.log", "log_sha256": "dbb6abafefb30378b28b45c3c462100949d431032192eb3b9333f059c7f32768"}
+```
+
+### 20260917T160919Z-mn07s3
+- ts: 2026-09-17T16:17:23Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-mini-attempt7-successor3-native/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: FAIL
+- duration_seconds: 460.314
+- summary: The current mini-lesson pipeline completed all six product stages and 21 bounded real Codex launches, but no automatic Delivery was eligible. One candidate scored 94 and was retained as manual because the real ASR had uncertain song/voice terms; the other scored 65 and was blocked for an incomplete central objective. This is a truthful content/quality-gate result, not an execution failure or mini acceptance.
+- details:
+
+```json
+{"candidate_count":2,"codex_calls_invalid":1,"codex_calls_succeeded":20,"codex_launches":21,"delivery_count":0,"exit_code":1,"local_mlx_calls_succeeded":4,"manual_keep":{"candidate_id":"chain_0793273a9811ce93_unit_001","publish_status":"manual","risk_flags":["asr_uncertain"],"score":94},"pipeline_status":"completed","plan_sha256":"8ea82f8f670f011301b18554f1c3d367e75e121f44e4501be2dbfef03884d668","product_log_sha256":"4883420a4beb98f8e9979be40fb06dc18ad9185c1c145f15d950e41d6d0d1683","project_id":"3cef65148064432495442dda7c54f174","render_count":0,"result_sha256":"9adf8dd303cdaee06e2f344e59bb0b8bc1dae2d8e7c0be2ec8a1e4e13dc6be44","run_id":"bb8fc26a7d5a453b9a9f93daee2def3b","sqlite_sha256":"edc04904c01320aedef1bf2705a437bc66d8e2ffd3589c6c63c8c37c9c88ccbd","status":"FAIL"}
+```
+
+### 20260917T162310Z-rshort
+- ts: 2026-09-17T16:30:36Z
+- command: /usr/bin/caffeinate -i .venv/bin/python .loop/development/sd6-real-short-current/launch.py --execute-once
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 316.349
+- summary: The user-requested current real video clipping test passed. Local MLX ASR, saved-login Codex semantics, three clean 1080x1920 H.264/AAC renders, default selection and immutable Delivery v001 completed under 5/8 guarded launches. Independent direct SQLite, manifest, ZIP, SRT, full-decode and viewed-contact-sheet audit passed.
+- details:
+
+```json
+{"approved_count":3,"audit_qa":"20260917T163031Z-prep-current-short-independent-audit","audit_sha256":"a32eb4d0c031e4f9ed58a47bf84fe03f7bc1ae8ce44753a9157a930e460cb993","candidate_count":3,"codex_calls_invalid_initial":1,"codex_calls_succeeded":4,"codex_launches":5,"delivery_count":1,"delivery_id":"78c0ce4189764945b16a27ea2fbefbf4","delivery_version":1,"exit_code":0,"foreign_key_violations":0,"human_audio_listening":"NOT_PERFORMED","local_mlx_calls_succeeded":4,"manifest_sha256":"2a18bdc0756aee85fff26917cca0ba09260f6f288b7b3528cc00c2b68b9834ce","media_full_decode_passed":3,"pipeline_status":"completed","plan_sha256":"c934bbab0fe4286c1251bcba4a49feac6382338ba98cbdedc2d10e970535f4b8","product_log_sha256":"a1e1c9d39ef110b7a8db2c4a95e72a5651a6b2a9002a348ff791ecefc6b99c83","project_id":"1c79a38942384e03b1f020ed2b13ade1","render_count":3,"result_sha256":"ad5b0ca6fac76b177e2b4cc6386bb5cdf801f90970bbd7bbd93d2039c9b9df0b","run_id":"6af60baa3d7e47da9a406abe55d384c0","sqlite_quick_check":"ok","status":"PASS","token_totals":{"input_tokens":77494,"output_tokens":12711,"reasoning_output_tokens":5805},"visual_contact_sheets":"VIEWED_PASS","zip_crc":"PASS","zip_disk_byte_equality":"PASS","zip_member_count":9,"zip_sha256":"741fc0e2a5ffc0308d5ffba54e62ec2950be02f33a1baaa693c25d3b84fe4c58"}
+```
+
+### 20260917T163348Z-prep-current-real-final-lint
+- ts: 2026-09-17T16:33:55.293049+00:00
+- command: make lint
+- cwd: /Users/junhuaxu/autoclip
+- status: PASS
+- duration_seconds: 7.199
+- summary: Preparation command PASS; no formal acceptance implied.
+- details:
+
+```json
+{"exit_code": 0, "log": ".loop/development/sd6-resume-preparation/20260917T163348Z-prep-current-real-final-lint.log", "log_sha256": "be508c853120428eaf847f6e034f955fcbdb024801dc8976c4bd2756a054483e"}
+```

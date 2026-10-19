@@ -1,0 +1,12 @@
+schema_version: "1"
+version: agent_clipping_v2
+entrypoint: SKILL.md
+includes:
+  - prompts/discovery.md
+  - prompts/boundary_merge.md
+  - prompts/scoring.md
+  - prompts/subtitle_calibration.md
+  - prompts/title_generation.md
+  - prompts/delivery.md
+repair: REPAIR.md
+profiles: profiles.yaml

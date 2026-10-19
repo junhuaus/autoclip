@@ -1,0 +1,107 @@
+{
+  "status": "PREPARED_NOT_STARTED",
+  "checked_at": "2026-09-17T06:09:46.679981+00:00",
+  "scope": "Main-owned resume preparation; not formal Runner or SD-6 acceptance",
+  "base_head": "2f361fcddc0e63ae62ee62826e27b54bb8204c53",
+  "model_calls": 0,
+  "attempt": 7,
+  "launch_cap": 64,
+  "wall_seconds": 1500,
+  "counter_absent": true,
+  "data_directory_absent": true,
+  "seal": {
+    "plan_sha256": "34177fbe8d98ddda8ad9d737c7418b55075f0f64f3d8f5fc3e46d8584c4c9dfc",
+    "pipeline_config_sha256": "df847a26189d10656bba29132e8bfa8558f531b02e98aa7a3553fc4b8e30a4ef",
+    "model_calls": 0
+  },
+  "seal_sha256": "f98f38ad02ea2a9579b771ebf8604ff2930a2abba15e3d92084858c9ff07d3d0",
+  "preflight_sha256": "7c5253de0de8d05376ad1fa12169482098e1ff9d7b04e08722235eef286eec13",
+  "hardware": {
+    "status": "PASS",
+    "checked_at": "2026-09-17T06:07:33.127861+00:00",
+    "scope": "Host hardware prerequisites; zero content inference",
+    "architecture": "arm64",
+    "cpu": "Apple M1 Max",
+    "memory_bytes": 68719476736,
+    "macos": "15.5",
+    "python": "3.12.14",
+    "sqlite": {
+      "version": [
+        3,
+        53,
+        1
+      ],
+      "threadsafety": 3
+    },
+    "source_sha256": "818b669972b4e3f75f5358685ec231cd7daaaaa250c6525188291151c1109943",
+    "source_bytes": 3143702536,
+    "source_read_only": true,
+    "mlx_model": {
+      "path": "/Users/junhuaxu/autoclip/data/models/whisper-large-v3-mlx",
+      "sha256": "f1e72bb42310a0c8735d528450f573e205d1ea530ee39acb3a1088583d398b7d",
+      "config_sha256": "34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3",
+      "weights_sha256": "05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d",
+      "weights_size_bytes": 3083520416
+    },
+    "mlx_version": "0.32.2",
+    "mlx_whisper_version": "0.4.3",
+    "metal_available": true,
+    "metal_array_computation": "PASS",
+    "codex_contract": "codex-cli-editorial-v2.0.154.0.3a7359e8278adf1394c8272ba2ab4ee46edd92d4ea133a7d196d7897180a0984",
+    "codex_login_ready": true,
+    "prompt_hashes": {
+      "discovery": "1d350398d3db6d80f25a31cd7ad25a6f606a01dae9e86a9e888a1709d95b2de1",
+      "link_review": "36cd954f65071006926c1ea912bb575bd390181c680346df38b7408d322bc614",
+      "topic_chain": "51bc9886aaaed8b696fedad15c27113529672971dc47b02e212891dcead2f710",
+      "boundary_review": "6eac3cac34e3715f1f366ee1aa954107549d6ba8ed3e82b2e82ad93ddf0a3936",
+      "global_review": "9bdf34314c9e4b266ba11e4ef416685beef637373ee9722bbce93b2f9594bff8"
+    },
+    "model_calls": 0
+  },
+  "excerpt": {
+    "status": "PASS",
+    "source_sha256": "818b669972b4e3f75f5358685ec231cd7daaaaa250c6525188291151c1109943",
+    "start_ms": 1870000,
+    "duration_ms": 300000,
+    "excerpt_sha256": "41d74af249b750b21add28ef39662cf3478b9af2e8cfcbdd125a7edb90913760",
+    "excerpt_bytes": 593339603,
+    "full_decode": "PASS",
+    "source_unchanged": true,
+    "ffmpeg_sha256": "733eab555d50593370ae810b20405d22ed255748ee39a76b53c1fe3b6aaaa5f0",
+    "model_calls": 0,
+    "note": "New host-derived encoding at the previously frozen interval; not claimed byte-identical to historical excerpt."
+  },
+  "qa_pairs_reconciled": 1134,
+  "qa_ids": [
+    "20260917T041909Z-prep-model-download",
+    "20260917T042056Z-prep-model-ranges",
+    "20260917T042113Z-prep-local-asr-deps",
+    "20260917T042446Z-prep-prompt-tests",
+    "20260917T042613Z-prep-lint",
+    "20260917T043240Z-prep-guard-test",
+    "20260917T043551Z-prep-provider-tests",
+    "20260917T044208Z-prep-local-asr-deps-retry",
+    "20260917T044209Z-prep-excerpt",
+    "20260917T044246Z-prep-native-web",
+    "20260917T044311Z-prep-native-web-tests",
+    "20260917T044321Z-prep-native-web-network",
+    "20260917T044349Z-prep-native-web-tests-retry",
+    "20260917T044553Z-prep-browser-path",
+    "20260917T045002Z-prep-model-native-download",
+    "20260917T045024Z-prep-metal",
+    "20260917T045329Z-prep-guard-watchdog-test",
+    "20260917T045402Z-prep-guard-active-deadline",
+    "20260917T045521Z-prep-model-resume",
+    "20260917T060708Z-prep-prep-final-doctor",
+    "20260917T060721Z-prep-prep-final-hardware",
+    "20260917T060753Z-prep-prep-attempt7-freeze",
+    "20260917T060813Z-prep-attempt7-final-preflight"
+  ],
+  "limitations": [
+    "No real ASR/editorial inference, browser E2E or Delivery acceptance performed.",
+    "New host encoding and controls are reconstructed and separately frozen, not byte-identical to historical freeze.",
+    "Doctor READY with text-filter warning; supported Pillow overlay fallback selected.",
+    "Existing npm lock audit reports two moderate and one high vulnerability; no dependency remediation in preparation scope.",
+    "Local ignored controls/models do not travel with git; refresh registered preflight before execution (receipt expires after one hour)."
+  ]
+}

@@ -57,7 +57,8 @@ def upgrade() -> None:
             "execution_contract = 'semantic-bounded-units-v1'", name="semantic_unit_contract"
         ),
         sa.CheckConstraint(
-            "disposition IS NULL OR disposition IN ('succeeded','transient','exhausted','cancelled')",
+            "disposition IS NULL OR disposition IN "
+            "('succeeded','transient','exhausted','cancelled')",
             name="semantic_unit_disposition",
         ),
         sa.CheckConstraint(

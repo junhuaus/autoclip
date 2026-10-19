@@ -40,8 +40,8 @@ dev:
 
 lint:
 	@"$(VENV_BIN)/ruff" check src tests scripts tools
-	@"$(VENV_BIN)/ruff" format --check src tests scripts tools
-	@"$(VENV_BIN)/mypy" src/liveclip scripts tools/loop_engineering
+	@"$(VENV_BIN)/ruff" format --check src tests scripts tools --extend-exclude 'tools/loop_engineering/m3a_v*_source_freeze.py' --extend-exclude 'tools/loop_engineering/m3s_v*_source_freeze.py'
+	@"$(VENV_BIN)/mypy" --exclude '^tools/loop_engineering/(m3a|m3s)_v[0-9]+_source_freeze\.py$$' src/liveclip scripts tools/loop_engineering
 	@"$(VENV_BIN)/python" scripts/export_edit_plan_schema.py --check
 	@if [ -f apps/web/package-lock.json ]; then PATH="$(NODE_LTS_BIN):$$PATH" npm run typecheck --prefix apps/web; fi
 

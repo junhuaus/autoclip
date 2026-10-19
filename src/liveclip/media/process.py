@@ -183,6 +183,7 @@ def run_cancellable_process(
         reader.start()
 
     started = time.monotonic()
+    wall_started = time.time()
     try:
         while process.poll() is None or not all(reader.done for reader in readers):
             for reader in readers:
@@ -192,7 +193,13 @@ def run_cancellable_process(
                 _terminate_process_group(process)
                 _join_readers(readers)
                 raise ProcessCancelled("subprocess cancellation was requested")
-            remaining = timeout_seconds - (time.monotonic() - started)
+            # Some macOS monotonic clocks do not advance for the full duration
+            # of system sleep. A provider request started before sleep must not
+            # receive a fresh timeout budget after wake, so enforce the larger
+            # of monotonic and wall-clock elapsed time. A backwards wall-clock
+            # correction cannot weaken the monotonic deadline.
+            elapsed = max(time.monotonic() - started, time.time() - wall_started)
+            remaining = timeout_seconds - elapsed
             if remaining <= 0:
                 _terminate_process_group(process)
                 _join_readers(readers)

@@ -88,6 +88,69 @@ never claim Worker tasks, reset retries, select clips or publish a ZIP before
 the bound Asset commits. Both presets remain experimental until real
 content/audio and long-input acceptance.
 
+Amendment, 2026-09-26: LiveClip adds an experimental prompt-first Agent Runtime
+v2 in parallel with the accepted fixed dual-profile path. Python is a reusable,
+bounded Harness for typed tool execution, Context limits, cancellation,
+cache/retry/audit, source-time truth, filesystem safety and media execution.
+The model selects capabilities through provider-native strict function calls;
+the Harness executes only registered functions and returns each observation as
+a function result correlated by the provider call ID. Tool implementations live
+outside the generic Harness. A text or structured-output `call_tool` envelope
+does not satisfy the v2 contract.
+Discovery, boundary and merge judgment, scoring, subtitle calibration policy,
+title writing and Profile strategy belong to versioned Skills, Prompts and
+Context. The Harness contains no hard-coded Profile names, semantic duplicate
+rules, content-risk taxonomy, approval state or editorial score threshold.
+Every technically valid candidate remains observable with a 0--100 score; any
+Top-N is a presentation choice rather than an acceptance gate. The initial
+Skill configures `short_highlight` at 45--90 seconds, `mini_lesson` strictly
+above 90 and at most 300 seconds, and an optional `full_lesson` strictly above
+300 and at most 600 seconds when a complete teaching unit warrants it. Subtitle
+calibration must be audio-grounded and preserve original text, corrected text,
+diff and evidence. A dedicated title Skill produces multiple source-grounded,
+novice-readable and attractive choices without claiming unobserved popularity
+or trends. Existing v1 runs, Prompts, caches and benchmark evidence remain
+replayable; v2 is not the production default until real-provider, subtitle,
+title, render and benchmark evidence establishes parity.
+
+Amendment, 2026-09-27: a v2 Agent run must survive process interruption without
+repeating a provider call whose complete response was already recorded. Durable
+identity binds source Context, Skill, provider/model/settings and native tool
+Schemas. Post-turn events/Artifacts, full stateless Responses history, opaque
+reasoning items, pending calls and terminal results are local audit evidence;
+identity drift or history rewrite fails closed. A completed run may be rendered
+only after its Skill, transcript and Artifacts revalidate. Verified subtitle
+revisions override text without changing cue timing, while all grounded title
+alternatives remain visible. Render and offline-review package directories are
+hash-pinned, atomic, no-replace publications. Their UI displays scores and
+evidence for human choice and must not invent an automatic approval state.
+
+Amendment, 2026-09-28: prompt-first Agent v2 may use either direct OpenAI
+Responses authentication or the locally installed Codex App Server with the
+operator's existing ChatGPT OAuth login. `LIVECLIP_AGENT_PROVIDER` selects this
+Agent transport independently of the ASR and compatibility-pipeline provider;
+choosing OAuth must not require, synthesize or persist `OPENAI_API_KEY`. The
+App Server thread receives only LiveClip's strict dynamic tools. Built-in
+command, filesystem, web, MCP, plugin and subagent capabilities are disabled,
+an unexpected built-in item fails the run, and LiveClip still executes every
+registered capability inside its deterministic Harness. OAuth credentials and
+tokens are never copied into LiveClip state, telemetry, manifests or delivery
+artifacts. Because App Server dynamic tools are experimental, the exact Codex
+CLI contract and disabled-feature fingerprint are part of run identity and
+audit evidence.
+
+Amendment, 2026-09-28: full-transcript Agent runs must freeze one explicit
+Global Review Artifact before title generation. The Agent—not Python—classifies
+every raw candidate, records replacements and same/cross-Profile relationships,
+checks standalone openings, complete endings and irrelevant padding, and
+performs the semantic coverage review. The tool enforces only conservation and
+referential facts: every raw candidate has one row, requested Profiles have a
+final candidate, referenced Artifacts exist, titles target only frozen final
+candidates, and no candidate is added after freeze. The offline package also
+exports combined Markdown and JSON scripts containing boundaries, scores,
+title alternatives and transcript text for external analysis; transcript text
+is labelled untrusted data.
+
 ## Product outcome
 
 LiveClip is a local-first Chinese livestream video clipping system for Apple Silicon macOS. A user supplies an absolute path to a 2–4 hour local video and chooses compatibility Algorithm A/B v1, experimental B v2, Full-first comparison mode, or recommended `semantic_windowed`. LiveClip imports and analyzes it, uses the explicitly configured local or cloud ASR plus OpenAI/Codex editorial understanding, produces up to a configurable number of highlights, renders their clean vertical masters, supports default or manual user selection and revision, and creates an immutable versioned delivery package from the selected subset.

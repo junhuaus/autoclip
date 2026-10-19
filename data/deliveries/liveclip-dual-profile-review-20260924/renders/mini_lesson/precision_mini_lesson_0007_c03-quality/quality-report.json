@@ -1,0 +1,50 @@
+{
+  "schema_version": "1",
+  "media_path": "/Users/junhuaxu/autoclip/data/evaluations/dual-profile-benchmark-20260924-final-cold-18/renders/mini_lesson/precision_mini_lesson_0007_c03.mp4",
+  "media_sha256": "0d718c52ae7d866f4946a7f65e3886148dadb5d4afd2ba21681d6262545a1e34",
+  "expected_width": 1080,
+  "expected_height": 1920,
+  "actual_width": 1080,
+  "actual_height": 1920,
+  "expected_duration_ms": 123580,
+  "actual_duration_ms": 123600,
+  "file_size": 107460384,
+  "container_format": "mov,mp4,m4a,3gp,3g2,mj2",
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "full_decode": "passed",
+  "safe_area_check": "not_applicable",
+  "black_frame_check": "passed",
+  "edge_and_crop_check": "passed_edge_activity_and_crop_heuristic",
+  "frame_metrics": [
+    {
+      "filename": "beginning.png",
+      "timestamp_ms": 500,
+      "mean_luma": 105.488,
+      "luma_variance": 3641.825,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 1.214
+    },
+    {
+      "filename": "middle.png",
+      "timestamp_ms": 61800,
+      "mean_luma": 84.415,
+      "luma_variance": 3103.144,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 1.316
+    },
+    {
+      "filename": "ending.png",
+      "timestamp_ms": 123100,
+      "mean_luma": 108.683,
+      "luma_variance": 4666.567,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 0.909
+    }
+  ],
+  "contact_sheet": "/Users/junhuaxu/autoclip/data/evaluations/dual-profile-benchmark-20260924-final-cold-18/renders/mini_lesson/precision_mini_lesson_0007_c03-quality/contact-sheet.png",
+  "automatic_status": "passed",
+  "visual_inspection_status": "viewed_passed",
+  "visual_inspection_notes": "人工检查 contact sheet 的开始、中间、结束帧：竖屏方向正确，无黑帧、花屏或明显裁切，人物及教学板/屏幕内容可见。",
+  "visual_inspection_at": "2026-09-24T11:21:24.486855+00:00"
+}

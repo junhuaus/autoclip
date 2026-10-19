@@ -1,0 +1,22 @@
+schema_version: "1"
+transcript_context_max_ms: 1200000
+transcript_search_max_results: 40
+profiles:
+  short_highlight:
+    min_duration_ms: 45000
+    max_duration_ms: 90000
+    min_inclusive: true
+    max_inclusive: true
+    context_window_ms: 330000
+  mini_lesson:
+    min_duration_ms: 90000
+    max_duration_ms: 300000
+    min_inclusive: false
+    max_inclusive: true
+    context_window_ms: 600000
+  full_lesson:
+    min_duration_ms: 300000
+    max_duration_ms: 600000
+    min_inclusive: false
+    max_inclusive: true
+    context_window_ms: 1200000

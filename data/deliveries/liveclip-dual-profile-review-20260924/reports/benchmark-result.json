@@ -1,0 +1,170 @@
+{
+  "automatic_quality_failures": [],
+  "benchmark_id": "liveclip-dual-profile-transcript-v1",
+  "components": {
+    "audit_and_reproducibility": 10.0,
+    "both_profiles_executed": 15,
+    "boundary_and_completeness": 12.86,
+    "mini_lesson_recall": 25.0,
+    "risk_discovery_and_routing": 10.0,
+    "short_recall": 17.5
+  },
+  "executed_profiles": [
+    "short_highlight",
+    "mini_lesson"
+  ],
+  "hard_failures": [],
+  "matched_p0": [
+    "L01",
+    "L02",
+    "L03"
+  ],
+  "mini_lesson_hits": 5,
+  "mini_lesson_matches": [
+    {
+      "anchor_id": "L01",
+      "candidate_id": "risk_mini_0005_breathy_mix_control",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "L02",
+      "candidate_id": "audit_mini_lesson_0006_c03",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "L03",
+      "candidate_id": "precision_mini_lesson_0007_c03",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "L04",
+      "candidate_id": "mini_lesson_0008_c1051_1130",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "cue_time_semantic_equivalent",
+      "profile": "mini_lesson",
+      "start_delta_ms": 3460
+    },
+    {
+      "anchor_id": "L05",
+      "candidate_id": "risk_mini_lesson_0016_01",
+      "decision": "manual_review",
+      "end_delta_ms": -4060,
+      "match_kind": "cue_time_semantic_equivalent",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    }
+  ],
+  "mini_lesson_total": 6,
+  "requested_profiles": [
+    "short_highlight",
+    "mini_lesson"
+  ],
+  "required_p0": [
+    "L01",
+    "L02",
+    "L03"
+  ],
+  "rgr02_auto_selected": [],
+  "risk_matches": [
+    {
+      "anchor_id": "R01",
+      "candidate_id": "risk_mini_0013_two_vocal_faults_first_diagnosis",
+      "decision": "blocked",
+      "end_delta_ms": 3280,
+      "match_kind": "risk_full_cue_coverage",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "R02",
+      "candidate_id": "mini_lesson_0014_c02",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "risk_full_cue_coverage",
+      "profile": "mini_lesson",
+      "start_delta_ms": 0
+    }
+  ],
+  "score": 90.36,
+  "short_hits": 7,
+  "short_matches": [
+    {
+      "anchor_id": "S01",
+      "candidate_id": "short_highlight_0003_c01",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "cue_time_semantic_equivalent",
+      "profile": "short_highlight",
+      "start_delta_ms": 3420
+    },
+    {
+      "anchor_id": "S02",
+      "candidate_id": "short_highlight_0004_c01",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "S04",
+      "candidate_id": "sh_0006_c03",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "S05",
+      "candidate_id": "sh_0007_c01",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "S06",
+      "candidate_id": "sh_0009_balanced_mix_step5",
+      "decision": "manual_review",
+      "end_delta_ms": 2860,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": -2300
+    },
+    {
+      "anchor_id": "S07",
+      "candidate_id": "sh_0009_choose_sound_before_labels",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": 0
+    },
+    {
+      "anchor_id": "S08",
+      "candidate_id": "sh_0021_resing_channel_correction",
+      "decision": "manual_review",
+      "end_delta_ms": 0,
+      "match_kind": "exact_boundary",
+      "profile": "short_highlight",
+      "start_delta_ms": 0
+    }
+  ],
+  "short_total": 8,
+  "status": "PASS"
+}

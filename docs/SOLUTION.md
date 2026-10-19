@@ -248,6 +248,115 @@ Overlap merging converts all results to source milliseconds, first filters segme
 
 ## Candidate and LLM editing design
 
+### Prompt-first Agent Runtime v2
+
+The experimental v2 path is deliberately parallel to the fixed dual-profile
+pipeline described below. Its dependency flow is:
+
+```text
+versioned Skill + ordered Prompts + configuration + bounded Context
+                              ↓
+             OpenAI Responses native function tools
+       (function_call → local execution → function_call_output)
+                              ↓
+                immutable evidence-backed Artifacts
+                              ↓
+       deterministic media validation/render/publication adapters
+```
+
+`src/liveclip/agent_runtime` owns the generic loop, OpenAI native transport,
+Context budgeting, typed Tool registry, immutable Artifact store, cancellation,
+limits and event evidence. `src/liveclip/agent_tools` contains the narrow safe
+capability implementations; they are not embedded in the Harness.
+`src/liveclip/clipping_skills/agent_clipping_v2` owns editorial behavior and
+Profile configuration. `src/liveclip/services/agent_clipping.py` composes one
+run without putting provider-specific or editorial rules in the Harness.
+
+Each turn supplies registered capabilities as Responses function tools with
+strict closed argument Schemas. The model chooses exactly one native function
+and supplies its typed arguments. The Harness executes only that registered
+function and returns its bounded observation as `function_call_output` using
+the exact provider `call_id`. `finish` is also a native function and is accepted
+only when its Artifact IDs exist and pass applicable technical validation. The
+internal `AgentTurn` is a stable audit projection of a native call; it is not a
+simulated `call_tool` wire protocol. Strict tool definitions require
+`additionalProperties: false` and every declared property in `required`.
+
+The configured v2 transport is independent of the ASR/compatibility-pipeline
+provider. `openai-responses` uses the direct Responses API, while
+`codex-app-server` uses the installed Codex CLI's existing ChatGPT OAuth session
+and experimental `dynamicTools` JSON-RPC contract. The latter is genuine native
+function calling: Codex chooses a LiveClip dynamic tool, LiveClip's Harness
+executes that registered capability, and its result is returned against the
+exact App Server request/call IDs. It does not require or persist an
+`OPENAI_API_KEY` and it is not a structured-text `call_tool` emulation.
+
+The OAuth adapter starts App Server in an empty private working directory with
+network disabled, clears configured MCP servers, disables built-in command,
+filesystem, web, plugin, skill and subagent features, and rejects any
+unexpected built-in item before it can become an accepted Agent action. The
+child environment contains only the minimum process/locale/Codex-login
+variables and excludes API keys. Durable state contains thread/call identity,
+hashes and usage, not OAuth credentials. Restart either replays a locally
+recorded pending dynamic call or resumes the bound App Server thread and
+supplies the exact previous tool output. The exact CLI contract, model settings
+and disabled-feature fingerprint are included in run identity because dynamic
+tools remain experimental.
+
+Run recovery is local and stateful even though provider requests use
+`store=false`. One Harness journal binds source Context, Skill, provider/model,
+limits and native tool definitions, then persists post-turn events and
+Artifacts plus an immutable terminal result. A separate provider conversation
+snapshot saves full Responses input/output items, including opaque encrypted
+reasoning and a pending function call, before local execution. On restart the
+same recorded response is replayed without another provider request; the next
+turn appends the exact `function_call_output` under its original `call_id`.
+
+Profile names and bounds are loaded from Skill configuration. Python may prove
+that cue IDs exist, an interval is continuous, timestamps are exact and the
+duration satisfies the selected Profile. It may not decide semantic identity,
+quality, usefulness or title appeal from keywords, punctuation, overlap or
+time gaps. The v2 Skill scores all technically valid candidates and has no
+automatic approval/block/rejection, content-risk gate or minimum score. User
+selection remains downstream. Subtitle correction requires a successful
+audio-grounded tool observation and preserves original/corrected evidence;
+title generation is its own novice-facing, source-grounded Prompt module.
+
+Completed Agent results flow through a separate v2 delivery adapter rather than
+the v1 dual-profile assembler. It revalidates the exact Skill and transcript,
+uses a verified subtitle-revision Artifact in preference to original cue text,
+and preserves all grounded title alternatives and independent title scores.
+FFmpeg writes into a private attempt tree; LiveClip hashes and pins every
+regular output, including quality frame samples, and then atomically publishes
+the directory without replacement. The offline-review exporter again validates
+run/render/transcript identity, hashes, exact SRT and full-decode status before
+publishing a browsable package and verified ZIP.
+
+The Skill package and all ordered resources/configuration are hashed exactly
+into each run. Scripted/fake-provider tests cover native calls, crash recovery,
+subtitle/title precedence and tamper rejection, and a real-media fixture covers
+atomic rendering/package publication. That fixture is not real LLM semantic
+evidence. V2 remains non-default until real-provider audio/title quality and the
+full real-video benchmark are independently accepted. ADR-052 records this
+boundary.
+
+Full-transcript runs use an Agent-authored `global_review` Artifact as the
+semantic commit point. The model first saves drafts and any corrected
+replacements, then submits one exhaustive review row per raw candidate through
+`save_global_review`. The capability checks array conservation, existing
+references and requested-Profile presence, then freezes candidate creation.
+It does not infer duplicates, completeness or cross-Profile relationships.
+Those judgments and the review rows remain Prompt/model output. Title tools are
+unavailable for a candidate until this review exists and names that candidate
+as final, preventing a partial review from silently moving into presentation.
+The review Artifact remains in the completed result for raw/final audit.
+
+The offline package includes `全部切片脚本.md` and `全部切片脚本.json` in
+addition to individual SRT files. They combine exact candidate identity,
+Profile, boundary, score/reason, title alternatives, calibration evidence and
+the effective subtitle text. Both label transcript text as untrusted content
+and are included in the same checksum/verified-ZIP boundary as the videos.
+
 Pipeline config v6 records `a`, frozen `b`, `b_v2_experimental`, Full-first `semantic_global`, or recommended `semantic_windowed`, plus profile, duration/context budget, strict score threshold and independently hashed Discovery, Boundary Review and Global Review Prompts. Exact historical v2/v3/v4/v5 snapshots are fingerprint-checked against their original closed field sets and adapted only in memory: v2 remains A, v3 remains B v1, v4 B with consolidation maps to the experimental name, and v5 preserves its recorded v1/v2 semantic review. Algorithms never share mutable candidate state or cache namespaces, so the same SourceMedia can be processed through separate immutable runs for truthful comparison.
 
 Algorithm A is unchanged. Candidate generation first forms sentence/turn units from transcript punctuation and gaps. It scores sliding units for duration fit, boundary closure, speech density, pause strength, simple volume/silence signals, hook lexicon/question/list cues, and topic continuity. It keeps context, adjusts to legal sentence boundaries, and deduplicates by interval-overlap ratio plus normalized n-gram/Jaccard similarity. On typical long input it retains 30–50 rough candidates, then deterministic score is always available as a fallback. The editor processes every rough candidate and the pipeline retains the forced Top-N.
@@ -480,6 +589,7 @@ Structured JSON logs include timestamp, level, event, correlation/project/run/st
 - ADR-027: optional pinned full-precision MLX Whisper large-v3 ASR with single-worker deterministic decoding.
 - ADR-028: accuracy-first per-candidate Global Review scoring with Sol/high final-review routing.
 - ADR-029: independent mini-lesson Profile with iterative Agent-linked Topic Chains.
+- ADR-052: prompt-first Agent Runtime with a deterministic Python Harness.
 - ADR-010: clean review proxies with separate editorial metadata; text overlays only in final mode.
 - ADR-011: one direct center-crop source layer; blurred backgrounds and duplicated foregrounds are prohibited.
 - ADR-012: grounded review metadata and atomic, revision-fenced batch decisions without A/B variants.

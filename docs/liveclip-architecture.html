@@ -1,0 +1,1403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="A standalone architecture atlas for the LiveClip local-first Chinese livestream clipping system and its separate engineering control plane.">
+  <title>LiveClip Architecture Atlas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08111f;
+      --bg-2: #0c1728;
+      --panel: rgba(17, 31, 52, 0.88);
+      --panel-solid: #111f34;
+      --panel-2: #162a45;
+      --ink: #f2f7ff;
+      --muted: #a6b5ca;
+      --line: #2c4565;
+      --line-strong: #4f719a;
+      --cyan: #58d7e7;
+      --cyan-2: #1ea8bd;
+      --violet: #b99cff;
+      --violet-2: #7b58d4;
+      --green: #6ee7a8;
+      --green-2: #279966;
+      --amber: #f7c96b;
+      --amber-2: #bb7724;
+      --coral: #ff8c7a;
+      --coral-2: #bd4f43;
+      --blue: #75a7ff;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+      --radius: 22px;
+      --radius-sm: 13px;
+      --max: 1480px;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        color-scheme: light;
+        --bg: #f2f5f8;
+        --bg-2: #e8eef5;
+        --panel: rgba(255, 255, 255, 0.92);
+        --panel-solid: #ffffff;
+        --panel-2: #edf4fb;
+        --ink: #102036;
+        --muted: #51637a;
+        --line: #c6d3e2;
+        --line-strong: #8ca4bf;
+        --cyan: #087f91;
+        --cyan-2: #066879;
+        --violet: #6846bb;
+        --violet-2: #54359f;
+        --green: #167849;
+        --green-2: #10643c;
+        --amber: #9c610d;
+        --amber-2: #814c04;
+        --coral: #bd493a;
+        --coral-2: #9f382c;
+        --blue: #326fcf;
+        --shadow: 0 24px 70px rgba(30, 52, 78, 0.13);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 5.5rem;
+    }
+
+    body {
+      margin: 0;
+      min-width: 280px;
+      background:
+        radial-gradient(circle at 82% -8%, color-mix(in srgb, var(--violet) 18%, transparent), transparent 34rem),
+        radial-gradient(circle at -8% 20%, color-mix(in srgb, var(--cyan) 16%, transparent), transparent 30rem),
+        linear-gradient(160deg, var(--bg), var(--bg-2) 52%, var(--bg));
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: inherit; }
+    code, .mono { font-family: var(--mono); }
+
+    :focus-visible {
+      outline: 3px solid var(--amber);
+      outline-offset: 4px;
+      border-radius: 6px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: .75rem;
+      left: .75rem;
+      padding: .7rem 1rem;
+      border-radius: 999px;
+      color: #06131e;
+      background: #fff3bd;
+      transform: translateY(-160%);
+      transition: transform .15s ease;
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .shell {
+      width: min(calc(100% - 2rem), var(--max));
+      margin-inline: auto;
+    }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+      background: color-mix(in srgb, var(--bg) 86%, transparent);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      min-height: 4.15rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: .65rem;
+      margin-right: .5rem;
+      text-decoration: none;
+      font-weight: 760;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 1.9rem;
+      height: 1.9rem;
+      place-items: center;
+      border: 1px solid color-mix(in srgb, var(--cyan) 70%, var(--line));
+      border-radius: 9px;
+      background: color-mix(in srgb, var(--cyan) 16%, transparent);
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: .72rem;
+    }
+
+    nav { display: flex; gap: .35rem; }
+
+    nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.2rem;
+      padding: .42rem .72rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: var(--muted);
+      text-decoration: none;
+      white-space: nowrap;
+      font-size: .78rem;
+      font-weight: 650;
+    }
+
+    nav a:hover {
+      border-color: var(--line);
+      color: var(--ink);
+      background: color-mix(in srgb, var(--panel) 80%, transparent);
+    }
+
+    header.hero {
+      position: relative;
+      padding: clamp(4rem, 8vw, 8rem) 0 3.5rem;
+      overflow: hidden;
+    }
+
+    header.hero::after {
+      position: absolute;
+      inset: 8% 2% auto auto;
+      width: 28rem;
+      height: 28rem;
+      border: 1px solid color-mix(in srgb, var(--violet) 22%, transparent);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 4rem color-mix(in srgb, var(--violet) 3%, transparent),
+        0 0 0 9rem color-mix(in srgb, var(--cyan) 2%, transparent);
+      content: "";
+      pointer-events: none;
+    }
+
+    .hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(19rem, .65fr);
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: end;
+    }
+
+    .eyebrow {
+      margin: 0 0 1rem;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: .76rem;
+      font-weight: 750;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 1000px;
+      margin: 0;
+      font-size: clamp(3.5rem, 9.2vw, 8.6rem);
+      font-weight: 820;
+      letter-spacing: -.075em;
+      line-height: .84;
+    }
+
+    .hero .lede {
+      max-width: 760px;
+      margin: 2rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.7vw, 1.28rem);
+    }
+
+    .signal-line {
+      display: inline-block;
+      margin-top: 1.6rem;
+      padding: .55rem .8rem;
+      border-left: 3px solid var(--green);
+      background: color-mix(in srgb, var(--green) 9%, transparent);
+      color: var(--ink);
+      font-size: .87rem;
+    }
+
+    .checkpoint {
+      padding: 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--panel-2) 77%, transparent));
+      box-shadow: var(--shadow);
+    }
+
+    .checkpoint h2 {
+      margin: 0 0 .85rem;
+      font-size: 1rem;
+      letter-spacing: -.01em;
+    }
+
+    .checkpoint-row {
+      display: grid;
+      grid-template-columns: .8rem 1fr;
+      gap: .65rem;
+      padding: .7rem 0;
+      border-top: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+    }
+
+    .checkpoint-row:first-of-type { border-top: 0; }
+    .checkpoint-row p { margin: 0; color: var(--muted); font-size: .82rem; }
+    .checkpoint-row strong { display: block; color: var(--ink); font-size: .88rem; }
+
+    .dot {
+      width: .62rem;
+      height: .62rem;
+      margin-top: .35rem;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 13%, transparent);
+    }
+
+    .accepted { color: var(--green); }
+    .experimental { color: var(--violet); }
+    .pending { color: var(--amber); }
+    .blocked { color: var(--coral); }
+    .human { color: var(--blue); }
+
+    main { padding-bottom: 5rem; }
+
+    section {
+      padding: clamp(3rem, 7vw, 6.5rem) 0;
+      border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, .65fr) minmax(18rem, .35fr);
+      gap: 2rem;
+      align-items: end;
+      margin-bottom: 2.25rem;
+    }
+
+    .kicker {
+      margin: 0 0 .6rem;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 750;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h2.section-title {
+      max-width: 940px;
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 4.2rem);
+      letter-spacing: -.055em;
+      line-height: .98;
+    }
+
+    .section-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: .7rem;
+    }
+
+    .legend-item {
+      display: grid;
+      grid-template-columns: 1rem 1fr;
+      gap: .65rem;
+      align-items: start;
+      padding: .85rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+    }
+
+    .legend-item strong { display: block; font-size: .8rem; }
+    .legend-item span:last-child { color: var(--muted); font-size: .72rem; }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .85rem;
+      margin-top: 1rem;
+    }
+
+    .evidence-card {
+      position: relative;
+      min-height: 13.5rem;
+      padding: 1.1rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+    }
+
+    .evidence-card::before {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: var(--accent, var(--cyan));
+      content: "";
+    }
+
+    .evidence-card .num {
+      color: var(--accent, var(--cyan));
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .1em;
+    }
+
+    .evidence-card h3 { margin: 1rem 0 .55rem; font-size: 1rem; }
+    .evidence-card p { margin: 0; color: var(--muted); font-size: .8rem; }
+    .evidence-card strong { color: var(--ink); }
+
+    .boundary {
+      position: relative;
+      padding: clamp(1rem, 2.6vw, 2rem);
+      border: 1px solid var(--line-strong);
+      border-radius: calc(var(--radius) + 4px);
+      background:
+        linear-gradient(var(--panel), var(--panel)) padding-box,
+        repeating-linear-gradient(135deg, var(--line) 0 8px, transparent 8px 16px) border-box;
+      box-shadow: var(--shadow);
+    }
+
+    .boundary-label {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      margin-bottom: 1rem;
+      padding: .34rem .58rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--panel-solid);
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .layer-stack { display: grid; gap: .85rem; }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 11rem 1fr;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .layer-title {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--panel-2) 82%, transparent);
+    }
+
+    .layer-title .index { color: var(--cyan); font-family: var(--mono); font-size: .7rem; }
+    .layer-title strong { font-size: .9rem; }
+    .layer-title small { color: var(--muted); font-size: .68rem; }
+
+    .node-row {
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+      gap: .65rem;
+    }
+
+    .node {
+      min-width: 0;
+      padding: .9rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--panel-solid) 90%, transparent);
+    }
+
+    .node strong { display: block; font-size: .82rem; }
+    .node span { display: block; margin-top: .28rem; color: var(--muted); font-size: .69rem; }
+    .node em { color: var(--cyan); font-family: var(--mono); font-size: .64rem; font-style: normal; }
+
+    .flow-arrow {
+      display: grid;
+      grid-template-columns: 11rem 1fr;
+      gap: 1rem;
+      min-height: 1.7rem;
+      color: var(--line-strong);
+    }
+
+    .flow-arrow div:last-child {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: .67rem;
+      letter-spacing: .08em;
+    }
+
+    .flow-arrow div:last-child::before,
+    .flow-arrow div:last-child::after {
+      width: min(13vw, 9rem);
+      height: 1px;
+      margin: 0 .75rem;
+      background: var(--line);
+      content: "";
+    }
+
+    .invariant-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .65rem;
+      margin-top: 1rem;
+    }
+
+    .invariant {
+      padding: .85rem;
+      border: 1px solid color-mix(in srgb, var(--green) 36%, var(--line));
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--green) 6%, var(--panel));
+      font-size: .74rem;
+    }
+
+    .invariant strong { color: var(--green); }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      padding: clamp(1rem, 2.5vw, 1.6rem);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 16px 50px rgba(0, 0, 0, .12);
+    }
+
+    .card h3 { margin: 0 0 .5rem; font-size: 1.15rem; letter-spacing: -.025em; }
+    .card > p { margin: .35rem 0; color: var(--muted); font-size: .82rem; }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(9rem, 1fr));
+      gap: .75rem;
+      overflow-x: auto;
+      padding: .2rem .2rem 1rem;
+      scroll-snap-type: x proximity;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 15rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: linear-gradient(165deg, var(--panel-solid), var(--panel-2));
+      scroll-snap-align: start;
+    }
+
+    .stage:not(:last-child)::after {
+      position: absolute;
+      z-index: 2;
+      top: 2.1rem;
+      right: -.62rem;
+      color: var(--cyan);
+      content: "→";
+      font-weight: 800;
+    }
+
+    .stage .step {
+      display: inline-grid;
+      width: 1.8rem;
+      height: 1.8rem;
+      place-items: center;
+      border-radius: 8px;
+      color: var(--cyan);
+      background: color-mix(in srgb, var(--cyan) 12%, transparent);
+      font-family: var(--mono);
+      font-size: .7rem;
+    }
+
+    .stage h3 { margin: .9rem 0 .45rem; font-size: .95rem; }
+    .stage p { margin: 0; color: var(--muted); font-size: .73rem; }
+    .stage .output { display: block; margin-top: 1rem; color: var(--green); font-family: var(--mono); font-size: .64rem; }
+
+    .after-pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .75rem;
+      margin-top: 1rem;
+    }
+
+    .after-pipeline .node { border-top: 3px solid var(--accent, var(--blue)); }
+
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: .8rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    .profile {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .profile strong { display: block; color: var(--green); }
+    .profile span { color: var(--muted); font-size: .75rem; }
+    .plus { color: var(--line-strong); font-family: var(--mono); }
+
+    .adapter-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .8rem;
+      margin-top: 1rem;
+    }
+
+    .adapter {
+      min-height: 11.5rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .adapter h4 { margin: .25rem 0 .5rem; font-size: .9rem; }
+    .adapter p { margin: 0; color: var(--muted); font-size: .72rem; }
+    .adapter .tag { color: var(--accent, var(--blue)); font-family: var(--mono); font-size: .62rem; }
+
+    .agent-lane {
+      position: relative;
+      overflow: hidden;
+      border-color: color-mix(in srgb, var(--violet) 60%, var(--line));
+    }
+
+    .agent-lane::after {
+      position: absolute;
+      top: -9rem;
+      right: -8rem;
+      width: 23rem;
+      height: 23rem;
+      border-radius: 50%;
+      background: radial-gradient(circle, color-mix(in srgb, var(--violet) 18%, transparent), transparent 67%);
+      content: "";
+      pointer-events: none;
+    }
+
+    .agent-flow {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(8.5rem, 1fr));
+      gap: .7rem;
+      overflow-x: auto;
+      padding: .5rem .15rem 1rem;
+    }
+
+    .agent-step {
+      position: relative;
+      min-height: 12.5rem;
+      padding: 1rem;
+      border: 1px solid color-mix(in srgb, var(--violet) 38%, var(--line));
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--violet) 6%, var(--panel-solid));
+    }
+
+    .agent-step:not(:last-child)::after {
+      position: absolute;
+      top: 2.1rem;
+      right: -.58rem;
+      color: var(--violet);
+      content: "⇢";
+      font-weight: 800;
+    }
+
+    .agent-step .tag { color: var(--violet); font-family: var(--mono); font-size: .62rem; }
+    .agent-step h3 { margin: .8rem 0 .5rem; font-size: .9rem; }
+    .agent-step p { margin: 0; color: var(--muted); font-size: .71rem; }
+
+    .guard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .8rem;
+      margin-top: 1rem;
+    }
+
+    .guard {
+      padding: 1rem;
+      border: 1px solid color-mix(in srgb, var(--coral) 30%, var(--line));
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--coral) 4%, var(--panel));
+    }
+
+    .guard strong { display: block; margin-bottom: .25rem; font-size: .82rem; }
+    .guard span { color: var(--muted); font-size: .7rem; }
+
+    .control-plane {
+      border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+      background:
+        linear-gradient(160deg, color-mix(in srgb, var(--amber) 4%, var(--panel)), var(--panel)),
+        var(--panel);
+    }
+
+    .control-flow {
+      display: grid;
+      grid-template-columns: 1.1fr .8fr 1.1fr .8fr 1.1fr;
+      gap: .7rem;
+      align-items: stretch;
+    }
+
+    .control-node {
+      display: flex;
+      min-height: 10.5rem;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .control-node .role { color: var(--amber); font-family: var(--mono); font-size: .64rem; }
+    .control-node h3 { margin: .55rem 0; font-size: .92rem; }
+    .control-node p { margin: 0; color: var(--muted); font-size: .7rem; }
+    .control-node .authority { margin-top: .75rem; color: var(--green); font-family: var(--mono); font-size: .62rem; }
+
+    .control-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--amber);
+      text-align: center;
+      font-family: var(--mono);
+      font-size: .62rem;
+    }
+
+    .control-arrow b { display: block; font-size: 1.2rem; }
+
+    .assurance-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .7rem;
+      margin-top: .7rem;
+    }
+
+    .assurance {
+      padding: .9rem;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel-solid) 82%, transparent);
+      font-size: .72rem;
+    }
+
+    .assurance strong { display: block; margin-bottom: .25rem; color: var(--ink); }
+
+    .tmux-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: .65rem;
+      margin-top: 1.2rem;
+    }
+
+    .window {
+      min-height: 10rem;
+      padding: .85rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .window .win-num { color: var(--cyan); font-family: var(--mono); font-size: .68rem; }
+    .window h4 { margin: .65rem 0 .4rem; font-size: .84rem; }
+    .window p { margin: 0; color: var(--muted); font-size: .67rem; }
+    .window.sole { border-color: color-mix(in srgb, var(--green) 54%, var(--line)); }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .8rem;
+    }
+
+    .timeline::before {
+      position: absolute;
+      z-index: 0;
+      top: 1.65rem;
+      left: 6%;
+      width: 88%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--green), var(--coral), var(--violet), var(--amber));
+      content: "";
+    }
+
+    .moment {
+      position: relative;
+      z-index: 1;
+      padding: 3.25rem 1rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .moment::before {
+      position: absolute;
+      top: 1.18rem;
+      left: 1rem;
+      width: .92rem;
+      height: .92rem;
+      border: 3px solid var(--panel-solid);
+      border-radius: 50%;
+      background: var(--accent, var(--cyan));
+      box-shadow: 0 0 0 2px var(--accent, var(--cyan));
+      content: "";
+    }
+
+    .moment .date { color: var(--accent, var(--cyan)); font-family: var(--mono); font-size: .64rem; }
+    .moment h3 { margin: .45rem 0; font-size: .9rem; }
+    .moment p { margin: 0; color: var(--muted); font-size: .7rem; }
+
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(8.5rem, 1fr));
+      gap: .65rem;
+      overflow-x: auto;
+      margin-top: 1.2rem;
+      padding-bottom: .6rem;
+    }
+
+    .road-step {
+      position: relative;
+      min-height: 9.7rem;
+      padding: 1rem;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--amber) 4%, var(--panel));
+    }
+
+    .road-step:not(:last-child)::after {
+      position: absolute;
+      top: 1.15rem;
+      right: -.52rem;
+      color: var(--amber);
+      content: "→";
+    }
+
+    .road-step .ord { color: var(--amber); font-family: var(--mono); font-size: .62rem; }
+    .road-step strong { display: block; margin: .6rem 0 .35rem; font-size: .8rem; }
+    .road-step span { color: var(--muted); font-size: .66rem; }
+
+    .milestones {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(9rem, 1fr));
+      gap: .65rem;
+      overflow-x: auto;
+      margin-top: 1rem;
+      padding-bottom: .7rem;
+    }
+
+    .milestone {
+      min-height: 12.5rem;
+      padding: .9rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--panel-solid);
+    }
+
+    .milestone .m { color: var(--amber); font-family: var(--mono); font-size: .68rem; }
+    .milestone h4 { margin: .7rem 0 .4rem; font-size: .85rem; }
+    .milestone p { margin: 0; color: var(--muted); font-size: .68rem; }
+    .milestone .not-yet { display: block; margin-top: .7rem; color: var(--coral); font-family: var(--mono); font-size: .61rem; }
+
+    .callout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .8rem;
+      margin-top: 1rem;
+      padding: 1rem;
+      border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line));
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--amber) 7%, var(--panel));
+    }
+
+    .callout b:first-child { color: var(--amber); font-family: var(--mono); }
+    .callout p { margin: 0; color: var(--muted); font-size: .78rem; }
+    .callout strong { color: var(--ink); }
+
+    .mini-table {
+      width: 100%;
+      margin-top: 1rem;
+      border-collapse: collapse;
+      font-size: .75rem;
+    }
+
+    .mini-table th,
+    .mini-table td {
+      padding: .75rem;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .mini-table th { color: var(--muted); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; }
+    .mini-table td:first-child { color: var(--cyan); font-family: var(--mono); }
+
+    .footer {
+      padding: 2.25rem 0 4rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .72rem;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: end;
+    }
+
+    .footer p { max-width: 920px; margin: .3rem 0; }
+    .footer .stamp { color: var(--cyan); font-family: var(--mono); text-align: right; }
+
+    @media (max-width: 1100px) {
+      .hero-grid, .section-head { grid-template-columns: 1fr; }
+      .checkpoint { max-width: 720px; }
+      .legend { grid-template-columns: repeat(3, 1fr); }
+      .evidence-grid { grid-template-columns: repeat(2, 1fr); }
+      .node-row { --cols: 2 !important; }
+      .adapter-row, .after-pipeline { grid-template-columns: repeat(2, 1fr); }
+      .guard-grid { grid-template-columns: repeat(2, 1fr); }
+      .control-flow { grid-template-columns: 1fr; }
+      .control-arrow { min-height: 3rem; }
+      .control-arrow b { transform: rotate(90deg); }
+      .assurance-row { grid-template-columns: repeat(2, 1fr); }
+      .tmux-grid { grid-template-columns: repeat(3, 1fr); }
+      .timeline { grid-template-columns: repeat(2, 1fr); }
+      .timeline::before { display: none; }
+    }
+
+    @media (max-width: 720px) {
+      .shell { width: min(calc(100% - 1.1rem), var(--max)); }
+      .brand span:last-child { display: none; }
+      h1 { font-size: clamp(3.2rem, 18vw, 5.4rem); }
+      .legend, .evidence-grid, .split, .invariant-strip, .profile-grid,
+      .adapter-row, .after-pipeline, .guard-grid, .assurance-row,
+      .tmux-grid, .timeline { grid-template-columns: 1fr; }
+      .plus { text-align: center; }
+      .layer { grid-template-columns: 1fr; }
+      .flow-arrow { display: block; min-height: 1.5rem; text-align: center; }
+      .flow-arrow div:first-child { display: none; }
+      .node-row { --cols: 1 !important; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .footer .stamp { text-align: left; }
+      .window, .moment, .evidence-card { min-height: auto; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+
+    @media print {
+      :root {
+        color-scheme: light;
+        --bg: #fff;
+        --bg-2: #fff;
+        --panel: #fff;
+        --panel-solid: #fff;
+        --panel-2: #f5f7fa;
+        --ink: #111827;
+        --muted: #475569;
+        --line: #cbd5e1;
+        --line-strong: #94a3b8;
+        --shadow: none;
+      }
+      @page { size: A4 landscape; margin: 11mm; }
+      body { background: #fff; font-size: 9pt; }
+      .topbar, .skip-link { display: none; }
+      header.hero { padding: 1rem 0 1.5rem; }
+      header.hero::after { display: none; }
+      h1 { font-size: 42pt; }
+      section { padding: 1.2rem 0; break-before: page; }
+      section:first-of-type { break-before: auto; }
+      .boundary, .card, .evidence-card, .moment, .milestone, .window { box-shadow: none; break-inside: avoid; }
+      .pipeline, .agent-flow, .roadmap, .milestones { overflow: visible; }
+      a { text-decoration: none; }
+      .footer { padding-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to architecture</a>
+
+  <div class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#top" aria-label="LiveClip architecture, back to top">
+        <span class="brand-mark" aria-hidden="true">LC</span>
+        <span>Architecture Atlas</span>
+      </a>
+      <nav aria-label="Page sections">
+        <a href="#legend">Legend</a>
+        <a href="#runtime">Runtime</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#agent-v2">Agent v2</a>
+        <a href="#security">Trust</a>
+        <a href="#control-plane">Control plane</a>
+        <a href="#checkpoint">Checkpoint</a>
+      </nav>
+    </div>
+  </div>
+
+  <header class="hero" id="top">
+    <div class="shell hero-grid">
+      <div>
+        <p class="eyebrow">Local-first · Apple Silicon · Chinese livestreams</p>
+        <h1>LiveClip<br>architecture.</h1>
+        <p class="lede">One product runtime turns read-only source media into reviewable vertical clips and immutable packages. A separate engineering control plane can improve that runtime without letting model output become execution authority.</p>
+        <p class="signal-line"><strong>Dependency direction:</strong> entry adapters → application services → pure domain + ports → infrastructure adapters.</p>
+      </div>
+      <aside class="checkpoint" aria-labelledby="checkpoint-summary">
+        <h2 id="checkpoint-summary">Checkpoint · 2026-10-14</h2>
+        <div class="checkpoint-row">
+          <span class="dot accepted" aria-hidden="true"></span>
+          <p><strong>Accepted product baseline</strong>v1 dual-profile path remains preserved and replayable.</p>
+        </div>
+        <div class="checkpoint-row">
+          <span class="dot experimental" aria-hidden="true"></span>
+          <p><strong>Experimental lane</strong>Agent v2 exists in parallel; it is not the default.</p>
+        </div>
+        <div class="checkpoint-row">
+          <span class="dot blocked" aria-hidden="true"></span>
+          <p><strong>Retained engineering stop</strong>V37 allocated one successor, then stopped on a historical-count validator.</p>
+        </div>
+        <div class="checkpoint-row">
+          <span class="dot pending" aria-hidden="true"></span>
+          <p><strong>Exact next boundary</strong>V38 design passed static validation; root-only creation has not run.</p>
+        </div>
+      </aside>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="legend" aria-labelledby="legend-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">00 · Reading key</p>
+            <h2 class="section-title" id="legend-title">Evidence is typed, not interchangeable.</h2>
+          </div>
+          <p class="section-note">A green technical result cannot silently become a human editorial verdict, a real-media result, or proof of real model behavior.</p>
+        </div>
+
+        <div class="legend" aria-label="Architecture status legend">
+          <div class="legend-item"><span class="dot accepted" aria-hidden="true"></span><span><strong>Accepted</strong>Preserved, correlated evidence</span></div>
+          <div class="legend-item"><span class="dot experimental" aria-hidden="true"></span><span><strong>Experimental</strong>Parallel; not default</span></div>
+          <div class="legend-item"><span class="dot pending" aria-hidden="true"></span><span><strong>Gated next</strong>Needs distinct authority</span></div>
+          <div class="legend-item"><span class="dot blocked" aria-hidden="true"></span><span><strong>Retained stop</strong>No repair or implicit retry</span></div>
+          <div class="legend-item"><span class="dot human" aria-hidden="true"></span><span><strong>Human required</strong>Editorial or listening judgment</span></div>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="evidence-card" style="--accent: var(--cyan)">
+            <span class="num">EVIDENCE / 01</span>
+            <h3>Engineering tests</h3>
+            <p>Unit, integration, Web, schema, state, and deterministic Runner checks. Mock-provider evidence proves software behavior, <strong>not real model quality</strong>.</p>
+          </article>
+          <article class="evidence-card" style="--accent: var(--green)">
+            <span class="num">EVIDENCE / 02</span>
+            <h3>Real-media rendering</h3>
+            <p>FFmpeg/ffprobe, full decode, frames, geometry, timing, audio/video streams, contact sheets, manifests, and ZIP integrity. This can run <strong>without inference</strong>.</p>
+          </article>
+          <article class="evidence-card" style="--accent: var(--blue)">
+            <span class="num">EVIDENCE / 03</span>
+            <h3>Human editorial + audio review</h3>
+            <p>Story value, listening quality, subtitle meaning, and audio-grounded calibration require a person. These may remain explicitly <strong>PENDING_HUMAN</strong>.</p>
+          </article>
+          <article class="evidence-card" style="--accent: var(--violet)">
+            <span class="num">EVIDENCE / 04</span>
+            <h3>Real model inference</h3>
+            <p>A provider-backed run with correlated calls, usage, artifacts, and identity. Turn 83 is retained completed evidence; this page <strong>does not authorize or rerun it</strong>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="runtime" aria-labelledby="runtime-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">01 · Product runtime</p>
+            <h2 class="section-title" id="runtime-title">A modular monolith with explicit seams.</h2>
+          </div>
+          <p class="section-note">The Web is separately built, but it reaches business behavior only through FastAPI. CLI, API, and Worker remain thin adapters over the same application services.</p>
+        </div>
+
+        <div class="boundary" aria-label="LiveClip product trust boundary">
+          <span class="boundary-label">Product process + local data boundary</span>
+          <div class="layer-stack">
+            <div class="layer">
+              <div class="layer-title"><span class="index">L0</span><strong>User + entry surfaces</strong><small>Thin adapters</small></div>
+              <div class="node-row" style="--cols: 4">
+                <div class="node"><em>TERMINAL</em><strong>Typer CLI</strong><span><code>auto</code>, <code>resume</code>, <code>run</code>, <code>stage</code>, <code>select</code>, <code>package</code></span></div>
+                <div class="node"><em>HTTP</em><strong>FastAPI</strong><span>Sanitized DTOs, auth, idempotent commands, asset-ID media</span></div>
+                <div class="node"><em>QUEUE CONSUMER</em><strong>Worker</strong><span>Claims fenced Tasks; dispatches application handlers only</span></div>
+                <div class="node"><em>BROWSER → API</em><strong>React / Vite Web</strong><span>Project workspace, editor, review, selection; no domain transitions</span></div>
+              </div>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true"><div></div><div>commands / queries / persisted progress</div></div>
+
+            <div class="layer">
+              <div class="layer-title"><span class="index">L1</span><strong>Application</strong><small>Orchestration once</small></div>
+              <div class="node-row" style="--cols: 4">
+                <div class="node"><em>USE CASES</em><strong>Commands + queries</strong><span>Import, start, cancel, retry, revise, review, render, package, deliver</span></div>
+                <div class="node"><em>TRANSACTIONS</em><strong>UnitOfWork</strong><span>Optimistic versions, idempotency keys, short write transactions</span></div>
+                <div class="node"><em>EXECUTION</em><strong>TaskRunner</strong><span>Fixed pipeline orchestration, retries, leases, cancellation</span></div>
+                <div class="node"><em>SERVICES</em><strong>Selection + delivery</strong><span>Default/manual selection, render, offline review, edit, formal/release packages</span></div>
+              </div>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true"><div></div><div>depends inward on invariants + ports</div></div>
+
+            <div class="layer">
+              <div class="layer-title"><span class="index">L2</span><strong>Domain + ports</strong><small>Framework-free core</small></div>
+              <div class="node-row" style="--cols: 4">
+                <div class="node"><em>PURE DOMAIN</em><strong>Projects + runs + clips</strong><span>Integer source milliseconds, immutable revisions, state transitions</span></div>
+                <div class="node"><em>TRUSTED SHAPE</em><strong>EditPlan + captions</strong><span>Strict fields, no commands, SQL, local paths, code, or filtergraphs</span></div>
+                <div class="node"><em>PORTS</em><strong>Repository / UoW / queue</strong><span>Persistence and lease contracts, not SQLAlchemy types</span></div>
+                <div class="node"><em>PORTS</em><strong>Provider / renderer / asset</strong><span>Typed capabilities with validated request and artifact boundaries</span></div>
+              </div>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true"><div></div><div>implemented by replaceable adapters</div></div>
+
+            <div class="layer">
+              <div class="layer-title"><span class="index">L3</span><strong>Infrastructure</strong><small>Local-first adapters</small></div>
+              <div class="node-row" style="--cols: 5">
+                <div class="node"><em>DURABLE STATE</em><strong>SQLite + SQLAlchemy</strong><span>Alembic, WAL, fenced Task leases, append-only attempts/audit</span></div>
+                <div class="node"><em>BYTES</em><strong>Filesystem assets</strong><span>Allowed roots, streaming hashes, private attempts, atomic no-replace publish</span></div>
+                <div class="node"><em>MEDIA</em><strong>FFmpeg / ffprobe</strong><span>Fixed validated argv, <code>shell=False</code>, quality evidence</span></div>
+                <div class="node"><em>ASR</em><strong>MLX / OpenRouter / OpenAI</strong><span>Timestamped audio transcription; Mock is development-only</span></div>
+                <div class="node"><em>EDITOR</em><strong>Responses / Codex / Mock</strong><span>Bounded transcript text; strict schema; tool authority stays local</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="invariant-strip">
+            <div class="invariant"><strong>Worker invariant.</strong> One heavy Worker claims durable Tasks with lease fencing; stale owners cannot publish.</div>
+            <div class="invariant"><strong>State invariant.</strong> Pipeline, editorial review, lifecycle, package, and publication states remain distinct facts.</div>
+            <div class="invariant"><strong>Artifact invariant.</strong> Every material artifact is identity-bound, validated, and published atomically without replacement.</div>
+          </div>
+        </div>
+
+        <div class="split" style="margin-top: 1rem">
+          <article class="card">
+            <h3>SQLite task and attempt model</h3>
+            <p><strong>Task</strong> is the operational queue item. <strong>StageRun</strong> and <strong>StageAttempt</strong> retain domain state, lease identity, errors, and metrics. The Worker renews leases and checks cancellation outside long SQLite writer locks.</p>
+            <table class="mini-table">
+              <thead><tr><th scope="col">Concern</th><th scope="col">Durable answer</th></tr></thead>
+              <tbody>
+                <tr><td>Claim</td><td>Atomic lease token + expiry; one current owner</td></tr>
+                <tr><td>Retry</td><td>New attempt; prior evidence remains append-only</td></tr>
+                <tr><td>Cache</td><td>Configuration + source + provider/tool identities</td></tr>
+                <tr><td>Recovery</td><td>Revalidate committed artifacts before adoption</td></tr>
+              </tbody>
+            </table>
+          </article>
+          <article class="card">
+            <h3>Identity and time model</h3>
+            <p>UUIDs identify resources. Media time is canonical integer milliseconds from the original source. Decimal seconds and SRT timestamps exist only at adapter edges, preventing drift across SQLite, JSON, rendering, captions, revisions, and packages.</p>
+            <table class="mini-table">
+              <thead><tr><th scope="col">Identity</th><th scope="col">What it fences</th></tr></thead>
+              <tbody>
+                <tr><td>generation</td><td>Pipeline output and current candidate set</td></tr>
+                <tr><td>revision</td><td>Immutable EditPlan/caption/render lineage</td></tr>
+                <tr><td>task lease</td><td>Heavy work publication authority</td></tr>
+                <tr><td>asset hash</td><td>Exact bytes served by opaque asset ID</td></tr>
+              </tbody>
+            </table>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pipeline" aria-labelledby="pipeline-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">02 · Accepted v1 product flow</p>
+            <h2 class="section-title" id="pipeline-title">Six fixed stages. Then humans and packages.</h2>
+          </div>
+          <p class="section-note">Selection and packaging are intentionally outside the six-stage percentage. “Proxy” is a compatibility name for the clean current-revision review master.</p>
+        </div>
+
+        <div class="pipeline" aria-label="Six fixed automated pipeline stages">
+          <article class="stage"><span class="step">01</span><h3>ingest</h3><p>Resolve an allowed-root read-only source, pin identity, stream a hash, and probe media facts.</p><span class="output">→ SourceMedia + manifest</span></article>
+          <article class="stage"><span class="step">02</span><h3>preprocess</h3><p>Extract bounded mono audio chunks, preserve absolute time, overlap evidence, silence signals, bytes, and cache keys.</p><span class="output">→ chunk manifest</span></article>
+          <article class="stage"><span class="step">03</span><h3>transcribe</h3><p>Use the selected local or cloud ASR adapter. Validate aligned segments and optional words; never fabricate timing.</p><span class="output">→ versioned transcript</span></article>
+          <article class="stage"><span class="step">04</span><h3>candidates</h3><p>Discover rough intervals from trusted signals or a versioned semantic path; retain evidence and dedup provenance.</p><span class="output">→ CandidateClip set</span></article>
+          <article class="stage"><span class="step">05</span><h3>edit</h3><p>Turn bounded transcript context into strict content decisions. Validate and persist immutable EditPlan revisions.</p><span class="output">→ current EditPlan</span></article>
+          <article class="stage"><span class="step">06</span><h3>proxy_render</h3><p>Render the clean vertical current revision and captions with deterministic layout, then decode and inspect it.</p><span class="output">→ RenderJob + Asset</span></article>
+        </div>
+
+        <div class="after-pipeline" aria-label="Post-pipeline review and delivery flow">
+          <div class="node" style="--accent: var(--cyan)"><em>ITERATE</em><strong>Render + validate</strong><span>Probe, full decode, duration, geometry, audio/video streams, frames, contact sheets, quality report. A revision makes prior media stale.</span></div>
+          <div class="node" style="--accent: var(--blue)"><em>EDITORIAL</em><strong>Review</strong><span>Clean video beside title, Hook, reasons, risks, captions, comments, and grounded navigation keywords. Review decisions bind an exact revision.</span></div>
+          <div class="node" style="--accent: var(--amber)"><em>DECIDE</em><strong>Selection</strong><span>Keep the default retained set or submit one atomic manual selection against the complete current candidate set.</span></div>
+          <div class="node" style="--accent: var(--green)"><em>PUBLISH</em><strong>Immutable packages</strong><span>Each path captures exact current revisions, renders, hashes, lineage, and authority before no-replace publication.</span></div>
+        </div>
+
+        <div class="split" style="margin-top: 1rem">
+          <article class="card">
+            <p class="kicker">Preserved accepted path</p>
+            <h3>v1 dual-profile clipping</h3>
+            <p>This compatibility baseline remains replayable and is not rewritten by Agent v2.</p>
+            <div class="profile-grid">
+              <div class="profile"><strong>short_highlight</strong><span>45–90 seconds · compact standalone moment</span></div>
+              <span class="plus" aria-hidden="true">+</span>
+              <div class="profile"><strong>mini_lesson</strong><span>&gt;90–300 seconds · coherent learning objective</span></div>
+            </div>
+            <p style="margin-top: 1rem">Profile, algorithm, prompts, response schema, model settings, source, and tool identities are versioned for immutable replay. Accepted historical paths stay isolated from new experiments.</p>
+          </article>
+
+          <article class="card">
+            <p class="kicker">Review rule</p>
+            <h3>Clean master first</h3>
+            <p>The review master is a clean current-revision render. Editorial title, Hook, reason, risks, and captions remain separate structured data. Optional burned title/caption media is a distinct derivative, never a silent replacement for the clean source of review truth.</p>
+            <div class="callout">
+              <b aria-hidden="true">!</b>
+              <p><strong>Review truth is revision-bound.</strong> A changed boundary, caption, or EditPlan creates a new revision and stales derived renders and active package eligibility.</p>
+            </div>
+          </article>
+        </div>
+
+        <div class="adapter-row" aria-label="Four separate package and handoff paths">
+          <article class="adapter" style="--accent: var(--blue)"><span class="tag">NO DECISION WRITE</span><h4>Offline review package</h4><p>File-only CSP viewer plus clean MP4, SRT, Markdown/JSON, checksums, and ZIP. It snapshots current review context but never approves a clip or substitutes for Delivery.</p></article>
+          <article class="adapter" style="--accent: var(--cyan)"><span class="tag">SELECTIVE HANDOFF</span><h4>Edit package</h4><p>Chosen current proxies, clean MP4/SRT, thumbnail/contact sheet, editorial metadata, guide, CSV/JSON, hashes, and ZIP for an external editor.</p></article>
+          <article class="adapter" style="--accent: var(--green)"><span class="tag">APPROVED SET</span><h4>Formal Delivery</h4><p>Only approved selected current revisions. Immutable Project-version snapshot with exact videos, SRT, titles, bounds, filenames, hashes, manifest, and ZIP.</p></article>
+          <article class="adapter" style="--accent: var(--amber)"><span class="tag">PLATFORM HANDOFF</span><h4>Release package</h4><p>Exact approved media mode, selected cover, editable copy, preset checks, checklist, manifest, checksums, and ZIP. External scheduling only—LiveClip stores no social credentials and performs no upload.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="agent-v2" aria-labelledby="agent-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">03 · Parallel experimental lane</p>
+            <h2 class="section-title" id="agent-title">Agent v2 interprets. The harness constrains.</h2>
+          </div>
+          <p class="section-note">Experimental, non-default, and preserved beside v1. It may use real provider inference only under its own explicit run authority.</p>
+        </div>
+
+        <div class="boundary agent-lane">
+          <span class="boundary-label">Agent runtime boundary · model output is untrusted</span>
+          <div class="agent-flow">
+            <article class="agent-step"><span class="tag">01 / POLICY</span><h3>Skill + ordered Prompts</h3><p>Versioned editorial behavior, Profile rules, stage prompts, response schemas, and tool exposure. Skill bytes are part of run identity.</p></article>
+            <article class="agent-step"><span class="tag">02 / INPUT</span><h3>Bounded Context</h3><p>Transcript cues, evidence, budgets, configuration, cancellation state, and immutable source identity—not arbitrary filesystem context.</p></article>
+            <article class="agent-step"><span class="tag">03 / TRANSPORT</span><h3>Responses or App Server</h3><p>Native OpenAI Responses function tools, or pinned Codex App Server transport using existing login. Transport does not gain product authority.</p></article>
+            <article class="agent-step"><span class="tag">04 / HARNESS</span><h3>Strict turn loop</h3><p>Closed typed schemas, exact call IDs, bounded turns/bytes/time, cancellation, retry, cache, and provider evidence. No embedded editorial heuristics.</p></article>
+            <article class="agent-step"><span class="tag">05 / CAPABILITY</span><h3>Strict local tools</h3><p>Only registered functions in <code>agent_tools</code>. Built-in shell, filesystem, Web, MCP, plugins, and subagents are unavailable in the App Server profile.</p></article>
+            <article class="agent-step"><span class="tag">06 / STATE</span><h3>Journal + Artifacts</h3><p>Append-only events, drafts, global review, subtitle calibration, title choices, full history, pending calls, and hashes support fail-closed recovery.</p></article>
+            <article class="agent-step"><span class="tag">07 / COMMIT</span><h3>finish gate → adapter</h3><p><code>finish</code> is a typed function. It succeeds only with complete valid artifacts and no pending call, then hands exact cue IDs to deterministic delivery.</p></article>
+          </div>
+        </div>
+
+        <div class="guard-grid">
+          <div class="guard"><strong>Skill owns editorial strategy.</strong><span>Discovery, boundary and merge judgment, scoring, title strategy, and subtitle calibration do not belong in the generic Harness.</span></div>
+          <div class="guard"><strong>Harness owns execution limits.</strong><span>Context, cancellation, typed tool dispatch, journals, artifacts, retry/cache, source-time validation, and filesystem/media safety are generic.</span></div>
+          <div class="guard"><strong>Transport is replaceable.</strong><span>Native Responses and Codex App Server produce the same correlated function-call contract; built-in authority is denied.</span></div>
+          <div class="guard"><strong>Full review precedes titles.</strong><span>Every raw candidate receives an exhaustive global-review disposition before final candidates unlock title tools and presentation.</span></div>
+          <div class="guard"><strong>Delivery remains deterministic.</strong><span>The v2 adapter revalidates cue IDs, continuous bounds, source identity, render outputs, checksums, and atomic publication.</span></div>
+          <div class="guard"><strong>No promotion by implication.</strong><span>Scripted tests, a completed inference run, technical validation, rendering, and human acceptance remain separately evidenced gates.</span></div>
+        </div>
+
+        <div class="callout">
+          <b>STATUS</b>
+          <p><strong>Turn 83 is immutable completed Agent v2 evidence:</strong> 83 events, 61 artifacts, and 30 final candidates (20 highlights + 10 mini lessons). It is not authority to resume, rerun, render, publish, or declare human quality.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="security" aria-labelledby="security-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">04 · Security model</p>
+            <h2 class="section-title" id="security-title">Data crosses gates, never assumptions.</h2>
+          </div>
+          <p class="section-note">Transcript text, model content, paths, and package metadata are data to validate. None can become executable policy merely because a model emitted it.</p>
+        </div>
+
+        <div class="split">
+          <article class="card">
+            <h3>Product trust boundaries</h3>
+            <table class="mini-table">
+              <thead><tr><th scope="col">Boundary</th><th scope="col">Rule</th></tr></thead>
+              <tbody>
+                <tr><td>Source media</td><td>Read-only reference inside configured allowed roots; source frames remain local</td></tr>
+                <tr><td>Transcript/model</td><td>Untrusted quoted content; strict DTO/schema validation; no instructions followed</td></tr>
+                <tr><td>Media execution</td><td>Validated fixed argv with <code>shell=False</code>; model never supplies paths/filtergraphs</td></tr>
+                <tr><td>Storage</td><td>No-follow identity checks, streaming hash, private attempt tree, fsync, atomic no-replace publish</td></tr>
+                <tr><td>Serving</td><td>Opaque asset IDs and authorization; no arbitrary local-path reads</td></tr>
+                <tr><td>Secrets</td><td>Ignored local environment/private HOME only; redacted from logs, errors, receipts, manifests, and Git</td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="card">
+            <h3>Authority is split on purpose</h3>
+            <table class="mini-table">
+              <thead><tr><th scope="col">Actor</th><th scope="col">Can decide</th><th scope="col">Cannot decide</th></tr></thead>
+              <tbody>
+                <tr><td>Model</td><td>Content interpretation inside a typed capability</td><td>Commands, local paths, SQL, code, publication</td></tr>
+                <tr><td>Application</td><td>State transitions after validating exact evidence</td><td>Human taste or unsupported provider facts</td></tr>
+                <tr><td>Worker</td><td>Execute a claimed Task under its lease</td><td>Broaden task scope or publish after lease loss</td></tr>
+                <tr><td>Human</td><td>Editorial/audio judgment and explicit review</td><td>Rewrite immutable history or bypass technical gates</td></tr>
+                <tr><td>Controller</td><td>Engineering stage transitions and bounded authority</td><td>Turn missing/mutated evidence into PASS</td></tr>
+              </tbody>
+            </table>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="control-plane" aria-labelledby="control-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">05 · Separate engineering system</p>
+            <h2 class="section-title" id="control-title"><code>tools/loop_engineering</code> is outside the product runtime.</h2>
+          </div>
+          <p class="section-note">Developer roles are engineering sessions, not LiveClip content-model inference. Product code never imports this control plane.</p>
+        </div>
+
+        <div class="boundary control-plane">
+          <span class="boundary-label">Trusted outer control plane</span>
+          <div class="control-flow" aria-label="Loop engineering roles and evidence flow">
+            <article class="control-node"><div><span class="role">TRUSTED MAIN</span><h3>Requirement + orchestration</h3><p>Owns ExecPlan, STATUS, shared policy/schema, candidate preparation, budgets, gates, correlation, and controller boundaries.</p></div><span class="authority">trusted writer · delivery worktree</span></article>
+            <div class="control-arrow" aria-hidden="true"><span>frozen requirement<b>→</b>fresh plan</span></div>
+            <article class="control-node"><div><span class="role">FORMAL LOOP</span><h3>Planner → isolated Coder</h3><p>Planner is fresh read-only. Exactly one Coder may write, only inside its isolated candidate. Repair resumes only its explicit recorded session ID—never <code>--last</code>.</p></div><span class="authority">sole product-code writer</span></article>
+            <div class="control-arrow" aria-hidden="true"><span>candidate + requests<b>→</b>fixed execution</span></div>
+            <article class="control-node"><div><span class="role">TRUSTED GATE</span><h3>Correlate → CAS publish</h3><p>Fresh assurance roles plus deterministic evidence must agree. Only Trusted Main can CAS-publish an allowlisted accepted delta.</p></div><span class="authority">no PASS override · no broad copy</span></article>
+          </div>
+
+          <div class="assurance-row">
+            <div class="assurance"><strong>Reviewer · fresh read-only</strong>Inspects the exact assurance snapshot; reports findings without editing.</div>
+            <div class="assurance"><strong>Tester · fresh read-only</strong>Designs checked-in command-ID requests; never creates arbitrary execution argv.</div>
+            <div class="assurance"><strong>Runner · deterministic</strong>Resolves only allowlisted fixed argv in a deny-default macOS sandbox and appends QA evidence.</div>
+            <div class="assurance"><strong>Gateway · fresh read-only</strong>Semantic PASS is necessary but cannot override failed, stale, mutated, uncorrelated, or P0/P1 evidence.</div>
+          </div>
+
+          <div class="invariant-strip">
+            <div class="invariant"><strong>Evidence correlation.</strong> Request, report, log, exit, worktree, toolchain, run, role, and session identities must agree.</div>
+            <div class="invariant"><strong>Candidate isolation.</strong> Coder writes only in the external snapshot; Runner cannot write source, Git, policy, <code>.loop</code>, or QA.</div>
+            <div class="invariant"><strong>CAS publication.</strong> Each original preimage and candidate postimage must match; publish per file atomically and stop on a third value.</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 2rem 0 .2rem">tmux windows 0–5 · ownership map</h3>
+        <p class="section-note"><code>liveclip:0</code> remains the sole coordinator/writer. Windows 1–4 are bounded command shells; <code>liveclip:5</code> is the read-only Controller orchestrator and never writes.</p>
+        <div class="tmux-grid">
+          <article class="window sole"><span class="win-num">liveclip:0 · code</span><h4>Trusted Main</h4><p>Sole coordinator/writer for plans, STATUS, requirement, preparation, receipts, gates, CAS publication, and closure. Not the formal Coder.</p></article>
+          <article class="window"><span class="win-num">liveclip:1 · dev</span><h4>Idle by default</h4><p>Unused unless a necessary bounded product flow is explicitly proven and recorded.</p></article>
+          <article class="window"><span class="win-num">liveclip:2 · qa</span><h4>Post-publish QA</h4><p>Runs bounded deterministic checks in the delivery worktree only after trusted CAS publication.</p></article>
+          <article class="window"><span class="win-num">liveclip:3 · logs</span><h4>Read-only monitor</h4><p>Observes progress, processes, logs, and evidence. Never repairs, writes, or broadens a command.</p></article>
+          <article class="window"><span class="win-num">liveclip:4 · eval</span><h4>Evidence producer</h4><p>After M4: validate/benchmark, render all 30, and build review packages from accepted candidate code.</p></article>
+          <article class="window"><span class="win-num">liveclip:5 · controller</span><h4>Read-only orchestrator</h4><p>Dispatches one bounded task at a time, monitors progress, and correlates evidence. It never acts as a writer.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="checkpoint" aria-labelledby="checkpoint-title">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="kicker">06 · Evidence checkpoint</p>
+            <h2 class="section-title" id="checkpoint-title">What happened, what stopped, what is next.</h2>
+          </div>
+          <p class="section-note">The sequence below separates completed evidence from future authority. Dashed future cards are not claims of execution or acceptance.</p>
+        </div>
+
+        <div class="timeline" aria-label="Completed and current engineering evidence timeline">
+          <article class="moment" style="--accent: var(--green)"><span class="date">COMPLETED · TURN 83</span><h3>Agent v2 run retained</h3><p>83 events, 61 artifacts, 30 final candidates: 20 <code>short_highlight</code> + 10 <code>mini_lesson</code>. The inference is immutable and cannot be resumed or repeated by implication.</p></article>
+          <article class="moment" style="--accent: var(--coral)"><span class="date">FORMAL LOOP · RETAINED</span><h3>Planner blocked before Coder</h3><p>The accepted V30 successor and opaque auth handoff reached a formal dispatch, but two Planner cycles ended <code>NEEDS_INPUT</code>. No Coder, Runner, Reviewer, Tester, Gateway, or product edit ran.</p></article>
+          <article class="moment" style="--accent: var(--coral)"><span class="date">V37 · RETAINED FAILURE</span><h3>Verifier PASS; prepare stopped</h3><p>All 59 verifier gates passed. Prepare allocated <code>candidate.vuDWtK0T</code> and pristine run <code>20261014T075525Z-4dcccf5a</code>, then stopped on <code>V36 candidate count mismatch</code>. Sealing completed; final acceptance/auth/formal work did not run.</p></article>
+          <article class="moment" style="--accent: var(--violet)"><span class="date">V38 · DESIGN PASS</span><h3>Historical counts repaired</h3><p>The static 60-gate pre-root graph passed with no-write proof against 22 retained candidates. The fixed V38 root remains absent. This is design evidence, not root execution.</p></article>
+        </div>
+
+        <h3 style="margin: 2rem 0 .2rem">Strict future authority chain</h3>
+        <p class="section-note">Every arrow is a stop boundary. Failure retains evidence; it never silently advances, repairs, or retries.</p>
+        <div class="roadmap" aria-label="Future gated recovery path">
+          <article class="road-step"><span class="ord">NEXT / 01</span><strong>V38 root-only</strong><span>Create the sealed no-replace root, driver, acceptance, empty private home/tmp, and root receipts only.</span></article>
+          <article class="road-step"><span class="ord">FUTURE / 02</span><strong>verify-prepare</strong><span>Allocation-free, complete read-only gates, exact documents/root/inventory, no-write proof.</span></article>
+          <article class="road-step"><span class="ord">FUTURE / 03</span><strong>prepare</strong><span>At most one unpredictable suffix and one <code>loop-init</code>; setup/readiness/doctor/bind/preserve/seal.</span></article>
+          <article class="road-step"><span class="ord">FUTURE / 04</span><strong>final acceptance</strong><span>External controller accepts the exact candidate, policy, toolchain, run, receipts, and future dispatch.</span></article>
+          <article class="road-step"><span class="ord">FUTURE / 05</span><strong>opaque auth</strong><span>Requires new explicit credential authority. Copy is opaque; receipt contains sanitized booleans only.</span></article>
+          <article class="road-step"><span class="ord">FUTURE / 06</span><strong>formal loop</strong><span>Fresh read-only roles, sole durable isolated Coder, fixed Runner, correlated Gateway, exact run ID.</span></article>
+        </div>
+
+        <h3 style="margin: 2rem 0 .2rem">M4–M10 after a formal candidate reaches <code>DONE</code></h3>
+        <div class="milestones" aria-label="Future M4 through M10 milestones">
+          <article class="milestone"><span class="m">M4</span><h4>Verify candidate DONE</h4><p>Correlate run, requirement, role artifacts, exact Coder session, delta allowlist, Runner evidence, Gateway, and candidate post-state.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M5</span><h4>Validate + benchmark</h4><p>Bind the turn-83 result and generate a technical provisional benchmark without inference. Human findings remain separate.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M6</span><h4>Render all 30</h4><p>Render and package 20 highlight + 10 mini-lesson candidates, full-decode and inspect them, with no provider call.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M7</span><h4>Independent review</h4><p>Technical and visual evidence review by an identity distinct from the producer. Editorial merit and listening remain human-pending.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M8</span><h4>Trusted CAS publish</h4><p>Publish only an allowlisted accepted delta and correlated QA suffixes; verify every original preimage and candidate postimage.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M9</span><h4>Post-publish QA</h4><p>Window 2 proves published hashes and runs bounded deterministic validation, package integrity, lint/test/Web checks as authorized.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+          <article class="milestone"><span class="m">M10</span><h4>Close documentation</h4><p>Trusted Main reconciles the Living ExecPlan and STATUS only after M9; unresolved human editorial/audio work stays explicit.</p><span class="not-yet">NOT YET PERFORMED</span></article>
+        </div>
+
+        <div class="callout">
+          <b>STOP</b>
+          <p>The architecture has a valid next design boundary, not a completed delivery milestone. <strong>V38 root-only is next.</strong> Verifier, prepare, final acceptance, authentication, formal roles, M4–M10, real-media review, publication, and human acceptance remain gated and unperformed.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-grid">
+      <div>
+        <p><strong>Authoritative sources:</strong> <code>docs/PRODUCT_SPEC.md</code>, <code>docs/SOLUTION.md</code>, <code>.agent/PLANS.md</code>, the sole Living ExecPlan, <code>STATUS.md</code>, and <code>docs/exec-plans/liveclip-v2-loop-engineering.md</code>.</p>
+        <p>This is a presentation artifact, not an authority grant, acceptance receipt, executable plan, or substitute for the source contracts.</p>
+      </div>
+      <div class="stamp">OFFLINE · NO REMOTE DEPENDENCIES<br>SNAPSHOT 2026-10-14</div>
+    </div>
+  </footer>
+</body>
+</html>

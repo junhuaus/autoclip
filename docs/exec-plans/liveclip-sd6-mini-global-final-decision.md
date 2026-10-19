@@ -256,3 +256,63 @@ Restore the exact source and pinned model, prepare a native arm64 toolchain,
 then reconstruct/freeze attempt 7 and register/pass its full hardware preflight
 before the single 64-launch/25-minute run. Preserve all historical evidence.
 Receipt: [prerequisite recheck](../verification/sd6-mini-attempt7-prerequisite-recheck.json).
+
+
+## Preparation completed, 2026-09-17 06:08 UTC
+
+The earlier missing-source/runtime/model blocker is resolved. Registered Doctor
+(`20260917T060708Z-prep-prep-final-doctor`) is READY, and hardware verification
+(`20260917T060721Z-prep-prep-final-hardware`) passes actual Metal computation,
+pinned model hashing and saved Codex login. No content inference was requested.
+Native VideoToolbox encoding passed; absent FFmpeg text filters select the
+supported Pillow overlay fallback. Source stays read-only and unchanged.
+
+The 300-second excerpt at source 1870–2170 seconds passes full decoding. Its new
+host SHA-256 is `41d74af249b750b21add28ef39662cf3478b9af2e8cfcbdd125a7edb90913760`.
+The reconstructed controls freeze `mlx-codex`, `gpt-5.6-sol`,
+`vocal_coach_live` / `mini_lesson`, top 15, min/max/target 90/300/180 seconds,
+score threshold 75, and the unchanged accepted Global prompt. This explicitly
+records a new local reconstruction, not byte identity with the old host plan.
+
+New plan SHA-256: `34177fbe8d98ddda8ad9d737c7418b55075f0f64f3d8f5fc3e46d8584c4c9dfc`.
+Pipeline config SHA-256: `df847a26189d10656bba29132e8bfa8558f531b02e98aa7a3553fc4b8e30a4ef`.
+Freeze QA `20260917T060753Z-prep-prep-attempt7-freeze` and final preflight QA
+`20260917T060813Z-prep-attempt7-final-preflight` both PASS. Guard fake-provider
+evidence covers concurrent 64-call reservation, refusal before start/after
+expiry/after terminal state, and active-child deadline termination.
+
+Lint, 18 Prompt tests, 69 provider tests and 80 Web tests pass. Initial failed
+install/download/test probes remain in append-only QA alongside successful
+retries. Full project tests, real inference, browser E2E and Delivery acceptance
+were not performed by this preparation. Existing npm audit findings (2 moderate,
+1 high) remain outside scope; dependency locks and product code are unchanged.
+
+Attempt 7 is **prepared, unstarted and unconsumed** (64 launches / 1500 seconds).
+There is no started marker, counter, isolated database or result. SD-6 remains
+incomplete. [Machine-readable preparation evidence](../verification/sd6-mini-attempt7-resume-prepared-20260917.json)
+records hashes and QA correlation. Local ignored controls and model bytes must
+remain on this host; git alone does not transport them.
+
+
+## Real execution result, 2026-09-17
+
+Three preserved control-only failures exposed omissions in the locally
+reconstructed bounded guard, not in the accepted Prompt or product adapter.
+Attempt 7, successor 1 and successor 2 each completed local MLX but made zero
+external Codex calls. The final successor guard was checked with product-built
+ordinary, structured `medium` and structured `high` argv, then frozen with a
+new independent 64-launch/1500-second budget. No prior state was reset.
+
+Successor 3 QA `20260917T160919Z-mn07s3` completed all six stages with 21 real
+Codex launches. Global Review retained the first mini candidate at score 94 but
+assigned `publish_status=manual` for `asr_uncertain` song/voice terms; the second
+scored 65 and was blocked because its central objective depended on unexplained
+prior steps. The current automatic-only contract therefore produced zero
+EditPlans/renders and no Delivery. The accepted Global final-decision correction
+did not regress, but this is still not a successful automatic mini Delivery.
+
+A separate current short-profile QA `20260917T162310Z-rshort` subsequently
+fulfilled the requested real video clipping test with three decoded and visually
+inspected clips plus an immutable verified ZIP. It does not substitute for mini
+acceptance. Full evidence and limitations are in
+[the current real-test receipt](../verification/sd6-current-real-video-clipping-20260917.json).

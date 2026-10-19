@@ -1,0 +1,5854 @@
+{
+  "candidate_count": 12,
+  "schema_version": "1",
+  "scripts": [
+    {
+      "candidate": {
+        "candidate_id": "short_highlight_0003_c01",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 45820,
+        "end_cue_id": 359,
+        "end_ms": 949680,
+        "evidence_cue_ids": [
+          339,
+          342,
+          343,
+          344,
+          345,
+          346,
+          347,
+          348,
+          349,
+          351,
+          352,
+          355,
+          356,
+          357,
+          358,
+          359
+        ],
+        "hook": "自然打哈欠，再用一个“闹”字感受内口腔位置。",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "保留第一步标签、自然哈欠与错误动作的区别、“闹”字练习及最终位置确认，边界完整且无填充。身体纠正建议、绝对化判断和个别误转写需要人工审核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "health_advice",
+          "absolute_claim",
+          "asr_uncertain"
+        ],
+        "score": 88.0,
+        "source_candidate_ids": [
+          "short_highlight_0003_c01"
+        ],
+        "source_window_ids": [
+          "short_highlight_0003_720000_1050000_720000_960000"
+        ],
+        "start_cue_id": 339,
+        "start_ms": 903860,
+        "summary": "以自然打哈欠寻找内口腔通道，辨别刻意撑起口腔的错误动作，再用“闹”字验证内部位置抬起。",
+        "title": "用自然哈欠和“闹”字寻找内口腔通道",
+        "variant_group_id": "inner_oral_channel_yawn"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 339,
+          "end_ms": 905380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第一步先去找打哈欠",
+          "segment_id": "cue_000339",
+          "start_ms": 903860
+        },
+        {
+          "cue_id": 340,
+          "end_ms": 906480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "哎",
+          "segment_id": "cue_000340",
+          "start_ms": 906000
+        },
+        {
+          "cue_id": 341,
+          "end_ms": 908280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "自然",
+          "segment_id": "cue_000341",
+          "start_ms": 907440
+        },
+        {
+          "cue_id": 342,
+          "end_ms": 910300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "自然地打哈欠",
+          "segment_id": "cue_000342",
+          "start_ms": 908920
+        },
+        {
+          "cue_id": 343,
+          "end_ms": 911500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "很多同学他是这么打",
+          "segment_id": "cue_000343",
+          "start_ms": 910300
+        },
+        {
+          "cue_id": 344,
+          "end_ms": 913760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "撑起来了",
+          "segment_id": "cue_000344",
+          "start_ms": 912840
+        },
+        {
+          "cue_id": 345,
+          "end_ms": 915880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你就是撑了一个架子在这",
+          "segment_id": "cue_000345",
+          "start_ms": 913760
+        },
+        {
+          "cue_id": 346,
+          "end_ms": 918480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这是不对的",
+          "segment_id": "cue_000346",
+          "start_ms": 917180
+        },
+        {
+          "cue_id": 347,
+          "end_ms": 921500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这叫正强的",
+          "segment_id": "cue_000347",
+          "start_ms": 920140
+        },
+        {
+          "cue_id": 348,
+          "end_ms": 923140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是自然地打哈欠",
+          "segment_id": "cue_000348",
+          "start_ms": 921500
+        },
+        {
+          "cue_id": 349,
+          "end_ms": 929160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你会感觉这个地方抬起来了",
+          "segment_id": "cue_000349",
+          "start_ms": 926040
+        },
+        {
+          "cue_id": 350,
+          "end_ms": 929620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对吧",
+          "segment_id": "cue_000350",
+          "start_ms": 929160
+        },
+        {
+          "cue_id": 351,
+          "end_ms": 932780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你可以说一个字叫做闹",
+          "segment_id": "cue_000351",
+          "start_ms": 930320
+        },
+        {
+          "cue_id": 352,
+          "end_ms": 934820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "吵闹的闹",
+          "segment_id": "cue_000352",
+          "start_ms": 932780
+        },
+        {
+          "cue_id": 353,
+          "end_ms": 939320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "吵闹的闹",
+          "segment_id": "cue_000353",
+          "start_ms": 938200
+        },
+        {
+          "cue_id": 354,
+          "end_ms": 939840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "吵鬧的鬧的去",
+          "segment_id": "cue_000354",
+          "start_ms": 938280
+        },
+        {
+          "cue_id": 355,
+          "end_ms": 941080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们去唱一下这个字",
+          "segment_id": "cue_000355",
+          "start_ms": 939320
+        },
+        {
+          "cue_id": 356,
+          "end_ms": 942300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "闹",
+          "segment_id": "cue_000356",
+          "start_ms": 941900
+        },
+        {
+          "cue_id": 357,
+          "end_ms": 944880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你能感觉到这个位置",
+          "segment_id": "cue_000357",
+          "start_ms": 943360
+        },
+        {
+          "cue_id": 358,
+          "end_ms": 945640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是抬起来的",
+          "segment_id": "cue_000358",
+          "start_ms": 944880
+        },
+        {
+          "cue_id": 359,
+          "end_ms": 949680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们那口腔就是在这个位置",
+          "segment_id": "cue_000359",
+          "start_ms": 946320
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "short_highlight_0004_c01",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 60860,
+        "end_cue_id": 449,
+        "end_ms": 1160060,
+        "evidence_cue_ids": [
+          422,
+          423,
+          425,
+          426,
+          427,
+          433,
+          434,
+          435,
+          436,
+          437,
+          438,
+          439,
+          440,
+          441,
+          442,
+          444,
+          445,
+          446,
+          447,
+          448,
+          449
+        ],
+        "hook": "闭口音和开口音怎样保持在同一个演唱位置？",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "美声通道前提、闭口音问题、示范和位置统一的结论均完整，没有无关填充。区间含歌词、身体发音纠正、绝对化因果及含混声乐术语，需人工审核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim",
+          "music_rights_review",
+          "asr_uncertain",
+          "health_advice"
+        ],
+        "score": 86.0,
+        "source_candidate_ids": [
+          "short_highlight_0004_c01"
+        ],
+        "source_window_ids": [
+          "short_highlight_0004_960000_1290000_960000_1200000"
+        ],
+        "start_cue_id": 422,
+        "start_ms": 1099200,
+        "summary": "讲解闭口音不要咬得过清或卷舌，并通过示范说明闭口音与开口音应保持在同一位置。",
+        "title": "闭口音与开口音的位置统一",
+        "variant_group_id": "vowel_position_unification"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 422,
+          "end_ms": 1100940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们唱美声的通道的话",
+          "segment_id": "cue_000422",
+          "start_ms": 1099200
+        },
+        {
+          "cue_id": 423,
+          "end_ms": 1102700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是更利你的烟臂的",
+          "segment_id": "cue_000423",
+          "start_ms": 1100940
+        },
+        {
+          "cue_id": 424,
+          "end_ms": 1110080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看",
+          "segment_id": "cue_000424",
+          "start_ms": 1109560
+        },
+        {
+          "cue_id": 425,
+          "end_ms": 1112220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你其实是比较难的",
+          "segment_id": "cue_000425",
+          "start_ms": 1110080
+        },
+        {
+          "cue_id": 426,
+          "end_ms": 1113560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "难的什么呢",
+          "segment_id": "cue_000426",
+          "start_ms": 1112220
+        },
+        {
+          "cue_id": 427,
+          "end_ms": 1115000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为你是一个闭口音",
+          "segment_id": "cue_000427",
+          "start_ms": 1113560
+        },
+        {
+          "cue_id": 428,
+          "end_ms": 1116180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它归在一上去",
+          "segment_id": "cue_000428",
+          "start_ms": 1115000
+        },
+        {
+          "cue_id": 429,
+          "end_ms": 1116820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你不能",
+          "segment_id": "cue_000429",
+          "start_ms": 1116180
+        },
+        {
+          "cue_id": 430,
+          "end_ms": 1120920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "完了",
+          "segment_id": "cue_000430",
+          "start_ms": 1120400
+        },
+        {
+          "cue_id": 431,
+          "end_ms": 1122280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "卡了",
+          "segment_id": "cue_000431",
+          "start_ms": 1121540
+        },
+        {
+          "cue_id": 432,
+          "end_ms": 1127000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们那个你啊",
+          "segment_id": "cue_000432",
+          "start_ms": 1125560
+        },
+        {
+          "cue_id": 433,
+          "end_ms": 1128320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要咬清楚",
+          "segment_id": "cue_000433",
+          "start_ms": 1127000
+        },
+        {
+          "cue_id": 434,
+          "end_ms": 1130020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就这些闭口音",
+          "segment_id": "cue_000434",
+          "start_ms": 1128320
+        },
+        {
+          "cue_id": 435,
+          "end_ms": 1131040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你不要咬清楚",
+          "segment_id": "cue_000435",
+          "start_ms": 1130020
+        },
+        {
+          "cue_id": 436,
+          "end_ms": 1133360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "而且不要抬卷舌",
+          "segment_id": "cue_000436",
+          "start_ms": 1131040
+        },
+        {
+          "cue_id": 437,
+          "end_ms": 1134920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我爱你",
+          "segment_id": "cue_000437",
+          "start_ms": 1133360
+        },
+        {
+          "cue_id": 438,
+          "end_ms": 1136160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要卷舌",
+          "segment_id": "cue_000438",
+          "start_ms": 1135480
+        },
+        {
+          "cue_id": 439,
+          "end_ms": 1137340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一卷舌完蛋了",
+          "segment_id": "cue_000439",
+          "start_ms": 1136160
+        },
+        {
+          "cue_id": 440,
+          "end_ms": 1138500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "又出现其他问题了",
+          "segment_id": "cue_000440",
+          "start_ms": 1137340
+        },
+        {
+          "cue_id": 441,
+          "end_ms": 1142940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我爱你",
+          "segment_id": "cue_000441",
+          "start_ms": 1140660
+        },
+        {
+          "cue_id": 442,
+          "end_ms": 1148480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个叫做位置统一",
+          "segment_id": "cue_000442",
+          "start_ms": 1147080
+        },
+        {
+          "cue_id": 443,
+          "end_ms": 1149040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "同学们",
+          "segment_id": "cue_000443",
+          "start_ms": 1148480
+        },
+        {
+          "cue_id": 444,
+          "end_ms": 1152400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个叫做内口腔和",
+          "segment_id": "cue_000444",
+          "start_ms": 1149040
+        },
+        {
+          "cue_id": 445,
+          "end_ms": 1153100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不是内口腔",
+          "segment_id": "cue_000445",
+          "start_ms": 1152400
+        },
+        {
+          "cue_id": 446,
+          "end_ms": 1155840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "闭口音和开口音在一个位置上",
+          "segment_id": "cue_000446",
+          "start_ms": 1153100
+        },
+        {
+          "cue_id": 447,
+          "end_ms": 1157800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那这个是需要练的",
+          "segment_id": "cue_000447",
+          "start_ms": 1155840
+        },
+        {
+          "cue_id": 448,
+          "end_ms": 1158900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个需要去磨的",
+          "segment_id": "cue_000448",
+          "start_ms": 1157800
+        },
+        {
+          "cue_id": 449,
+          "end_ms": 1160060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "美中唱法是这样子的",
+          "segment_id": "cue_000449",
+          "start_ms": 1158900
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "sh_0006_c03",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 54100,
+        "end_cue_id": 719,
+        "end_ms": 1691660,
+        "evidence_cue_ids": [
+          690,
+          691,
+          693,
+          694,
+          699,
+          700,
+          702,
+          703,
+          704,
+          705,
+          706,
+          707,
+          708,
+          709,
+          710,
+          711,
+          712,
+          713,
+          714,
+          715,
+          716,
+          717,
+          718,
+          719
+        ],
+        "hook": "气混和漏气，关键区别在于能不能控制气只出现在指定的字上。",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "区间完整保留气混示范、气混与漏气的比较前提及可控闭合的结论，边界紧凑且独立成立。歌词、术语误转写和“随心所欲”等绝对化表述需要人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "asr_uncertain",
+          "music_rights_review",
+          "absolute_claim"
+        ],
+        "score": 85.0,
+        "source_candidate_ids": [
+          "sh_0006_c03"
+        ],
+        "source_window_ids": [
+          "short_highlight_0006_1440000_1770000_1440000_1680000"
+        ],
+        "start_cue_id": 690,
+        "start_ms": 1637560,
+        "summary": "讲者用近距离演唱示范气混，并解释漏气会影响所有字，而气混可以只在指定字上推气、其余字保持闭合。",
+        "title": "气混与漏气的关键区别",
+        "variant_group_id": "mixed_voice_taxonomy"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 690,
+          "end_ms": 1639780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂无非就是气",
+          "segment_id": "cue_000690",
+          "start_ms": 1637560
+        },
+        {
+          "cue_id": 691,
+          "end_ms": 1640820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "多一点",
+          "segment_id": "cue_000691",
+          "start_ms": 1639780
+        },
+        {
+          "cue_id": 692,
+          "end_ms": 1642080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像",
+          "segment_id": "cue_000692",
+          "start_ms": 1641540
+        },
+        {
+          "cue_id": 693,
+          "end_ms": 1645780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像你看我我推了一点气",
+          "segment_id": "cue_000693",
+          "start_ms": 1642080
+        },
+        {
+          "cue_id": 694,
+          "end_ms": 1647220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我近一点啊",
+          "segment_id": "cue_000694",
+          "start_ms": 1645780
+        },
+        {
+          "cue_id": 695,
+          "end_ms": 1649640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们我现在是完全没有声卡的",
+          "segment_id": "cue_000695",
+          "start_ms": 1647220
+        },
+        {
+          "cue_id": 696,
+          "end_ms": 1651500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "完全就是手机手音",
+          "segment_id": "cue_000696",
+          "start_ms": 1649640
+        },
+        {
+          "cue_id": 697,
+          "end_ms": 1653400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你们就听的会更清楚一些",
+          "segment_id": "cue_000697",
+          "start_ms": 1651500
+        },
+        {
+          "cue_id": 698,
+          "end_ms": 1654660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我近一点",
+          "segment_id": "cue_000698",
+          "start_ms": 1653400
+        },
+        {
+          "cue_id": 699,
+          "end_ms": 1659080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像风一样",
+          "segment_id": "cue_000699",
+          "start_ms": 1656660
+        },
+        {
+          "cue_id": 700,
+          "end_ms": 1660760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这就叫气魂",
+          "segment_id": "cue_000700",
+          "start_ms": 1659700
+        },
+        {
+          "cue_id": 701,
+          "end_ms": 1663920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像像",
+          "segment_id": "cue_000701",
+          "start_ms": 1662880
+        },
+        {
+          "cue_id": 702,
+          "end_ms": 1666040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我会推一点气",
+          "segment_id": "cue_000702",
+          "start_ms": 1664600
+        },
+        {
+          "cue_id": 703,
+          "end_ms": 1667920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那很多同学说老师",
+          "segment_id": "cue_000703",
+          "start_ms": 1666040
+        },
+        {
+          "cue_id": 704,
+          "end_ms": 1669620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个气魂和漏气",
+          "segment_id": "cue_000704",
+          "start_ms": 1667920
+        },
+        {
+          "cue_id": 705,
+          "end_ms": 1671880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它怎么区分啊",
+          "segment_id": "cue_000705",
+          "start_ms": 1669620
+        },
+        {
+          "cue_id": 706,
+          "end_ms": 1674960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "漏气是你所有的字",
+          "segment_id": "cue_000706",
+          "start_ms": 1671880
+        },
+        {
+          "cue_id": 707,
+          "end_ms": 1677300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "都会处于一个漏气的状态",
+          "segment_id": "cue_000707",
+          "start_ms": 1674960
+        },
+        {
+          "cue_id": 708,
+          "end_ms": 1677980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这叫漏气",
+          "segment_id": "cue_000708",
+          "start_ms": 1677300
+        },
+        {
+          "cue_id": 709,
+          "end_ms": 1679820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂是你控制",
+          "segment_id": "cue_000709",
+          "start_ms": 1678440
+        },
+        {
+          "cue_id": 710,
+          "end_ms": 1681040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就在这一句",
+          "segment_id": "cue_000710",
+          "start_ms": 1679820
+        },
+        {
+          "cue_id": 711,
+          "end_ms": 1682040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就第一个字",
+          "segment_id": "cue_000711",
+          "start_ms": 1681040
+        },
+        {
+          "cue_id": 712,
+          "end_ms": 1682480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我漏",
+          "segment_id": "cue_000712",
+          "start_ms": 1682040
+        },
+        {
+          "cue_id": 713,
+          "end_ms": 1683500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我其他我都不漏",
+          "segment_id": "cue_000713",
+          "start_ms": 1682480
+        },
+        {
+          "cue_id": 714,
+          "end_ms": 1684120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我闭合很好",
+          "segment_id": "cue_000714",
+          "start_ms": 1683500
+        },
+        {
+          "cue_id": 715,
+          "end_ms": 1687000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我有能力去控制我的声带闭合",
+          "segment_id": "cue_000715",
+          "start_ms": 1684120
+        },
+        {
+          "cue_id": 716,
+          "end_ms": 1688000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个是技巧",
+          "segment_id": "cue_000716",
+          "start_ms": 1687000
+        },
+        {
+          "cue_id": 717,
+          "end_ms": 1690120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是随心所欲",
+          "segment_id": "cue_000717",
+          "start_ms": 1688720
+        },
+        {
+          "cue_id": 718,
+          "end_ms": 1691180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想怎么唱",
+          "segment_id": "cue_000718",
+          "start_ms": 1690120
+        },
+        {
+          "cue_id": 719,
+          "end_ms": 1691660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我怎么唱",
+          "segment_id": "cue_000719",
+          "start_ms": 1691180
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "sh_0007_c01",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 49080,
+        "end_cue_id": 746,
+        "end_ms": 1742560,
+        "evidence_cue_ids": [
+          720,
+          724,
+          727,
+          728,
+          730,
+          734,
+          736,
+          737,
+          739,
+          740,
+          743,
+          744,
+          745,
+          746
+        ],
+        "hook": "气混和气声不是同一概念，差别在声音所处的位置。",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "从明确提问开始，保留定义、真声气声示例和最终位置差异，形成独立的单项比较。虽然被更广的三者辨析区间包含，但问题和教学目标更聚焦，不是重复候选；歌词、绝对化判断和术语误转写需人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim",
+          "music_rights_review",
+          "asr_uncertain"
+        ],
+        "score": 86.0,
+        "source_candidate_ids": [
+          "sh_0007_c01"
+        ],
+        "source_window_ids": [
+          "short_highlight_0007_1680000_2010000_1680000_1920000"
+        ],
+        "start_cue_id": 720,
+        "start_ms": 1693480,
+        "summary": "解释气混建立在混声上，而气声也能在真声位置产生，并通过演唱示例总结两者的区别。",
+        "title": "气混和气声是不是一回事",
+        "variant_group_id": "mixed_voice_taxonomy"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 720,
+          "end_ms": 1698000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂和气声是一个东西吗",
+          "segment_id": "cue_000720",
+          "start_ms": 1693480
+        },
+        {
+          "cue_id": 721,
+          "end_ms": 1700080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气声",
+          "segment_id": "cue_000721",
+          "start_ms": 1699200
+        },
+        {
+          "cue_id": 722,
+          "end_ms": 1701580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "起床",
+          "segment_id": "cue_000722",
+          "start_ms": 1700080
+        },
+        {
+          "cue_id": 723,
+          "end_ms": 1703240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气声",
+          "segment_id": "cue_000723",
+          "start_ms": 1702760
+        },
+        {
+          "cue_id": 724,
+          "end_ms": 1707620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气混和气声",
+          "segment_id": "cue_000724",
+          "start_ms": 1703240
+        },
+        {
+          "cue_id": 725,
+          "end_ms": 1708720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得不算",
+          "segment_id": "cue_000725",
+          "start_ms": 1707620
+        },
+        {
+          "cue_id": 726,
+          "end_ms": 1711660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "严格意义上来说这个问题特别好",
+          "segment_id": "cue_000726",
+          "start_ms": 1709300
+        },
+        {
+          "cue_id": 727,
+          "end_ms": 1712900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得不是一个东西",
+          "segment_id": "cue_000727",
+          "start_ms": 1711660
+        },
+        {
+          "cue_id": 728,
+          "end_ms": 1716640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为气混它建立在一个混声",
+          "segment_id": "cue_000728",
+          "start_ms": 1713840
+        },
+        {
+          "cue_id": 729,
+          "end_ms": 1717880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是混声里",
+          "segment_id": "cue_000729",
+          "start_ms": 1716640
+        },
+        {
+          "cue_id": 730,
+          "end_ms": 1719960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是我们真声也能做气声",
+          "segment_id": "cue_000730",
+          "start_ms": 1717880
+        },
+        {
+          "cue_id": 731,
+          "end_ms": 1721040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000731",
+          "start_ms": 1720560
+        },
+        {
+          "cue_id": 732,
+          "end_ms": 1722340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看",
+          "segment_id": "cue_000732",
+          "start_ms": 1721860
+        },
+        {
+          "cue_id": 733,
+          "end_ms": 1723320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000733",
+          "start_ms": 1722840
+        },
+        {
+          "cue_id": 734,
+          "end_ms": 1725080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这肯定是真声",
+          "segment_id": "cue_000734",
+          "start_ms": 1723320
+        },
+        {
+          "cue_id": 735,
+          "end_ms": 1725940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000735",
+          "start_ms": 1725080
+        },
+        {
+          "cue_id": 736,
+          "end_ms": 1730960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我真的好想你",
+          "segment_id": "cue_000736",
+          "start_ms": 1727860
+        },
+        {
+          "cue_id": 737,
+          "end_ms": 1733340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这也是一个气声",
+          "segment_id": "cue_000737",
+          "start_ms": 1731440
+        },
+        {
+          "cue_id": 738,
+          "end_ms": 1734100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对不对",
+          "segment_id": "cue_000738",
+          "start_ms": 1733340
+        },
+        {
+          "cue_id": 739,
+          "end_ms": 1735500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以它不是一个东西",
+          "segment_id": "cue_000739",
+          "start_ms": 1734100
+        },
+        {
+          "cue_id": 740,
+          "end_ms": 1736400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是差距不大",
+          "segment_id": "cue_000740",
+          "start_ms": 1735500
+        },
+        {
+          "cue_id": 741,
+          "end_ms": 1737000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "同学们啊",
+          "segment_id": "cue_000741",
+          "start_ms": 1736400
+        },
+        {
+          "cue_id": 742,
+          "end_ms": 1738000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "差距不大",
+          "segment_id": "cue_000742",
+          "start_ms": 1737000
+        },
+        {
+          "cue_id": 743,
+          "end_ms": 1739920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "只是说一个在混声的推气",
+          "segment_id": "cue_000743",
+          "start_ms": 1738000
+        },
+        {
+          "cue_id": 744,
+          "end_ms": 1741120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是在真声的位置上",
+          "segment_id": "cue_000744",
+          "start_ms": 1739920
+        },
+        {
+          "cue_id": 745,
+          "end_ms": 1741680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个推气",
+          "segment_id": "cue_000745",
+          "start_ms": 1741120
+        },
+        {
+          "cue_id": 746,
+          "end_ms": 1742560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000746",
+          "start_ms": 1742160
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "sh_0009_balanced_mix_step5",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 50660,
+        "end_cue_id": 959,
+        "end_ms": 2210720,
+        "evidence_cue_ids": [
+          940,
+          943,
+          944,
+          946,
+          948,
+          949,
+          950,
+          952,
+          955,
+          956,
+          957,
+          958,
+          959
+        ],
+        "hook": "平衡混可以理解为把强混的气息支撑带到假声上。",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "第五步标签、平衡混的性质、所需支撑及最终定义均在区间内，章节独立闭合且边界紧凑。“就变成”和效果速度等确定性表述需要人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim"
+        ],
+        "score": 84.0,
+        "source_candidate_ids": [
+          "sh_0009_balanced_mix_step5"
+        ],
+        "source_window_ids": [
+          "short_highlight_0009_2160000_2490000_2160000_2400000"
+        ],
+        "start_cue_id": 940,
+        "start_ms": 2160060,
+        "summary": "解释平衡混比假声更实，并将其概括为把强混中的气息支撑运用到假声上。",
+        "title": "平衡混：把强混支撑用在假声上",
+        "variant_group_id": "mixed_voice_expression_choices"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 940,
+          "end_ms": 2160980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第五步",
+          "segment_id": "cue_000940",
+          "start_ms": 2160060
+        },
+        {
+          "cue_id": 941,
+          "end_ms": 2164720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师我的真假声OK了",
+          "segment_id": "cue_000941",
+          "start_ms": 2162360
+        },
+        {
+          "cue_id": 942,
+          "end_ms": 2165720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我的假声OK了",
+          "segment_id": "cue_000942",
+          "start_ms": 2164720
+        },
+        {
+          "cue_id": 943,
+          "end_ms": 2167220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想学习平衡混",
+          "segment_id": "cue_000943",
+          "start_ms": 2165720
+        },
+        {
+          "cue_id": 944,
+          "end_ms": 2169600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为你要知道平衡混是什么",
+          "segment_id": "cue_000944",
+          "start_ms": 2167780
+        },
+        {
+          "cue_id": 945,
+          "end_ms": 2171300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "平衡混就是在",
+          "segment_id": "cue_000945",
+          "start_ms": 2169600
+        },
+        {
+          "cue_id": 946,
+          "end_ms": 2173360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "比假声实一点",
+          "segment_id": "cue_000946",
+          "start_ms": 2171300
+        },
+        {
+          "cue_id": 947,
+          "end_ms": 2175440,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "比假声的声音",
+          "segment_id": "cue_000947",
+          "start_ms": 2173360
+        },
+        {
+          "cue_id": 948,
+          "end_ms": 2177080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "要再实一点平衡混",
+          "segment_id": "cue_000948",
+          "start_ms": 2175440
+        },
+        {
+          "cue_id": 949,
+          "end_ms": 2186220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他需要一个非常强的技巧",
+          "segment_id": "cue_000949",
+          "start_ms": 2183200
+        },
+        {
+          "cue_id": 950,
+          "end_ms": 2187680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他叫做气息支撑",
+          "segment_id": "cue_000950",
+          "start_ms": 2186220
+        },
+        {
+          "cue_id": 951,
+          "end_ms": 2191420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他用到非常强的技巧叫做气息支撑",
+          "segment_id": "cue_000951",
+          "start_ms": 2188680
+        },
+        {
+          "cue_id": 952,
+          "end_ms": 2194180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那气息支撑我刚才说的是在哪一方面学的来着",
+          "segment_id": "cue_000952",
+          "start_ms": 2191420
+        },
+        {
+          "cue_id": 953,
+          "end_ms": 2197940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "是在哪一个课程里我们学的强调非常多的",
+          "segment_id": "cue_000953",
+          "start_ms": 2194180
+        },
+        {
+          "cue_id": 954,
+          "end_ms": 2198460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "是在这",
+          "segment_id": "cue_000954",
+          "start_ms": 2197940
+        },
+        {
+          "cue_id": 955,
+          "end_ms": 2200140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "强混",
+          "segment_id": "cue_000955",
+          "start_ms": 2199480
+        },
+        {
+          "cue_id": 956,
+          "end_ms": 2205000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你把强混的这个气息支撑拿在假声声上",
+          "segment_id": "cue_000956",
+          "start_ms": 2200140
+        },
+        {
+          "cue_id": 957,
+          "end_ms": 2206500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就变成平衡混",
+          "segment_id": "cue_000957",
+          "start_ms": 2205000
+        },
+        {
+          "cue_id": 958,
+          "end_ms": 2207860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "明白了吗",
+          "segment_id": "cue_000958",
+          "start_ms": 2207100
+        },
+        {
+          "cue_id": 959,
+          "end_ms": 2210720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以平衡混的同学也是很快的",
+          "segment_id": "cue_000959",
+          "start_ms": 2207860
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "sh_0009_choose_sound_before_labels",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 72940,
+        "end_cue_id": 991,
+        "end_ms": 2283640,
+        "evidence_cue_ids": [
+          960,
+          961,
+          962,
+          964,
+          965,
+          966,
+          967,
+          969,
+          970,
+          971,
+          972,
+          973,
+          974,
+          978,
+          979,
+          981,
+          982,
+          983,
+          984,
+          985,
+          987,
+          989,
+          990,
+          991
+        ],
+        "hook": "别先纠结技巧叫什么，先决定这一句想唱出什么感觉。",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "区间保留第六步标签、技巧枚举、声音性质定义、差异较小的比较前提及“按表达选技巧”的结论，是依赖完整的选择课。术语误转写和绝对化总括需要人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim",
+          "asr_uncertain"
+        ],
+        "score": 89.0,
+        "source_candidate_ids": [
+          "sh_0009_choose_sound_before_labels"
+        ],
+        "source_window_ids": [
+          "short_highlight_0009_2160000_2490000_2160000_2400000"
+        ],
+        "start_cue_id": 960,
+        "start_ms": 2210700,
+        "summary": "比较弱混、气混、假声和平衡混的声音取向，建议先确定想要的轻重、集中度与明亮度，再选择服务表达的技巧。",
+        "title": "先决定想要的声音，再选择混声技巧",
+        "variant_group_id": "mixed_voice_expression_choices"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 960,
+          "end_ms": 2214760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "然后第六步就是我们的一个弱魂",
+          "segment_id": "cue_000960",
+          "start_ms": 2210700
+        },
+        {
+          "cue_id": 961,
+          "end_ms": 2214760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是我们的一个弱混",
+          "segment_id": "cue_000961",
+          "start_ms": 2212480
+        },
+        {
+          "cue_id": 962,
+          "end_ms": 2220180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "以及我们的一个气混",
+          "segment_id": "cue_000962",
+          "start_ms": 2217920
+        },
+        {
+          "cue_id": 963,
+          "end_ms": 2223080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000963",
+          "start_ms": 2222560
+        },
+        {
+          "cue_id": 964,
+          "end_ms": 2225480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个就是说你去控制",
+          "segment_id": "cue_000964",
+          "start_ms": 2223080
+        },
+        {
+          "cue_id": 965,
+          "end_ms": 2228300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有一点气息支撑",
+          "segment_id": "cue_000965",
+          "start_ms": 2225480
+        },
+        {
+          "cue_id": 966,
+          "end_ms": 2230160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是又不是纯假声",
+          "segment_id": "cue_000966",
+          "start_ms": 2228300
+        },
+        {
+          "cue_id": 967,
+          "end_ms": 2231960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "声音还是比较的集中",
+          "segment_id": "cue_000967",
+          "start_ms": 2230160
+        },
+        {
+          "cue_id": 968,
+          "end_ms": 2233600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你有的时候",
+          "segment_id": "cue_000968",
+          "start_ms": 2232560
+        },
+        {
+          "cue_id": 969,
+          "end_ms": 2236620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个弱混气混假声",
+          "segment_id": "cue_000969",
+          "start_ms": 2233600
+        },
+        {
+          "cue_id": 970,
+          "end_ms": 2237660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它差距不大",
+          "segment_id": "cue_000970",
+          "start_ms": 2236620
+        },
+        {
+          "cue_id": 971,
+          "end_ms": 2238600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要去想",
+          "segment_id": "cue_000971",
+          "start_ms": 2237660
+        },
+        {
+          "cue_id": 972,
+          "end_ms": 2240900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师我这一句我要用我的气魂去唱",
+          "segment_id": "cue_000972",
+          "start_ms": 2238600
+        },
+        {
+          "cue_id": 973,
+          "end_ms": 2243320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我这句我要用我的什么弱魂去唱",
+          "segment_id": "cue_000973",
+          "start_ms": 2240900
+        },
+        {
+          "cue_id": 974,
+          "end_ms": 2247100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要这样子这么的这个概念",
+          "segment_id": "cue_000974",
+          "start_ms": 2243320
+        },
+        {
+          "cue_id": 975,
+          "end_ms": 2248780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这么的就是文字化",
+          "segment_id": "cue_000975",
+          "start_ms": 2247100
+        },
+        {
+          "cue_id": 976,
+          "end_ms": 2251480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是这么的就是理念派",
+          "segment_id": "cue_000976",
+          "start_ms": 2248780
+        },
+        {
+          "cue_id": 977,
+          "end_ms": 2253060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就非常的理念派",
+          "segment_id": "cue_000977",
+          "start_ms": 2251480
+        },
+        {
+          "cue_id": 978,
+          "end_ms": 2254820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你就要问自己",
+          "segment_id": "cue_000978",
+          "start_ms": 2253060
+        },
+        {
+          "cue_id": 979,
+          "end_ms": 2257980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我这一句我想把它唱成什么感觉",
+          "segment_id": "cue_000979",
+          "start_ms": 2254820
+        },
+        {
+          "cue_id": 980,
+          "end_ms": 2261120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我把它想唱的那种非常声音",
+          "segment_id": "cue_000980",
+          "start_ms": 2257980
+        },
+        {
+          "cue_id": 981,
+          "end_ms": 2262960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "非常小非常轻的感觉",
+          "segment_id": "cue_000981",
+          "start_ms": 2261120
+        },
+        {
+          "cue_id": 982,
+          "end_ms": 2264220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK这就是假声",
+          "segment_id": "cue_000982",
+          "start_ms": 2262960
+        },
+        {
+          "cue_id": 983,
+          "end_ms": 2266640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我如果说我想让我的声音",
+          "segment_id": "cue_000983",
+          "start_ms": 2264220
+        },
+        {
+          "cue_id": 984,
+          "end_ms": 2268380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有一个心紧一点",
+          "segment_id": "cue_000984",
+          "start_ms": 2266640
+        },
+        {
+          "cue_id": 985,
+          "end_ms": 2271360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想让我的这个声音再亮一些",
+          "segment_id": "cue_000985",
+          "start_ms": 2268380
+        },
+        {
+          "cue_id": 986,
+          "end_ms": 2271680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000986",
+          "start_ms": 2271360
+        },
+        {
+          "cue_id": 987,
+          "end_ms": 2273080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这就叫平衡混声",
+          "segment_id": "cue_000987",
+          "start_ms": 2271680
+        },
+        {
+          "cue_id": 988,
+          "end_ms": 2273980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "明白了吗",
+          "segment_id": "cue_000988",
+          "start_ms": 2273080
+        },
+        {
+          "cue_id": 989,
+          "end_ms": 2276020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你要问自己想唱什么样的声音",
+          "segment_id": "cue_000989",
+          "start_ms": 2273980
+        },
+        {
+          "cue_id": 990,
+          "end_ms": 2279340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这些所有的技巧都是辅助我们表达声音的",
+          "segment_id": "cue_000990",
+          "start_ms": 2276020
+        },
+        {
+          "cue_id": 991,
+          "end_ms": 2283640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要刻意的去专门的去强调理论派的一个东西",
+          "segment_id": "cue_000991",
+          "start_ms": 2279340
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "sh_0021_resing_channel_correction",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 46800,
+        "end_cue_id": 2509,
+        "end_ms": 5293260,
+        "evidence_cue_ids": [
+          2494,
+          2495,
+          2496,
+          2497,
+          2498,
+          2499,
+          2500,
+          2501,
+          2502,
+          2503,
+          2504,
+          2505,
+          2506,
+          2507,
+          2508,
+          2509
+        ],
+        "hook": "复唱一句后，教师如何判断声音后压和通道问题？",
+        "profile": "short_highlight",
+        "quality_flags": [],
+        "review_reason": "复唱请求、学员样本、教师示范、后压与咬字喉位判断、通道结论及学员确认均完整；歌词、参与者声音、健康建议、绝对化判断和ASR风险需人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "music_rights_review",
+          "participant_audio",
+          "health_advice",
+          "asr_uncertain",
+          "absolute_claim"
+        ],
+        "score": 88.0,
+        "source_candidate_ids": [
+          "sh_0021_resing_channel_correction"
+        ],
+        "source_window_ids": [
+          "short_highlight_0021_5040000_5370000_5040000_5280000"
+        ],
+        "start_cue_id": 2494,
+        "start_ms": 5246460,
+        "summary": "学员复唱主歌首句后，教师通过示范指出声音后压、咬字与喉位不当，并判断其尚未找到正确发声通道。",
+        "title": "复唱纠正声音后压与发声通道",
+        "variant_group_id": "resing_channel_correction"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 2494,
+          "end_ms": 5248080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师看这个声音对吗",
+          "segment_id": "cue_002494",
+          "start_ms": 5246460
+        },
+        {
+          "cue_id": 2495,
+          "end_ms": 5249920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我能再唱一下主歌的第一句吗",
+          "segment_id": "cue_002495",
+          "start_ms": 5248080
+        },
+        {
+          "cue_id": 2496,
+          "end_ms": 5251940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你来",
+          "segment_id": "cue_002496",
+          "start_ms": 5249920
+        },
+        {
+          "cue_id": 2497,
+          "end_ms": 5256920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "北风毫不留情",
+          "segment_id": "cue_002497",
+          "start_ms": 5251940
+        },
+        {
+          "cue_id": 2498,
+          "end_ms": 5258520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你全在这你声音",
+          "segment_id": "cue_002498",
+          "start_ms": 5256920
+        },
+        {
+          "cue_id": 2499,
+          "end_ms": 5263380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "北风毫不留情",
+          "segment_id": "cue_002499",
+          "start_ms": 5258520
+        },
+        {
+          "cue_id": 2500,
+          "end_ms": 5266480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的声音他都不往前走你全压的",
+          "segment_id": "cue_002500",
+          "start_ms": 5264160
+        },
+        {
+          "cue_id": 2501,
+          "end_ms": 5272360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "被风毫不留情",
+          "segment_id": "cue_002501",
+          "start_ms": 5270000
+        },
+        {
+          "cue_id": 2502,
+          "end_ms": 5275820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "把叶子摧落",
+          "segment_id": "cue_002502",
+          "start_ms": 5273460
+        },
+        {
+          "cue_id": 2503,
+          "end_ms": 5280540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "脆弱的它选择了逃不过",
+          "segment_id": "cue_002503",
+          "start_ms": 5275820
+        },
+        {
+          "cue_id": 2504,
+          "end_ms": 5281080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你这个",
+          "segment_id": "cue_002504",
+          "start_ms": 5280540
+        },
+        {
+          "cue_id": 2505,
+          "end_ms": 5284820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你咬字就会用擦到这个喉位",
+          "segment_id": "cue_002505",
+          "start_ms": 5281720
+        },
+        {
+          "cue_id": 2506,
+          "end_ms": 5287800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你咬字这个位置它就不对",
+          "segment_id": "cue_002506",
+          "start_ms": 5284820
+        },
+        {
+          "cue_id": 2507,
+          "end_ms": 5290000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不是声音上就对",
+          "segment_id": "cue_002507",
+          "start_ms": 5288400
+        },
+        {
+          "cue_id": 2508,
+          "end_ms": 5291320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你是通道没找到",
+          "segment_id": "cue_002508",
+          "start_ms": 5290000
+        },
+        {
+          "cue_id": 2509,
+          "end_ms": 5293260,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "好的好的",
+          "segment_id": "cue_002509",
+          "start_ms": 5292500
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "risk_mini_0005_breathy_mix_control",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 105000,
+        "end_cue_id": 746,
+        "end_ms": 1742560,
+        "evidence_cue_ids": [
+          672,
+          675,
+          681,
+          683,
+          690,
+          693,
+          699,
+          700,
+          703,
+          704,
+          705,
+          706,
+          707,
+          708,
+          709,
+          713,
+          714,
+          715,
+          716,
+          717,
+          718,
+          719,
+          720,
+          724,
+          725,
+          727,
+          728,
+          729,
+          730,
+          734,
+          736,
+          737,
+          739,
+          740,
+          743,
+          744,
+          745,
+          746
+        ],
+        "hook": "气混、漏气和气声，关键区别在能否控制。",
+        "profile": "mini_lesson",
+        "quality_flags": [],
+        "review_reason": "从本地气混定义开始，完整示范并区分气混、漏气和气声，是该语义组最短的完整代表；声带闭合控制内容同时构成健康建议风险。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "asr_uncertain",
+          "absolute_claim",
+          "music_rights_review",
+          "health_advice"
+        ],
+        "score": 88.0,
+        "source_candidate_ids": [
+          "risk_mini_0005_breathy_mix_control"
+        ],
+        "source_window_ids": [
+          "mini_lesson_0005_1500000_2100000_1500000_1800000"
+        ],
+        "start_cue_id": 690,
+        "start_ms": 1637560,
+        "summary": "通过推气和演唱示范区分气混、漏气与气声，并把差异归结为漏气控制和发声位置。",
+        "title": "气混、漏气与气声的控制区别",
+        "variant_group_id": "mixed_voice_taxonomy"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 690,
+          "end_ms": 1639780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂无非就是气",
+          "segment_id": "cue_000690",
+          "start_ms": 1637560
+        },
+        {
+          "cue_id": 691,
+          "end_ms": 1640820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "多一点",
+          "segment_id": "cue_000691",
+          "start_ms": 1639780
+        },
+        {
+          "cue_id": 692,
+          "end_ms": 1642080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像",
+          "segment_id": "cue_000692",
+          "start_ms": 1641540
+        },
+        {
+          "cue_id": 693,
+          "end_ms": 1645780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像你看我我推了一点气",
+          "segment_id": "cue_000693",
+          "start_ms": 1642080
+        },
+        {
+          "cue_id": 694,
+          "end_ms": 1647220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我近一点啊",
+          "segment_id": "cue_000694",
+          "start_ms": 1645780
+        },
+        {
+          "cue_id": 695,
+          "end_ms": 1649640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们我现在是完全没有声卡的",
+          "segment_id": "cue_000695",
+          "start_ms": 1647220
+        },
+        {
+          "cue_id": 696,
+          "end_ms": 1651500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "完全就是手机手音",
+          "segment_id": "cue_000696",
+          "start_ms": 1649640
+        },
+        {
+          "cue_id": 697,
+          "end_ms": 1653400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你们就听的会更清楚一些",
+          "segment_id": "cue_000697",
+          "start_ms": 1651500
+        },
+        {
+          "cue_id": 698,
+          "end_ms": 1654660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我近一点",
+          "segment_id": "cue_000698",
+          "start_ms": 1653400
+        },
+        {
+          "cue_id": 699,
+          "end_ms": 1659080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像风一样",
+          "segment_id": "cue_000699",
+          "start_ms": 1656660
+        },
+        {
+          "cue_id": 700,
+          "end_ms": 1660760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这就叫气魂",
+          "segment_id": "cue_000700",
+          "start_ms": 1659700
+        },
+        {
+          "cue_id": 701,
+          "end_ms": 1663920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像像",
+          "segment_id": "cue_000701",
+          "start_ms": 1662880
+        },
+        {
+          "cue_id": 702,
+          "end_ms": 1666040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我会推一点气",
+          "segment_id": "cue_000702",
+          "start_ms": 1664600
+        },
+        {
+          "cue_id": 703,
+          "end_ms": 1667920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那很多同学说老师",
+          "segment_id": "cue_000703",
+          "start_ms": 1666040
+        },
+        {
+          "cue_id": 704,
+          "end_ms": 1669620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个气魂和漏气",
+          "segment_id": "cue_000704",
+          "start_ms": 1667920
+        },
+        {
+          "cue_id": 705,
+          "end_ms": 1671880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它怎么区分啊",
+          "segment_id": "cue_000705",
+          "start_ms": 1669620
+        },
+        {
+          "cue_id": 706,
+          "end_ms": 1674960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "漏气是你所有的字",
+          "segment_id": "cue_000706",
+          "start_ms": 1671880
+        },
+        {
+          "cue_id": 707,
+          "end_ms": 1677300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "都会处于一个漏气的状态",
+          "segment_id": "cue_000707",
+          "start_ms": 1674960
+        },
+        {
+          "cue_id": 708,
+          "end_ms": 1677980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这叫漏气",
+          "segment_id": "cue_000708",
+          "start_ms": 1677300
+        },
+        {
+          "cue_id": 709,
+          "end_ms": 1679820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂是你控制",
+          "segment_id": "cue_000709",
+          "start_ms": 1678440
+        },
+        {
+          "cue_id": 710,
+          "end_ms": 1681040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就在这一句",
+          "segment_id": "cue_000710",
+          "start_ms": 1679820
+        },
+        {
+          "cue_id": 711,
+          "end_ms": 1682040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就第一个字",
+          "segment_id": "cue_000711",
+          "start_ms": 1681040
+        },
+        {
+          "cue_id": 712,
+          "end_ms": 1682480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我漏",
+          "segment_id": "cue_000712",
+          "start_ms": 1682040
+        },
+        {
+          "cue_id": 713,
+          "end_ms": 1683500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我其他我都不漏",
+          "segment_id": "cue_000713",
+          "start_ms": 1682480
+        },
+        {
+          "cue_id": 714,
+          "end_ms": 1684120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我闭合很好",
+          "segment_id": "cue_000714",
+          "start_ms": 1683500
+        },
+        {
+          "cue_id": 715,
+          "end_ms": 1687000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我有能力去控制我的声带闭合",
+          "segment_id": "cue_000715",
+          "start_ms": 1684120
+        },
+        {
+          "cue_id": 716,
+          "end_ms": 1688000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个是技巧",
+          "segment_id": "cue_000716",
+          "start_ms": 1687000
+        },
+        {
+          "cue_id": 717,
+          "end_ms": 1690120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是随心所欲",
+          "segment_id": "cue_000717",
+          "start_ms": 1688720
+        },
+        {
+          "cue_id": 718,
+          "end_ms": 1691180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想怎么唱",
+          "segment_id": "cue_000718",
+          "start_ms": 1690120
+        },
+        {
+          "cue_id": 719,
+          "end_ms": 1691660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我怎么唱",
+          "segment_id": "cue_000719",
+          "start_ms": 1691180
+        },
+        {
+          "cue_id": 720,
+          "end_ms": 1698000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气魂和气声是一个东西吗",
+          "segment_id": "cue_000720",
+          "start_ms": 1693480
+        },
+        {
+          "cue_id": 721,
+          "end_ms": 1700080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气声",
+          "segment_id": "cue_000721",
+          "start_ms": 1699200
+        },
+        {
+          "cue_id": 722,
+          "end_ms": 1701580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "起床",
+          "segment_id": "cue_000722",
+          "start_ms": 1700080
+        },
+        {
+          "cue_id": 723,
+          "end_ms": 1703240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气声",
+          "segment_id": "cue_000723",
+          "start_ms": 1702760
+        },
+        {
+          "cue_id": 724,
+          "end_ms": 1707620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "气混和气声",
+          "segment_id": "cue_000724",
+          "start_ms": 1703240
+        },
+        {
+          "cue_id": 725,
+          "end_ms": 1708720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得不算",
+          "segment_id": "cue_000725",
+          "start_ms": 1707620
+        },
+        {
+          "cue_id": 726,
+          "end_ms": 1711660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "严格意义上来说这个问题特别好",
+          "segment_id": "cue_000726",
+          "start_ms": 1709300
+        },
+        {
+          "cue_id": 727,
+          "end_ms": 1712900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得不是一个东西",
+          "segment_id": "cue_000727",
+          "start_ms": 1711660
+        },
+        {
+          "cue_id": 728,
+          "end_ms": 1716640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为气混它建立在一个混声",
+          "segment_id": "cue_000728",
+          "start_ms": 1713840
+        },
+        {
+          "cue_id": 729,
+          "end_ms": 1717880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是混声里",
+          "segment_id": "cue_000729",
+          "start_ms": 1716640
+        },
+        {
+          "cue_id": 730,
+          "end_ms": 1719960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是我们真声也能做气声",
+          "segment_id": "cue_000730",
+          "start_ms": 1717880
+        },
+        {
+          "cue_id": 731,
+          "end_ms": 1721040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000731",
+          "start_ms": 1720560
+        },
+        {
+          "cue_id": 732,
+          "end_ms": 1722340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看",
+          "segment_id": "cue_000732",
+          "start_ms": 1721860
+        },
+        {
+          "cue_id": 733,
+          "end_ms": 1723320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000733",
+          "start_ms": 1722840
+        },
+        {
+          "cue_id": 734,
+          "end_ms": 1725080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这肯定是真声",
+          "segment_id": "cue_000734",
+          "start_ms": 1723320
+        },
+        {
+          "cue_id": 735,
+          "end_ms": 1725940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嘿",
+          "segment_id": "cue_000735",
+          "start_ms": 1725080
+        },
+        {
+          "cue_id": 736,
+          "end_ms": 1730960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我真的好想你",
+          "segment_id": "cue_000736",
+          "start_ms": 1727860
+        },
+        {
+          "cue_id": 737,
+          "end_ms": 1733340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这也是一个气声",
+          "segment_id": "cue_000737",
+          "start_ms": 1731440
+        },
+        {
+          "cue_id": 738,
+          "end_ms": 1734100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对不对",
+          "segment_id": "cue_000738",
+          "start_ms": 1733340
+        },
+        {
+          "cue_id": 739,
+          "end_ms": 1735500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以它不是一个东西",
+          "segment_id": "cue_000739",
+          "start_ms": 1734100
+        },
+        {
+          "cue_id": 740,
+          "end_ms": 1736400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是差距不大",
+          "segment_id": "cue_000740",
+          "start_ms": 1735500
+        },
+        {
+          "cue_id": 741,
+          "end_ms": 1737000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "同学们啊",
+          "segment_id": "cue_000741",
+          "start_ms": 1736400
+        },
+        {
+          "cue_id": 742,
+          "end_ms": 1738000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "差距不大",
+          "segment_id": "cue_000742",
+          "start_ms": 1737000
+        },
+        {
+          "cue_id": 743,
+          "end_ms": 1739920,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "只是说一个在混声的推气",
+          "segment_id": "cue_000743",
+          "start_ms": 1738000
+        },
+        {
+          "cue_id": 744,
+          "end_ms": 1741120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是在真声的位置上",
+          "segment_id": "cue_000744",
+          "start_ms": 1739920
+        },
+        {
+          "cue_id": 745,
+          "end_ms": 1741680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个推气",
+          "segment_id": "cue_000745",
+          "start_ms": 1741120
+        },
+        {
+          "cue_id": 746,
+          "end_ms": 1742560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000746",
+          "start_ms": 1742160
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "audit_mini_lesson_0006_c03",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 269640,
+        "end_cue_id": 939,
+        "end_ms": 2160060,
+        "evidence_cue_ids": [
+          825,
+          828,
+          829,
+          832,
+          833,
+          837,
+          838,
+          839,
+          842,
+          844,
+          846,
+          847,
+          852,
+          853,
+          859,
+          860,
+          865,
+          868,
+          871,
+          874,
+          876,
+          882,
+          885,
+          886,
+          887,
+          888,
+          892,
+          894,
+          897,
+          898,
+          902,
+          903,
+          905,
+          906,
+          912,
+          915,
+          924,
+          925,
+          931,
+          932,
+          933,
+          934,
+          935,
+          937,
+          938,
+          939
+        ],
+        "hook": "从真声开始，前四步怎样逐级建立高音、假声和真假声转换？",
+        "profile": "mini_lesson",
+        "quality_flags": [],
+        "review_reason": "边界完整覆盖第一至第四步的连续课程，并保留第四步依赖前三步的原始前提、练习示范和明确收束。该单元与第三步情绪比较章节目标不同，不构成重复。歌词、确定性比例和学习速度表述、商业性课程表述及术语转写歧义需要人工复核。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim",
+          "music_rights_review",
+          "asr_uncertain",
+          "commercial_claim"
+        ],
+        "score": 86.0,
+        "source_candidate_ids": [
+          "audit_mini_lesson_0006_c03"
+        ],
+        "source_window_ids": [
+          "mini_lesson_0006_1800000_2400000_1800000_2100000"
+        ],
+        "start_cue_id": 825,
+        "start_ms": 1890420,
+        "summary": "连续讲解真声、强混、假声和真假声转换四个进阶步骤，并通过歌曲片段示范不同高音通道及其练习方式。",
+        "title": "歌唱进阶前四步：真声、强混、假声与转换",
+        "variant_group_id": "vocal_curriculum_register_steps"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 825,
+          "end_ms": 1894220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第一步就是去找真声",
+          "segment_id": "cue_000825",
+          "start_ms": 1890420
+        },
+        {
+          "cue_id": 826,
+          "end_ms": 1895360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第二步",
+          "segment_id": "cue_000826",
+          "start_ms": 1894680
+        },
+        {
+          "cue_id": 827,
+          "end_ms": 1896680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "谢谢起不出名字",
+          "segment_id": "cue_000827",
+          "start_ms": 1895360
+        },
+        {
+          "cue_id": 828,
+          "end_ms": 1897780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第二步",
+          "segment_id": "cue_000828",
+          "start_ms": 1896680
+        },
+        {
+          "cue_id": 829,
+          "end_ms": 1904680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "去找我们的一个叫做混声里面的叫强混",
+          "segment_id": "cue_000829",
+          "start_ms": 1900000
+        },
+        {
+          "cue_id": 830,
+          "end_ms": 1911800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "强混",
+          "segment_id": "cue_000830",
+          "start_ms": 1910960
+        },
+        {
+          "cue_id": 831,
+          "end_ms": 1912820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "为什么呢",
+          "segment_id": "cue_000831",
+          "start_ms": 1911800
+        },
+        {
+          "cue_id": 832,
+          "end_ms": 1915380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为我们真声它只能唱到这些音",
+          "segment_id": "cue_000832",
+          "start_ms": 1912820
+        },
+        {
+          "cue_id": 833,
+          "end_ms": 1918840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那现在市面上70%它一定会用到强混",
+          "segment_id": "cue_000833",
+          "start_ms": 1915380
+        },
+        {
+          "cue_id": 834,
+          "end_ms": 1920340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那你要往下再拔",
+          "segment_id": "cue_000834",
+          "start_ms": 1918840
+        },
+        {
+          "cue_id": 835,
+          "end_ms": 1921940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你就会出现高音卡节了",
+          "segment_id": "cue_000835",
+          "start_ms": 1920340
+        },
+        {
+          "cue_id": 836,
+          "end_ms": 1924420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这一关很多同学你是做不到的",
+          "segment_id": "cue_000836",
+          "start_ms": 1921940
+        },
+        {
+          "cue_id": 837,
+          "end_ms": 1927500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以我们第二步要学习",
+          "segment_id": "cue_000837",
+          "start_ms": 1924420
+        },
+        {
+          "cue_id": 838,
+          "end_ms": 1929500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "找到更高音区",
+          "segment_id": "cue_000838",
+          "start_ms": 1927500
+        },
+        {
+          "cue_id": 839,
+          "end_ms": 1931660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "且不用真声用嗓子喊",
+          "segment_id": "cue_000839",
+          "start_ms": 1929500
+        },
+        {
+          "cue_id": 840,
+          "end_ms": 1933480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你是能怎么上去的",
+          "segment_id": "cue_000840",
+          "start_ms": 1931660
+        },
+        {
+          "cue_id": 841,
+          "end_ms": 1934140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个通道",
+          "segment_id": "cue_000841",
+          "start_ms": 1933480
+        },
+        {
+          "cue_id": 842,
+          "end_ms": 1937600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个强吻就是要找到一个叫什么呢",
+          "segment_id": "cue_000842",
+          "start_ms": 1934140
+        },
+        {
+          "cue_id": 843,
+          "end_ms": 1940080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "高音的",
+          "segment_id": "cue_000843",
+          "start_ms": 1938860
+        },
+        {
+          "cue_id": 844,
+          "end_ms": 1945360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "唱歌通道",
+          "segment_id": "cue_000844",
+          "start_ms": 1943700
+        },
+        {
+          "cue_id": 845,
+          "end_ms": 1957780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "好",
+          "segment_id": "cue_000845",
+          "start_ms": 1957260
+        },
+        {
+          "cue_id": 846,
+          "end_ms": 1959540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "好 这是强混",
+          "segment_id": "cue_000846",
+          "start_ms": 1957580
+        },
+        {
+          "cue_id": 847,
+          "end_ms": 1962800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK老师我的高音没有问题了",
+          "segment_id": "cue_000847",
+          "start_ms": 1960080
+        },
+        {
+          "cue_id": 848,
+          "end_ms": 1964520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是我想让我的高音",
+          "segment_id": "cue_000848",
+          "start_ms": 1962800
+        },
+        {
+          "cue_id": 849,
+          "end_ms": 1966260,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "换一种形式去唱",
+          "segment_id": "cue_000849",
+          "start_ms": 1964520
+        },
+        {
+          "cue_id": 850,
+          "end_ms": 1967240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你像很多歌",
+          "segment_id": "cue_000850",
+          "start_ms": 1966260
+        },
+        {
+          "cue_id": 851,
+          "end_ms": 1968420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是",
+          "segment_id": "cue_000851",
+          "start_ms": 1967240
+        },
+        {
+          "cue_id": 852,
+          "end_ms": 1971340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你用不同的风格去唱",
+          "segment_id": "cue_000852",
+          "start_ms": 1968420
+        },
+        {
+          "cue_id": 853,
+          "end_ms": 1972840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它完全是不一样的",
+          "segment_id": "cue_000853",
+          "start_ms": 1971340
+        },
+        {
+          "cue_id": 854,
+          "end_ms": 1975220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你像前几天我发了一个视频",
+          "segment_id": "cue_000854",
+          "start_ms": 1972840
+        },
+        {
+          "cue_id": 855,
+          "end_ms": 1976540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那个假叶秉林",
+          "segment_id": "cue_000855",
+          "start_ms": 1975220
+        },
+        {
+          "cue_id": 856,
+          "end_ms": 1980480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么良心",
+          "segment_id": "cue_000856",
+          "start_ms": 1976540
+        },
+        {
+          "cue_id": 857,
+          "end_ms": 1982420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么忍心",
+          "segment_id": "cue_000857",
+          "start_ms": 1981100
+        },
+        {
+          "cue_id": 858,
+          "end_ms": 1983380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么",
+          "segment_id": "cue_000858",
+          "start_ms": 1982420
+        },
+        {
+          "cue_id": 859,
+          "end_ms": 1985960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "看这是全身声",
+          "segment_id": "cue_000859",
+          "start_ms": 1984200
+        },
+        {
+          "cue_id": 860,
+          "end_ms": 1988560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "再高一点就是强吻",
+          "segment_id": "cue_000860",
+          "start_ms": 1985960
+        },
+        {
+          "cue_id": 861,
+          "end_ms": 1992640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我你我怎么灵情",
+          "segment_id": "cue_000861",
+          "start_ms": 1988560
+        },
+        {
+          "cue_id": 862,
+          "end_ms": 1994840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么任性",
+          "segment_id": "cue_000862",
+          "start_ms": 1993180
+        },
+        {
+          "cue_id": 863,
+          "end_ms": 1996040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么",
+          "segment_id": "cue_000863",
+          "start_ms": 1994840
+        },
+        {
+          "cue_id": 864,
+          "end_ms": 1998560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个感觉",
+          "segment_id": "cue_000864",
+          "start_ms": 1997260
+        },
+        {
+          "cue_id": 865,
+          "end_ms": 2000780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "像是很痛的那种感觉",
+          "segment_id": "cue_000865",
+          "start_ms": 1998560
+        },
+        {
+          "cue_id": 866,
+          "end_ms": 2001000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "是吧",
+          "segment_id": "cue_000866",
+          "start_ms": 2000780
+        },
+        {
+          "cue_id": 867,
+          "end_ms": 2001580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "很痛",
+          "segment_id": "cue_000867",
+          "start_ms": 2001000
+        },
+        {
+          "cue_id": 868,
+          "end_ms": 2004420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "然后就是有点恨意的那种感觉",
+          "segment_id": "cue_000868",
+          "start_ms": 2001580
+        },
+        {
+          "cue_id": 869,
+          "end_ms": 2007100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么灵情",
+          "segment_id": "cue_000869",
+          "start_ms": 2004420
+        },
+        {
+          "cue_id": 870,
+          "end_ms": 2008300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "好",
+          "segment_id": "cue_000870",
+          "start_ms": 2007100
+        },
+        {
+          "cue_id": 871,
+          "end_ms": 2011240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那如果我不想让我表达这个歌曲",
+          "segment_id": "cue_000871",
+          "start_ms": 2008300
+        },
+        {
+          "cue_id": 872,
+          "end_ms": 2012620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这么痛这么恨",
+          "segment_id": "cue_000872",
+          "start_ms": 2011240
+        },
+        {
+          "cue_id": 873,
+          "end_ms": 2013360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那我怎么办",
+          "segment_id": "cue_000873",
+          "start_ms": 2012620
+        },
+        {
+          "cue_id": 874,
+          "end_ms": 2014600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我用假声去唱",
+          "segment_id": "cue_000874",
+          "start_ms": 2013360
+        },
+        {
+          "cue_id": 875,
+          "end_ms": 2017980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么良心",
+          "segment_id": "cue_000875",
+          "start_ms": 2015360
+        },
+        {
+          "cue_id": 876,
+          "end_ms": 2019560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "遗憾会多一点",
+          "segment_id": "cue_000876",
+          "start_ms": 2017980
+        },
+        {
+          "cue_id": 877,
+          "end_ms": 2021100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得我用假声唱",
+          "segment_id": "cue_000877",
+          "start_ms": 2019560
+        },
+        {
+          "cue_id": 878,
+          "end_ms": 2022000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我的遗憾会多",
+          "segment_id": "cue_000878",
+          "start_ms": 2021100
+        },
+        {
+          "cue_id": 879,
+          "end_ms": 2025100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么良心",
+          "segment_id": "cue_000879",
+          "start_ms": 2022540
+        },
+        {
+          "cue_id": 880,
+          "end_ms": 2027540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么任性",
+          "segment_id": "cue_000880",
+          "start_ms": 2026000
+        },
+        {
+          "cue_id": 881,
+          "end_ms": 2028680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么",
+          "segment_id": "cue_000881",
+          "start_ms": 2028200
+        },
+        {
+          "cue_id": 882,
+          "end_ms": 2030540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看这就是假声",
+          "segment_id": "cue_000882",
+          "start_ms": 2029340
+        },
+        {
+          "cue_id": 883,
+          "end_ms": 2031560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么",
+          "segment_id": "cue_000883",
+          "start_ms": 2031080
+        },
+        {
+          "cue_id": 884,
+          "end_ms": 2032820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对吧",
+          "segment_id": "cue_000884",
+          "start_ms": 2032200
+        },
+        {
+          "cue_id": 885,
+          "end_ms": 2034180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以我们第三步",
+          "segment_id": "cue_000885",
+          "start_ms": 2032820
+        },
+        {
+          "cue_id": 886,
+          "end_ms": 2037540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们要换到我们高音的一个通道",
+          "segment_id": "cue_000886",
+          "start_ms": 2034180
+        },
+        {
+          "cue_id": 887,
+          "end_ms": 2038940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "换一种形式去唱",
+          "segment_id": "cue_000887",
+          "start_ms": 2037540
+        },
+        {
+          "cue_id": 888,
+          "end_ms": 2040860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我们要学到一个叫做假声",
+          "segment_id": "cue_000888",
+          "start_ms": 2038940
+        },
+        {
+          "cue_id": 889,
+          "end_ms": 2042780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "加分",
+          "segment_id": "cue_000889",
+          "start_ms": 2040840
+        },
+        {
+          "cue_id": 890,
+          "end_ms": 2042760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "假声",
+          "segment_id": "cue_000890",
+          "start_ms": 2042060
+        },
+        {
+          "cue_id": 891,
+          "end_ms": 2049960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这是另一种",
+          "segment_id": "cue_000891",
+          "start_ms": 2048380
+        },
+        {
+          "cue_id": 892,
+          "end_ms": 2052460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个形式的高音唱法",
+          "segment_id": "cue_000892",
+          "start_ms": 2049960
+        },
+        {
+          "cue_id": 893,
+          "end_ms": 2052860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000893",
+          "start_ms": 2052460
+        },
+        {
+          "cue_id": 894,
+          "end_ms": 2055640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "假声完了之后",
+          "segment_id": "cue_000894",
+          "start_ms": 2053760
+        },
+        {
+          "cue_id": 895,
+          "end_ms": 2056360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这就来了",
+          "segment_id": "cue_000895",
+          "start_ms": 2055640
+        },
+        {
+          "cue_id": 896,
+          "end_ms": 2057540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "刚才那个同学说的",
+          "segment_id": "cue_000896",
+          "start_ms": 2056360
+        },
+        {
+          "cue_id": 897,
+          "end_ms": 2060560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "叫做一个流行唱法的技巧",
+          "segment_id": "cue_000897",
+          "start_ms": 2057540
+        },
+        {
+          "cue_id": 898,
+          "end_ms": 2063500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "叫做真假声转换",
+          "segment_id": "cue_000898",
+          "start_ms": 2060560
+        },
+        {
+          "cue_id": 899,
+          "end_ms": 2067480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "转换吧",
+          "segment_id": "cue_000899",
+          "start_ms": 2066380
+        },
+        {
+          "cue_id": 900,
+          "end_ms": 2069220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我给它剪一个换字",
+          "segment_id": "cue_000900",
+          "start_ms": 2067480
+        },
+        {
+          "cue_id": 901,
+          "end_ms": 2070980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "真假声转换",
+          "segment_id": "cue_000901",
+          "start_ms": 2069680
+        },
+        {
+          "cue_id": 902,
+          "end_ms": 2074200,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那如果你说老师我真假声怎么去练",
+          "segment_id": "cue_000902",
+          "start_ms": 2070980
+        },
+        {
+          "cue_id": 903,
+          "end_ms": 2076640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你首先看你的前三步对不对",
+          "segment_id": "cue_000903",
+          "start_ms": 2074200
+        },
+        {
+          "cue_id": 904,
+          "end_ms": 2078020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你前三步不对",
+          "segment_id": "cue_000904",
+          "start_ms": 2076640
+        },
+        {
+          "cue_id": 905,
+          "end_ms": 2079160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你第四步你就不对",
+          "segment_id": "cue_000905",
+          "start_ms": 2078020
+        },
+        {
+          "cue_id": 906,
+          "end_ms": 2080880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你不要拔苗助长",
+          "segment_id": "cue_000906",
+          "start_ms": 2079160
+        },
+        {
+          "cue_id": 907,
+          "end_ms": 2081500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师我这个",
+          "segment_id": "cue_000907",
+          "start_ms": 2080880
+        },
+        {
+          "cue_id": 908,
+          "end_ms": 2084140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你如果说前三步都对了",
+          "segment_id": "cue_000908",
+          "start_ms": 2081500
+        },
+        {
+          "cue_id": 909,
+          "end_ms": 2084720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000909",
+          "start_ms": 2084140
+        },
+        {
+          "cue_id": 910,
+          "end_ms": 2086540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那我可以教你新的方法",
+          "segment_id": "cue_000910",
+          "start_ms": 2084720
+        },
+        {
+          "cue_id": 911,
+          "end_ms": 2088100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么去练",
+          "segment_id": "cue_000911",
+          "start_ms": 2087120
+        },
+        {
+          "cue_id": 912,
+          "end_ms": 2091000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你先去找假声",
+          "segment_id": "cue_000912",
+          "start_ms": 2089200
+        },
+        {
+          "cue_id": 913,
+          "end_ms": 2094320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就拿你我怎么两清好了",
+          "segment_id": "cue_000913",
+          "start_ms": 2092120
+        },
+        {
+          "cue_id": 914,
+          "end_ms": 2097000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看假声",
+          "segment_id": "cue_000914",
+          "start_ms": 2095860
+        },
+        {
+          "cue_id": 915,
+          "end_ms": 2100400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么良心",
+          "segment_id": "cue_000915",
+          "start_ms": 2097000
+        },
+        {
+          "cue_id": 916,
+          "end_ms": 2101260,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对吧",
+          "segment_id": "cue_000916",
+          "start_ms": 2101000
+        },
+        {
+          "cue_id": 917,
+          "end_ms": 2108000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你做学练这个",
+          "segment_id": "cue_000917",
+          "start_ms": 2106820
+        },
+        {
+          "cue_id": 918,
+          "end_ms": 2109580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你现在就做学练这个",
+          "segment_id": "cue_000918",
+          "start_ms": 2108000
+        },
+        {
+          "cue_id": 919,
+          "end_ms": 2111800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么",
+          "segment_id": "cue_000919",
+          "start_ms": 2109580
+        },
+        {
+          "cue_id": 920,
+          "end_ms": 2113040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它下来了",
+          "segment_id": "cue_000920",
+          "start_ms": 2112360
+        },
+        {
+          "cue_id": 921,
+          "end_ms": 2114700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我",
+          "segment_id": "cue_000921",
+          "start_ms": 2113040
+        },
+        {
+          "cue_id": 922,
+          "end_ms": 2117860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "无意",
+          "segment_id": "cue_000922",
+          "start_ms": 2116900
+        },
+        {
+          "cue_id": 923,
+          "end_ms": 2119940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "无意",
+          "segment_id": "cue_000923",
+          "start_ms": 2118980
+        },
+        {
+          "cue_id": 924,
+          "end_ms": 2122560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你可以换成不一样的",
+          "segment_id": "cue_000924",
+          "start_ms": 2120720
+        },
+        {
+          "cue_id": 925,
+          "end_ms": 2124380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所有的原因都可以带进去",
+          "segment_id": "cue_000925",
+          "start_ms": 2122560
+        },
+        {
+          "cue_id": 926,
+          "end_ms": 2127460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么联系",
+          "segment_id": "cue_000926",
+          "start_ms": 2124380
+        },
+        {
+          "cue_id": 927,
+          "end_ms": 2130020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你我怎么良心 怎么任性",
+          "segment_id": "cue_000927",
+          "start_ms": 2125000
+        },
+        {
+          "cue_id": 928,
+          "end_ms": 2129960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "怎么认识",
+          "segment_id": "cue_000928",
+          "start_ms": 2127460
+        },
+        {
+          "cue_id": 929,
+          "end_ms": 2132840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "包括那个歌还是会比较明显的",
+          "segment_id": "cue_000929",
+          "start_ms": 2130020
+        },
+        {
+          "cue_id": 930,
+          "end_ms": 2133560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你看那个",
+          "segment_id": "cue_000930",
+          "start_ms": 2132840
+        },
+        {
+          "cue_id": 931,
+          "end_ms": 2136640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嗯 永不失联的爱",
+          "segment_id": "cue_000931",
+          "start_ms": 2133560
+        },
+        {
+          "cue_id": 932,
+          "end_ms": 2147980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你可以我这一辈子都不想失联的爱 联的爱",
+          "segment_id": "cue_000932",
+          "start_ms": 2137400
+        },
+        {
+          "cue_id": 933,
+          "end_ms": 2150300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你自然而然你的假声",
+          "segment_id": "cue_000933",
+          "start_ms": 2147980
+        },
+        {
+          "cue_id": 934,
+          "end_ms": 2152500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这一块就会非常的快",
+          "segment_id": "cue_000934",
+          "start_ms": 2150300
+        },
+        {
+          "cue_id": 935,
+          "end_ms": 2153900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不用几节课",
+          "segment_id": "cue_000935",
+          "start_ms": 2152500
+        },
+        {
+          "cue_id": 936,
+          "end_ms": 2155240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个地方就很快了",
+          "segment_id": "cue_000936",
+          "start_ms": 2153900
+        },
+        {
+          "cue_id": 937,
+          "end_ms": 2157140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "只要你前面都能做到位了",
+          "segment_id": "cue_000937",
+          "start_ms": 2155240
+        },
+        {
+          "cue_id": 938,
+          "end_ms": 2159320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你第四步真假声就很快",
+          "segment_id": "cue_000938",
+          "start_ms": 2157140
+        },
+        {
+          "cue_id": 939,
+          "end_ms": 2160060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000939",
+          "start_ms": 2159320
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "precision_mini_lesson_0007_c03",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 123580,
+        "end_cue_id": 991,
+        "end_ms": 2283640,
+        "evidence_cue_ids": [
+          944,
+          945,
+          946,
+          948,
+          949,
+          950,
+          956,
+          957,
+          959,
+          960,
+          961,
+          962,
+          964,
+          965,
+          966,
+          967,
+          969,
+          970,
+          971,
+          972,
+          973,
+          974,
+          978,
+          979,
+          981,
+          982,
+          983,
+          985,
+          987,
+          988,
+          989,
+          990,
+          991,
+          940,
+          943
+        ],
+        "hook": "当弱混、气混、假声和平衡混差别很小时，应怎样按想表达的声音选择技巧？",
+        "profile": "mini_lesson",
+        "quality_flags": [],
+        "review_reason": "区间保留第五步标签、平衡混的初始定义以及第六步弱混和气混的宣布与解释，最终形成按表达目标选择技巧的完整结论。章节在本地定义了所需概念，不依赖未包含的前序教学；术语误写不阻断方法理解，但与绝对表述一起需要人工审查。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "absolute_claim",
+          "asr_uncertain"
+        ],
+        "score": 90.0,
+        "source_candidate_ids": [
+          "precision_mini_lesson_0007_c03"
+        ],
+        "source_window_ids": [
+          "mini_lesson_0007_2100000_2700000_2100000_2400000"
+        ],
+        "start_cue_id": 940,
+        "start_ms": 2160060,
+        "summary": "第五步定义平衡混比假声更实，并说明它把强混中的气息支撑用于假声；第六步引出弱混和气混，比较它们与假声、平衡混的听感，最终建议先确定想表达的声音，再把技巧作为辅助。",
+        "title": "第五、六步：混声类型的区别与表达选择",
+        "variant_group_id": "mixed_voice_expression_choices"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 940,
+          "end_ms": 2160980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第五步",
+          "segment_id": "cue_000940",
+          "start_ms": 2160060
+        },
+        {
+          "cue_id": 941,
+          "end_ms": 2164720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师我的真假声OK了",
+          "segment_id": "cue_000941",
+          "start_ms": 2162360
+        },
+        {
+          "cue_id": 942,
+          "end_ms": 2165720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我的假声OK了",
+          "segment_id": "cue_000942",
+          "start_ms": 2164720
+        },
+        {
+          "cue_id": 943,
+          "end_ms": 2167220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想学习平衡混",
+          "segment_id": "cue_000943",
+          "start_ms": 2165720
+        },
+        {
+          "cue_id": 944,
+          "end_ms": 2169600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为你要知道平衡混是什么",
+          "segment_id": "cue_000944",
+          "start_ms": 2167780
+        },
+        {
+          "cue_id": 945,
+          "end_ms": 2171300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "平衡混就是在",
+          "segment_id": "cue_000945",
+          "start_ms": 2169600
+        },
+        {
+          "cue_id": 946,
+          "end_ms": 2173360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "比假声实一点",
+          "segment_id": "cue_000946",
+          "start_ms": 2171300
+        },
+        {
+          "cue_id": 947,
+          "end_ms": 2175440,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "比假声的声音",
+          "segment_id": "cue_000947",
+          "start_ms": 2173360
+        },
+        {
+          "cue_id": 948,
+          "end_ms": 2177080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "要再实一点平衡混",
+          "segment_id": "cue_000948",
+          "start_ms": 2175440
+        },
+        {
+          "cue_id": 949,
+          "end_ms": 2186220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他需要一个非常强的技巧",
+          "segment_id": "cue_000949",
+          "start_ms": 2183200
+        },
+        {
+          "cue_id": 950,
+          "end_ms": 2187680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他叫做气息支撑",
+          "segment_id": "cue_000950",
+          "start_ms": 2186220
+        },
+        {
+          "cue_id": 951,
+          "end_ms": 2191420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他用到非常强的技巧叫做气息支撑",
+          "segment_id": "cue_000951",
+          "start_ms": 2188680
+        },
+        {
+          "cue_id": 952,
+          "end_ms": 2194180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那气息支撑我刚才说的是在哪一方面学的来着",
+          "segment_id": "cue_000952",
+          "start_ms": 2191420
+        },
+        {
+          "cue_id": 953,
+          "end_ms": 2197940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "是在哪一个课程里我们学的强调非常多的",
+          "segment_id": "cue_000953",
+          "start_ms": 2194180
+        },
+        {
+          "cue_id": 954,
+          "end_ms": 2198460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "是在这",
+          "segment_id": "cue_000954",
+          "start_ms": 2197940
+        },
+        {
+          "cue_id": 955,
+          "end_ms": 2200140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "强混",
+          "segment_id": "cue_000955",
+          "start_ms": 2199480
+        },
+        {
+          "cue_id": 956,
+          "end_ms": 2205000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你把强混的这个气息支撑拿在假声声上",
+          "segment_id": "cue_000956",
+          "start_ms": 2200140
+        },
+        {
+          "cue_id": 957,
+          "end_ms": 2206500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就变成平衡混",
+          "segment_id": "cue_000957",
+          "start_ms": 2205000
+        },
+        {
+          "cue_id": 958,
+          "end_ms": 2207860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "明白了吗",
+          "segment_id": "cue_000958",
+          "start_ms": 2207100
+        },
+        {
+          "cue_id": 959,
+          "end_ms": 2210720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以平衡混的同学也是很快的",
+          "segment_id": "cue_000959",
+          "start_ms": 2207860
+        },
+        {
+          "cue_id": 960,
+          "end_ms": 2214760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "然后第六步就是我们的一个弱魂",
+          "segment_id": "cue_000960",
+          "start_ms": 2210700
+        },
+        {
+          "cue_id": 961,
+          "end_ms": 2214760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是我们的一个弱混",
+          "segment_id": "cue_000961",
+          "start_ms": 2212480
+        },
+        {
+          "cue_id": 962,
+          "end_ms": 2220180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "以及我们的一个气混",
+          "segment_id": "cue_000962",
+          "start_ms": 2217920
+        },
+        {
+          "cue_id": 963,
+          "end_ms": 2223080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000963",
+          "start_ms": 2222560
+        },
+        {
+          "cue_id": 964,
+          "end_ms": 2225480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个就是说你去控制",
+          "segment_id": "cue_000964",
+          "start_ms": 2223080
+        },
+        {
+          "cue_id": 965,
+          "end_ms": 2228300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有一点气息支撑",
+          "segment_id": "cue_000965",
+          "start_ms": 2225480
+        },
+        {
+          "cue_id": 966,
+          "end_ms": 2230160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是又不是纯假声",
+          "segment_id": "cue_000966",
+          "start_ms": 2228300
+        },
+        {
+          "cue_id": 967,
+          "end_ms": 2231960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "声音还是比较的集中",
+          "segment_id": "cue_000967",
+          "start_ms": 2230160
+        },
+        {
+          "cue_id": 968,
+          "end_ms": 2233600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你有的时候",
+          "segment_id": "cue_000968",
+          "start_ms": 2232560
+        },
+        {
+          "cue_id": 969,
+          "end_ms": 2236620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个弱混气混假声",
+          "segment_id": "cue_000969",
+          "start_ms": 2233600
+        },
+        {
+          "cue_id": 970,
+          "end_ms": 2237660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它差距不大",
+          "segment_id": "cue_000970",
+          "start_ms": 2236620
+        },
+        {
+          "cue_id": 971,
+          "end_ms": 2238600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要去想",
+          "segment_id": "cue_000971",
+          "start_ms": 2237660
+        },
+        {
+          "cue_id": 972,
+          "end_ms": 2240900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师我这一句我要用我的气魂去唱",
+          "segment_id": "cue_000972",
+          "start_ms": 2238600
+        },
+        {
+          "cue_id": 973,
+          "end_ms": 2243320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我这句我要用我的什么弱魂去唱",
+          "segment_id": "cue_000973",
+          "start_ms": 2240900
+        },
+        {
+          "cue_id": 974,
+          "end_ms": 2247100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要这样子这么的这个概念",
+          "segment_id": "cue_000974",
+          "start_ms": 2243320
+        },
+        {
+          "cue_id": 975,
+          "end_ms": 2248780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这么的就是文字化",
+          "segment_id": "cue_000975",
+          "start_ms": 2247100
+        },
+        {
+          "cue_id": 976,
+          "end_ms": 2251480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是这么的就是理念派",
+          "segment_id": "cue_000976",
+          "start_ms": 2248780
+        },
+        {
+          "cue_id": 977,
+          "end_ms": 2253060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就非常的理念派",
+          "segment_id": "cue_000977",
+          "start_ms": 2251480
+        },
+        {
+          "cue_id": 978,
+          "end_ms": 2254820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你就要问自己",
+          "segment_id": "cue_000978",
+          "start_ms": 2253060
+        },
+        {
+          "cue_id": 979,
+          "end_ms": 2257980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我这一句我想把它唱成什么感觉",
+          "segment_id": "cue_000979",
+          "start_ms": 2254820
+        },
+        {
+          "cue_id": 980,
+          "end_ms": 2261120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我把它想唱的那种非常声音",
+          "segment_id": "cue_000980",
+          "start_ms": 2257980
+        },
+        {
+          "cue_id": 981,
+          "end_ms": 2262960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "非常小非常轻的感觉",
+          "segment_id": "cue_000981",
+          "start_ms": 2261120
+        },
+        {
+          "cue_id": 982,
+          "end_ms": 2264220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK这就是假声",
+          "segment_id": "cue_000982",
+          "start_ms": 2262960
+        },
+        {
+          "cue_id": 983,
+          "end_ms": 2266640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我如果说我想让我的声音",
+          "segment_id": "cue_000983",
+          "start_ms": 2264220
+        },
+        {
+          "cue_id": 984,
+          "end_ms": 2268380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有一个心紧一点",
+          "segment_id": "cue_000984",
+          "start_ms": 2266640
+        },
+        {
+          "cue_id": 985,
+          "end_ms": 2271360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想让我的这个声音再亮一些",
+          "segment_id": "cue_000985",
+          "start_ms": 2268380
+        },
+        {
+          "cue_id": 986,
+          "end_ms": 2271680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_000986",
+          "start_ms": 2271360
+        },
+        {
+          "cue_id": 987,
+          "end_ms": 2273080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这就叫平衡混声",
+          "segment_id": "cue_000987",
+          "start_ms": 2271680
+        },
+        {
+          "cue_id": 988,
+          "end_ms": 2273980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "明白了吗",
+          "segment_id": "cue_000988",
+          "start_ms": 2273080
+        },
+        {
+          "cue_id": 989,
+          "end_ms": 2276020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你要问自己想唱什么样的声音",
+          "segment_id": "cue_000989",
+          "start_ms": 2273980
+        },
+        {
+          "cue_id": 990,
+          "end_ms": 2279340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这些所有的技巧都是辅助我们表达声音的",
+          "segment_id": "cue_000990",
+          "start_ms": 2276020
+        },
+        {
+          "cue_id": 991,
+          "end_ms": 2283640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "不要刻意的去专门的去强调理论派的一个东西",
+          "segment_id": "cue_000991",
+          "start_ms": 2279340
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "mini_lesson_0008_c1051_1130",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 138580,
+        "end_cue_id": 1130,
+        "end_ms": 2548360,
+        "evidence_cue_ids": [
+          1051,
+          1053,
+          1055,
+          1056,
+          1057,
+          1058,
+          1060,
+          1065,
+          1067,
+          1068,
+          1072,
+          1074,
+          1076,
+          1078,
+          1086,
+          1089,
+          1091,
+          1093,
+          1096,
+          1097,
+          1098,
+          1103,
+          1108,
+          1109,
+          1112,
+          1113,
+          1118,
+          1119,
+          1120,
+          1123,
+          1124,
+          1125,
+          1126,
+          1127,
+          1128,
+          1130
+        ],
+        "hook": "小白一定不要先练这种唱法，因为气息支撑和高音通道还没有建立。",
+        "profile": "mini_lesson",
+        "quality_flags": [],
+        "review_reason": "从争议唱法的名称和初学者禁忌开始，完整解释声带变化、支撑缺失、疲劳与瓶颈，并以学习程度限定收束；方法可理解，但包含健康、确定性和术语转写风险。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "medical_claim",
+          "health_advice",
+          "absolute_claim",
+          "asr_uncertain"
+        ],
+        "score": 88.0,
+        "source_candidate_ids": [
+          "mini_lesson_0008_c1051_1130"
+        ],
+        "source_window_ids": [
+          "mini_lesson_0008_2400000_3000000_2400000_2700000"
+        ],
+        "start_cue_id": 1051,
+        "start_ms": 2409780,
+        "summary": "解释零基础学习者为何不宜先练“烟音、咽音”等转写不稳定的唱法：它可能短期改变高音，却不能替代气息支撑和高音通道，并可能带来疲劳和进步停滞。",
+        "title": "初学者为何不宜先练“咽音”类唱法",
+        "variant_group_id": "beginner_yanyin_prerequisites"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 1051,
+          "end_ms": 2412940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "包括你们可能刷到那些烟音唱法",
+          "segment_id": "cue_001051",
+          "start_ms": 2409780
+        },
+        {
+          "cue_id": 1052,
+          "end_ms": 2414620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "烟音",
+          "segment_id": "cue_001052",
+          "start_ms": 2413720
+        },
+        {
+          "cue_id": 1053,
+          "end_ms": 2420000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "小白一定不要先去学",
+          "segment_id": "cue_001053",
+          "start_ms": 2417580
+        },
+        {
+          "cue_id": 1054,
+          "end_ms": 2421480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "来我给你们照一下啊",
+          "segment_id": "cue_001054",
+          "start_ms": 2420000
+        },
+        {
+          "cue_id": 1055,
+          "end_ms": 2422600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "烟音唱法",
+          "segment_id": "cue_001055",
+          "start_ms": 2421480
+        },
+        {
+          "cue_id": 1056,
+          "end_ms": 2424700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "小白一定不要去学",
+          "segment_id": "cue_001056",
+          "start_ms": 2422600
+        },
+        {
+          "cue_id": 1057,
+          "end_ms": 2425280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "为什么呢",
+          "segment_id": "cue_001057",
+          "start_ms": 2424700
+        },
+        {
+          "cue_id": 1058,
+          "end_ms": 2426500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为他叫拔喵助长",
+          "segment_id": "cue_001058",
+          "start_ms": 2425280
+        },
+        {
+          "cue_id": 1059,
+          "end_ms": 2428520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他在我这叫做拔喵助长",
+          "segment_id": "cue_001059",
+          "start_ms": 2426500
+        },
+        {
+          "cue_id": 1060,
+          "end_ms": 2431120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你完全你连气息支撑都没有",
+          "segment_id": "cue_001060",
+          "start_ms": 2428520
+        },
+        {
+          "cue_id": 1061,
+          "end_ms": 2433360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你直接拿着那个什么小东西",
+          "segment_id": "cue_001061",
+          "start_ms": 2431120
+        },
+        {
+          "cue_id": 1062,
+          "end_ms": 2436160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "哎哎哎",
+          "segment_id": "cue_001062",
+          "start_ms": 2433360
+        },
+        {
+          "cue_id": 1063,
+          "end_ms": 2435520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "开始练",
+          "segment_id": "cue_001063",
+          "start_ms": 2434680
+        },
+        {
+          "cue_id": 1064,
+          "end_ms": 2437760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你练的是什么呢",
+          "segment_id": "cue_001064",
+          "start_ms": 2436160
+        },
+        {
+          "cue_id": 1065,
+          "end_ms": 2440840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你练的是你这块声带的后端闭合",
+          "segment_id": "cue_001065",
+          "start_ms": 2437760
+        },
+        {
+          "cue_id": 1066,
+          "end_ms": 2443700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是你练的是你的声带闭合",
+          "segment_id": "cue_001066",
+          "start_ms": 2441440
+        },
+        {
+          "cue_id": 1067,
+          "end_ms": 2447880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它当时当下你能听到你的声音能唱上去",
+          "segment_id": "cue_001067",
+          "start_ms": 2443700
+        },
+        {
+          "cue_id": 1068,
+          "end_ms": 2450480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是你会发现你的这个高音很薄",
+          "segment_id": "cue_001068",
+          "start_ms": 2447880
+        },
+        {
+          "cue_id": 1069,
+          "end_ms": 2452360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "很单薄",
+          "segment_id": "cue_001069",
+          "start_ms": 2450480
+        },
+        {
+          "cue_id": 1070,
+          "end_ms": 2453800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它没有厚度",
+          "segment_id": "cue_001070",
+          "start_ms": 2452360
+        },
+        {
+          "cue_id": 1071,
+          "end_ms": 2455640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它没有穿透力",
+          "segment_id": "cue_001071",
+          "start_ms": 2453800
+        },
+        {
+          "cue_id": 1072,
+          "end_ms": 2457360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它是没有支撑的",
+          "segment_id": "cue_001072",
+          "start_ms": 2455640
+        },
+        {
+          "cue_id": 1073,
+          "end_ms": 2458580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "而且你唱久了",
+          "segment_id": "cue_001073",
+          "start_ms": 2457360
+        },
+        {
+          "cue_id": 1074,
+          "end_ms": 2459940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的嗓子也会累",
+          "segment_id": "cue_001074",
+          "start_ms": 2458580
+        },
+        {
+          "cue_id": 1075,
+          "end_ms": 2461480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "为什么呢",
+          "segment_id": "cue_001075",
+          "start_ms": 2460720
+        },
+        {
+          "cue_id": 1076,
+          "end_ms": 2463760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为它这个电音唱法",
+          "segment_id": "cue_001076",
+          "start_ms": 2461480
+        },
+        {
+          "cue_id": 1077,
+          "end_ms": 2465180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它只做了一个点",
+          "segment_id": "cue_001077",
+          "start_ms": 2463760
+        },
+        {
+          "cue_id": 1078,
+          "end_ms": 2469460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它让你的声音声带变薄了",
+          "segment_id": "cue_001078",
+          "start_ms": 2465960
+        },
+        {
+          "cue_id": 1079,
+          "end_ms": 2470980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你变薄了之后",
+          "segment_id": "cue_001079",
+          "start_ms": 2469440
+        },
+        {
+          "cue_id": 1080,
+          "end_ms": 2472140,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "相当于什么呢",
+          "segment_id": "cue_001080",
+          "start_ms": 2470980
+        },
+        {
+          "cue_id": 1081,
+          "end_ms": 2472880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是婴儿",
+          "segment_id": "cue_001081",
+          "start_ms": 2472140
+        },
+        {
+          "cue_id": 1082,
+          "end_ms": 2473660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "啼哭",
+          "segment_id": "cue_001082",
+          "start_ms": 2472880
+        },
+        {
+          "cue_id": 1083,
+          "end_ms": 2474800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他的声音也很亮",
+          "segment_id": "cue_001083",
+          "start_ms": 2473660
+        },
+        {
+          "cue_id": 1084,
+          "end_ms": 2475800,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他也没学过唱歌",
+          "segment_id": "cue_001084",
+          "start_ms": 2474800
+        },
+        {
+          "cue_id": 1085,
+          "end_ms": 2476580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他声音很亮",
+          "segment_id": "cue_001085",
+          "start_ms": 2475800
+        },
+        {
+          "cue_id": 1086,
+          "end_ms": 2478840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你去做了这么一个一言一的动作",
+          "segment_id": "cue_001086",
+          "start_ms": 2476580
+        },
+        {
+          "cue_id": 1087,
+          "end_ms": 2479620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "把你声带变薄",
+          "segment_id": "cue_001087",
+          "start_ms": 2478840
+        },
+        {
+          "cue_id": 1088,
+          "end_ms": 2480400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的声带",
+          "segment_id": "cue_001088",
+          "start_ms": 2479620
+        },
+        {
+          "cue_id": 1089,
+          "end_ms": 2482820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的声音当场就会发生改变",
+          "segment_id": "cue_001089",
+          "start_ms": 2480400
+        },
+        {
+          "cue_id": 1090,
+          "end_ms": 2484360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是你的声音",
+          "segment_id": "cue_001090",
+          "start_ms": 2482820
+        },
+        {
+          "cue_id": 1091,
+          "end_ms": 2485860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "它没有穿透力",
+          "segment_id": "cue_001091",
+          "start_ms": 2484360
+        },
+        {
+          "cue_id": 1092,
+          "end_ms": 2486580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "很单毛",
+          "segment_id": "cue_001092",
+          "start_ms": 2485860
+        },
+        {
+          "cue_id": 1093,
+          "end_ms": 2490000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为你还是没有学会强混的",
+          "segment_id": "cue_001093",
+          "start_ms": 2486580
+        },
+        {
+          "cue_id": 1094,
+          "end_ms": 2491740,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "底层的这个",
+          "segment_id": "cue_001094",
+          "start_ms": 2490640
+        },
+        {
+          "cue_id": 1095,
+          "end_ms": 2493100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "底层逻辑的技术",
+          "segment_id": "cue_001095",
+          "start_ms": 2491740
+        },
+        {
+          "cue_id": 1096,
+          "end_ms": 2494560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是气息支撑",
+          "segment_id": "cue_001096",
+          "start_ms": 2493100
+        },
+        {
+          "cue_id": 1097,
+          "end_ms": 2496080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是高音通道",
+          "segment_id": "cue_001097",
+          "start_ms": 2494560
+        },
+        {
+          "cue_id": 1098,
+          "end_ms": 2496840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你都没找到",
+          "segment_id": "cue_001098",
+          "start_ms": 2496080
+        },
+        {
+          "cue_id": 1099,
+          "end_ms": 2498680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你只是让你的声带变毛了",
+          "segment_id": "cue_001099",
+          "start_ms": 2496840
+        },
+        {
+          "cue_id": 1100,
+          "end_ms": 2501420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "让你的声带拉开了",
+          "segment_id": "cue_001100",
+          "start_ms": 2499100
+        },
+        {
+          "cue_id": 1101,
+          "end_ms": 2503100,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就像皮筋一样",
+          "segment_id": "cue_001101",
+          "start_ms": 2501420
+        },
+        {
+          "cue_id": 1102,
+          "end_ms": 2504600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你把那个皮筋瞪开了",
+          "segment_id": "cue_001102",
+          "start_ms": 2503100
+        },
+        {
+          "cue_id": 1103,
+          "end_ms": 2506680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你说你的声音有没有进步",
+          "segment_id": "cue_001103",
+          "start_ms": 2505240
+        },
+        {
+          "cue_id": 1104,
+          "end_ms": 2507080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "也有",
+          "segment_id": "cue_001104",
+          "start_ms": 2506680
+        },
+        {
+          "cue_id": 1105,
+          "end_ms": 2508280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是你会发现",
+          "segment_id": "cue_001105",
+          "start_ms": 2507080
+        },
+        {
+          "cue_id": 1106,
+          "end_ms": 2509360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我学了一个星期",
+          "segment_id": "cue_001106",
+          "start_ms": 2508280
+        },
+        {
+          "cue_id": 1107,
+          "end_ms": 2509940,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "两个星期",
+          "segment_id": "cue_001107",
+          "start_ms": 2509360
+        },
+        {
+          "cue_id": 1108,
+          "end_ms": 2512360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我的声音不会再有变化了",
+          "segment_id": "cue_001108",
+          "start_ms": 2509940
+        },
+        {
+          "cue_id": 1109,
+          "end_ms": 2513680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "已经到顶了",
+          "segment_id": "cue_001109",
+          "start_ms": 2512360
+        },
+        {
+          "cue_id": 1110,
+          "end_ms": 2515560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你包括你学",
+          "segment_id": "cue_001110",
+          "start_ms": 2514400
+        },
+        {
+          "cue_id": 1111,
+          "end_ms": 2515900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "老师",
+          "segment_id": "cue_001111",
+          "start_ms": 2515560
+        },
+        {
+          "cue_id": 1112,
+          "end_ms": 2517840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我雁音能唱上去",
+          "segment_id": "cue_001112",
+          "start_ms": 2515900
+        },
+        {
+          "cue_id": 1113,
+          "end_ms": 2519780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我能唱到海豚音了",
+          "segment_id": "cue_001113",
+          "start_ms": 2517840
+        },
+        {
+          "cue_id": 1114,
+          "end_ms": 2521340,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是我后面这些技术",
+          "segment_id": "cue_001114",
+          "start_ms": 2519780
+        },
+        {
+          "cue_id": 1115,
+          "end_ms": 2522500,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "流行的唱法的技术",
+          "segment_id": "cue_001115",
+          "start_ms": 2521340
+        },
+        {
+          "cue_id": 1116,
+          "end_ms": 2522960,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我找不到",
+          "segment_id": "cue_001116",
+          "start_ms": 2522500
+        },
+        {
+          "cue_id": 1117,
+          "end_ms": 2523560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "为什么呢",
+          "segment_id": "cue_001117",
+          "start_ms": 2522960
+        },
+        {
+          "cue_id": 1118,
+          "end_ms": 2527300,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为这个我不建议初学者去学这个",
+          "segment_id": "cue_001118",
+          "start_ms": 2523560
+        },
+        {
+          "cue_id": 1119,
+          "end_ms": 2528320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "电音唱法",
+          "segment_id": "cue_001119",
+          "start_ms": 2527300
+        },
+        {
+          "cue_id": 1120,
+          "end_ms": 2530980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有它是根据程度来的啊",
+          "segment_id": "cue_001120",
+          "start_ms": 2528320
+        },
+        {
+          "cue_id": 1121,
+          "end_ms": 2533060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以很多小白他不懂啊",
+          "segment_id": "cue_001121",
+          "start_ms": 2530980
+        },
+        {
+          "cue_id": 1122,
+          "end_ms": 2534160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他往上看一看",
+          "segment_id": "cue_001122",
+          "start_ms": 2533060
+        },
+        {
+          "cue_id": 1123,
+          "end_ms": 2535840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他受骗了",
+          "segment_id": "cue_001123",
+          "start_ms": 2534160
+        },
+        {
+          "cue_id": 1124,
+          "end_ms": 2537160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对也不能说受骗了",
+          "segment_id": "cue_001124",
+          "start_ms": 2535840
+        },
+        {
+          "cue_id": 1125,
+          "end_ms": 2538460,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "进误区了啊",
+          "segment_id": "cue_001125",
+          "start_ms": 2537160
+        },
+        {
+          "cue_id": 1126,
+          "end_ms": 2540400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那你说一千个人里面",
+          "segment_id": "cue_001126",
+          "start_ms": 2538460
+        },
+        {
+          "cue_id": 1127,
+          "end_ms": 2543280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "小白占个八百个人",
+          "segment_id": "cue_001127",
+          "start_ms": 2540960
+        },
+        {
+          "cue_id": 1128,
+          "end_ms": 2544980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那两百个人不是小白",
+          "segment_id": "cue_001128",
+          "start_ms": 2543280
+        },
+        {
+          "cue_id": 1129,
+          "end_ms": 2545860,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "他看了这个视频",
+          "segment_id": "cue_001129",
+          "start_ms": 2544980
+        },
+        {
+          "cue_id": 1130,
+          "end_ms": 2548360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "可能还真也会有用的啊",
+          "segment_id": "cue_001130",
+          "start_ms": 2545860
+        }
+      ]
+    },
+    {
+      "candidate": {
+        "candidate_id": "risk_mini_lesson_0016_01",
+        "duplicate_of_candidate_id": null,
+        "duration_ms": 201660,
+        "end_cue_id": 2373,
+        "end_ms": 5005620,
+        "evidence_cue_ids": [
+          2301,
+          2302,
+          2305,
+          2306,
+          2307,
+          2308,
+          2309,
+          2310,
+          2311,
+          2312,
+          2313,
+          2314,
+          2316,
+          2317,
+          2318,
+          2319,
+          2320,
+          2323,
+          2324,
+          2325,
+          2326,
+          2328,
+          2329,
+          2330,
+          2333,
+          2341,
+          2342,
+          2343,
+          2344,
+          2345,
+          2346,
+          2347,
+          2349,
+          2351,
+          2352,
+          2353,
+          2354,
+          2355,
+          2357,
+          2358,
+          2359,
+          2360,
+          2361,
+          2362,
+          2363,
+          2366,
+          2367,
+          2369,
+          2370,
+          2372,
+          2373,
+          2287
+        ],
+        "hook": "一段试唱暴露了强混躲向假声和高音通道问题。",
+        "profile": "mini_lesson",
+        "quality_flags": [],
+        "review_reason": "从首个有意义的演唱样本开始，连续保留中音评价、高音重试、两点诊断、未成年信息、纠正建议和最终确认，是该诊断循环最短的完整边界。",
+        "review_status": "manual_review",
+        "risk_tags": [
+          "medical_claim",
+          "health_advice",
+          "absolute_claim",
+          "music_rights_review",
+          "participant_audio",
+          "minor_privacy",
+          "asr_uncertain",
+          "medical_diagnosis_high"
+        ],
+        "score": 89.0,
+        "source_candidate_ids": [
+          "risk_mini_lesson_0016_01"
+        ],
+        "source_window_ids": [
+          "mini_lesson_0016_4800000_5400000_4800000_5100000"
+        ],
+        "start_cue_id": 2287,
+        "start_ms": 4803960,
+        "summary": "听取未成年参与者的中音和高音试唱后，主播判断其强混、高音通道、气息支撑与声带闭合存在问题，建议先练强混，并以问题集中在高音作结。",
+        "title": "未成年学员高音强混与闭合诊断建议",
+        "variant_group_id": "participant_highnote_diagnosis"
+      },
+      "transcript_cues": [
+        {
+          "cue_id": 2287,
+          "end_ms": 4807220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "勇气付的背影",
+          "segment_id": "cue_002287",
+          "start_ms": 4803960
+        },
+        {
+          "cue_id": 2288,
+          "end_ms": 4810820,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "挡住哭泣的心",
+          "segment_id": "cue_002288",
+          "start_ms": 4808160
+        },
+        {
+          "cue_id": 2289,
+          "end_ms": 4815900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有些故事不必说给",
+          "segment_id": "cue_002289",
+          "start_ms": 4811900
+        },
+        {
+          "cue_id": 2290,
+          "end_ms": 4818520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "每个人听",
+          "segment_id": "cue_002290",
+          "start_ms": 4815900
+        },
+        {
+          "cue_id": 2291,
+          "end_ms": 4822280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "许多眼睛",
+          "segment_id": "cue_002291",
+          "start_ms": 4819580
+        },
+        {
+          "cue_id": 2292,
+          "end_ms": 4826080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "看得太浅太近",
+          "segment_id": "cue_002292",
+          "start_ms": 4822280
+        },
+        {
+          "cue_id": 2293,
+          "end_ms": 4828180,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "错过我",
+          "segment_id": "cue_002293",
+          "start_ms": 4826780
+        },
+        {
+          "cue_id": 2294,
+          "end_ms": 4832200,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "看见那个自己",
+          "segment_id": "cue_002294",
+          "start_ms": 4828180
+        },
+        {
+          "cue_id": 2295,
+          "end_ms": 4837480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "用简单的言语",
+          "segment_id": "cue_002295",
+          "start_ms": 4834020
+        },
+        {
+          "cue_id": 2296,
+          "end_ms": 4841060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "解开憔悴的心",
+          "segment_id": "cue_002296",
+          "start_ms": 4838160
+        },
+        {
+          "cue_id": 2297,
+          "end_ms": 4848840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有些情绪是该说给懂的人听",
+          "segment_id": "cue_002297",
+          "start_ms": 4841060
+        },
+        {
+          "cue_id": 2298,
+          "end_ms": 4848880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我只该说给懂的人听",
+          "segment_id": "cue_002298",
+          "start_ms": 4845000
+        },
+        {
+          "cue_id": 2299,
+          "end_ms": 4856420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的热泪比我激动练习",
+          "segment_id": "cue_002299",
+          "start_ms": 4850280
+        },
+        {
+          "cue_id": 2300,
+          "end_ms": 4862520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我发誓要更努力更有勇气",
+          "segment_id": "cue_002300",
+          "start_ms": 4857000
+        },
+        {
+          "cue_id": 2301,
+          "end_ms": 4865220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK 你没有大问题",
+          "segment_id": "cue_002301",
+          "start_ms": 4864000
+        },
+        {
+          "cue_id": 2302,
+          "end_ms": 4868780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的中音学这个没有必要上课",
+          "segment_id": "cue_002302",
+          "start_ms": 4865220
+        },
+        {
+          "cue_id": 2303,
+          "end_ms": 4870020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你高音嘞",
+          "segment_id": "cue_002303",
+          "start_ms": 4868780
+        },
+        {
+          "cue_id": 2304,
+          "end_ms": 4870880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你高音有什么",
+          "segment_id": "cue_002304",
+          "start_ms": 4870020
+        },
+        {
+          "cue_id": 2305,
+          "end_ms": 4873120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "唱一唱高音我听一下",
+          "segment_id": "cue_002305",
+          "start_ms": 4872000
+        },
+        {
+          "cue_id": 2306,
+          "end_ms": 4877360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "等下一个天亮",
+          "segment_id": "cue_002306",
+          "start_ms": 4873120
+        },
+        {
+          "cue_id": 2307,
+          "end_ms": 4882420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "去上次牵手上花那里散步好吗",
+          "segment_id": "cue_002307",
+          "start_ms": 4877360
+        },
+        {
+          "cue_id": 2308,
+          "end_ms": 4886160,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "有些积雪会自己融化",
+          "segment_id": "cue_002308",
+          "start_ms": 4882420
+        },
+        {
+          "cue_id": 2309,
+          "end_ms": 4890480,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的肩膀是我豁达的天堂",
+          "segment_id": "cue_002309",
+          "start_ms": 4886160
+        },
+        {
+          "cue_id": 2310,
+          "end_ms": 4893780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "等下一个天亮",
+          "segment_id": "cue_002310",
+          "start_ms": 4890480
+        },
+        {
+          "cue_id": 2311,
+          "end_ms": 4898640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "把头拍我看海的照片送我好吗",
+          "segment_id": "cue_002311",
+          "start_ms": 4893780
+        },
+        {
+          "cue_id": 2312,
+          "end_ms": 4902280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我喜欢我飞舞的头发",
+          "segment_id": "cue_002312",
+          "start_ms": 4898640
+        },
+        {
+          "cue_id": 2313,
+          "end_ms": 4904240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "和飘着雨",
+          "segment_id": "cue_002313",
+          "start_ms": 4902980
+        },
+        {
+          "cue_id": 2314,
+          "end_ms": 4906840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "还是眺望的眼光",
+          "segment_id": "cue_002314",
+          "start_ms": 4904240
+        },
+        {
+          "cue_id": 2315,
+          "end_ms": 4908520,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_002315",
+          "start_ms": 4908080
+        },
+        {
+          "cue_id": 2316,
+          "end_ms": 4910560,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我能听到的东西",
+          "segment_id": "cue_002316",
+          "start_ms": 4908520
+        },
+        {
+          "cue_id": 2317,
+          "end_ms": 4912400,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是你的真声强混",
+          "segment_id": "cue_002317",
+          "start_ms": 4910560
+        },
+        {
+          "cue_id": 2318,
+          "end_ms": 4914360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你强混会往假声躲",
+          "segment_id": "cue_002318",
+          "start_ms": 4912400
+        },
+        {
+          "cue_id": 2319,
+          "end_ms": 4917020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "顶不上去",
+          "segment_id": "cue_002319",
+          "start_ms": 4916100
+        },
+        {
+          "cue_id": 2320,
+          "end_ms": 4919440,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "说明你没有找到",
+          "segment_id": "cue_002320",
+          "start_ms": 4917020
+        },
+        {
+          "cue_id": 2321,
+          "end_ms": 4920880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你刚才应该是在我",
+          "segment_id": "cue_002321",
+          "start_ms": 4919440
+        },
+        {
+          "cue_id": 2322,
+          "end_ms": 4921620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "埋场时间了",
+          "segment_id": "cue_002322",
+          "start_ms": 4920880
+        },
+        {
+          "cue_id": 2323,
+          "end_ms": 4923020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你没有找到那个第二步",
+          "segment_id": "cue_002323",
+          "start_ms": 4921620
+        },
+        {
+          "cue_id": 2324,
+          "end_ms": 4924700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是那个强混的",
+          "segment_id": "cue_002324",
+          "start_ms": 4923020
+        },
+        {
+          "cue_id": 2325,
+          "end_ms": 4925980,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "那个高音的通道",
+          "segment_id": "cue_002325",
+          "start_ms": 4924700
+        },
+        {
+          "cue_id": 2326,
+          "end_ms": 4927780,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "所以你才会躲",
+          "segment_id": "cue_002326",
+          "start_ms": 4926680
+        },
+        {
+          "cue_id": 2327,
+          "end_ms": 4929240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嗯 是",
+          "segment_id": "cue_002327",
+          "start_ms": 4928360
+        },
+        {
+          "cue_id": 2328,
+          "end_ms": 4930540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对 这是第一点",
+          "segment_id": "cue_002328",
+          "start_ms": 4929240
+        },
+        {
+          "cue_id": 2329,
+          "end_ms": 4932600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第二点就是你假装会漏气",
+          "segment_id": "cue_002329",
+          "start_ms": 4930540
+        },
+        {
+          "cue_id": 2330,
+          "end_ms": 4933720,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你的假装虚",
+          "segment_id": "cue_002330",
+          "start_ms": 4932600
+        },
+        {
+          "cue_id": 2331,
+          "end_ms": 4935000,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "发现反",
+          "segment_id": "cue_002331",
+          "start_ms": 4933700
+        },
+        {
+          "cue_id": 2332,
+          "end_ms": 4934760,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "发现了",
+          "segment_id": "cue_002332",
+          "start_ms": 4933720
+        },
+        {
+          "cue_id": 2333,
+          "end_ms": 4936700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个是闭合",
+          "segment_id": "cue_002333",
+          "start_ms": 4935600
+        },
+        {
+          "cue_id": 2334,
+          "end_ms": 4938220,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个你现在的点",
+          "segment_id": "cue_002334",
+          "start_ms": 4936700
+        },
+        {
+          "cue_id": 2335,
+          "end_ms": 4939240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "一个是强混",
+          "segment_id": "cue_002335",
+          "start_ms": 4938220
+        },
+        {
+          "cue_id": 2336,
+          "end_ms": 4940640,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "强混",
+          "segment_id": "cue_002336",
+          "start_ms": 4939800
+        },
+        {
+          "cue_id": 2337,
+          "end_ms": 4942200,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "哎呦天哪",
+          "segment_id": "cue_002337",
+          "start_ms": 4941120
+        },
+        {
+          "cue_id": 2338,
+          "end_ms": 4943060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这是破鼻",
+          "segment_id": "cue_002338",
+          "start_ms": 4942200
+        },
+        {
+          "cue_id": 2339,
+          "end_ms": 4944080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "淘汰了",
+          "segment_id": "cue_002339",
+          "start_ms": 4943060
+        },
+        {
+          "cue_id": 2340,
+          "end_ms": 4945020,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你自己记住吧",
+          "segment_id": "cue_002340",
+          "start_ms": 4944080
+        },
+        {
+          "cue_id": 2341,
+          "end_ms": 4946360,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第一个是强混",
+          "segment_id": "cue_002341",
+          "start_ms": 4945020
+        },
+        {
+          "cue_id": 2342,
+          "end_ms": 4949280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "第二个是声带不闭合",
+          "segment_id": "cue_002342",
+          "start_ms": 4946360
+        },
+        {
+          "cue_id": 2343,
+          "end_ms": 4950900,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "声音发虚",
+          "segment_id": "cue_002343",
+          "start_ms": 4949860
+        },
+        {
+          "cue_id": 2344,
+          "end_ms": 4952420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你应该年纪不大吧",
+          "segment_id": "cue_002344",
+          "start_ms": 4950900
+        },
+        {
+          "cue_id": 2345,
+          "end_ms": 4954380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "嗯对确实",
+          "segment_id": "cue_002345",
+          "start_ms": 4952420
+        },
+        {
+          "cue_id": 2346,
+          "end_ms": 4956380,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "成年了吗",
+          "segment_id": "cue_002346",
+          "start_ms": 4954380
+        },
+        {
+          "cue_id": 2347,
+          "end_ms": 4958660,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "差一点点",
+          "segment_id": "cue_002347",
+          "start_ms": 4957540
+        },
+        {
+          "cue_id": 2348,
+          "end_ms": 4960260,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "OK",
+          "segment_id": "cue_002348",
+          "start_ms": 4959820
+        },
+        {
+          "cue_id": 2349,
+          "end_ms": 4963880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这样的话怎么办呢",
+          "segment_id": "cue_002349",
+          "start_ms": 4962220
+        },
+        {
+          "cue_id": 2350,
+          "end_ms": 4964440,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我想想啊",
+          "segment_id": "cue_002350",
+          "start_ms": 4963880
+        },
+        {
+          "cue_id": 2351,
+          "end_ms": 4966060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你先练一样",
+          "segment_id": "cue_002351",
+          "start_ms": 4964440
+        },
+        {
+          "cue_id": 2352,
+          "end_ms": 4967420,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我给你的建议啊",
+          "segment_id": "cue_002352",
+          "start_ms": 4966060
+        },
+        {
+          "cue_id": 2353,
+          "end_ms": 4969060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "如果说我给你去上课的话",
+          "segment_id": "cue_002353",
+          "start_ms": 4967420
+        },
+        {
+          "cue_id": 2354,
+          "end_ms": 4971440,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我就会先去给你找到强混",
+          "segment_id": "cue_002354",
+          "start_ms": 4969060
+        },
+        {
+          "cue_id": 2355,
+          "end_ms": 4973040,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "先练强混",
+          "segment_id": "cue_002355",
+          "start_ms": 4972020
+        },
+        {
+          "cue_id": 2356,
+          "end_ms": 4973880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "先不去练",
+          "segment_id": "cue_002356",
+          "start_ms": 4973040
+        },
+        {
+          "cue_id": 2357,
+          "end_ms": 4976200,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "因为你强混只要找到你的假声",
+          "segment_id": "cue_002357",
+          "start_ms": 4973880
+        },
+        {
+          "cue_id": 2358,
+          "end_ms": 4978320,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "其实闭合情况也会好",
+          "segment_id": "cue_002358",
+          "start_ms": 4976200
+        },
+        {
+          "cue_id": 2359,
+          "end_ms": 4981080,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "之前有练过强混",
+          "segment_id": "cue_002359",
+          "start_ms": 4979300
+        },
+        {
+          "cue_id": 2360,
+          "end_ms": 4984280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但是就是感觉一唱高音就躲",
+          "segment_id": "cue_002360",
+          "start_ms": 4981080
+        },
+        {
+          "cue_id": 2361,
+          "end_ms": 4985280,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "要不然就破音",
+          "segment_id": "cue_002361",
+          "start_ms": 4984280
+        },
+        {
+          "cue_id": 2362,
+          "end_ms": 4986880,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是还是没找到",
+          "segment_id": "cue_002362",
+          "start_ms": 4985280
+        },
+        {
+          "cue_id": 2363,
+          "end_ms": 4989840,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你没有找到气息支撑和那个通道",
+          "segment_id": "cue_002363",
+          "start_ms": 4986880
+        },
+        {
+          "cue_id": 2364,
+          "end_ms": 4991120,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个点",
+          "segment_id": "cue_002364",
+          "start_ms": 4990420
+        },
+        {
+          "cue_id": 2365,
+          "end_ms": 4992540,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你光找这儿",
+          "segment_id": "cue_002365",
+          "start_ms": 4991120
+        },
+        {
+          "cue_id": 2366,
+          "end_ms": 4994060,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "你可能也有一下状态好",
+          "segment_id": "cue_002366",
+          "start_ms": 4992540
+        },
+        {
+          "cue_id": 2367,
+          "end_ms": 4994600,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "能喊下去",
+          "segment_id": "cue_002367",
+          "start_ms": 4994060
+        },
+        {
+          "cue_id": 2368,
+          "end_ms": 4995240,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "还行",
+          "segment_id": "cue_002368",
+          "start_ms": 4994600
+        },
+        {
+          "cue_id": 2369,
+          "end_ms": 4998200,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "但你核心的这个通道你没找到",
+          "segment_id": "cue_002369",
+          "start_ms": 4995240
+        },
+        {
+          "cue_id": 2370,
+          "end_ms": 4999700,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "这个长的通道你没找到",
+          "segment_id": "cue_002370",
+          "start_ms": 4998200
+        },
+        {
+          "cue_id": 2371,
+          "end_ms": 5001680,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "对",
+          "segment_id": "cue_002371",
+          "start_ms": 5001280
+        },
+        {
+          "cue_id": 2372,
+          "end_ms": 5004580,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "我觉得你中医区没什么改的",
+          "segment_id": "cue_002372",
+          "start_ms": 5002320
+        },
+        {
+          "cue_id": 2373,
+          "end_ms": 5005620,
+          "normalization_note": null,
+          "normalized_text": null,
+          "original_text": "就是高音了",
+          "segment_id": "cue_002373",
+          "start_ms": 5004580
+        }
+      ]
+    }
+  ],
+  "source_hash": "29b8751643ecc38a7183ab0c837a011cbca1e70a56de0788cd66292dbf364120"
+}

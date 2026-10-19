@@ -123,6 +123,22 @@ def test_process_timeout_preserves_bounded_stdout_and_stderr_evidence() -> None:
     assert time.monotonic() - started < 3
 
 
+def test_process_timeout_counts_wall_time_when_monotonic_clock_stalls(monkeypatch) -> None:
+    real_monotonic = time.monotonic
+    frozen = real_monotonic()
+    monkeypatch.setattr(process_module.time, "monotonic", lambda: frozen)
+
+    started = real_monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=0.2,
+            poll_seconds=0.01,
+        )
+
+    assert real_monotonic() - started < 3
+
+
 def test_process_runner_terminates_process_group_on_cancellation(tmp_path: Path) -> None:
     marker = tmp_path / "late-grandchild-output"
     cancel_at = time.monotonic() + 0.15

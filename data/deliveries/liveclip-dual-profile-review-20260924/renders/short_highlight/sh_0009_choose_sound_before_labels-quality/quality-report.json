@@ -1,0 +1,50 @@
+{
+  "schema_version": "1",
+  "media_path": "/Users/junhuaxu/autoclip/data/evaluations/dual-profile-benchmark-20260924-final-cold-18/renders/short_highlight/sh_0009_choose_sound_before_labels.mp4",
+  "media_sha256": "4e92a3dbbda4228f2dedd8a0d59b8cef7274893361fa54d611e1f8525fc9a374",
+  "expected_width": 1080,
+  "expected_height": 1920,
+  "actual_width": 1080,
+  "actual_height": 1920,
+  "expected_duration_ms": 72940,
+  "actual_duration_ms": 72960,
+  "file_size": 63276728,
+  "container_format": "mov,mp4,m4a,3gp,3g2,mj2",
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "full_decode": "passed",
+  "safe_area_check": "not_applicable",
+  "black_frame_check": "passed",
+  "edge_and_crop_check": "passed_edge_activity_and_crop_heuristic",
+  "frame_metrics": [
+    {
+      "filename": "beginning.png",
+      "timestamp_ms": 500,
+      "mean_luma": 101.669,
+      "luma_variance": 3279.746,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 1.328
+    },
+    {
+      "filename": "middle.png",
+      "timestamp_ms": 36480,
+      "mean_luma": 117.847,
+      "luma_variance": 4357.564,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 0.928
+    },
+    {
+      "filename": "ending.png",
+      "timestamp_ms": 72460,
+      "mean_luma": 108.656,
+      "luma_variance": 4668.711,
+      "edge_blank_sides": [],
+      "edge_to_center_variance_ratio": 0.91
+    }
+  ],
+  "contact_sheet": "/Users/junhuaxu/autoclip/data/evaluations/dual-profile-benchmark-20260924-final-cold-18/renders/short_highlight/sh_0009_choose_sound_before_labels-quality/contact-sheet.png",
+  "automatic_status": "passed",
+  "visual_inspection_status": "viewed_passed",
+  "visual_inspection_notes": "人工检查 contact sheet 的开始、中间、结束帧：竖屏方向正确，无黑帧、花屏或明显裁切，人物及教学板/屏幕内容可见。",
+  "visual_inspection_at": "2026-09-24T11:21:24.485187+00:00"
+}

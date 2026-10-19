@@ -77,6 +77,7 @@ and denominators; if the baseline cannot finish, report no comparable relative s
 - [x] Formally accept and publish the SD-6B Link Review truth-table Prompt correction with fixed Runner and Gateway evidence (2026-09-15).
 - [x] Preserve bounded mini attempts 3--6, including the managed-sandbox Metal failure and three real content-negative outcomes, without claiming Delivery (2026-09-15).
 - [x] Formally accept, publish and regression-test the Global Review final-Boundary decision clarification identified by mini attempt 5 (successor 5, 2026-09-16).
+- [x] Execute and independently audit a current real short-profile source-to-MLX-to-Codex-to-three-MP4/SRT/ZIP test after the cross-Mac preparation (2026-09-17).
 - [ ] Freeze human labels and collect real per-profile semantics, media and recovery evidence.
 - [ ] Collect distinct2h/4h and generalization evidence; report measured quality/performance.
 - [x] Finish SD-7 reproducibility and recovery engineering.
@@ -311,3 +312,81 @@ Restore the exact source and pinned model, prepare a native arm64 toolchain,
 then reconstruct/freeze attempt 7 and register/pass its full hardware preflight
 before the single 64-launch/25-minute run. Preserve all historical evidence.
 Receipt: [prerequisite recheck](../verification/sd6-mini-attempt7-prerequisite-recheck.json).
+
+
+## Preparation completed, 2026-09-17 06:08 UTC
+
+The earlier missing-source/runtime/model blocker is resolved. Registered Doctor
+(`20260917T060708Z-prep-prep-final-doctor`) is READY, and hardware verification
+(`20260917T060721Z-prep-prep-final-hardware`) passes actual Metal computation,
+pinned model hashing and saved Codex login. No content inference was requested.
+Native VideoToolbox encoding passed; absent FFmpeg text filters select the
+supported Pillow overlay fallback. Source stays read-only and unchanged.
+
+The 300-second excerpt at source 1870–2170 seconds passes full decoding. Its new
+host SHA-256 is `41d74af249b750b21add28ef39662cf3478b9af2e8cfcbdd125a7edb90913760`.
+The reconstructed controls freeze `mlx-codex`, `gpt-5.6-sol`,
+`vocal_coach_live` / `mini_lesson`, top 15, min/max/target 90/300/180 seconds,
+score threshold 75, and the unchanged accepted Global prompt. This explicitly
+records a new local reconstruction, not byte identity with the old host plan.
+
+New plan SHA-256: `34177fbe8d98ddda8ad9d737c7418b55075f0f64f3d8f5fc3e46d8584c4c9dfc`.
+Pipeline config SHA-256: `df847a26189d10656bba29132e8bfa8558f531b02e98aa7a3553fc4b8e30a4ef`.
+Freeze QA `20260917T060753Z-prep-prep-attempt7-freeze` and final preflight QA
+`20260917T060813Z-prep-attempt7-final-preflight` both PASS. Guard fake-provider
+evidence covers concurrent 64-call reservation, refusal before start/after
+expiry/after terminal state, and active-child deadline termination.
+
+Lint, 18 Prompt tests, 69 provider tests and 80 Web tests pass. Initial failed
+install/download/test probes remain in append-only QA alongside successful
+retries. Full project tests, real inference, browser E2E and Delivery acceptance
+were not performed by this preparation. Existing npm audit findings (2 moderate,
+1 high) remain outside scope; dependency locks and product code are unchanged.
+
+Attempt 7 is **prepared, unstarted and unconsumed** (64 launches / 1500 seconds).
+There is no started marker, counter, isolated database or result. SD-6 remains
+incomplete. [Machine-readable preparation evidence](../verification/sd6-mini-attempt7-resume-prepared-20260917.json)
+records hashes and QA correlation. Local ignored controls and model bytes must
+remain on this host; git alone does not transport them.
+
+
+## Current-host execution outcome, 2026-09-17 16:30 UTC
+
+Preparation was followed by explicit user authorization for a real clipping
+test. Attempt 7 and successors 1/2 are preserved terminal FAIL records with
+four successful local MLX chunks each and zero external Codex calls. Their
+newly reconstructed guards respectively omitted the reviewed global-option
+prefix, structured reasoning/temp-directory shape, and Discovery's `medium`
+reasoning value. No marker, counter, database or result was reset. Successor 3
+then fake-tested every actual ordinary, structured-medium and structured-high
+product argv shape plus the concurrent cap before it was separately frozen.
+
+Mini successor 3 QA `20260917T160919Z-mn07s3` made 21/64 guarded real Codex
+launches. All six product stages completed and two candidates reached Global
+Review. One score-94 candidate was correctly retained as `manual` because real
+song/voice terms in the ASR were uncertain; the other scored 65 and was blocked
+for an incomplete central objective. Under the current automatic-only mini
+contract, neither became an EditPlan/render and no Delivery exists. This is
+real mini content evidence but not automatic mini acceptance.
+
+To fulfill the user's requested actual video output without reclassifying the
+mini result, a separate short-profile run used the 2050--2350-second anchor that
+had been independently selected before these outputs and had historical success.
+The current-host excerpt is read-only, fully decodes and has SHA-256
+`fbe8d0c29215077d7bc477ea854411a7a927a10efa3c4d09b02912aa751cc110`.
+QA `20260917T162310Z-rshort` passed in 316.349 seconds under a separately frozen
+8-launch/1500-second limit. Four MLX calls and 5 Codex launches (four successful
+initial calls plus one successful repair after an invalid Discovery initial)
+produced three selected clean 1080x1920 clips scoring 96, 96 and 88. Delivery
+`78c0ce4189764945b16a27ea2fbefbf4` version 1 succeeded.
+
+Independent QA `20260917T163031Z-prep-current-short-independent-audit` passed
+SQLite integrity, exact manifest/checksums, nine ZIP members with CRC and disk
+byte equality, full H.264/AAC decode, SRT bounds and actual viewing of all three
+contact sheets. ZIP SHA-256 is
+`741fc0e2a5ffc0308d5ffba54e62ec2950be02f33a1baaa693c25d3b84fe4c58`.
+Human audio listening was not performed. The complete SD-6 matrix remains open
+for mini automatic Delivery, independent frozen labels/listening, repeated
+semantics, another source, the full 110-minute input and distinct 2h/4h cases.
+[Machine-readable evidence](../verification/sd6-current-real-video-clipping-20260917.json)
+binds the current run, package and audit hashes.

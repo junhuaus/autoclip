@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import threading
@@ -15,6 +16,7 @@ import typer
 from pydantic import ValidationError
 
 from liveclip import __version__
+from liveclip.agent_runtime import AgentRunLimits
 from liveclip.application.completion import CompletionOptions
 from liveclip.application.completion_presets import resolve_completion_preset
 from liveclip.application.deliveries import DeliveryRequest
@@ -59,8 +61,19 @@ from liveclip.domain.state_transitions import (
 )
 from liveclip.domain.time import seconds_to_ms
 from liveclip.media.ingest import resolve_allowed_source
+from liveclip.pipeline.dual_profile import DualProfileRunConfig
 from liveclip.pipeline.semantic_global import SemanticGlobalConfig
 from liveclip.providers.readiness import require_processing_ready
+from liveclip.services.agent_clipping import (
+    configured_agent_turn_model_factory,
+    run_agent_clipping_v2,
+    write_agent_run_result,
+)
+from liveclip.services.agent_clipping_delivery import (
+    AgentClippingDeliveryError,
+    export_agent_clipping_review_package,
+    render_agent_clipping_result,
+)
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
 from liveclip.services.database_backup import (
@@ -71,9 +84,19 @@ from liveclip.services.database_backup import (
 )
 from liveclip.services.demo import DemoRunError, run_demo
 from liveclip.services.demo_media import DemoMediaError, clean_demo_contents
+from liveclip.services.dual_profile_delivery import (
+    DualProfileDeliveryError,
+    export_dual_profile_review_package,
+)
+from liveclip.services.dual_profile_evaluation import (
+    configured_dual_profile_provider_factory,
+    render_dual_profile_candidates,
+    run_dual_profile_evaluation,
+)
 from liveclip.services.openrouter_smoke import OpenRouterSmokeError, run_openrouter_smoke
 from liveclip.services.semantic_delivery import render_reviewed_semantic_delivery
 from liveclip.services.semantic_evaluation import run_semantic_evaluation
+from liveclip.services.subtitle_calibration import configured_subtitle_calibration_backend
 from liveclip.worker import run_worker
 
 app = typer.Typer(
@@ -1020,6 +1043,374 @@ def semantic_eval(
         typer.echo(_safe_cli_error(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+
+
+@app.command("agent-clipping-eval")
+def agent_clipping_eval(
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Timestamped SRT evidence for the Agent."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New immutable Agent run JSON file."),
+    ],
+    audio_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--audio-manifest",
+            help=(
+                "Optional complete generated audio chunk manifest. When present, the Agent "
+                "can run bounded second-pass ASR for subtitle calibration."
+            ),
+        ),
+    ] = None,
+    run_id: Annotated[
+        str | None,
+        typer.Option(
+            "--run-id",
+            help="Stable Agent run ID. By default it is derived from the output path.",
+        ),
+    ] = None,
+    state_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--state-dir",
+            help="Durable resume directory. Defaults beside the requested output file.",
+        ),
+    ] = None,
+    task: Annotated[
+        str,
+        typer.Option("--task", help="Editorial goal supplied as Agent Context."),
+    ] = "发现并评分所有技术有效切片, 生成适合普通观众理解的候选。",
+    reasoning_effort: Annotated[
+        Literal["low", "medium", "high", "xhigh"],
+        typer.Option("--reasoning-effort", help="OpenAI reasoning effort for Agent turns."),
+    ] = "high",
+    max_turns: Annotated[
+        int,
+        typer.Option("--max-turns", min=1, max=256, help="Hard Agent turn budget."),
+    ] = 24,
+    resume_extra_turns: Annotated[
+        int,
+        typer.Option(
+            "--resume-extra-turns",
+            min=0,
+            max=256,
+            help=(
+                "Additional turns for an existing checkpoint after its original hard budget "
+                "was exhausted; does not change the run identity."
+            ),
+        ),
+    ] = 0,
+) -> None:
+    """Run the configured native-function-calling Agent without rendering media."""
+
+    settings = get_settings()
+    try:
+        resolved_output = output.resolve(strict=False)
+        resolved_state_dir = (
+            state_dir.resolve(strict=False)
+            if state_dir is not None
+            else resolved_output.with_name(f"{resolved_output.name}.state")
+        )
+        resolved_run_id = run_id or (
+            "agent_" + hashlib.sha256(str(resolved_output).encode("utf-8")).hexdigest()[:32]
+        )
+        subtitle_calibration = (
+            configured_subtitle_calibration_backend(
+                settings,
+                audio_manifest_path=audio_manifest,
+            )
+            if audio_manifest is not None
+            else None
+        )
+        result = run_agent_clipping_v2(
+            transcript_path=transcript,
+            run_id=resolved_run_id,
+            task=task,
+            model_factory=configured_agent_turn_model_factory(
+                settings,
+                reasoning_effort=reasoning_effort,
+                state_dir=resolved_state_dir / "provider",
+            ),
+            limits=AgentRunLimits(max_turns=max_turns),
+            subtitle_calibration=subtitle_calibration,
+            checkpoint_dir=resolved_state_dir,
+            resume_extra_turns=resume_extra_turns,
+        )
+        result_sha256 = write_agent_run_result(output, result)
+    except (ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "run_id": result.run_id,
+                "status": result.status,
+                "skill_version": result.skill_version,
+                "skill_sha256": result.skill_sha256,
+                "provider": result.provider,
+                "model": result.model,
+                "model_settings": result.model_settings,
+                "turn_count": len(result.events),
+                "artifact_count": len(result.artifacts),
+                "output": str(output),
+                "output_sha256": result_sha256,
+                "state_dir": str(resolved_state_dir),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+    )
+
+
+@app.command("agent-clipping-render")
+def agent_clipping_render(
+    source: Annotated[Path, typer.Option("--source", help="Absolute source media path.")],
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Exact timestamped SRT used by the Agent."),
+    ],
+    run_result: Annotated[
+        Path,
+        typer.Option("--run-result", help="Completed agent-clipping-eval JSON."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New render directory; existing paths are not replaced."),
+    ],
+    encoder: Annotated[str, typer.Option("--encoder")] = "auto",
+    candidate_id: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--candidate-id",
+            help="Repeat to render a candidate subset; omit to render every scored candidate.",
+        ),
+    ] = None,
+) -> None:
+    """Render scored Agent candidates with audited title and subtitle Artifacts."""
+
+    settings = get_settings()
+    try:
+        resolved_source = resolve_allowed_source(
+            source,
+            settings.allowed_media_roots,
+            forbidden_roots=(settings.resolved_data_dir(Path.cwd()),),
+        )
+        result = render_agent_clipping_result(
+            source_video=resolved_source,
+            transcript_path=transcript,
+            run_result_path=run_result,
+            output_dir=output,
+            encoder=encoder,
+            candidate_ids=candidate_id,
+        )
+    except (ValidationError, AgentClippingDeliveryError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            result.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+    )
+
+
+@app.command("agent-clipping-review-package")
+def agent_clipping_review_package(
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Exact timestamped SRT used by the Agent."),
+    ],
+    run_result: Annotated[
+        Path,
+        typer.Option("--run-result", help="Completed agent-clipping-eval JSON."),
+    ],
+    render_manifest: Annotated[
+        Path,
+        typer.Option("--render-manifest", help="Manifest from agent-clipping-render."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New immutable review-package directory."),
+    ],
+    include_zip: Annotated[
+        bool,
+        typer.Option("--zip/--no-zip", help="Include a verified portable ZIP."),
+    ] = True,
+) -> None:
+    """Export Agent renders, scores, evidence and alternatives for human review."""
+
+    try:
+        result = export_agent_clipping_review_package(
+            transcript_path=transcript,
+            run_result_path=run_result,
+            render_manifest_path=render_manifest,
+            output_dir=output,
+            include_zip=include_zip,
+        )
+    except (ValidationError, AgentClippingDeliveryError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            result.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+    )
+
+
+@app.command("dual-profile-eval")
+def dual_profile_eval(
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Timestamped SRT transcript to evaluate."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New output directory; existing paths are never replaced."),
+    ],
+    cache: Annotated[
+        Path | None,
+        typer.Option("--cache", help="Optional profile-bound semantic cache directory."),
+    ] = None,
+    short_top_n: Annotated[int, typer.Option("--short-top-n", min=1, max=100)] = 15,
+    mini_lesson_top_n: Annotated[
+        int,
+        typer.Option("--mini-lesson-top-n", min=1, max=100),
+    ] = 15,
+    discovery_concurrency: Annotated[
+        int,
+        typer.Option("--discovery-concurrency", min=1, max=8),
+    ] = 5,
+) -> None:
+    """Run independent short-highlight and mini-lesson semantic tracks."""
+
+    settings = get_settings()
+    try:
+        result = run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output,
+            provider_factory=configured_dual_profile_provider_factory(settings),
+            config=DualProfileRunConfig(
+                top_n={
+                    ClipProfile.SHORT_HIGHLIGHT: short_top_n,
+                    ClipProfile.MINI_LESSON: mini_lesson_top_n,
+                }
+            ),
+            cache_dir=cache,
+            discovery_concurrency=discovery_concurrency,
+        )
+    except (ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+
+
+@app.command("dual-profile-render")
+def dual_profile_render(
+    source: Annotated[Path, typer.Option("--source", help="Absolute source media path.")],
+    transcript: Annotated[Path, typer.Option("--transcript", help="Timestamped SRT evidence.")],
+    final_result: Annotated[
+        Path,
+        typer.Option("--final-result", help="Validated dual-profile final JSON."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New render directory; existing paths are not replaced."),
+    ],
+    encoder: Annotated[str, typer.Option("--encoder")] = "auto",
+    candidate_id: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--candidate-id",
+            help="Repeat to render an audited selected/manual subset; omit to render all.",
+        ),
+    ] = None,
+) -> None:
+    """Render selected/manual candidates from one dual-profile run."""
+
+    settings = get_settings()
+    try:
+        resolved_source = resolve_allowed_source(
+            source,
+            settings.allowed_media_roots,
+            forbidden_roots=(settings.resolved_data_dir(Path.cwd()),),
+        )
+        result = render_dual_profile_candidates(
+            source_video=resolved_source,
+            transcript_path=transcript,
+            final_result_path=final_result,
+            output_dir=output,
+            encoder=encoder,
+            candidate_ids=candidate_id,
+        )
+    except (ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+
+
+@app.command("dual-profile-review-package")
+def dual_profile_review_package(
+    transcript: Annotated[
+        Path,
+        typer.Option("--transcript", help="Exact timestamped SRT used by evaluation."),
+    ],
+    final_result: Annotated[
+        Path,
+        typer.Option("--final-result", help="Validated dual-profile final JSON."),
+    ],
+    run_manifest: Annotated[
+        Path,
+        typer.Option("--run-manifest", help="Dual-profile semantic run manifest."),
+    ],
+    render_manifest: Annotated[
+        Path,
+        typer.Option("--render-manifest", help="Manifest from dual-profile-render."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="New immutable review-package directory."),
+    ],
+    include_zip: Annotated[
+        bool,
+        typer.Option("--zip/--no-zip", help="Include a verified portable ZIP."),
+    ] = True,
+    package_version: Annotated[
+        str,
+        typer.Option("--package-version", help="Immutable package version such as v001."),
+    ] = "v001",
+) -> None:
+    """Export rendered short/long clips as a browsable pending-review package."""
+
+    try:
+        result = export_dual_profile_review_package(
+            transcript_path=transcript,
+            final_result_path=final_result,
+            run_manifest_path=run_manifest,
+            render_manifest_path=render_manifest,
+            output_dir=output,
+            include_zip=include_zip,
+            package_version=package_version,
+        )
+    except (ValidationError, DualProfileDeliveryError, ValueError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            result.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+    )
 
 
 @app.command("semantic-deliver")

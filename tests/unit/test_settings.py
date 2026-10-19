@@ -39,6 +39,16 @@ def test_settings_allow_full_context_high_reasoning_timeout() -> None:
     assert settings.openai_request_timeout_seconds == 1_200
 
 
+@pytest.mark.parametrize("provider", ("openai-responses", "codex-app-server"))
+def test_settings_accept_agent_provider_modes(provider: str) -> None:
+    assert Settings(agent_provider=provider, _env_file=None).agent_provider == provider
+
+
+def test_settings_rejects_unknown_agent_provider_mode() -> None:
+    with pytest.raises(ValidationError, match="LIVECLIP_AGENT_PROVIDER"):
+        Settings(agent_provider="browser-session", _env_file=None)
+
+
 def test_settings_reject_excessive_llm_timeout() -> None:
     with pytest.raises(ValidationError):
         Settings(openai_request_timeout_seconds=3_601, _env_file=None)

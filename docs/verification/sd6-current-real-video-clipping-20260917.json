@@ -1,0 +1,142 @@
+{
+  "status": "PASS",
+  "checked_at": "2026-09-17T16:30:36Z",
+  "scope": "User-requested current real short-highlight source-to-local-MLX-to-Codex-to-MP4/SRT/ZIP test with independent artifact audit",
+  "does_not_claim": [
+    "mini-lesson automatic Delivery acceptance",
+    "human audio listening or independent editorial approval",
+    "full 110-minute processing",
+    "another-source generalization",
+    "distinct 2-hour or 4-hour performance acceptance",
+    "completion of the full SD-6 matrix"
+  ],
+  "source": {
+    "path": "input/8-30.ts",
+    "sha256": "818b669972b4e3f75f5358685ec231cd7daaaaa250c6525188291151c1109943",
+    "read_only": true
+  },
+  "excerpt": {
+    "path": "input/.liveclip-sd6/current-short-2050-2350.mp4",
+    "source_start_ms": 2050000,
+    "duration_ms": 300000,
+    "sha256": "fbe8d0c29215077d7bc477ea854411a7a927a10efa3c4d09b02912aa751cc110",
+    "bytes": 603094109,
+    "full_decode": "PASS",
+    "selection_provenance": "Previously independently selected and historically successful short-profile anchor; not selected after inspecting the current mini result."
+  },
+  "configuration": {
+    "provider": "mlx-codex",
+    "model": "gpt-5.6-sol",
+    "algorithm": "semantic_windowed",
+    "semantic_profile": "vocal_coach_live",
+    "clip_profile": "short_highlight",
+    "top_n": 15,
+    "minimum_clip_seconds": 45,
+    "maximum_clip_seconds": 90,
+    "target_clip_seconds": 60,
+    "score_threshold": 75,
+    "launch_cap": 8,
+    "wall_seconds": 1500,
+    "plan_sha256": "c934bbab0fe4286c1251bcba4a49feac6382338ba98cbdedc2d10e970535f4b8",
+    "pipeline_config_sha256": "f675ac909b0fcfbaae3fda96c356899fc85bb2f59246692ca9fce1a01020c1a3"
+  },
+  "execution": {
+    "qa_id": "20260917T162310Z-rshort",
+    "result": "PASS",
+    "elapsed_seconds": 316.349,
+    "project_id": "1c79a38942384e03b1f020ed2b13ade1",
+    "run_id": "6af60baa3d7e47da9a406abe55d384c0",
+    "pipeline_status": "completed",
+    "six_stages_succeeded": true,
+    "local_mlx_calls_succeeded": 4,
+    "codex_launches": 5,
+    "codex_calls_succeeded": 4,
+    "codex_invalid_initials": 1,
+    "repairs_succeeded": 1,
+    "token_totals": {
+      "input_tokens": 77494,
+      "output_tokens": 12711,
+      "reasoning_output_tokens": 5805
+    },
+    "result_sha256": "ad5b0ca6fac76b177e2b4cc6386bb5cdf801f90970bbd7bbd93d2039c9b9df0b",
+    "product_log_sha256": "a1e1c9d39ef110b7a8db2c4a95e72a5651a6b2a9002a348ff791ecefc6b99c83"
+  },
+  "delivery": {
+    "id": "78c0ce4189764945b16a27ea2fbefbf4",
+    "version": 1,
+    "status": "succeeded",
+    "directory": "data/evaluations/sd6-real-short-current/1c79a38942384e03b1f020ed2b13ade1/deliveries/v001",
+    "manifest_sha256": "2a18bdc0756aee85fff26917cca0ba09260f6f288b7b3528cc00c2b68b9834ce",
+    "zip_sha256": "741fc0e2a5ffc0308d5ffba54e62ec2950be02f33a1baaa693c25d3b84fe4c58",
+    "clips": [
+      {
+        "ordinal": 1,
+        "title": "平衡混是什么：把强混的气息支撑带到假声上",
+        "score": 96,
+        "duration_seconds": 45.48,
+        "video_sha256": "33f004e0c0b949b340e4203d2ef6f722c3976f7748b5ba992b2ef00aaaa5f266",
+        "subtitle_sha256": "a14bf3efdad1fbac43b06ddaf6d9538c2cf5e71e127c180606e14b4e9189d340"
+      },
+      {
+        "ordinal": 2,
+        "title": "别被混声标签束缚：先决定你想唱出什么感觉",
+        "score": 96,
+        "duration_seconds": 46.0,
+        "video_sha256": "ba9ad223633114ac4190d45bf8b71e30cb53df586a8667bfbd34c7de090f9d2e",
+        "subtitle_sha256": "0a8880b457b26f4ddcf42220a8d11e0daaeea3da5c9d0f88fb2a2f2c5ce2ed9f"
+      },
+      {
+        "ordinal": 3,
+        "title": "真假声转换怎么起步：先核对前三步，再从假声练起",
+        "score": 88,
+        "duration_seconds": 53.4,
+        "video_sha256": "eecbdb97cd4763ec99c80818c8a89c7eae037d8c6dcb6299a0fd6bad064801cd",
+        "subtitle_sha256": "15ee99862a9004741f2845cc05c49d785baf64a8d178a2d0c26e1ef9960396b4"
+      }
+    ]
+  },
+  "independent_audit": {
+    "qa_id": "20260917T163031Z-prep-current-short-independent-audit",
+    "receipt_sha256": "a32eb4d0c031e4f9ed58a47bf84fe03f7bc1ae8ce44753a9157a930e460cb993",
+    "sqlite_quick_check": "ok",
+    "foreign_key_violations": 0,
+    "manifest_and_checksums": "PASS",
+    "zip_member_count": 9,
+    "zip_crc": "PASS",
+    "zip_disk_byte_equality": "PASS",
+    "full_media_decodes": 3,
+    "srt_bounds": "PASS",
+    "contact_sheets_viewed": 3,
+    "visual_status": "VIEWED_PASS",
+    "visual_notes": "All three sheets show clear portrait frames, stable direct-source crop, visible presenter, no black/blank/corrupt frame, no blurred duplicate background and no LiveClip text overlay.",
+    "human_audio_listening": "NOT_PERFORMED"
+  },
+  "preceding_mini_result": {
+    "qa_id": "20260917T160919Z-mn07s3",
+    "status": "FAIL_NO_AUTOMATIC_DELIVERY",
+    "pipeline_status": "completed",
+    "codex_launches": 21,
+    "candidate_count": 2,
+    "manual_keep_score": 94,
+    "manual_keep_reason": "publish_status manual with asr_uncertain risk from real song/voice-term transcription",
+    "automatic_delivery_count": 0,
+    "note": "This remains truthful mini-profile content evidence and is not overwritten or reclassified by the separate short-profile PASS."
+  },
+  "control_failures_preserved": [
+    {
+      "qa_id": "20260917T062719Z-mn07a",
+      "external_codex_calls": 0,
+      "reason": "initial reconstructed guard rejected the reviewed global option prefix"
+    },
+    {
+      "qa_id": "20260917T153910Z-mn07s1a",
+      "external_codex_calls": 0,
+      "reason": "successor 1 omitted structured reasoning and temporary-directory argv variants"
+    },
+    {
+      "qa_id": "20260917T160359Z-mn07s2a",
+      "external_codex_calls": 0,
+      "reason": "successor 2 allowed high but not medium structured reasoning"
+    }
+  ]
+}

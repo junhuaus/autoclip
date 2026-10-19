@@ -2399,6 +2399,14 @@ def _structured_preflight_errors(
     if not isinstance(invalid_output, dict):
         return []
     validation_payload = _structured_validation_payload(payload)
+    # The direct dual-profile contract owns a distinct schema and performs its
+    # cue, ownership, duration, boundary and final-partition checks in
+    # ``pipeline.dual_profile``.  The legacy semantic preflight below infers a
+    # V4 Discovery response from any object named ``candidates`` and would
+    # otherwise demand unrelated topic-core/topic-unit fields that are not in
+    # this schema.
+    if validation_payload.get("algorithm_version") == "dual-profile-direct-v1":
+        return []
     errors: list[str] = []
     errors.extend(quality_preflight_errors_v4(validation_payload, invalid_output))
     source_range = validation_payload.get("source_range")

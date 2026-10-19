@@ -1,0 +1,109 @@
+{
+  "$id": "urn:liveclip:loop-engineering:trusted-context:agent-runtime-v2-successor-v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "SCHEMA SEED ONLY. NOT A RUN RECEIPT, NOT AUTHORITY, AND NEVER COPIED INTO A SUCCESSOR. The future candidate-local file at this same relative path must be created after loop-init with O_EXCL and controller-bound before loop-run.",
+  "properties": {
+    "authority_state": {
+      "const": "CONTROLLER_BOUND_FINAL"
+    },
+    "blocked_predecessor": {
+      "additionalProperties": false,
+      "properties": {
+        "coder_artifact_sha256": {"const": "fc57f4c96a321017e221d12ee0ed5090673c5f91047cc6cc792154a86eec3470"},
+        "coder_event_log_sha256": {"const": "eb6789590c6c321947ab806c18f52e04927a56704d82c14ff67fd51af4cc2837"},
+        "coder_session_id": {"const": "01a120b3-f587-7682-80e4-635b1fcfd823"},
+        "events_sha256": {"const": "c3ff12b83e7e2bd5894a06d608bd4ab78222e6842fdfeeb41457b12ef28438c4"},
+        "planner_artifact_sha256": {"const": "c0491867e29734f68bde429514bd2187ee8dec809930c7b385c495c9d2d6a64f"},
+        "planner_session_id": {"const": "01a120b1-85ac-7432-be0f-1122f40e1142"},
+        "run_id": {"const": "20261009T124056Z-37111cbc"},
+        "state_sha256": {"const": "cb6e8a2ff53902dc617281757a6d5a910069109b1e2637ef5929c914ca25a6e5"}
+      },
+      "required": ["coder_artifact_sha256", "coder_event_log_sha256", "coder_session_id", "events_sha256", "planner_artifact_sha256", "planner_session_id", "run_id", "state_sha256"],
+      "type": "object"
+    },
+    "candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "base_head": {"const": "2f361fcddc0e63ae62ee62826e27b54bb8204c53"},
+        "root": {"pattern": "^/Users/junhuaxu/Library/Application Support/LiveClip/engineering-candidates/agent-runtime-v2/a822890ace12/candidate\\.[A-Za-z0-9_-]+/repo$", "type": "string"},
+        "source_kind": {"const": "FROZEN_B2_RECONSTRUCTION_NOT_DYG_COPY"}
+      },
+      "required": ["base_head", "root", "source_kind"],
+      "type": "object"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "b2_manifest_sha256": {"const": "e6bc1213d482c38c78b97c3390ea35c05ca05efb2c1ff1d754e3894a04fd8044"},
+        "b2_patch_sha256": {"const": "472638a7f6c78634d3dbe5508716fc3a1328761dd4047eaf1b20c4d494a01254"},
+        "b2_path_list_sha256": {"const": "1cbfb3a787026491c1c979ce3f263adece51af8cc1210c94094dd7bf2ee3cec7"},
+        "m2_attempt_sha256": {"const": "c5d16be1ce9c79e7fc0332240f42a4785364539e83c9cf5b129a13c1a7c5aec3"},
+        "m2_final_index_sha256": {"const": "ee23214f812a8e946fe0025008ef57d4aa2a5e643c13e3605245f9af8a0d1a7d"},
+        "m2_outer_result_sha256": {"const": "ad14c8f8b08f0c7be98d74ced9316b803348772ac6af17c78ec30362d3e1ee69"},
+        "m2_repository_sha256": {"const": "093077b1bff4f830e01a2c7eb0b7d004ccf18f06204ef2e96cab6cdb48cc1743"},
+        "protected_manifest_sha256": {"const": "d929781748edabdd562f2f386cdfc3f92d4f8cc1339e0249fc33e92b11364a31"},
+        "protected_result_sha256": {"const": "0c226f6aa8ca52c15441fabb2a6be316f16cf09288be90c9d1d8370df3f25e6a"}
+      },
+      "required": ["b2_manifest_sha256", "b2_patch_sha256", "b2_path_list_sha256", "m2_attempt_sha256", "m2_final_index_sha256", "m2_outer_result_sha256", "m2_repository_sha256", "protected_manifest_sha256", "protected_result_sha256"],
+      "type": "object"
+    },
+    "finalized_documents": {
+      "additionalProperties": false,
+      "properties": {
+        "execplan_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+        "requirement_path": {"const": "docs/requirements/liveclip-agent-runtime-v2-acceptance-v2.md"},
+        "requirement_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+        "status_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
+      },
+      "required": ["execplan_sha256", "requirement_path", "requirement_sha256", "status_sha256"],
+      "type": "object"
+    },
+    "format_version": {"const": 1},
+    "overlay": {
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "const": [
+            "STATUS.md",
+            "config/loop-engineering/trusted-context/liveclip-agent-runtime-v2-successor-v1.json",
+            "docs/exec-plans/liveclip-agent-runtime-v2.md",
+            "docs/requirements/liveclip-agent-runtime-v2-acceptance-v2.md"
+          ]
+        }
+      },
+      "required": ["paths"],
+      "type": "object"
+    },
+    "record_kind": {"const": "liveclip_m3_successor_trusted_context_v1"},
+    "run": {
+      "additionalProperties": false,
+      "properties": {
+        "initial_state_mode": {"const": "0644"},
+        "initial_state_path": {"pattern": "^\\.loop/runs/[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}/state\\.json$", "type": "string"},
+        "initial_state_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+        "initial_state_size": {"minimum": 1, "type": "integer"},
+        "run_id": {"not": {"const": "20261009T124056Z-37111cbc"}, "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$", "type": "string"},
+        "state": {"const": "received"}
+      },
+      "required": ["initial_state_mode", "initial_state_path", "initial_state_sha256", "initial_state_size", "run_id", "state"],
+      "type": "object"
+    },
+    "serialization": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {"const": "json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(',', ':')).encode('utf-8') + b'\\n'"},
+        "encoding": {"const": "UTF-8"},
+        "terminal_lf": {"const": true}
+      },
+      "required": ["algorithm", "encoding", "terminal_lf"],
+      "type": "object"
+    }
+  },
+  "required": ["authority_state", "blocked_predecessor", "candidate", "evidence", "finalized_documents", "format_version", "overlay", "record_kind", "run", "serialization"],
+  "title": "LiveClip M3 successor trusted-context final-record schema",
+  "type": "object",
+  "x-liveclip-authority-state": "SCHEMA_ONLY_NOT_AUTHORITY",
+  "x-liveclip-copy-policy": "DO_NOT_COPY; reserve candidate-local final path absent until after loop-init",
+  "x-liveclip-serialization": "This schema seed is ordinary JSON. Future final records use the exact serialization algorithm in properties.serialization."
+}

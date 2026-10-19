@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     )
 
     ai_provider: str = "openrouter-codex"
+    agent_provider: str = Field(
+        default="openai-responses",
+        validation_alias="LIVECLIP_AGENT_PROVIDER",
+    )
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     transcription_model: str = Field(
         default="whisper-1", validation_alias="OPENAI_TRANSCRIPTION_MODEL"
@@ -186,6 +190,14 @@ class Settings(BaseSettings):
             )
         return normalized
 
+    @field_validator("agent_provider")
+    @classmethod
+    def validate_agent_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"openai-responses", "codex-app-server"}:
+            raise ValueError("LIVECLIP_AGENT_PROVIDER must be openai-responses or codex-app-server")
+        return normalized
+
     @field_validator("openrouter_base_url")
     @classmethod
     def validate_openrouter_base_url(cls, value: str) -> str:
@@ -267,6 +279,7 @@ class Settings(BaseSettings):
                 and self.bootstrap_admin_password.get_secret_value().strip()
             ),
             "ai_provider": self.ai_provider,
+            "agent_provider": self.agent_provider,
             "codex_provider_selected": self.ai_provider.endswith("-codex"),
             "openai_configured": bool(
                 self.openai_api_key and self.openai_api_key.get_secret_value().strip()

@@ -1,0 +1,390 @@
+{
+  "benchmark_id": "liveclip-dual-profile-transcript-v1",
+  "schema_version": "1.0",
+  "language": "zh-CN",
+  "source": {
+    "file_name": "transcript.srt",
+    "sha256": "29b8751643ecc38a7183ab0c837a011cbca1e70a56de0788cd66292dbf364120",
+    "duration_ms": 6630860,
+    "cue_count": 3159,
+    "notes": [
+      "ASR contains vocal-terminology errors.",
+      "Use original audio/video as the semantic and risk source of truth.",
+      "Gold timestamps are evaluation anchors and must not be hard-coded in production."
+    ]
+  },
+  "profiles": {
+    "short_highlight": {
+      "min_duration_ms": 45000,
+      "max_duration_ms": 90000,
+      "min_inclusive": true,
+      "max_inclusive": true,
+      "top_n_is_cap_not_quota": true
+    },
+    "mini_lesson": {
+      "min_duration_ms": 90000,
+      "max_duration_ms": 300000,
+      "min_inclusive": false,
+      "max_inclusive": true,
+      "top_n_is_cap_not_quota": true
+    }
+  },
+  "required_behavior": {
+    "requested_profiles": [
+      "short_highlight",
+      "mini_lesson"
+    ],
+    "separate_candidate_pools": true,
+    "separate_scoring": true,
+    "separate_top_n": true,
+    "cross_profile_variants_allowed": true,
+    "cross_profile_dedup_forbidden": true,
+    "continuous_source_interval_only": true,
+    "irrelevant_padding_forbidden": true,
+    "risk_must_not_suppress_discovery": true
+  },
+  "gold_short": [
+    {
+      "id": "S01",
+      "start_ms": 900440,
+      "end_ms": 949680,
+      "duration_ms": 49240,
+      "cue_start": 337,
+      "cue_end": 359,
+      "topic": "自然打哈欠打开通道，并用‘闹’练习感受位置",
+      "allowed_decisions": ["selected", "manual_review"],
+      "risk_tags": []
+    },
+    {
+      "id": "S02",
+      "start_ms": 1099200,
+      "end_ms": 1160060,
+      "duration_ms": 60860,
+      "cue_start": 422,
+      "cue_end": 449,
+      "topic": "美声通道中闭口音与开口音的位置统一",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"]
+    },
+    {
+      "id": "S03",
+      "start_ms": 1192660,
+      "end_ms": 1266540,
+      "duration_ms": 73880,
+      "cue_start": 470,
+      "cue_end": 506,
+      "topic": "全打哈欠与半打哈欠、流行通道及大白嗓成因",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"]
+    },
+    {
+      "id": "S04",
+      "start_ms": 1637560,
+      "end_ms": 1691660,
+      "duration_ms": 54100,
+      "cue_start": 690,
+      "cue_end": 719,
+      "topic": "气混与不受控漏气的区别",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"]
+    },
+    {
+      "id": "S05",
+      "start_ms": 1693480,
+      "end_ms": 1742560,
+      "duration_ms": 49080,
+      "cue_start": 720,
+      "cue_end": 746,
+      "topic": "气混与气声的区别，真声也可带气",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"]
+    },
+    {
+      "id": "S06",
+      "start_ms": 2162360,
+      "end_ms": 2207860,
+      "duration_ms": 45500,
+      "cue_start": 941,
+      "cue_end": 958,
+      "topic": "平衡混的定义及强混气息支撑迁移",
+      "allowed_decisions": ["selected", "manual_review"],
+      "risk_tags": ["asr_uncertain"]
+    },
+    {
+      "id": "S07",
+      "start_ms": 2210700,
+      "end_ms": 2283640,
+      "duration_ms": 72940,
+      "cue_start": 960,
+      "cue_end": 991,
+      "topic": "弱混与气混的前提，以及表达目标优先于技术标签",
+      "allowed_decisions": ["selected", "manual_review"],
+      "risk_tags": ["asr_uncertain"]
+    },
+    {
+      "id": "S08",
+      "start_ms": 5246460,
+      "end_ms": 5293260,
+      "duration_ms": 46800,
+      "cue_start": 2494,
+      "cue_end": 2509,
+      "topic": "学员咬字靠后、声音被压住的现场诊断",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "health_advice", "participant_audio"]
+    }
+  ],
+  "gold_mini_lesson": [
+    {
+      "id": "L01",
+      "priority": "P0",
+      "start_ms": 1637560,
+      "end_ms": 1742560,
+      "duration_ms": 105000,
+      "cue_start": 690,
+      "cue_end": 746,
+      "topic": "气混、漏气、气声三者的连续比较与示范",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"],
+      "variant_group_id": "breathy_voice_comparison",
+      "related_short_ids": ["S04", "S05"]
+    },
+    {
+      "id": "L02",
+      "priority": "P0",
+      "start_ms": 1890420,
+      "end_ms": 2160060,
+      "duration_ms": 269640,
+      "cue_start": 825,
+      "cue_end": 939,
+      "topic": "学唱歌步骤1至4：真声、强混、假声、真假声转换",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"],
+      "variant_group_id": "six_step_curriculum_part_1",
+      "related_short_ids": []
+    },
+    {
+      "id": "L03",
+      "priority": "P0",
+      "start_ms": 2160060,
+      "end_ms": 2283640,
+      "duration_ms": 123580,
+      "cue_start": 940,
+      "cue_end": 991,
+      "topic": "步骤5至6：平衡混、弱混、气混及表达优先结论",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "asr_uncertain"],
+      "variant_group_id": "six_step_curriculum_part_2",
+      "related_short_ids": ["S06", "S07"]
+    },
+    {
+      "id": "L04",
+      "priority": "P1",
+      "start_ms": 2406320,
+      "end_ms": 2548360,
+      "duration_ms": 142040,
+      "cue_start": 1049,
+      "cue_end": 1130,
+      "topic": "为什么初学者不应先练咽音或鼻音类技巧，并给出例外",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["health_advice", "absolute_claim", "asr_uncertain"]
+    },
+    {
+      "id": "L05",
+      "priority": "P1",
+      "start_ms": 4803960,
+      "end_ms": 5009680,
+      "duration_ms": 205720,
+      "cue_start": 2287,
+      "cue_end": 2376,
+      "topic": "学员演唱样本到高音、强混、闭合及学习顺序的完整诊断",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "health_advice", "participant_audio", "minor_privacy"]
+    },
+    {
+      "id": "L07",
+      "priority": "P1",
+      "start_ms": 6035000,
+      "end_ms": 6280040,
+      "duration_ms": 245040,
+      "cue_start": 2855,
+      "cue_end": 2973,
+      "topic": "鼻腔位置与高音问题的现场示范、纠正及前后对比",
+      "allowed_decisions": ["manual_review"],
+      "risk_tags": ["music_rights_review", "health_advice", "participant_audio", "asr_uncertain"]
+    }
+  ],
+  "supplemental_mini_lesson": [
+    {
+      "id": "L06",
+      "start_ms": 5065660,
+      "end_ms": 5214740,
+      "duration_ms": 149080,
+      "cue_start": 2413,
+      "cue_end": 2481,
+      "topic": "另一位学员的鼻音、支撑与高音诊断",
+      "allowed_decisions": ["manual_review"]
+    },
+    {
+      "id": "O01",
+      "start_ms": 2779000,
+      "end_ms": 2900640,
+      "duration_ms": 121640,
+      "cue_start": 1254,
+      "cue_end": 1320,
+      "topic": "主播学习经历、语言障碍及美声与流行学习差异",
+      "allowed_decisions": ["selected", "manual_review"]
+    }
+  ],
+  "risk_anchors": [
+    {
+      "id": "R01",
+      "start_ms": 3978280,
+      "end_ms": 4198680,
+      "duration_ms": 220400,
+      "cue_start": 1890,
+      "cue_end": 1987,
+      "topic": "通过声音判断声带或鼻腔毛病等医学主张",
+      "required_routing": ["manual_review", "blocked"],
+      "risk_tags": ["medical_claim", "health_advice", "absolute_claim"]
+    },
+    {
+      "id": "R02",
+      "start_ms": 4201960,
+      "end_ms": 4308500,
+      "duration_ms": 106540,
+      "cue_start": 1990,
+      "cue_end": 2053,
+      "topic": "地域与鼻音归因、健康和绝对化表述",
+      "required_routing": ["manual_review", "blocked"],
+      "risk_tags": ["sensitivity_review", "health_advice", "absolute_claim"]
+    }
+  ],
+  "negative_anchors": [
+    {"id": "N01", "start_ms": 0, "end_ms": 530000, "reason": "setup_chat_device_and_fragmented_singing"},
+    {"id": "N02", "start_ms": 700260, "end_ms": 715620, "reason": "follow_and_fan_cta"},
+    {"id": "N03", "start_ms": 772960, "end_ms": 805000, "reason": "schedule_and_off_topic_chat"},
+    {"id": "N04", "start_ms": 950280, "end_ms": 993980, "reason": "cta_and_device_adjustment"},
+    {"id": "N05", "start_ms": 1425760, "end_ms": 1548080, "reason": "likes_course_promo_and_device_interruption"},
+    {"id": "N06", "start_ms": 1742560, "end_ms": 1889160, "reason": "cta_waiting_and_unfinished_setup"},
+    {"id": "N07", "start_ms": 2284100, "end_ms": 2404200, "reason": "chat_device_and_fragments"},
+    {"id": "N08", "start_ms": 2984180, "end_ms": 3916960, "reason": "extended_sales_pricing_scheduling_and_credentials"},
+    {"id": "N09", "start_ms": 5226540, "end_ms": 5423560, "reason": "device_network_and_phone_playback_chaos_with_S08_exception"},
+    {"id": "N10", "start_ms": 5481300, "end_ms": 5571800, "reason": "connection_troubleshooting"},
+    {"id": "N11", "start_ms": 6604880, "end_ms": 6630860, "reason": "outro_cta_and_farewell"}
+  ],
+  "forbidden_composite_intervals": [
+    {
+      "start_ms": 562000,
+      "end_ms": 847000,
+      "reason": "material_interruptions; clean short subclips may still be extracted"
+    },
+    {
+      "start_ms": 1099200,
+      "end_ms": 1351000,
+      "reason": "topic shifts and CTA; S02 and S03 may still be extracted"
+    }
+  ],
+  "regressions": [
+    {
+      "id": "RGR-01",
+      "name": "both_profiles_must_execute",
+      "assertion": "requested_profiles and executed_profiles contain short_highlight and mini_lesson"
+    },
+    {
+      "id": "RGR-02",
+      "name": "incomplete_false_voice_short_must_not_auto_pass",
+      "start_ms": 2070980,
+      "end_ms": 2124380,
+      "forbidden_auto_decision": true,
+      "required_quality_flags": [
+        "context_dependent_opening",
+        "missing_required_prior_steps",
+        "topic_not_closed",
+        "asr_uncertain_blocks_meaning"
+      ],
+      "preferred_recovery_anchor": "L02"
+    },
+    {
+      "id": "RGR-03",
+      "name": "expression_first_short_needs_premise_and_long_variant",
+      "current_bad_start_ms": 2237640,
+      "preferred_short_anchor": "S07",
+      "required_long_anchor": "L03"
+    }
+  ],
+  "matching": {
+    "evaluation_only": true,
+    "short_boundary_tolerance_ms": 3000,
+    "long_boundary_tolerance_ms": 5000,
+    "semantic_equivalence_manual_adjudication_allowed": true,
+    "match_requires_correct_profile": true,
+    "match_requires_continuous_interval": true,
+    "match_requires_core_topic_and_evidence": true,
+    "match_decisions": ["selected", "manual_review"]
+  },
+  "automatic_selection_gates": {
+    "score_strictly_greater_than": 75,
+    "forbidden_quality_flags": [
+      "context_dependent_opening",
+      "topic_not_closed",
+      "padded_with_irrelevant_content",
+      "material_interruption"
+    ],
+    "title_hook_summary_must_be_source_faithful": true,
+    "manual_or_blocking_risk_must_not_auto_select": true
+  },
+  "scoring": {
+    "total_points": 100,
+    "components": {
+      "both_profiles_executed": 15,
+      "short_recall": 20,
+      "mini_lesson_recall": 30,
+      "boundary_and_completeness": 15,
+      "risk_discovery_and_routing": 10,
+      "audit_and_reproducibility": 10
+    }
+  },
+  "acceptance": {
+    "pass_min_score": 85,
+    "short_min_hits": 7,
+    "short_total": 8,
+    "mini_lesson_min_hits": 5,
+    "mini_lesson_total": 6,
+    "required_p0_mini_lesson_ids": ["L01", "L02", "L03"],
+    "required_risk_anchor_ids": ["R01", "R02"],
+    "max_hard_quality_failures_in_auto_selected": 0,
+    "audit_counts_must_be_recomputed_from_arrays": true,
+    "all_raw_candidates_must_be_traceable": true,
+    "conditional": {
+      "min_score": 70,
+      "max_score": 84,
+      "short_min_hits": 6,
+      "mini_lesson_min_hits": 4,
+      "requires_both_profiles": true,
+      "requires_all_p0_mini_lessons": true,
+      "max_hard_quality_failures": 0
+    },
+    "direct_fail_conditions": [
+      "missing_executed_profile",
+      "missing_any_p0_mini_lesson",
+      "irrelevant_padding",
+      "RGR-02_auto_selected",
+      "risk_suppressed_during_discovery",
+      "untraceable_or_inconsistent_audit"
+    ]
+  },
+  "current_delivery_assessment": {
+    "status": "FAIL",
+    "visible_short_outputs": 3,
+    "visible_short_topic_hits": ["S06", "S07"],
+    "visible_short_topic_hit_count": 2,
+    "visible_mini_lesson_hit_count": 0,
+    "boundary_failures": ["S07"],
+    "hard_regression_failures": ["RGR-01", "RGR-02", "RGR-03"],
+    "notes": [
+      "The package does not expose a dual-profile manifest.",
+      "The third delivered short is context-dependent and incomplete.",
+      "A numeric final score is withheld because full raw/final audit arrays are absent."
+    ]
+  }
+}
