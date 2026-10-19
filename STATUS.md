@@ -1,5 +1,37 @@
 # LiveClip status
 
+## Agent v2 publication complete (2026-10-19)
+
+- Branch `main` published the source/evidence checkpoint as commit
+  `96b704d70b320ecff01e588c866aee6191ec7ecb`. The single authorized push of
+  `main` to `origin/main` succeeded; the immediate post-push state was clean
+  with HEAD/upstream divergence `0/0`.
+- The final audited publication contained 202 files / 62,739,131 bytes: 183
+  added and 19 modified, with 230,535 insertions and 1,279 deletions. The
+  largest file was 7,481,527 bytes; no file was at least 100 MB. Staged
+  `git diff --check` passed, and the audit found no forbidden paths, real
+  credential-shaped findings, or nonempty sensitive `.env.example` values.
+  Before that final audit, trailing whitespace and a new blank EOF were
+  normalized in one newly added delivery report.
+- Ignored local state was excluded, not deleted: credentials/private HOME,
+  `data/evaluations/agent-v2-oauth-full-v4-20260928`,
+  `apps/web/playwright-report`, `apps/web/node_modules`, `/input` source media,
+  and other ignored local state.
+- Validation truth remains: lint PASS; retained backend evidence of 2,545
+  passed / 15 warnings in 1,329.79s; Web unit 14 files / 80 tests PASS; and
+  mock, real review/API/leased Worker/FFmpeg, completion/recovery, and B2
+  browser-render evidence PASS. No human editorial/audio review and no new
+  model inference/evaluation occurred.
+- M3A-v8 was never executed and remains stale and forbidden. Any future
+  authentication work requires a fresh M3A-v9-or-later design and exact new
+  authority. Never reuse V48/M3A-v8 IDs, roots, attempts, envelopes,
+  candidates, or run IDs.
+- Fresh-AI read order: `AGENTS.md`, this `STATUS.md`, then
+  `docs/exec-plans/liveclip-agent-runtime-v2.md`; verify HEAD/upstream before
+  work. On this host use `NODE_LTS_BIN=/opt/homebrew/bin`. The evidence-backed
+  Agent v2 publication checkpoint is complete; further product work starts as
+  a new bounded milestone.
+
 ## Publication validation evidence closed (2026-10-19)
 
 - Exact lint gate PASS:

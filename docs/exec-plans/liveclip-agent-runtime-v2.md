@@ -1,5 +1,67 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Agent v2 publication complete (2026-10-19)
+
+This checkpoint supersedes the earlier pending-publication instructions while
+preserving them below as historical evidence. Branch `main` published the
+source/evidence checkpoint as commit
+`96b704d70b320ecff01e588c866aee6191ec7ecb`. The one authorized push of
+`main` to `origin/main` succeeded exactly once. Immediate post-push correlation
+showed a clean worktree, `origin/main` at the same commit, and HEAD/upstream
+divergence `0/0`.
+
+### Published inventory and safety audit
+
+The audited commit contains 202 published files / 62,739,131 bytes: 183 added
+and 19 modified, with 230,535 insertions and 1,279 deletions. Its largest file
+is 7,481,527 bytes and no file is at least 100 MB. Staged
+`git diff --check` passed. The staged-path, `.env.example`, and sensitive-token
+audits found no forbidden paths, real credential-shaped findings, or nonempty
+sensitive `.env.example` values. One newly added delivery report initially had
+trailing whitespace on two lines and a new blank EOF; those formatting-only
+issues were normalized before the final audit, commit, and push.
+
+Ignored local state was excluded from the publication, not deleted. This
+includes credentials/private HOME,
+`data/evaluations/agent-v2-oauth-full-v4-20260928`,
+`apps/web/playwright-report`, `apps/web/node_modules`, `/input` source media,
+and other ignored local state. The commit includes the reviewed safe,
+nonignored product/source, configuration, migration, documentation, test, QA,
+and delivery-evidence paths only.
+
+### Validation and acceptance truth
+
+- Exact lint gate PASS:
+  `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/bin make lint`; Ruff
+  check PASS, Ruff format 444 files, mypy 228 files, Schema PASS, and Web
+  typecheck PASS.
+- Retained backend pytest evidence is 2,545 passed / 15 warnings in 1,329.79s.
+  It predates only later non-behavioral import/string wrapping and
+  Makefile/docs/config corrections; this is not a claim of a post-edit full
+  `make test` PASS.
+- Web unit evidence is 14 files / 80 tests PASS. Mock browser, real
+  review/API/leased Worker/FFmpeg, completion/recovery, and B2 browser-render
+  evidence all PASS under the already recorded exact environments and retained
+  identities.
+- Engineering tests and real local media/browser rendering have evidence. No
+  human editorial/audio review and no new model inference/evaluation occurred.
+
+M3A-v8 was never executed. Its command and authorization envelope remain
+abandoned, stale, and forbidden after publication changed the delivery
+inventory and HEAD. Any future authentication work requires a fresh M3A-v9 or
+later design and separate exact authority. Never reuse V48/M3A-v8 IDs, roots,
+attempts, envelopes, candidates, or run IDs.
+
+### Fresh-AI handoff and next boundary
+
+A fresh AI reads `AGENTS.md`, then `STATUS.md`, then this Living ExecPlan, and
+verifies branch, HEAD, upstream, and worktree state before acting. On this host
+it uses `NODE_LTS_BIN=/opt/homebrew/bin` because the Makefile default
+`/usr/local` Node is x64. The evidence-backed Agent v2 publication checkpoint
+is complete. Any further product change begins as a new bounded milestone with
+fresh scope, evidence, budgets, and authority; no V48 or M3A-v8 identity may be
+replayed.
+
 ## Publication validation evidence closed (2026-10-19)
 
 This documentation-only closure correlates the final publication validation
