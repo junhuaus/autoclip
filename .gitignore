@@ -42,6 +42,7 @@ apps/web/test-results/
 data/demo/*
 !data/demo/.gitkeep
 data/asr-evaluations/
+data/deliveries/
 data/evaluations/
 data/models/
 data/projects/*

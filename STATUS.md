@@ -1,5 +1,24 @@
 # LiveClip status
 
+## Local asset boundary corrected in the current Git tree (2026-10-20)
+
+- `/input`, `data/models`, `data/evaluations`, and `data/deliveries` are all
+  local-only asset categories and must not enter Git. At checkpoint HEAD
+  `1e8bb7b9bde0d86188c5f9cbecf462f255815b7f`, the first three categories had
+  zero tracked paths.
+- Source/evidence commit `96b704d70b320ecff01e588c866aee6191ec7ecb`
+  published 83 `data/deliveries` files totaling 51,057,160 bytes. This
+  correction removes those paths from the current Git tree while preserving
+  every local file and its bytes. The new explicit `data/deliveries/` ignore
+  rule prevents ordinary restaging.
+- This ordinary follow-up does not erase the delivery files from prior Git
+  history. Rewriting history or force-pushing requires separate explicit
+  operator authority and is outside this checkpoint.
+- All validation, publication, authentication, and fresh-AI boundaries below
+  remain unchanged. In particular, M3A-v8 was never executed and remains
+  stale/forbidden; any later authentication requires a fresh M3A-v9-or-later
+  design and authority.
+
 ## Agent v2 publication complete (2026-10-19)
 
 - Branch `main` published the source/evidence checkpoint as commit

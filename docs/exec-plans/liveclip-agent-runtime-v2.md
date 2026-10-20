@@ -1,5 +1,31 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Local asset boundary corrected in the current Git tree (2026-10-20)
+
+The operator clarified the repository boundary after the Agent v2 publication:
+`/input` raw/test media, `data/models` model weights, `data/evaluations`
+evaluation artifacts, and `data/deliveries` delivery artifacts are all
+local-only and must not enter Git. At checkpoint HEAD
+`1e8bb7b9bde0d86188c5f9cbecf462f255815b7f`, `/input`, `data/models`, and
+`data/evaluations` each had zero tracked paths.
+
+Source/evidence commit `96b704d70b320ecff01e588c866aee6191ec7ecb`
+published 83 paths below `data/deliveries`, totaling 51,057,160 bytes. This
+bounded correction adds an explicit `data/deliveries/` ignore rule and removes
+those 83 paths from the current index with `git rm -r --cached`, leaving the
+complete local directory and every file byte intact. Verification binds the
+pre/post local manifest, requires zero staged tracked paths across all four
+asset roots, checks representative local delivery files, confirms ignore
+coverage, restricts the staged set to this boundary correction, and requires
+staged `git diff --check` PASS.
+
+This is a current-tree correction only. An ordinary follow-up commit does not
+erase delivery artifacts from prior Git history. Any history rewrite or
+force-push requires separate explicit operator authority; neither is permitted
+here. The earlier publication and validation evidence remains historical fact.
+M3A-v8 was never executed and remains stale/forbidden, and future
+authentication still requires a fresh M3A-v9-or-later design and authority.
+
 ## Agent v2 publication complete (2026-10-19)
 
 This checkpoint supersedes the earlier pending-publication instructions while
