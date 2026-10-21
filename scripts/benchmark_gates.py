@@ -105,9 +105,9 @@ def _policy(
 
 
 def _default_policy(anchor_id: str, reason: str, row: str) -> NegativeAnchorPolicy:
-    # Controller interpretation pending operator confirmation: "禁止作为成片"
-    # together with confirmed D2 makes every output on these anchors a FAIL,
-    # whether it was selected or routed to manual review.
+    # Confirmed by the operator on 2026-10-21: "禁止作为成片" together with
+    # confirmed D2 makes every output on these anchors a FAIL, whether it was
+    # selected or routed to manual review.
     return _policy(anchor_id, reason, row, ALL_OUTPUT_DECISIONS)
 
 
