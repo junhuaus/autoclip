@@ -4,25 +4,39 @@
 
 ### Progress
 
-- [x] 2026-10-20 On branch `claude/liveclip-stage1-evaluator` (base
-  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`), close product-code acceptance
-  gap 2 under "Product-code acceptance gaps" (Context and Orientation):
-  `scripts/evaluate_agent_benchmark.py` no longer emits a plain `PASS`. It
-  emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
-  `INVALID_EVIDENCE`; a source-hash mismatch or malformed evidence is
-  `INVALID_EVIDENCE`; it separates mechanical hard failures, `not_evaluable`
-  gates (which block the technical pass) and `human_required` activities; it
-  derives executed Profiles only from an explicit record; and its CLI requires
-  a new `--output-dir`, refuses an existing one and publishes both reports by
-  one directory rename. The shared v1 gates (manual-only semantic
-  equivalence, one-to-one matching, padding, composites, RGR-02, duration,
-  risk discovery with evidence cues) apply where the Agent result carries the
-  data. Because the current Agent v2 result records no executed-Profile list,
-  decision buckets, quality flags or risk tags, a real Agent v2 result
-  currently evaluates to `TECHNICAL_FAIL` with those gates `not_evaluable`.
-  Evidence is fixture/unit-test only; the completed full-transcript run was
-  not re-evaluated and no model inference occurred. Earlier sections are
-  unchanged history.
+- [x] 2026-10-20 Branches `claude/liveclip-stage1-evaluator` (base
+  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`) and its fix round
+  `claude/liveclip-stage1-fix`: address product-code acceptance gap 2 under "Product-code acceptance gaps" (Context and
+  Orientation). `scripts/evaluate_agent_benchmark.py` no longer emits a plain
+  `PASS`; it emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+  `INVALID_EVIDENCE`. A source-hash mismatch or malformed evidence is
+  `INVALID_EVIDENCE`. The report separates `mechanical_failures` (the only
+  blockers of the technical pass), `not_applicable` legacy-v1 concepts
+  (decision buckets, the score>75 auto-selection gate, risk routing,
+  cache/repair records) and `human_required` checks (quality-flag
+  adjudication, RGR-02 flags for candidates on that interval, title/hook/
+  summary fidelity, semantic-only matches, editorial/audio/subtitle review),
+  so a passing run is `TECHNICAL_PASS_HUMAN_PENDING`, never a full `PASS`.
+  Executed Profiles are derived from the frozen Global Review
+  `requested_profiles` plus the tool-enforced final-candidate invariant. The
+  score stays on the raw 100-point scale with threshold 85 (applicable
+  maximum 88). The CLI requires a new `--output-dir`, claims it exclusively
+  with `os.mkdir` (an existing directory, even an empty one, is refused) and
+  writes each report via temp file, fsync and `os.replace`; the residual
+  limitation is that the two files appear one after the other. Gaps 1 and
+  3--6 (completed-evidence validation, render/package binding, publisher,
+  human review) are not part of this stage. Evidence is fixture/unit-test only; the completed
+  full-transcript run was not re-evaluated and no model inference occurred.
+  Earlier sections are unchanged history.
+- [x] 2026-10-20 Informational for future formal-loop runs (no files edited):
+  the evaluators now depend on the new `scripts/benchmark_gates.py` and the
+  new package marker `scripts/__init__.py`. Neither path is in the
+  "Exact Coder allowlist" of
+  `docs/requirements/liveclip-agent-runtime-v2-acceptance-v3.md`, nor in the
+  frozen path lists of `tools/loop_engineering/m3s_v40_source_freeze.py`,
+  `m3s_v44_source_freeze.py` or `m3s_v45_source_freeze.py`, which name
+  `scripts/evaluate_agent_benchmark.py` only. A later formal loop that freezes
+  or allowlists the evaluator must include both paths.
 
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 

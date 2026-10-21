@@ -44,7 +44,7 @@ def _result(
     *,
     omit: str | None = None,
     omit_title: str | None = None,
-    executed_profiles: list[str] | None = None,
+    requested_profiles: list[str] | None = None,
     overrides: dict[str, dict[str, Any]] | None = None,
     extra: tuple[dict[str, Any], ...] = (),
     source_hash: str | None = None,
@@ -133,7 +133,7 @@ def _result(
                 )
             )
     review_data: dict[str, object] = {
-        "requested_profiles": ["short_highlight", "mini_lesson"],
+        "requested_profiles": requested_profiles or ["short_highlight", "mini_lesson"],
         "final_candidate_ids": [value.artifact_id for value in candidates],
         "reviews": [
             {
@@ -143,8 +143,6 @@ def _result(
             for value in candidates
         ],
     }
-    if executed_profiles is not None:
-        review_data["executed_profiles"] = executed_profiles
     review = AgentArtifact(
         artifact_id="global_review_1",
         artifact_type="global_review",
@@ -183,33 +181,26 @@ def _result(
 BOTH = ["short_highlight", "mini_lesson"]
 
 
-def _gates(report: dict[str, Any]) -> set[str]:
-    return {str(value["gate"]) for value in report["not_evaluable"]}
+def _not_applicable(report: dict[str, Any]) -> set[str]:
+    return {str(value["concept"]) for value in report["not_applicable"]}
 
 
-def test_agent_evaluator_never_emits_plain_pass_for_complete_fixture() -> None:
+def _human(report: dict[str, Any]) -> set[str]:
+    return {str(value["check"]) for value in report["human_required"]}
+
+
+def test_perfect_fixture_reaches_technical_pass_human_pending_never_plain_pass() -> None:
     report = evaluate_agent(BENCHMARK, _result())
 
     assert report["status"] in ALLOWED_STATUSES
     assert report["status"] != "PASS"
-    assert report["status"] == STATUS_TECHNICAL_FAIL
+    assert report["status"] == STATUS_TECHNICAL_PASS_HUMAN_PENDING
+    assert report["mechanical_failures"] == []
     assert report["contract_mode"] == "agent_v2_technical_provisional"
     assert report["short_hits"] == 8
     assert report["mini_lesson_hits"] == 6
     assert report["matched_p0"] == ["L01", "L02", "L03"]
-    assert report["audit"]["consistent"] is True
-    # Execution is never inferred from saved candidates.
-    assert report["executed_profiles_recorded"] is False
-    assert report["executed_profiles"] == []
-    assert "executed_profiles" in _gates(report)
-    assert report["components"]["both_profiles_executed"] == 0
-    assert "missing_executed_profile" not in report["hard_failures"]
-
-
-def test_not_evaluable_gates_block_technical_pass() -> None:
-    report = evaluate_agent(BENCHMARK, _result(executed_profiles=BOTH))
-
-    assert report["hard_failures"] == []
+    # Executed Profiles come from the frozen Global Review plus its final-candidate invariant.
     assert report["executed_profiles"] == BOTH
     assert report["components"]["both_profiles_executed"] == 15
     assert report["audit"]["items"] == {
@@ -217,41 +208,67 @@ def test_not_evaluable_gates_block_technical_pass() -> None:
         "candidate_dispositions": True,
         "version_hash": True,
         "call_data": True,
-        "cache_repair_records": False,
+        "cache_repair_records": None,
     }
-    # 15 + 20 + 30 + 15 + risk(unscored) 0 + audit 8
-    assert report["score"] == 88
-    assert _gates(report) == {
+    # 15 + 20 + 30 + 15 + risk(not applicable) 0 + audit 8 (cache not applicable)
+    assert report["raw_score"] == report["score"] == 88
+    assert report["applicable_max_score"] == 88
+    assert report["pass_min_score"] == 85
+    assert _not_applicable(report) == {
         "match_decision_buckets",
         "automatic_selection_score_gate",
-        "forbidden_quality_flags",
         "risk_routing",
+        "cache_repair_records",
     }
+    assert {
+        "semantic_and_editorial_review",
+        "title_hook_summary_source_faithfulness",
+        "forbidden_quality_flags_adjudication",
+    } <= _human(report)
+
+
+def test_one_mechanical_failure_gives_technical_fail() -> None:
+    composite = BENCHMARK["forbidden_composite_intervals"][0]
+    report = evaluate_agent(
+        BENCHMARK,
+        _result(
+            extra=(
+                {
+                    "id": "COMPOSITE",
+                    "profile": "mini_lesson",
+                    "start_ms": int(composite["start_ms"]),
+                    "end_ms": int(composite["start_ms"]) + 138_000,
+                    "cue_start": 200,
+                    "cue_end": 260,
+                },
+            )
+        ),
+    )
+
+    assert report["mechanical_failures"] == ["forbidden_composite_interval"]
     assert report["status"] == STATUS_TECHNICAL_FAIL
-    assert "semantic_and_editorial_review" in report["human_required"]
+
+
+def test_requested_profile_without_final_candidate_is_not_executed() -> None:
+    report = evaluate_agent(BENCHMARK, _result(requested_profiles=["short_highlight"]))
+
+    assert report["executed_profiles"] == ["short_highlight"]
+    assert "missing_executed_profile" in report["mechanical_failures"]
+    assert report["components"]["both_profiles_executed"] == 7.5
+    assert report["status"] == STATUS_TECHNICAL_FAIL
 
 
 def test_technical_status_vocabulary() -> None:
     assert (
-        technical_status(invalid_evidence=[], hard_failures=[], not_evaluable=[])
+        technical_status(invalid_evidence=[], mechanical_failures=[])
         == STATUS_TECHNICAL_PASS_HUMAN_PENDING
     )
     assert (
-        technical_status(
-            invalid_evidence=[], hard_failures=[], not_evaluable=[{"gate": "risk_routing"}]
-        )
+        technical_status(invalid_evidence=[], mechanical_failures=["irrelevant_padding"])
         == STATUS_TECHNICAL_FAIL
     )
     assert (
-        technical_status(
-            invalid_evidence=[], hard_failures=["irrelevant_padding"], not_evaluable=[]
-        )
-        == STATUS_TECHNICAL_FAIL
-    )
-    assert (
-        technical_status(
-            invalid_evidence=["source_hash_mismatch"], hard_failures=[], not_evaluable=[]
-        )
+        technical_status(invalid_evidence=["source_hash_mismatch"], mechanical_failures=[])
         == STATUS_INVALID_EVIDENCE
     )
 
@@ -267,8 +284,8 @@ def test_agent_evaluator_fails_missing_p0_and_missing_title_audit() -> None:
     report = evaluate_agent(BENCHMARK, _result(omit="L03", omit_title="S01"))
 
     assert report["status"] == STATUS_TECHNICAL_FAIL
-    assert "missing_any_p0_mini_lesson" in report["hard_failures"]
-    assert "untraceable_or_inconsistent_audit" in report["hard_failures"]
+    assert "missing_any_p0_mini_lesson" in report["mechanical_failures"]
+    assert "untraceable_or_inconsistent_audit" in report["mechanical_failures"]
     assert report["audit"]["missing_titles"] == ["candidate_s01"]
 
 
@@ -277,7 +294,6 @@ def test_agent_semantic_only_match_is_manual_not_a_hit() -> None:
     report = evaluate_agent(
         BENCHMARK,
         _result(
-            executed_profiles=BOTH,
             overrides={
                 "L02": {
                     "start_ms": int(l02["start_ms"]) - 6_000,
@@ -289,7 +305,7 @@ def test_agent_semantic_only_match_is_manual_not_a_hit() -> None:
 
     assert "L02" not in {value["anchor_id"] for value in report["mini_lesson_matches"]}
     assert [value["anchor_id"] for value in report["manual_adjudication_required"]] == ["L02"]
-    assert "missing_any_p0_mini_lesson" in report["hard_failures"]
+    assert "missing_any_p0_mini_lesson" in report["mechanical_failures"]
 
 
 def test_agent_padding_and_composite_are_mechanical_failures() -> None:
@@ -298,7 +314,6 @@ def test_agent_padding_and_composite_are_mechanical_failures() -> None:
     report = evaluate_agent(
         BENCHMARK,
         _result(
-            executed_profiles=BOTH,
             extra=(
                 {
                     "id": "PAD",
@@ -321,8 +336,8 @@ def test_agent_padding_and_composite_are_mechanical_failures() -> None:
     )
 
     assert report["status"] == STATUS_TECHNICAL_FAIL
-    assert "irrelevant_padding" in report["hard_failures"]
-    assert "forbidden_composite_interval" in report["hard_failures"]
+    assert "irrelevant_padding" in report["mechanical_failures"]
+    assert "forbidden_composite_interval" in report["mechanical_failures"]
     assert [value["candidate_id"] for value in report["padding_findings"]] == ["candidate_pad"]
     assert [value["candidate_id"] for value in report["forbidden_composite_findings"]] == [
         "candidate_composite"
@@ -330,7 +345,7 @@ def test_agent_padding_and_composite_are_mechanical_failures() -> None:
 
 
 def test_agent_s08_inside_n09_is_not_padding() -> None:
-    report = evaluate_agent(BENCHMARK, _result(executed_profiles=BOTH))
+    report = evaluate_agent(BENCHMARK, _result())
     assert "S08" in {value["anchor_id"] for value in report["short_matches"]}
     assert report["padding_findings"] == []
 
@@ -340,7 +355,6 @@ def test_agent_final_candidate_at_rgr02_opening_fails(end_ms: int) -> None:
     report = evaluate_agent(
         BENCHMARK,
         _result(
-            executed_profiles=BOTH,
             extra=(
                 {
                     "id": "RGR",
@@ -354,24 +368,24 @@ def test_agent_final_candidate_at_rgr02_opening_fails(end_ms: int) -> None:
         ),
     )
 
-    assert "RGR-02_auto_selected" in report["hard_failures"]
+    assert "RGR-02_auto_selected" in report["mechanical_failures"]
     assert report["regressions"][0]["auto_selected"] == ["candidate_rgr"]
     if end_ms == int(RGR02["end_ms"]):
-        assert "RGR-02_required_quality_flags" in _gates(report)
+        assert "RGR-02_required_quality_flags" in _human(report)
 
 
 def test_agent_full_l02_does_not_trip_rgr02() -> None:
-    report = evaluate_agent(BENCHMARK, _result(executed_profiles=BOTH))
+    report = evaluate_agent(BENCHMARK, _result())
     assert report["regressions"][0]["auto_selected"] == []
-    assert not any(value.startswith("RGR-02") for value in report["hard_failures"])
-    assert not any(str(value["gate"]).startswith("RGR-02") for value in report["not_evaluable"])
+    assert not any(value.startswith("RGR-02") for value in report["mechanical_failures"])
+    assert not any(value.startswith("RGR-02") for value in _human(report))
 
 
 def test_agent_matching_is_one_to_one() -> None:
     s01 = next(value for value in BENCHMARK["gold_short"] if value["id"] == "S01")
     report = evaluate_agent(
         BENCHMARK,
-        _result(executed_profiles=BOTH, extra=(dict(s01, id="S01DUP", profile="short_highlight"),)),
+        _result(extra=(dict(s01, id="S01DUP", profile="short_highlight"),)),
     )
 
     assert report["short_hits"] == 8
@@ -385,12 +399,11 @@ def test_agent_duration_outside_profile_bounds_fails() -> None:
     report = evaluate_agent(
         BENCHMARK,
         _result(
-            executed_profiles=BOTH,
             overrides={"S01": {"end_ms": int(s01["start_ms"]) + 44_999}},
         ),
     )
 
-    assert "duration_out_of_profile_bounds" in report["hard_failures"]
+    assert "duration_out_of_profile_bounds" in report["mechanical_failures"]
     assert report["duration_violations"][0]["candidate_id"] == "candidate_s01"
     assert "S01" not in {value["anchor_id"] for value in report["short_matches"]}
 
@@ -400,7 +413,6 @@ def test_agent_risk_discovery_requires_anchor_evidence_cues() -> None:
     report = evaluate_agent(
         BENCHMARK,
         _result(
-            executed_profiles=BOTH,
             overrides={
                 "R01": {
                     "cue_start": int(r01["cue_start"]) - 2,
@@ -410,17 +422,17 @@ def test_agent_risk_discovery_requires_anchor_evidence_cues() -> None:
         ),
     )
 
-    assert "risk_discovery_without_evidence_cues" in report["hard_failures"]
-    assert "risk_suppressed_during_discovery" not in report["hard_failures"]
+    assert "risk_discovery_without_evidence_cues" in report["mechanical_failures"]
+    assert "risk_suppressed_during_discovery" not in report["mechanical_failures"]
     assert report["risk_findings"]["R01"]["missing_evidence_cues"][0]["candidate_id"] == (
         "candidate_r01"
     )
-    assert "risk_routing" in _gates(report)
+    assert "risk_routing" in _not_applicable(report)
 
 
 def test_agent_risk_absent_is_suppressed_during_discovery() -> None:
-    report = evaluate_agent(BENCHMARK, _result(executed_profiles=BOTH, omit="R02"))
-    assert "risk_suppressed_during_discovery" in report["hard_failures"]
+    report = evaluate_agent(BENCHMARK, _result(omit="R02"))
+    assert "risk_suppressed_during_discovery" in report["mechanical_failures"]
 
 
 def test_agent_cli_publishes_new_reports_and_refuses_existing_output(tmp_path: Path) -> None:
@@ -428,10 +440,15 @@ def test_agent_cli_publishes_new_reports_and_refuses_existing_output(tmp_path: P
     result_path.write_text(_result().model_dump_json(), encoding="utf-8")
     output = tmp_path / "report"
 
-    assert main([str(BENCHMARK_PATH), str(result_path), "--output-dir", str(output)]) == 1
+    assert main([str(BENCHMARK_PATH), str(result_path), "--output-dir", str(output)]) == 0
     saved = json.loads((output / "benchmark-result.json").read_text(encoding="utf-8"))
-    assert saved["status"] == STATUS_TECHNICAL_FAIL
-    assert "TECHNICAL_FAIL" in (output / "benchmark-report.md").read_text(encoding="utf-8")
+    assert saved["status"] == STATUS_TECHNICAL_PASS_HUMAN_PENDING
+    report_text = (output / "benchmark-report.md").read_text(encoding="utf-8")
+    assert "TECHNICAL_PASS_HUMAN_PENDING" in report_text
+    assert sorted(path.name for path in output.iterdir()) == [
+        "benchmark-report.md",
+        "benchmark-result.json",
+    ]
     before = (output / "benchmark-result.json").read_bytes()
 
     with pytest.raises(SystemExit) as exc:
@@ -442,3 +459,15 @@ def test_agent_cli_publishes_new_reports_and_refuses_existing_output(tmp_path: P
         "agent-run-result.json",
         "report",
     ]
+
+
+def test_agent_cli_refuses_existing_empty_directory(tmp_path: Path) -> None:
+    result_path = tmp_path / "agent-run-result.json"
+    result_path.write_text(_result().model_dump_json(), encoding="utf-8")
+    output = tmp_path / "claimed"
+    output.mkdir()
+
+    with pytest.raises(SystemExit) as exc:
+        main([str(BENCHMARK_PATH), str(result_path), "--output-dir", str(output)])
+    assert exc.value.code == 2
+    assert list(output.iterdir()) == []

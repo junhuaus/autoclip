@@ -54,6 +54,7 @@ imported by production modules.
 - [x] 2026-09-24 Render and inspect all 12 benchmark-matched short/long media candidates.
 - [x] 2026-09-24 Update this plan and `STATUS.md` with exact results and the remaining unrelated test blocker.
 - [x] 2026-10-20 Stage 1: make `scripts/evaluate_benchmark.py` and `scripts/evaluate_agent_benchmark.py` enforce the benchmark JSON/MD as written (source hash, manual-only semantic equivalence, negative-anchor padding, forbidden composites, RGR-02 opening/flags, `CONDITIONAL`, qualified boundary score, computed audit score, risk evidence cues, one-to-one matching, Agent v2 technical statuses). Fixture tests only; no real re-score.
+- [x] 2026-10-20 Stage 1 fix round (reviewer CHANGES_REQUIRED on `bf83c80`): Controller decisions D1--D3, union padding allowance, Agent v2 mechanical/not-applicable/human-required split with derived executed Profiles, manual-only-risk selection gate, RGR-03 findings, augmenting-path and score-boundary tests, safe no-replace publication. Fixture tests only; no real re-score.
 
 ## Work breakdown
 
@@ -148,7 +149,43 @@ two deterministic report files.
   shared evaluation-only module `scripts/benchmark_gates.py`. The Agent v2
   evaluator emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
   `INVALID_EVIDENCE`, and any gate its result model cannot evaluate is listed
-  as `not_evaluable` and blocks the technical pass.
+  as `not_evaluable` and blocks the technical pass. (The padding allowance and
+  the Agent v2 classification in this entry are refined by the fix-round
+  entries below.)
+- 2026-10-20 Controller interpretation D1 (pending operator confirmation): no
+  threshold is changed or normalized. The Agent v2 score stays on the raw
+  100-point scale with `pass_min_score` 85; components that do not apply to
+  score-only Agent v2 (risk routing, 10 points; cache/repair audit item, 2
+  points) score 0. With executed Profiles derived from the frozen Global
+  Review, the applicable maximum is 88, so 85 stays reachable. Reports carry
+  `raw_score` and `applicable_max_score`.
+- 2026-10-20 Controller interpretation D2 (pending operator confirmation):
+  negative-anchor padding and forbidden composite intervals are direct FAIL
+  for every output decision in `matching.match_decisions` (`selected` and
+  `manual_review`), per MD sections 3.7, 7 and the section 10 direct-FAIL list
+  and JSON `direct_fail_conditions`. This is the strict, unconditional
+  reading; Agent v2 applies the same rule to every final candidate.
+- 2026-10-20 Controller interpretation D3 (pending operator confirmation):
+  `acceptance.conditional` is applied literally. CONDITIONAL requires
+  `min_score 70 <= score <= max_score 84`, so `84 < score < 85` is FAIL, and a
+  score of at least 85 with any unmet PASS gate (for example 6/8 shorts) is
+  also FAIL. This is the strict reading.
+- 2026-10-20 fix round: the padding allowance is the union of the intervals,
+  widened by the candidate's Profile tolerance, of every gold or
+  `supplemental_mini_lesson` anchor the candidate matches at the exact
+  boundary, independent of the one-to-one assignment and of the decision.
+  One-to-one matching prefers qualified candidates (no forbidden flags, no
+  padding) when duplicates compete; this steers but does not globally
+  optimize the qualified set. Agent v2 reports split into
+  `mechanical_failures` (the only blockers besides `INVALID_EVIDENCE`),
+  `not_applicable` legacy-v1 concepts and `human_required` checks; executed
+  Profiles come from the Global Review `requested_profiles` together with the
+  tool-enforced per-Profile final-candidate invariant. The v1 evaluator also
+  fails `selected` candidates carrying a manual/blocking-only risk tag
+  (derived from anchor routing/allowed decisions), lists
+  `title_hook_summary_must_be_source_faithful` under `human_required`, and
+  reports RGR-03 bad-opening candidates as non-blocking findings because the
+  JSON does not mark RGR-03 forbidden.
 
 ## Risks and mitigations
 

@@ -24,6 +24,9 @@ PROFILE_TOLERANCE_FIELDS: Final[Mapping[str, str]] = {
     SHORT_PROFILE: "short_boundary_tolerance_ms",
     MINI_PROFILE: "long_boundary_tolerance_ms",
 }
+# Anchor sections whose exact-boundary intervals are legitimate content for the
+# negative-anchor padding allowance (required gold plus supplemental lessons).
+PADDING_ALLOWANCE_SECTIONS: Final = (*PROFILE_GOLD_SECTIONS.values(), "supplemental_mini_lesson")
 # ``forbidden_composite_intervals`` forbid continuous long outputs; their JSON
 # reasons explicitly allow clean short subclips, so only this Profile is gated.
 COMPOSITE_GATED_PROFILE: Final = MINI_PROFILE
@@ -64,10 +67,7 @@ class Match:
 @dataclass(frozen=True, slots=True)
 class ProfileMatching:
     matches: tuple[Match, ...]
-    # matched candidate ID -> its allowed (start, end) interval
-    allowed_intervals: Mapping[str, tuple[int, int]]
     manual_adjudication_required: tuple[dict[str, object], ...]
-    padding_excluded_hits: tuple[dict[str, object], ...]
 
 
 def tolerance_ms(benchmark: Mapping[str, Any], profile: str) -> int:
@@ -163,34 +163,66 @@ def allowed_interval(anchor: Mapping[str, Any], tolerance: int) -> tuple[int, in
     return int(anchor["start_ms"]) - tolerance, int(anchor["end_ms"]) + tolerance
 
 
-def padding_overlaps(
-    benchmark: Mapping[str, Any],
-    candidate: CandidateView,
-    *,
-    allowed: tuple[int, int] | None,
-    tolerance: int,
-) -> list[dict[str, object]]:
-    """Negative-anchor overlap outside the candidate's allowed interval above tolerance.
+def padding_allowance(
+    benchmark: Mapping[str, Any], candidate: CandidateView
+) -> tuple[tuple[int, int], ...]:
+    """Union members of the candidate's allowed interval.
 
-    ``allowed`` is the matched gold interval widened by the Profile tolerance for a
-    counted hit, and ``None`` (the empty interval) otherwise.
+    Every gold or supplemental anchor that the candidate matches at the exact
+    boundary contributes its interval widened by the candidate's Profile
+    tolerance, independent of the one-to-one assignment and of the decision.
+    A candidate matching no anchor has the empty allowance.
     """
 
+    tolerance = tolerance_ms(benchmark, candidate.profile)
+    return tuple(
+        allowed_interval(anchor, tolerance)
+        for section in PADDING_ALLOWANCE_SECTIONS
+        for anchor in benchmark.get(section, ())
+        if is_exact_boundary(anchor, candidate, tolerance)
+    )
+
+
+def _covered_ms(start: int, end: int, intervals: Iterable[tuple[int, int]]) -> int:
+    """Length of [start, end) covered by the union of ``intervals``."""
+
+    clipped = sorted(
+        (max(start, low), min(end, high))
+        for low, high in intervals
+        if min(end, high) > max(start, low)
+    )
+    covered = 0
+    cursor = start
+    for low, high in clipped:
+        low = max(low, cursor)
+        if high > low:
+            covered += high - low
+            cursor = high
+    return covered
+
+
+def padding_overlaps(
+    benchmark: Mapping[str, Any], candidate: CandidateView
+) -> list[dict[str, object]]:
+    """Negative-anchor overlap outside the candidate's allowance, above its Profile tolerance."""
+
+    tolerance = tolerance_ms(benchmark, candidate.profile)
+    allowance = padding_allowance(benchmark, candidate)
     findings: list[dict[str, object]] = []
     for negative in benchmark["negative_anchors"]:
         start = max(candidate.start_ms, int(negative["start_ms"]))
         end = min(candidate.end_ms, int(negative["end_ms"]))
-        inside = max(0, end - start)
-        if inside and allowed is not None:
-            inside -= overlap_ms(start, end, allowed[0], allowed[1])
-        if inside > tolerance:
+        if end <= start:
+            continue
+        outside = end - start - _covered_ms(start, end, allowance)
+        if outside > tolerance:
             findings.append(
                 {
                     "candidate_id": candidate.candidate_id,
                     "profile": candidate.profile,
                     "decision": candidate.decision,
                     "negative_anchor_id": str(negative["id"]),
-                    "outside_allowed_overlap_ms": inside,
+                    "outside_allowed_overlap_ms": outside,
                 }
             )
     return findings
@@ -251,11 +283,17 @@ def match_profile(
     candidates: Sequence[CandidateView],
     *,
     decision_allowed: Callable[[Mapping[str, Any], CandidateView], bool],
+    prefer: Callable[[CandidateView], bool] | None = None,
 ) -> ProfileMatching:
     """One-to-one exact-boundary matching within one Profile.
 
-    Each anchor and each candidate contributes at most one hit.  Semantic-only
-    candidates are reported for manual adjudication and never counted.
+    Each anchor and each candidate contributes at most one hit; augmenting paths
+    maximize the number of hits.  Within that, each anchor tries candidates in
+    the order: candidates accepted by ``prefer`` (qualified) first, then smallest edge delta, then
+    higher score, then candidate ID.  The preference steers which duplicate is
+    assigned but does not guarantee a globally optimal set of qualified hits.
+    Semantic-only candidates are reported for manual adjudication and never
+    counted.
     """
 
     anchors = gold_anchors(benchmark, profile)
@@ -263,9 +301,8 @@ def match_profile(
     pool = [value for value in candidates if value.profile == profile]
     edges: list[list[int]] = []
     manual: list[dict[str, object]] = []
-    padding_excluded: list[dict[str, object]] = []
     for anchor in anchors:
-        ranked: list[tuple[int, float, str, int]] = []
+        ranked: list[tuple[int, int, float, str, int]] = []
         for index, candidate in enumerate(pool):
             if not decision_allowed(anchor, candidate):
                 continue
@@ -273,25 +310,9 @@ def match_profile(
                 continue
             metrics = _pair_metrics(anchor, candidate)
             if is_exact_boundary(anchor, candidate, tolerance):
-                padding = padding_overlaps(
-                    benchmark,
-                    candidate,
-                    allowed=allowed_interval(anchor, tolerance),
-                    tolerance=tolerance,
-                )
-                if padding:
-                    padding_excluded.append(
-                        {
-                            "anchor_id": str(anchor["id"]),
-                            "candidate_id": candidate.candidate_id,
-                            "decision": candidate.decision,
-                            "padding": padding,
-                            **metrics,
-                        }
-                    )
-                    continue
+                preferred = 0 if prefer is None or prefer(candidate) else 1
                 cost = abs(metrics["start_delta_ms"]) + abs(metrics["end_delta_ms"])
-                ranked.append((cost, -candidate.score, candidate.candidate_id, index))
+                ranked.append((preferred, cost, -candidate.score, candidate.candidate_id, index))
             elif is_semantic_equivalent(anchor, candidate, tolerance):
                 manual.append(
                     {
@@ -307,15 +328,12 @@ def match_profile(
                         "time_coverage_percent": round(
                             100 * metrics["time_overlap_ms"] / metrics["gold_duration_ms"], 2
                         ),
-                        "padding": padding_overlaps(
-                            benchmark, candidate, allowed=None, tolerance=tolerance
-                        ),
+                        "padding": padding_overlaps(benchmark, candidate),
                     }
                 )
         edges.append([index for *_, index in sorted(ranked)])
     owner = _maximum_matching(edges)
     matches: list[Match] = []
-    allowed: dict[str, tuple[int, int]] = {}
     for candidate_index, anchor_index in sorted(owner.items(), key=lambda item: item[1]):
         anchor = anchors[anchor_index]
         candidate = pool[candidate_index]
@@ -330,13 +348,7 @@ def match_profile(
                 match_kind="exact_boundary",
             )
         )
-        allowed[candidate.candidate_id] = allowed_interval(anchor, tolerance)
-    return ProfileMatching(
-        matches=tuple(matches),
-        allowed_intervals=allowed,
-        manual_adjudication_required=tuple(manual),
-        padding_excluded_hits=tuple(padding_excluded),
-    )
+    return ProfileMatching(matches=tuple(matches), manual_adjudication_required=tuple(manual))
 
 
 def auto_decision_regressions(benchmark: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -382,6 +394,72 @@ def regression_interval_hits(
         if abs(value.start_ms - int(regression["start_ms"])) <= tolerance
         and abs(value.end_ms - int(regression["end_ms"])) <= tolerance
     ]
+
+
+def bad_start_findings(
+    benchmark: Mapping[str, Any], candidates: Iterable[CandidateView]
+) -> list[dict[str, object]]:
+    """Regressions recording a known-bad opening (``current_bad_start_ms``).
+
+    The candidate Profile is the one whose gold section holds the regression's
+    ``preferred_short_anchor``; candidates of that Profile opening within its
+    tolerance of the bad start are findings.  ``forbidden`` mirrors the JSON
+    ``forbidden_auto_decision`` flag (absent means a finding only).
+    """
+
+    findings: list[dict[str, object]] = []
+    views = tuple(candidates)
+    for regression in benchmark["regressions"]:
+        if "current_bad_start_ms" not in regression:
+            continue
+        preferred = regression.get("preferred_short_anchor")
+        profiles = [
+            profile
+            for profile, section in PROFILE_GOLD_SECTIONS.items()
+            if any(anchor["id"] == preferred for anchor in benchmark[section])
+        ]
+        for profile in profiles:
+            tolerance = tolerance_ms(benchmark, profile)
+            for value in views:
+                if value.profile == profile and (
+                    abs(value.start_ms - int(regression["current_bad_start_ms"])) <= tolerance
+                ):
+                    findings.append(
+                        {
+                            "regression_id": str(regression["id"]),
+                            "candidate_id": value.candidate_id,
+                            "profile": value.profile,
+                            "decision": value.decision,
+                            "start_delta_ms": value.start_ms
+                            - int(regression["current_bad_start_ms"]),
+                            "forbidden": regression.get("forbidden_auto_decision") is True,
+                        }
+                    )
+    return findings
+
+
+def manual_or_blocking_risk_tags(benchmark: Mapping[str, Any]) -> frozenset[str]:
+    """Risk tags that the benchmark routes only to manual review or blocking.
+
+    Derived from the JSON: tags on risk anchors whose ``required_routing``
+    excludes ``selected``, plus tags on gold/supplemental anchors whose
+    ``allowed_decisions`` exclude ``selected``, minus any tag that also appears
+    on an anchor allowing ``selected``.
+    """
+
+    restricted: set[str] = set()
+    selectable: set[str] = set()
+    for anchor in benchmark["risk_anchors"]:
+        if "selected" not in anchor.get("required_routing", ()):
+            restricted.update(str(value) for value in anchor.get("risk_tags", ()))
+    for section in PADDING_ALLOWANCE_SECTIONS:
+        for anchor in benchmark.get(section, ()):
+            tags = {str(value) for value in anchor.get("risk_tags", ())}
+            if "selected" in anchor.get("allowed_decisions", ()):
+                selectable.update(tags)
+            else:
+                restricted.update(tags)
+    return frozenset(restricted - selectable)
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,12 +16,12 @@ from pydantic import ValidationError
 
 from liveclip.agent_runtime.models import AgentArtifact, AgentRunResult
 
-# The shared evaluation-only gates live beside this script.  Resolve them the same
-# way whether this file runs directly or is imported as ``scripts.evaluate_agent_benchmark``.
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.append(str(Path(__file__).resolve().parent))
+# Package import of the shared evaluation-only gates.  Only when this file is run
+# directly as a script (no package) is the repository root appended to sys.path.
+if not __package__:
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from benchmark_gates import (
+from scripts.benchmark_gates import (
     MINI_PROFILE,
     PROFILE_GOLD_SECTIONS,
     SHORT_PROFILE,
@@ -29,6 +29,7 @@ from benchmark_gates import (
     Match,
     assess_risk_anchor,
     auto_decision_regressions,
+    bad_start_findings,
     boundary_score,
     composite_overlaps,
     duration_violations,
@@ -37,7 +38,6 @@ from benchmark_gates import (
     regression_interval_hits,
     regression_start_hits,
     regression_tolerance,
-    tolerance_ms,
 )
 
 __all__ = [
@@ -133,17 +133,22 @@ def _string_list(value: object) -> list[str] | None:
     return list(value)
 
 
-def _explicit_executed_profiles(result: AgentRunResult) -> list[str] | None:
-    """Return an explicit executed-Profile record; candidates are never proof of execution."""
+def _executed_profiles(audit: Mapping[str, Any]) -> list[str]:
+    """Executed Profiles from the frozen Global Review, never from loose candidates.
 
-    review = _global_review(result)
-    for record in (review.data if review is not None else {}, result.initial_context):
-        if "executed_profiles" in record:
-            values = _string_list(record["executed_profiles"])
-            if values is None:
-                raise ValueError("executed_profiles record must be a list of strings")
-            return values
-    return None
+    ``save_global_review`` refuses to freeze unless every ``requested_profiles``
+    entry has at least one ``final`` candidate
+    (``src/liveclip/agent_tools/clipping.py:421-423``) and then freezes
+    ``requested_profiles`` and ``final_candidate_ids`` into the Global Review
+    artifact (``clipping.py:451-457``).  A requested Profile counts as executed
+    only when that invariant still holds in the result; a missing or
+    non-conserving Global Review yields no executed Profile.
+    """
+
+    if audit["global_review_error"] is not None:
+        return []
+    counts = audit["final_profile_counts"]
+    return [profile for profile in audit["requested_profiles"] if counts.get(profile, 0) > 0]
 
 
 def _audit(result: AgentRunResult, views: tuple[CandidateView, ...]) -> dict[str, Any]:
@@ -167,7 +172,7 @@ def _audit(result: AgentRunResult, views: tuple[CandidateView, ...]) -> dict[str
        one token-usage record exists (``call_records[].usage_json`` or
        ``session_usage``/``final_session_usage``).
     5. ``cache_repair_records``: ``AgentRunResult`` has no cache-hit or repair
-       counter field, so this item is missing and always scores 0.
+       concept, so the item is ``not_applicable`` and scores 0 (``None`` here).
     """
 
     final_candidates = {value.candidate_id for value in views}
@@ -218,7 +223,7 @@ def _audit(result: AgentRunResult, views: tuple[CandidateView, ...]) -> dict[str
     missing_raw = sorted(final_candidates - raw_candidates)
     missing_validation = sorted(final_candidates - validated)
     missing_titles = sorted(final_candidates - title_candidates)
-    items: dict[str, bool] = {}
+    items: dict[str, bool | None] = {}
     items["profile_counts"] = (
         review_error is None
         and bool(requested)
@@ -260,10 +265,10 @@ def _audit(result: AgentRunResult, views: tuple[CandidateView, ...]) -> dict[str
             if isinstance(metadata.get(key), dict) and metadata.get(key)
         )
     items["call_data"] = call_metadata_complete and token_records > 0
-    items["cache_repair_records"] = False
+    items["cache_repair_records"] = None
     return {
         "items": items,
-        "score": 2.0 * sum(1 for value in items.values() if value),
+        "score": 2.0 * sum(1 for value in items.values() if value is True),
         "raw_candidate_count": len(raw_candidates),
         "final_candidate_count": len(final_candidates),
         "superseded_candidate_count": len(raw_candidates - final_candidates),
@@ -273,21 +278,20 @@ def _audit(result: AgentRunResult, views: tuple[CandidateView, ...]) -> dict[str
         "missing_validation": missing_validation,
         "missing_titles": missing_titles,
         "global_review_error": review_error,
-        "consistent": items["profile_counts"] and items["candidate_dispositions"],
+        "consistent": bool(items["profile_counts"] and items["candidate_dispositions"]),
     }
 
 
-def technical_status(
-    *,
-    invalid_evidence: list[str],
-    hard_failures: list[str],
-    not_evaluable: list[dict[str, object]],
-) -> str:
-    """Invalid evidence dominates; any failure or not-evaluable gate blocks the pass."""
+def technical_status(*, invalid_evidence: list[str], mechanical_failures: list[str]) -> str:
+    """Only invalid evidence or mechanical failures block the technical pass.
+
+    ``not_applicable`` and ``human_required`` items never block, but human work
+    always remains pending, so a full benchmark ``PASS`` is never returned.
+    """
 
     if invalid_evidence:
         return STATUS_INVALID_EVIDENCE
-    if hard_failures or not_evaluable:
+    if mechanical_failures:
         return STATUS_TECHNICAL_FAIL
     return STATUS_TECHNICAL_PASS_HUMAN_PENDING
 
@@ -298,11 +302,11 @@ def _invalid_report(
     return {
         "benchmark_id": benchmark["benchmark_id"],
         "contract_mode": CONTRACT_MODE,
-        "status": technical_status(invalid_evidence=reasons, hard_failures=[], not_evaluable=[]),
+        "status": technical_status(invalid_evidence=reasons, mechanical_failures=[]),
         "invalid_evidence": reasons,
-        "hard_failures": [],
-        "not_evaluable": [],
-        "human_required": list(HUMAN_REQUIRED_ACTIVITIES),
+        "mechanical_failures": [],
+        "not_applicable": [],
+        "human_required": [{"check": value} for value in HUMAN_REQUIRED_ACTIVITIES],
         "provider": result.provider,
         "model": result.model,
         "skill_sha256": result.skill_sha256,
@@ -321,80 +325,103 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
             if artifact.artifact_type == "clip_candidate"
         )
         audit = _audit(result, views)
-        executed_record = _explicit_executed_profiles(result)
     except ValueError as exc:
         return _invalid_report(benchmark, result, [f"malformed_evidence: {exc}"])
 
     acceptance = benchmark["acceptance"]
     gates = benchmark["automatic_selection_gates"]
-    hard_failures: list[str] = []
-    not_evaluable: list[dict[str, object]] = []
-
-    def unevaluable(gate: str, category: str, reason: str, **extra: object) -> None:
-        not_evaluable.append({"gate": gate, "category": category, "reason": reason, **extra})
+    points = benchmark["scoring"]["components"]
+    mechanical_failures: list[str] = []
+    # Legacy-v1 concepts the score-only Agent v2 contract does not have
+    # (acceptance doc: separate them; never fabricate them).
+    not_applicable: list[dict[str, object]] = [
+        {
+            "concept": "match_decision_buckets",
+            "reason": "Agent v2 has no selected/manual_review buckets; matching.match_decisions "
+            "and anchor allowed_decisions do not apply, and every final candidate is matched",
+        },
+        {
+            "concept": "automatic_selection_score_gate",
+            "reason": "Agent v2 has no automatic-selection decision for "
+            "score_strictly_greater_than",
+            "final_candidates_not_above_threshold": sorted(
+                value.candidate_id
+                for value in views
+                if not value.score > float(gates["score_strictly_greater_than"])
+            ),
+        },
+        {
+            "concept": "risk_routing",
+            "reason": "Agent v2 has no manual_review/blocked routing or risk tags; the "
+            "risk_discovery_and_routing component scores 0",
+            "unscored_points": float(points["risk_discovery_and_routing"]),
+        },
+        {
+            "concept": "cache_repair_records",
+            "reason": "AgentRunResult has no cache-hit or repair concept; audit item scores 0",
+            "unscored_points": 2.0,
+        },
+    ]
+    human_required: list[dict[str, object]] = [
+        {"check": value} for value in HUMAN_REQUIRED_ACTIVITIES
+    ]
+    human_required.append(
+        {
+            "check": "forbidden_quality_flags_adjudication",
+            "reason": "Agent v2 candidates record no quality flags; forbidden flags and boundary "
+            "qualification by flags need human review",
+            "flags": sorted(str(value) for value in gates["forbidden_quality_flags"]),
+        }
+    )
 
     required_profiles = tuple(benchmark["required_behavior"]["requested_profiles"])
     requested = list(audit["requested_profiles"])
-    executed: list[str] = []
-    both_profiles = False
-    if executed_record is None:
-        unevaluable(
-            "executed_profiles",
-            "missing_record",
-            "the Agent v2 result has no explicit executed-Profile record; "
-            "saved candidates are not proof that a Profile was executed",
-        )
-    else:
-        executed = executed_record
-        both_profiles = set(requested) == set(required_profiles) and set(executed) == set(
-            required_profiles
-        )
-        if not both_profiles:
-            hard_failures.append("missing_executed_profile")
-
-    unevaluable(
-        "match_decision_buckets",
-        "legacy_v1_decision_concept",
-        "Agent v2 has no selected/manual_review buckets, so matching.match_decisions and "
-        "anchor allowed_decisions cannot be checked; every final candidate is matched",
+    executed = _executed_profiles(audit)
+    both_profiles = set(requested) == set(required_profiles) and set(executed) == set(
+        required_profiles
     )
-    matchings = {
-        profile: match_profile(benchmark, profile, views, decision_allowed=lambda *_: True)
-        for profile in PROFILE_GOLD_SECTIONS
-    }
-    short_matches = matchings[SHORT_PROFILE].matches
-    long_matches = matchings[MINI_PROFILE].matches
-    allowed_intervals = {
-        key: value for item in matchings.values() for key, value in item.allowed_intervals.items()
-    }
-    manual_adjudication = [
-        entry for item in matchings.values() for entry in item.manual_adjudication_required
-    ]
+    if not both_profiles:
+        mechanical_failures.append("missing_executed_profile")
 
     durations = duration_violations(benchmark, views)
     if durations:
-        hard_failures.append("duration_out_of_profile_bounds")
-
+        mechanical_failures.append("duration_out_of_profile_bounds")
     # Every final candidate is a delivered output whose Global Review row asserted
-    # complete boundaries and no irrelevant padding, so content gates apply to it.
-    padding = [
-        entry
-        for candidate in views
-        for entry in padding_overlaps(
-            benchmark,
-            candidate,
-            allowed=allowed_intervals.get(candidate.candidate_id),
-            tolerance=tolerance_ms(benchmark, candidate.profile),
-        )
-    ]
+    # complete boundaries and no irrelevant padding, so content gates apply to it
+    # exactly as to v1 selected/manual_review outputs (Controller decision D2).
+    padding = [entry for candidate in views for entry in padding_overlaps(benchmark, candidate)]
     padded_ids = {str(value["candidate_id"]) for value in padding}
     if padding:
-        hard_failures.append("irrelevant_padding")
+        mechanical_failures.append("irrelevant_padding")
     composites = [
         entry for candidate in views for entry in composite_overlaps(benchmark, candidate)
     ]
     if composites:
-        hard_failures.append("forbidden_composite_interval")
+        mechanical_failures.append("forbidden_composite_interval")
+
+    def clean(candidate: CandidateView) -> bool:
+        return candidate.candidate_id not in padded_ids
+
+    matchings = {
+        profile: match_profile(
+            benchmark, profile, views, decision_allowed=lambda *_: True, prefer=clean
+        )
+        for profile in PROFILE_GOLD_SECTIONS
+    }
+    short_matches = matchings[SHORT_PROFILE].matches
+    long_matches = matchings[MINI_PROFILE].matches
+    manual_adjudication = [
+        entry for item in matchings.values() for entry in item.manual_adjudication_required
+    ]
+    if manual_adjudication:
+        human_required.append(
+            {
+                "check": "semantic_equivalence_manual_adjudication",
+                "candidate_ids": sorted(
+                    {str(item["candidate_id"]) for item in manual_adjudication}
+                ),
+            }
+        )
 
     regression_reports: list[dict[str, Any]] = []
     for regression in auto_decision_regressions(benchmark):
@@ -403,14 +430,16 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
         # declared complete opening, which the regression forbids.
         auto = regression_start_hits(regression, views, tolerance)
         if auto:
-            hard_failures.append(f"{regression['id']}_auto_selected")
+            mechanical_failures.append(f"{regression['id']}_auto_selected")
         interval_hits = regression_interval_hits(regression, views, tolerance)
         if interval_hits and regression.get("required_quality_flags"):
-            unevaluable(
-                f"{regression['id']}_required_quality_flags",
-                "missing_record",
-                "Agent v2 candidates record no quality flags",
-                candidate_ids=[value.candidate_id for value in interval_hits],
+            human_required.append(
+                {
+                    "check": f"{regression['id']}_required_quality_flags",
+                    "reason": "Agent v2 candidates record no quality flags",
+                    "candidate_ids": [value.candidate_id for value in interval_hits],
+                    "flags": list(regression["required_quality_flags"]),
+                }
             )
         regression_reports.append(
             {
@@ -420,32 +449,10 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
             }
         )
 
-    score_threshold = float(gates["score_strictly_greater_than"])
-    unevaluable(
-        "automatic_selection_score_gate",
-        "legacy_v1_decision_concept",
-        "Agent v2 has no automatic-selection decision to which score_strictly_greater_than applies",
-        final_candidates_not_above_threshold=sorted(
-            value.candidate_id for value in views if not value.score > score_threshold
-        ),
-    )
-    unevaluable(
-        "forbidden_quality_flags",
-        "missing_record",
-        "Agent v2 candidates record no quality flags; forbidden flags cannot be checked for "
-        "automatic selection or boundary qualification",
-    )
-
     risks = {
         str(anchor["id"]): assess_risk_anchor(anchor, views, routing_evaluable=False)
         for anchor in benchmark["risk_anchors"]
     }
-    unevaluable(
-        "risk_routing",
-        "legacy_v1_decision_concept",
-        "Agent v2 has no manual_review/blocked routing and no risk tags",
-        anchor_ids=sorted(risks),
-    )
     risk_matches = tuple(value.match for value in risks.values() if value.match is not None)
     required_risk_ids = {str(value) for value in acceptance["required_risk_anchor_ids"]}
     suppressed_risk_ids = sorted(
@@ -454,23 +461,23 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
         if key not in risks or not risks[key].discovered_candidate_ids
     )
     if suppressed_risk_ids:
-        hard_failures.append("risk_suppressed_during_discovery")
+        mechanical_failures.append("risk_suppressed_during_discovery")
     if not required_risk_ids <= {value.anchor_id for value in risk_matches}:
-        hard_failures.append("risk_discovery_without_evidence_cues")
+        mechanical_failures.append("risk_discovery_without_evidence_cues")
 
     if not audit["consistent"]:
-        hard_failures.append("untraceable_or_inconsistent_audit")
+        mechanical_failures.append("untraceable_or_inconsistent_audit")
     matched_long_ids = {value.anchor_id for value in long_matches}
     p0_ids = {str(value) for value in acceptance["required_p0_mini_lesson_ids"]}
     if not p0_ids <= matched_long_ids:
-        hard_failures.append("missing_any_p0_mini_lesson")
+        mechanical_failures.append("missing_any_p0_mini_lesson")
     if len(short_matches) < int(acceptance["short_min_hits"]):
-        hard_failures.append("short_recall_below_threshold")
+        mechanical_failures.append("short_recall_below_threshold")
     if len(long_matches) < int(acceptance["mini_lesson_min_hits"]):
-        hard_failures.append("mini_lesson_recall_below_threshold")
+        mechanical_failures.append("mini_lesson_recall_below_threshold")
 
-    # Components that cannot be proven mechanically score 0 (never fabricated).
-    points = benchmark["scoring"]["components"]
+    # Controller decision D1 (2026-10-20): raw 100-point scale, unchanged pass
+    # threshold; not-applicable components score 0 and are reported separately.
     executed_points = (
         float(points["both_profiles_executed"])
         * len(set(executed) & set(required_profiles))
@@ -486,7 +493,8 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
     )
 
     def qualified(match: Match) -> bool:
-        # Quality flags are not evaluable (listed above); exactness and padding are.
+        # Quality flags need human adjudication (listed above); exactness and
+        # padding are mechanical.
         return match.match_kind == "exact_boundary" and match.candidate_id not in padded_ids
 
     boundary, qualified_hits = boundary_score(
@@ -495,18 +503,24 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
         qualified=qualified,
     )
     audit_score = float(audit["score"])
-    score = round(executed_points + short_score + long_score + boundary + audit_score, 2)
-    if score < float(acceptance["pass_min_score"]):
-        hard_failures.append("score_below_pass_threshold")
-
-    status = technical_status(
-        invalid_evidence=[], hard_failures=hard_failures, not_evaluable=not_evaluable
+    raw_score = round(executed_points + short_score + long_score + boundary + audit_score, 2)
+    applicable_max_score = round(
+        float(benchmark["scoring"]["total_points"])
+        - sum(float(str(item.get("unscored_points", 0))) for item in not_applicable),
+        2,
     )
+    if raw_score < float(acceptance["pass_min_score"]):
+        mechanical_failures.append("score_below_pass_threshold")
+
+    status = technical_status(invalid_evidence=[], mechanical_failures=mechanical_failures)
     return {
         "benchmark_id": benchmark["benchmark_id"],
         "contract_mode": CONTRACT_MODE,
         "status": status,
-        "score": score,
+        "score": raw_score,
+        "raw_score": raw_score,
+        "applicable_max_score": applicable_max_score,
+        "pass_min_score": float(acceptance["pass_min_score"]),
         "components": {
             "both_profiles_executed": round(executed_points, 2),
             "short_recall": round(short_score, 2),
@@ -515,7 +529,6 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
             "risk_discovery_and_routing": 0.0,
             "audit_and_reproducibility": audit_score,
         },
-        "unscored_components": ["risk_discovery_and_routing"],
         "invalid_evidence": [],
         "short_hits": len(short_matches),
         "short_total": int(acceptance["short_total"]),
@@ -540,12 +553,12 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
         "required_p0": sorted(p0_ids),
         "matched_p0": sorted(p0_ids & matched_long_ids),
         "regressions": regression_reports,
-        "hard_failures": hard_failures,
-        "not_evaluable": not_evaluable,
-        "human_required": list(HUMAN_REQUIRED_ACTIVITIES),
+        "regression_findings": bad_start_findings(benchmark, views),
+        "mechanical_failures": mechanical_failures,
+        "not_applicable": not_applicable,
+        "human_required": human_required,
         "requested_profiles": requested,
         "executed_profiles": executed,
-        "executed_profiles_recorded": executed_record is not None,
         "audit": audit,
         "provider": result.provider,
         "model": result.model,
@@ -562,68 +575,91 @@ def _markdown(value: dict[str, Any]) -> str:
         f"- Contract: `{value['contract_mode']}`",
         f"- Status: **{value['status']}**",
     ]
+    human = bullet([str(item["check"]) for item in value["human_required"]])
     if value["status"] == STATUS_INVALID_EVIDENCE:
         lines += ["", "## Invalid evidence", "", bullet(list(value["invalid_evidence"]))]
+        lines += ["", "## Human required", "", human]
         return "\n".join(lines) + "\n"
     short_ids = ", ".join(item["anchor_id"] for item in value["short_matches"]) or "无"
     long_ids = ", ".join(item["anchor_id"] for item in value["mini_lesson_matches"]) or "无"
     risk_ids = ", ".join(item["anchor_id"] for item in value["risk_discovery_matches"]) or "无"
-    executed = ", ".join(value["executed_profiles"]) or "not recorded"
+    executed = ", ".join(value["executed_profiles"]) or "none"
     lines += [
-        f"- Mechanical score: **{value['score']} / 100** (unproven components score 0)",
+        f"- Raw score: **{value['raw_score']} / 100** "
+        f"(applicable maximum {value['applicable_max_score']}; PASS threshold "
+        f"{value['pass_min_score']})",
         f"- Short recall: {value['short_hits']}/{value['short_total']} ({short_ids})",
         "- Mini-lesson recall: "
         f"{value['mini_lesson_hits']}/{value['mini_lesson_total']} ({long_ids})",
-        f"- Risk anchors discovered with evidence (routing not evaluable): {risk_ids}",
-        f"- Executed Profiles: {executed}",
+        f"- Risk anchors discovered with evidence (routing not applicable): {risk_ids}",
+        f"- Executed Profiles (frozen Global Review): {executed}",
         "",
         "This is a technical/provisional report. It never reports a benchmark PASS: "
         "human editorial, audio and subtitle review remain pending.",
         "",
-        "## Mechanical hard failures",
+        "## Mechanical failures (block TECHNICAL_PASS_HUMAN_PENDING)",
         "",
-        bullet(list(value["hard_failures"])),
+        bullet(list(value["mechanical_failures"])),
         "",
-        "## Not evaluable (blocks TECHNICAL_PASS_HUMAN_PENDING)",
+        "## Not applicable to score-only Agent v2 (legacy-v1 concepts)",
         "",
-        bullet([f"{item['gate']} ({item['category']})" for item in value["not_evaluable"]]),
+        bullet([str(item["concept"]) for item in value["not_applicable"]]),
         "",
-        "## Human required",
+        "## Human required (pending; never a full PASS)",
         "",
-        bullet(list(value["human_required"])),
-        bullet(
-            [
-                f"manual adjudication {item['anchor_id']} <- {item['candidate_id']}"
-                for item in value["manual_adjudication_required"]
-            ]
-        )
-        if value["manual_adjudication_required"]
-        else "",
+        human,
     ]
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _publish_no_replace(output_dir: Path, report: dict[str, Any]) -> None:
-    """Publish both reports atomically into a new directory; never replace evidence."""
-
-    if output_dir.exists() or output_dir.is_symlink():
-        raise FileExistsError(f"output directory already exists: {output_dir}")
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.", dir=output_dir.parent))
+def _write_file_durably(directory: Path, name: str, content: str) -> None:
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{name}.", dir=directory)
     try:
-        (staging / "benchmark-result.json").write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        (staging / "benchmark-report.md").write_text(_markdown(report), encoding="utf-8")
-        if output_dir.exists() or output_dir.is_symlink():
-            raise FileExistsError(f"output directory already exists: {output_dir}")
-        os.rename(staging, output_dir)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, directory / name)
     except BaseException:
-        for child in staging.iterdir() if staging.exists() else ():
-            child.unlink()
-        if staging.exists():
-            staging.rmdir()
+        Path(temporary).unlink(missing_ok=True)
+        raise
+
+
+def _publish_no_replace(output_dir: Path, report: dict[str, Any]) -> None:
+    """Publish both reports into a newly claimed directory; never replace evidence.
+
+    ``os.mkdir`` claims the final path exclusively: it fails for any existing
+    entry (including an empty directory or a symlink), so prior evidence can
+    never be replaced and no rename-onto-empty-directory race exists.  Each file
+    is written to a temporary name, fsynced and moved into place with
+    ``os.replace`` inside the directory this call created.  Residual limitation:
+    the two files are published one after the other, so a concurrent reader can
+    briefly observe the new directory with only one report; on failure, files
+    written by this call and the directory are removed.
+    """
+
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    os.mkdir(output_dir)
+    written: list[Path] = []
+    try:
+        for name, content in (
+            (
+                "benchmark-result.json",
+                json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            ),
+            ("benchmark-report.md", _markdown(report)),
+        ):
+            _write_file_durably(output_dir, name, content)
+            written.append(output_dir / name)
+        directory_fd = os.open(output_dir, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except BaseException:
+        for path in written:
+            path.unlink(missing_ok=True)
+        output_dir.rmdir()
         raise
 
 

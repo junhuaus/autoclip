@@ -20,12 +20,12 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
 )
 
-# The shared evaluation-only gates live beside this script.  Resolve them the same
-# way whether this file runs directly or is imported as ``scripts.evaluate_benchmark``.
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.append(str(Path(__file__).resolve().parent))
+# Package import of the shared evaluation-only gates.  Only when this file is run
+# directly as a script (no package) is the repository root appended to sys.path.
+if not __package__:
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from benchmark_gates import (
+from scripts.benchmark_gates import (
     MINI_PROFILE,
     PROFILE_GOLD_SECTIONS,
     SHORT_PROFILE,
@@ -33,15 +33,16 @@ from benchmark_gates import (
     Match,
     assess_risk_anchor,
     auto_decision_regressions,
+    bad_start_findings,
     boundary_score,
     composite_overlaps,
     duration_violations,
+    manual_or_blocking_risk_tags,
     match_profile,
     padding_overlaps,
     regression_interval_hits,
     regression_start_hits,
     regression_tolerance,
-    tolerance_ms,
 )
 
 __all__ = ["Match", "evaluate"]
@@ -240,47 +241,43 @@ def evaluate(
         allowed = {str(value) for value in anchor.get("allowed_decisions", ())}
         return candidate.decision in match_decisions and candidate.decision in allowed
 
-    matchings = {
-        profile: match_profile(benchmark, profile, outputs, decision_allowed=decision_allowed)
-        for profile in PROFILE_GOLD_SECTIONS
-    }
-    short_matches = matchings[SHORT_PROFILE].matches
-    long_matches = matchings[MINI_PROFILE].matches
-    allowed_intervals = {
-        key: value for item in matchings.values() for key, value in item.allowed_intervals.items()
-    }
-    manual_adjudication = [
-        entry for item in matchings.values() for entry in item.manual_adjudication_required
-    ]
-    padding_excluded = [
-        entry for item in matchings.values() for entry in item.padding_excluded_hits
-    ]
-
     durations = duration_violations(benchmark, views)
     if durations:
         hard_failures.append("duration_out_of_profile_bounds")
 
-    padding: list[dict[str, object]] = []
-    for candidate in outputs:
-        padding.extend(
-            padding_overlaps(
-                benchmark,
-                candidate,
-                allowed=allowed_intervals.get(candidate.candidate_id),
-                tolerance=tolerance_ms(benchmark, candidate.profile),
-            )
-        )
+    # Controller decision D2 (2026-10-20): padding and forbidden composites are
+    # direct FAIL for every output decision in matching.match_decisions (MD 3.7,
+    # 7 and the 10 direct-FAIL list), not only for selected candidates.
+    padding = [entry for candidate in outputs for entry in padding_overlaps(benchmark, candidate)]
     padded_ids = {str(value["candidate_id"]) for value in padding}
-    if any(value["decision"] == CandidateDisposition.SELECTED.value for value in padding):
+    if padding:
         hard_failures.append("irrelevant_padding")
-
     composites = [
         entry for candidate in outputs for entry in composite_overlaps(benchmark, candidate)
     ]
-    if any(value["decision"] == CandidateDisposition.SELECTED.value for value in composites):
+    if composites:
         hard_failures.append("forbidden_composite_interval")
 
     forbidden_quality = {str(value) for value in gates["forbidden_quality_flags"]}
+
+    def clean(candidate: CandidateView) -> bool:
+        return (
+            not (candidate.quality_flags or set()) & forbidden_quality
+            and candidate.candidate_id not in padded_ids
+        )
+
+    matchings = {
+        profile: match_profile(
+            benchmark, profile, outputs, decision_allowed=decision_allowed, prefer=clean
+        )
+        for profile in PROFILE_GOLD_SECTIONS
+    }
+    short_matches = matchings[SHORT_PROFILE].matches
+    long_matches = matchings[MINI_PROFILE].matches
+    manual_adjudication = [
+        entry for item in matchings.values() for entry in item.manual_adjudication_required
+    ]
+
     automatic_quality_failures = [
         value.candidate_id
         for value in selected
@@ -294,6 +291,21 @@ def evaluate(
     ]
     if automatic_score_failures:
         hard_failures.append("automatic_score_not_above_threshold")
+    restricted_risks = (
+        manual_or_blocking_risk_tags(benchmark)
+        if gates.get("manual_or_blocking_risk_must_not_auto_select") is True
+        else frozenset()
+    )
+    automatic_risk_failures = [
+        {
+            "candidate_id": value.candidate_id,
+            "risk_tags": sorted((value.risk_tags or frozenset()) & restricted_risks),
+        }
+        for value in selected
+        if (value.risk_tags or frozenset()) & restricted_risks
+    ]
+    if automatic_risk_failures:
+        hard_failures.append("manual_or_blocking_risk_auto_selected")
 
     regression_reports: list[dict[str, Any]] = []
     for regression in auto_decision_regressions(benchmark):
@@ -365,12 +377,7 @@ def evaluate(
     views_by_id = {value.candidate_id: value for value in views}
 
     def qualified(match: Match) -> bool:
-        candidate = views_by_id[match.candidate_id]
-        return (
-            match.match_kind == "exact_boundary"
-            and not (candidate.quality_flags or set()) & forbidden_quality
-            and candidate.candidate_id not in padded_ids
-        )
+        return match.match_kind == "exact_boundary" and clean(views_by_id[match.candidate_id])
 
     all_hits = (*short_matches, *long_matches)
     boundary, qualified_hits = boundary_score(
@@ -394,6 +401,8 @@ def evaluate(
     if score < float(acceptance["pass_min_score"]):
         pass_blockers.append("score_below_pass_threshold")
 
+    # Controller decision D3 (2026-10-20): acceptance.conditional is applied
+    # literally, so 84 < score < 85, or score >= 85 with an unmet PASS gate, is FAIL.
     conditional = acceptance["conditional"]
     conditional_met = (
         (not conditional["requires_both_profiles"] or both_profiles)
@@ -413,6 +422,24 @@ def evaluate(
         status = STATUS_FAIL
 
     direct_fail_conditions = {str(value) for value in acceptance["direct_fail_conditions"]}
+    # Non-mechanical checks the evaluator cannot close; they never change the status.
+    human_required: list[dict[str, object]] = []
+    if gates.get("title_hook_summary_must_be_source_faithful") is True:
+        human_required.append(
+            {
+                "check": "title_hook_summary_must_be_source_faithful",
+                "candidate_ids": sorted(value.candidate_id for value in outputs),
+            }
+        )
+    if manual_adjudication:
+        human_required.append(
+            {
+                "check": "semantic_equivalence_manual_adjudication",
+                "candidate_ids": sorted(
+                    {str(item["candidate_id"]) for item in manual_adjudication}
+                ),
+            }
+        )
     return {
         "benchmark_id": benchmark["benchmark_id"],
         "status": status,
@@ -436,7 +463,6 @@ def evaluate(
         "mini_lesson_matches": [asdict(value) for value in long_matches],
         "manual_adjudication_required": manual_adjudication,
         "padding_findings": padding,
-        "padding_excluded_hits": padding_excluded,
         "forbidden_composite_findings": composites,
         "duration_violations": durations,
         "risk_matches": [asdict(value) for value in risk_matches],
@@ -454,7 +480,10 @@ def evaluate(
         "matched_p0": sorted(p0_ids & matched_long_ids),
         "automatic_quality_failures": automatic_quality_failures,
         "automatic_score_failures": automatic_score_failures,
+        "automatic_risk_failures": automatic_risk_failures,
         "regressions": regression_reports,
+        "regression_findings": bad_start_findings(benchmark, outputs),
+        "human_required": human_required,
         "hard_failures": hard_failures,
         "direct_fail_conditions_hit": sorted(set(hard_failures) & direct_fail_conditions),
         "pass_blockers": pass_blockers,
@@ -471,6 +500,7 @@ def _markdown(value: dict[str, Any]) -> str:
     risk_ids = ", ".join(item["anchor_id"] for item in value["risk_matches"]) or "无"
     failures = "\n".join(f"- `{item}`" for item in value["hard_failures"]) or "- 无"
     blockers = "\n".join(f"- `{item}`" for item in value["pass_blockers"]) or "- 无"
+    human = "\n".join(f"- `{item['check']}`" for item in value["human_required"]) or "- 无"
     manual = (
         "\n".join(
             f"- {item['anchor_id']} ← `{item['candidate_id']}` ({item['decision']}, "
@@ -495,7 +525,9 @@ def _markdown(value: dict[str, Any]) -> str:
         "## PASS blockers\n\n"
         f"{blockers}\n\n"
         "## Manual adjudication required (never counted as hits)\n\n"
-        f"{manual}\n"
+        f"{manual}\n\n"
+        "## Human required (does not change the status)\n\n"
+        f"{human}\n"
     )
 
 

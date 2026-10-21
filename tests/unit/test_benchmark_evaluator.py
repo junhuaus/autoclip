@@ -18,7 +18,7 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
     profile_statistics,
 )
-from scripts.benchmark_gates import duration_allowed
+from scripts.benchmark_gates import CandidateView, duration_allowed, match_profile
 from scripts.evaluate_benchmark import evaluate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,7 +89,8 @@ def _candidate(
         "risk_tags": tuple(DualRiskTag(value) for value in anchor.get("risk_tags", [])),
     }
     values.update(overrides)
-    return _custom(str(anchor["id"]).lower(), profile=profile, status=status, **values)
+    candidate_id = str(values.pop("candidate_id", str(anchor["id"]).lower()))
+    return _custom(candidate_id, profile=profile, status=status, **values)
 
 
 def _profile_result(profile: ClipProfile, buckets: Buckets) -> FinalProfileResult:
@@ -263,7 +264,7 @@ def test_selected_candidate_with_irrelevant_padding_fails() -> None:
     } == {("padded_selected", "N05")}
 
 
-def test_manual_review_candidate_padded_into_negative_anchor_is_not_a_hit() -> None:
+def test_manual_review_candidate_padded_into_negative_anchor_fails_and_is_not_a_hit() -> None:
     buckets = _passing_buckets()
     l02 = _anchor("L02")
     _remove(buckets[ClipProfile.MINI_LESSON], "l02")
@@ -282,7 +283,8 @@ def test_manual_review_candidate_padded_into_negative_anchor_is_not_a_hit() -> N
     assert [
         (value["candidate_id"], value["negative_anchor_id"]) for value in report["padding_findings"]
     ] == [("l02", "N06")]
-    assert "irrelevant_padding" not in report["hard_failures"]
+    # Controller decision D2: padding is a direct FAIL for manual_review outputs too.
+    assert "irrelevant_padding" in report["hard_failures"]
     assert report["status"] == "FAIL"
     [entry] = report["manual_adjudication_required"]
     assert entry["padding"][0]["negative_anchor_id"] == "N06"
@@ -312,11 +314,61 @@ def test_s08_hit_inside_n09_is_not_padding_but_other_n09_content_is() -> None:
     assert [
         (value["candidate_id"], value["negative_anchor_id"]) for value in report["padding_findings"]
     ] == [("n09_chaos", "N09")]
-    assert "irrelevant_padding" not in report["hard_failures"]
+    assert "irrelevant_padding" in report["hard_failures"]
+    assert report["status"] == "FAIL"
+
+
+def test_duplicate_s08_one_second_early_is_not_padding() -> None:
+    buckets = _passing_buckets()
+    s08 = _anchor("S08")
+    buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            s08,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            candidate_id="s08_early",
+            start_ms=int(s08["start_ms"]) - 1_000,
+        )
+    )
+    report = _evaluate(buckets)
+    # The duplicate loses the one-to-one assignment but keeps its exact-match allowance.
+    assert [
+        value["candidate_id"] for value in report["short_matches"] if value["anchor_id"] == "S08"
+    ] == ["s08"]
+    assert not report["padding_findings"]
     assert report["status"] == "PASS"
 
 
-def test_selected_mini_lesson_inside_forbidden_composite_fails() -> None:
+def test_clean_duplicate_is_preferred_over_flagged_duplicate() -> None:
+    buckets = _passing_buckets()
+    s01 = _anchor("S01")
+    _remove(buckets[ClipProfile.SHORT_HIGHLIGHT], "s01")
+    manual = buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.MANUAL_REVIEW]
+    manual.append(
+        _candidate(
+            s01,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            quality_flags=(DualQualityFlag.TOPIC_NOT_CLOSED,),
+        )
+    )
+    manual.append(
+        _candidate(
+            s01,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            candidate_id="s01_clean",
+            end_ms=int(s01["end_ms"]) + 1_000,
+        )
+    )
+    report = _evaluate(buckets)
+    s01_match = next(value for value in report["short_matches"] if value["anchor_id"] == "S01")
+    assert s01_match["candidate_id"] == "s01_clean"
+    assert report["qualified_boundary_hits"] == 14
+    assert report["status"] == "PASS"
+
+
+def test_mini_lesson_inside_forbidden_composite_fails_for_every_output_decision() -> None:
     first, second = BENCHMARK["forbidden_composite_intervals"]
     buckets = _passing_buckets()
     buckets[ClipProfile.MINI_LESSON][CandidateDisposition.SELECTED] = [
@@ -349,6 +401,25 @@ def test_selected_mini_lesson_inside_forbidden_composite_fails() -> None:
         for value in report["forbidden_composite_findings"]
     } == {("composite_selected", "selected"), ("composite_manual", "manual_review")}
     assert not report["padding_findings"]
+
+
+def test_manual_review_mini_lesson_inside_forbidden_composite_alone_fails() -> None:
+    second = BENCHMARK["forbidden_composite_intervals"][1]
+    buckets = _passing_buckets()
+    buckets[ClipProfile.MINI_LESSON][CandidateDisposition.MANUAL_REVIEW].append(
+        _custom(
+            "composite_manual",
+            profile=ClipProfile.MINI_LESSON,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            start_ms=int(second["start_ms"]) + 800,
+            end_ms=int(second["start_ms"]) + 150_800,
+            start_cue_id=423,
+            end_cue_id=480,
+        )
+    )
+    report = _evaluate(buckets)
+    assert report["hard_failures"] == ["forbidden_composite_interval"]
+    assert report["status"] == "FAIL"
 
 
 def test_short_clip_inside_forbidden_composite_is_allowed() -> None:
@@ -587,39 +658,54 @@ def test_risk_absent_from_every_bucket_is_suppressed_during_discovery() -> None:
     assert report["risk_suppressed_during_discovery"] == ["R02"]
 
 
-def test_selected_score_gate_is_enforced_from_benchmark_json() -> None:
-    def selected(score: float) -> dict[str, Any]:
-        result, manifest = _build(_passing_buckets())
-        short = result.profiles[ClipProfile.SHORT_HIGHLIGHT]
-        s01 = next(value for value in short.manual_review if value.candidate_id == "s01")
-        rest = tuple(value for value in short.manual_review if value is not s01)
-        # model_copy bypasses the production validator, proving the evaluator gate
-        # is enforced independently from the benchmark JSON.
-        bypassed = s01.model_copy(
-            update={"review_status": CandidateDisposition.SELECTED, "score": score}
-        )
-        stats = short.statistics.model_copy(update={"selected": 1, "manual_review": len(rest)})
-        altered = short.model_copy(
-            update={"selected": (bypassed,), "manual_review": rest, "statistics": stats}
-        )
-        profiles = {**result.profiles, ClipProfile.SHORT_HIGHLIGHT: altered}
-        manifest_profiles = {
-            **manifest.profiles,
-            ClipProfile.SHORT_HIGHLIGHT: ProfileManifestStats(**stats.model_dump()),
-        }
-        return evaluate(
-            BENCHMARK,
-            result.model_copy(update={"profiles": profiles}),
-            manifest.model_copy(update={"profiles": manifest_profiles}),
-        )
+def _evaluate_with_bypassed_selected_s01(**update: Any) -> dict[str, Any]:
+    """Move S01 to ``selected`` via model_copy, bypassing the production validator.
 
-    report = selected(75)
+    This proves each evaluator gate is enforced independently from the benchmark JSON.
+    """
+
+    result, manifest = _build(_passing_buckets())
+    short = result.profiles[ClipProfile.SHORT_HIGHLIGHT]
+    s01 = next(value for value in short.manual_review if value.candidate_id == "s01")
+    rest = tuple(value for value in short.manual_review if value is not s01)
+    bypassed = s01.model_copy(update={"review_status": CandidateDisposition.SELECTED, **update})
+    stats = short.statistics.model_copy(update={"selected": 1, "manual_review": len(rest)})
+    altered = short.model_copy(
+        update={"selected": (bypassed,), "manual_review": rest, "statistics": stats}
+    )
+    profiles = {**result.profiles, ClipProfile.SHORT_HIGHLIGHT: altered}
+    manifest_profiles = {
+        **manifest.profiles,
+        ClipProfile.SHORT_HIGHLIGHT: ProfileManifestStats(**stats.model_dump()),
+    }
+    return evaluate(
+        BENCHMARK,
+        result.model_copy(update={"profiles": profiles}),
+        manifest.model_copy(update={"profiles": manifest_profiles}),
+    )
+
+
+def test_selected_score_gate_is_enforced_from_benchmark_json() -> None:
+    report = _evaluate_with_bypassed_selected_s01(score=75)
     assert report["automatic_score_failures"] == ["s01"]
     assert "automatic_score_not_above_threshold" in report["hard_failures"]
     assert report["status"] == "FAIL"
-    report = selected(75.01)
+    report = _evaluate_with_bypassed_selected_s01(score=75.01)
     assert report["automatic_score_failures"] == []
     assert not report["hard_failures"]
+    assert report["status"] == "PASS"
+
+
+def test_selected_candidate_with_manual_only_risk_fails() -> None:
+    report = _evaluate_with_bypassed_selected_s01(risk_tags=(DualRiskTag.HEALTH_ADVICE,))
+    assert "manual_or_blocking_risk_auto_selected" in report["hard_failures"]
+    assert report["automatic_risk_failures"] == [
+        {"candidate_id": "s01", "risk_tags": ["health_advice"]}
+    ]
+    assert report["status"] == "FAIL"
+    # asr_uncertain is allowed on selectable anchors (S06/S07), so it is not manual-only.
+    report = _evaluate_with_bypassed_selected_s01(risk_tags=(DualRiskTag.ASR_UNCERTAIN,))
+    assert report["automatic_risk_failures"] == []
     assert report["status"] == "PASS"
 
 
@@ -640,3 +726,129 @@ def test_evaluator_duration_gate_follows_benchmark_profiles(
     profile: str, duration_ms: int, accepted: bool
 ) -> None:
     assert duration_allowed(BENCHMARK, profile, duration_ms) is accepted
+
+
+def _flag(buckets: Buckets, *candidate_ids: str) -> None:
+    manual = buckets[CandidateDisposition.MANUAL_REVIEW]
+    buckets[CandidateDisposition.MANUAL_REVIEW] = [
+        value.model_copy(update={"quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,)})
+        if value.candidate_id in candidate_ids
+        else value
+        for value in manual
+    ]
+
+
+def test_score_exactly_85_passes() -> None:
+    buckets = _passing_buckets()
+    _remove(buckets[ClipProfile.SHORT_HIGHLIGHT], "s01")
+    _remove(buckets[ClipProfile.MINI_LESSON], "l04")
+    _flag(buckets[ClipProfile.SHORT_HIGHLIGHT], "s02", "s03", "s04", "s05", "s06", "s07")
+    report = _evaluate(buckets)
+    # 15 + 20*7/8 + 30*5/6 + 15*6/12 + 10 + 10
+    assert report["score"] == 85.0
+    assert not report["hard_failures"]
+    assert not report["pass_blockers"]
+    assert report["status"] == "PASS"
+
+
+def test_score_between_84_and_85_fails_under_literal_conditional() -> None:
+    buckets = _passing_buckets()
+    _remove(buckets[ClipProfile.MINI_LESSON], "l04")
+    _flag(buckets[ClipProfile.SHORT_HIGHLIGHT], *(f"s0{index}" for index in range(1, 9)))
+    _flag(buckets[ClipProfile.MINI_LESSON], "l01")
+    report = _evaluate(buckets)
+    # 15 + 20 + 30*5/6 + 15*4/13 + 10 + 10 = 84.615...; no integer-count fixture
+    # yields 84.64 exactly, and any 84 < score < 85 is FAIL (Controller decision D3).
+    assert report["score"] == 84.62
+    assert report["pass_blockers"] == ["score_below_pass_threshold"]
+    assert report["conditional_criteria_met"] is False
+    assert report["status"] == "FAIL"
+
+
+def test_score_at_least_85_with_six_shorts_fails() -> None:
+    buckets = _passing_buckets()
+    _remove(buckets[ClipProfile.SHORT_HIGHLIGHT], "s01", "s02")
+    report = _evaluate(buckets)
+    assert report["score"] == 95
+    assert report["pass_blockers"] == ["short_recall_below_threshold"]
+    assert report["status"] == "FAIL"
+
+
+def test_matching_uses_augmenting_paths_not_greedy_assignment() -> None:
+    synthetic = {
+        "matching": {"short_boundary_tolerance_ms": 3_000, "long_boundary_tolerance_ms": 5_000},
+        "profiles": BENCHMARK["profiles"],
+        "gold_short": [
+            {"id": "A1", "start_ms": 100_000, "end_ms": 150_000, "cue_start": 10, "cue_end": 20},
+            {"id": "A2", "start_ms": 101_000, "end_ms": 151_000, "cue_start": 11, "cue_end": 21},
+        ],
+        "gold_mini_lesson": [],
+        "negative_anchors": [],
+    }
+    # c1 is the cheapest exact match for A1 and the only one for A2; c2 matches only A1.
+    # A greedy matcher gives A1 -> c1 and leaves A2 unmatched.
+    c1 = CandidateView("c1", "short_highlight", "manual_review", 100_000, 150_000, 10, 21, 90)
+    c2 = CandidateView("c2", "short_highlight", "manual_review", 97_500, 147_500, 9, 20, 90)
+    matching = match_profile(
+        synthetic, "short_highlight", (c1, c2), decision_allowed=lambda *_: True
+    )
+    assert {(value.anchor_id, value.candidate_id) for value in matching.matches} == {
+        ("A1", "c2"),
+        ("A2", "c1"),
+    }
+
+
+def test_risk_candidate_missing_anchor_risk_tags_is_not_matched() -> None:
+    buckets = _passing_buckets()
+    r01 = _anchor("R01")
+    _remove(buckets[ClipProfile.MINI_LESSON], "r01")
+    buckets[ClipProfile.MINI_LESSON][CandidateDisposition.BLOCKED].append(
+        _candidate(
+            r01,
+            profile=ClipProfile.MINI_LESSON,
+            status=CandidateDisposition.BLOCKED,
+            risk_tags=(DualRiskTag.MEDICAL_CLAIM,),
+        )
+    )
+    report = _evaluate(buckets)
+    [missing] = report["risk_findings"]["R01"]["missing_risk_tags"]
+    assert missing["candidate_id"] == "r01"
+    assert missing["missing_risk_tags"] == ["absolute_claim", "health_advice"]
+    assert "risk_suppressed_or_misrouted" in report["hard_failures"]
+    assert report["status"] == "FAIL"
+
+
+def test_human_required_lists_source_faithfulness_without_changing_status() -> None:
+    report = _evaluate(_passing_buckets())
+    checks = {value["check"] for value in report["human_required"]}
+    assert "title_hook_summary_must_be_source_faithful" in checks
+    assert report["status"] == "PASS"
+
+
+def test_rgr03_bad_opening_is_reported_as_finding_only() -> None:
+    rgr03 = next(value for value in BENCHMARK["regressions"] if value["id"] == "RGR-03")
+    buckets = _passing_buckets()
+    buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.MANUAL_REVIEW].append(
+        _custom(
+            "rgr03_short",
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            start_ms=int(rgr03["current_bad_start_ms"]),
+            end_ms=int(rgr03["current_bad_start_ms"]) + 46_000,
+            start_cue_id=975,
+            end_cue_id=991,
+        )
+    )
+    report = _evaluate(buckets)
+    assert report["regression_findings"] == [
+        {
+            "regression_id": "RGR-03",
+            "candidate_id": "rgr03_short",
+            "profile": "short_highlight",
+            "decision": "manual_review",
+            "start_delta_ms": 0,
+            "forbidden": False,
+        }
+    ]
+    assert not report["hard_failures"]
+    assert report["status"] == "PASS"
