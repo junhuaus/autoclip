@@ -607,6 +607,7 @@ def verify_bundle(
         and list(scope.iterdir()) == [root],
         "retained run directory",
     )
+    root_metadata = root.lstat()
     manifest = _json(manifests[0])
     _require(
         set(manifest)
@@ -996,6 +997,18 @@ def verify_bundle(
             _require("wrong delivery producer" in str(error), "wrong-producer rejection reason")
         else:
             raise ValueError("wrong existing producer attempt accepted")
+    # Fail closed if the scope or run directory was swapped while being read.
+    validate_report_scope(
+        repository_root, report_scope, folder=folder, expected_identity=report_scope_identity
+    )
+    current_root = root.lstat()
+    _require(
+        stat.S_ISDIR(current_root.st_mode)
+        and (current_root.st_dev, current_root.st_ino)
+        == (root_metadata.st_dev, root_metadata.st_ino)
+        and list(scope.iterdir()) == [root],
+        "retained run directory changed during verification",
+    )
     return {
         "status": "PASS",
         "report_scope": scope.name,

@@ -90,7 +90,15 @@ def allocate_report_scope(scenario: str) -> tuple[Path, tuple[int, int]]:
     try:
         name = secrets.token_hex(16)
         os.mkdir(name, mode=0o755, dir_fd=directory)
-        metadata = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        # Read the identity from a held handle, not by name, so a swap after
+        # mkdir cannot donate a different directory's identity.
+        scope_directory = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory
+        )
+        try:
+            metadata = os.fstat(scope_directory)
+        finally:
+            os.close(scope_directory)
     finally:
         os.close(directory)
     scope = _REPOSITORY_ROOT.joinpath(*_REPORT_PARENT, _REPORT_FOLDERS[scenario], name)

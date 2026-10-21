@@ -423,6 +423,82 @@ def test_browser_retention_refuses_symlink_report_parent(
     assert list(outside.iterdir()) == []
 
 
+@pytest.mark.parametrize("scenario", ["legacy", "completion"])
+def test_retention_refuses_report_parent_symlinked_after_allocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str
+) -> None:
+    monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    scope = _scope(scenario)
+    report = tmp_path / "apps/web/playwright-report"
+    moved = tmp_path / "moved-playwright-report"
+    report.rename(moved)
+    report.symlink_to(moved, target_is_directory=True)
+    # The scope path and identity still resolve, but only through the link.
+    assert scope["report_scope"].is_dir()
+    evidence = {"run_id": "a" * 32, "project_id": "d" * 32, "asset_count": 1}
+    with pytest.raises(OSError):
+        if scenario == "legacy":
+            _MODULE._retain_browser_packages(evidence, b"one", b"two", **scope)
+        else:
+            markers = {
+                name: (tmp_path / name, {})
+                for name in ("observer-closed.json", "waiting.json", "download.json")
+            }
+            _MODULE._retain_completion_package(
+                evidence,
+                b"zip",
+                project_root=tmp_path / "project",
+                assets=[{"id": "e" * 32}],
+                durable={"assets": []},
+                markers=markers,
+                **scope,
+            )
+    folder = moved / scope["report_scope"].parent.name
+    assert list((folder / scope["report_scope"].name).iterdir()) == []
+
+
+def test_report_scope_identity_comes_from_the_created_directory_handle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    folder = tmp_path / "apps/web/playwright-report/browser-packages"
+    real_open = os.open
+    swapped: list[Path] = []
+
+    def swapping_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        descriptor = real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
+        if isinstance(path, str) and re.fullmatch(r"[a-f0-9]{32}", path) and not swapped:
+            # Replace the new scope by name right after it was opened.
+            (folder / path).rename(folder / f".{path}.original")
+            (folder / path).mkdir()
+            swapped.append(folder / path)
+        return descriptor
+
+    monkeypatch.setattr(_MODULE.os, "open", swapping_open)
+    scope, identity = allocate_report_scope("legacy")
+    monkeypatch.setattr(_MODULE.os, "open", real_open)
+    assert swapped == [scope]
+    original = os.stat(folder / f".{scope.name}.original", follow_symlinks=False)
+    replacement = os.stat(scope, follow_symlinks=False)
+    assert (
+        identity
+        == (original.st_dev, original.st_ino)
+        != (
+            replacement.st_dev,
+            replacement.st_ino,
+        )
+    )
+    with pytest.raises(ValueError, match="allocated by this run"):
+        _MODULE._retain_browser_packages(
+            {"run_id": "a" * 32},
+            b"one",
+            b"two",
+            report_scope=scope,
+            report_scope_identity=identity,
+        )
+    assert list(scope.iterdir()) == []
+
+
 def test_incomplete_browser_retention_never_publishes_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

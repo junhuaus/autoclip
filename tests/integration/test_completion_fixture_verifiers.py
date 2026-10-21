@@ -774,3 +774,37 @@ def test_retained_verifier_rejects_foreign_traversal_and_symlinked_scopes(
         report_root.unlink()
         real_root.rename(report_root)
     assert _verified_bundle(sample)["status"] == "PASS"
+
+
+@pytest.mark.parametrize("swap", ["scope", "run"])
+def test_retained_verifier_rejects_scope_swapped_after_initial_check(
+    completion_sample: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    swap: str,
+) -> None:
+    sample = completion_sample
+    scope = sample["scope"]
+    folder = _retained_sample(sample)
+    assert _verified_bundle(sample)["status"] == "PASS"
+    original = _RETAINED.prove_lineage_rejections
+    target = scope if swap == "scope" else folder
+    aside = target.with_name(f".{target.name}.aside")
+
+    def swap_then_prove(*args: object, **kwargs: object) -> None:
+        # Runs after the scope was validated and every retained byte was read.
+        target.rename(aside)
+        shutil.copytree(aside, target)
+        original(*args, **kwargs)
+
+    monkeypatch.setattr(_RETAINED, "prove_lineage_rejections", swap_then_prove)
+    message = (
+        "retained report scope identity"
+        if swap == "scope"
+        else "retained run directory changed during verification"
+    )
+    with pytest.raises(ValueError, match=message):
+        _verified_bundle(sample)
+    monkeypatch.setattr(_RETAINED, "prove_lineage_rejections", original)
+    shutil.rmtree(target)
+    aside.rename(target)
+    assert _verified_bundle(sample)["status"] == "PASS"
