@@ -1,5 +1,29 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 1 benchmark evaluator strictness (2026-10-20)
+
+### Progress
+
+- [x] 2026-10-20 On branch `claude/liveclip-stage1-evaluator` (base
+  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`), close product-code acceptance
+  gap 2 under "Product-code acceptance gaps" (Context and Orientation):
+  `scripts/evaluate_agent_benchmark.py` no longer emits a plain `PASS`. It
+  emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+  `INVALID_EVIDENCE`; a source-hash mismatch or malformed evidence is
+  `INVALID_EVIDENCE`; it separates mechanical hard failures, `not_evaluable`
+  gates (which block the technical pass) and `human_required` activities; it
+  derives executed Profiles only from an explicit record; and its CLI requires
+  a new `--output-dir`, refuses an existing one and publishes both reports by
+  one directory rename. The shared v1 gates (manual-only semantic
+  equivalence, one-to-one matching, padding, composites, RGR-02, duration,
+  risk discovery with evidence cues) apply where the Agent result carries the
+  data. Because the current Agent v2 result records no executed-Profile list,
+  decision buckets, quality flags or risk tags, a real Agent v2 result
+  currently evaluates to `TECHNICAL_FAIL` with those gates `not_evaluable`.
+  Evidence is fixture/unit-test only; the completed full-transcript run was
+  not re-evaluated and no model inference occurred. Earlier sections are
+  unchanged history.
+
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 
 The operator clarified the repository boundary after the Agent v2 publication:

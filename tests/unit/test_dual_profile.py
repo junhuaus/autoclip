@@ -15,6 +15,7 @@ from liveclip.pipeline.dual_profile import (
     DualProfileFinalResult,
     DualQualityFlag,
     DualRiskTag,
+    FinalProfileCandidate,
     FinalProfileResult,
     GlobalReviewItem,
     ProfileBoundaryReviewOutput,
@@ -141,6 +142,73 @@ def test_duration_boundaries_assign_exactly_ninety_seconds_to_short() -> None:
     assert mini.accepts(90_001)
     assert mini.accepts(300_000)
     assert not mini.accepts(300_001)
+
+
+def _final_candidate(
+    *,
+    profile: ClipProfile,
+    duration_ms: int,
+    score: float = 90,
+    status: CandidateDisposition = CandidateDisposition.SELECTED,
+) -> FinalProfileCandidate:
+    return FinalProfileCandidate(
+        candidate_id="boundary_candidate",
+        profile=profile,
+        source_candidate_ids=("boundary_candidate",),
+        source_window_ids=("boundary_window",),
+        start_cue_id=1,
+        end_cue_id=2,
+        start_ms=1_000,
+        end_ms=1_000 + duration_ms,
+        duration_ms=duration_ms,
+        title="边界候选",
+        hook="边界钩子",
+        summary="边界摘要。",
+        score=score,
+        review_status=status,
+        evidence_cue_ids=(1,),
+        review_reason="Schema boundary fixture.",
+    )
+
+
+@pytest.mark.parametrize(
+    ("profile", "duration_ms", "accepted"),
+    [
+        (ClipProfile.SHORT_HIGHLIGHT, 44_999, False),
+        (ClipProfile.SHORT_HIGHLIGHT, 45_000, True),
+        (ClipProfile.SHORT_HIGHLIGHT, 90_000, True),
+        (ClipProfile.SHORT_HIGHLIGHT, 90_001, False),
+        (ClipProfile.MINI_LESSON, 90_000, False),
+        (ClipProfile.MINI_LESSON, 90_001, True),
+        (ClipProfile.MINI_LESSON, 300_000, True),
+        (ClipProfile.MINI_LESSON, 300_001, False),
+    ],
+)
+def test_final_candidate_schema_enforces_exact_profile_duration_bounds(
+    profile: ClipProfile, duration_ms: int, accepted: bool
+) -> None:
+    assert PROFILE_DURATION_CONTRACTS[profile].accepts(duration_ms) is accepted
+    if accepted:
+        assert _final_candidate(profile=profile, duration_ms=duration_ms).duration_ms == duration_ms
+    else:
+        with pytest.raises(ValueError, match="Profile duration"):
+            _final_candidate(profile=profile, duration_ms=duration_ms)
+
+
+def test_selected_candidate_score_must_be_strictly_above_seventy_five() -> None:
+    with pytest.raises(ValueError, match="deterministic quality/risk gates"):
+        _final_candidate(profile=ClipProfile.SHORT_HIGHLIGHT, duration_ms=60_000, score=75)
+    assert (
+        _final_candidate(profile=ClipProfile.SHORT_HIGHLIGHT, duration_ms=60_000, score=75.01).score
+        == 75.01
+    )
+    manual = _final_candidate(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        duration_ms=60_000,
+        score=75,
+        status=CandidateDisposition.MANUAL_REVIEW,
+    )
+    assert manual.review_status == CandidateDisposition.MANUAL_REVIEW
 
 
 def test_boundary_review_cannot_trim_discovery_health_risk_evidence() -> None:

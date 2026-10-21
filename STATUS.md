@@ -1,5 +1,55 @@
 # LiveClip status
 
+## Stage 1 benchmark evaluator strictness (2026-10-20)
+
+- Branch `claude/liveclip-stage1-evaluator`, based on
+  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`
+  (`wip/controller-checkpoint-20261020`). Local only: not pushed or merged.
+- Changed: `scripts/evaluate_benchmark.py` and
+  `scripts/evaluate_agent_benchmark.py` now share the evaluation-only module
+  `scripts/benchmark_gates.py`, whose rules all come from
+  `liveclip_dual_profile_benchmark_v1.json` (unchanged, as is the `.md`).
+  - v1 evaluator: it adds a hard failure on source-hash mismatch.
+    Semantic equivalence is manual-only, so semantic-only candidates are
+    listed in `manual_adjudication_required` and never counted.
+  - v1 matching is one-to-one exact-boundary. Negative-anchor padding (with
+    the matched-anchor allowance, which honors the N09/S08 exception) fails
+    `selected` candidates and is listed for `manual_review`.
+  - A `selected` `mini_lesson` in a forbidden composite fails. RGR-02 fails
+    any `selected` candidate opening at its start, regardless of end, and
+    any candidate on its interval that lacks the required flags.
+  - The v1 status is `PASS`, `CONDITIONAL` or `FAIL`, following
+    `acceptance.conditional`. The boundary score is
+    `15 x qualified_hits / hits`, and 0 without hits.
+  - The audit score is computed as five 2-point items. Risk matches require
+    evidence cues inside the anchor and correct routing.
+  - The Agent v2 evaluator emits only `TECHNICAL_PASS_HUMAN_PENDING`,
+    `TECHNICAL_FAIL` or `INVALID_EVIDENCE`. A source-hash mismatch gives
+    `INVALID_EVIDENCE`.
+  - Agent v2 gates the model cannot evaluate are `not_evaluable` and block
+    the technical pass: executed Profiles (no explicit record), decision
+    buckets, the score>75 gate, quality flags and risk routing. Its CLI now
+    refuses an existing `--output-dir`.
+- Validation run by the coder:
+  - `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1 make lint`
+    exits 0.
+  - Targeted pytest exits 0, with 68 passed across
+    `tests/unit/test_benchmark_evaluator.py`,
+    `tests/unit/test_agent_benchmark_evaluator.py` and
+    `tests/unit/test_dual_profile.py`.
+- Unverified:
+  - The full `make test` is pending the tester.
+  - No real evidence was re-scored. The retained cold-18 PASS 90.36 came from
+    the earlier, looser evaluator; it has not been re-scored under the strict
+    evaluator and must not be cited as a strict PASS. Re-scoring needs
+    operator authority because the evidence is outside this worktree.
+  - No model inference, rendering or human review was performed.
+- The frozen `tools/loop_engineering/m3s_v40/v44/v45_source_freeze.py` list
+  `scripts/evaluate_agent_benchmark.py` as a path. They were left
+  byte-identical as historical records.
+- Next: the tester runs `make lint` and `make test`, and the reviewer checks
+  the same commit SHA. Iterate until there are zero P0/P1 findings.
+
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 
 - `/input`, `data/models`, `data/evaluations`, and `data/deliveries` are all

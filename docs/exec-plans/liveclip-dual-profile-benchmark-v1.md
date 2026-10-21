@@ -53,6 +53,7 @@ imported by production modules.
 - [x] 2026-09-24 Run a fresh-cache full real-transcript dual-profile benchmark with saved-login Codex.
 - [x] 2026-09-24 Render and inspect all 12 benchmark-matched short/long media candidates.
 - [x] 2026-09-24 Update this plan and `STATUS.md` with exact results and the remaining unrelated test blocker.
+- [x] 2026-10-20 Stage 1: make `scripts/evaluate_benchmark.py` and `scripts/evaluate_agent_benchmark.py` enforce the benchmark JSON/MD as written (source hash, manual-only semantic equivalence, negative-anchor padding, forbidden composites, RGR-02 opening/flags, `CONDITIONAL`, qualified boundary score, computed audit score, risk evidence cues, one-to-one matching, Agent v2 technical statuses). Fixture tests only; no real re-score.
 
 ## Work breakdown
 
@@ -131,6 +132,23 @@ two deterministic report files.
 - 2026-09-24: `dual-profile-render` must resolve the configured data directory
   to an absolute forbidden root before source validation, matching the main
   pipeline security boundary.
+- 2026-10-20 (supersedes the 2026-09-18 semantic-equivalence decision above,
+  which is retained as history): the benchmark allows semantic equivalence only
+  by manual adjudication (JSON
+  `matching.semantic_equivalence_manual_adjudication_allowed`, MD section 9
+  rule 4). The evaluators therefore count only exact-boundary hits (both edges
+  within the Profile tolerance with full gold cue coverage, a matched decision
+  and a legal duration), one-to-one per Profile. A candidate meeting only the
+  former 90% cue/time rule is reported in `manual_adjudication_required` and is
+  never counted; no input converts it into a hit. All other new gates
+  (negative-anchor padding with the matched-anchor allowance, forbidden
+  composite intervals for `mini_lesson`, RGR-02 opening/flag checks,
+  `CONDITIONAL`, the qualified boundary fraction, the five computed audit
+  items and risk evidence cues) are derived from benchmark JSON fields in the
+  shared evaluation-only module `scripts/benchmark_gates.py`. The Agent v2
+  evaluator emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+  `INVALID_EVIDENCE`, and any gate its result model cannot evaluate is listed
+  as `not_evaluable` and blocks the technical pass.
 
 ## Risks and mitigations
 
@@ -144,9 +162,21 @@ be overwritten.
 
 ## Recovery Notes
 
-Final recovery point: fresh-cache run
-`data/evaluations/dual-profile-benchmark-20260924-final-cold-18` is the current
-real acceptance evidence. The evaluator reports PASS 90.36 with short 7/8,
+2026-10-20 Stage 1 evaluator strictness: the evaluators now enforce the
+benchmark as written (see the 2026-10-20 decision). The retained cold-18
+result below was scored by the earlier, looser evaluator, which counted
+automatic semantic-equivalence hits and did not check negative anchors,
+forbidden composites, the extended RGR-02 opening, RGR-02 required flags, the
+source hash, risk evidence cues or computed audit items. It has **not** been
+re-scored under the strict evaluator: its evidence lives outside this
+worktree and re-scoring requires explicit operator authority. The cold-18
+PASS 90.36 must therefore not be cited as a strict-evaluator PASS. Stage 1
+evidence is fixture/unit-test only; no real model inference, rendering or
+human review was performed.
+
+Historical recovery point (loose evaluator): fresh-cache run
+`data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the
+real acceptance evidence. The earlier evaluator reported PASS 90.36 with short 7/8,
 mini 5/6, L01/L02/L03 all present, R01/R02 routed, zero automatic hard-quality
 failures, both Profiles executed and `cache_hits=0`. Its 228 real calls took
 about 4,409 seconds wall time and recorded 6,645,600 input tokens, 626,578
