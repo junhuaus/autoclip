@@ -58,21 +58,57 @@ class NegativeAnchorPolicy:
 
     anchor_id: str
     reason: str
+    start_ms: int
+    end_ms: int
     md_section_7_row: str
     hard_fail_decisions: frozenset[str]
     clean_subinterval_anchor: str | None = None
 
 
 # The table binds to this benchmark only; ``negative_anchor_policies`` checks
-# the ID, every anchor ``reason`` and any clean sub-interval anchor before use.
+# the ID, every anchor ``reason`` and interval, and any clean sub-interval
+# anchor before use.
 NEGATIVE_POLICY_BENCHMARK_ID: Final = "liveclip-dual-profile-transcript-v1"
+# MD section 7 interval of each row (HH:MM:SS.mmm converted to milliseconds).
+_MD_SECTION_7_INTERVALS: Final[Mapping[str, tuple[int, int]]] = {
+    "N01": (0, 530_000),  # 00:00:00.000-00:08:50.000
+    "N02": (700_260, 715_620),  # 00:11:40.260-00:11:55.620
+    "N03": (772_960, 805_000),  # 00:12:52.960-00:13:25.000
+    "N04": (950_280, 993_980),  # 00:15:50.280-00:16:33.980
+    "N05": (1_425_760, 1_548_080),  # 00:23:45.760-00:25:48.080
+    "N06": (1_742_560, 1_889_160),  # 00:29:02.560-00:31:29.160
+    "N07": (2_284_100, 2_404_200),  # 00:38:04.100-00:40:04.200
+    "N08": (2_984_180, 3_916_960),  # 00:49:44.180-01:05:16.960
+    "N09": (5_226_540, 5_423_560),  # 01:27:06.540-01:30:23.560
+    "N10": (5_481_300, 5_571_800),  # 01:31:21.300-01:32:51.800
+    "N11": (6_604_880, 6_630_860),  # 01:50:04.880-01:50:30.860
+}
+
+
+def _policy(
+    anchor_id: str,
+    reason: str,
+    row: str,
+    hard_fail_decisions: frozenset[str],
+    clean_subinterval_anchor: str | None = None,
+) -> NegativeAnchorPolicy:
+    start_ms, end_ms = _MD_SECTION_7_INTERVALS[anchor_id]
+    return NegativeAnchorPolicy(
+        anchor_id,
+        reason,
+        start_ms,
+        end_ms,
+        row,
+        hard_fail_decisions,
+        clean_subinterval_anchor,
+    )
 
 
 def _default_policy(anchor_id: str, reason: str, row: str) -> NegativeAnchorPolicy:
     # Controller interpretation pending operator confirmation: "禁止作为成片"
     # together with confirmed D2 makes every output on these anchors a FAIL,
     # whether it was selected or routed to manual review.
-    return NegativeAnchorPolicy(anchor_id, reason, row, ALL_OUTPUT_DECISIONS)
+    return _policy(anchor_id, reason, row, ALL_OUTPUT_DECISIONS)
 
 
 NEGATIVE_ANCHOR_POLICIES: Final[Mapping[str, NegativeAnchorPolicy]] = {
@@ -115,7 +151,7 @@ NEGATIVE_ANCHOR_POLICIES: Final[Mapping[str, NegativeAnchorPolicy]] = {
         ),
         # "不得自动作为教学片": only an automatic output is forbidden; a
         # manual_review output is a finding for the human reviewer.
-        NegativeAnchorPolicy(
+        _policy(
             "N08",
             "extended_sales_pricing_scheduling_and_credentials",
             "MD §7 line 100 (N08): 大段价格、课程销售、排期与资历说明 / 不得自动作为教学片",
@@ -123,7 +159,7 @@ NEGATIVE_ANCHOR_POLICIES: Final[Mapping[str, NegativeAnchorPolicy]] = {
         ),
         # "只允许抽取 S08 的干净子区间": everything else on N09 fails for every
         # output decision; the S08 exception is its exact-match padding allowance.
-        NegativeAnchorPolicy(
+        _policy(
             "N09",
             "device_network_and_phone_playback_chaos_with_S08_exception",
             "MD §7 line 101 (N09): 设备、网络和手机播放混乱 / 只允许抽取 S08 的干净子区间",
@@ -154,8 +190,9 @@ def negative_anchor_policies(benchmark: Mapping[str, Any]) -> ResolvedNegativePo
     """Bind the MD section 7 table to the loaded benchmark, failing closed.
 
     Each negative anchor uses its table entry only when the benchmark ID, the
-    anchor ``reason`` and (for N09) the clean sub-interval gold anchor lying
-    inside the negative interval all match.  Any mismatch, or an anchor with no
+    anchor ``reason``, its ``start_ms``/``end_ms`` (the MD section 7 interval)
+    and (for N09) the clean sub-interval gold anchor lying inside the negative
+    interval all match.  Any mismatch, or an anchor with no
     entry, gets the strictest policy: a FAIL for every output decision.  This
     can only tighten the result, so the evaluator stays usable on a mismatched
     benchmark while every relaxation is withheld; the mismatches are reported.
@@ -180,6 +217,8 @@ def negative_anchor_policies(benchmark: Mapping[str, Any]) -> ResolvedNegativePo
             problem = "no_policy_entry"
         elif entry.reason != reason:
             problem = "reason"
+        elif (entry.start_ms, entry.end_ms) != (int(anchor["start_ms"]), int(anchor["end_ms"])):
+            problem = "interval"
         elif entry.clean_subinterval_anchor is not None:
             gold = golds.get(entry.clean_subinterval_anchor)
             if gold is None or not (
@@ -192,7 +231,12 @@ def negative_anchor_policies(benchmark: Mapping[str, Any]) -> ResolvedNegativePo
         else:
             mismatches.append({"negative_anchor_id": anchor_id, "mismatch": str(problem)})
             resolved[anchor_id] = NegativeAnchorPolicy(
-                anchor_id, reason, "strictest default (policy table mismatch)", ALL_OUTPUT_DECISIONS
+                anchor_id,
+                reason,
+                int(anchor["start_ms"]),
+                int(anchor["end_ms"]),
+                "strictest default (policy table mismatch)",
+                ALL_OUTPUT_DECISIONS,
             )
     return ResolvedNegativePolicies(policies=resolved, mismatches=tuple(mismatches))
 
@@ -437,16 +481,28 @@ def negative_anchor_outputs(
 ) -> list[dict[str, object]]:
     """Operator decision B (2026-10-21): an output lying only on negative content.
 
-    A candidate is negative-only when it overlaps a negative anchor by more than
-    its Profile tolerance (the same threshold as padding), has no time overlap
-    with any gold or supplemental anchor of either Profile, and has neither an
-    exact nor a semantic match.  Each overlapped anchor yields one finding whose
-    ``hard_failure`` follows that anchor's MD section 7 policy.  Such candidates
-    are not padding, so no nearest-gold diagnostic is reported for them.
-    Any other candidate returns no finding here and goes to ``padding_overlaps``.
+    A candidate is negative-only when it is entirely negative: the part of it
+    not covered by the union of negative-anchor intervals is at most its Profile
+    tolerance.  It must also have no time overlap with any gold or supplemental
+    anchor of either Profile, and neither an exact nor a semantic match.  Each
+    negative anchor it overlaps by more than the tolerance (the padding
+    threshold) yields one finding whose ``hard_failure`` follows that anchor's
+    MD section 7 policy; no nearest-gold diagnostic is reported.
+
+    Anything else, including un-anchored content or risk-anchor content mixed
+    with a negative interval, is not "negative-only" and returns no finding
+    here, so ``padding_overlaps`` judges its negative overlap as padding.  Risk
+    anchors need no special case: their content is not covered by a negative
+    interval, so beyond the tolerance it counts toward the uncovered remainder.
     """
 
     tolerance = tolerance_ms(benchmark, candidate.profile)
+    negative_intervals = tuple(
+        (int(value["start_ms"]), int(value["end_ms"])) for value in benchmark["negative_anchors"]
+    )
+    duration = candidate.end_ms - candidate.start_ms
+    if duration - _covered_ms(candidate.start_ms, candidate.end_ms, negative_intervals) > tolerance:
+        return []
     for section in PADDING_ALLOWANCE_SECTIONS:
         for anchor in benchmark.get(section, ()):
             if overlap_ms(

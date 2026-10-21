@@ -1121,6 +1121,7 @@ def test_policy_table_matches_every_benchmark_negative_anchor() -> None:
     ("mutation", "mismatch"),
     [
         ("reason", "reason"),
+        ("interval", "interval"),
         ("benchmark_id", "benchmark_id"),
         ("s08_outside_n09", "clean_subinterval_anchor"),
         ("unknown_anchor", "no_policy_entry"),
@@ -1132,6 +1133,8 @@ def test_policy_table_mismatch_fails_closed(mutation: str, mismatch: str) -> Non
     target = "N08"
     if mutation == "reason":
         n08["reason"] = "edited_reason"
+    elif mutation == "interval":
+        n08["start_ms"] = int(n08["start_ms"]) + 1
     elif mutation == "benchmark_id":
         benchmark["benchmark_id"] = "another-benchmark"
     elif mutation == "s08_outside_n09":
@@ -1147,7 +1150,7 @@ def test_policy_table_mismatch_fails_closed(mutation: str, mismatch: str) -> Non
     assert {"negative_anchor_id": target, "mismatch": mismatch} in resolved.mismatches
     # The strictest policy: every output decision is a hard failure.
     assert resolved.policies[target].hard_fail_decisions >= {"selected", "manual_review"}
-    if mutation in {"reason", "benchmark_id"}:
+    if mutation in {"reason", "interval", "benchmark_id"}:
         buckets = _passing_buckets()
         candidate = _negative_only("N08", CandidateDisposition.MANUAL_REVIEW)
         buckets[ClipProfile.MINI_LESSON][CandidateDisposition.MANUAL_REVIEW].append(candidate)
@@ -1157,3 +1160,89 @@ def test_policy_table_mismatch_fails_closed(mutation: str, mismatch: str) -> Non
         assert finding["hard_failure"] is True
         assert "negative_anchor_output" in report["hard_failures"]
         assert report["negative_anchor_policy_mismatches"]
+
+
+# Reviewer P1 (Stage 4 round 2): only an entirely negative candidate is negative-only.
+def _probe(
+    candidate_id: str,
+    start_ms: int,
+    end_ms: int,
+    *,
+    profile: ClipProfile = ClipProfile.MINI_LESSON,
+) -> FinalProfileCandidate:
+    return _custom(
+        candidate_id,
+        profile=profile,
+        status=CandidateDisposition.MANUAL_REVIEW,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        start_cue_id=5000,
+        end_cue_id=5020,
+    )
+
+
+@pytest.mark.parametrize(
+    ("candidate_id", "start_ms", "end_ms", "negative_overlap_ms"),
+    [
+        # 83.5 s of un-anchored content after O01 (which ends exactly at the
+        # start) plus 35.8 s of N08 sales content.
+        ("unanchored_plus_n08", 2_900_640, 3_020_000, 35_820),
+        # R01 risk content mixed with N08: risk anchors are not negative, so the
+        # uncovered remainder far exceeds the tolerance.
+        ("r01_plus_n08", 3_850_000, 3_990_000, 66_960),
+    ],
+)
+def test_mixed_n08_manual_review_output_is_irrelevant_padding(
+    candidate_id: str, start_ms: int, end_ms: int, negative_overlap_ms: int
+) -> None:
+    if candidate_id == "r01_plus_n08":
+        r01 = _anchor("R01")
+        assert int(r01["start_ms"]) < end_ms and start_ms < int(_anchor("N08")["end_ms"])
+    report = _with(_probe(candidate_id, start_ms, end_ms))
+    assert report["negative_anchor_output_findings"] == []
+    [finding] = report["padding_findings"]
+    assert (finding["candidate_id"], finding["negative_anchor_id"]) == (candidate_id, "N08")
+    assert finding["outside_allowed_overlap_ms"] == negative_overlap_ms
+    assert "irrelevant_padding" in report["hard_failures"]
+    assert "negative_anchor_output_manual_review" not in {
+        value["check"] for value in report["human_required"]
+    }
+    assert report["status"] == "FAIL"
+
+
+@pytest.mark.parametrize(("uncovered_ms", "negative_only"), [(3_000, True), (3_001, False)])
+def test_uncovered_remainder_tolerance_decides_negative_only(
+    uncovered_ms: int, negative_only: bool
+) -> None:
+    n05 = _anchor("N05")
+    start = int(n05["start_ms"]) - uncovered_ms
+    report = _with(_probe("edge", start, start + 60_000, profile=ClipProfile.SHORT_HIGHLIGHT))
+    if negative_only:
+        [finding] = report["negative_anchor_output_findings"]
+        assert (finding["negative_anchor_id"], finding["hard_failure"]) == ("N05", True)
+        assert report["padding_findings"] == []
+        assert "negative_anchor_output" in report["hard_failures"]
+    else:
+        assert report["negative_anchor_output_findings"] == []
+        [finding] = report["padding_findings"]
+        assert finding["negative_anchor_id"] == "N05"
+        assert "irrelevant_padding" in report["hard_failures"]
+        assert "negative_anchor_output" not in report["hard_failures"]
+
+
+@pytest.mark.parametrize(("overlap", "finding"), [(3_000, False), (3_001, True)])
+def test_negative_overlap_tolerance_decides_a_finding(overlap: int, finding: bool) -> None:
+    n05 = _anchor("N05")
+    # Mostly un-anchored content after N05, before S04.
+    start = int(n05["end_ms"]) - overlap
+    report = _with(_probe("tail", start, start + 60_000, profile=ClipProfile.SHORT_HIGHLIGHT))
+    assert report["negative_anchor_output_findings"] == []
+    findings = report["padding_findings"]
+    if finding:
+        assert [
+            (value["negative_anchor_id"], value["outside_allowed_overlap_ms"]) for value in findings
+        ] == [("N05", overlap)]
+        assert "irrelevant_padding" in report["hard_failures"]
+    else:
+        assert findings == []
+        assert report["status"] == "PASS"

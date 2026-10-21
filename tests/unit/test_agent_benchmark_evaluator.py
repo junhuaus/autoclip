@@ -608,6 +608,46 @@ def test_agent_policy_table_mismatch_is_reported_and_strict() -> None:
     assert report["negative_anchor_policy_mismatches"] == [
         {"negative_anchor_id": "N08", "mismatch": "reason"}
     ]
+    # An Agent ``final`` candidate is an automatic output, so N08's own policy
+    # already hard-fails it: the strictest fallback cannot change hard_failure
+    # here. What differs is the policy actually applied, which is reported.
     [finding] = report["negative_anchor_output_findings"]
-    assert finding["hard_failure"] is True
-    assert "negative_anchor_output" in report["mechanical_failures"]
+    assert finding["policy"] == "strictest default (policy table mismatch)"
+    unmodified = evaluate_agent(
+        BENCHMARK,
+        _result(extra=(_agent_negative_only("N08", profile="mini_lesson", offset_ms=60_000),)),
+    )
+    assert unmodified["negative_anchor_output_findings"][0]["policy"].startswith("MD §7 line 100")
+
+
+@pytest.mark.parametrize(
+    ("start_ms", "end_ms", "negative_overlap_ms"),
+    [
+        (2_900_640, 3_020_000, 35_820),  # un-anchored content after O01 plus N08
+        (3_850_000, 3_990_000, 66_960),  # N08 mixed with R01 risk content
+    ],
+)
+def test_agent_mixed_n08_final_candidate_is_irrelevant_padding(
+    start_ms: int, end_ms: int, negative_overlap_ms: int
+) -> None:
+    report = evaluate_agent(
+        BENCHMARK,
+        _result(
+            extra=(
+                {
+                    "id": "MIXED",
+                    "profile": "mini_lesson",
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "cue_start": 5000,
+                    "cue_end": 5020,
+                },
+            )
+        ),
+    )
+    assert report["negative_anchor_output_findings"] == []
+    [finding] = report["padding_findings"]
+    assert (finding["candidate_id"], finding["negative_anchor_id"]) == ("candidate_mixed", "N08")
+    assert finding["outside_allowed_overlap_ms"] == negative_overlap_ms
+    assert "irrelevant_padding" in report["mechanical_failures"]
+    assert "negative_anchor_output" not in report["mechanical_failures"]
