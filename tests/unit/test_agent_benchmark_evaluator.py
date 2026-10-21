@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+import liveclip.media.secure_files as secure_files
 import scripts.evaluate_agent_benchmark as agent_evaluator
 from liveclip.agent_runtime.models import (
     AgentArtifact,
@@ -502,10 +503,10 @@ def test_agent_publication_failure_leaves_no_partial_output(
     output = tmp_path / "report"
     original_stage = agent_evaluator._stage_file
 
-    def failing_stage(directory: Path, name: str, content: str) -> None:
+    def failing_stage(directory_fd: int, name: str, content: str) -> None:
         if name == "benchmark-report.md":
             raise OSError("simulated staging failure")
-        original_stage(directory, name, content)
+        original_stage(directory_fd, name, content)
 
     def failing_publish(source: Path, destination: Path, **_: object) -> None:
         raise SecureFileError("simulated publication failure")
@@ -524,6 +525,104 @@ def test_agent_publication_failure_leaves_no_partial_output(
         agent_evaluator._publish_no_replace(output, report)
     assert not output.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_agent_publication_real_rename_refused_by_late_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No publication mock: the native no-replace rename itself fails because a
+    # competing destination appears after staging, and only this call's pinned
+    # staging directory is removed.
+    output = tmp_path / "report"
+    original_stage = agent_evaluator._stage_file
+
+    def stage_then_claim(directory_fd: int, name: str, content: str) -> None:
+        original_stage(directory_fd, name, content)
+        if name == "benchmark-report.md":
+            output.mkdir()
+            (output / "prior.txt").write_text("prior evidence", encoding="utf-8")
+
+    monkeypatch.setattr(agent_evaluator, "_stage_file", stage_then_claim)
+    report = evaluate_agent(BENCHMARK, _result())
+
+    with pytest.raises(SecureFileError, match="destination already exists"):
+        agent_evaluator._publish_no_replace(output, report)
+    assert [path.name for path in tmp_path.iterdir()] == ["report"]
+    assert [path.name for path in output.iterdir()] == ["prior.txt"]
+    assert (output / "prior.txt").read_text(encoding="utf-8") == "prior evidence"
+
+
+def test_agent_publication_rolls_back_after_a_real_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The native rename really publishes the staging directory; only the
+    # post-rename verification is made to fail.  The real rollback renames it
+    # back and the descriptor-based cleanup removes it.
+    output = tmp_path / "report"
+    original_check = secure_files._assert_stable_directory_endpoint
+    published_during_check: list[list[str]] = []
+
+    def failing_destination_check(parent_fd: int, name: str, *args: Any, **kwargs: Any) -> None:
+        original_check(parent_fd, name, *args, **kwargs)
+        if name == output.name:
+            published_during_check.append(sorted(path.name for path in tmp_path.iterdir()))
+            raise SecureFileError("simulated post-rename verification failure")
+
+    monkeypatch.setattr(
+        secure_files, "_assert_stable_directory_endpoint", failing_destination_check
+    )
+    report = evaluate_agent(BENCHMARK, _result())
+
+    with pytest.raises(SecureFileError, match="does not match the pinned source") as exc:
+        agent_evaluator._publish_no_replace(output, report)
+    assert isinstance(exc.value.__cause__, SecureFileError)
+    assert "simulated" in str(exc.value.__cause__)
+    # The rename had really happened: only the published name existed.
+    assert published_during_check == [["report"]]
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_agent_publication_refuses_a_swapped_staging_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "report"
+    moved = tmp_path / "moved-staging"
+    original_stage = agent_evaluator._stage_file
+
+    def stage_then_swap(directory_fd: int, name: str, content: str) -> None:
+        original_stage(directory_fd, name, content)
+        if name == "benchmark-report.md":
+            [staging] = tmp_path.glob(".report.staging-*")
+            staging.rename(moved)
+            staging.mkdir()
+
+    monkeypatch.setattr(agent_evaluator, "_stage_file", stage_then_swap)
+    report = evaluate_agent(BENCHMARK, _result())
+
+    with pytest.raises(SecureFileError, match="source identity changed"):
+        agent_evaluator._publish_no_replace(output, report)
+    assert not output.exists()
+    # The impostor is not published and, not being ours, not removed either.
+    [impostor] = tmp_path.glob(".report.staging-*")
+    assert list(impostor.iterdir()) == []
+    assert sorted(path.name for path in moved.iterdir()) == [
+        "benchmark-report.md",
+        "benchmark-result.json",
+    ]
+
+
+def test_agent_publication_refuses_symlinked_output_chain_before_staging(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    (tmp_path / "link").symlink_to(real, target_is_directory=True)
+    report = evaluate_agent(BENCHMARK, _result())
+
+    with pytest.raises(SecureFileError, match="symlink-free"):
+        agent_evaluator._publish_no_replace(tmp_path / "link" / "report", report)
+    assert list(real.iterdir()) == []
 
 
 def _agent_negative_only(anchor_id: str, *, profile: str, offset_ms: int) -> dict[str, Any]:

@@ -5,8 +5,8 @@ import argparse
 import contextlib
 import json
 import os
+import secrets
 import sys
-import tempfile
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict
@@ -16,7 +16,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from liveclip.agent_runtime.models import AgentArtifact, AgentRunResult
-from liveclip.media.secure_files import publish_directory_no_replace_no_follow
+from liveclip.media.secure_files import (
+    SecureFileError,
+    create_directory_exclusive_no_follow,
+    ensure_directory_no_follow,
+    publish_directory_no_replace_no_follow,
+    remove_tree_no_follow,
+)
 
 # Package import of the shared evaluation-only gates.  Only when this file is run
 # directly as a script (no package) is the repository root appended to sys.path.
@@ -472,6 +478,15 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
             }
         )
 
+    # Risk discovery is judged on final candidates only (Stage 1 follow-up P2-5,
+    # deliberately unchanged in Stage 6).  MD sections 3.8, 6 and 10 require a
+    # risk to be discovered and then routed to ``manual_review``/``blocked``, and
+    # FAIL a risk candidate that disappears.  Agent v2 has no such routing, so a
+    # retained final candidate is the only proof that the risk did not vanish; a
+    # raw candidate the Global Review dropped (``not_useful``, ``replaced``, ...)
+    # is exactly the disappearance the MD forbids.  Counting superseded raw
+    # candidates would loosen a mechanical blocker without a spec or operator
+    # decision, so it stays an open operator question.
     risks = {
         str(anchor["id"]): assess_risk_anchor(anchor, views, routing_evaluable=False)
         for anchor in benchmark["risk_anchors"]
@@ -638,11 +653,15 @@ def _markdown(value: dict[str, Any]) -> str:
 
 
 REPORT_FILE_NAMES = ("benchmark-result.json", "benchmark-report.md")
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
-def _stage_file(directory: Path, name: str, content: str) -> None:
+def _stage_file(directory_fd: int, name: str, content: str) -> None:
     descriptor = os.open(
-        directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+        name,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+        0o600,
+        dir_fd=directory_fd,
     )
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(content)
@@ -650,40 +669,60 @@ def _stage_file(directory: Path, name: str, content: str) -> None:
         os.fsync(handle.fileno())
 
 
-def _discard_staging(staging: Path) -> None:
-    """Best-effort removal of this call's own staging directory."""
+def _discard_staging(staging: Path, identity: tuple[int, int]) -> None:
+    """Best-effort, descriptor-based removal of this call's own staging directory.
 
-    for name in REPORT_FILE_NAMES:
-        with contextlib.suppress(OSError):
-            (staging / name).unlink()
-    with contextlib.suppress(OSError):
-        staging.rmdir()
+    ``remove_tree_no_follow`` walks from the parent with no-follow descriptors
+    and removes only the directory this call created; a directory swapped in
+    under the staging name is left alone.  A cleanup failure never masks the
+    original publication error.
+    """
+
+    with contextlib.suppress(OSError, SecureFileError):
+        remove_tree_no_follow(
+            staging,
+            required_ancestor=staging.parent,
+            expected_identity=identity,
+        )
 
 
 def _publish_no_replace(output_dir: Path, report: dict[str, Any]) -> None:
     """Publish both reports atomically as one directory; never replace evidence.
 
-    Both files are written and fsynced in a private sibling staging directory
-    (same parent, hence same filesystem) and then published as one unit by
-    ``publish_directory_no_replace_no_follow``: a no-follow, exclusive
-    (``RENAME_EXCL``/``RENAME_NOREPLACE``) directory rename that refuses any
-    existing destination, including an empty directory, and verifies and
-    fsyncs the result.  On any failure the staging directory is removed and the
+    The parent chain is created or proven without following symbolic links, so
+    a symlinked ``--output-dir`` chain is refused before anything is written.
+    A private sibling staging directory (same parent, hence same filesystem) is
+    created exclusively and its device/inode pinned at creation.  Both files
+    are written and fsynced through a held no-follow descriptor of that
+    directory, which is then published as one unit by
+    ``publish_directory_no_replace_no_follow`` with that ``expected_identity``:
+    a no-follow, exclusive (``RENAME_EXCL``/``RENAME_NOREPLACE``) directory
+    rename that refuses a swapped staging directory and any existing
+    destination, including an empty directory, and verifies and fsyncs the
+    result.  On any failure the pinned staging directory is removed and the
     original exception propagates; no partial output directory is left.
     """
 
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
+    parent = ensure_directory_no_follow(output_dir.parent)
+    staging = parent / f".{output_dir.name}.staging-{secrets.token_hex(8)}"
+    identity = create_directory_exclusive_no_follow(staging)
     try:
-        contents = (
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            _markdown(report),
-        )
-        for name, content in zip(REPORT_FILE_NAMES, contents, strict=True):
-            _stage_file(staging, name, content)
-        publish_directory_no_replace_no_follow(staging, output_dir)
+        staging_fd = os.open(staging, _DIRECTORY_FLAGS)
+        try:
+            metadata = os.fstat(staging_fd)
+            if (metadata.st_dev, metadata.st_ino) != identity:
+                raise SecureFileError("report staging directory identity changed")
+            contents = (
+                json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                _markdown(report),
+            )
+            for name, content in zip(REPORT_FILE_NAMES, contents, strict=True):
+                _stage_file(staging_fd, name, content)
+        finally:
+            os.close(staging_fd)
+        publish_directory_no_replace_no_follow(staging, output_dir, expected_identity=identity)
     except BaseException:
-        _discard_staging(staging)
+        _discard_staging(staging, identity)
         raise
 
 
@@ -693,7 +732,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("benchmark", type=Path)
     parser.add_argument("agent_run_result", type=Path)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help=(
+            "new report directory, published atomically; it must not exist, not even "
+            "empty. Every component of its path must be a real directory, not a "
+            "symbolic link, and '..' is refused: on macOS use /private/tmp/..., not "
+            "/tmp/... (/tmp is a symlink)"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         benchmark = _load_object(args.benchmark)

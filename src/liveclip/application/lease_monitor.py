@@ -7,6 +7,14 @@ from datetime import UTC, datetime
 
 from liveclip.application.tasks import HeartbeatResult, TaskLease
 
+# Leases expire on the shared wall clock, but heartbeats are paced by
+# ``time.monotonic``, which pauses while the host sleeps.  When wall time
+# advances this much more than monotonic time between two polls, the host was
+# suspended (or the clock was stepped forward) and the paced heartbeat may land
+# after expiry, so renew immediately instead.  A false positive costs one extra
+# heartbeat.
+_WALL_CLOCK_JUMP_SECONDS = 1.0
+
 
 class LeaseMonitor:
     """Renew a task lease while polling cancellation independently."""
@@ -108,8 +116,19 @@ class LeaseMonitor:
                 self._cancel.set()
 
     def _run(self) -> None:
-        next_heartbeat = time.monotonic() + self._heartbeat_seconds
+        last_wall = datetime.now(UTC)
+        last_monotonic = time.monotonic()
+        next_heartbeat = last_monotonic + self._heartbeat_seconds
         while not self._stop.wait(self._poll_seconds):
+            wall = datetime.now(UTC)
+            monotonic = time.monotonic()
+            jump = (wall - last_wall).total_seconds() - (monotonic - last_monotonic)
+            last_wall, last_monotonic = wall, monotonic
+            if jump > _WALL_CLOCK_JUMP_SECONDS:
+                # Renew now rather than one monotonic interval later.  The
+                # heartbeat stays fenced: an already-expired lease is refused
+                # and reported lost, never resurrected.
+                next_heartbeat = monotonic
             if time.monotonic() >= next_heartbeat:
                 self.refresh()
                 next_heartbeat = time.monotonic() + self._heartbeat_seconds
