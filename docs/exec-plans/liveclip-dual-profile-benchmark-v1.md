@@ -56,6 +56,11 @@ imported by production modules.
 - [x] 2026-10-20 Stage 1: make `scripts/evaluate_benchmark.py` and `scripts/evaluate_agent_benchmark.py` enforce the benchmark JSON/MD as written (source hash, manual-only semantic equivalence, negative-anchor padding, forbidden composites, RGR-02 opening/flags, `CONDITIONAL`, qualified boundary score, computed audit score, risk evidence cues, one-to-one matching, Agent v2 technical statuses). Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 fix round (reviewer CHANGES_REQUIRED on `bf83c80`): Controller decisions D1--D3, union padding allowance, Agent v2 mechanical/not-applicable/human-required split with derived executed Profiles, manual-only-risk selection gate, RGR-03 findings, augmenting-path and score-boundary tests, safe no-replace publication. Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 fix round 2 (reviewer ACCEPTED `d9e9dde`; Controller follow-ups): Agent reports published as one atomic no-replace directory via `publish_directory_no_replace_no_follow`, executed-Profile filter regression test, no semantic padding allowance with `outside_nearest_anchor_ms` diagnostics, restored historical Agent ExecPlan entry. Fixture tests only; no real re-score.
+- [x] 2026-10-20 Stage 1 ACCEPTED at `6c465b767e3829152d0b07451edbe274980321b1` (reviewer ACCEPT; independent tester `make lint` and `make test` green, mock/fixture only; evidence in `STATUS.md`).
+- [ ] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based.
+- [ ] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename.
+- [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence.
+- [ ] Follow-up: the e2e harness is not idempotent. A second `make test` in the same worktree fails unless `apps/web/playwright-report/{completion,b2}-packages` are empty of prior packages (predates Stage 1).
 
 ## Work breakdown
 
@@ -215,6 +220,15 @@ worktree and re-scoring requires explicit operator authority. The cold-18
 PASS 90.36 must therefore not be cited as a strict-evaluator PASS. Stage 1
 evidence is fixture/unit-test only; no real model inference, rendering or
 human review was performed.
+
+Stage 1 was ACCEPTED at `6c465b767e3829152d0b07451edbe274980321b1`. D1--D3
+and "D2 applies to semantic-only candidates" remain Controller
+interpretations pending operator confirmation. The Agent evaluator's
+`--output-dir` must be an absolute path with no symlink in its directory
+chain (use `/private/tmp/...`, not macOS `/tmp`). The four open follow-ups
+are listed in Progress. Before rerunning `make test` in the same worktree,
+make sure `apps/web/playwright-report/{completion,b2}-packages` hold no prior
+retained package. Move such a folder aside; never delete evidence.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the

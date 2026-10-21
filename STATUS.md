@@ -1,28 +1,19 @@
 # LiveClip status
 
-## Stage 1 benchmark evaluator strictness (2026-10-20)
+## Stage 1 benchmark evaluator strictness (2026-10-20) — ACCEPTED at 6c465b7
 
-- First checkpoint: `bf83c80a81d1b47fa834a8a149f9866f3b3d89db` on
-  `claude/liveclip-stage1-evaluator`, based on
-  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`. The reviewer returned
-  CHANGES_REQUIRED.
-- Fix round 1: `d9e9ddec11115195264485bb2005be64790c05c9` on
-  `claude/liveclip-stage1-fix` (parent `bf83c80`). The reviewer ACCEPTED it.
-- Fix round 2: the next commit on the same branch (parent `d9e9dde`). A
-  commit cannot record its own hash; the coder report gives the SHA. It
-  addresses the Controller follow-ups:
-  - Agent reports are staged in a private sibling directory and published
-    as one atomic no-replace unit via
-    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`.
-    An existing directory, even an empty one, is refused. A failure leaves
-    no partial output.
-  - A regression test covers the executed-Profile filter: both Profiles
-    requested, with no mini_lesson finals.
-  - Semantic-only candidates get no padding allowance. Findings add
-    `outside_nearest_anchor_ms`.
-  - The bf83c80 entry in the Agent ExecPlan is restored as history, and a
-    separate fix-round entry is added.
-- Both branches are local only: not pushed or merged.
+- **Status: ACCEPTED** at `6c465b767e3829152d0b07451edbe274980321b1` on
+  `claude/liveclip-stage1-evaluator`. The independent tester's full run is
+  green and the reviewer verdict is ACCEPT, with no P0/P1 open. The branch is
+  local only: not pushed or merged.
+- History (base `a449f02b9c5694c258d5b5f47c91b9042073c5a9`):
+  - Round 0 `bf83c80a81d1b47fa834a8a149f9866f3b3d89db`: reviewer
+    CHANGES_REQUIRED (2 P1).
+  - Fix round 1 `d9e9ddec11115195264485bb2005be64790c05c9`: reviewer ACCEPT,
+    with Controller follow-ups.
+  - Fix round 2 `6c465b767e3829152d0b07451edbe274980321b1`: reviewer ACCEPT.
+  - The fix rounds were made on `claude/liveclip-stage1-fix` and integrated
+    by the Controller.
 - Scope: `scripts/evaluate_benchmark.py` and
   `scripts/evaluate_agent_benchmark.py` share the evaluation-only module
   `scripts/benchmark_gates.py`. Every rule comes from
@@ -37,9 +28,11 @@
   - Matching is one-to-one exact-boundary, using augmenting paths and
     preferring qualified duplicates.
   - Padding and forbidden composites FAIL for both `selected` and
-    `manual_review` (D2). The padding allowance is the union of every
-    exact-matched gold or supplemental anchor, widened by the tolerance, so
-    S08 inside N09 passes.
+    `manual_review` (D2). Only exact-boundary matches earn a padding
+    allowance: the union of every exact-matched gold or supplemental anchor,
+    widened by the tolerance. S08 inside N09 therefore passes, and a
+    semantic-only candidate gets no allowance. Findings add
+    `outside_nearest_anchor_ms`.
   - RGR-02 fails on any `selected` candidate opening at its start, and on
     any candidate on its interval missing a required flag.
   - CONDITIONAL is applied literally (D3).
@@ -54,46 +47,96 @@
     `INVALID_EVIDENCE`. A source-hash mismatch gives `INVALID_EVIDENCE`.
   - The report splits into `mechanical_failures` (the only blockers),
     `not_applicable` and `human_required`.
-  - Executed Profiles come from the frozen Global Review.
+  - Executed Profiles are the Global Review `requested_profiles` that still
+    have at least one final candidate.
   - The raw score is out of 100 with threshold 85 and an applicable maximum
     of 88 (D1).
-  - The CLI publishes both reports atomically as one no-replace directory
-    and refuses any existing path.
+  - The CLI stages both reports in a private sibling directory. It publishes
+    them as one atomic no-replace unit via
+    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`. An
+    existing directory, even an empty one, is refused, and a failure leaves
+    no partial output.
+  - `--output-dir` must be an absolute path whose directory chain contains no
+    symlinks. For example, macOS `/tmp` is refused; use `/private/tmp/...`.
 - D1--D3 are Controller interpretations pending operator confirmation, as is
   "D2 applies to semantic-only candidates; no semantic allowance". See the
   Decision Log in `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
-- Validation run by the coder in the isolated fix worktree, using the main
-  repository's `.venv`:
-  - `ruff check src tests scripts tools`: exit 0.
-  - `ruff format --check` with the source-freeze exclusions: exit 0, 446
-    files.
-  - `mypy` over `src/liveclip`, `scripts` and `tools/loop_engineering`:
-    exit 0, 230 files.
-  - Targeted pytest over `tests/unit/test_benchmark_evaluator.py`,
-    `tests/unit/test_agent_benchmark_evaluator.py` and
-    `tests/unit/test_dual_profile.py`: exit 0, 85 passed after round 2
-    (81 after round 1). `tests/unit/test_secure_files.py`: exit 0, 31
-    passed.
-  - `tests/unit/test_b2_synthetic_worker.py` and
-    `tests/unit/test_e2e_fixture.py`: exit 0, 43 passed.
-- Unverified:
-  - The full `make lint` (schema check and web `tsc`) and the full
-    `make test` on the fix-round SHA are pending the tester.
-  - No real evidence was re-scored. The retained cold-18 PASS 90.36 came from
-    the earlier, looser evaluator; it has not been re-scored under the strict
-    evaluator and must not be cited as a strict PASS. Re-scoring needs
-    operator authority because the evidence is outside this worktree.
-  - No model inference, rendering or human review was performed.
+- Independent tester evidence at `6c465b7`. Mock/fixture only, run with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  - `make lint` exit 0:
+    - ruff "All checks passed!" and "446 files already formatted";
+    - mypy "no issues found in 230 source files";
+    - schema match;
+    - `tsc` clean.
+  - Targeted tests (evaluators, `dual_profile`, `secure_files`): 116 passed.
+  - `make test` exit 0:
+    - backend 2612 passed, 15 warnings (deprecations only), 1384.97s;
+    - Web vitest 14 files / 80 tests;
+    - e2e:mock 1 passed;
+    - e2e:real legacy 1 passed, "Required browser scenario execution: PASS";
+    - e2e:real completion 1 passed: retained-package status PASS, run
+      `9f8bdc31ac4c45fb8e79b76ccbd6d3b4`, `full_mp4_decode` PASS,
+      `fixture_removed` true;
+    - e2e:real B2 1 passed: retained-package status PASS, run
+      `e9085d40edfe411d819bf443ece89183`, `full_mp4_decode` PASS.
+- Coder self-checks, each labelled with the SHA and round it ran on:
+  - Round 0 at `bf83c80`, main worktree:
+    - `make lint` exit 0;
+    - evaluator and `dual_profile` tests: 68 passed;
+    - `test_b2_synthetic_worker.py` and `test_e2e_fixture.py` together with
+      them: 111 passed.
+  - Fix round 1 at `d9e9dde`, isolated worktree with the main `.venv`:
+    - ruff check, ruff format --check (446 files) and mypy (230 files):
+      exit 0;
+    - evaluator and `dual_profile` tests: 81 passed;
+    - b2/e2e fixture tests: 43 passed.
+  - Fix round 2 at `6c465b7`, isolated worktree:
+    - ruff, format and mypy: exit 0;
+    - evaluator, `dual_profile` and `secure_files` tests: 116 passed (85
+      without `secure_files`, 31 for `secure_files` alone);
+    - b2/e2e fixture tests: 43 passed.
+- Earlier tester evidence:
+  - The baseline at `7d2689c` was fully green (backend 2545 passed).
+  - At `bf83c80`, `make test` exited 2 only at the e2e:real completion
+    retained-package check (`ValueError: exactly one retained completion
+    package required`), and B2 was not reached.
+  - Cause: a leftover package in the ignored
+    `apps/web/playwright-report/completion-packages/`, left by the earlier
+    baseline run in the same worktree. The Controller moved that ignored
+    folder (it was not deleted) to the session scratchpad archive before the
+    `6c465b7` run.
+- Reviewer verdicts: `bf83c80` CHANGES_REQUIRED (2 P1); `d9e9dde` ACCEPT;
+  `6c465b7` ACCEPT. No P0/P1 are open.
+- Known harness non-idempotency (predates Stage 1; candidate for a later
+  stage): a second `make test` in the same worktree fails unless
+  `apps/web/playwright-report/{completion,b2}-packages` hold no prior
+  package.
+- Open follow-ups (not done):
+  - Reviewer P2-b: pin the staging directory identity (`expected_identity`)
+    in the Agent report publication and make cleanup fd-based.
+  - Reviewer P2-c: add an end-to-end rollback test after a real rename.
+  - Earlier P2-5: Agent risk discovery counts only final candidates. This is
+    stricter than necessary, because superseded raw candidates could also
+    prove discovery.
+  - The e2e harness non-idempotency above.
+- Caveats:
+  - This is deterministic validation only. There was no rendering
+    acceptance, no human editorial/audio review and no model inference.
+  - The retained cold-18 PASS 90.36 came from the earlier, looser evaluator.
+    It has not been re-scored under the strict evaluator and must not be
+    cited as a strict PASS. Re-scoring needs operator authority because the
+    evidence is outside this worktree.
+  - D1--D3 and the semantic-only padding reading are pending operator
+    confirmation.
 - Path lists not updated:
   - The frozen `tools/loop_engineering/m3s_v40/v44/v45_source_freeze.py`
-    list `scripts/evaluate_agent_benchmark.py` as a path. They were left
-    byte-identical as historical records.
+    list `scripts/evaluate_agent_benchmark.py` as a path and were left
+    byte-identical.
   - Neither those lists nor the acceptance-v3 Coder allowlist include
     `scripts/benchmark_gates.py` or `scripts/__init__.py`. This is recorded
-    for future formal-loop runs; those files were not edited.
-- Next: the tester runs `make lint` and `make test`, and the reviewer checks
-  the fix-round SHA. Iterate until there are zero P0/P1 findings, then the
-  Controller integrates.
+    for future formal-loop runs only.
+- Next: await operator confirmation of D1--D3 and the Stage 2 choice. Do not
+  push.
 
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 

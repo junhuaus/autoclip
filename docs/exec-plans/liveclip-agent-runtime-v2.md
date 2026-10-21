@@ -59,6 +59,22 @@
   - **On failure:** the staging directory is removed and no partial output
     directory remains. The one exception is when `secure_files` itself
     reports that a rollback could not be completed safely.
+  - **Output path requirement:** `--output-dir` must be an absolute path
+    whose directory chain contains no symlinks, because publication is
+    anchored to no-follow parent descriptors. For example, macOS `/tmp` (a
+    symlink to `/private/tmp`) is refused; use `/private/tmp/...`. The CLI
+    help text does not yet say this. That is a code change left for a later
+    stage.
+  - **Accepted:** the reviewer accepted the fix rounds at `d9e9dde` and
+    `6c465b767e3829152d0b07451edbe274980321b1`, and the independent
+    tester's full `make lint` and `make test` at `6c465b7` were green.
+    `STATUS.md` holds the evidence.
+  - **Open follow-ups (not done):**
+    - Pin the staging directory identity (`expected_identity`) and make
+      cleanup fd-based.
+    - Add an end-to-end rollback test after a real rename.
+    - Agent risk discovery counts only final candidates, which is stricter
+      than necessary.
 
   Gaps 1 and 3--6 (completed-evidence validation, render/package binding,
   publisher, human review) are not part of this stage. Evidence is

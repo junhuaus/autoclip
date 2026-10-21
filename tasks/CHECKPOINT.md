@@ -107,3 +107,13 @@ without editing `liveclip_dual_profile_benchmark_v1.json` or `.md`:
 6. The coder commits a checkpoint. The tester (`make lint` + `make test`) and
    the reviewer then check the **same** SHA. Iterate until there are zero P0/P1
    findings and the tests are green.
+
+## Stage 1 accepted at 6c465b7 (2026-10-20)
+
+Stage 1 (benchmark evaluator strictness) is ACCEPTED at
+`6c465b767e3829152d0b07451edbe274980321b1` on
+`claude/liveclip-stage1-evaluator`. The reviewer returned ACCEPT, and the
+independent tester's `make lint` and `make test` were green (mock/fixture
+only). Rounds, evidence, open follow-ups and caveats are in the Stage 1
+section of `STATUS.md`. Next: operator confirmation of D1--D3 and the
+Stage 2 choice. Not pushed.
