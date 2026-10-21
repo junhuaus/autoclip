@@ -201,13 +201,41 @@ def _covered_ms(start: int, end: int, intervals: Iterable[tuple[int, int]]) -> i
     return covered
 
 
+def _nearest_gold_anchor(
+    benchmark: Mapping[str, Any], candidate: CandidateView
+) -> Mapping[str, Any] | None:
+    """Gold anchor of the candidate's Profile with the smallest summed edge delta."""
+
+    anchors = benchmark.get(PROFILE_GOLD_SECTIONS.get(candidate.profile, ""), ())
+    ranked = sorted(
+        (
+            abs(candidate.start_ms - int(anchor["start_ms"]))
+            + abs(candidate.end_ms - int(anchor["end_ms"])),
+            str(anchor["id"]),
+            index,
+        )
+        for index, anchor in enumerate(anchors)
+    )
+    return anchors[ranked[0][2]] if ranked else None
+
+
 def padding_overlaps(
     benchmark: Mapping[str, Any], candidate: CandidateView
 ) -> list[dict[str, object]]:
-    """Negative-anchor overlap outside the candidate's allowance, above its Profile tolerance."""
+    """Negative-anchor overlap outside the candidate's allowance, above its Profile tolerance.
+
+    Only exact-boundary matches earn an allowance; a semantic-equivalent-only
+    candidate gets none (Controller decision, pending operator confirmation).
+    For human inspection each finding also reports the overlap measured outside
+    the candidate's nearest gold anchor interval (unwidened).
+    """
 
     tolerance = tolerance_ms(benchmark, candidate.profile)
     allowance = padding_allowance(benchmark, candidate)
+    nearest = _nearest_gold_anchor(benchmark, candidate)
+    nearest_interval = (
+        ((int(nearest["start_ms"]), int(nearest["end_ms"])),) if nearest is not None else ()
+    )
     findings: list[dict[str, object]] = []
     for negative in benchmark["negative_anchors"]:
         start = max(candidate.start_ms, int(negative["start_ms"]))
@@ -223,6 +251,10 @@ def padding_overlaps(
                     "decision": candidate.decision,
                     "negative_anchor_id": str(negative["id"]),
                     "outside_allowed_overlap_ms": outside,
+                    "nearest_anchor_id": None if nearest is None else str(nearest["id"]),
+                    "outside_nearest_anchor_ms": end
+                    - start
+                    - _covered_ms(start, end, nearest_interval),
                 }
             )
     return findings

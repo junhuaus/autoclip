@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -15,6 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from liveclip.agent_runtime.models import AgentArtifact, AgentRunResult
+from liveclip.media.secure_files import publish_directory_no_replace_no_follow
 
 # Package import of the shared evaluation-only gates.  Only when this file is run
 # directly as a script (no package) is the repository root appended to sys.path.
@@ -612,54 +614,53 @@ def _markdown(value: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _write_file_durably(directory: Path, name: str, content: str) -> None:
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{name}.", dir=directory)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, directory / name)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
+REPORT_FILE_NAMES = ("benchmark-result.json", "benchmark-report.md")
+
+
+def _stage_file(directory: Path, name: str, content: str) -> None:
+    descriptor = os.open(
+        directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+    )
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _discard_staging(staging: Path) -> None:
+    """Best-effort removal of this call's own staging directory."""
+
+    for name in REPORT_FILE_NAMES:
+        with contextlib.suppress(OSError):
+            (staging / name).unlink()
+    with contextlib.suppress(OSError):
+        staging.rmdir()
 
 
 def _publish_no_replace(output_dir: Path, report: dict[str, Any]) -> None:
-    """Publish both reports into a newly claimed directory; never replace evidence.
+    """Publish both reports atomically as one directory; never replace evidence.
 
-    ``os.mkdir`` claims the final path exclusively: it fails for any existing
-    entry (including an empty directory or a symlink), so prior evidence can
-    never be replaced and no rename-onto-empty-directory race exists.  Each file
-    is written to a temporary name, fsynced and moved into place with
-    ``os.replace`` inside the directory this call created.  Residual limitation:
-    the two files are published one after the other, so a concurrent reader can
-    briefly observe the new directory with only one report; on failure, files
-    written by this call and the directory are removed.
+    Both files are written and fsynced in a private sibling staging directory
+    (same parent, hence same filesystem) and then published as one unit by
+    ``publish_directory_no_replace_no_follow``: a no-follow, exclusive
+    (``RENAME_EXCL``/``RENAME_NOREPLACE``) directory rename that refuses any
+    existing destination, including an empty directory, and verifies and
+    fsyncs the result.  On any failure the staging directory is removed and the
+    original exception propagates; no partial output directory is left.
     """
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    os.mkdir(output_dir)
-    written: list[Path] = []
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     try:
-        for name, content in (
-            (
-                "benchmark-result.json",
-                json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            ),
-            ("benchmark-report.md", _markdown(report)),
-        ):
-            _write_file_durably(output_dir, name, content)
-            written.append(output_dir / name)
-        directory_fd = os.open(output_dir, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        contents = (
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            _markdown(report),
+        )
+        for name, content in zip(REPORT_FILE_NAMES, contents, strict=True):
+            _stage_file(staging, name, content)
+        publish_directory_no_replace_no_follow(staging, output_dir)
     except BaseException:
-        for path in written:
-            path.unlink(missing_ok=True)
-        output_dir.rmdir()
+        _discard_staging(staging)
         raise
 
 

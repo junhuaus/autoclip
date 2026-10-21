@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+import scripts.evaluate_agent_benchmark as agent_evaluator
 from liveclip.agent_runtime.models import (
     AgentArtifact,
     AgentEvent,
@@ -13,6 +14,7 @@ from liveclip.agent_runtime.models import (
     AgentRunResult,
     AgentTurn,
 )
+from liveclip.media.secure_files import SecureFileError
 from scripts.evaluate_agent_benchmark import (
     STATUS_INVALID_EVIDENCE,
     STATUS_TECHNICAL_FAIL,
@@ -43,6 +45,7 @@ def _metadata() -> dict[str, object]:
 def _result(
     *,
     omit: str | None = None,
+    omit_profile: str | None = None,
     omit_title: str | None = None,
     requested_profiles: list[str] | None = None,
     overrides: dict[str, dict[str, Any]] | None = None,
@@ -61,7 +64,7 @@ def _result(
     turn = 0
     for anchor in anchors:
         anchor_id = str(anchor["id"])
-        if anchor_id == omit:
+        if anchor_id == omit or anchor["profile"] == omit_profile:
             continue
         anchor.update((overrides or {}).get(anchor_id, {}))
         candidate_id = f"candidate_{anchor_id.lower()}"
@@ -249,12 +252,24 @@ def test_one_mechanical_failure_gives_technical_fail() -> None:
     assert report["status"] == STATUS_TECHNICAL_FAIL
 
 
-def test_requested_profile_without_final_candidate_is_not_executed() -> None:
+def test_requesting_only_short_profile_is_missing_executed_profile() -> None:
     report = evaluate_agent(BENCHMARK, _result(requested_profiles=["short_highlight"]))
 
     assert report["executed_profiles"] == ["short_highlight"]
     assert "missing_executed_profile" in report["mechanical_failures"]
     assert report["components"]["both_profiles_executed"] == 7.5
+    assert report["status"] == STATUS_TECHNICAL_FAIL
+
+
+def test_requested_profile_without_final_candidate_is_not_executed() -> None:
+    # Both Profiles are requested, but every mini_lesson final candidate is absent:
+    # the Global Review request alone must not count as execution.
+    report = evaluate_agent(BENCHMARK, _result(omit_profile="mini_lesson"))
+
+    assert report["requested_profiles"] == BOTH
+    assert report["executed_profiles"] == ["short_highlight"]
+    assert report["components"]["both_profiles_executed"] == 7.5
+    assert "missing_executed_profile" in report["mechanical_failures"]
     assert report["status"] == STATUS_TECHNICAL_FAIL
 
 
@@ -471,3 +486,38 @@ def test_agent_cli_refuses_existing_empty_directory(tmp_path: Path) -> None:
         main([str(BENCHMARK_PATH), str(result_path), "--output-dir", str(output)])
     assert exc.value.code == 2
     assert list(output.iterdir()) == []
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "agent-run-result.json",
+        "claimed",
+    ]
+
+
+@pytest.mark.parametrize("failure_point", ["staging_second_file", "directory_publish"])
+def test_agent_publication_failure_leaves_no_partial_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_point: str
+) -> None:
+    output = tmp_path / "report"
+    original_stage = agent_evaluator._stage_file
+
+    def failing_stage(directory: Path, name: str, content: str) -> None:
+        if name == "benchmark-report.md":
+            raise OSError("simulated staging failure")
+        original_stage(directory, name, content)
+
+    def failing_publish(source: Path, destination: Path, **_: object) -> None:
+        raise SecureFileError("simulated publication failure")
+
+    if failure_point == "staging_second_file":
+        monkeypatch.setattr(agent_evaluator, "_stage_file", failing_stage)
+        expected: type[Exception] = OSError
+    else:
+        monkeypatch.setattr(
+            agent_evaluator, "publish_directory_no_replace_no_follow", failing_publish
+        )
+        expected = SecureFileError
+    report = evaluate_agent(BENCHMARK, _result())
+
+    with pytest.raises(expected, match="simulated"):
+        agent_evaluator._publish_no_replace(output, report)
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []

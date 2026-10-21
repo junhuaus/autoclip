@@ -6,9 +6,23 @@
   `claude/liveclip-stage1-evaluator`, based on
   `a449f02b9c5694c258d5b5f47c91b9042073c5a9`. The reviewer returned
   CHANGES_REQUIRED.
-- Fix round: one commit on `claude/liveclip-stage1-fix`, whose parent is
-  `bf83c80`. A commit cannot record its own hash; the coder report gives the
-  SHA. Both branches are local only: not pushed or merged.
+- Fix round 1: `d9e9ddec11115195264485bb2005be64790c05c9` on
+  `claude/liveclip-stage1-fix` (parent `bf83c80`). The reviewer ACCEPTED it.
+- Fix round 2: the next commit on the same branch (parent `d9e9dde`). A
+  commit cannot record its own hash; the coder report gives the SHA. It
+  addresses the Controller follow-ups:
+  - Agent reports are staged in a private sibling directory and published
+    as one atomic no-replace unit via
+    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`.
+    An existing directory, even an empty one, is refused. A failure leaves
+    no partial output.
+  - A regression test covers the executed-Profile filter: both Profiles
+    requested, with no mini_lesson finals.
+  - Semantic-only candidates get no padding allowance. Findings add
+    `outside_nearest_anchor_ms`.
+  - The bf83c80 entry in the Agent ExecPlan is restored as history, and a
+    separate fix-round entry is added.
+- Both branches are local only: not pushed or merged.
 - Scope: `scripts/evaluate_benchmark.py` and
   `scripts/evaluate_agent_benchmark.py` share the evaluation-only module
   `scripts/benchmark_gates.py`. Every rule comes from
@@ -43,10 +57,11 @@
   - Executed Profiles come from the frozen Global Review.
   - The raw score is out of 100 with threshold 85 and an applicable maximum
     of 88 (D1).
-  - The CLI claims `--output-dir` with `os.mkdir` and refuses any existing
-    path.
-- D1--D3 are Controller interpretations pending operator confirmation; see
-  the Decision Log in `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+  - The CLI publishes both reports atomically as one no-replace directory
+    and refuses any existing path.
+- D1--D3 are Controller interpretations pending operator confirmation, as is
+  "D2 applies to semantic-only candidates; no semantic allowance". See the
+  Decision Log in `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
 - Validation run by the coder in the isolated fix worktree, using the main
   repository's `.venv`:
   - `ruff check src tests scripts tools`: exit 0.
@@ -56,7 +71,9 @@
     exit 0, 230 files.
   - Targeted pytest over `tests/unit/test_benchmark_evaluator.py`,
     `tests/unit/test_agent_benchmark_evaluator.py` and
-    `tests/unit/test_dual_profile.py`: exit 0, 81 passed.
+    `tests/unit/test_dual_profile.py`: exit 0, 85 passed after round 2
+    (81 after round 1). `tests/unit/test_secure_files.py`: exit 0, 31
+    passed.
   - `tests/unit/test_b2_synthetic_worker.py` and
     `tests/unit/test_e2e_fixture.py`: exit 0, 43 passed.
 - Unverified:

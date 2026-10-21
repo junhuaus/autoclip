@@ -288,6 +288,36 @@ def test_manual_review_candidate_padded_into_negative_anchor_fails_and_is_not_a_
     assert report["status"] == "FAIL"
     [entry] = report["manual_adjudication_required"]
     assert entry["padding"][0]["negative_anchor_id"] == "N06"
+    # A semantic-only candidate earns no allowance (D2 applies; strict reading).
+    [finding] = report["padding_findings"]
+    assert finding["outside_allowed_overlap_ms"] == 19_160
+    assert finding["nearest_anchor_id"] == "L02"
+    assert finding["outside_nearest_anchor_ms"] == 19_160
+
+
+def test_semantic_only_candidate_gets_no_padding_allowance() -> None:
+    buckets = _passing_buckets()
+    l02 = _anchor("L02")
+    _remove(buckets[ClipProfile.MINI_LESSON], "l02")
+    # Starting 12 s early is semantic-only for L02 (beyond the 5 s tolerance), so it
+    # earns no allowance: its 10.74 s N06 overlap exceeds the tolerance and FAILs.
+    # The overlap also lies wholly outside the nearest (unwidened) L02 interval.
+    buckets[ClipProfile.MINI_LESSON][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            l02,
+            profile=ClipProfile.MINI_LESSON,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            start_ms=int(l02["start_ms"]) - 12_000,
+            start_cue_id=int(l02["cue_start"]) - 3,
+        )
+    )
+    report = _evaluate(buckets)
+    [finding] = report["padding_findings"]
+    assert finding["negative_anchor_id"] == "N06"
+    assert finding["outside_allowed_overlap_ms"] == 10_740
+    assert finding["outside_nearest_anchor_ms"] == 10_740
+    assert [value["anchor_id"] for value in report["manual_adjudication_required"]] == ["L02"]
+    assert "irrelevant_padding" in report["hard_failures"]
 
 
 def test_s08_hit_inside_n09_is_not_padding_but_other_n09_content_is() -> None:

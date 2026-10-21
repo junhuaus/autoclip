@@ -55,6 +55,7 @@ imported by production modules.
 - [x] 2026-09-24 Update this plan and `STATUS.md` with exact results and the remaining unrelated test blocker.
 - [x] 2026-10-20 Stage 1: make `scripts/evaluate_benchmark.py` and `scripts/evaluate_agent_benchmark.py` enforce the benchmark JSON/MD as written (source hash, manual-only semantic equivalence, negative-anchor padding, forbidden composites, RGR-02 opening/flags, `CONDITIONAL`, qualified boundary score, computed audit score, risk evidence cues, one-to-one matching, Agent v2 technical statuses). Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 fix round (reviewer CHANGES_REQUIRED on `bf83c80`): Controller decisions D1--D3, union padding allowance, Agent v2 mechanical/not-applicable/human-required split with derived executed Profiles, manual-only-risk selection gate, RGR-03 findings, augmenting-path and score-boundary tests, safe no-replace publication. Fixture tests only; no real re-score.
+- [x] 2026-10-20 Stage 1 fix round 2 (reviewer ACCEPTED `d9e9dde`; Controller follow-ups): Agent reports published as one atomic no-replace directory via `publish_directory_no_replace_no_follow`, executed-Profile filter regression test, no semantic padding allowance with `outside_nearest_anchor_ms` diagnostics, restored historical Agent ExecPlan entry. Fixture tests only; no real re-score.
 
 ## Work breakdown
 
@@ -186,6 +187,10 @@ two deterministic report files.
   `title_hook_summary_must_be_source_faithful` under `human_required`, and
   reports RGR-03 bad-opening candidates as non-blocking findings because the
   JSON does not mark RGR-03 forbidden.
+- 2026-10-20 Controller interpretation (pending operator confirmation): D2
+  applies to semantic-only candidates; there is no semantic allowance. Padding
+  findings also report `outside_nearest_anchor_ms`, the overlap outside the
+  nearest unwidened gold anchor, for human inspection only.
 
 ## Risks and mitigations
 

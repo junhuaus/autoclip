@@ -4,30 +4,66 @@
 
 ### Progress
 
-- [x] 2026-10-20 Branches `claude/liveclip-stage1-evaluator` (base
-  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`) and its fix round
-  `claude/liveclip-stage1-fix`: address product-code acceptance gap 2 under "Product-code acceptance gaps" (Context and
-  Orientation). `scripts/evaluate_agent_benchmark.py` no longer emits a plain
-  `PASS`; it emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
-  `INVALID_EVIDENCE`. A source-hash mismatch or malformed evidence is
-  `INVALID_EVIDENCE`. The report separates `mechanical_failures` (the only
-  blockers of the technical pass), `not_applicable` legacy-v1 concepts
-  (decision buckets, the score>75 auto-selection gate, risk routing,
-  cache/repair records) and `human_required` checks (quality-flag
-  adjudication, RGR-02 flags for candidates on that interval, title/hook/
-  summary fidelity, semantic-only matches, editorial/audio/subtitle review),
-  so a passing run is `TECHNICAL_PASS_HUMAN_PENDING`, never a full `PASS`.
-  Executed Profiles are derived from the frozen Global Review
-  `requested_profiles` plus the tool-enforced final-candidate invariant. The
-  score stays on the raw 100-point scale with threshold 85 (applicable
-  maximum 88). The CLI requires a new `--output-dir`, claims it exclusively
-  with `os.mkdir` (an existing directory, even an empty one, is refused) and
-  writes each report via temp file, fsync and `os.replace`; the residual
-  limitation is that the two files appear one after the other. Gaps 1 and
-  3--6 (completed-evidence validation, render/package binding, publisher,
-  human review) are not part of this stage. Evidence is fixture/unit-test only; the completed
-  full-transcript run was not re-evaluated and no model inference occurred.
-  Earlier sections are unchanged history.
+- [x] 2026-10-20 On branch `claude/liveclip-stage1-evaluator` (base
+  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`), close product-code acceptance
+  gap 2 under "Product-code acceptance gaps" (Context and Orientation):
+  `scripts/evaluate_agent_benchmark.py` no longer emits a plain `PASS`. It
+  emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+  `INVALID_EVIDENCE`; a source-hash mismatch or malformed evidence is
+  `INVALID_EVIDENCE`; it separates mechanical hard failures, `not_evaluable`
+  gates (which block the technical pass) and `human_required` activities; it
+  derives executed Profiles only from an explicit record; and its CLI requires
+  a new `--output-dir`, refuses an existing one and publishes both reports by
+  one directory rename. The shared v1 gates (manual-only semantic
+  equivalence, one-to-one matching, padding, composites, RGR-02, duration,
+  risk discovery with evidence cues) apply where the Agent result carries the
+  data. Because the current Agent v2 result records no executed-Profile list,
+  decision buckets, quality flags or risk tags, a real Agent v2 result
+  currently evaluates to `TECHNICAL_FAIL` with those gates `not_evaluable`.
+  Evidence is fixture/unit-test only; the completed full-transcript run was
+  not re-evaluated and no model inference occurred. Earlier sections are
+  unchanged history.
+- [x] 2026-10-20 Fix rounds on `claude/liveclip-stage1-fix` (descending from
+  `bf83c80a81d1b47fa834a8a149f9866f3b3d89db`), superseding parts of the entry
+  above, which is kept as history. Controller interpretations D1--D3 are
+  pending operator confirmation (Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`):
+  - D1: no threshold changes. The Agent v2 score stays raw out of 100 with
+    threshold 85. Not-applicable components score 0, so the applicable
+    maximum is 88.
+  - D2: padding and forbidden composites are direct FAIL for every output
+    decision. This includes semantic-only candidates, which get no padding
+    allowance.
+  - D3: `acceptance.conditional` is applied literally.
+
+  Gap 2 status for `scripts/evaluate_agent_benchmark.py`:
+  - **Statuses:** only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+    `INVALID_EVIDENCE`; never a plain or full `PASS`.
+  - **Report sections:** `mechanical_failures` (the only blockers besides
+    `INVALID_EVIDENCE`), `not_applicable` legacy-v1 concepts (decision
+    buckets, the score>75 auto-selection gate, risk routing, cache/repair) and
+    `human_required` checks (quality-flag adjudication, RGR-02 flags for
+    candidates on that interval, title/hook/summary fidelity, semantic-only
+    matches, editorial/audio/subtitle review). `not_evaluable` and the
+    explicit executed-Profile record described above no longer exist.
+  - **Executed Profiles:** the Global Review `requested_profiles` that still
+    have at least one final candidate. `save_global_review` enforces this
+    invariant.
+  - **Report publication:** the CLI requires a new `--output-dir`. It writes
+    and fsyncs both reports in a private sibling staging directory and
+    publishes them as one unit with
+    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`.
+    That is an exclusive no-follow directory rename, which refuses any
+    existing destination, including an empty directory. The two reports
+    therefore appear together, no-replace and atomic as a pair.
+  - **On failure:** the staging directory is removed and no partial output
+    directory remains. The one exception is when `secure_files` itself
+    reports that a rollback could not be completed safely.
+
+  Gaps 1 and 3--6 (completed-evidence validation, render/package binding,
+  publisher, human review) are not part of this stage. Evidence is
+  fixture/unit-test only; the completed full-transcript run was not
+  re-evaluated and no model inference occurred.
 - [x] 2026-10-20 Informational for future formal-loop runs (no files edited):
   the evaluators now depend on the new `scripts/benchmark_gates.py` and the
   new package marker `scripts/__init__.py`. Neither path is in the
