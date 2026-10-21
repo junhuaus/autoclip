@@ -20,6 +20,9 @@ E2E_ROOT=""
 E2E_ROOT_DEVICE=""
 E2E_ROOT_INODE=""
 E2E_LOG_DIR=""
+E2E_REPORT_SCOPE=""
+E2E_REPORT_SCOPE_DEVICE=""
+E2E_REPORT_SCOPE_INODE=""
 API_PID=""
 WORKER_PID=""
 VITE_PID=""
@@ -279,10 +282,25 @@ PLAYWRIGHT_JSON_OUTPUT_FILE="${E2E_LOG_DIR}/playwright-results.json" \
 "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/verify_completion_retained.py" \
   --browser-report "${E2E_LOG_DIR}/playwright-results.json" --scenario "${E2E_SCENARIO}"
 
+# Each invocation retains into a fresh identity-bound scope below the ignored
+# report folder, so earlier runs' packages stay preserved and can never satisfy
+# or fail this invocation's exactly-one-package checks.
+IFS=$'\t' read -r E2E_REPORT_SCOPE E2E_REPORT_SCOPE_DEVICE E2E_REPORT_SCOPE_INODE < <(
+  "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/e2e_fixture.py" \
+    allocate-report-scope --scenario "${E2E_SCENARIO}"
+)
+if [[ -z "${E2E_REPORT_SCOPE}" || -z "${E2E_REPORT_SCOPE_DEVICE}" || -z "${E2E_REPORT_SCOPE_INODE}" ]]; then
+  echo "LiveClip real browser E2E could not allocate an identity-bound report scope" >&2
+  exit 1
+fi
+
 assert_owned_processes_alive
 "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/e2e_fixture.py" \
   verify --root "${E2E_ROOT}" --scenario "${E2E_SCENARIO}" \
   --retain-packages \
+  --report-scope "${E2E_REPORT_SCOPE}" \
+  --report-scope-device "${E2E_REPORT_SCOPE_DEVICE}" \
+  --report-scope-inode "${E2E_REPORT_SCOPE_INODE}" \
   --expected-device "${E2E_ROOT_DEVICE}" \
   --expected-inode "${E2E_ROOT_INODE}"
 
@@ -293,6 +311,9 @@ if [[ "${E2E_SCENARIO}" != "legacy" ]]; then
   cleanup 0
   "${VENV_DIR}/python" "${PROJECT_DIR}/scripts/verify_completion_retained.py" \
     --root "${PROJECT_DIR}" --removed-fixture-root "${E2E_ROOT}" \
+    --report-scope "${E2E_REPORT_SCOPE}" \
+    --expected-scope-device "${E2E_REPORT_SCOPE_DEVICE}" \
+    --expected-scope-inode "${E2E_REPORT_SCOPE_INODE}" \
     --prove-rejection --scenario "${E2E_SCENARIO}"
 fi
 if [[ "${E2E_SCENARIO}" == "completion" ]]; then

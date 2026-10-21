@@ -4,12 +4,14 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import sqlite3
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -28,6 +30,12 @@ _LINEAGE_SPEC.loader.exec_module(_LINEAGE)
 allocated_e2e_root = _MODULE.allocated_e2e_root
 cleanup_fixture = _MODULE.cleanup_fixture
 validated_e2e_root = _MODULE.validated_e2e_root
+allocate_report_scope = _MODULE.allocate_report_scope
+
+
+def _scope(scenario: str = "legacy") -> dict[str, Any]:
+    scope, identity = allocate_report_scope(scenario)
+    return {"report_scope": scope, "report_scope_identity": identity}
 
 
 def _lineage_fixture() -> tuple[dict, dict]:
@@ -173,7 +181,7 @@ def test_verified_browser_zips_survive_fixture_cleanup_with_exact_manifest(
         raw, inner = _MODULE._verified_archive_bytes(root / "delivery.zip")
         assert raw == original and inner == {"project_id": "b" * 32}
         evidence = {"run_id": "a" * 32, "project_id": "b" * 32, "delivery_id": "c" * 32}
-        relative = _MODULE._retain_browser_packages(evidence, raw, raw)
+        relative = _MODULE._retain_browser_packages(evidence, raw, raw, **_scope())
         assert cleanup_fixture(root, expected_identity=identity)
         manifest_path = tmp_path / relative
         manifest = json.loads(manifest_path.read_text())
@@ -196,12 +204,17 @@ def test_browser_retention_refuses_existing_run_and_preserves_evidence(
     monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
     raw = _archive(tmp_path / "input.zip")
     evidence = {"run_id": "a" * 32}
-    relative = _MODULE._retain_browser_packages(evidence, raw, raw)
+    scope = _scope()
+    relative = _MODULE._retain_browser_packages(evidence, raw, raw, **scope)
     before = (tmp_path / relative).read_bytes()
-    with pytest.raises(ValueError, match="already exists"):
-        _MODULE._retain_browser_packages(evidence, b"different", b"different")
+    with pytest.raises(ValueError, match="already holds a retained run"):
+        _MODULE._retain_browser_packages(evidence, b"different", b"different", **scope)
     assert (tmp_path / relative).read_bytes() == before
     assert (tmp_path / relative).parent.joinpath("delivery.zip").read_bytes() == raw
+    # A later invocation retains the same synthetic run ID into its own scope.
+    later = _MODULE._retain_browser_packages(evidence, raw, raw, **_scope())
+    assert Path(later).parent.name == "a" * 32 and later != relative
+    assert (tmp_path / relative).read_bytes() == before
 
 
 def test_completion_browser_retains_every_asset_and_durable_evidence_create_once(
@@ -238,6 +251,7 @@ def test_completion_browser_retains_every_asset_and_durable_evidence_create_once
         "project_id": project_id,
         "asset_count": 1,
     }
+    scope = _scope("completion")
     relative = _MODULE._retain_completion_package(
         evidence,
         raw,
@@ -245,6 +259,14 @@ def test_completion_browser_retains_every_asset_and_durable_evidence_create_once
         assets=[asset],
         durable=durable,
         markers=markers,
+        **scope,
+    )
+    assert Path(relative).parts[:5] == (
+        "apps",
+        "web",
+        "playwright-report",
+        "completion-packages",
+        scope["report_scope"].name,
     )
     manifest_path = tmp_path / relative
     manifest = json.loads(manifest_path.read_text())
@@ -266,7 +288,7 @@ def test_completion_browser_retains_every_asset_and_durable_evidence_create_once
     assert json.loads((manifest_path.parent / "durable.json").read_text()) == durable
     assert (manifest_path.parent / f"assets/{asset_id}.bin").read_bytes() == source_bytes
     assert (manifest_path.parent / "delivery.zip").read_bytes() == raw
-    with pytest.raises(ValueError, match="already exists"):
+    with pytest.raises(ValueError, match="already holds a retained run"):
         _MODULE._retain_completion_package(
             evidence,
             b"different",
@@ -274,6 +296,7 @@ def test_completion_browser_retains_every_asset_and_durable_evidence_create_once
             assets=[asset],
             durable=durable,
             markers=markers,
+            **scope,
         )
     assert (manifest_path.parent / "delivery.zip").read_bytes() == raw
 
@@ -302,6 +325,7 @@ def test_completion_retention_refuses_bad_asset_without_complete_manifest(
         path.write_text(json.dumps(document))
         markers[name] = (path, document)
     evidence = {"run_id": "b" * 32, "project_id": project_id, "asset_count": 1}
+    scope = _scope("completion")
     with pytest.raises(ValueError, match="retained Asset hash differs"):
         _MODULE._retain_completion_package(
             evidence,
@@ -310,8 +334,9 @@ def test_completion_retention_refuses_bad_asset_without_complete_manifest(
             assets=[asset],
             durable={"assets": [asset]},
             markers=markers,
+            **scope,
         )
-    retained = tmp_path / "apps/web/playwright-report/completion-packages" / ("b" * 32)
+    retained = scope["report_scope"] / ("b" * 32)
     assert retained.is_dir()
     assert not (retained / "manifest.json").exists()
 
@@ -394,7 +419,7 @@ def test_browser_retention_refuses_symlink_report_parent(
     outside.mkdir()
     (web / "playwright-report").symlink_to(outside, target_is_directory=True)
     with pytest.raises(OSError):
-        _MODULE._retain_browser_packages({"run_id": "a" * 32}, b"one", b"two")
+        allocate_report_scope("legacy")
     assert list(outside.iterdir()) == []
 
 
@@ -402,6 +427,7 @@ def test_incomplete_browser_retention_never_publishes_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    scope = _scope()
     real_open = os.open
 
     def failing_open(path: object, *args: object, **kwargs: object) -> int:
@@ -411,8 +437,8 @@ def test_incomplete_browser_retention_never_publishes_manifest(
 
     monkeypatch.setattr(_MODULE.os, "open", failing_open)
     with pytest.raises(OSError, match="injected retention"):
-        _MODULE._retain_browser_packages({"run_id": "a" * 32}, b"one", b"two")
-    retained = tmp_path / "apps/web/playwright-report/browser-packages" / ("a" * 32)
+        _MODULE._retain_browser_packages({"run_id": "a" * 32}, b"one", b"two", **scope)
+    retained = scope["report_scope"] / ("a" * 32)
     assert (retained / "delivery.zip").read_bytes() == b"one"
     assert not (retained / "manifest.json").exists()
 
@@ -422,9 +448,108 @@ def test_browser_retention_rejects_non_run_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: object
 ) -> None:
     monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    scope = _scope()
     with pytest.raises(ValueError, match="run ID"):
-        _MODULE._retain_browser_packages({"run_id": run_id}, b"one", b"two")
-    assert list(tmp_path.iterdir()) == []
+        _MODULE._retain_browser_packages({"run_id": run_id}, b"one", b"two", **scope)
+    assert list(scope["report_scope"].iterdir()) == []
+
+
+def test_report_scopes_are_fresh_and_preserve_prior_invocation_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    folder = tmp_path / "apps/web/playwright-report/browser-packages"
+    # Both the pre-scope flat layout and an earlier scoped run must survive.
+    flat = folder / ("a" * 32)
+    flat.mkdir(parents=True)
+    (flat / "manifest.json").write_bytes(b"earlier flat run")
+    earlier = _MODULE._retain_browser_packages({"run_id": "a" * 32}, b"old", b"old", **_scope())
+    earlier_bytes = (tmp_path / earlier).read_bytes()
+    first, second = _scope(), _scope()
+    names = {first["report_scope"].name, second["report_scope"].name}
+    assert len(names) == 2 and all(re.fullmatch(r"[a-f0-9]{32}", name) for name in names)
+    for scope in (first, second):
+        assert scope["report_scope"].parent == folder
+        assert list(scope["report_scope"].iterdir()) == []
+    current = _MODULE._retain_browser_packages({"run_id": "a" * 32}, b"new", b"new", **first)
+    assert Path(current).parent.parent == first["report_scope"].relative_to(tmp_path)
+    assert (flat / "manifest.json").read_bytes() == b"earlier flat run"
+    assert (tmp_path / earlier).read_bytes() == earlier_bytes
+    assert (tmp_path / earlier).parent.joinpath("delivery.zip").read_bytes() == b"old"
+    assert list(second["report_scope"].iterdir()) == []
+
+
+def test_report_scope_rejects_foreign_traversal_symlink_and_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
+    scope = _scope()
+    path, identity = scope["report_scope"], scope["report_scope_identity"]
+    evidence = {"run_id": "a" * 32}
+    (path.parent / "latest").mkdir()
+    for foreign in (
+        path.relative_to(tmp_path),
+        path.parent / ".." / "browser-packages" / path.name,
+        path.parent / "latest",
+        tmp_path / "apps/web/playwright-report/completion-packages" / path.name,
+    ):
+        with pytest.raises(ValueError, match="generated invocation directory"):
+            _MODULE._retain_browser_packages(
+                evidence, b"one", b"two", report_scope=foreign, report_scope_identity=identity
+            )
+    # A legacy scope can never receive completion or B2 evidence.
+    for scenario in ("completion", "b2"):
+        with pytest.raises(ValueError, match="generated invocation directory"):
+            _MODULE._open_report_scope(path, scenario=scenario, expected_identity=identity)
+    link = path.parent / ("f" * 32)
+    link.symlink_to(path, target_is_directory=True)
+    with pytest.raises(OSError):
+        _MODULE._retain_browser_packages(
+            evidence, b"one", b"two", report_scope=link, report_scope_identity=identity
+        )
+    aside = path.with_name(f".{path.name}.aside")
+    path.rename(aside)
+    path.mkdir()
+    with pytest.raises(ValueError, match="allocated by this run"):
+        _MODULE._retain_browser_packages(evidence, b"one", b"two", **scope)
+    assert list(path.iterdir()) == [] and list(aside.iterdir()) == []
+    path.rmdir()
+    aside.rename(path)
+    folder = path.parent
+    real_folder = folder.with_name("real-browser-packages")
+    folder.rename(real_folder)
+    folder.symlink_to(real_folder, target_is_directory=True)
+    with pytest.raises(OSError):
+        _MODULE._retain_browser_packages(evidence, b"one", b"two", **scope)
+    assert list((real_folder / path.name).iterdir()) == []
+    folder.unlink()
+    real_folder.rename(folder)
+    assert _MODULE._retain_browser_packages(evidence, b"one", b"two", **scope)
+
+
+def test_package_retention_requires_this_invocation_scope(tmp_path: Path) -> None:
+    for verify, extra in (
+        (_MODULE.verify_completed_run, {}),
+        (_MODULE.verify_completion_run, {"scenario": "completion"}),
+        (_MODULE.verify_completion_run, {"scenario": "b2"}),
+    ):
+        for partial in ({}, {"report_scope": tmp_path}, {"report_scope_identity": (1, 2)}):
+            with pytest.raises(ValueError, match="require this invocation's report scope"):
+                verify(tmp_path, expected_identity=(1, 2), retain_packages=True, **extra, **partial)
+
+
+def test_real_browser_harness_binds_one_fresh_scope_to_retention_and_verifier() -> None:
+    script = (Path(__file__).parents[2] / "scripts/run_real_browser_e2e.sh").read_text()
+    allocation = script.index('allocate-report-scope --scenario "${E2E_SCENARIO}"')
+    retention = script.index("--retain-packages")
+    retained_check = script.index("--prove-rejection")
+    assert script.count("allocate-report-scope") == 1
+    assert allocation < retention < retained_check
+    assert script.count('--report-scope "${E2E_REPORT_SCOPE}"') == 2
+    assert script.count('--report-scope-device "${E2E_REPORT_SCOPE_DEVICE}"') == 1
+    assert script.count('--report-scope-inode "${E2E_REPORT_SCOPE_INODE}"') == 1
+    assert script.count('--expected-scope-device "${E2E_REPORT_SCOPE_DEVICE}"') == 1
+    assert script.count('--expected-scope-inode "${E2E_REPORT_SCOPE_INODE}"') == 1
 
 
 def test_browser_archive_read_rejects_corruption_symlink_and_oversize(

@@ -8,13 +8,14 @@ import io
 import json
 import os
 import re
+import secrets
 import socket
 import sqlite3
 import stat
 import tempfile
 import time
 import zipfile
-from contextlib import ExitStack
+from contextlib import ExitStack, suppress
 from pathlib import Path, PurePosixPath
 
 from liveclip.config import Settings
@@ -37,6 +38,13 @@ _ROOT_PATTERN = re.compile(r"liveclip-browser-e2e\.[A-Za-z0-9_-]{6,32}")
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _MAX_RETAINED_ZIP_BYTES = 64_000_000
 _MAX_RETAINED_ASSET_BYTES = 256_000_000
+_REPORT_PARENT = ("apps", "web", "playwright-report")
+_REPORT_FOLDERS = {
+    "legacy": "browser-packages",
+    "completion": "completion-packages",
+    "b2": "b2-packages",
+}
+_SCOPE_PATTERN = re.compile(r"[a-f0-9]{32}")
 
 
 def _verified_archive_bytes(path: Path) -> tuple[bytes, object]:
@@ -57,25 +65,103 @@ def _verified_archive_bytes(path: Path) -> tuple[bytes, object]:
     return raw, manifest
 
 
-def _retain_browser_packages(evidence: dict[str, object], delivery: bytes, release: bytes) -> str:
+def _open_report_folder(scenario: str, *, create: bool) -> int:
+    """Open one scenario's ignored report folder below the repository without following links."""
+    if scenario not in _REPORT_FOLDERS:
+        raise ValueError("unknown browser E2E report scenario")
+    directory = os.open(_REPOSITORY_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in (*_REPORT_PARENT, _REPORT_FOLDERS[scenario]):
+            if create:
+                with suppress(FileExistsError):
+                    os.mkdir(part, mode=0o755, dir_fd=directory)
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+    except BaseException:
+        os.close(directory)
+        raise
+    return directory
+
+
+def allocate_report_scope(scenario: str) -> tuple[Path, tuple[int, int]]:
+    """Create this invocation's empty evidence directory; earlier scopes stay untouched."""
+    directory = _open_report_folder(scenario, create=True)
+    try:
+        name = secrets.token_hex(16)
+        os.mkdir(name, mode=0o755, dir_fd=directory)
+        metadata = os.stat(name, dir_fd=directory, follow_symlinks=False)
+    finally:
+        os.close(directory)
+    scope = _REPOSITORY_ROOT.joinpath(*_REPORT_PARENT, _REPORT_FOLDERS[scenario], name)
+    return scope, (metadata.st_dev, metadata.st_ino)
+
+
+def _open_report_scope(scope: Path, *, scenario: str, expected_identity: tuple[int, int]) -> int:
+    """Open the empty scope allocated by this invocation, refusing links and replacements."""
+    if scenario not in _REPORT_FOLDERS:
+        raise ValueError("unknown browser E2E report scenario")
+    expected_parent = _REPOSITORY_ROOT.joinpath(*_REPORT_PARENT, _REPORT_FOLDERS[scenario])
+    if (
+        not scope.is_absolute()
+        or ".." in scope.parts
+        or scope.parent != expected_parent
+        or not _SCOPE_PATTERN.fullmatch(scope.name)
+    ):
+        raise ValueError("browser E2E report scope is not a generated invocation directory")
+    directory = _open_report_folder(scenario, create=False)
+    try:
+        scope_directory = os.open(
+            scope.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory
+        )
+    finally:
+        os.close(directory)
+    try:
+        metadata = os.fstat(scope_directory)
+        if (metadata.st_dev, metadata.st_ino) != expected_identity:
+            raise ValueError("browser E2E report scope is not the directory allocated by this run")
+        if os.listdir(scope_directory):
+            raise ValueError("browser E2E report scope already holds a retained run")
+    except BaseException:
+        os.close(scope_directory)
+        raise
+    return scope_directory
+
+
+def _open_scoped_run_directory(
+    run_id: str, *, scope: Path, scenario: str, expected_identity: tuple[int, int]
+) -> int:
+    """Create the only run directory inside this invocation's report scope."""
+    directory = _open_report_scope(scope, scenario=scenario, expected_identity=expected_identity)
+    try:
+        try:
+            os.mkdir(run_id, mode=0o755, dir_fd=directory)
+        except FileExistsError:
+            raise ValueError("browser E2E retained run already exists") from None
+        return os.open(run_id, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+    finally:
+        os.close(directory)
+
+
+def _retain_browser_packages(
+    evidence: dict[str, object],
+    delivery: bytes,
+    release: bytes,
+    *,
+    report_scope: Path,
+    report_scope_identity: tuple[int, int],
+) -> str:
     """Publish only verified synthetic ZIPs; a manifest marks a complete retained set."""
     run_id = evidence.get("run_id")
     if not isinstance(run_id, str) or not re.fullmatch(r"[a-f0-9]{32}", run_id):
         raise ValueError("browser E2E retained run ID is invalid")
     if any(len(raw) > _MAX_RETAINED_ZIP_BYTES for raw in (delivery, release)):
         raise ValueError("browser E2E ZIP exceeds the retained fixture size limit")
-    relative = Path("apps/web/playwright-report/browser-packages") / run_id
-    directory = os.open(_REPOSITORY_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    directory = _open_scoped_run_directory(
+        run_id, scope=report_scope, scenario="legacy", expected_identity=report_scope_identity
+    )
     try:
-        for part in relative.parts:
-            try:
-                os.mkdir(part, mode=0o755, dir_fd=directory)
-            except FileExistsError:
-                if part == run_id:
-                    raise ValueError("browser E2E retained run already exists") from None
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
+        relative = report_scope.relative_to(_REPOSITORY_ROOT) / run_id
         entries = []
         for name, raw in (("delivery.zip", delivery), ("release.zip", release)):
             descriptor = os.open(
@@ -207,12 +293,24 @@ def verify_runtime_config(
         raise ValueError("browser E2E settings escaped their isolated Mock runtime")
 
 
+def _require_report_scope(
+    retain_packages: bool,
+    report_scope: Path | None,
+    report_scope_identity: tuple[int, int] | None,
+) -> None:
+    if retain_packages and (report_scope is None or report_scope_identity is None):
+        raise ValueError("retained browser packages require this invocation's report scope")
+
+
 def verify_completed_run(
     root: Path,
     *,
     expected_identity: tuple[int, int],
     retain_packages: bool = False,
+    report_scope: Path | None = None,
+    report_scope_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
+    _require_report_scope(retain_packages, report_scope, report_scope_identity)
     validated = validated_e2e_root(str(root), expected_identity=expected_identity)
     database_path = validated / "projects" / "liveclip.sqlite3"
     connection = sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)
@@ -394,7 +492,14 @@ def verify_completed_run(
                 with os.fdopen(os.dup(pinned.descriptor), "rb") as stream:
                     evidence["source_sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()
                 pinned.validate_binding()
-            retained = _retain_browser_packages(evidence, delivery_bytes, release_bytes)
+            assert report_scope is not None and report_scope_identity is not None
+            retained = _retain_browser_packages(
+                evidence,
+                delivery_bytes,
+                release_bytes,
+                report_scope=report_scope,
+                report_scope_identity=report_scope_identity,
+            )
             return {**evidence, "retained_manifest": retained}
         return evidence
     finally:
@@ -601,6 +706,8 @@ def _retain_completion_package(
     assets: list[sqlite3.Row],
     durable: dict[str, object],
     markers: dict[str, tuple[Path, dict[str, object]]],
+    report_scope: Path,
+    report_scope_identity: tuple[int, int],
 ) -> str:
     """Retain all verified synthetic evidence before fixture cleanup, manifest last."""
     run_id = evidence.get("run_id")
@@ -615,10 +722,12 @@ def _retain_completion_package(
         raise ValueError("completion browser retained markers are incomplete")
     if len(assets) != evidence.get("asset_count") or not assets:
         raise ValueError("completion browser retained Asset inventory is incomplete")
-    folder = "b2-packages" if "packaging.json" in markers else "completion-packages"
-    relative = Path("apps/web/playwright-report") / folder / run_id
-    if (_REPOSITORY_ROOT / relative).exists():
-        raise ValueError("completion browser retained run already exists")
+    scenario = "b2" if "packaging.json" in markers else "completion"
+    # Fail before scanning when the scope is foreign, replaced or already used.
+    os.close(
+        _open_report_scope(report_scope, scenario=scenario, expected_identity=report_scope_identity)
+    )
+    relative = report_scope.relative_to(_REPOSITORY_ROOT) / run_id
     attempt_rows = durable.get("attempts", [])
     if not isinstance(attempt_rows, list):
         raise ValueError("completion browser retained attempts are invalid")
@@ -654,17 +763,10 @@ def _retain_completion_package(
                     pinned.read_bytes(max_bytes=_MAX_RETAINED_ASSET_BYTES),
                     lease_token_hashes=lease_hashes,
                 )
-    directory = os.open(_REPOSITORY_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    directory = _open_scoped_run_directory(
+        run_id, scope=report_scope, scenario=scenario, expected_identity=report_scope_identity
+    )
     try:
-        for part in relative.parts:
-            try:
-                os.mkdir(part, mode=0o755, dir_fd=directory)
-            except FileExistsError:
-                if part == run_id:
-                    raise ValueError("completion browser retained run already exists") from None
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
         entries: list[dict[str, object]] = []
 
         def write_bytes(name: str, raw: bytes) -> None:
@@ -805,10 +907,13 @@ def verify_completion_run(
     expected_identity: tuple[int, int],
     retain_packages: bool = False,
     scenario: str = "completion",
+    report_scope: Path | None = None,
+    report_scope_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
     """Verify the isolated manual-selection goal without weakening the legacy case."""
     if scenario not in {"completion", "b2"}:
         raise ValueError("unknown completion browser scenario")
+    _require_report_scope(retain_packages, report_scope, report_scope_identity)
     validated = validated_e2e_root(str(root), expected_identity=expected_identity)
     if (validated / "b2-pauses").exists() != (scenario == "b2"):
         raise ValueError("completion browser scenario/fixture mismatch")
@@ -1315,9 +1420,12 @@ def verify_completion_run(
                 marker_path = logs / "packaging.json"
                 marker_path.write_text(json.dumps(packaging, sort_keys=True))
                 extra_markers["packaging.json"] = (marker_path, packaging)
+            assert report_scope is not None and report_scope_identity is not None
             evidence["retained_manifest"] = _retain_completion_package(
                 evidence,
                 delivery_bytes,
+                report_scope=report_scope,
+                report_scope_identity=report_scope_identity,
                 project_root=validated / "projects" / project_id,
                 assets=assets,
                 durable=durable,
@@ -1340,6 +1448,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("allocate")
+    scope = subparsers.add_parser("allocate-report-scope")
+    scope.add_argument("--scenario", choices=("legacy", "completion", "b2"), required=True)
     for name in ("create", "cleanup", "verify-config", "verify", "watch-completion"):
         command = subparsers.add_parser(name)
         command.add_argument("--root", type=Path, required=True)
@@ -1349,6 +1459,9 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("--api-port", type=int, required=True)
         if name == "verify":
             command.add_argument("--retain-packages", action="store_true")
+            command.add_argument("--report-scope", type=Path)
+            command.add_argument("--report-scope-device", type=int)
+            command.add_argument("--report-scope-inode", type=int)
         if name in {"create", "verify"}:
             command.add_argument(
                 "--scenario", choices=("legacy", "completion", "b2"), default="legacy"
@@ -1364,6 +1477,10 @@ def main() -> int:
     if arguments.command == "allocate":
         root, identity = allocated_e2e_root()
         print(f"{root}\t{identity[0]}\t{identity[1]}")
+        return 0
+    if arguments.command == "allocate-report-scope":
+        scope, scope_identity = allocate_report_scope(arguments.scenario)
+        print(f"{scope}\t{scope_identity[0]}\t{scope_identity[1]}")
         return 0
     if arguments.command == "check-ports":
         assert_ports_available(arguments.api_port, arguments.web_port)
@@ -1397,6 +1514,13 @@ def main() -> int:
                     arguments.root,
                     expected_identity=identity,
                     retain_packages=arguments.retain_packages,
+                    report_scope=arguments.report_scope,
+                    report_scope_identity=(
+                        None
+                        if arguments.report_scope_device is None
+                        or arguments.report_scope_inode is None
+                        else (arguments.report_scope_device, arguments.report_scope_inode)
+                    ),
                     **(
                         {"scenario": arguments.scenario}
                         if arguments.scenario in {"completion", "b2"}

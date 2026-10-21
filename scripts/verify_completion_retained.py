@@ -37,6 +37,7 @@ STAGE_FOR_KIND = {
     "render_quality_report": "proxy_render",
     "render_contact_sheet": "proxy_render",
 }
+REPORT_PARENT = ("apps", "web", "playwright-report")
 RENDER_KINDS = {
     "review_proxy",
     "clip_subtitle_srt",
@@ -544,11 +545,45 @@ def validate_packaging(
         previous_release = release["released_unix_ms"]
 
 
+def validate_report_scope(
+    repository_root: Path,
+    scope: Path,
+    *,
+    folder: str,
+    expected_identity: tuple[int, int],
+) -> Path:
+    """Bind verification to the scope this invocation allocated, never a sibling run."""
+    report_root = repository_root.joinpath(*REPORT_PARENT, folder)
+    _require(
+        scope.is_absolute()
+        and ".." not in scope.parts
+        and scope.parent == report_root
+        and HEX32.fullmatch(scope.name),
+        "retained report scope path",
+    )
+    current = repository_root
+    for part in (*REPORT_PARENT, folder, scope.name):
+        current = current / part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError:
+            raise ValueError("retained report scope missing") from None
+        _require(stat.S_ISDIR(mode), "retained report scope not a real directory")
+    metadata = scope.lstat()
+    _require(
+        (metadata.st_dev, metadata.st_ino) == expected_identity,
+        "retained report scope identity",
+    )
+    return scope
+
+
 def verify_bundle(
     repository_root: Path,
     *,
     removed_fixture_root: Path,
     prove_rejection: bool,
+    report_scope: Path,
+    report_scope_identity: tuple[int, int],
     scenario: str = "completion",
 ) -> dict[str, Any]:
     _require(
@@ -557,11 +592,21 @@ def verify_bundle(
     )
     _require(scenario in {"completion", "b2"}, "unknown retained scenario")
     folder = "b2-packages" if scenario == "b2" else "completion-packages"
-    report_root = repository_root / "apps/web/playwright-report" / folder
-    manifests = sorted(report_root.glob("*/manifest.json"))
+    scope = validate_report_scope(
+        repository_root, report_scope, folder=folder, expected_identity=report_scope_identity
+    )
+    report_root = scope.parent
+    # Earlier invocations keep their own scopes; only this one may supply evidence.
+    manifests = sorted(scope.glob("*/manifest.json"))
     _require(len(manifests) == 1, "exactly one retained completion package required")
     root = manifests[0].parent
-    _require(root.parent == report_root and HEX32.fullmatch(root.name), "retained run directory")
+    _require(
+        root.parent == scope
+        and HEX32.fullmatch(root.name)
+        and stat.S_ISDIR(root.lstat().st_mode)
+        and list(scope.iterdir()) == [root],
+        "retained run directory",
+    )
     manifest = _json(manifests[0])
     _require(
         set(manifest)
@@ -953,6 +998,7 @@ def verify_bundle(
             raise ValueError("wrong existing producer attempt accepted")
     return {
         "status": "PASS",
+        "report_scope": scope.name,
         "run_id": evidence["run_id"],
         "manifest_sha256": _digest(manifests[0]),
         "retained_files": len(files),
@@ -1020,6 +1066,9 @@ def main() -> None:
     parser.add_argument("--removed-fixture-root", type=Path)
     parser.add_argument("--browser-report", type=Path)
     parser.add_argument("--prove-rejection", action="store_true")
+    parser.add_argument("--report-scope", type=Path)
+    parser.add_argument("--expected-scope-device", type=int)
+    parser.add_argument("--expected-scope-inode", type=int)
     parser.add_argument("--scenario", choices=("legacy", "completion", "b2"), default="completion")
     args = parser.parse_args()
     if args.browser_report:
@@ -1028,10 +1077,18 @@ def main() -> None:
         return
     if not args.root or not args.removed_fixture_root or args.scenario == "legacy":
         parser.error("bundle verification requires both roots and a completion or b2 scenario")
+    if (
+        args.report_scope is None
+        or args.expected_scope_device is None
+        or args.expected_scope_inode is None
+    ):
+        parser.error("bundle verification requires this invocation's identity-bound report scope")
     result = verify_bundle(
         args.root.resolve(strict=True),
         removed_fixture_root=args.removed_fixture_root,
         prove_rejection=args.prove_rejection,
+        report_scope=args.report_scope,
+        report_scope_identity=(args.expected_scope_device, args.expected_scope_inode),
         scenario=args.scenario,
     )
     print(json.dumps(result, sort_keys=True))
