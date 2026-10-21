@@ -808,3 +808,36 @@ def test_retained_verifier_rejects_scope_swapped_after_initial_check(
     shutil.rmtree(target)
     aside.rename(target)
     assert _verified_bundle(sample)["status"] == "PASS"
+
+
+def test_retained_verifier_baseline_is_the_same_lstat_as_its_directory_check(
+    completion_sample: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample = completion_sample
+    folder = _retained_sample(sample)
+    assert _verified_bundle(sample)["status"] == "PASS"
+    # Outside the scope, so the scope still holds only the (replaced) run.
+    aside = sample["repository"] / f".{folder.name}.aside"
+    original_lstat = Path.lstat
+    swaps: list[Path] = []
+
+    def lstat_then_swap(self: Path) -> object:
+        result = original_lstat(self)
+        if self == folder and not swaps:
+            # Replace the run directory right after its first lstat. With a
+            # separate second lstat the baseline would be the replacement and
+            # the swap would go unnoticed.
+            swaps.append(self)
+            folder.rename(aside)
+            shutil.copytree(aside, folder)
+        return result
+
+    monkeypatch.setattr(Path, "lstat", lstat_then_swap)
+    with pytest.raises(ValueError, match="retained run directory changed during verification"):
+        _verified_bundle(sample)
+    monkeypatch.setattr(Path, "lstat", original_lstat)
+    assert swaps == [folder]
+    shutil.rmtree(folder)
+    aside.rename(folder)
+    assert _verified_bundle(sample)["status"] == "PASS"

@@ -600,14 +600,16 @@ def verify_bundle(
     manifests = sorted(scope.glob("*/manifest.json"))
     _require(len(manifests) == 1, "exactly one retained completion package required")
     root = manifests[0].parent
+    # One lstat is both the real-directory check and the identity baseline that
+    # is re-checked after every read, so nothing can slip in between them.
+    root_metadata = root.lstat()
     _require(
         root.parent == scope
         and HEX32.fullmatch(root.name)
-        and stat.S_ISDIR(root.lstat().st_mode)
+        and stat.S_ISDIR(root_metadata.st_mode)
         and list(scope.iterdir()) == [root],
         "retained run directory",
     )
-    root_metadata = root.lstat()
     manifest = _json(manifests[0])
     _require(
         set(manifest)

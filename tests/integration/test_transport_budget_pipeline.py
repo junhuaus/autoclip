@@ -7,9 +7,11 @@ from datetime import UTC, datetime
 from threading import Event
 
 import pytest
+from lease_suspend import SIMULATED_SUSPEND, SUSPEND_TOLERANT_LEASE_SECONDS, ShiftedWallClock
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from liveclip.application.lease_monitor import LeaseMonitor
 from liveclip.application.pipeline import (
     PipelineRunConfigV10,
     PipelineRunConfigV11,
@@ -277,7 +279,10 @@ def test_initial_budget_is_durable_deterministic_and_never_retried(
     Base.metadata.create_all(engine)
     repository = SqlAlchemyPipelineRepository(engine)
     service = PipelineService(repository)
-    queue = SQLiteTaskQueue(engine, lease_seconds=30)
+    # retry_count == 0 below must not depend on the host staying awake: see
+    # tests/integration/lease_suspend.py for why a suspend past the lease is a
+    # legitimate recovery in production.
+    queue = SQLiteTaskQueue(engine, lease_seconds=SUSPEND_TOLERANT_LEASE_SECONDS)
     config = execution_config(
         Settings(_env_file=None, ai_provider="mock"),
         bounded=bounded,
@@ -445,6 +450,28 @@ def test_initial_budget_is_durable_deterministic_and_never_retried(
         assert service.get_run(created.run_id).error_code == expected_code
     finally:
         engine.dispose()
+
+
+@pytest.mark.integration
+def test_initial_budget_never_retries_across_a_simulated_host_suspend(tmp_path, monkeypatch):
+    clock = ShiftedWallClock(monkeypatch)
+    original_start = LeaseMonitor.start
+    suspended_stages = []
+
+    def start_then_suspend(self):
+        original_start(self)
+        # The stage now holds its lease; wall time jumps as a sleeping host does.
+        suspended_stages.append(self._lease.task_id)
+        clock.suspend()
+
+    monkeypatch.setattr(LeaseMonitor, "start", start_then_suspend)
+    # The parameters whose run failed with retry_count 1 during a real sleep.
+    test_initial_budget_is_durable_deterministic_and_never_retried(
+        tmp_path, monkeypatch, ClipProfile.SHORT_HIGHLIGHT, None, "existing", False
+    )
+    # Ingest, preprocess, transcribe and candidates each held a lease across a suspend.
+    assert len(suspended_stages) >= 4
+    assert clock.offset == len(suspended_stages) * SIMULATED_SUSPEND
 
 
 @pytest.mark.integration

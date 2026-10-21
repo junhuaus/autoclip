@@ -457,9 +457,14 @@ def test_retention_refuses_report_parent_symlinked_after_allocation(
     assert list((folder / scope["report_scope"].name).iterdir()) == []
 
 
-def test_report_scope_identity_comes_from_the_created_directory_handle(
+def test_report_scope_identity_is_read_from_held_handle_not_trusted_by_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # What this proves: allocation takes the scope identity by fstat on the
+    # O_NOFOLLOW handle it holds, so a by-name swap *after* that open is not
+    # trusted and retention into the replacement is refused. What it does not
+    # prove: the window between mkdir and open is not closed (POSIX has no
+    # mkdirat returning a handle); that residual race is an accepted risk.
     monkeypatch.setattr(_MODULE, "_REPOSITORY_ROOT", tmp_path)
     folder = tmp_path / "apps/web/playwright-report/browser-packages"
     real_open = os.open
@@ -468,7 +473,7 @@ def test_report_scope_identity_comes_from_the_created_directory_handle(
     def swapping_open(path: object, flags: int, *args: object, **kwargs: object) -> int:
         descriptor = real_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
         if isinstance(path, str) and re.fullmatch(r"[a-f0-9]{32}", path) and not swapped:
-            # Replace the new scope by name right after it was opened.
+            # Replace the new scope by name after the handle was opened.
             (folder / path).rename(folder / f".{path}.original")
             (folder / path).mkdir()
             swapped.append(folder / path)
