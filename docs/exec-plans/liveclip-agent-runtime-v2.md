@@ -4,7 +4,7 @@
 
 ### Progress
 
-- [ ] 2026-10-21 On local branch `claude/liveclip-stage3-cleanup` (from
+- [x] 2026-10-21 On local branch `claude/liveclip-stage3-cleanup` (from
   `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0`), address the Stage 2
   follow-ups. Status: implemented by the coder in code commit `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`,
   **pending independent tester and reviewer acceptance**. Not pushed or
@@ -23,6 +23,22 @@
       alone.
 
   Details and evidence are in `STATUS.md`.
+- [x] 2026-10-21 Stage 3 **ACCEPTED** at code commit
+  `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`. The item above, written while
+  pending, is checked by this acceptance.
+  - Tester at `2421df3`: `make lint` 0; `make test` twice under
+    `caffeinate`, both exit 0 (2627 backend each, vitest 80/80, e2e mock,
+    legacy, completion and B2 PASS); 0 sleep events; lease and suspend set
+    39 passed x 3; the new verifier `lstat` test passed; 846 report files
+    hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+- [x] 2026-10-21 Reviewer P2 fixes in test-only commit
+  `f51f6960f27d298424e968a5a7e329f857c6f201`, verified as part of the Stage 4
+  round:
+  - the suspend regression now proves the shift reached the queue;
+  - the root-cause wording is corrected to the `lease - heartbeat` worst case;
+  - the "30 s lease these tests previously used" and `ShiftedWallClock`
+    wording is fixed.
 
 ### Decision Log
 
@@ -36,6 +52,20 @@
   suspend-tolerant 24 h lease instead. No injected-clock seam was added:
   wall-clock `now` is read in many repository modules, and changing all of
   them would be a broad production change outside this stage.
+  Correction (reviewer P2-2, 2026-10-21): in the worst case a holder loses its
+  lease once a suspend exceeds `lease - heartbeat interval`, not only `lease`.
+  With the production defaults (120 s lease, 30 s heartbeat) that is about
+  90 s, and with `max_stage_retries=3` repeated sleeps can fail a stage.
+  Follow-up (not done): `LeaseMonitor` should detect a wall-clock versus
+  monotonic jump and refresh immediately while the lease is still unexpired.
+- 2026-10-21 Operator authorizations:
+  - Real pipeline runs are allowed without per-run consent. The LLM engine is
+    the Codex CLI and ASR uses local models, so these runs incur no paid
+    usage.
+  - Local assets may be copied from `/Users/junhuaxu/autoclip` into this
+    worktree's ignored paths. The Controller cloned `input/8-30.ts`, whose
+    sha256 matches this ExecPlan, and `data/evaluations/`.
+  - Push and merge still require explicit consent.
 - 2026-10-21 The operator confirmed the semantic-only no-padding-allowance
   reading (Decision Log of
   `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`). No interpretation

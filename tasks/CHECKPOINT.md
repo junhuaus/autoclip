@@ -175,3 +175,21 @@ branch `claude/liveclip-stage3-cleanup`, created from `e51e353`. Code commit
 
 It is pending the independent tester and reviewer. Details are in the
 Stage 3 section of `STATUS.md`. Not pushed.
+
+## Stage 3 accepted at ce43f5e (2026-10-21)
+
+Stage 3 (cleanup) is ACCEPTED at code commit `ce43f5e`.
+- Tester at `2421df3`: `make test` twice under `caffeinate`, both green.
+- Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+
+The P2s are fixed in test-only commit `f51f696`, which is verified with the
+Stage 4 round.
+
+Operator authorizations on 2026-10-21:
+- Real pipeline runs need no per-run consent (Codex CLI and local ASR,
+  nothing paid).
+- Local assets may be copied from `/Users/junhuaxu/autoclip` into ignored
+  paths.
+- Push and merge still need explicit consent.
+
+Details are in `STATUS.md`. Not pushed.

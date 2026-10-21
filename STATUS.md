@@ -1,9 +1,31 @@
 # LiveClip status
 
-## Stage 3 cleanup (2026-10-21) — IN PROGRESS, pending acceptance
+## Operator authorizations (2026-10-21)
 
-- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
-  branch `claude/liveclip-stage3-cleanup`, created from
+- Real pipeline runs are allowed without per-run consent. The product's LLM
+  engine is the Codex CLI and ASR uses local models, so these runs incur no
+  paid usage.
+- Copying local assets from `/Users/junhuaxu/autoclip` into this worktree's
+  ignored paths is allowed. The Controller has already cloned
+  `input/8-30.ts` (its sha256 matches the ExecPlan) and `data/evaluations/`.
+  Those paths stay ignored and local-only.
+- Push and merge still require explicit operator consent.
+
+## Stage 3 cleanup (2026-10-21) — ACCEPTED at ce43f5e
+
+- **Status: ACCEPTED** at code commit
+  `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`.
+  - Tester, at tip `2421df3`: `make lint` 0; `make test` twice under
+    `caffeinate`, both exit 0, each with 2627 backend passed, vitest 80/80,
+    and e2e mock, legacy, completion and B2 PASS; 0 sleep events; the lease
+    and suspend set passed 39 x 3; the new verifier `lstat` test passed;
+    846 report files hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+  - The 3 P2s are fixed in test-only commit
+    `f51f6960f27d298424e968a5a7e329f857c6f201` (details below). That commit
+    is verified as part of the Stage 4 round, not this acceptance.
+- (History: this section was opened as "IN PROGRESS, pending tester and
+  reviewer acceptance".) Opened on local branch `claude/liveclip-stage3-cleanup`, created from
   `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0` (the Stage 2 docs tip). The
   operator approved Stage 3 on 2026-10-21. Not pushed or merged.
 - Operator decision 2026-10-21: the semantic-only no-padding-allowance
@@ -38,6 +60,14 @@
          `claim` then recovers the task: it requeues with `retry_count + 1`
          and executes it again. That explains the r1 failures (retry_count 1;
          PROXY_RENDER 2).
+       - Correction (reviewer P2-2, 2026-10-21): the worst case is a suspend
+         longer than `lease - heartbeat interval`, not only `lease`. The last
+         renewal sets `expiry = renewal + lease`, and the next renewal is due
+         one heartbeat of monotonic time later. If the host sleeps just
+         before a due heartbeat, the lease expires before it can be renewed.
+         With the production defaults (120 s lease, 30 s heartbeat), a sleep
+         of about 90 s or more can cost a retry. With `max_stage_retries=3`,
+         repeated sleeps can FAIL a stage.
      - Conclusion: this is **correct production behavior**. Wall time is the
        only clock all worker processes share, and a suspended holder cannot be
        told apart from a dead one. No `src/` code changed, and no production
@@ -51,17 +81,25 @@
        unchanged: `retry_count == 0` and every stage executed exactly once.
        Nothing is marked skip, xfail or retry.
      - Regression tests:
-       - `ShiftedWallClock` advances `datetime.now` in every loaded `liveclip`
-         module and leaves monotonic time alone, as a real suspend does.
+       - `ShiftedWallClock` advances `datetime.now` in every already-imported
+         LiveClip module that binds `datetime`, and leaves monotonic time
+         alone, as a real suspend does.
        - `test_simulated_suspend_keeps_exactly_once_only_within_the_test_lease`
          jumps wall time 12 h while ingest holds its lease. With the test
-         lease, every stage runs exactly once. With a 30 s lease, ingest
-         correctly runs twice (production semantics).
+         lease, every stage runs exactly once. With the 30 s lease these tests
+         previously used, ingest correctly runs twice (production semantics).
        - `test_initial_budget_never_retries_across_a_simulated_host_suspend`
          re-runs the r1 failing parametrization
          (`short_highlight-None-existing-False`) with a 12 h jump after every
          stage claim, and keeps `retry_count == 0`. As a mutation check, with
          the 30 s lease it fails.
+         - Reviewer P2-1 fix (`f51f696`): this test now also asserts that
+           every claimed lease expires at the shifted "now" plus the test
+           lease, which proves the shift reached the queue. Mutation check
+           with no module shifted: the old test passed vacuously (exit 0) and
+           the new test fails (exit 1). With only the queue unshifted, the
+           shifted repository's `not_before` keeps the queue idle, so the run
+           never completes; it does not pass.
      - Limits: a suspend longer than 24 h would still, correctly, let a
        holder's lease expire. The other `lease_seconds=30` tests (for example
        `test_actual_planning_and_serial_domain_repair_keep_attempt_audit`) are
@@ -90,6 +128,9 @@
   - Logs (session scratchpad, may not persist):
     `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage3-coder/`.
   - The coder did not run the full backend suite; the tester owns it.
+- Open follow-up (not done): `LeaseMonitor` should detect a wall-clock
+  versus monotonic jump and refresh immediately while the lease is still
+  unexpired, so a production sleep shorter than the lease costs no retry.
 - Caveats: deterministic validation only; mock/fixture providers; no
   rendering acceptance, human editorial/audio review or model inference.
 
