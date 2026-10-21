@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from threading import Event
 
 import pytest
@@ -460,6 +460,13 @@ def test_initial_budget_never_retries_across_a_simulated_host_suspend(tmp_path, 
 
     def start_then_suspend(self):
         original_start(self)
+        # Prove the shift reached the queue: the lease was claimed on the shifted
+        # clock (real now + offset so far), not merely on the real clock. After
+        # the first suspend an unshifted claim would expire 12 h too early.
+        shifted_now = datetime.now(UTC) + clock.offset
+        lease = timedelta(seconds=SUSPEND_TOLERANT_LEASE_SECONDS)
+        assert shifted_now + lease - timedelta(minutes=5) <= self._lease.lease_expires_at
+        assert self._lease.lease_expires_at <= shifted_now + lease
         # The stage now holds its lease; wall time jumps as a sleeping host does.
         suspended_stages.append(self._lease.task_id)
         clock.suspend()

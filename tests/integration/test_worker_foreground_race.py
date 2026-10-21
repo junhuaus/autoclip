@@ -173,8 +173,9 @@ def test_simulated_suspend_keeps_exactly_once_only_within_the_test_lease(
     assert clock.offset == SIMULATED_SUSPEND
     assert handler.counts == Counter({stage: 1 for stage in PipelineStage})
 
-    # Production semantics stay intact: past an operational 30 s lease the same
-    # suspend expires the lease, so the stage is recovered and executed again.
+    # Production semantics stay intact: past the 30 s lease these tests
+    # previously used, the same suspend expires the lease, so the stage is
+    # recovered and executed again.
     handler = _run_foreground_with_blocked_ingest(
         tmp_path / "operational",
         lease_seconds=30,

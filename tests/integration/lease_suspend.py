@@ -3,11 +3,20 @@
 Task leases expire on the shared wall clock (``datetime.now(UTC)``), which is
 the only clock all worker processes agree on and which keeps running while the
 host sleeps. Heartbeats are paced by ``time.monotonic``, which pauses during
-macOS sleep. A suspend longer than the lease therefore correctly lets the task
-be recovered (``retry_count + 1``) and executed again; that is production
-behavior and is not changed here. Tests that assert exactly-once execution or
-``retry_count == 0`` use a lease that outlasts realistic suspends instead of a
-30 s operational lease.
+macOS sleep. The last renewal sets ``expiry = renewal + lease`` and the next one
+is due one heartbeat interval of monotonic time later, so in the worst case
+(the host sleeps just before a due heartbeat) a holder loses its lease once a
+suspend exceeds ``lease - heartbeat interval``, not only ``lease``. The task is
+then correctly recovered (``retry_count + 1``) and executed again; that is
+production behavior and is not changed here. With the production defaults
+(120 s lease, 30 s heartbeat) a sleep of about 90 s or more can cost a retry,
+and with ``max_stage_retries=3`` repeated sleeps can fail a stage. Follow-up:
+``LeaseMonitor`` should detect a wall-clock versus monotonic jump and refresh
+immediately while the lease is still unexpired.
+
+Tests that assert exactly-once execution or ``retry_count == 0`` use a lease
+that outlasts realistic suspends instead of the 30 s lease these tests
+previously used.
 """
 
 from __future__ import annotations
@@ -22,7 +31,8 @@ SIMULATED_SUSPEND = timedelta(hours=12)
 
 
 class ShiftedWallClock:
-    """Advance every LiveClip module's ``datetime.now`` without touching monotonic time."""
+    """Advance ``datetime.now`` in every already-imported LiveClip module that binds
+    ``datetime``, without touching monotonic time."""
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.offset = timedelta(0)
