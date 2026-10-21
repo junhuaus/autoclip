@@ -1,5 +1,98 @@
 # LiveClip status
 
+## Stage 3 cleanup (2026-10-21) — IN PROGRESS, pending acceptance
+
+- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+  branch `claude/liveclip-stage3-cleanup`, created from
+  `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0` (the Stage 2 docs tip). The
+  operator approved Stage 3 on 2026-10-21. Not pushed or merged.
+- Operator decision 2026-10-21: the semantic-only no-padding-allowance
+  reading is **confirmed**. It is recorded in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`. No evaluator code,
+  threshold or benchmark JSON/MD changed.
+- Scope: the three Stage 2 cleanup follow-ups, all in code commit `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`.
+  1. **Single run-directory lstat** (`scripts/verify_completion_retained.py`).
+     - One `lstat` of the selected run directory now provides both the
+       `S_ISDIR` (not-a-symlink) check and the identity baseline that is
+       re-checked after all reads.
+     - New test
+       `test_retained_verifier_baseline_is_the_same_lstat_as_its_directory_check`
+       swaps the run directory right after its first `lstat`. It passes on
+       the new code and fails ("DID NOT RAISE") on the old two-`lstat` code.
+  2. **Allocation swap test renamed** to
+     `test_report_scope_identity_is_read_from_held_handle_not_trusted_by_name`,
+     with a comment saying what it proves and what it does not. It proves the
+     identity comes from `fstat` on the held `O_NOFOLLOW` handle, so a
+     by-name swap after `open` is not trusted. It does not close the
+     `mkdir`-to-`open` window, which is an accepted risk. Assertions are
+     unchanged.
+  3. **Lease tests robust to host suspend.**
+     - Root cause:
+       - Task leases expire on the shared wall clock: `SQLiteTaskQueue` stores
+         `datetime.now(UTC) + lease_seconds`, and `_recover_expired` compares
+         it against wall-clock now.
+       - `LeaseMonitor` paces heartbeats with `time.monotonic`, which pauses
+         while macOS sleeps.
+       - After a suspend longer than the lease, the next heartbeat finds the
+         lease expired, so the stage ends `LOST_LEASE`. The runner's next
+         `claim` then recovers the task: it requeues with `retry_count + 1`
+         and executes it again. That explains the r1 failures (retry_count 1;
+         PROXY_RENDER 2).
+     - Conclusion: this is **correct production behavior**. Wall time is the
+       only clock all worker processes share, and a suspended holder cannot be
+       told apart from a dead one. No `src/` code changed, and no production
+       lease semantics or durations changed. There is no injected-clock seam,
+       and adding one across the repository modules would be a broad
+       production change.
+     - Fix (tests only): the two tests use the existing
+       `SQLiteTaskQueue(lease_seconds=...)` parameter with a 24 h
+       `SUSPEND_TOLERANT_LEASE_SECONDS`, defined in the new helper
+       `tests/integration/lease_suspend.py`. All existing assertions are
+       unchanged: `retry_count == 0` and every stage executed exactly once.
+       Nothing is marked skip, xfail or retry.
+     - Regression tests:
+       - `ShiftedWallClock` advances `datetime.now` in every loaded `liveclip`
+         module and leaves monotonic time alone, as a real suspend does.
+       - `test_simulated_suspend_keeps_exactly_once_only_within_the_test_lease`
+         jumps wall time 12 h while ingest holds its lease. With the test
+         lease, every stage runs exactly once. With a 30 s lease, ingest
+         correctly runs twice (production semantics).
+       - `test_initial_budget_never_retries_across_a_simulated_host_suspend`
+         re-runs the r1 failing parametrization
+         (`short_highlight-None-existing-False`) with a 12 h jump after every
+         stage claim, and keeps `retry_count == 0`. As a mutation check, with
+         the 30 s lease it fails.
+     - Limits: a suspend longer than 24 h would still, correctly, let a
+       holder's lease expire. The other `lease_seconds=30` tests (for example
+       `test_actual_planning_and_serial_domain_repair_keep_attempt_audit`) are
+       out of this stage's scope and keep 30 s.
+- Coder self-checks at `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`, run under `caffeinate -dims` with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  Mock/fixture only.
+  - `make lint` exit 0: ruff "All checks passed!", "447 files already
+    formatted", mypy "no issues found in 230 source files", schema match,
+    `tsc` clean.
+  - `pytest --collect-only tests` exit 0: 2627 tests collected, which
+    confirms the `lease_suspend` helper import works under full collection.
+  - Touched files (`test_e2e_fixture.py`,
+    `test_completion_fixture_verifiers.py`,
+    `test_transport_budget_pipeline.py`, `test_worker_foreground_race.py`):
+    87 passed.
+  - The two lease tests (every parametrization) plus both suspend
+    regressions, 5 times in a loop: 39 passed each time, all exit 0.
+  - `make e2e` once, exit 0, with 4 x "1 passed":
+    - legacy run `eb3031cfa50e4c9194a40d54aef6107a`;
+    - completion run `249daf6b7d8345cfac605627cefd099b` (scope
+      `2277fd1e...`), retained PASS;
+    - B2 run `62079126b46b4e01a15eb6df9a57d7f3` (scope `e530017a...`),
+      retained PASS.
+  - All 792 pre-existing report files hashed identically afterwards.
+  - Logs (session scratchpad, may not persist):
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage3-coder/`.
+  - The coder did not run the full backend suite; the tester owns it.
+- Caveats: deterministic validation only; mock/fixture providers; no
+  rendering acceptance, human editorial/audio review or model inference.
+
 ## Stage 2 real-browser e2e harness idempotency (2026-10-21) — ACCEPTED at cfcff0d
 
 - **Status: ACCEPTED** at code commit
@@ -99,7 +192,7 @@
   - The full backend suite was not run by the coder; the independent tester
     owns it.
 - P2 fix round (2026-10-21), still **pending acceptance** until the new SHA
-  is verified:
+  is verified (historical; accepted at cfcff0d):
   - Independent evidence at `c391ced5f3983f4b10654074742b7aaf10197f1c`:
     - Tester: `make lint` exit 0; `make test` twice, both exit 0, each with
       2619 backend passed, Web vitest 80/80, and e2e:mock, legacy,
@@ -172,20 +265,24 @@
 - Open follow-ups (not done):
   - `scripts/verify_completion_retained.py` around lines 604--610: use a
     single `lstat` for both the run directory's `S_ISDIR` check and its
-    identity baseline.
+    identity baseline. (2026-10-21: addressed by Stage 3, pending
+    acceptance.)
   - Rename or comment the allocation swap unit test
     (`tests/unit/test_e2e_fixture.py`, around lines 460--499) to match what
     it actually proves: identity from the held handle, not a closed race.
+    (2026-10-21: addressed by Stage 3, pending acceptance.)
   - Inherent limit: path-based reads cannot detect a scope swapped away and
     back between checks. The per-file manifest hashes still bind the
     content.
   - Lease-based integration tests (the two above) fail if the host sleeps
     mid-test. Run the full `make test` under `caffeinate -dims` on AC power,
-    and consider making these tests robust to suspend.
+    and consider making these tests robust to suspend. (2026-10-21:
+    addressed by Stage 3, pending acceptance.)
   - Still-open Stage 1 follow-ups carry over (see the Stage 1 section):
     Reviewer P2-b, Reviewer P2-c and Earlier P2-5.
   - The semantic-only "no padding allowance" reading is still pending
-    operator confirmation.
+    operator confirmation. (Resolved 2026-10-21: confirmed by the
+    operator.)
 - Caveats: deterministic validation only; mock/fixture providers; no
   rendering acceptance, human editorial/audio review or model inference.
 
@@ -258,6 +355,8 @@
   - Update 2026-10-21: the operator **confirmed D1, D2 and D3**. The
     semantic-only reading ("D2 applies to semantic-only candidates; no
     semantic padding allowance") remains **pending operator confirmation**.
+  - Update 2026-10-21 (later): the operator **confirmed** the semantic-only
+    reading as well.
 - Independent tester evidence at `6c465b7`. Mock/fixture only, run with
   `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
   - `make lint` exit 0:
@@ -345,6 +444,8 @@
     (real-browser e2e harness idempotency; see the Stage 2 section above).
     The semantic-only padding reading is still pending operator
     confirmation.
+  - Update 2026-10-21 (later): the operator confirmed the semantic-only
+    no-padding-allowance reading. No Stage 1 interpretation remains pending.
 
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 

@@ -199,12 +199,19 @@ two deterministic report files.
   applies to semantic-only candidates; there is no semantic allowance. Padding
   findings also report `outside_nearest_anchor_ms`, the overlap outside the
   nearest unwidened gold anchor, for human inspection only.
+  **Confirmed by the operator on 2026-10-21** (semantic-only candidates get
+  no padding allowance).
 - 2026-10-21 operator confirmation: the operator confirmed D1, D2 and D3 as
   written above; they are no longer pending. The separate reading "D2 applies
   to semantic-only candidates; semantic-only candidates get no padding
   allowance" was not part of that confirmation and remains a Controller
   interpretation **pending operator confirmation**. No evaluator code,
   threshold or benchmark JSON/MD changed with this confirmation.
+- 2026-10-21 (later) operator confirmation: the operator also confirmed the
+  semantic-only reading: D2 applies to semantic-only candidates, and they get
+  no padding allowance. All Controller interpretations in this log are now
+  operator-confirmed. No evaluator code, threshold or benchmark JSON/MD
+  changed.
 
 ## Risks and mitigations
 
@@ -245,6 +252,10 @@ semantic-only padding reading is still pending operator confirmation. The
 `claude/liveclip-stage2-e2e-harness` (pending acceptance) retains each
 real-browser package in a fresh identity-bound per-invocation scope, so prior
 packages no longer need to be moved. See `STATUS.md`.
+
+2026-10-21 (later): Stage 2 was accepted at `cfcff0d`, and the operator
+confirmed the semantic-only no-padding-allowance reading. No interpretation
+in the Decision Log remains pending.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the

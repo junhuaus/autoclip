@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 3 cleanup (2026-10-21)
+
+### Progress
+
+- [ ] 2026-10-21 On local branch `claude/liveclip-stage3-cleanup` (from
+  `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0`), address the Stage 2
+  follow-ups. Status: implemented by the coder in code commit `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`,
+  **pending independent tester and reviewer acceptance**. Not pushed or
+  merged.
+  - The verifier uses one run-directory `lstat` for both the real-directory
+    check and the identity baseline, with a swap regression test.
+  - The allocation swap unit test is renamed and commented to state what it
+    proves: identity from the held handle, not a closed `mkdir`-to-`open`
+    race.
+  - The two lease-based integration tests are robust to host suspend:
+    - they use a 24 h test-only lease through the existing `lease_seconds`
+      parameter;
+    - all assertions are unchanged;
+    - there is no `src/` change;
+    - regressions simulate a 12 h wall-clock jump that leaves monotonic time
+      alone.
+
+  Details and evidence are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 Lease expiry across a host suspend longer than the lease is
+  correct production behavior, so the production lease is not changed.
+  Leases expire on the shared wall clock, the only clock that separate worker
+  processes agree on. Heartbeats are paced by `time.monotonic`, which pauses
+  during macOS sleep. A suspended holder therefore cannot renew, and
+  recovering its task with `retry_count + 1` is the designed behavior. Tests
+  that assert `retry_count == 0` or exactly-once execution use a
+  suspend-tolerant 24 h lease instead. No injected-clock seam was added:
+  wall-clock `now` is read in many repository modules, and changing all of
+  them would be a broad production change outside this stage.
+- 2026-10-21 The operator confirmed the semantic-only no-padding-allowance
+  reading (Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`). No interpretation
+  remains pending.
+
 ## Stage 2 real-browser e2e harness idempotency (2026-10-21)
 
 ### Progress
@@ -37,7 +78,8 @@
     `dbdff27bfc9c4ad2a14e4a51b146e1af` and
     `cd0955e2b5f3492f954e73b197a89b76`). All pre-existing retained files
     were byte-identical afterwards. Details are in `STATUS.md`.
-- [x] 2026-10-21 P2 fix round on the same branch, still pending acceptance.
+- [x] 2026-10-21 P2 fix round on the same branch, still pending acceptance
+  (historical; accepted at cfcff0d).
   At `c391ced5f3983f4b10654074742b7aaf10197f1c`, the independent tester was
   green: `make lint` 0; `make test` twice, both exit 0, 2619 backend passed
   each, vitest 80/80, e2e mock, legacy, completion and B2 PASS in both runs,
@@ -79,6 +121,9 @@
     tests that are sensitive to host sleep (run `make test` under
     `caffeinate -dims` on AC); the carried Stage 1 follow-ups; the
     semantic-only reading, still pending operator confirmation.
+    (2026-10-21: the single `lstat`, the swap-test rename and the lease-test
+    suspend robustness are addressed by Stage 3, pending acceptance. The
+    semantic-only reading was confirmed by the operator.)
 
 ### Decision Log
 
@@ -97,6 +142,8 @@
   The separate reading "D2 applies to semantic-only candidates; semantic-only
   candidates get no padding allowance" remains pending operator
   confirmation. No code or threshold changed with this confirmation.
+  (Update 2026-10-21, later: the operator confirmed the semantic-only reading
+  too.)
 - 2026-10-21 Accept the residual allocation window between `mkdir` and
   `open` in `allocate_report_scope`. POSIX has no `mkdirat` that returns a
   handle, and an attacker who could race it could also edit the harness
@@ -146,6 +193,7 @@
   Update 2026-10-21: the operator confirmed D1--D3. The semantic-only
   padding reading in D2 above ("semantic-only candidates, which get no
   padding allowance") remains pending operator confirmation.
+  Update 2026-10-21 (later): the operator confirmed the semantic-only reading.
 
   Gap 2 status for `scripts/evaluate_agent_benchmark.py`:
   - **Statuses:** only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or

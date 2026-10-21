@@ -161,3 +161,17 @@ Open follow-ups are in the Stage 2 section of `STATUS.md`.
 Branch tip: `claude/liveclip-stage2-e2e-harness` is `cfcff0d` plus docs-only
 commits. `git diff --name-only cfcff0d..HEAD` must list only `STATUS.md`,
 `docs/**` and `tasks/**`. Local only; not pushed.
+
+## Stage 3 in progress (2026-10-21)
+
+The operator approved Stage 3 (cleanup) and confirmed the semantic-only
+no-padding-allowance reading on 2026-10-21. Stage 3 is in progress on local
+branch `claude/liveclip-stage3-cleanup`, created from `e51e353`. Code commit
+`ce43f5e` covers three items:
+- the single run-directory `lstat`;
+- the renamed allocation swap test;
+- lease tests that survive host suspend (a 24 h test-only lease, no `src/`
+  change).
+
+It is pending the independent tester and reviewer. Details are in the
+Stage 3 section of `STATUS.md`. Not pushed.
