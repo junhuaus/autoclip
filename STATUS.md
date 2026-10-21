@@ -11,6 +11,81 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 4 benchmark evaluator rules (2026-10-21) — IN PROGRESS, pending acceptance
+
+- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+  branch `claude/liveclip-stage4-evaluator-rules`. It is rebased onto the
+  Stage 3 tip `427e80cd3e65bfe9e25a7c9044e960f09c5a0c21`. Not pushed or merged.
+- Code commits, after rebase (identical code diffs to the reviewed commits):
+  - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0` (was `30dc26b`): decisions A
+    and B;
+  - `0440c179cf919d408abd474d6d4188dc55ffb449` (was `2abec1b`): review round
+    2;
+  - `8b14aa39420ecfffc4ad54c6d76d8433affd15b6` (was `052cd46`): comment-only
+    confirmation.
+- The Stage 3 P2 test-only commit `f51f696` is verified as part of this
+  round.
+- Operator decisions, both confirmed by the operator on 2026-10-21. They are
+  recorded in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+  - **A:** an exact boundary hit is tolerance-only: both edges within 3000 ms
+    (short) or 5000 ms (long), inward or outward. This supersedes the earlier
+    Controller full-cue-coverage interpretation.
+  - **B:** negative-only outputs are classified as `negative_anchor_output`, a
+    direct FAIL in both evaluators, with a per-anchor MD section 7 policy:
+    - N01--N07, N10 and N11 hard-fail for `selected` and `manual_review`
+      (the operator confirmed this default);
+    - N08 hard-fails only automatic outputs; a `manual_review` output goes to
+      `human_required`;
+    - N09 allows only the S08 clean sub-interval.
+
+    Mixed candidates stay `irrelevant_padding`. The policy table fails closed
+    on any `benchmark_id`, `reason` or interval mismatch.
+- Reviews:
+  - `30dc26b`: CHANGES_REQUIRED (P1: the "entirely negative" loophole);
+  - `2abec1b`: ACCEPT;
+  - `052cd46`: comment-only.
+- Cold-18 history (`data/evaluations/dual-profile-benchmark-20260924-final-cold-18`,
+  ignored local evidence, read-only):
+  - Baseline evaluator at `7d2689c`: PASS 90.36, reproduced byte-identical.
+  - Strict Stage 1 evaluator at `e51e353`: FAIL 80.0. The reviewer showed that
+    80.0 depended on the then-unconfirmed full-cue-coverage rule.
+  - Stage 4 evaluator: **FAIL 90.0**.
+    - Short 6/8: S01 at +3420 ms exceeds the 3000 ms tolerance and goes to
+      manual adjudication; S03 is missed.
+    - Mini 5/6: L07 is missed because its only exact candidate was blocked.
+      The missed required mini-lesson is L07, not L06 (L06 is supplemental).
+    - Hard failures:
+      - `irrelevant_padding`: `ml_0005_mixed_voice_types_637_746`, with
+        13,340 ms of N05;
+      - `negative_anchor_output`: the two N09 candidates
+        `precision_mini_lesson_0017_c03` and
+        `sh_0022_high_note_channel_01`.
+    - Eight N08 `manual_review` negative-only candidates are informational
+      findings listed in `human_required`.
+    - PASS blocker: `short_recall_below_threshold`.
+- Coder checks in the isolated worktree: ruff, format, mypy and schema
+  exit 0; benchmark tests 126 passed (round 2 and the comment-only commit).
+  Logs:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage4-coder/`.
+- Open follow-ups (not done):
+  - Stage 1: Reviewer P2-b (pin the Agent report staging directory identity;
+    fd-based cleanup), Reviewer P2-c (end-to-end rollback test after a real
+    rename), and Earlier P2-5 (Agent risk discovery counts only final
+    candidates).
+  - Stage 2: path-based retained reads cannot detect a swap away and back;
+    the per-file manifest hashes still bind the content.
+  - Stage 3: `LeaseMonitor` should detect a wall-clock versus monotonic jump
+    and refresh immediately while the lease is unexpired. Other
+    `lease_seconds=30` integration tests are not yet suspend-tolerant.
+  - Product: cold-18 still FAILs at 90.0, because of short recall 6/8
+    (S01, S03), L07 being blocked, the `ml_0005` padding and the N09 outputs.
+    Improving it needs product work and a fresh real run, which is allowed
+    without per-run consent since 2026-10-21.
+- Branch-tip rule: placeholder, to be filled in after acceptance.
+- Caveats: deterministic validation plus a read-only re-score of existing
+  evidence. No new model inference, rendering or human review.
+
 ## Stage 3 cleanup (2026-10-21) — ACCEPTED at ce43f5e
 
 - **Status: ACCEPTED** at code commit

@@ -57,6 +57,7 @@ imported by production modules.
 - [x] 2026-10-20 Stage 1 fix round (reviewer CHANGES_REQUIRED on `bf83c80`): Controller decisions D1--D3, union padding allowance, Agent v2 mechanical/not-applicable/human-required split with derived executed Profiles, manual-only-risk selection gate, RGR-03 findings, augmenting-path and score-boundary tests, safe no-replace publication. Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 fix round 2 (reviewer ACCEPTED `d9e9dde`; Controller follow-ups): Agent reports published as one atomic no-replace directory via `publish_directory_no_replace_no_follow`, executed-Profile filter regression test, no semantic padding allowance with `outside_nearest_anchor_ms` diagnostics, restored historical Agent ExecPlan entry. Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 ACCEPTED at `6c465b767e3829152d0b07451edbe274980321b1` (reviewer ACCEPT; independent tester `make lint` and `make test` green, mock/fixture only; evidence in `STATUS.md`).
+- [ ] 2026-10-21 Stage 4 (branch `claude/liveclip-stage4-evaluator-rules`; pending acceptance): apply operator decisions A (exact boundary = tolerance only) and B (`negative_anchor_output` with a per-anchor MD section 7 policy) in both evaluators; read-only cold-18 re-score FAIL 90.0. See the Decisions entries dated 2026-10-21 (Stage 4).
 - [ ] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based.
 - [ ] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename.
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence.
@@ -212,6 +213,55 @@ two deterministic report files.
   no padding allowance. All Controller interpretations in this log are now
   operator-confirmed. No evaluator code, threshold or benchmark JSON/MD
   changed.
+- 2026-10-21 (Stage 4) operator decision A, confirmed by the operator: an
+  exact boundary hit is tolerance-only. Both edges within the Profile
+  tolerance, inward or outward, inclusive (3000 ms short, 5000 ms long). MD
+  basis: section 4 line 41, section 5 line 58 ("约3/5秒" either way) and
+  section 9 rules 3--4.
+  - This supersedes the earlier Controller interpretation in the 2026-10-20
+    entry above, which also required full gold cue coverage. That entry is
+    kept as history.
+  - Beyond the tolerance, semantic equivalence still goes only to manual
+    adjudication.
+  - Padding allowance, matching, the boundary score and the Agent v2
+    evaluator share the gate. RGR-02 and risk discovery keep their own rules.
+- 2026-10-21 (Stage 4) operator decision B, confirmed by the operator: a
+  negative-only output is a new direct-FAIL class, `negative_anchor_output`,
+  distinct from `irrelevant_padding`.
+  - Negative-only means: a `selected`, `manual_review` or Agent `final`
+    candidate whose part not covered by the union of negative intervals is
+    within its Profile tolerance, with no gold/supplemental time overlap and
+    no exact or semantic match.
+  - A candidate mixing gold, un-anchored or risk-anchor content with negative
+    overlap beyond the allowance stays `irrelevant_padding`. Example:
+    `ml_0005`, with 13,340 ms of N05.
+  - Per-anchor policy from MD section 7, held in the evaluator table
+    `NEGATIVE_ANCHOR_POLICIES` (each entry cites its MD row):
+    - N01--N07, N10 and N11 hard-fail for both `selected` and
+      `manual_review`. This default was confirmed by the operator on
+      2026-10-21.
+    - N08 ("不得自动作为教学片") hard-fails only automatic outputs: `selected`
+      and Agent `final`. A `manual_review` output is an informational finding
+      listed in `human_required`.
+    - N09 ("只允许抽取 S08 的干净子区间") hard-fails every decision except the
+      S08 clean sub-interval, which is the exact-match allowance.
+  - The table is validated against `benchmark_id` and each anchor's `reason`
+    and MD interval, and checks that S08 lies inside N09. Any mismatch, or an
+    anchor with no entry, gets the strictest policy and is reported.
+  - `negative_anchor_output` is added to the evaluators' direct-FAIL set; the
+    benchmark JSON is unchanged.
+  - Negative-only findings carry no nearest-gold diagnostic.
+- 2026-10-21 (Stage 4) review history:
+  - `30dc26b`: CHANGES_REQUIRED. P1: "entirely negative" was not checked, so
+    un-anchored or risk content mixed with N08 escaped padding. P2: the Agent
+    mismatch test could not fail; policy entries were not bound to their
+    intervals.
+  - `2abec1b`: ACCEPT.
+  - `052cd46`: comment-only, recording the operator's confirmation of the
+    default policy.
+  - The branch was rebased onto the Stage 3 docs tip `427e80c`. The rebased
+    commits are `2c4de9a`, `0440c17` and `8b14aa3`, with identical code
+    diffs.
 
 ## Risks and mitigations
 
@@ -256,6 +306,32 @@ packages no longer need to be moved. See `STATUS.md`.
 2026-10-21 (later): Stage 2 was accepted at `cfcff0d`, and the operator
 confirmed the semantic-only no-padding-allowance reading. No interpretation
 in the Decision Log remains pending.
+
+2026-10-21 (Stage 4, pending acceptance): decisions A and B are applied. The
+cold-18 evidence was re-scored read-only:
+
+Cold-18 history (`data/evaluations/dual-profile-benchmark-20260924-final-cold-18`,
+ignored local evidence, read-only):
+
+  - Baseline evaluator at `7d2689c`: PASS 90.36, reproduced byte-identical.
+  - Strict Stage 1 evaluator at `e51e353`: FAIL 80.0. The reviewer showed that
+    80.0 depended on the then-unconfirmed full-cue-coverage rule.
+  - Stage 4 evaluator: **FAIL 90.0**.
+    - Short 6/8: S01 at +3420 ms exceeds the 3000 ms tolerance and goes to
+      manual adjudication; S03 is missed.
+    - Mini 5/6: L07 is missed because its only exact candidate was blocked.
+      The missed required mini-lesson is L07, not L06 (L06 is supplemental).
+    - Hard failures:
+      - `irrelevant_padding`: `ml_0005_mixed_voice_types_637_746`, with
+        13,340 ms of N05;
+      - `negative_anchor_output`: the two N09 candidates
+        `precision_mini_lesson_0017_c03` and
+        `sh_0022_high_note_channel_01`.
+    - Eight N08 `manual_review` negative-only candidates are informational
+      findings listed in `human_required`.
+    - PASS blocker: `short_recall_below_threshold`.
+
+Branch-tip rule: placeholder, to be filled in after Stage 4 acceptance.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the

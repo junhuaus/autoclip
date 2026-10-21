@@ -193,3 +193,20 @@ Operator authorizations on 2026-10-21:
 - Push and merge still need explicit consent.
 
 Details are in `STATUS.md`. Not pushed.
+
+## Stage 4 in progress (2026-10-21)
+
+Stage 4 (benchmark evaluator rules: operator decisions A and B, both
+confirmed) is on local branch `claude/liveclip-stage4-evaluator-rules`,
+rebased onto Stage 3 tip `427e80c`. The code commits are `2c4de9a`,
+`0440c17` and `8b14aa3`.
+
+The reviewer accepted round 2. Acceptance on the rebased tip is pending.
+
+Cold-18 re-scores FAIL 90.0:
+- short 6/8;
+- mini 5/6, with L07 missed;
+- `irrelevant_padding` (`ml_0005`) and `negative_anchor_output` (two N09
+  candidates).
+
+Details are in `STATUS.md`. Not pushed.

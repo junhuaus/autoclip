@@ -1,5 +1,38 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 4 benchmark evaluator rules (2026-10-21)
+
+### Progress
+
+- [ ] 2026-10-21 On local branch `claude/liveclip-stage4-evaluator-rules`
+  (rebased onto the Stage 3 tip `427e80c`), apply operator decisions A and B
+  to `scripts/benchmark_gates.py`, `scripts/evaluate_benchmark.py` and
+  `scripts/evaluate_agent_benchmark.py`. Status: **pending acceptance**.
+  - Code commits, after rebase:
+    - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0`;
+    - `0440c179cf919d408abd474d6d4188dc55ffb449`;
+    - `8b14aa39420ecfffc4ad54c6d76d8433affd15b6`.
+  - Reviews: `30dc26b` CHANGES_REQUIRED, then `2abec1b` ACCEPT, then
+    `052cd46` comment-only.
+  - Read-only cold-18 re-score: FAIL 90.0.
+  - For Agent v2: a Global Review `final` candidate is treated as an automatic
+    output, so N08 negative-only finals are a mechanical failure
+    (`negative_anchor_output`).
+
+  Evidence and follow-ups are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 The operator confirmed decision A (an exact boundary hit is
+  tolerance-only, superseding the Controller full-cue-coverage
+  interpretation) and decision B (`negative_anchor_output` with the per-anchor
+  MD section 7 policy). Under B, N01--N07, N10 and N11 hard-fail for
+  `manual_review` as well as `selected`; N08 hard-fails only automatic
+  outputs; N09 allows only the S08 clean sub-interval.
+
+  Details are in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+
 ## Stage 3 cleanup (2026-10-21)
 
 ### Progress
