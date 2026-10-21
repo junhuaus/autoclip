@@ -226,3 +226,18 @@ verified at tip `ca80fb7`.
 
 Branch-tip rule: `git diff --name-only 8b14aa3..HEAD` lists only
 `STATUS.md`, `docs/**` and `tasks/**`. Not pushed.
+
+## Stage 6 in progress (2026-10-21)
+
+Stage 6 (engineering follow-ups) is on local branch
+`claude/liveclip-stage6-followups`, based on the Stage 4 docs tip `ca80fb7`.
+The code commit is `a22f9d3`; acceptance is pending.
+
+- `LeaseMonitor` renews immediately after a detected wall-clock versus
+  monotonic jump; an expired lease is still refused.
+- Stage 1 P2-b and P2-c: pinned staging identity, descriptor-based cleanup
+  and real-rename rollback tests for the Agent report publication.
+- `--output-dir` help documents the symlink restriction.
+- Stage 1 P2-5 is kept strict; the operator question is recorded.
+
+Details are in `STATUS.md`. Not pushed.

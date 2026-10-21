@@ -11,6 +11,128 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 6 engineering follow-ups (2026-10-21) — IN PROGRESS, pending acceptance
+
+- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+  branch `claude/liveclip-stage6-followups`, based on the Stage 4 docs tip
+  `ca80fb7d88e7f8620ef9053347f7598604918ad2`. Not pushed or merged. The
+  Controller may rebase it onto later Stage 4 docs; this section is
+  self-contained.
+- Code commit: `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
+- Scope: the consolidated engineering follow-ups from the Stage 1 and
+  Stage 3 sections (repeated in the Stage 4 section).
+  1. **`LeaseMonitor` suspend recovery** (Stage 3 follow-up; product change in
+     `src/liveclip/application/lease_monitor.py`).
+     - Root cause: leases expire on the shared wall clock
+       (`datetime.now(UTC)` in `SQLiteTaskQueue`), but the monitor scheduled
+       heartbeats on `time.monotonic`, which pauses while the host sleeps.
+       After a sleep longer than `lease - heartbeat` (about 90 s with the
+       120 s / 30 s defaults) the next heartbeat came after expiry, so a
+       still-valid holder lost its lease on wake and the stage cost a retry.
+     - Fix: on every poll the monitor compares how far wall time and
+       monotonic time advanced since the previous poll. If wall time advanced
+       more than 1 s further (`_WALL_CLOCK_JUMP_SECONDS`), the host was
+       suspended or the clock stepped forward, and the heartbeat is made due
+       immediately instead of one monotonic interval later. A false positive
+       costs one extra heartbeat. Defaults, settings and the constructor are
+       unchanged.
+     - Fencing is unchanged: the immediate renewal goes through the same
+       `heartbeat`, whose SQL still requires the caller's `lease_token` and
+       `lease_expires_at > now`. An expired lease is refused, the monitor
+       reports `lost_lease` and stops, and the stored expiry is not touched.
+       A recovered task has a new token, so the old holder cannot extend it.
+     - Tests: new `tests/integration/test_lease_monitor_suspend.py` uses the
+       existing `ShiftedWallClock` and a real SQLite queue with the production
+       120 s lease and 30 s heartbeat:
+       - (a) a 110 s simulated sleep (longer than `lease - heartbeat`, shorter
+         than the lease) is renewed immediately, and the next paced heartbeat
+         30 s later still finds the lease;
+       - (b) a 121 s sleep (longer than the lease) still loses the lease: the
+         heartbeat returns `None`, the stored expiry is unchanged and a later
+         heartbeat is still refused;
+       - (c) without a jump, and with a 0.5 s sub-threshold step, there is no
+         heartbeat, the lease is kept and the expiry is unchanged.
+       - Mutation check: with the pre-Stage 6 monitor, (a) fails (no renewal
+         after the sleep) and (c) passes. (b) also fails there, but only
+         because the old monitor fenced through `observe` instead of an
+         immediate heartbeat; it lost the lease too.
+     - Existing lease tests' assertions are unchanged. The
+       `tests/integration/lease_suspend.py` docstring now describes the
+       Stage 6 behavior.
+  2. **Stage 1 Reviewer P2-b** (`scripts/evaluate_agent_benchmark.py`):
+     - The parent chain is created or proven with
+       `ensure_directory_no_follow`, so a symlinked `--output-dir` chain is
+       refused before anything is written (previously a staging directory
+       was created first, through the symlink).
+     - The staging directory is created with
+       `create_directory_exclusive_no_follow`, which returns its pinned
+       device/inode. Both reports are written through a held
+       `O_NOFOLLOW|O_DIRECTORY` descriptor (`openat`-style `dir_fd`), after
+       checking that descriptor matches the pinned identity.
+     - `publish_directory_no_replace_no_follow` is called with
+       `expected_identity`, so a swapped staging directory is refused.
+     - Cleanup is `remove_tree_no_follow(..., expected_identity=...)`:
+       descriptor-based, no-follow, and it removes only the directory this
+       call created. It is best-effort and never masks the original error.
+  3. **Stage 1 Reviewer P2-c**: new tests in
+     `tests/unit/test_agent_benchmark_evaluator.py` with no mock of the
+     publication path:
+     - `test_agent_publication_rolls_back_after_a_real_rename`: the native
+       no-replace rename really publishes the directory; only the post-rename
+       verification is made to fail. The real rollback renames it back and
+       the cleanup removes it, leaving the parent empty.
+     - `test_agent_publication_real_rename_refused_by_late_destination`: a
+       destination that appears after staging makes the native rename itself
+       fail; the prior evidence is untouched and the staging directory is
+       removed.
+     - `test_agent_publication_refuses_a_swapped_staging_directory`
+       (P2-b regression; fails on the pre-Stage 6 evaluator, which published
+       the impostor) and
+       `test_agent_publication_refuses_symlinked_output_chain_before_staging`.
+  4. **CLI-help symlink restriction**: `--output-dir` help now says the
+     directory must not exist (not even empty), every path component must be
+     a real directory (not a symlink), `..` is refused, and on macOS
+     `/private/tmp/...` must be used instead of `/tmp/...`.
+  5. **Stage 1 Earlier P2-5 (risk discovery counts only final candidates):
+     not changed; documented.** MD sections 3.8, 6 and 10 require a risk to
+     be discovered and then routed to `manual_review`/`blocked`, and FAIL a
+     risk candidate that disappears. Agent v2 has no such routing, so a
+     retained final candidate is the only proof that the risk did not
+     vanish; a raw candidate that the Global Review dropped is exactly the
+     disappearance the MD forbids. The acceptance document does not say
+     otherwise. Counting superseded raw candidates would loosen a mechanical
+     blocker without a spec or operator decision. A code comment at the risk
+     assessment records this. **Operator question:** should a raw
+     (superseded) candidate with evidence cues count as Agent v2 risk
+     discovery? Until answered, the strict reading stays.
+- Not addressed (still open): other `lease_seconds=30` integration tests are
+  not suspend-tolerant. With Stage 6 they lose a lease only when a suspend
+  exceeds the remaining lease, not `lease - heartbeat`. The Stage 2
+  path-based retained-read limit and the product cold-18 FAIL are unchanged.
+- Coder checks in the isolated worktree (main `.venv`,
+  `PYTHONPATH=<worktree>:<worktree>/src`, imports verified to resolve to the
+  worktree), under `caffeinate -dims` with `PYTHONDONTWRITEBYTECODE=1`:
+  - At `a22f9d3`: ruff check "All checks passed!" (exit 0), ruff format
+    "448 files already formatted" (exit 0), mypy "no issues found in 230
+    source files" (exit 0), schema check match (exit 0). `tsc` not run: no
+    web files touched.
+  - Targeted pytest, exit 0: 316 passed in 515.65 s (one Starlette
+    deprecation warning). Files: the new suspend tests, every test that
+    imports `LeaseMonitor` (`test_lease_monitor.py`,
+    `test_delivery_runner.py`, `test_delivery_progress.py`,
+    `test_completion_delivery.py`, `test_completion_worker.py`,
+    `test_transport_budget_pipeline.py`), `test_worker_foreground_race.py`,
+    `test_stage_runner.py`, `test_task_queue.py`, both evaluator test files,
+    `test_secure_files.py` and `test_dual_profile_evaluation.py`.
+  - The lease monitor unit and suspend tests 10 times in a loop: 6 passed
+    each time, all exit 0.
+  - Logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/`.
+  - The coder did not run the full backend suite or `make e2e`; the tester
+    owns them.
+- Caveats: deterministic validation only; mock/fixture tests. No rendering
+  acceptance, human editorial/audio review or model inference.
+
 ## Stage 4 benchmark evaluator rules (2026-10-21) — ACCEPTED at 8b14aa3
 
 - **Status: ACCEPTED** at code commit
@@ -86,12 +208,16 @@
   - Stage 1: Reviewer P2-b (pin the Agent report staging directory identity;
     fd-based cleanup), Reviewer P2-c (end-to-end rollback test after a real
     rename), and Earlier P2-5 (Agent risk discovery counts only final
-    candidates).
+    candidates). (2026-10-21: P2-b and P2-c addressed by Stage 6, pending
+    acceptance; P2-5 examined by Stage 6 and deliberately kept strict,
+    pending an operator answer. See the Stage 6 section.)
   - Stage 2: path-based retained reads cannot detect a swap away and back;
     the per-file manifest hashes still bind the content.
   - Stage 3: `LeaseMonitor` should detect a wall-clock versus monotonic jump
     and refresh immediately while the lease is unexpired. Other
     `lease_seconds=30` integration tests are not yet suspend-tolerant.
+    (2026-10-21: the `LeaseMonitor` item is addressed by Stage 6, pending
+    acceptance; the `lease_seconds=30` item is still open.)
   - Product: cold-18 still FAILs at 90.0, because of short recall 6/8
     (S01, S03), L07 being blocked, the `ml_0005` padding and the N09 outputs.
     Improving it needs product work and a fresh real run, which is allowed
@@ -223,6 +349,7 @@
 - Open follow-up (not done): `LeaseMonitor` should detect a wall-clock
   versus monotonic jump and refresh immediately while the lease is still
   unexpired, so a production sleep shorter than the lease costs no retry.
+  (2026-10-21: addressed by Stage 6, pending acceptance.)
 - Caveats: deterministic validation only; mock/fixture providers; no
   rendering acceptance, human editorial/audio review or model inference.
 
@@ -412,7 +539,9 @@
     and consider making these tests robust to suspend. (2026-10-21:
     addressed by Stage 3, pending acceptance.)
   - Still-open Stage 1 follow-ups carry over (see the Stage 1 section):
-    Reviewer P2-b, Reviewer P2-c and Earlier P2-5.
+    Reviewer P2-b, Reviewer P2-c and Earlier P2-5. (2026-10-21: P2-b and
+    P2-c addressed by Stage 6, pending acceptance; P2-5 kept strict pending
+    an operator answer.)
   - The semantic-only "no padding allowance" reading is still pending
     operator confirmation. (Resolved 2026-10-21: confirmed by the
     operator.)
@@ -546,11 +675,15 @@
   - Resolved 2026-10-21 by Stage 2, ACCEPTED at `cfcff0d`.
 - Open follow-ups (not done):
   - Reviewer P2-b: pin the staging directory identity (`expected_identity`)
-    in the Agent report publication and make cleanup fd-based.
+    in the Agent report publication and make cleanup fd-based. (2026-10-21:
+    addressed by Stage 6, pending acceptance.)
   - Reviewer P2-c: add an end-to-end rollback test after a real rename.
+    (2026-10-21: addressed by Stage 6, pending acceptance.)
   - Earlier P2-5: Agent risk discovery counts only final candidates. This is
     stricter than necessary, because superseded raw candidates could also
-    prove discovery.
+    prove discovery. (2026-10-21: examined by Stage 6 and not changed: the
+    MD treats a dropped risk candidate as a disappearance, so the strict
+    reading stays pending an operator answer. See the Stage 6 section.)
   - The e2e harness non-idempotency above (2026-10-21: being addressed by
     Stage 2, pending acceptance). **Resolved** by Stage 2, accepted at
     `cfcff0d`.

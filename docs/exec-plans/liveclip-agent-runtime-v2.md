@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 6 engineering follow-ups (2026-10-21)
+
+### Progress
+
+- [ ] 2026-10-21 On local branch `claude/liveclip-stage6-followups` (based on
+  the Stage 4 docs tip `ca80fb7`), address the consolidated engineering
+  follow-ups. Status: **IN PROGRESS, pending acceptance**. Code commit:
+  `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
+  - `LeaseMonitor` suspend recovery (Stage 3 follow-up): a wall-clock versus
+    monotonic jump of more than 1 s between polls makes the heartbeat due
+    immediately. Fencing is unchanged: the renewal is the same fenced
+    `heartbeat`, which refuses an expired lease or a foreign token.
+    Regression tests: `tests/integration/test_lease_monitor_suspend.py`.
+  - Stage 1 Reviewer P2-b: the Agent report staging directory is created
+    exclusively with a pinned identity, written through a held no-follow
+    descriptor, published with `expected_identity` and removed with the
+    identity-checked, descriptor-based `remove_tree_no_follow`. A symlinked
+    `--output-dir` chain is refused before staging.
+  - Stage 1 Reviewer P2-c: rollback after a real no-replace rename, a real
+    refused rename, a swapped staging directory and a symlinked chain are
+    tested without mocking the publication path.
+  - `--output-dir` help documents the symlink restriction.
+  - Stage 1 Earlier P2-5: not changed. See the Decision Log.
+
+  Evidence and remaining follow-ups are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 (Stage 6, coder; pending review) Agent v2 risk discovery keeps
+  counting only final candidates. MD sections 3.8, 6 and 10 require a risk to
+  be discovered and then routed to `manual_review`/`blocked`, and FAIL a risk
+  candidate that disappears. Agent v2 has no such routing, so a retained
+  final candidate is the only proof that the risk did not vanish, and a raw
+  candidate the Global Review dropped is that disappearance. Loosening the
+  mechanical blocker needs an operator decision; the question is open.
+- 2026-10-21 (Stage 6, coder; pending review) The suspend fix detects jumps
+  in the monitor loop rather than adding an injected clock across modules. A
+  1 s threshold is used because wall and monotonic time advance together
+  under load, so only a suspend or a clock step produces a difference, and a
+  false positive costs one extra heartbeat.
+
 ## Stage 4 benchmark evaluator rules (2026-10-21)
 
 ### Progress
