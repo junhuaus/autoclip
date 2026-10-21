@@ -141,3 +141,23 @@ Details are in the Stage 2 section of `STATUS.md`. Not pushed.
 Stage 2 P2 fix round (2026-10-21): `c391ced` passed the tester (lint, two
 `make test` runs green) and the reviewer (ACCEPT, 3 P2). The P2 fixes are in
 code commit `cfcff0d`, pending tester and reviewer verification. Not pushed.
+
+## Stage 2 accepted at cfcff0d (2026-10-21)
+
+Stage 2 (real-browser e2e harness idempotency) is ACCEPTED at code commit
+`cfcff0dbea66cc291456fcecca800ee9c6313dfe`, verified at tip `58cb055`.
+- Tester: round r1 was environment-invalid (host sleep during the 30 s-lease
+  tests). Round r2 PASS: `make test` twice under `caffeinate -dims`, both
+  green.
+- Reviewer: ACCEPT, 0 P0/P1.
+
+The Stage 1 harness non-idempotency follow-up is resolved.
+
+Correction: the allocation fix takes the identity from the held handle; a
+residual window between `mkdir` and `open` remains as an accepted risk.
+
+Open follow-ups are in the Stage 2 section of `STATUS.md`.
+
+Branch tip: `claude/liveclip-stage2-e2e-harness` is `cfcff0d` plus docs-only
+commits. `git diff --name-only cfcff0d..HEAD` must list only `STATUS.md`,
+`docs/**` and `tasks/**`. Local only; not pushed.

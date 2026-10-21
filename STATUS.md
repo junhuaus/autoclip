@@ -1,10 +1,20 @@
 # LiveClip status
 
-## Stage 2 real-browser e2e harness idempotency (2026-10-21) — IN PROGRESS, pending acceptance
+## Stage 2 real-browser e2e harness idempotency (2026-10-21) — ACCEPTED at cfcff0d
 
-- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
-  branch `claude/liveclip-stage2-e2e-harness`, created from
-  `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`. Not pushed or merged.
+- **Status: ACCEPTED** at code commit
+  `cfcff0dbea66cc291456fcecca800ee9c6313dfe`. It was verified at branch tip
+  `58cb055f59d7011ac83c9d798da472ae919f31c9` (tester round r2 PASS; reviewer
+  ACCEPT, 0 P0/P1). Branch `claude/liveclip-stage2-e2e-harness`, created
+  from `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`. Local only: not pushed or
+  merged.
+- Branch tip rule: the branch is `cfcff0d` (the accepted code) plus
+  docs-only commits, the first being `58cb055`. To verify, run
+  `git diff --name-only cfcff0d..HEAD`; it must list only `STATUS.md`,
+  `docs/**` and `tasks/**`.
+- (History: this section was opened as "IN PROGRESS, pending tester and
+  reviewer acceptance"; the entries below are kept as written, except the
+  fix-1 wording corrected in the P2 fix round.)
 - Goal: `make test` (and `make e2e`) can run repeatedly in the same worktree
   without moving `apps/web/playwright-report/` aside, while every retained
   package check stays at least as strict.
@@ -98,9 +108,14 @@
     - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
   - Fixes for the 3 P2s, in code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe`:
     - `allocate_report_scope` now reads the new scope's device/inode with
-      `fstat` on a handle opened `O_NOFOLLOW` right after the exclusive
+      `fstat` on a held handle opened `O_NOFOLLOW` after the exclusive
       `mkdir`, rather than with a by-name `stat`. Every descriptor is
       closed on all paths.
+      - Correction (2026-10-21): this does **not** close the allocation
+        race. A residual window remains between `mkdir` and `open`.
+        POSIX cannot close it, because no `mkdirat` returns a handle.
+        It is an accepted risk: an attacker able to exploit it could also
+        edit the scripts.
     - `verify_bundle` re-validates the report scope (no-symlink chain and
       device/inode) after all inventory, ZIP, decode and rejection-proof work.
       It also checks that the run directory keeps the same identity and is
@@ -110,10 +125,13 @@
     - Tests: retention (legacy and completion) refuses a `playwright-report`
       parent replaced by a symlink after allocation; the allocate-time
       symlink test is kept. A scope or run directory swapped after the
-      initial check is rejected. A scope swapped by name right after
-      `mkdir`/open keeps the original handle's identity, so retention into
-      the replacement is refused. The swap tests fail against the
+      initial check is rejected. The swap tests fail against the
       `c391ced` scripts.
+      - The allocation swap unit test swaps the scope **after** the `open`.
+        It therefore proves that the identity comes from the held handle,
+        not that the `mkdir`-to-`open` race is closed. (Corrected
+        2026-10-21: an earlier wording said a swap "right after
+        `mkdir`/open" keeps the original identity.)
     - Coder self-checks at `cfcff0dbea66cc291456fcecca800ee9c6313dfe`
       (`NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
       PYTHONDONTWRITEBYTECODE=1`, mock/fixture only):
@@ -131,6 +149,43 @@
         before and after both runs.
       - Logs (session scratchpad, may not persist):
         `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-p2-coder/`.
+- Acceptance evidence for `cfcff0d` (2026-10-21):
+  - Tester round 58cb055 r1: **environment-invalid, not accepted.**
+    - `make test` run 1 exited 2 with two failures:
+      - `test_transport_budget_pipeline::test_initial_budget_is_durable_deterministic_and_never_retried[short_highlight-None-existing-False]`
+        (retry_count 1 != 0);
+      - `test_worker_foreground_race::test_foreground_and_worker_share_one_lease_and_execute_each_stage_once`
+        (PROXY_RENDER 2 != 1).
+    - Both tests ran during a macOS "Clamshell Sleep" on battery
+      (09:54:05--10:49:36 per `pmset`). Both use 30 s leases.
+    - Run 2 passed. An isolated rerun of those tests under `caffeinate`
+      passed 37/37.
+  - Tester round 58cb055 r2: **PASS.**
+    - `make lint` exit 0.
+    - `make test` twice under `caffeinate -dims`, both exit 0. Each run had
+      2624 backend passed, Web vitest 80/80, and e2e:mock, legacy,
+      completion and B2 all PASS.
+    - `pmset` shows 0 sleep/wake events in either run window.
+    - 612 pre-existing report files hashed identically, and none were
+      removed.
+  - Reviewer: ACCEPT at `58cb055`, 0 P0/P1.
+- Open follow-ups (not done):
+  - `scripts/verify_completion_retained.py` around lines 604--610: use a
+    single `lstat` for both the run directory's `S_ISDIR` check and its
+    identity baseline.
+  - Rename or comment the allocation swap unit test
+    (`tests/unit/test_e2e_fixture.py`, around lines 460--499) to match what
+    it actually proves: identity from the held handle, not a closed race.
+  - Inherent limit: path-based reads cannot detect a scope swapped away and
+    back between checks. The per-file manifest hashes still bind the
+    content.
+  - Lease-based integration tests (the two above) fail if the host sleeps
+    mid-test. Run the full `make test` under `caffeinate -dims` on AC power,
+    and consider making these tests robust to suspend.
+  - Still-open Stage 1 follow-ups carry over (see the Stage 1 section):
+    Reviewer P2-b, Reviewer P2-c and Earlier P2-5.
+  - The semantic-only "no padding allowance" reading is still pending
+    operator confirmation.
 - Caveats: deterministic validation only; mock/fixture providers; no
   rendering acceptance, human editorial/audio review or model inference.
 
@@ -256,6 +311,7 @@
   - Update 2026-10-21: being addressed by Stage 2 on
     `claude/liveclip-stage2-e2e-harness` (pending acceptance); see the
     Stage 2 section above.
+  - Resolved 2026-10-21 by Stage 2, ACCEPTED at `cfcff0d`.
 - Open follow-ups (not done):
   - Reviewer P2-b: pin the staging directory identity (`expected_identity`)
     in the Agent report publication and make cleanup fd-based.
@@ -264,7 +320,8 @@
     stricter than necessary, because superseded raw candidates could also
     prove discovery.
   - The e2e harness non-idempotency above (2026-10-21: being addressed by
-    Stage 2, pending acceptance).
+    Stage 2, pending acceptance). **Resolved** by Stage 2, accepted at
+    `cfcff0d`.
 - Caveats:
   - This is deterministic validation only. There was no rendering
     acceptance, no human editorial/audio review and no model inference.

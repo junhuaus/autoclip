@@ -4,7 +4,7 @@
 
 ### Progress
 
-- [ ] 2026-10-21 On local branch `claude/liveclip-stage2-e2e-harness` (from
+- [x] 2026-10-21 On local branch `claude/liveclip-stage2-e2e-harness` (from
   `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`), make
   `scripts/run_real_browser_e2e.sh` safe to rerun in the same worktree. This
   addresses the Stage 1 follow-up "harness non-idempotency" (listed in
@@ -37,7 +37,7 @@
     `dbdff27bfc9c4ad2a14e4a51b146e1af` and
     `cd0955e2b5f3492f954e73b197a89b76`). All pre-existing retained files
     were byte-identical afterwards. Details are in `STATUS.md`.
-- [ ] 2026-10-21 P2 fix round on the same branch, still pending acceptance.
+- [x] 2026-10-21 P2 fix round on the same branch, still pending acceptance.
   At `c391ced5f3983f4b10654074742b7aaf10197f1c`, the independent tester was
   green: `make lint` 0; `make test` twice, both exit 0, 2619 backend passed
   each, vitest 80/80, e2e mock, legacy, completion and B2 PASS in both runs,
@@ -45,13 +45,40 @@
   returned ACCEPT with 0 P0/P1 and 3 P2. Code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe` fixes the
   three P2s:
   - The scope identity at allocation comes from `fstat` on a held
-    `O_NOFOLLOW` handle.
+    `O_NOFOLLOW` handle. (Corrected 2026-10-21: a residual window between
+    `mkdir` and `open` remains. POSIX cannot close it, because no `mkdirat`
+    returns a handle, and it is an accepted risk. The allocation swap unit
+    test swaps after `open`, so it proves the handle-based identity, not
+    that the race is closed.)
   - The verifier re-checks the scope and run-directory identity after all
     reads, so a swap fails closed.
   - Restored coverage that retention refuses a symlinked `playwright-report`
     parent, plus swap regressions.
 
   Evidence is in `STATUS.md`.
+- [x] 2026-10-21 Stage 2 **ACCEPTED** at code commit
+  `cfcff0dbea66cc291456fcecca800ee9c6313dfe`, verified at tip
+  `58cb055f59d7011ac83c9d798da472ae919f31c9`. The two items above (historically
+  written as pending) are checked by this acceptance.
+  - Tester round r1: environment-invalid, not accepted. `make test` run 1
+    exited 2 in the 30 s-lease tests `test_transport_budget_pipeline` and
+    `test_worker_foreground_race`, which ran during a macOS Clamshell Sleep
+    on battery (09:54:05--10:49:36). Run 2 passed, and an isolated rerun
+    under `caffeinate` passed 37/37.
+  - Tester round r2: PASS. `make lint` 0. `make test` twice under
+    `caffeinate -dims`, both exit 0: 2624 backend passed each, vitest
+    80/80, e2e mock, legacy, completion and B2 PASS. `pmset` showed 0
+    sleep/wake events, and 612 pre-existing report files hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1.
+  - The Stage 1 "harness non-idempotency" follow-up is resolved.
+  - Branch-tip rule: `git diff --name-only cfcff0d..HEAD` must list only
+    `STATUS.md`, `docs/**` and `tasks/**`.
+  - Open follow-ups (listed in `STATUS.md`): single `lstat` for the run
+    directory check and baseline; rename or comment the allocation swap
+    test; the inherent swap-away-and-back limit of path-based reads; lease
+    tests that are sensitive to host sleep (run `make test` under
+    `caffeinate -dims` on AC); the carried Stage 1 follow-ups; the
+    semantic-only reading, still pending operator confirmation.
 
 ### Decision Log
 
@@ -70,6 +97,15 @@
   The separate reading "D2 applies to semantic-only candidates; semantic-only
   candidates get no padding allowance" remains pending operator
   confirmation. No code or threshold changed with this confirmation.
+- 2026-10-21 Accept the residual allocation window between `mkdir` and
+  `open` in `allocate_report_scope`. POSIX has no `mkdirat` that returns a
+  handle, and an attacker who could race it could also edit the harness
+  scripts. The identity is taken via `fstat` on the held `O_NOFOLLOW`
+  handle, and the verifier re-checks scope and run-directory identity after
+  all reads.
+- 2026-10-21 Classify tester round 58cb055 r1 as environment-invalid: its
+  two lease-based failures coincided with host sleep. Acceptance rests on
+  round r2, which ran under `caffeinate -dims` with no sleep/wake events.
 
 ## Stage 1 benchmark evaluator strictness (2026-10-20)
 
