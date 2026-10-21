@@ -1,5 +1,61 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 2 real-browser e2e harness idempotency (2026-10-21)
+
+### Progress
+
+- [ ] 2026-10-21 On local branch `claude/liveclip-stage2-e2e-harness` (from
+  `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`), make
+  `scripts/run_real_browser_e2e.sh` safe to rerun in the same worktree. This
+  addresses the Stage 1 follow-up "harness non-idempotency" (listed in
+  `STATUS.md`). Status: implemented by the coder, **pending independent
+  tester and reviewer acceptance**. Not pushed or merged.
+  - Each harness invocation (legacy, completion, and the B2 run chained from
+    completion) allocates a fresh random hex32 report scope below
+    `apps/web/playwright-report/<folder>/` with
+    `e2e_fixture.py allocate-report-scope`, which returns the path plus its
+    device/inode.
+  - `e2e_fixture.py verify --retain-packages` must receive that scope and
+    identity; it retains exactly one `<run id>/` package into the empty,
+    identity-matched, no-follow-opened scope of the matching scenario folder.
+  - `scripts/verify_completion_retained.py` must receive the same scope and
+    identity. It validates the scope path, the absence of symlinks along the
+    report chain and the identity, then requires exactly one manifest and no
+    other entry inside the scope. All other retained checks are unchanged.
+  - Prior packages (the pre-Stage-2 flat layout and earlier scopes) are
+    preserved and are never selected.
+  - Evidence categories: deterministic validation only (lint, targeted
+    pytest, two back-to-back mock-provider `make e2e` runs). No rendering
+    acceptance, human review or model inference.
+  - Coder self-checks at code commit
+    `bae901c22260af49a79c1d15a7ac11ced4856f18`: `make lint` exit 0;
+    targeted pytest 54 passed; `make e2e` run 1 and run 2 back to back
+    without moving `apps/web/playwright-report/` aside, both exit 0 with
+    legacy, completion and B2 retained PASS (completion runs
+    `5f42298e1de54a33aeda7cadcdf604e1` and
+    `0f30ffa50f1f457482c9951c98bfe5c7`; B2 runs
+    `dbdff27bfc9c4ad2a14e4a51b146e1af` and
+    `cd0955e2b5f3492f954e73b197a89b76`). All pre-existing retained files
+    were byte-identical afterwards. Details are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 Scope the "exactly one retained package" invariant to an
+  identity-bound directory created by this invocation, rather than relaxing
+  it to "at least one" or "newest", or deleting/moving earlier evidence.
+  Rationale: the invariant keeps its full strength inside the scope (two
+  packages, an incomplete extra run directory or a stray file still fail),
+  stale packages cannot be confused with the current one because the
+  verifier never enumerates outside the scope it was handed, and the
+  device/inode binding plus no-follow traversal stop a replaced or
+  symlinked scope from standing in for it. The scope is allocated just
+  before retention so an early-failing run leaves at most one empty scope.
+- 2026-10-21 The operator confirmed Controller interpretations D1, D2 and D3
+  (Decision Log of `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`).
+  The separate reading "D2 applies to semantic-only candidates; semantic-only
+  candidates get no padding allowance" remains pending operator
+  confirmation. No code or threshold changed with this confirmation.
+
 ## Stage 1 benchmark evaluator strictness (2026-10-20)
 
 ### Progress
@@ -35,6 +91,10 @@
     decision. This includes semantic-only candidates, which get no padding
     allowance.
   - D3: `acceptance.conditional` is applied literally.
+
+  Update 2026-10-21: the operator confirmed D1--D3. The semantic-only
+  padding reading in D2 above ("semantic-only candidates, which get no
+  padding allowance") remains pending operator confirmation.
 
   Gap 2 status for `scripts/evaluate_agent_benchmark.py`:
   - **Statuses:** only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or

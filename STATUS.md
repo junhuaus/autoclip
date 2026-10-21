@@ -1,5 +1,96 @@
 # LiveClip status
 
+## Stage 2 real-browser e2e harness idempotency (2026-10-21) — IN PROGRESS, pending acceptance
+
+- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+  branch `claude/liveclip-stage2-e2e-harness`, created from
+  `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`. Not pushed or merged.
+- Goal: `make test` (and `make e2e`) can run repeatedly in the same worktree
+  without moving `apps/web/playwright-report/` aside, while every retained
+  package check stays at least as strict.
+- Root cause: `scripts/e2e_fixture.py` retained each real-browser package at
+  `apps/web/playwright-report/{browser,completion,b2}-packages/<run id>/`,
+  and `scripts/verify_completion_retained.py` globbed the whole scenario
+  folder and required exactly one manifest. Any package left by an earlier
+  invocation therefore failed the next run with `ValueError: exactly one
+  retained completion package required`.
+- Fix (per-invocation, identity-bound report scope):
+  - New `e2e_fixture.py allocate-report-scope --scenario S` creates a fresh
+    random hex32 directory below the scenario folder with an exclusive,
+    no-follow `mkdir` and prints its path, device and inode. The harness
+    calls it once per invocation (legacy, completion, and the chained B2
+    each get their own scope), just before package retention.
+  - `e2e_fixture.py verify --retain-packages` now requires `--report-scope`,
+    `--report-scope-device` and `--report-scope-inode`. Retention opens the
+    scope by walking from the repository root with `O_NOFOLLOW`, checks the
+    path is a generated hex32 child of this scenario's folder, checks the
+    device/inode against the allocation, requires the scope to be empty, and
+    creates the single `<run id>/` directory inside it exclusively. A legacy
+    scope cannot receive completion/B2 evidence and vice versa.
+  - `verify_completion_retained.py` bundle verification now requires
+    `--report-scope`, `--expected-scope-device` and `--expected-scope-inode`.
+    It rejects a relative, traversing, foreign-folder or non-hex32 scope, any
+    symlink along `apps/web/playwright-report/<folder>/<scope>`, and a
+    replaced scope (identity mismatch). Inside the scope it still requires
+    exactly one `*/manifest.json`, and now also requires that the scope holds
+    nothing but that one run directory. All lineage, `--prove-rejection`,
+    byte-bound, credential/signed-URL, ZIP and MP4-decode checks are
+    unchanged. The PASS JSON adds `report_scope`.
+  - Earlier packages (the pre-Stage-2 flat `<folder>/<run id>/` layout and
+    earlier scopes) are never read, moved, overwritten or deleted.
+- New retained layout: `apps/web/playwright-report/<folder>/<scope
+  hex32>/<run id>/manifest.json`.
+- Regression tests (fixture-level, no browser):
+  - `tests/unit/test_e2e_fixture.py`: fresh scopes preserve prior flat and
+    scoped packages; scope rejection of relative, traversing, non-hex32,
+    foreign-folder, cross-scenario, symlinked-scope, symlinked-folder and
+    replaced scopes; second retention into one scope refused; retention
+    without a scope refused for all three scenarios; static check that the
+    harness allocates one scope before retention and passes the same triple
+    to retention and to the retained verifier.
+  - `tests/integration/test_completion_fixture_verifiers.py`: (a) stale
+    flat, earlier-scope and B2-folder packages are neither selected nor
+    changed; (b) two packages, an extra manifest-less run directory or a
+    stray file in this scope fail; (c) an empty scope fails with the
+    exactly-one error and a missing scope fails; (d) relative, traversing,
+    non-hex32, foreign-folder, run-directory, symlinked, replaced and
+    symlinked-folder scopes are rejected.
+- The Stage 1 follow-up "harness non-idempotency" is being addressed here,
+  pending acceptance.
+- Coder self-checks at code commit
+  `bae901c22260af49a79c1d15a7ac11ced4856f18`, run in the main worktree with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  Mock/fixture only.
+  - `make lint` exit 0: ruff "All checks passed!", "446 files already
+    formatted", mypy "no issues found in 230 source files", schema match,
+    `tsc` clean.
+  - Targeted pytest (`test_completion_fixture_verifiers.py`,
+    `test_e2e_fixture.py`, `test_b2_synthetic_worker.py`): 54 passed.
+  - `make e2e` twice back to back, with the Stage 1 packages
+    (`completion-packages/9f8bdc31...`, `b2-packages/e9085d40...`,
+    `browser-packages/59b12aa9...`) left in place. Both exited 0, each with
+    e2e:mock, legacy, completion and B2 passing (4 × "1 passed").
+    - Run 1: legacy run `05ad28ab7b5b4c68a919895d2ec94553` (scope
+      `7c80c8cc...`); completion run `5f42298e1de54a33aeda7cadcdf604e1`
+      (scope `222576bf...`), retained PASS; B2 run
+      `dbdff27bfc9c4ad2a14e4a51b146e1af` (scope `f4098b5a...`), retained
+      PASS.
+    - Run 2: legacy run `dd64a552b0074bc89f813ccffef4a37b` (scope
+      `42d20550...`); completion run `0f30ffa50f1f457482c9951c98bfe5c7`
+      (scope `0db74c68...`), retained PASS; B2 run
+      `cd0955e2b5f3492f954e73b197a89b76` (scope `081aa76c...`), retained
+      PASS.
+    - Each retained PASS reported `full_mp4_decode` PASS, `fixture_removed`
+      true and `wrong_existing_producer_rejected` true.
+    - All 54 pre-existing retained package files hashed identically before
+      and after both runs.
+  - Logs (session scratchpad, may not persist):
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-coder/`.
+  - The full backend suite was not run by the coder; the independent tester
+    owns it.
+- Caveats: deterministic validation only; mock/fixture providers; no
+  rendering acceptance, human editorial/audio review or model inference.
+
 ## Stage 1 benchmark evaluator strictness (2026-10-20) — ACCEPTED at 6c465b7
 
 - **Status: ACCEPTED** at `6c465b767e3829152d0b07451edbe274980321b1` on
@@ -66,6 +157,9 @@
 - D1--D3 are Controller interpretations pending operator confirmation, as is
   "D2 applies to semantic-only candidates; no semantic allowance". See the
   Decision Log in `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+  - Update 2026-10-21: the operator **confirmed D1, D2 and D3**. The
+    semantic-only reading ("D2 applies to semantic-only candidates; no
+    semantic padding allowance") remains **pending operator confirmation**.
 - Independent tester evidence at `6c465b7`. Mock/fixture only, run with
   `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
   - `make lint` exit 0:
@@ -116,6 +210,9 @@
   stage): a second `make test` in the same worktree fails unless
   `apps/web/playwright-report/{completion,b2}-packages` hold no prior
   package.
+  - Update 2026-10-21: being addressed by Stage 2 on
+    `claude/liveclip-stage2-e2e-harness` (pending acceptance); see the
+    Stage 2 section above.
 - Open follow-ups (not done):
   - Reviewer P2-b: pin the staging directory identity (`expected_identity`)
     in the Agent report publication and make cleanup fd-based.
@@ -123,7 +220,8 @@
   - Earlier P2-5: Agent risk discovery counts only final candidates. This is
     stricter than necessary, because superseded raw candidates could also
     prove discovery.
-  - The e2e harness non-idempotency above.
+  - The e2e harness non-idempotency above (2026-10-21: being addressed by
+    Stage 2, pending acceptance).
 - Caveats:
   - This is deterministic validation only. There was no rendering
     acceptance, no human editorial/audio review and no model inference.
@@ -132,7 +230,8 @@
     cited as a strict PASS. Re-scoring needs operator authority because the
     evidence is outside this worktree.
   - D1--D3 and the semantic-only padding reading are pending operator
-    confirmation.
+    confirmation. (2026-10-21: D1--D3 confirmed by the operator; the
+    semantic-only padding reading is still pending.)
 - Path lists not updated:
   - The frozen `tools/loop_engineering/m3s_v40/v44/v45_source_freeze.py`
     list `scripts/evaluate_agent_benchmark.py` as a path. They were left

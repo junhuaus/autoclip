@@ -165,17 +165,20 @@ two deterministic report files.
   points) score 0. With executed Profiles derived from the frozen Global
   Review, the applicable maximum is 88, so 85 stays reachable. Reports carry
   `raw_score` and `applicable_max_score`.
+  **Confirmed by the operator on 2026-10-21.**
 - 2026-10-20 Controller interpretation D2 (pending operator confirmation):
   negative-anchor padding and forbidden composite intervals are direct FAIL
   for every output decision in `matching.match_decisions` (`selected` and
   `manual_review`), per MD sections 3.7, 7 and the section 10 direct-FAIL list
   and JSON `direct_fail_conditions`. This is the strict, unconditional
   reading; Agent v2 applies the same rule to every final candidate.
+  **Confirmed by the operator on 2026-10-21.**
 - 2026-10-20 Controller interpretation D3 (pending operator confirmation):
   `acceptance.conditional` is applied literally. CONDITIONAL requires
   `min_score 70 <= score <= max_score 84`, so `84 < score < 85` is FAIL, and a
   score of at least 85 with any unmet PASS gate (for example 6/8 shorts) is
   also FAIL. This is the strict reading.
+  **Confirmed by the operator on 2026-10-21.**
 - 2026-10-20 fix round: the padding allowance is the union of the intervals,
   widened by the candidate's Profile tolerance, of every gold or
   `supplemental_mini_lesson` anchor the candidate matches at the exact
@@ -196,6 +199,12 @@ two deterministic report files.
   applies to semantic-only candidates; there is no semantic allowance. Padding
   findings also report `outside_nearest_anchor_ms`, the overlap outside the
   nearest unwidened gold anchor, for human inspection only.
+- 2026-10-21 operator confirmation: the operator confirmed D1, D2 and D3 as
+  written above; they are no longer pending. The separate reading "D2 applies
+  to semantic-only candidates; semantic-only candidates get no padding
+  allowance" was not part of that confirmation and remains a Controller
+  interpretation **pending operator confirmation**. No evaluator code,
+  threshold or benchmark JSON/MD changed with this confirmation.
 
 ## Risks and mitigations
 
@@ -229,6 +238,13 @@ chain (use `/private/tmp/...`, not macOS `/tmp`). The four open follow-ups
 are listed in Progress. Before rerunning `make test` in the same worktree,
 make sure `apps/web/playwright-report/{completion,b2}-packages` hold no prior
 retained package. Move such a folder aside; never delete evidence.
+
+2026-10-21: the operator confirmed D1--D3 (see the Decision Log); the
+semantic-only padding reading is still pending operator confirmation. The
+"move the report folders aside" step above is historical: Stage 2 on
+`claude/liveclip-stage2-e2e-harness` (pending acceptance) retains each
+real-browser package in a fresh identity-bound per-invocation scope, so prior
+packages no longer need to be moved. See `STATUS.md`.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the

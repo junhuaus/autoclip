@@ -123,3 +123,14 @@ code) plus docs-only commits that record the acceptance, the first being
 `87bd6b2`. To verify, run `git diff --name-only 6c465b7..HEAD`; it must list
 only `STATUS.md`, `docs/**` and `tasks/**`. The branch is local only and has
 no upstream.
+
+## Stage 2 in progress (2026-10-21)
+
+Stage 2 (real-browser e2e harness idempotency) is in progress on local branch
+`claude/liveclip-stage2-e2e-harness`, created from `8b4e66c`. The coder has
+committed candidate `bae901c` that retains each harness invocation's package in a
+fresh identity-bound report scope, so a second `make test` no longer fails on
+an earlier run's package and earlier evidence is preserved. It is pending the
+independent tester and reviewer on the reported SHA. The operator confirmed
+D1--D3 on 2026-10-21; the semantic-only padding reading is still pending.
+Details are in the Stage 2 section of `STATUS.md`. Not pushed.
