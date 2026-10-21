@@ -25,6 +25,7 @@ if not __package__:
 
 from scripts.benchmark_gates import (
     MINI_PROFILE,
+    NEGATIVE_ANCHOR_OUTPUT,
     PROFILE_GOLD_SECTIONS,
     SHORT_PROFILE,
     CandidateView,
@@ -36,6 +37,8 @@ from scripts.benchmark_gates import (
     composite_overlaps,
     duration_violations,
     match_profile,
+    negative_anchor_outputs,
+    negative_anchor_policies,
     padding_overlaps,
     regression_interval_hits,
     regression_start_hits,
@@ -388,11 +391,29 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
     durations = duration_violations(benchmark, views)
     if durations:
         mechanical_failures.append("duration_out_of_profile_bounds")
+    # Operator decision B (2026-10-21): a final candidate lying only on
+    # negative-anchor content is ``negative_anchor_output``.  A ``final``
+    # candidate is delivered without manual routing, so it counts as an
+    # automatic output under each anchor's MD section 7 policy.
+    negative_policies = negative_anchor_policies(benchmark)
+    negative_outputs = [
+        entry
+        for candidate in views
+        for entry in negative_anchor_outputs(benchmark, candidate, negative_policies)
+    ]
+    negative_only_ids = {str(value["candidate_id"]) for value in negative_outputs}
+    if any(value["hard_failure"] for value in negative_outputs):
+        mechanical_failures.append(NEGATIVE_ANCHOR_OUTPUT)
     # Every final candidate is a delivered output whose Global Review row asserted
     # complete boundaries and no irrelevant padding, so content gates apply to it
     # exactly as to v1 selected/manual_review outputs (Controller decision D2).
-    padding = [entry for candidate in views for entry in padding_overlaps(benchmark, candidate)]
-    padded_ids = {str(value["candidate_id"]) for value in padding}
+    padding = [
+        entry
+        for candidate in views
+        if candidate.candidate_id not in negative_only_ids
+        for entry in padding_overlaps(benchmark, candidate)
+    ]
+    padded_ids = {str(value["candidate_id"]) for value in padding} | negative_only_ids
     if padding:
         mechanical_failures.append("irrelevant_padding")
     composites = [
@@ -541,6 +562,8 @@ def evaluate_agent(benchmark: dict[str, Any], result: AgentRunResult) -> dict[st
         "mini_lesson_matches": [asdict(value) for value in long_matches],
         "manual_adjudication_required": manual_adjudication,
         "padding_findings": padding,
+        "negative_anchor_output_findings": negative_outputs,
+        "negative_anchor_policy_mismatches": list(negative_policies.mismatches),
         "forbidden_composite_findings": composites,
         "duration_violations": durations,
         "risk_discovery_matches": [asdict(value) for value in risk_matches],

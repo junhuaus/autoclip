@@ -324,19 +324,21 @@ def test_agent_semantic_only_match_is_manual_not_a_hit() -> None:
 
 
 def test_agent_padding_and_composite_are_mechanical_failures() -> None:
-    n07 = next(value for value in BENCHMARK["negative_anchors"] if value["id"] == "N07")
+    s07 = next(value for value in BENCHMARK["gold_short"] if value["id"] == "S07")
     composite = BENCHMARK["forbidden_composite_intervals"][0]
     report = evaluate_agent(
         BENCHMARK,
         _result(
             extra=(
+                # S07 gold content padded 10 s into N07: padding, not negative-only
+                # (operator decision B moved pure N07 output to its own class).
                 {
                     "id": "PAD",
                     "profile": "short_highlight",
-                    "start_ms": int(n07["start_ms"]) + 1_000,
-                    "end_ms": int(n07["start_ms"]) + 61_000,
-                    "cue_start": 1000,
-                    "cue_end": 1020,
+                    "start_ms": int(s07["start_ms"]),
+                    "end_ms": int(s07["end_ms"]) + 10_000,
+                    "cue_start": int(s07["cue_start"]),
+                    "cue_end": int(s07["cue_end"]) + 4,
                 },
                 {
                     "id": "COMPOSITE",
@@ -354,6 +356,7 @@ def test_agent_padding_and_composite_are_mechanical_failures() -> None:
     assert "irrelevant_padding" in report["mechanical_failures"]
     assert "forbidden_composite_interval" in report["mechanical_failures"]
     assert [value["candidate_id"] for value in report["padding_findings"]] == ["candidate_pad"]
+    assert report["negative_anchor_output_findings"] == []
     assert [value["candidate_id"] for value in report["forbidden_composite_findings"]] == [
         "candidate_composite"
     ]
@@ -521,3 +524,90 @@ def test_agent_publication_failure_leaves_no_partial_output(
         agent_evaluator._publish_no_replace(output, report)
     assert not output.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+def _agent_negative_only(anchor_id: str, *, profile: str, offset_ms: int) -> dict[str, Any]:
+    negative = next(value for value in BENCHMARK["negative_anchors"] if value["id"] == anchor_id)
+    duration = 60_000 if profile == "short_highlight" else 120_000
+    start = int(negative["start_ms"]) + offset_ms
+    assert start + duration <= int(negative["end_ms"])
+    return {
+        "id": f"NEG_{anchor_id}",
+        "profile": profile,
+        "start_ms": start,
+        "end_ms": start + duration,
+        "cue_start": 5000,
+        "cue_end": 5020,
+    }
+
+
+@pytest.mark.parametrize(
+    ("anchor_id", "profile", "offset_ms"),
+    [
+        # N08 "不得自动作为教学片": an Agent final candidate is an automatic output.
+        ("N08", "mini_lesson", 60_000),
+        ("N05", "short_highlight", 30_000),
+        # N09 beyond the S08 clean sub-interval.
+        ("N09", "short_highlight", 75_000),
+    ],
+)
+def test_agent_negative_only_final_candidate_is_negative_anchor_output(
+    anchor_id: str, profile: str, offset_ms: int
+) -> None:
+    report = evaluate_agent(
+        BENCHMARK,
+        _result(extra=(_agent_negative_only(anchor_id, profile=profile, offset_ms=offset_ms),)),
+    )
+    [finding] = report["negative_anchor_output_findings"]
+    assert finding["candidate_id"] == f"candidate_neg_{anchor_id.lower()}"
+    assert (finding["negative_anchor_id"], finding["decision"]) == (anchor_id, "final")
+    assert finding["hard_failure"] is True
+    assert "outside_nearest_anchor_ms" not in finding
+    assert report["padding_findings"] == []
+    assert "negative_anchor_output" in report["mechanical_failures"]
+    assert "irrelevant_padding" not in report["mechanical_failures"]
+    assert report["status"] == STATUS_TECHNICAL_FAIL
+
+
+def test_agent_s08_clean_subinterval_and_inward_exact_hit_pass() -> None:
+    s08 = next(value for value in BENCHMARK["gold_short"] if value["id"] == "S08")
+    l04 = next(value for value in BENCHMARK["gold_mini_lesson"] if value["id"] == "L04")
+    report = evaluate_agent(
+        BENCHMARK,
+        _result(
+            overrides={
+                # Operator decision A: inward within tolerance with fewer cues is exact.
+                "S08": {
+                    "start_ms": int(s08["start_ms"]) + 1_000,
+                    "cue_start": int(s08["cue_start"]) + 1,
+                },
+                "L04": {
+                    "start_ms": int(l04["start_ms"]) + 5_000,
+                    "end_ms": int(l04["end_ms"]) - 5_000,
+                    "cue_start": int(l04["cue_start"]) + 1,
+                    "cue_end": int(l04["cue_end"]) - 1,
+                },
+            }
+        ),
+    )
+    assert {"S08"} <= {value["anchor_id"] for value in report["short_matches"]}
+    assert {"L04"} <= {value["anchor_id"] for value in report["mini_lesson_matches"]}
+    assert report["negative_anchor_output_findings"] == []
+    assert report["padding_findings"] == []
+    assert report["negative_anchor_policy_mismatches"] == []
+    assert report["status"] == STATUS_TECHNICAL_PASS_HUMAN_PENDING
+
+
+def test_agent_policy_table_mismatch_is_reported_and_strict() -> None:
+    benchmark = json.loads(json.dumps(BENCHMARK))
+    next(value for value in benchmark["negative_anchors"] if value["id"] == "N08")["reason"] = "x"
+    report = evaluate_agent(
+        benchmark,
+        _result(extra=(_agent_negative_only("N08", profile="mini_lesson", offset_ms=60_000),)),
+    )
+    assert report["negative_anchor_policy_mismatches"] == [
+        {"negative_anchor_id": "N08", "mismatch": "reason"}
+    ]
+    [finding] = report["negative_anchor_output_findings"]
+    assert finding["hard_failure"] is True
+    assert "negative_anchor_output" in report["mechanical_failures"]

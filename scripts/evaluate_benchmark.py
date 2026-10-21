@@ -26,7 +26,9 @@ if not __package__:
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from scripts.benchmark_gates import (
+    EXTRA_DIRECT_FAIL_CONDITIONS,
     MINI_PROFILE,
+    NEGATIVE_ANCHOR_OUTPUT,
     PROFILE_GOLD_SECTIONS,
     SHORT_PROFILE,
     CandidateView,
@@ -39,6 +41,8 @@ from scripts.benchmark_gates import (
     duration_violations,
     manual_or_blocking_risk_tags,
     match_profile,
+    negative_anchor_outputs,
+    negative_anchor_policies,
     padding_overlaps,
     regression_interval_hits,
     regression_start_hits,
@@ -245,11 +249,28 @@ def evaluate(
     if durations:
         hard_failures.append("duration_out_of_profile_bounds")
 
-    # Controller decision D2 (2026-10-20): padding and forbidden composites are
-    # direct FAIL for every output decision in matching.match_decisions (MD 3.7,
-    # 7 and the 10 direct-FAIL list), not only for selected candidates.
-    padding = [entry for candidate in outputs for entry in padding_overlaps(benchmark, candidate)]
-    padded_ids = {str(value["candidate_id"]) for value in padding}
+    # Operator decision B (2026-10-21): an output lying only on negative-anchor
+    # content is ``negative_anchor_output``, judged by each anchor's MD section 7
+    # wording; it is not padding.
+    negative_policies = negative_anchor_policies(benchmark)
+    negative_outputs = [
+        entry
+        for candidate in outputs
+        for entry in negative_anchor_outputs(benchmark, candidate, negative_policies)
+    ]
+    negative_only_ids = {str(value["candidate_id"]) for value in negative_outputs}
+    if any(value["hard_failure"] for value in negative_outputs):
+        hard_failures.append(NEGATIVE_ANCHOR_OUTPUT)
+    # Controller decision D2 (2026-10-20, operator-confirmed 2026-10-21): padding
+    # and forbidden composites are direct FAIL for every output decision in
+    # matching.match_decisions (MD 3.7, 7 and the 10 direct-FAIL list).
+    padding = [
+        entry
+        for candidate in outputs
+        if candidate.candidate_id not in negative_only_ids
+        for entry in padding_overlaps(benchmark, candidate)
+    ]
+    padded_ids = {str(value["candidate_id"]) for value in padding} | negative_only_ids
     if padding:
         hard_failures.append("irrelevant_padding")
     composites = [
@@ -421,7 +442,9 @@ def evaluate(
     else:
         status = STATUS_FAIL
 
-    direct_fail_conditions = {str(value) for value in acceptance["direct_fail_conditions"]}
+    direct_fail_conditions = {str(value) for value in acceptance["direct_fail_conditions"]} | set(
+        EXTRA_DIRECT_FAIL_CONDITIONS
+    )
     # Non-mechanical checks the evaluator cannot close; they never change the status.
     human_required: list[dict[str, object]] = []
     if gates.get("title_hook_summary_must_be_source_faithful") is True:
@@ -429,6 +452,19 @@ def evaluate(
             {
                 "check": "title_hook_summary_must_be_source_faithful",
                 "candidate_ids": sorted(value.candidate_id for value in outputs),
+            }
+        )
+    informational_negative = [value for value in negative_outputs if not value["hard_failure"]]
+    if informational_negative:
+        human_required.append(
+            {
+                "check": "negative_anchor_output_manual_review",
+                "candidate_ids": sorted(
+                    {str(item["candidate_id"]) for item in informational_negative}
+                ),
+                "negative_anchor_ids": sorted(
+                    {str(item["negative_anchor_id"]) for item in informational_negative}
+                ),
             }
         )
     if manual_adjudication:
@@ -463,6 +499,8 @@ def evaluate(
         "mini_lesson_matches": [asdict(value) for value in long_matches],
         "manual_adjudication_required": manual_adjudication,
         "padding_findings": padding,
+        "negative_anchor_output_findings": negative_outputs,
+        "negative_anchor_policy_mismatches": list(negative_policies.mismatches),
         "forbidden_composite_findings": composites,
         "duration_violations": durations,
         "risk_matches": [asdict(value) for value in risk_matches],

@@ -2,8 +2,10 @@
 
 Every rule here is derived from fields of ``liveclip_dual_profile_benchmark_v1.json``.
 The only structural constants are the JSON section/field names that bind a Profile
-to its gold list and boundary tolerance.  No anchor ID, timestamp or hash is
-hard-coded; production code must never import this module.
+to its gold list and boundary tolerance, and the per-anchor output policy of MD
+section 7 (``NEGATIVE_ANCHOR_POLICIES``), which the JSON carries only as ``reason``
+strings and which is validated against the JSON before use.  No timestamp or hash
+is hard-coded; production code must never import this module.
 """
 
 from __future__ import annotations
@@ -30,6 +32,169 @@ PADDING_ALLOWANCE_SECTIONS: Final = (*PROFILE_GOLD_SECTIONS.values(), "supplemen
 # ``forbidden_composite_intervals`` forbid continuous long outputs; their JSON
 # reasons explicitly allow clean short subclips, so only this Profile is gated.
 COMPOSITE_GATED_PROFILE: Final = MINI_PROFILE
+# Operator decision B (2026-10-21): an output lying only on negative-anchor
+# content is its own direct-FAIL class, distinct from ``irrelevant_padding``.
+# The benchmark JSON cannot be edited, so both evaluators add this name to the
+# JSON ``direct_fail_conditions``.
+NEGATIVE_ANCHOR_OUTPUT: Final = "negative_anchor_output"
+EXTRA_DIRECT_FAIL_CONDITIONS: Final = (NEGATIVE_ANCHOR_OUTPUT,)
+# Decisions that put a candidate out without a human routing step: v1
+# ``selected`` and every Agent v2 Global Review ``final`` candidate.
+AUTOMATIC_OUTPUT_DECISIONS: Final = frozenset({"selected", "final"})
+# Every output decision, v1 (``matching.match_decisions``) and Agent v2.
+ALL_OUTPUT_DECISIONS: Final = frozenset({"selected", "manual_review", "final"})
+
+
+@dataclass(frozen=True, slots=True)
+class NegativeAnchorPolicy:
+    """How MD section 7 ("禁止作为成片或补时的区间") treats an output on one anchor.
+
+    ``hard_fail_decisions`` are the output decisions for which a negative-only
+    output is a direct FAIL; any other output decision is reported as an
+    informational finding that needs human review.  ``clean_subinterval_anchor``
+    names the only gold anchor whose clean sub-interval may be cut from the
+    negative interval; that exception is the exact-match padding allowance.
+    """
+
+    anchor_id: str
+    reason: str
+    md_section_7_row: str
+    hard_fail_decisions: frozenset[str]
+    clean_subinterval_anchor: str | None = None
+
+
+# The table binds to this benchmark only; ``negative_anchor_policies`` checks
+# the ID, every anchor ``reason`` and any clean sub-interval anchor before use.
+NEGATIVE_POLICY_BENCHMARK_ID: Final = "liveclip-dual-profile-transcript-v1"
+
+
+def _default_policy(anchor_id: str, reason: str, row: str) -> NegativeAnchorPolicy:
+    # Controller interpretation pending operator confirmation: "禁止作为成片"
+    # together with confirmed D2 makes every output on these anchors a FAIL,
+    # whether it was selected or routed to manual review.
+    return NegativeAnchorPolicy(anchor_id, reason, row, ALL_OUTPUT_DECISIONS)
+
+
+NEGATIVE_ANCHOR_POLICIES: Final[Mapping[str, NegativeAnchorPolicy]] = {
+    value.anchor_id: value
+    for value in (
+        _default_policy(
+            "N01",
+            "setup_chat_device_and_fragmented_singing",
+            "MD §7 line 93 (N01): 开场准备、碎片演唱、聊天、设备调整",
+        ),
+        _default_policy(
+            "N02",
+            "follow_and_fan_cta",
+            "MD §7 line 94 (N02): 关注/粉丝 CTA",
+        ),
+        _default_policy(
+            "N03",
+            "schedule_and_off_topic_chat",
+            "MD §7 line 95 (N03): 排期、网球等离题聊天",
+        ),
+        _default_policy(
+            "N04",
+            "cta_and_device_adjustment",
+            "MD §7 line 96 (N04): CTA 与设备调整",
+        ),
+        _default_policy(
+            "N05",
+            "likes_course_promo_and_device_interruption",
+            "MD §7 line 97 (N05): 点赞、课程推广、设备/白板中断",
+        ),
+        _default_policy(
+            "N06",
+            "cta_waiting_and_unfinished_setup",
+            "MD §7 line 98 (N06): CTA、等待及未完成铺垫",
+        ),
+        _default_policy(
+            "N07",
+            "chat_device_and_fragments",
+            "MD §7 line 99 (N07): 聊天、设备及碎片内容 / 不得给 L03 补时",
+        ),
+        # "不得自动作为教学片": only an automatic output is forbidden; a
+        # manual_review output is a finding for the human reviewer.
+        NegativeAnchorPolicy(
+            "N08",
+            "extended_sales_pricing_scheduling_and_credentials",
+            "MD §7 line 100 (N08): 大段价格、课程销售、排期与资历说明 / 不得自动作为教学片",
+            AUTOMATIC_OUTPUT_DECISIONS,
+        ),
+        # "只允许抽取 S08 的干净子区间": everything else on N09 fails for every
+        # output decision; the S08 exception is its exact-match padding allowance.
+        NegativeAnchorPolicy(
+            "N09",
+            "device_network_and_phone_playback_chaos_with_S08_exception",
+            "MD §7 line 101 (N09): 设备、网络和手机播放混乱 / 只允许抽取 S08 的干净子区间",
+            ALL_OUTPUT_DECISIONS,
+            clean_subinterval_anchor="S08",
+        ),
+        _default_policy(
+            "N10",
+            "connection_troubleshooting",
+            "MD §7 line 102 (N10): 连线故障排查",
+        ),
+        _default_policy(
+            "N11",
+            "outro_cta_and_farewell",
+            "MD §7 line 103 (N11): 结束 CTA 与告别",
+        ),
+    )
+}
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedNegativePolicies:
+    policies: Mapping[str, NegativeAnchorPolicy]
+    mismatches: tuple[dict[str, str], ...]
+
+
+def negative_anchor_policies(benchmark: Mapping[str, Any]) -> ResolvedNegativePolicies:
+    """Bind the MD section 7 table to the loaded benchmark, failing closed.
+
+    Each negative anchor uses its table entry only when the benchmark ID, the
+    anchor ``reason`` and (for N09) the clean sub-interval gold anchor lying
+    inside the negative interval all match.  Any mismatch, or an anchor with no
+    entry, gets the strictest policy: a FAIL for every output decision.  This
+    can only tighten the result, so the evaluator stays usable on a mismatched
+    benchmark while every relaxation is withheld; the mismatches are reported.
+    """
+
+    benchmark_id = str(benchmark.get("benchmark_id"))
+    golds = {
+        str(anchor["id"]): anchor
+        for section in PADDING_ALLOWANCE_SECTIONS
+        for anchor in benchmark.get(section, ())
+    }
+    resolved: dict[str, NegativeAnchorPolicy] = {}
+    mismatches: list[dict[str, str]] = []
+    for anchor in benchmark["negative_anchors"]:
+        anchor_id = str(anchor["id"])
+        reason = str(anchor.get("reason"))
+        entry = NEGATIVE_ANCHOR_POLICIES.get(anchor_id)
+        problem: str | None = None
+        if benchmark_id != NEGATIVE_POLICY_BENCHMARK_ID:
+            problem = "benchmark_id"
+        elif entry is None:
+            problem = "no_policy_entry"
+        elif entry.reason != reason:
+            problem = "reason"
+        elif entry.clean_subinterval_anchor is not None:
+            gold = golds.get(entry.clean_subinterval_anchor)
+            if gold is None or not (
+                int(anchor["start_ms"]) <= int(gold["start_ms"])
+                and int(gold["end_ms"]) <= int(anchor["end_ms"])
+            ):
+                problem = "clean_subinterval_anchor"
+        if problem is None and entry is not None:
+            resolved[anchor_id] = entry
+        else:
+            mismatches.append({"negative_anchor_id": anchor_id, "mismatch": str(problem)})
+            resolved[anchor_id] = NegativeAnchorPolicy(
+                anchor_id, reason, "strictest default (policy table mismatch)", ALL_OUTPUT_DECISIONS
+            )
+    return ResolvedNegativePolicies(policies=resolved, mismatches=tuple(mismatches))
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,15 +293,19 @@ def _pair_metrics(anchor: Mapping[str, Any], candidate: CandidateView) -> dict[s
 
 
 def is_exact_boundary(anchor: Mapping[str, Any], candidate: CandidateView, tolerance: int) -> bool:
-    """MD section 9 rule 4: both edges within the Profile tolerance with full cue coverage."""
+    """Both edges within the Profile tolerance, inward or outward (inclusive).
+
+    Operator decision A (2026-10-21): an exact boundary hit is tolerance-only;
+    full gold cue coverage is no longer required.  MD basis: section 4 line 41
+    and section 5 line 58 ("允许在自然 cue 边界前后调整约 3 秒 / 5 秒": the
+    boundary may move about 3 s / 5 s in either direction) and section 9 rules 3
+    and 4 (core topic/evidence coverage, edges "通常在参考边界 ±3 秒 / ±5 秒").
+    Beyond the tolerance a semantically equivalent candidate still goes to
+    manual adjudication only (``is_semantic_equivalent``).
+    """
 
     metrics = _pair_metrics(anchor, candidate)
-    return (
-        abs(metrics["start_delta_ms"]) <= tolerance
-        and abs(metrics["end_delta_ms"]) <= tolerance
-        and candidate.start_cue_id <= int(anchor["cue_start"])
-        and candidate.end_cue_id >= int(anchor["cue_end"])
-    )
+    return abs(metrics["start_delta_ms"]) <= tolerance and abs(metrics["end_delta_ms"]) <= tolerance
 
 
 def is_semantic_equivalent(
@@ -225,9 +394,10 @@ def padding_overlaps(
     """Negative-anchor overlap outside the candidate's allowance, above its Profile tolerance.
 
     Only exact-boundary matches earn an allowance; a semantic-equivalent-only
-    candidate gets none (Controller decision, pending operator confirmation).
-    For human inspection each finding also reports the overlap measured outside
-    the candidate's nearest gold anchor interval (unwidened).
+    candidate gets none (confirmed by the operator on 2026-10-21).  For human
+    inspection each finding also reports the overlap measured outside the
+    candidate's nearest gold anchor interval (unwidened).  Negative-only outputs
+    are classified by ``negative_anchor_outputs`` instead and never reach here.
     """
 
     tolerance = tolerance_ms(benchmark, candidate.profile)
@@ -257,6 +427,55 @@ def padding_overlaps(
                     - _covered_ms(start, end, nearest_interval),
                 }
             )
+    return findings
+
+
+def negative_anchor_outputs(
+    benchmark: Mapping[str, Any],
+    candidate: CandidateView,
+    policies: ResolvedNegativePolicies,
+) -> list[dict[str, object]]:
+    """Operator decision B (2026-10-21): an output lying only on negative content.
+
+    A candidate is negative-only when it overlaps a negative anchor by more than
+    its Profile tolerance (the same threshold as padding), has no time overlap
+    with any gold or supplemental anchor of either Profile, and has neither an
+    exact nor a semantic match.  Each overlapped anchor yields one finding whose
+    ``hard_failure`` follows that anchor's MD section 7 policy.  Such candidates
+    are not padding, so no nearest-gold diagnostic is reported for them.
+    Any other candidate returns no finding here and goes to ``padding_overlaps``.
+    """
+
+    tolerance = tolerance_ms(benchmark, candidate.profile)
+    for section in PADDING_ALLOWANCE_SECTIONS:
+        for anchor in benchmark.get(section, ()):
+            if overlap_ms(
+                candidate.start_ms, candidate.end_ms, int(anchor["start_ms"]), int(anchor["end_ms"])
+            ):
+                return []
+            if is_exact_boundary(anchor, candidate, tolerance) or is_semantic_equivalent(
+                anchor, candidate, tolerance
+            ):
+                return []
+    findings: list[dict[str, object]] = []
+    for negative in benchmark["negative_anchors"]:
+        overlap = overlap_ms(
+            candidate.start_ms, candidate.end_ms, int(negative["start_ms"]), int(negative["end_ms"])
+        )
+        if overlap <= tolerance:
+            continue
+        policy = policies.policies[str(negative["id"])]
+        findings.append(
+            {
+                "candidate_id": candidate.candidate_id,
+                "profile": candidate.profile,
+                "decision": candidate.decision,
+                "negative_anchor_id": str(negative["id"]),
+                "overlap_ms": overlap,
+                "hard_failure": candidate.decision in policy.hard_fail_decisions,
+                "policy": policy.md_section_7_row,
+            }
+        )
     return findings
 
 

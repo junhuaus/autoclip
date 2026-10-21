@@ -18,7 +18,15 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
     profile_statistics,
 )
-from scripts.benchmark_gates import CandidateView, duration_allowed, match_profile
+from scripts.benchmark_gates import (
+    NEGATIVE_ANCHOR_POLICIES,
+    CandidateView,
+    duration_allowed,
+    is_exact_boundary,
+    match_profile,
+    negative_anchor_policies,
+    tolerance_ms,
+)
 from scripts.evaluate_benchmark import evaluate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -242,7 +250,8 @@ def test_semantic_only_match_requires_manual_adjudication_and_is_not_a_hit() -> 
     assert not report["padding_findings"]
 
 
-def test_selected_candidate_with_irrelevant_padding_fails() -> None:
+def test_selected_negative_only_candidate_is_negative_anchor_output_not_padding() -> None:
+    # Before operator decision B this negative-only output was irrelevant_padding.
     buckets = _passing_buckets()
     n05 = _anchor("N05")
     buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.SELECTED] = [
@@ -258,10 +267,14 @@ def test_selected_candidate_with_irrelevant_padding_fails() -> None:
     ]
     report = _evaluate(buckets)
     assert report["status"] == "FAIL"
-    assert "irrelevant_padding" in report["hard_failures"]
-    assert {
-        (value["candidate_id"], value["negative_anchor_id"]) for value in report["padding_findings"]
-    } == {("padded_selected", "N05")}
+    assert "negative_anchor_output" in report["hard_failures"]
+    assert "negative_anchor_output" in report["direct_fail_conditions_hit"]
+    assert "irrelevant_padding" not in report["hard_failures"]
+    assert report["padding_findings"] == []
+    [finding] = report["negative_anchor_output_findings"]
+    assert (finding["candidate_id"], finding["negative_anchor_id"]) == ("padded_selected", "N05")
+    assert finding["hard_failure"] is True
+    assert "outside_nearest_anchor_ms" not in finding and "nearest_anchor_id" not in finding
 
 
 def test_manual_review_candidate_padded_into_negative_anchor_fails_and_is_not_a_hit() -> None:
@@ -320,7 +333,7 @@ def test_semantic_only_candidate_gets_no_padding_allowance() -> None:
     assert "irrelevant_padding" in report["hard_failures"]
 
 
-def test_s08_hit_inside_n09_is_not_padding_but_other_n09_content_is() -> None:
+def test_s08_hit_inside_n09_is_allowed_but_other_n09_content_is_negative_output() -> None:
     buckets = _passing_buckets()
     n09 = _anchor("N09")
     s08 = _anchor("S08")
@@ -341,10 +354,14 @@ def test_s08_hit_inside_n09_is_not_padding_but_other_n09_content_is() -> None:
         )
     )
     report = _evaluate(buckets)
+    # Operator decision B: N09 permits only the S08 clean sub-interval, so any
+    # other N09 output fails, even when routed to manual review.
     assert [
-        (value["candidate_id"], value["negative_anchor_id"]) for value in report["padding_findings"]
-    ] == [("n09_chaos", "N09")]
-    assert "irrelevant_padding" in report["hard_failures"]
+        (value["candidate_id"], value["negative_anchor_id"], value["hard_failure"])
+        for value in report["negative_anchor_output_findings"]
+    ] == [("n09_chaos", "N09", True)]
+    assert report["padding_findings"] == []
+    assert "negative_anchor_output" in report["hard_failures"]
     assert report["status"] == "FAIL"
 
 
@@ -882,3 +899,261 @@ def test_rgr03_bad_opening_is_reported_as_finding_only() -> None:
     ]
     assert not report["hard_failures"]
     assert report["status"] == "PASS"
+
+
+# Operator decision A (2026-10-21): an exact boundary hit is tolerance-only.
+# S03 (73.88 s) and L04 (142.04 s) stay legal after moving inward by the tolerance.
+@pytest.mark.parametrize("anchor_id", ["S03", "L04"])
+@pytest.mark.parametrize(
+    ("start_shift", "end_shift", "cue_shift", "exact"),
+    [
+        (0.5, -0.5, 1, True),  # inward within tolerance, fewer cues: exact
+        (1.0, -1.0, 1, True),  # inward exactly at tolerance: exact
+        (-1.0, 1.0, 0, True),  # outward exactly at tolerance: exact
+        ("tol+1", 0, 0, False),  # inward 1 ms beyond tolerance
+        (0, "-tol-1", 0, False),  # inward end 1 ms beyond tolerance
+        ("-tol-1", 0, 0, False),  # outward 1 ms beyond tolerance
+    ],
+)
+def test_exact_boundary_is_tolerance_only_inward_or_outward(
+    anchor_id: str, start_shift: Any, end_shift: Any, cue_shift: int, exact: bool
+) -> None:
+    anchor = _anchor(anchor_id)
+    profile = "short_highlight" if anchor_id.startswith("S") else "mini_lesson"
+    tolerance = tolerance_ms(BENCHMARK, profile)
+    assert tolerance == (3_000 if profile == "short_highlight" else 5_000)
+
+    def shift(value: Any) -> int:
+        named = {"tol+1": tolerance + 1, "-tol-1": -tolerance - 1}
+        return named[value] if isinstance(value, str) else int(value * tolerance)
+
+    view = CandidateView(
+        candidate_id="probe",
+        profile=profile,
+        decision="manual_review",
+        start_ms=int(anchor["start_ms"]) + shift(start_shift),
+        end_ms=int(anchor["end_ms"]) + shift(end_shift),
+        start_cue_id=int(anchor["cue_start"]) + cue_shift,
+        end_cue_id=int(anchor["cue_end"]) - cue_shift,
+        score=90,
+    )
+    assert is_exact_boundary(anchor, view, tolerance) is exact
+    matching = match_profile(BENCHMARK, profile, [view], decision_allowed=lambda *_: True)
+    assert [value.anchor_id for value in matching.matches] == ([anchor_id] if exact else [])
+
+
+@pytest.mark.parametrize(
+    ("profile", "anchor_id", "section"),
+    [
+        (ClipProfile.SHORT_HIGHLIGHT, "S03", "short_matches"),
+        (ClipProfile.MINI_LESSON, "L04", "mini_lesson_matches"),
+    ],
+)
+def test_inward_candidate_within_tolerance_is_a_qualified_hit(
+    profile: ClipProfile, anchor_id: str, section: str
+) -> None:
+    buckets = _passing_buckets()
+    anchor = _anchor(anchor_id)
+    tolerance = tolerance_ms(BENCHMARK, profile.value)
+    _remove(buckets[profile], anchor_id.lower())
+    buckets[profile][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            anchor,
+            profile=profile,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            start_ms=int(anchor["start_ms"]) + tolerance,
+            end_ms=int(anchor["end_ms"]) - tolerance,
+            start_cue_id=int(anchor["cue_start"]) + 1,
+            end_cue_id=int(anchor["cue_end"]) - 1,
+        )
+    )
+    report = _evaluate(buckets)
+    assert anchor_id in {value["anchor_id"] for value in report[section]}
+    assert report["qualified_boundary_hits"] == report["short_hits"] + report["mini_lesson_hits"]
+    assert report["status"] == "PASS"
+
+
+def test_inward_semantic_only_candidate_still_needs_manual_adjudication() -> None:
+    buckets = _passing_buckets()
+    l02 = _anchor("L02")
+    _remove(buckets[ClipProfile.MINI_LESSON], "l02")
+    buckets[ClipProfile.MINI_LESSON][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            l02,
+            profile=ClipProfile.MINI_LESSON,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            start_ms=int(l02["start_ms"]) + 6_000,
+            start_cue_id=int(l02["cue_start"]) + 1,
+        )
+    )
+    report = _evaluate(buckets)
+    assert "L02" not in {value["anchor_id"] for value in report["mini_lesson_matches"]}
+    [entry] = report["manual_adjudication_required"]
+    assert (entry["anchor_id"], entry["start_delta_ms"]) == ("L02", 6_000)
+    assert "missing_any_p0_mini_lesson" in report["hard_failures"]
+
+
+# Operator decision B (2026-10-21): negative-only outputs, per-anchor MD section 7 policy.
+def _negative_only(
+    anchor_id: str,
+    status: CandidateDisposition,
+    profile: ClipProfile = ClipProfile.MINI_LESSON,
+    *,
+    offset_ms: int = 60_000,
+) -> FinalProfileCandidate:
+    negative = _anchor(anchor_id)
+    duration = 60_000 if profile == ClipProfile.SHORT_HIGHLIGHT else 120_000
+    start = int(negative["start_ms"]) + offset_ms
+    assert start + duration <= int(negative["end_ms"])
+    return _custom(
+        f"{anchor_id.lower()}_{status.value}",
+        profile=profile,
+        status=status,
+        start_ms=start,
+        end_ms=start + duration,
+        start_cue_id=5000,
+        end_cue_id=5020,
+    )
+
+
+def _with(candidate: FinalProfileCandidate) -> dict[str, Any]:
+    buckets = _passing_buckets()
+    buckets[candidate.profile].setdefault(candidate.review_status, []).append(candidate)
+    return _evaluate(buckets)
+
+
+def test_n08_manual_review_negative_only_is_human_required_not_a_hard_failure() -> None:
+    report = _with(_negative_only("N08", CandidateDisposition.MANUAL_REVIEW))
+    [finding] = report["negative_anchor_output_findings"]
+    assert finding["negative_anchor_id"] == "N08"
+    assert finding["hard_failure"] is False
+    assert "不得自动作为教学片" in str(finding["policy"])
+    assert "negative_anchor_output" not in report["hard_failures"]
+    assert report["padding_findings"] == []
+    [check] = [
+        value
+        for value in report["human_required"]
+        if value["check"] == "negative_anchor_output_manual_review"
+    ]
+    assert check["candidate_ids"] == ["n08_manual_review"]
+    assert check["negative_anchor_ids"] == ["N08"]
+    assert report["status"] == "PASS"
+
+
+@pytest.mark.parametrize("profile", [ClipProfile.SHORT_HIGHLIGHT, ClipProfile.MINI_LESSON])
+def test_n08_selected_negative_only_is_a_hard_failure(profile: ClipProfile) -> None:
+    report = _with(_negative_only("N08", CandidateDisposition.SELECTED, profile))
+    [finding] = report["negative_anchor_output_findings"]
+    assert (finding["negative_anchor_id"], finding["hard_failure"]) == ("N08", True)
+    assert "negative_anchor_output" in report["hard_failures"]
+    assert report["status"] == "FAIL"
+
+
+@pytest.mark.parametrize("anchor_id", ["N05", "N09"])
+def test_default_and_n09_manual_review_negative_only_are_hard_failures(anchor_id: str) -> None:
+    profile = ClipProfile.SHORT_HIGHLIGHT
+    # N09: 8 s after S08 ends, so the output holds no S08 content.
+    offset = 30_000 if anchor_id == "N05" else 75_000
+    report = _with(
+        _negative_only(anchor_id, CandidateDisposition.MANUAL_REVIEW, profile, offset_ms=offset)
+    )
+    [finding] = report["negative_anchor_output_findings"]
+    assert (finding["negative_anchor_id"], finding["hard_failure"]) == (anchor_id, True)
+    assert "negative_anchor_output" in report["hard_failures"]
+    assert "irrelevant_padding" not in report["hard_failures"]
+    assert report["status"] == "FAIL"
+
+
+def test_s08_clean_subinterval_inside_n09_is_allowed() -> None:
+    buckets = _passing_buckets()
+    s08 = _anchor("S08")
+    buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            s08,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            candidate_id="s08_clean_subinterval",
+            # Inward by 1 s at the start only: S08 (46.8 s) keeps a legal duration.
+            start_ms=int(s08["start_ms"]) + 1_000,
+            start_cue_id=int(s08["cue_start"]) + 1,
+        )
+    )
+    report = _evaluate(buckets)
+    assert report["negative_anchor_output_findings"] == []
+    assert report["padding_findings"] == []
+    assert report["status"] == "PASS"
+
+
+def test_partial_gold_with_negative_overlap_stays_irrelevant_padding() -> None:
+    buckets = _passing_buckets()
+    s05 = _anchor("S05")
+    # S05 extended 20 s into N06: gold content plus negative overlap beyond allowance.
+    buckets[ClipProfile.SHORT_HIGHLIGHT][CandidateDisposition.MANUAL_REVIEW].append(
+        _candidate(
+            s05,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            status=CandidateDisposition.MANUAL_REVIEW,
+            candidate_id="s05_into_n06",
+            end_ms=int(s05["end_ms"]) + 20_000,
+            end_cue_id=int(s05["cue_end"]) + 8,
+        )
+    )
+    report = _evaluate(buckets)
+    assert report["negative_anchor_output_findings"] == []
+    [finding] = report["padding_findings"]
+    assert (finding["candidate_id"], finding["negative_anchor_id"]) == ("s05_into_n06", "N06")
+    assert finding["outside_allowed_overlap_ms"] == 20_000
+    assert "irrelevant_padding" in report["hard_failures"]
+    assert "negative_anchor_output" not in report["hard_failures"]
+
+
+def test_policy_table_matches_every_benchmark_negative_anchor() -> None:
+    resolved = negative_anchor_policies(BENCHMARK)
+    assert resolved.mismatches == ()
+    assert set(NEGATIVE_ANCHOR_POLICIES) == {value["id"] for value in BENCHMARK["negative_anchors"]}
+    for anchor in BENCHMARK["negative_anchors"]:
+        policy = resolved.policies[anchor["id"]]
+        assert policy.reason == anchor["reason"]
+        assert policy.md_section_7_row.startswith("MD §7 line ")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "mismatch"),
+    [
+        ("reason", "reason"),
+        ("benchmark_id", "benchmark_id"),
+        ("s08_outside_n09", "clean_subinterval_anchor"),
+        ("unknown_anchor", "no_policy_entry"),
+    ],
+)
+def test_policy_table_mismatch_fails_closed(mutation: str, mismatch: str) -> None:
+    benchmark = json.loads(json.dumps(BENCHMARK))
+    n08 = next(value for value in benchmark["negative_anchors"] if value["id"] == "N08")
+    target = "N08"
+    if mutation == "reason":
+        n08["reason"] = "edited_reason"
+    elif mutation == "benchmark_id":
+        benchmark["benchmark_id"] = "another-benchmark"
+    elif mutation == "s08_outside_n09":
+        target = "N09"
+        s08 = next(value for value in benchmark["gold_short"] if value["id"] == "S08")
+        s08["start_ms"] = int(benchmark["negative_anchors"][8]["start_ms"]) - 1
+    else:
+        target = "N99"
+        benchmark["negative_anchors"].append(
+            {"id": "N99", "start_ms": 1, "end_ms": 2, "reason": "unlisted"}
+        )
+    resolved = negative_anchor_policies(benchmark)
+    assert {"negative_anchor_id": target, "mismatch": mismatch} in resolved.mismatches
+    # The strictest policy: every output decision is a hard failure.
+    assert resolved.policies[target].hard_fail_decisions >= {"selected", "manual_review"}
+    if mutation in {"reason", "benchmark_id"}:
+        buckets = _passing_buckets()
+        candidate = _negative_only("N08", CandidateDisposition.MANUAL_REVIEW)
+        buckets[ClipProfile.MINI_LESSON][CandidateDisposition.MANUAL_REVIEW].append(candidate)
+        result, manifest = _build(buckets)
+        report = evaluate(benchmark, result, manifest)
+        [finding] = report["negative_anchor_output_findings"]
+        assert finding["hard_failure"] is True
+        assert "negative_anchor_output" in report["hard_failures"]
+        assert report["negative_anchor_policy_mismatches"]
