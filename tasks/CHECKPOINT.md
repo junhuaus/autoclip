@@ -117,3 +117,9 @@ independent tester's `make lint` and `make test` were green (mock/fixture
 only). Rounds, evidence, open follow-ups and caveats are in the Stage 1
 section of `STATUS.md`. Next: operator confirmation of D1--D3 and the
 Stage 2 choice. Not pushed.
+
+Branch tip: `claude/liveclip-stage1-evaluator` is `6c465b7` (the accepted
+code) plus docs-only commits that record the acceptance, the first being
+`87bd6b2`. To verify, run `git diff --name-only 6c465b7..HEAD`; it must list
+only `STATUS.md`, `docs/**` and `tasks/**`. The branch is local only and has
+no upstream.

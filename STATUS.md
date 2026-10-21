@@ -6,6 +6,11 @@
   `claude/liveclip-stage1-evaluator`. The independent tester's full run is
   green and the reviewer verdict is ACCEPT, with no P0/P1 open. The branch is
   local only: not pushed or merged.
+- Branch tip: `claude/liveclip-stage1-evaluator` is `6c465b7` (the accepted
+  code) plus docs-only commits that record the acceptance, the first being
+  `87bd6b2`. To verify, run `git diff --name-only 6c465b7..HEAD`; it must
+  list only `STATUS.md`, `docs/**` and `tasks/**`. The branch is local only
+  and has no upstream.
 - History (base `a449f02b9c5694c258d5b5f47c91b9042073c5a9`):
   - Round 0 `bf83c80a81d1b47fa834a8a149f9866f3b3d89db`: reviewer
     CHANGES_REQUIRED (2 P1).
@@ -130,8 +135,8 @@
     confirmation.
 - Path lists not updated:
   - The frozen `tools/loop_engineering/m3s_v40/v44/v45_source_freeze.py`
-    list `scripts/evaluate_agent_benchmark.py` as a path and were left
-    byte-identical.
+    list `scripts/evaluate_agent_benchmark.py` as a path. They were left
+    byte-identical as historical records; those files were not edited.
   - Neither those lists nor the acceptance-v3 Coder allowlist include
     `scripts/benchmark_gates.py` or `scripts/__init__.py`. This is recorded
     for future formal-loop runs only.
