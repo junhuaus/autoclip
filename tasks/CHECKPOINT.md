@@ -117,6 +117,9 @@ independent tester's `make lint` and `make test` were green (mock/fixture
 only). Rounds, evidence, open follow-ups and caveats are in the Stage 1
 section of `STATUS.md`. Next: operator confirmation of D1--D3 and the
 Stage 2 choice. Not pushed.
+(Update 2026-10-21: the operator confirmed D1--D3 and chose Stage 2, the
+real-browser e2e harness idempotency fix; the semantic-only padding reading
+is still pending operator confirmation.)
 
 Branch tip: `claude/liveclip-stage1-evaluator` is `6c465b7` (the accepted
 code) plus docs-only commits that record the acceptance, the first being
@@ -134,3 +137,7 @@ an earlier run's package and earlier evidence is preserved. It is pending the
 independent tester and reviewer on the reported SHA. The operator confirmed
 D1--D3 on 2026-10-21; the semantic-only padding reading is still pending.
 Details are in the Stage 2 section of `STATUS.md`. Not pushed.
+
+Stage 2 P2 fix round (2026-10-21): `c391ced` passed the tester (lint, two
+`make test` runs green) and the reviewer (ACCEPT, 3 P2). The P2 fixes are in
+code commit `cfcff0d`, pending tester and reviewer verification. Not pushed.

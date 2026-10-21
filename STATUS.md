@@ -88,6 +88,49 @@
     `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-coder/`.
   - The full backend suite was not run by the coder; the independent tester
     owns it.
+- P2 fix round (2026-10-21), still **pending acceptance** until the new SHA
+  is verified:
+  - Independent evidence at `c391ced5f3983f4b10654074742b7aaf10197f1c`:
+    - Tester: `make lint` exit 0; `make test` twice, both exit 0, each with
+      2619 backend passed, Web vitest 80/80, and e2e:mock, legacy,
+      completion and B2 all PASS in both runs; 198 pre-existing report files
+      hashed identically.
+    - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+  - Fixes for the 3 P2s, in code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe`:
+    - `allocate_report_scope` now reads the new scope's device/inode with
+      `fstat` on a handle opened `O_NOFOLLOW` right after the exclusive
+      `mkdir`, rather than with a by-name `stat`. Every descriptor is
+      closed on all paths.
+    - `verify_bundle` re-validates the report scope (no-symlink chain and
+      device/inode) after all inventory, ZIP, decode and rejection-proof work.
+      It also checks that the run directory keeps the same identity and is
+      still the only entry. A swap between the first check and the reads now
+      fails closed (`retained report scope identity` or `retained run
+      directory changed during verification`).
+    - Tests: retention (legacy and completion) refuses a `playwright-report`
+      parent replaced by a symlink after allocation; the allocate-time
+      symlink test is kept. A scope or run directory swapped after the
+      initial check is rejected. A scope swapped by name right after
+      `mkdir`/open keeps the original handle's identity, so retention into
+      the replacement is refused. The swap tests fail against the
+      `c391ced` scripts.
+    - Coder self-checks at `cfcff0dbea66cc291456fcecca800ee9c6313dfe`
+      (`NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+      PYTHONDONTWRITEBYTECODE=1`, mock/fixture only):
+      - `make lint` exit 0.
+      - Targeted pytest (`test_e2e_fixture.py`,
+        `test_completion_fixture_verifiers.py`,
+        `test_b2_synthetic_worker.py`): 59 passed.
+      - `make e2e` twice back to back, without moving
+        `apps/web/playwright-report/`; both exit 0, with 4 x "1 passed" each.
+        - Run 1: completion run `0a4a6d5efcba4243a11d626981959eeb` and B2 run
+          `3d817802fa11481c9b40b3fbf56faa12`, both retained PASS.
+        - Run 2: completion run `5581e519d57c470ca26714c506e2a9a4` and B2 run
+          `792dbd8886be442fa6aa082860633851`, both retained PASS.
+      - All 270 pre-existing retained package files hashed identically
+        before and after both runs.
+      - Logs (session scratchpad, may not persist):
+        `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-p2-coder/`.
 - Caveats: deterministic validation only; mock/fixture providers; no
   rendering acceptance, human editorial/audio review or model inference.
 
@@ -241,6 +284,10 @@
     for future formal-loop runs only.
 - Next: await operator confirmation of D1--D3 and the Stage 2 choice. Do not
   push.
+  - Update 2026-10-21: the operator confirmed D1--D3 and chose Stage 2
+    (real-browser e2e harness idempotency; see the Stage 2 section above).
+    The semantic-only padding reading is still pending operator
+    confirmation.
 
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 

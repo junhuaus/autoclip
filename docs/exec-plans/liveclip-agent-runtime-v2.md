@@ -37,6 +37,21 @@
     `dbdff27bfc9c4ad2a14e4a51b146e1af` and
     `cd0955e2b5f3492f954e73b197a89b76`). All pre-existing retained files
     were byte-identical afterwards. Details are in `STATUS.md`.
+- [ ] 2026-10-21 P2 fix round on the same branch, still pending acceptance.
+  At `c391ced5f3983f4b10654074742b7aaf10197f1c`, the independent tester was
+  green: `make lint` 0; `make test` twice, both exit 0, 2619 backend passed
+  each, vitest 80/80, e2e mock, legacy, completion and B2 PASS in both runs,
+  and 198 pre-existing report files hashed identically. The reviewer
+  returned ACCEPT with 0 P0/P1 and 3 P2. Code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe` fixes the
+  three P2s:
+  - The scope identity at allocation comes from `fstat` on a held
+    `O_NOFOLLOW` handle.
+  - The verifier re-checks the scope and run-directory identity after all
+    reads, so a swap fails closed.
+  - Restored coverage that retention refuses a symlinked `playwright-report`
+    parent, plus swap regressions.
+
+  Evidence is in `STATUS.md`.
 
 ### Decision Log
 
