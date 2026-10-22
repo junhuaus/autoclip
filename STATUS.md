@@ -18,6 +18,106 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 8 dual-profile routing and review-stage fixes (2026-10-22) — ACCEPTED at 4f2c068
+
+- **Status: ACCEPTED** (2026-10-22) on local branch
+  `claude/liveclip-stage8-routing` (from `b3a4fbe`). Not pushed or merged.
+  Code commits:
+  - F1 `28c9ca1d8d342a4a097a904ec9ac943be867be8d`: final status agrees with
+    the merged quality flags. A `manual_review` row whose merged Boundary ∪
+    Global Review flags include `padded_with_irrelevant_content`,
+    `sales_or_cta_padding`, `device_or_waiting_padding`,
+    `material_interruption`, `topic_switch_inside`, `topic_not_closed` or
+    `asr_uncertain_blocks_meaning` becomes `blocked` ("Deterministic quality
+    gate: …"). `context_dependent_opening` and
+    `missing_required_prior_steps` stay advisory. Python only downgrades.
+  - F2 `1b18ec14010ef53b4f705cbd5a1120675f219688`: a `rejected` record of the
+    dedicated risk-discovery pass is retained as `blocked` ("Deterministic
+    risk routing: …"), keeping its duplicate reference and evidence. The
+    set `risk_record_ids` is derived structurally from the risk pass
+    outputs, never from ID prefixes. **User decision:** this
+    rejected → blocked exception is approved; `docs/PRODUCT_SPEC.md` records
+    it next to "never … upgrades a model rejection".
+  - F3–F5 `4f2c06821777bbb93dc95605554f1aa1e865f0e0`:
+    - F3a: the Boundary evidence-cue lock applies only to risk-pass
+      records; risk tags stay cumulative for every candidate.
+    - F3b: Boundary and Global Review payloads carry a structural
+      `discovery_pass`; the boundary prompt keys risk handling on it.
+    - F3c: boundary edge audit (setup versus premise; CTA, device, chat and
+      filler edges are padding regardless of duration needs).
+    - F4: the `nested_pair_decisions` contract (below).
+    - F5: `context_dependent_opening` only when the opening cannot be
+      recovered inside the interval; same-concept application is payoff;
+      Boundary flags are cumulative and enforced by Python. **User
+      decision:** context-only candidates stay blocked (no deterministic
+      broadening).
+  - Only `stages/boundary_review.md`, `stages/global_review.md` and
+    `stages/global_audit.md` changed among the prompts; Discovery prompts,
+    schema, `main.md`, profiles, `repair.md` and
+    `DUAL_PROFILE_ALGORITHM_VERSION` are unchanged, and a test pins the
+    Discovery-family prompt hashes so the Discovery cache stays valid.
+- Routing-policy marker: `DualProfileFinalResult.routing_policy_version`
+  is optional. `manual-review-quality-gate-v1` (F1) and
+  `quality-gate-risk-routing-v2` (F1+F2, written by new runs) both load, and
+  older artifacts without the field load as `None`.
+- `nested_pair_decisions` contract (F4): Python lists, from the initial
+  Global Review, every same-Profile pair of `selected`/`manual_review`
+  candidates that share a start or end cue (so one contains the other) and
+  sends it as `nested_pairs` to the Global Audit. The required
+  `ProfileGlobalAuditOutput.nested_pair_decisions` must decide each listed
+  pair exactly once as `duplicate` (one row `rejected`, or `blocked` for a
+  risk-pass record, with `duplicate_of_candidate_id` naming the other) or
+  `distinct_objective` (neither references the other), each with a reason.
+  Containment alone never decides duplication. Failures use the existing
+  repair path; old cached audit outputs cannot be reused because the audit
+  prompt hash and payload both changed.
+- Tester: PASS at `4f2c068` on AC, no sleep: `make lint` exit 0; `make test`
+  x2 exit 0, backend 2778 passed / 0 failed / 0 skipped each (1425.50 s,
+  1442.41 s), vitest 14 files / 80 tests, e2e 4/4 both runs; targeted 170
+  passed. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-4f2c068/`.
+- Reviewer: ACCEPT at `4f2c068`, no P0/P1, six P2s. The code P2s (Top-N
+  risk routing, final evidence filtering, post-audit nested pairs) and the
+  prompt-wording P2s are scheduled in Stage 9. Two doc P2s from the
+  earlier `b3a4fbe` review (frozen-canary wording, email residual context)
+  are fixed in the Stage 7 runbook section below.
+- Coder evidence (offline, no model calls): replay logs under
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f1/`, `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f2/` and `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f3/`, including the
+  cache prediction against the warm-22 cache (all 160 Discovery-family
+  calls hit; 75 misses: Boundary 54, Global Review 18, Audit 2, Variant 1).
+
+### Real Claude runs (2026-10-22, frozen Claude CLI 2.1.308, subscription login)
+
+Evidence categories stay separate: these are real model runs scored by the
+strict (Stage 4) evaluator. Warm runs reuse a cache and are **diagnostic
+only**; acceptance needs a fresh cold run (`cache_hits=0`, about 230 calls).
+
+- cold-21 (`data/evaluations/dual-profile-benchmark-20261022-claude-cold-21`):
+  stopped on the subscription usage limit after 1576 s with 115 calls
+  cached. Not a quality result.
+- warm-22 (diagnostic, Stage 7 code, `cache_hits` 115, 120 new calls):
+  strict **FAIL 90.0**; short 6/8, mini 6/6; R01 misrouted (its full-coverage
+  candidates were rejected as duplicates of a blocked row); padding x2;
+  forbidden composite interval.
+- warm-22 offline replay with F1+F2 (no model calls): strict **FAIL 95.0**;
+  R01 matched by `risk_two_faults_vocal_closure_parent` (blocked); remaining
+  hard failure `irrelevant_padding`.
+- warm-23: stopped on the subscription usage limit (73 of the 75 new calls
+  cached). Not a quality result.
+- warm-24 (diagnostic, Stage 8 code at `4f2c068`, `cache_hits` 233, 2 new
+  calls plus 1 repair, 653 s): strict **FAIL 92.5**, no PASS blockers.
+  - Short 7/8 (S03 blocked); mini 5/6 (L07 lost); R01 and R02 routed.
+  - Hard failures: `negative_anchor_output` (`sh22_find_voice_from_phonation`
+    in N09) and `forbidden_composite_interval`
+    (`audit_squeezed_voice_channel_no_shouting_136_178`).
+  - Renders of the 12 matched clips passed automatic checks; human
+    editorial/audio review is pending.
+- Subscription quota is a real constraint: cold-21 and warm-23 both hit the
+  usage limit. Start the cold acceptance run right after a limit reset.
+- **Next step:** Stage 9 (same-interval flag union, Top-N risk routing,
+  final evidence filtering, post-audit nested pairs, consolidated review
+  prompt batch), then warm-25 as a diagnostic, then the cold acceptance
+  run.
+
 ## Integration of Stages 6 and 7 on accepted Stage 4 (2026-10-22) — Stages 6 and 7 ACCEPTED at 996962b
 
 - Branch `claude/liveclip-stage7-claude-cli` now holds, in order: Stage 4
@@ -75,7 +175,7 @@
   - Evidence categories: deterministic validation plus real subscription
     smoke and canary calls. No benchmark run, rendering or human review is
     part of this acceptance.
-- **Next step:** the real Claude benchmark cold-21 via the Stage 7 runbook:
+- (Historical; superseded by the Stage 8 section above.) **Next step:** the real Claude benchmark cold-21 via the Stage 7 runbook:
   new evaluation and cache roots, the frozen binary
   (`LIVECLIP_CLAUDE_EXECUTABLE` = the absolute `.cache/claude-cli/2.1.308/claude`
   path, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`), doctor plus one
@@ -314,9 +414,14 @@
     project instructions, no memory, no skills, no MCP tools; the only tool
     was `StructuredOutput`; neither hook fired; no permission denials.
     Residual context as before: an environment block (cwd, platform, OS,
-    model, date). It now also contains Claude Code's built-in note that
-    downloaded files are untrusted data; this is harness text, not user or
-    project context, and not a credential.
+    model, date). This time the run also reported Claude Code's built-in
+    note that downloaded files are untrusted data. Round 2 on the same
+    version did not report it; the cause is unconfirmed (self-report
+    variance or server-side text) and it is not an isolation drift. It is
+    harness text, not user or project context, and not a credential.
+    (Corrected 2026-10-22 from "it now also contains", reviewer P2.)
+  - The account-email reminder residual context was not probed by this
+    frozen canary; the in-memory email output guard still applies.
   - Default-flag control (same binary, env and cwd; only
     `--no-session-persistence` added to avoid a session file): saw the
     canary token and project instructions, 48 tools (19 MCP) and 36

@@ -322,6 +322,23 @@ ACCEPTED, both verified at the integrated tip `996962b`.
   enabled), and the isolation canary re-run against the frozen binary (no
   drift; frozen-path `smoke-claude` 4190 ms).
 
-Next: the real Claude benchmark cold-21 via the `STATUS.md` runbook (new
-roots, frozen binary, `--discovery-concurrency 3`, strict evaluator),
-compared with cold-18 (strict FAIL 90.0). Not pushed.
+(Historical next step.) The real Claude benchmark cold-21 via the
+`STATUS.md` runbook (new roots, frozen binary, `--discovery-concurrency 3`,
+strict evaluator), compared with cold-18 (strict FAIL 90.0). Not pushed.
+
+## Stage 8 accepted at 4f2c068 (2026-10-22)
+
+Branch `claude/liveclip-stage8-routing` (from `b3a4fbe`), local only:
+F1 `28c9ca1`, F2 `1b18ec1`, F3–F5 `4f2c068`. Tester PASS at `4f2c068`
+(lint 0; `make test` x2 exit 0, backend 2778 passed / 0 failed / 0 skipped,
+1425.50 s and 1442.41 s; vitest 14/80; e2e 4/4 both; targeted 170; AC, no
+sleep). Reviewer ACCEPT, no P0/P1, six P2s. User decisions: the F2
+rejected → blocked exception for risk-pass records is approved;
+context-only candidates stay blocked. Routing-policy marker
+`quality-gate-risk-routing-v2`; Global Audit `nested_pair_decisions`
+contract. Real runs (frozen 2.1.308, subscription): cold-21 and warm-23
+stopped on the usage limit; warm-22 FAIL 90.0 (F1+F2 replay 95.0); warm-24
+FAIL 92.5 with no PASS blockers (diagnostic only). Details in `STATUS.md`.
+
+Next: Stage 9, then warm-25 (diagnostic), then a fresh cold acceptance run
+right after a subscription usage-limit reset. Not pushed.

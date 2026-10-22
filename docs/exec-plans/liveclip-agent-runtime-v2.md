@@ -1,5 +1,51 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 8 dual-profile routing and review-stage fixes (2026-10-22)
+
+- [x] 2026-10-22 **Stage 8 ACCEPTED** at `4f2c068` on local branch
+  `claude/liveclip-stage8-routing` (from `b3a4fbe`). Code commits: F1
+  `28c9ca1` (manual_review with a gated merged quality flag → blocked), F2
+  `1b18ec1` (rejected risk-discovery-pass record → blocked; structural
+  `risk_record_ids`), F3–F5 `4f2c068` (risk-pass-only evidence lock,
+  structural `discovery_pass` in review payloads, boundary edge audit,
+  `nested_pair_decisions`, context/payoff prompt rules). Not pushed.
+  - Tester PASS at `4f2c068`: `make lint` 0; `make test` x2 exit 0, backend
+    2778 passed / 0 failed / 0 skipped each (1425.50 s, 1442.41 s), vitest
+    14/80, e2e 4/4 both runs; targeted 170 passed; AC, no sleep.
+  - Reviewer ACCEPT: no P0/P1, six P2s; the code and prompt-wording P2s
+    are scheduled in Stage 9.
+- Decision Log (2026-10-22):
+  - User decision: the F2 exception is approved. A rejected record of the
+    dedicated risk-discovery pass is retained as `blocked` (never an
+    output) so risk material stays auditable; `docs/PRODUCT_SPEC.md`
+    records it.
+  - User decision: context-only candidates stay blocked; no deterministic
+    broadening of `context_dependent_opening`.
+  - Routing-policy marker `routing_policy_version` (optional on
+    `DualProfileFinalResult`): `manual-review-quality-gate-v1` (F1),
+    `quality-gate-risk-routing-v2` (F1+F2, current); missing loads as
+    `None`. `DUAL_PROFILE_ALGORITHM_VERSION` is unchanged so Discovery
+    cache keys stay valid.
+  - `nested_pair_decisions`: Python lists same-Profile
+    `selected`/`manual_review` pairs sharing a start or end cue; the Global
+    Audit must decide each exactly once as `duplicate` (one rejected, or
+    blocked for a risk-pass record, referencing the other) or
+    `distinct_objective` (no reference). Containment alone never decides
+    duplication.
+- Real runs (frozen Claude CLI 2.1.308, subscription login; warm runs are
+  diagnostic only): cold-21 stopped on the usage limit after 1576 s (115
+  calls cached); warm-22 strict FAIL 90.0; warm-22 F1+F2 offline replay
+  FAIL 95.0; warm-23 stopped on the usage limit (73 of 75 new calls
+  cached); warm-24 (Stage 8 code, `cache_hits` 233, 2 new calls + 1 repair,
+  653 s) strict FAIL 92.5, no PASS blockers, short 7/8, mini 5/6, hard
+  failures `negative_anchor_output` and `forbidden_composite_interval`.
+  Details in `STATUS.md`.
+- [ ] Next: Stage 9 (same-interval flag union, Top-N risk routing, final
+  evidence filtering, post-audit nested pairs, consolidated review prompt
+  batch), then warm-25 (diagnostic), then a fresh cold acceptance run
+  (`cache_hits=0`, about 230 calls) started right after a subscription
+  usage-limit reset.
+
 ## Integration of Stages 6 and 7 (2026-10-22)
 
 - [x] 2026-10-22 Stages 6 and 7 are rebased onto accepted Stage 4
@@ -26,9 +72,11 @@
     CLI engine, subscription login only, possible extra-usage charges), and
     the isolation canary re-run against the frozen binary (no drift; see
     the Stage 7 runbook in `STATUS.md`).
-- [ ] Next: the real Claude benchmark cold-21 via the `STATUS.md` runbook
-  (new roots, frozen binary, `--discovery-concurrency 3`, strict
-  evaluator), compared with cold-18 (strict FAIL 90.0).
+- [x] (Historical next step, superseded by Stage 8.) The real Claude
+  benchmark cold-21 via the `STATUS.md` runbook (new roots, frozen binary,
+  `--discovery-concurrency 3`, strict evaluator), compared with cold-18
+  (strict FAIL 90.0). 2026-10-22: cold-21 stopped on the subscription usage
+  limit; see Stage 8.
 
 ## Stage 7 Claude CLI structured provider (2026-10-21)
 
@@ -73,7 +121,9 @@
     re-run with the frozen copy as the executable (contract
     `claude-cli-editorial-v1.2.1.308.d65edfc7...`). The production argv saw
     no CLAUDE.md, memory, skills, MCP or plugins, the hooks did not fire,
-    and the only tool was `StructuredOutput`. The default-flag control saw
+    and the only tool was `StructuredOutput`. ("No plugins" is inferred
+    from 0 skills, 0 MCP tools and 1 tool; plugins were not enumerated
+    directly.) The default-flag control saw
     the canary and fired the hooks. A real frozen-path `smoke-claude`
     succeeded in 4190 ms. No drift.
   - Scope:

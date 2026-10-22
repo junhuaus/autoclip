@@ -59,7 +59,9 @@ imported by production modules.
 - [x] 2026-10-20 Stage 1 ACCEPTED at `6c465b767e3829152d0b07451edbe274980321b1` (reviewer ACCEPT; independent tester `make lint` and `make test` green, mock/fixture only; evidence in `STATUS.md`).
 - [x] 2026-10-21 Stage 4 (branch `claude/liveclip-stage4-evaluator-rules`; ACCEPTED at `8b14aa3`, verified at tip `ca80fb7` on 2026-10-22; evidence in `STATUS.md`): apply operator decisions A (exact boundary = tolerance only) and B (`negative_anchor_output` with a per-anchor MD section 7 policy) in both evaluators; read-only cold-18 re-score FAIL 90.0. See the Decisions entries dated 2026-10-21 (Stage 4).
 - [x] 2026-10-22 Stages 6 and 7 ACCEPTED at the integrated tip `996962b` (branch `claude/liveclip-stage7-claude-cli`; evidence in `STATUS.md`). The dual-profile understanding engine is now the local Claude Code CLI (subscription login only; Codex remains selectable).
-- [ ] Next: real Claude benchmark cold-21 via the `STATUS.md` runbook (new roots, frozen 2.1.308 binary, `--discovery-concurrency 3`, strict evaluator); compare with cold-18 strict FAIL 90.0.
+- [x] (Historical next step.) Real Claude benchmark cold-21 via the `STATUS.md` runbook (new roots, frozen 2.1.308 binary, `--discovery-concurrency 3`, strict evaluator). 2026-10-22: cold-21 stopped on the subscription usage limit after 1576 s (115 calls cached); not a quality result.
+- [x] 2026-10-22 Stage 8 ACCEPTED at `4f2c068` (branch `claude/liveclip-stage8-routing`; F1 quality-gate routing, F2 risk-pass rejected → blocked, F3–F5 review-stage fixes and `nested_pair_decisions`; evidence in `STATUS.md`). Real diagnostic runs: warm-22 strict FAIL 90.0, its F1+F2 offline replay FAIL 95.0, warm-23 stopped on the usage limit, warm-24 (Stage 8 code) strict FAIL 92.5 with no PASS blockers.
+- [ ] Next: Stage 9, then warm-25 (diagnostic), then a fresh cold acceptance run (`cache_hits=0`, about 230 calls) right after a subscription usage-limit reset.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -350,6 +352,33 @@ remains selectable). Next: the real Claude benchmark cold-21 via the
 binary under `.cache/claude-cli/2.1.308/claude`, doctor and one
 `smoke-claude` first, `dual-profile-eval --discovery-concurrency 3`, then the
 strict (Stage 4) evaluator — compared with cold-18 (strict FAIL 90.0).
+
+2026-10-22 (Stage 8 ACCEPTED at `4f2c068`): the final assembly now
+downgrades `manual_review` rows with a gated merged quality flag to
+`blocked` and retains rejected risk-discovery-pass records as `blocked`
+(user-approved exception); the Global Audit must decide Python-listed
+nested pairs (`nested_pair_decisions`). Real runs with the frozen Claude
+CLI 2.1.308 (subscription login), strict evaluator:
+
+  - cold-21: stopped on the subscription usage limit after 1576 s, 115
+    calls cached; not a quality result.
+  - warm-22 (diagnostic, `cache_hits` 115, 120 new calls): FAIL 90.0; short
+    6/8, mini 6/6; R01 misrouted; padding x2; forbidden composite.
+  - warm-22 F1+F2 offline replay: FAIL 95.0 (R01 matched by a blocked
+    risk-pass record; remaining hard failure `irrelevant_padding`).
+  - warm-23: stopped on the usage limit (73 of 75 new calls cached).
+  - warm-24 (diagnostic, Stage 8 code, `cache_hits` 233, 2 new calls plus 1
+    repair, 653 s): FAIL 92.5, no PASS blockers; short 7/8 (S03 blocked),
+    mini 5/6 (L07 lost); R01/R02 routed; hard failures
+    `negative_anchor_output` (`sh22_find_voice_from_phonation` in N09) and
+    `forbidden_composite_interval`
+    (`audit_squeezed_voice_channel_no_shouting_136_178`). Renders of the 12
+    matched clips passed automatic checks; human review pending.
+
+Warm runs are diagnostic only; acceptance needs a fresh cold run
+(`cache_hits=0`, about 230 calls), started right after a usage-limit reset
+because cold-21 and warm-23 both hit the subscription limit. Next: Stage 9,
+then warm-25, then the cold acceptance run.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the
