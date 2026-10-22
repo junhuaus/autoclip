@@ -2,16 +2,23 @@
 
 ## Operator authorizations (2026-10-21)
 
-- Real pipeline runs are allowed without per-run consent. The product's LLM
-  engine is the Codex CLI and ASR uses local models, so these runs incur no
-  paid usage.
+- Real pipeline runs are allowed without per-run consent. ASR uses local
+  models. Since the 2026-10-21 operator directive (Stage 7), the
+  understanding engine for dual-profile runs is the local Claude Code CLI
+  (`LIVECLIP_STRUCTURED_PROVIDER=claude-cli`); Codex remains selectable.
+  Claude CLI runs are authorized only through the claude.ai subscription
+  login, never an API key. Subscription runs incur no per-call charge, but
+  if the account's paid "extra usage" is enabled, usage beyond the
+  subscription allowance could incur charges. (History: this bullet
+  originally said the LLM engine is the Codex CLI, so runs incur no paid
+  usage.)
 - Copying local assets from `/Users/junhuaxu/autoclip` into this worktree's
   ignored paths is allowed. The Controller has already cloned
   `input/8-30.ts` (its sha256 matches the ExecPlan) and `data/evaluations/`.
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Integration of Stages 6 and 7 on accepted Stage 4 (2026-10-22) — pending integrated test and review
+## Integration of Stages 6 and 7 on accepted Stage 4 (2026-10-22) — Stages 6 and 7 ACCEPTED at 996962b
 
 - Branch `claude/liveclip-stage7-claude-cli` now holds, in order: Stage 4
   (ACCEPTED at `8b14aa3`, acceptance docs `0bb4af4`), Stage 6 rebased onto
@@ -34,12 +41,57 @@
 - The frozen Claude CLI 2.1.308 binary is in the ignored
   `.cache/claude-cli/2.1.308/claude` (mode 0555, sha256
   `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`).
-- Stages 6 and 7 await the integrated test and review round on this tip.
-  Stage 7 round 3 (`4e2bf8f`, `db2bc32`) is reviewed with it.
+- (History: Stages 6 and 7 awaited the integrated test and review round on
+  this tip; Stage 7 round 3 (`4e2bf8f`, `db2bc32`) was reviewed with it.)
+- **Stage 6 ACCEPTED** (code `a22f9d3` rebased to `cef7d4b`..`437ebb8`, plus
+  diagnostics commit `fc13163`) and **Stage 7 ACCEPTED** (code through
+  `4e2bf8f`, docs `db2bc32`), both verified at the integrated tip
+  `996962b1041181317430ad9463cf6042aac01786` (2026-10-22). Local only; not
+  pushed or merged.
+  - Tester: PASS at `996962b`, on AC power, with 0 sleep/wake entries in
+    every window:
+    - `make lint` exit 0;
+    - `make test` twice, both exit 0: backend 2752 passed, 0 failed,
+      0 skipped each (1411.10 s and 1413.74 s); vitest 14 files / 80 tests;
+      e2e 4/4 in both runs;
+    - lease and suspend set 51 passed x 3;
+    - provider tests 76 passed; benchmark tests 130 passed;
+    - `liveclip doctor` `claude_cli` pass with the frozen path:
+      `reviewed_version` 2.1.308, `auth_method` `claude.ai`,
+      `subscription` true, contract
+      `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`;
+      0 email matches in the saved output;
+    - 1323 pre-existing `playwright-report` files hash-identical.
 
-## Stage 7 Claude CLI structured provider (2026-10-21) — IN PROGRESS, pending acceptance
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/integrated-996962b/`.
+  - Reviewer: ACCEPT at `996962b`. The code is byte-identical to the
+    reviewed commits and there is no Stage 6 x Stage 7 interaction. Three
+    doc P2s were fixed in the docs-only commit that follows `996962b`:
+    1. the Stage 4 branch-tip rule now names the range `8b14aa3..0bb4af4`;
+    2. the authorization rationale above names the Claude CLI engine and
+       the subscription-only login;
+    3. the isolation canary was re-run against the frozen binary (see the
+       Stage 7 runbook).
+  - Evidence categories: deterministic validation plus real subscription
+    smoke and canary calls. No benchmark run, rendering or human review is
+    part of this acceptance.
+- **Next step:** the real Claude benchmark cold-21 via the Stage 7 runbook:
+  new evaluation and cache roots, the frozen binary
+  (`LIVECLIP_CLAUDE_EXECUTABLE` = the absolute `.cache/claude-cli/2.1.308/claude`
+  path, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`), doctor plus one
+  `smoke-claude` first, `dual-profile-eval --discovery-concurrency 3`, then
+  the strict (Stage 4) evaluator. Compare with cold-18, which is a strict
+  FAIL 90.0.
 
-- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+## Stage 7 Claude CLI structured provider (2026-10-21) — ACCEPTED (code through 4e2bf8f, docs db2bc32)
+
+- **Status: ACCEPTED** (2026-10-22): code through
+  `4e2bf8f616fdb5018df9f92cad2a0c633699fe43`, docs
+  `db2bc3259167c8d9baca3ce9e137f1319459ba9b`, verified at the integrated
+  tip `996962b`. Tester PASS and reviewer ACCEPT; evidence in the
+  integration section above. Not pushed or merged.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance, on local
   branch `claude/liveclip-stage7-claude-cli`, created from `ca80fb7` (Stage 4
   docs tip). Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`. Not pushed or merged.
 - Operator directive (2026-10-21): the dual-profile understanding engine
@@ -243,9 +295,52 @@
   - Global Claude settings were not changed. The copy also never
     self-updates, because the child env forces `DISABLE_AUTOUPDATER=1`.
 
-## Stage 6 engineering follow-ups (2026-10-21) — IN PROGRESS, pending acceptance
+  Frozen-path isolation canary (2026-10-22, main worktree at `996962b`;
+  reviewer P2 #3). The round-2 canary ran against the global install,
+  before the copy existed; it was re-run with the frozen copy as the
+  executable so that the isolation evidence covers the exact binary and
+  path the benchmark uses:
+  - Pre-checks: `.cache/claude-cli/2.1.308/claude` mode 0555, sha256
+    `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+    `--version` 2.1.308, ignored by `.gitignore` (`.cache/`).
+  - Contract identity of the frozen path:
+    `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`
+    (the same identity the integrated doctor reported).
+  - Canary directory with a planted `CLAUDE.md` (canary token) and project
+    hooks (`SessionStart`, `UserPromptSubmit`) in `.claude/settings.json`.
+  - Production argv and env (`claude_cli_argv`, `claude_cli_environment`,
+    so the env allowlist plus `DISABLE_AUTOUPDATER=1`), model
+    `claude-opus-5-5`: exit 0, 6352 ms, not an error. No canary token, no
+    project instructions, no memory, no skills, no MCP tools; the only tool
+    was `StructuredOutput`; neither hook fired; no permission denials.
+    Residual context as before: an environment block (cwd, platform, OS,
+    model, date). It now also contains Claude Code's built-in note that
+    downloaded files are untrusted data; this is harness text, not user or
+    project context, and not a credential.
+  - Default-flag control (same binary, env and cwd; only
+    `--no-session-persistence` added to avoid a session file): saw the
+    canary token and project instructions, 48 tools (19 MCP) and 36
+    skills, and both hooks fired. This matches round 2.
+  - Real `smoke-claude` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli` and
+    `LIVECLIP_CLAUDE_EXECUTABLE` set to the frozen path: succeeded, 4190 ms
+    over 1 request (6.2 s wall under a 300 s guard), auth method
+    `claude.ai`, the same contract as above.
+  - No new `~/.claude/projects` or `~/.claude.json` project entries from
+    the production run or the smoke. The control created an empty memory
+    directory entry for the canary path (not the repo); it was removed with
+    `rmdir`, and the listing then matched the pre-run listing.
+  - No drift. Only extracted, email-scrubbed fields were saved (0 email
+    matches). Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/frozen-canary/logs/`.
 
-- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+## Stage 6 engineering follow-ups (2026-10-21) — ACCEPTED (code cef7d4b..437ebb8 plus fc13163)
+
+- **Status: ACCEPTED** (2026-10-22): code `a22f9d3` rebased to
+  `cef7d4b`..`437ebb8`, plus diagnostics commit
+  `fc13163ff1d90a93319723f00d723164666a6cad`, verified at the integrated
+  tip `996962b`. Tester PASS and reviewer ACCEPT; evidence in the
+  integration section above. Not pushed or merged.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance, on local
   branch `claude/liveclip-stage6-followups`, based on the Stage 4 docs tip
   `ca80fb7d88e7f8620ef9053347f7598604918ad2`. Not pushed or merged. The
   Controller may rebase it onto later Stage 4 docs; this section is
@@ -561,15 +656,18 @@
     and refresh immediately while the lease is unexpired. Other
     `lease_seconds=30` integration tests are not yet suspend-tolerant.
     (2026-10-21: the `LeaseMonitor` item is addressed by Stage 6, pending
-    acceptance; the `lease_seconds=30` item is still open.)
+    acceptance; the `lease_seconds=30` item is still open. 2026-10-22:
+    Stage 6 is ACCEPTED at `996962b`.)
   - Product: cold-18 still FAILs at 90.0, because of short recall 6/8
     (S01, S03), L07 being blocked, the `ml_0005` padding and the N09 outputs.
     Improving it needs product work and a fresh real run, which is allowed
     without per-run consent since 2026-10-21.
 - Branch-tip rule: `claude/liveclip-stage4-evaluator-rules` is the accepted
-  code `8b14aa3` plus docs-only commits. To verify, run
-  `git diff --name-only 8b14aa3..HEAD`; it must list only `STATUS.md`,
-  `docs/**` and `tasks/**`.
+  code `8b14aa3` plus docs-only commits up to its tip `0bb4af4`. To verify,
+  run `git diff --name-only 8b14aa3..0bb4af4`; it must list only
+  `STATUS.md`, `docs/**` and `tasks/**`. (Corrected 2026-10-22: the earlier
+  wording `8b14aa3..HEAD` holds only on the Stage 4 branch; on a branch that
+  carries later stages, `HEAD` includes their code.)
 - Caveats: deterministic validation plus a read-only re-score of existing
   evidence. No new model inference, rendering or human review.
 

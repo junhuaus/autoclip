@@ -224,10 +224,14 @@ verified at tip `ca80fb7`.
 - Reviewer: ACCEPT at `ca80fb7`, no findings; the rebase is byte-identical
   to the reviewed code. Stage 3's P2 commit `f51f696` was verified here.
 
-Branch-tip rule: `git diff --name-only 8b14aa3..HEAD` lists only
-`STATUS.md`, `docs/**` and `tasks/**`. Not pushed.
+Branch-tip rule: on `claude/liveclip-stage4-evaluator-rules`,
+`git diff --name-only 8b14aa3..0bb4af4` lists only `STATUS.md`, `docs/**`
+and `tasks/**`. (Corrected 2026-10-22 from `8b14aa3..HEAD`, which holds
+only on the Stage 4 branch.) Not pushed.
 
 ## Stage 6 in progress (2026-10-21)
+
+(2026-10-22: Stage 6 is ACCEPTED; see the last section.)
 
 Stage 6 (engineering follow-ups) is on local branch
 `claude/liveclip-stage6-followups`, based on the Stage 4 docs tip `ca80fb7`.
@@ -252,6 +256,8 @@ Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`) is pending 
 also fixes a false jump from a descheduled monitor thread, found under load.
 
 ## Stage 7 in progress (2026-10-21)
+
+(2026-10-22: Stage 7 is ACCEPTED; see the last section.)
 
 Operator directive: the dual-profile understanding engine moves to the local
 Claude Code CLI after Codex 429 failures in cold-19 and cold-20. Stage 7 adds
@@ -293,5 +299,29 @@ Stages 6 and 7 are rebased onto accepted Stage 4 (`0bb4af4`) on local branch
 `claude/liveclip-stage7-claude-cli`, now checked out in the main worktree.
 Non-doc diffs are byte-identical to the reviewed ones; one message-only test
 commit `fc13163` was added for Stage 6. The frozen Claude CLI 2.1.308 binary
-is in the ignored `.cache/`. The scratch worktrees were removed. Pending the
-integrated test and review round. Not pushed.
+is in the ignored `.cache/`. The scratch worktrees were removed. (History:
+pending the integrated test and review round.) Not pushed.
+
+## Stages 6 and 7 accepted at 996962b (2026-10-22)
+
+Stage 6 (code `a22f9d3` rebased to `cef7d4b`..`437ebb8`, plus diagnostics
+`fc13163`) and Stage 7 (code through `4e2bf8f`, docs `db2bc32`) are
+ACCEPTED, both verified at the integrated tip `996962b`.
+- Tester PASS on AC, 0 sleep/wake entries in every window: lint 0;
+  `make test` x2 exit 0, backend 2752 passed / 0 failed / 0 skipped each
+  (1411.10 s, 1413.74 s), vitest 14 files / 80 tests, e2e 4/4 both runs;
+  lease and suspend set 51 x 3; provider tests 76; benchmark tests 130;
+  doctor `claude_cli` pass with the frozen path (2.1.308, `claude.ai`,
+  subscription true, contract `...d65edfc7...`, 0 email matches); 1323
+  report files hash-identical. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/integrated-996962b/`.
+- Reviewer ACCEPT at `996962b`: code byte-identical to the reviewed
+  commits, no Stage 6 x Stage 7 interaction. Three doc P2s are fixed in
+  the following docs-only commit: the Stage 4 tip-rule range, the
+  authorization rationale (Claude CLI engine via the claude.ai
+  subscription login only; possible charges if paid extra usage is
+  enabled), and the isolation canary re-run against the frozen binary (no
+  drift; frozen-path `smoke-claude` 4190 ms).
+
+Next: the real Claude benchmark cold-21 via the `STATUS.md` runbook (new
+roots, frozen binary, `--discovery-concurrency 3`, strict evaluator),
+compared with cold-18 (strict FAIL 90.0). Not pushed.

@@ -2,19 +2,44 @@
 
 ## Integration of Stages 6 and 7 (2026-10-22)
 
-- [ ] 2026-10-22 Stages 6 and 7 are rebased onto accepted Stage 4
+- [x] 2026-10-22 Stages 6 and 7 are rebased onto accepted Stage 4
   (`8b14aa3`, docs `0bb4af4`) on `claude/liveclip-stage7-claude-cli`, with
-  byte-identical non-doc diffs. They await the integrated test and review
-  round. Details and the SHA mapping are in `STATUS.md`.
+  byte-identical non-doc diffs. (Previously: they awaited the integrated
+  test and review round.) Details and the SHA mapping are in `STATUS.md`.
+- [x] 2026-10-22 **Stage 6 ACCEPTED** (code `a22f9d3` rebased to
+  `cef7d4b`..`437ebb8`, plus diagnostics `fc13163`) and **Stage 7
+  ACCEPTED** (code through `4e2bf8f`, docs `db2bc32`), both verified at the
+  integrated tip `996962b`.
+  - Tester PASS at `996962b` on AC, 0 sleep/wake entries in every window:
+    `make lint` exit 0; `make test` x2 exit 0, backend 2752 passed / 0
+    failed / 0 skipped each (1411.10 s, 1413.74 s), vitest 14 files / 80
+    tests, e2e 4/4 both runs; lease and suspend set 51 passed x 3; provider
+    tests 76 passed; benchmark tests 130 passed; doctor `claude_cli` pass
+    with the frozen path (2.1.308, `claude.ai`, subscription true, contract
+    `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`,
+    0 email matches); 1323 pre-existing `playwright-report` files
+    hash-identical. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/integrated-996962b/`.
+  - Reviewer ACCEPT at `996962b`: code byte-identical to the reviewed
+    commits, no Stage 6 x Stage 7 interaction. Three doc P2s are fixed in
+    the following docs-only commit: the Stage 4 tip-rule range
+    `8b14aa3..0bb4af4`, the authorization rationale in `STATUS.md` (Claude
+    CLI engine, subscription login only, possible extra-usage charges), and
+    the isolation canary re-run against the frozen binary (no drift; see
+    the Stage 7 runbook in `STATUS.md`).
+- [ ] Next: the real Claude benchmark cold-21 via the `STATUS.md` runbook
+  (new roots, frozen binary, `--discovery-concurrency 3`, strict
+  evaluator), compared with cold-18 (strict FAIL 90.0).
 
 ## Stage 7 Claude CLI structured provider (2026-10-21)
 
 ### Progress
 
-- [ ] 2026-10-21 On local branch `claude/liveclip-stage7-claude-cli` (from
+- [x] 2026-10-21 On local branch `claude/liveclip-stage7-claude-cli` (from
   `ca80fb7`), add `ClaudeCliStructuredLLMProvider` and select it for
   `liveclip dual-profile-eval` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
-  Status: **IN PROGRESS, pending acceptance**.
+  Status: **ACCEPTED** (2026-10-22; code through `4e2bf8f`, docs `db2bc32`,
+  verified at the integrated tip `996962b`). (Previously: IN PROGRESS,
+  pending acceptance.)
   - Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`.
   - Review round 1 at `7340355`: CHANGES_REQUIRED (2 P1, 7 P2). Fix commit
     `fe4350a7ed8b553a9aca980bf78238f42fe6a3ed`, pending tester and reviewer.
@@ -44,6 +69,13 @@
     `LIVECLIP_CLAUDE_EXECUTABLE` at it. This was verified with a real doctor
     run and a real smoke. Round 3 checks: lint exit 0, 76 targeted tests
     passed.
+  - 2026-10-22 (reviewer P2 #3 at `996962b`): the isolation canary was
+    re-run with the frozen copy as the executable (contract
+    `claude-cli-editorial-v1.2.1.308.d65edfc7...`). The production argv saw
+    no CLAUDE.md, memory, skills, MCP or plugins, the hooks did not fire,
+    and the only tool was `StructuredOutput`. The default-flag control saw
+    the canary and fired the hooks. A real frozen-path `smoke-claude`
+    succeeded in 4190 ms. No drift.
   - Scope:
     - the provider (`src/liveclip/providers/llm/claude_cli.py`);
     - settings and selection;
@@ -135,10 +167,12 @@
 
 ### Progress
 
-- [ ] 2026-10-21 On local branch `claude/liveclip-stage6-followups` (based on
+- [x] 2026-10-21 On local branch `claude/liveclip-stage6-followups` (based on
   the Stage 4 docs tip `ca80fb7`), address the consolidated engineering
-  follow-ups. Status: **IN PROGRESS, pending acceptance**. Code commit:
-  `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
+  follow-ups. Status: **ACCEPTED** (2026-10-22; rebased to
+  `cef7d4b`..`437ebb8` plus diagnostics `fc13163`, verified at the
+  integrated tip `996962b`). (Previously: IN PROGRESS, pending acceptance.)
+  Code commit: `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
   - `LeaseMonitor` suspend recovery (Stage 3 follow-up): a wall-clock versus
     monotonic jump of more than 1 s between polls makes the heartbeat due
     immediately. Fencing is unchanged: the renewal is the same fenced
@@ -156,17 +190,19 @@
   - Stage 1 Earlier P2-5: not changed. See the Decision Log.
 
   Evidence and remaining follow-ups are in `STATUS.md`.
-- [ ] 2026-10-21 Stage 6 review round 1: reviewer ACCEPT at `670478e` (0
+- [x] 2026-10-21 Stage 6 review round 1: reviewer ACCEPT at `670478e` (0
   P0/P1, 3 P2). Fix round 2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`), pending
   acceptance: deterministic in-thread suspends in the suspend tests (P2-1);
   a remaining-lease renewal rule for failed post-wake renewals and suspends
   before the first poll (P2-2); an operator note on the `--output-dir`
   restrictions in `STATUS.md` (P2-3).
-- [ ] 2026-10-21 Stage 6 review round 2: reviewer ACCEPT at `fc06b3e` (one
+- [x] 2026-10-21 Stage 6 review round 2: reviewer ACCEPT at `fc06b3e` (one
   P2, one nit). Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`), pending
   acceptance: thread-independent renewal assertions, a lower-bound jump
   estimate so a descheduled monitor thread is not mistaken for a suspend
   (found under load), and the injected-`now` wording in `STATUS.md`.
+  (2026-10-22: rounds 2 and 3 accepted with Stage 6 at the integrated tip
+  `996962b`.)
 
 ### Decision Log
 
@@ -200,9 +236,11 @@
   `scripts/evaluate_agent_benchmark.py`. Status: **ACCEPTED** at code commit
   `8b14aa3`, verified at tip `ca80fb7` (2026-10-22): tester r1 and r2 green
   (r2 on AC: two `make test` runs exit 0, 2668 backend each), reviewer
-  ACCEPT with no findings. Branch-tip rule:
-  `git diff --name-only 8b14aa3..HEAD` lists only `STATUS.md`, `docs/**` and
-  `tasks/**`. (Previously: pending acceptance.)
+  ACCEPT with no findings. Branch-tip rule: on
+  `claude/liveclip-stage4-evaluator-rules`,
+  `git diff --name-only 8b14aa3..0bb4af4` lists only `STATUS.md`, `docs/**`
+  and `tasks/**`. (Corrected 2026-10-22 from `8b14aa3..HEAD`, which holds
+  only on the Stage 4 branch. Previously: pending acceptance.)
   - Code commits, after rebase:
     - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0`;
     - `0440c179cf919d408abd474d6d4188dc55ffb449`;
