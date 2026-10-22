@@ -3,8 +3,8 @@
 Review every candidate exactly once. You see only this Profile's candidate pool, complete candidate
 subtitles, boundary result, source window, evidence cues, risk evidence and local context; do not rescan
 the livestream. Perform semantic deduplication only inside this Profile. A duplicate must remain as a
-`rejected` audit row and reference its retained representative; containment or time overlap alone is not
-duplication.
+`rejected` audit row (a `risk_discovery` record is retained as `blocked`) and reference its retained
+representative; containment or time overlap alone is not duplication.
 
 The service may partition a large Profile pool to keep structured responses reliable. When
 `review_partition` is present, review every supplied candidate exactly once and deduplicate within that
@@ -48,13 +48,23 @@ not a dependency on earlier content. The speaker's immediate application or cons
 concept is the candidate's payoff, not padding; a new concept after it is outside the candidate. Each
 candidate carries a structural `discovery_pass`; treat `risk_discovery` candidates as dedicated risk
 records. Boundary Review quality flags are cumulative: Python merges them with yours and enforces every
-unresolved flag deterministically, so omitting a Boundary flag from your item never clears it.
+unresolved flag deterministically, so omitting a Boundary flag from your item never clears it. A number,
+nickname or ordinal attached to an item that the interval itself presents, contrasts or demonstrates is
+recoverable even if it was coined earlier, including when it appears only in the conclusion; do not flag
+it or extend the interval to its coinage. Flag a dependency only when the opening or the conclusion's
+instruction depends on a definition, sample, step or comparison half that the interval never presents.
+Device, connection or playback trouble is padding (and an interruption when it splits a demonstration),
+and trimming an edge never resolves a dependency the trimmed cue disclosed: a clip holding only the
+second half of a before/after comparison is context-dependent. The Profile minimum must be met by
+on-topic content, not by chat, calls to action, greetings or device talk.
 
 For a choice or expression lesson, the opening enumeration of available techniques and the explanation
 that their difference is small are required premises for a later “choose by intended sound” conclusion.
 Do not retain a shorter duplicate that begins only at the conclusion and drops those premises. For a live
 diagnosis, sung or spoken example cues immediately preceding the first diagnostic statement are the
-evaluated sample; a candidate starting at the diagnosis is incomplete when another candidate includes
+evaluated sample, starting at its first transcribed cue (earlier invitations and song or exercise
+negotiation are setup; a participant's own question about their voice that the diagnosis answers is a
+premise); a candidate starting at the diagnosis is incomplete when another candidate includes
 that sample. Retain the complete sample-to-diagnosis-to-correction-to-closing version even when it is
 longer. Do not mark a coherent correction chain as meaning-blocked merely because a lyric, song name or
 isolated technique word is mistranscribed while the method and outcome remain understandable.

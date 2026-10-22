@@ -1000,6 +1000,53 @@ def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> Non
         assert "shortest independently complete candidate" in audit
 
 
+def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
+    def text(stage: Any, profile: ClipProfile) -> str:
+        return " ".join(load_dual_profile_prompt(stage, profile).instructions.split())
+
+    shared_label_rule = (
+        "A number, nickname or ordinal attached to an item that the interval itself presents, "
+        "contrasts or demonstrates is recoverable even if it was coined earlier, including when it "
+        "appears only in the conclusion; do not flag it or extend the interval to its "
+        "coinage. Flag a dependency only when the opening or the conclusion's instruction "
+        "depends on a definition, sample, step or comparison half that the interval never "
+        "presents"
+    )
+    for profile in ClipProfile:
+        boundary = text("boundary_review", profile)
+        review = text("global_review", profile)
+        audit = text("global_audit", profile)
+        for value in (boundary, review, audit):
+            assert shared_label_rule in value
+            assert "second half of a before/after comparison is context-dependent" in value
+            assert "never resolves a dependency" in value
+        # A: narrowed audio-note carve-out and device/playback trouble.
+        assert "short device-distance statement" not in boundary
+        assert "brief functional audio-position note" not in boundary
+        assert "own brief remark about microphone distance or placement" in boundary
+        assert "trouble playing back a recording are `device_or_waiting_padding`" in boundary
+        assert "and also `material_interruption` when they split a demonstration" in boundary
+        assert (
+            "A reference to another video or post is setup when the kept interval defines and "
+            "demonstrates its own method" in boundary
+        )
+        # C: live diagnosis boundaries come from transcribed cues.
+        assert "starts at the first transcribed cue of the evaluated sample" in boundary
+        assert "untranscribed gap holds audio" in boundary
+        assert "a participant's own question about their voice" in boundary
+        assert "starting at its first transcribed cue" in review
+        # B2: the Profile minimum must be met by on-topic content.
+        assert "The Profile minimum must be met by on-topic content" in boundary
+        assert "at or under the Profile minimum, flag `padded_with_irrelevant_content`" in boundary
+        assert "closing acknowledgement or address to the audience does not count" in boundary
+        # Reviewer P2 wording.
+        assert "(a `risk_discovery` record is retained as `blocked`)" in review
+        assert "decide every nested pair your replacements create" in audit
+        # Earlier asserted phrases are kept.
+        assert "status, flags and reason must agree" in audit
+        assert "setup, not premises" in boundary
+
+
 def test_service_allows_one_deterministic_repair_after_provider_schema_repair(
     tmp_path: Path,
 ) -> None:

@@ -49,7 +49,16 @@ Pay special attention to:
 - misapplied `context_dependent_opening`: use it only when the opening's meaning cannot be recovered
   from cues inside the interval. A category, type or ordinal label that the clip itself contrasts,
   explains or demonstrates is not a dependency; the speaker's immediate application or consequence of
-  the same concept is the payoff, and a new concept after it is outside the candidate;
+  the same concept is the payoff, and a new concept after it is outside the candidate. A number,
+  nickname or ordinal attached to an item that the interval itself presents, contrasts or demonstrates
+  is recoverable even if it was coined earlier, including when it appears only in the conclusion; do not
+  flag it or extend the interval to its coinage. Flag a dependency only when the opening or the
+  conclusion's instruction depends on a definition, sample, step or comparison half that the interval
+  never presents;
+- device, connection or playback trouble left inside a kept interval: it is padding (and an
+  interruption when it splits a demonstration), and trimming an edge never resolves a dependency the
+  trimmed cue disclosed; a clip holding only the second half of a before/after comparison is
+  context-dependent;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
 - risk chains whose opening question/category count or final qualification was trimmed;
 - coherent lessons overblocked because a lyric, song name or isolated term is mistranscribed even though
@@ -73,7 +82,8 @@ Nested pairs. The payload's `nested_pairs` lists, from the initial review, every
 `selected`/`manual_review` candidates that share a start or end cue so that one contains the other.
 Return `nested_pair_decisions` with exactly one entry for each listed pair and no other entries; return
 an empty array when `nested_pairs` is empty. Decide each pair on its content: containment or a shared
-edge alone never establishes duplication.
+edge alone never establishes duplication. Python re-lists pairs after applying your replacements, so
+also decide every nested pair your replacements create (for example by promoting a candidate).
 
 - `duplicate`: both serve the same central objective. Prefer the shortest independently complete
   candidate as the representative, and include replacement items so that the other one is `rejected`
