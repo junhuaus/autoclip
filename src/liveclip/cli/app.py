@@ -74,6 +74,7 @@ from liveclip.services.agent_clipping_delivery import (
     export_agent_clipping_review_package,
     render_agent_clipping_result,
 )
+from liveclip.services.claude_smoke import ClaudeSmokeError, run_claude_smoke
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
 from liveclip.services.database_backup import (
@@ -2088,6 +2089,27 @@ def smoke_codex() -> None:
     typer.echo(f"Provider: {result.provider}")
     typer.echo(f"Model: {result.model}")
     typer.echo(f"Codex thread ID: {result.thread_id}")
+    typer.echo(f"Usage: input={result.input_tokens} output={result.output_tokens}")
+    typer.echo(f"Score: {result.score}")
+    typer.echo(f"Title: {result.title}")
+    typer.echo(f"Boundary: {result.source_start_ms}-{result.source_end_ms} ms")
+
+
+@app.command("smoke-claude")
+def smoke_claude() -> None:
+    """Run one real tool-free Claude CLI structured call using the subscription login."""
+
+    try:
+        result = run_claude_smoke(get_settings())
+    except (ClaudeSmokeError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("Claude smoke: succeeded")
+    typer.echo(f"Provider: {result.provider}")
+    typer.echo(f"Model: {result.model} (answered by {result.response_model})")
+    typer.echo(f"Auth method: {result.auth_method}")
+    typer.echo(f"Contract: {result.contract}")
+    typer.echo(f"Latency: {result.latency_ms} ms over {result.request_count} request(s)")
     typer.echo(f"Usage: input={result.input_tokens} output={result.output_tokens}")
     typer.echo(f"Score: {result.score}")
     typer.echo(f"Title: {result.title}")

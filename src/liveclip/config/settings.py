@@ -89,6 +89,56 @@ class Settings(BaseSettings):
         max_length=4_096,
         validation_alias="LIVECLIP_CODEX_EXECUTABLE",
     )
+    # Structured editorial engine for the dual-profile pipeline. ``auto`` keeps the
+    # historical mapping from LIVECLIP_AI_PROVIDER, which also selects ASR, so the
+    # Claude CLI is chosen here without changing any ASR or persisted run identity.
+    structured_provider: str = Field(
+        default="auto",
+        validation_alias="LIVECLIP_STRUCTURED_PROVIDER",
+    )
+    claude_executable: str = Field(
+        default="claude",
+        min_length=1,
+        max_length=4_096,
+        validation_alias="LIVECLIP_CLAUDE_EXECUTABLE",
+    )
+    claude_model: str = Field(
+        default="claude-opus-5-5",
+        min_length=1,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+        validation_alias="LIVECLIP_CLAUDE_MODEL",
+    )
+    claude_request_timeout_seconds: float = Field(
+        default=900.0,
+        ge=MIN_LLM_REQUEST_TIMEOUT_SECONDS,
+        le=MAX_LLM_REQUEST_TIMEOUT_SECONDS,
+        validation_alias="LIVECLIP_CLAUDE_TIMEOUT_SECONDS",
+    )
+    claude_max_attempts: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        validation_alias="LIVECLIP_CLAUDE_MAX_ATTEMPTS",
+    )
+    claude_retry_base_seconds: float = Field(
+        default=5.0,
+        gt=0,
+        le=120,
+        validation_alias="LIVECLIP_CLAUDE_RETRY_BASE_SECONDS",
+    )
+    claude_retry_max_seconds: float = Field(
+        default=60.0,
+        gt=0,
+        le=600,
+        validation_alias="LIVECLIP_CLAUDE_RETRY_MAX_SECONDS",
+    )
+    claude_retry_total_wait_seconds: float = Field(
+        default=300.0,
+        ge=0,
+        le=3_600,
+        validation_alias="LIVECLIP_CLAUDE_RETRY_TOTAL_WAIT_SECONDS",
+    )
 
     asr_chunk_seconds: int = Field(default=90, ge=10, le=3600, validation_alias="ASR_CHUNK_SECONDS")
     asr_chunk_overlap_seconds: int = Field(
@@ -190,6 +240,14 @@ class Settings(BaseSettings):
             )
         return normalized
 
+    @field_validator("structured_provider")
+    @classmethod
+    def validate_structured_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"auto", "codex-cli", "claude-cli"}:
+            raise ValueError("LIVECLIP_STRUCTURED_PROVIDER must be auto, codex-cli, or claude-cli")
+        return normalized
+
     @field_validator("agent_provider")
     @classmethod
     def validate_agent_provider(cls, value: str) -> str:
@@ -234,6 +292,8 @@ class Settings(BaseSettings):
             raise ValueError("WORKER_LEASE_SECONDS must exceed twice WORKER_HEARTBEAT_SECONDS")
         if self.openai_retry_base_seconds > self.openai_retry_max_seconds:
             raise ValueError("OPENAI_RETRY_BASE_SECONDS must not exceed its maximum")
+        if self.claude_retry_base_seconds > self.claude_retry_max_seconds:
+            raise ValueError("LIVECLIP_CLAUDE_RETRY_BASE_SECONDS must not exceed its maximum")
         if (self.llm_input_price_per_million is None) != (
             self.llm_output_price_per_million is None
         ):
@@ -281,6 +341,8 @@ class Settings(BaseSettings):
             "ai_provider": self.ai_provider,
             "agent_provider": self.agent_provider,
             "codex_provider_selected": self.ai_provider.endswith("-codex"),
+            "structured_provider": self.structured_provider,
+            "claude_model": self.claude_model,
             "openai_configured": bool(
                 self.openai_api_key and self.openai_api_key.get_secret_value().strip()
             ),

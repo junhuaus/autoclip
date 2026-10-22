@@ -172,11 +172,54 @@ class StructuredProviderError(RuntimeError):
         repair_attempts: tuple[dict[str, object], ...] = (),
         diagnostic_relative_path: str | None = None,
     ) -> None:
-        super().__init__("structured model output could not be validated")
+        super().__init__(_structured_error_message(code, call_records))
         self.code = code
         self.call_records = call_records
         self.repair_attempts = repair_attempts
         self.diagnostic_relative_path = diagnostic_relative_path
+
+
+# Provider transport failures are not schema failures. Name their real cause so a
+# rate limit is never reported as "could not be validated". Messages stay fixed
+# text plus attempt counts; provider response content is never included.
+_PROVIDER_FAILURE_MESSAGES = {
+    "CLAUDE_CLI_RATE_LIMITED": "Claude CLI rate limited (429)",
+    "CLAUDE_CLI_OVERLOADED": "Claude CLI API overloaded (529)",
+    "CLAUDE_CLI_SERVICE_UNAVAILABLE": "Claude CLI API service unavailable",
+    "CLAUDE_CLI_CONNECTION_FAILED": "Claude CLI API connection failed",
+    "CLAUDE_CLI_USAGE_LIMIT_REACHED": (
+        "Claude CLI subscription usage limit reached; retry after the limit resets"
+    ),
+    "CLAUDE_CLI_AUTH_FAILED": "Claude CLI is not logged in with a usable subscription",
+    "CLAUDE_CLI_MODEL_UNAVAILABLE": "Claude CLI model is unavailable",
+    "CLAUDE_CLI_MODEL_MISMATCH": "Claude CLI answered with a different model than configured",
+    "CLAUDE_CLI_CONTEXT_WINDOW_EXCEEDED": "Claude CLI request exceeds the model context window",
+    "CLAUDE_CLI_OUTPUT_UNPARSEABLE": "Claude CLI returned no parseable JSON result",
+    "CLAUDE_CLI_REQUEST_FAILED": "Claude CLI request failed",
+    "CODEX_CLI_RATE_LIMITED": "Codex CLI rate limited (429 Too Many Requests)",
+    "CODEX_CLI_QUOTA_EXHAUSTED": "Codex CLI quota exhausted",
+}
+_ATTEMPT_COUNTED_FAILURES = frozenset(
+    {
+        "CLAUDE_CLI_RATE_LIMITED",
+        "CLAUDE_CLI_OVERLOADED",
+        "CLAUDE_CLI_SERVICE_UNAVAILABLE",
+        "CLAUDE_CLI_CONNECTION_FAILED",
+        "CODEX_CLI_RATE_LIMITED",
+    }
+)
+
+
+def _structured_error_message(code: str, call_records: Sequence[ProviderCallRecord]) -> str:
+    cause = _PROVIDER_FAILURE_MESSAGES.get(code)
+    if cause is None:
+        return "structured model output could not be validated"
+    if code not in _ATTEMPT_COUNTED_FAILURES:
+        return cause
+    attempts = sum(record.request_count for record in call_records if record.failure_code == code)
+    if not attempts:
+        return cause
+    return f"{cause} after {attempts} attempt{'' if attempts == 1 else 's'}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1084,18 +1127,28 @@ class CodexStructuredLLMProvider:
                     if preflight_errors:
                         raise ValueError(" | ".join(preflight_errors))
                 except (SecureFileError, ValidationError, ValueError) as exc:
-                    failure_code = "STRUCTURED_OUTPUT_INVALID"
-                    repair_attempts = (
-                        _structured_invalid_attempt(
-                            phase=phase,
-                            raw_output=raw_output,
-                            error=exc,
-                            complete_errors=current_contract,
-                            validation_errors=preflight_errors or None,
-                            request_payload=validation_payload or payload,
-                            response_model=response_model,
-                        ),
-                    )
+                    # A zero-exit run without a final message can still carry a
+                    # 429 error event. That is a rate limit, not a schema failure,
+                    # so it must not consume the repair or hide the real cause.
+                    if (
+                        raw_output is None
+                        and _codex_process_failure_code("", stdout=result.stdout)
+                        == "CODEX_CLI_RATE_LIMITED"
+                    ):
+                        failure_code = "CODEX_CLI_RATE_LIMITED"
+                    else:
+                        failure_code = "STRUCTURED_OUTPUT_INVALID"
+                        repair_attempts = (
+                            _structured_invalid_attempt(
+                                phase=phase,
+                                raw_output=raw_output,
+                                error=exc,
+                                complete_errors=current_contract,
+                                validation_errors=preflight_errors or None,
+                                request_payload=validation_payload or payload,
+                                response_model=response_model,
+                            ),
+                        )
             record = _record(
                 provider=self.provider_name,
                 model=self.model_name,

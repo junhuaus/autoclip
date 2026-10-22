@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
+import pytest
 from pydantic import BaseModel
 
 from liveclip.clipping_skills.dual_profile_v1 import (
@@ -27,6 +29,8 @@ from liveclip.pipeline.dual_profile import (
     RawProfileCandidate,
     VariantLinkItem,
 )
+from liveclip.providers.llm import claude_cli as claude_cli_module
+from liveclip.providers.llm.claude_cli import ClaudeCliStructuredLLMProvider
 from liveclip.providers.llm.structured import StructuredCallResult, StructuredProviderError
 from liveclip.services.dual_profile_evaluation import run_dual_profile_evaluation
 
@@ -558,3 +562,83 @@ def test_service_regenerates_once_when_deterministic_repair_is_still_invalid(
     assert manifest.retry_count == 1
     assert manifest.repair_count == 2
     assert final.profiles[ClipProfile.SHORT_HIGHLIGHT].statistics.discovered == 1
+
+
+def test_claude_cli_provider_and_model_reach_the_run_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    contract = f"claude-cli-editorial-v1.2.1.307.{'c' * 64}"
+    monkeypatch.setattr(claude_cli_module, "resolve_claude_executable", lambda _value: "/fake")
+    monkeypatch.setattr(claude_cli_module, "claude_cli_contract_version", lambda _value: contract)
+    scripted = ScriptedDualProvider(
+        load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT), {}
+    )
+    models: dict[str, type[BaseModel]] = {
+        model.__name__: model
+        for model in (
+            ProfileDiscoveryOutput,
+            ProfileBoundaryReviewOutput,
+            ProfileGlobalReviewOutput,
+            ProfileGlobalAuditOutput,
+            CrossProfileVariantLinkOutput,
+        )
+    }
+    efforts: list[str] = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # Stand-in for the CLI: answer from the scripted Profile fixture.
+        efforts.append(argv[argv.index("--effort") + 1])
+        schema = json.loads(argv[argv.index("--json-schema") + 1])
+        prompt = kwargs["stdin_stream"].read().decode()
+        payload = json.loads(
+            prompt.split("<untrusted_json>\n", 1)[1].rsplit("\n</untrusted_json>", 1)[0]
+        )
+        output = scripted._output(payload, models[schema["title"]])
+        result = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "structured_output": output.model_dump(mode="json"),
+            "num_turns": 2,
+            "permission_denials": [],
+            "usage": {"input_tokens": 3, "cache_read_input_tokens": 7, "output_tokens": 5},
+            "modelUsage": {"claude-opus-5-5": {}},
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(result), "")
+
+    monkeypatch.setattr(claude_cli_module, "run_cancellable_process", run)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: Any):
+        return ClaudeCliStructuredLLMProvider(
+            prompts=prompt,
+            model_name="claude-opus-5-5",
+            claude_executable="claude",
+            timeout_seconds=60,
+            contract_version=contract,
+            reasoning_effort=reasoning_effort,
+        )
+
+    output_dir = tmp_path / "output"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        discovery_concurrency=2,
+    )
+
+    manifest = DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    calls = json.loads((output_dir / "provider-calls.json").read_text(encoding="utf-8"))["calls"]
+    assert manifest.provider == "claude_cli"
+    assert manifest.model == "claude-opus-5-5"
+    assert manifest.input_tokens == 10 * len(calls)
+    assert manifest.output_tokens == 5 * len(calls)
+    assert calls
+    assert {call["provider"] for call in calls} == {"claude_cli"}
+    assert {call["model"] for call in calls} == {"claude-opus-5-5"}
+    assert {call["request_count"] for call in calls} == {1}
+    assert {"medium", "high"} <= set(efforts)

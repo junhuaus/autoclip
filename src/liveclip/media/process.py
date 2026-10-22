@@ -109,6 +109,7 @@ def run_cancellable_process(
     stdin_stream: BinaryIO | None = None,
     env: Mapping[str, str] | None = None,
     on_started: Callable[[], None] | None = None,
+    cwd: str | os.PathLike[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run an argv-only child with bounded output, timeout, and cancellation."""
 
@@ -139,6 +140,7 @@ def run_cancellable_process(
         start_new_session=True,
         pass_fds=inherited_fds,
         env=dict(env) if env is not None else None,
+        cwd=cwd,
     )
     if on_started is not None:
         try:

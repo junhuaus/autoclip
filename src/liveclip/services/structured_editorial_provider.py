@@ -4,6 +4,11 @@ from typing import Literal, Protocol
 
 from liveclip.clipping_skills.semantic_global_v1 import SemanticGlobalPromptBundle
 from liveclip.config.settings import Settings
+from liveclip.providers.llm.claude_cli import (
+    ClaudeCliRetryPolicy,
+    ClaudeCliStructuredLLMProvider,
+    assert_claude_cli_ready,
+)
 from liveclip.providers.llm.codex import codex_cli_contract_version
 from liveclip.providers.llm.structured import (
     CodexStructuredLLMProvider,
@@ -28,7 +33,33 @@ def configured_structured_editorial_provider_factory(
 ) -> StructuredEditorialProviderFactory:
     """Create a generic structured provider factory with no editorial stage policy."""
 
-    if settings.ai_provider in {
+    if settings.structured_provider == "claude-cli":
+        # One login probe per run: refuse anything but the subscription login
+        # before the first inference, and pin the identity every stage must keep.
+        contract, _auth = assert_claude_cli_ready(settings.claude_executable)
+        retry_policy = ClaudeCliRetryPolicy(
+            max_attempts=settings.claude_max_attempts,
+            base_delay_seconds=settings.claude_retry_base_seconds,
+            max_delay_seconds=settings.claude_retry_max_seconds,
+            total_wait_seconds=settings.claude_retry_total_wait_seconds,
+        )
+
+        def claude_factory(
+            prompt: SemanticGlobalPromptBundle,
+            reasoning_effort: ReasoningEffort,
+        ) -> StructuredLLMProvider:
+            return ClaudeCliStructuredLLMProvider(
+                prompts=prompt,
+                model_name=settings.claude_model,
+                claude_executable=settings.claude_executable,
+                timeout_seconds=settings.claude_request_timeout_seconds,
+                contract_version=contract,
+                reasoning_effort=reasoning_effort,
+                retry_policy=retry_policy,
+            )
+
+        return claude_factory
+    if settings.structured_provider == "codex-cli" or settings.ai_provider in {
         "mock-codex",
         "openai-codex",
         "openrouter-codex",

@@ -21,6 +21,12 @@ from liveclip.providers.asr.mlx import (
     MLX_WHISPER_VERSION,
     assert_mlx_asr_ready,
 )
+from liveclip.providers.llm.claude_cli import (
+    SUPPORTED_CLAUDE_CLI_VERSION,
+    claude_cli_auth_status,
+    claude_cli_contract_version,
+    resolve_claude_executable,
+)
 from liveclip.providers.llm.codex import (
     assert_codex_cli_ready,
     resolve_codex_executable,
@@ -89,6 +95,7 @@ def run_doctor(settings: Settings) -> DoctorReport:
             _openrouter_check(settings),
             _mlx_asr_check(settings),
             _codex_check(settings),
+            _claude_cli_check(settings),
             _video_encoder_check(ffmpeg_path, ffprobe_path),
         ]
     )
@@ -436,6 +443,55 @@ def _codex_check(settings: Settings) -> DoctorCheck:
             "contract": contract,
             "path": executable,
         },
+    )
+
+
+def _claude_cli_check(settings: Settings) -> DoctorCheck:
+    if settings.structured_provider != "claude-cli":
+        return DoctorCheck(
+            "claude_cli",
+            "pass",
+            "Claude CLI structured provider is not selected",
+            {"selected": False},
+        )
+    details: dict[str, object] = {
+        "selected": True,
+        "model": settings.claude_model,
+        "reviewed_version": SUPPORTED_CLAUDE_CLI_VERSION,
+    }
+    try:
+        details["path"] = resolve_claude_executable(settings.claude_executable)
+        details["contract"] = claude_cli_contract_version(settings.claude_executable)
+        auth = claude_cli_auth_status(settings.claude_executable)
+    except (OSError, subprocess.TimeoutExpired, ProviderConfigurationError) as exc:
+        return DoctorCheck(
+            "claude_cli",
+            "fail",
+            "Selected Claude CLI structured provider is unavailable",
+            {**details, "error": exc.__class__.__name__},
+        )
+    # Only a boolean and the method type are reported; never account details.
+    details.update(
+        {
+            "logged_in": auth.logged_in,
+            "auth_method": auth.auth_method,
+            "subscription": auth.subscription,
+        }
+    )
+    if not auth.logged_in:
+        return DoctorCheck("claude_cli", "fail", "Claude CLI is not logged in", details)
+    if not auth.subscription:
+        return DoctorCheck(
+            "claude_cli",
+            "fail",
+            "Claude CLI must use the claude.ai subscription login, not an API key",
+            details,
+        )
+    return DoctorCheck(
+        "claude_cli",
+        "pass",
+        "Claude CLI subscription login is ready for structured editing",
+        details,
     )
 
 
