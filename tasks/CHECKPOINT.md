@@ -210,3 +210,19 @@ Cold-18 re-scores FAIL 90.0:
   candidates).
 
 Details are in `STATUS.md`. Not pushed.
+
+## Stage 4 accepted at 8b14aa3 (2026-10-22)
+
+Stage 4 (benchmark evaluator rules) is ACCEPTED at code commit `8b14aa3`,
+verified at tip `ca80fb7`.
+- Tester r1: lint 0; 126 benchmark tests passed; the cold-18 re-score FAIL
+  90.0 matched exactly with hash-identical inputs. Run #1 passed (2668
+  backend); run #2 was invalidated by a clamshell sleep on battery.
+- Tester r2 on AC: two `make test` runs, both exit 0, 2668 backend each,
+  vitest 80/80, e2e 4/4 each; lease set 39 passed x 3; 0 sleep events; 1143
+  report files hash-identical.
+- Reviewer: ACCEPT at `ca80fb7`, no findings; the rebase is byte-identical
+  to the reviewed code. Stage 3's P2 commit `f51f696` was verified here.
+
+Branch-tip rule: `git diff --name-only 8b14aa3..HEAD` lists only
+`STATUS.md`, `docs/**` and `tasks/**`. Not pushed.

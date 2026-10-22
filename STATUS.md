@@ -11,11 +11,25 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 4 benchmark evaluator rules (2026-10-21) — IN PROGRESS, pending acceptance
+## Stage 4 benchmark evaluator rules (2026-10-21) — ACCEPTED at 8b14aa3
 
-- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
-  branch `claude/liveclip-stage4-evaluator-rules`. It is rebased onto the
-  Stage 3 tip `427e80cd3e65bfe9e25a7c9044e960f09c5a0c21`. Not pushed or merged.
+- **Status: ACCEPTED** at code commit
+  `8b14aa39420ecfffc4ad54c6d76d8433affd15b6`, verified at tip
+  `ca80fb7d88e7f8620ef9053347f7598604918ad2` (2026-10-22). Local branch
+  `claude/liveclip-stage4-evaluator-rules`; not pushed or merged.
+  - Tester r1: `make lint` 0; 126 benchmark tests passed; the cold-18
+    re-score reproduced FAIL 90.0 exactly with hash-identical inputs.
+    `make test` run #1 passed (2668 backend). Run #2 was invalidated by a
+    clamshell sleep on battery, not by a code failure.
+  - Tester r2, on AC power: two `make test` runs, both exit 0, each with
+    2668 backend passed, vitest 80/80 and e2e 4/4. The lease set passed 39
+    x 3. 0 sleep events. 1143 report files hashed identically.
+  - Reviewer: ACCEPT at `ca80fb7`, no findings. The rebase is
+    byte-identical to the reviewed code.
+  - The Stage 3 P2 commit `f51f696` was verified in this round.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance on local branch `claude/liveclip-stage4-evaluator-rules`,
+  rebased onto the Stage 3 tip `427e80cd3e65bfe9e25a7c9044e960f09c5a0c21`.
 - Code commits, after rebase (identical code diffs to the reviewed commits):
   - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0` (was `30dc26b`): decisions A
     and B;
@@ -82,7 +96,10 @@
     (S01, S03), L07 being blocked, the `ml_0005` padding and the N09 outputs.
     Improving it needs product work and a fresh real run, which is allowed
     without per-run consent since 2026-10-21.
-- Branch-tip rule: placeholder, to be filled in after acceptance.
+- Branch-tip rule: `claude/liveclip-stage4-evaluator-rules` is the accepted
+  code `8b14aa3` plus docs-only commits. To verify, run
+  `git diff --name-only 8b14aa3..HEAD`; it must list only `STATUS.md`,
+  `docs/**` and `tasks/**`.
 - Caveats: deterministic validation plus a read-only re-score of existing
   evidence. No new model inference, rendering or human review.
 

@@ -4,10 +4,15 @@
 
 ### Progress
 
-- [ ] 2026-10-21 On local branch `claude/liveclip-stage4-evaluator-rules`
+- [x] 2026-10-21 On local branch `claude/liveclip-stage4-evaluator-rules`
   (rebased onto the Stage 3 tip `427e80c`), apply operator decisions A and B
   to `scripts/benchmark_gates.py`, `scripts/evaluate_benchmark.py` and
-  `scripts/evaluate_agent_benchmark.py`. Status: **pending acceptance**.
+  `scripts/evaluate_agent_benchmark.py`. Status: **ACCEPTED** at code commit
+  `8b14aa3`, verified at tip `ca80fb7` (2026-10-22): tester r1 and r2 green
+  (r2 on AC: two `make test` runs exit 0, 2668 backend each), reviewer
+  ACCEPT with no findings. Branch-tip rule:
+  `git diff --name-only 8b14aa3..HEAD` lists only `STATUS.md`, `docs/**` and
+  `tasks/**`. (Previously: pending acceptance.)
   - Code commits, after rebase:
     - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0`;
     - `0440c179cf919d408abd474d6d4188dc55ffb449`;

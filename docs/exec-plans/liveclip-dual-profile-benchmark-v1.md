@@ -57,7 +57,7 @@ imported by production modules.
 - [x] 2026-10-20 Stage 1 fix round (reviewer CHANGES_REQUIRED on `bf83c80`): Controller decisions D1--D3, union padding allowance, Agent v2 mechanical/not-applicable/human-required split with derived executed Profiles, manual-only-risk selection gate, RGR-03 findings, augmenting-path and score-boundary tests, safe no-replace publication. Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 fix round 2 (reviewer ACCEPTED `d9e9dde`; Controller follow-ups): Agent reports published as one atomic no-replace directory via `publish_directory_no_replace_no_follow`, executed-Profile filter regression test, no semantic padding allowance with `outside_nearest_anchor_ms` diagnostics, restored historical Agent ExecPlan entry. Fixture tests only; no real re-score.
 - [x] 2026-10-20 Stage 1 ACCEPTED at `6c465b767e3829152d0b07451edbe274980321b1` (reviewer ACCEPT; independent tester `make lint` and `make test` green, mock/fixture only; evidence in `STATUS.md`).
-- [ ] 2026-10-21 Stage 4 (branch `claude/liveclip-stage4-evaluator-rules`; pending acceptance): apply operator decisions A (exact boundary = tolerance only) and B (`negative_anchor_output` with a per-anchor MD section 7 policy) in both evaluators; read-only cold-18 re-score FAIL 90.0. See the Decisions entries dated 2026-10-21 (Stage 4).
+- [x] 2026-10-21 Stage 4 (branch `claude/liveclip-stage4-evaluator-rules`; ACCEPTED at `8b14aa3`, verified at tip `ca80fb7` on 2026-10-22; evidence in `STATUS.md`): apply operator decisions A (exact boundary = tolerance only) and B (`negative_anchor_output` with a per-anchor MD section 7 policy) in both evaluators; read-only cold-18 re-score FAIL 90.0. See the Decisions entries dated 2026-10-21 (Stage 4).
 - [ ] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based.
 - [ ] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename.
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence.
@@ -331,7 +331,9 @@ ignored local evidence, read-only):
       findings listed in `human_required`.
     - PASS blocker: `short_recall_below_threshold`.
 
-Branch-tip rule: placeholder, to be filled in after Stage 4 acceptance.
+Branch-tip rule (Stage 4 ACCEPTED at `8b14aa3`, 2026-10-22): the branch is
+the accepted code `8b14aa3` plus docs-only commits; `git diff --name-only
+8b14aa3..HEAD` must list only `STATUS.md`, `docs/**` and `tasks/**`.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the
