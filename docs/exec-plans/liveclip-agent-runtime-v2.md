@@ -1,5 +1,12 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Integration of Stages 6 and 7 (2026-10-22)
+
+- [ ] 2026-10-22 Stages 6 and 7 are rebased onto accepted Stage 4
+  (`8b14aa3`, docs `0bb4af4`) on `claude/liveclip-stage7-claude-cli`, with
+  byte-identical non-doc diffs. They await the integrated test and review
+  round. Details and the SHA mapping are in `STATUS.md`.
+
 ## Stage 7 Claude CLI structured provider (2026-10-21)
 
 ### Progress

@@ -286,3 +286,12 @@ Stage 7 review round 2 (`8ca7bba`): ACCEPT with 3 P2s, fixed in round 3
 - use `--discovery-concurrency 3`.
 
 The runbook is in `STATUS.md`.
+
+## Stages 6 and 7 integrated (2026-10-22)
+
+Stages 6 and 7 are rebased onto accepted Stage 4 (`0bb4af4`) on local branch
+`claude/liveclip-stage7-claude-cli`, now checked out in the main worktree.
+Non-doc diffs are byte-identical to the reviewed ones; one message-only test
+commit `fc13163` was added for Stage 6. The frozen Claude CLI 2.1.308 binary
+is in the ignored `.cache/`. The scratch worktrees were removed. Pending the
+integrated test and review round. Not pushed.

@@ -11,6 +11,32 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Integration of Stages 6 and 7 on accepted Stage 4 (2026-10-22) — pending integrated test and review
+
+- Branch `claude/liveclip-stage7-claude-cli` now holds, in order: Stage 4
+  (ACCEPTED at `8b14aa3`, acceptance docs `0bb4af4`), Stage 6 rebased onto
+  `0bb4af4`, and Stage 7 rebased onto the Stage 6 tip. Local only; not
+  pushed or merged.
+- Rebased SHAs (old -> new):
+  - Stage 6: `a22f9d3` -> `cef7d4b`, `670478e` -> `9a9cfc8`, `039c998` ->
+    `a7bbbf0`, `fc06b3e` -> `84dd4a8`, `7de4760` -> `5a7641e`, `f824df0` ->
+    `437ebb8`; plus new message-only test commit `fc13163` (reviewer P2 #2:
+    the `_wait_for_polls` timeout reports observes, heartbeats, thread
+    liveness and `lost_lease`).
+  - Stage 7: `84fe07e` -> `9eb7a38`, `7340355` -> `e744935`, `fe4350a` ->
+    `850e0af`, `8ca7bba` -> `2865336`, `ad30372` -> `4e2bf8f`, `a010714` ->
+    `db2bc32`.
+- Code identity: the non-doc diff (excluding `STATUS.md`, `docs/**`,
+  `tasks/**`) of each rebased branch against its new base is byte-identical
+  to the reviewed diff against its old base (`cmp` exit 0 for both; sha256
+  `d0873f86...` for Stage 6 and `176bd64d...` for Stage 7). Only doc files
+  conflicted; every section was kept (Stage 7 above Stage 6 above Stage 4).
+- The frozen Claude CLI 2.1.308 binary is in the ignored
+  `.cache/claude-cli/2.1.308/claude` (mode 0555, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`).
+- Stages 6 and 7 await the integrated test and review round on this tip.
+  Stage 7 round 3 (`4e2bf8f`, `db2bc32`) is reviewed with it.
+
 ## Stage 7 Claude CLI structured provider (2026-10-21) — IN PROGRESS, pending acceptance
 
 - **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
