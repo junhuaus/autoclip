@@ -10,8 +10,9 @@ including missing earlier steps and ASR uncertainty that blocks the method's mea
 Prefer the first cue that supplies the actual independent premise: keep an initiating question,
 numbered-step label or comparison premise, but remove earlier setup once the direct method statement is
 self-contained. Keep the final cue that states the comparison or conclusion, including a brief closing
-acknowledgement such as “OK”; do not stop one cue before closure. The speaker's own brief remark about
-microphone distance or placement is not padding when it enables an immediate live vocal example.
+acknowledgement such as “OK”; do not stop one cue before closure. The speaker's brief explanation of
+their own equipment, microphone distance or placement, or of why moving closer helps listeners hear, is
+part of the demonstration and not padding when it is attached to an immediate live vocal example.
 Re-check and preserve every applicable risk under the main contract, including non-blocking ASR
 uncertainty and sung lyrics.
 
@@ -25,9 +26,10 @@ For a numbered curriculum keep the earliest included step label; for a live diag
 meaningful evaluated sample and stop at the final recommendation/closing, not at later unrelated chat.
 A live diagnosis starts at the first transcribed cue of the evaluated sample: invitations and song or
 exercise selection or negotiation before it are setup to trim, while a participant's own question about
-their voice that the diagnosis answers, plus the immediate go-ahead, is a premise to keep. Never extend
-an edge across setup on the assumption that an untranscribed gap holds audio; judge boundaries from
-transcribed cues.
+their voice that the diagnosis answers, plus the immediate go-ahead, is a premise to keep. An edge may
+extend into an untranscribed gap only when transcribed cues inside the interval show that the sample in
+that gap is the one being evaluated; otherwise start at the first transcribed cue of the sample, and
+never extend across setup on the assumption that an untranscribed gap holds audio.
 Audit both edges cue by cue. A short initiating question, contrast definition, referent, exercise
 instruction, or final causal explanation is required content rather than removable setup. Conversely,
 when a Discovery superset contains a narrower objective named by its title/summary, remove a separable
@@ -50,34 +52,36 @@ it instead of deleting or replacing the evidence. For every other candidate, an 
 leading or trailing edge may be trimmed when it lies outside the clean, complete interval. Risk tags stay
 cumulative for every candidate: never remove one, even when its evidence cue is trimmed.
 
-For a numbered later chapter, an ordinal label is its independent premise when the chapter itself defines
-and explains the included steps. Do not add `missing_required_prior_steps` solely because it says “step
-five” or “step six”. For a focused comparison, remove a separable earlier taxonomy or general overview
-when the comparison itself introduces all compared items and remains over the Profile minimum. For a live
-diagnosis, do not stop after the first recommendation if the same uninterrupted exchange continues with
-a retry, before/after evidence, causal distinction, or final confirmation that closes the correction.
-An imperfectly transcribed lyric, song name or isolated vocal term does not block meaning when the
-evaluated sample, diagnosis, correction and observed outcome remain understandable as a chain.
+For a numbered later chapter, an ordinal label is its independent premise when the chapter itself
+defines and explains the included steps. Do not add `missing_required_prior_steps` solely because it
+says “step five” or “step six”. For a focused comparison, remove a separable earlier taxonomy or general
+overview when the comparison itself introduces all compared items and remains over the Profile minimum.
+For a live diagnosis, do not stop after the first recommendation if the same uninterrupted exchange
+continues with a retry, before/after evidence, causal distinction, or final confirmation that closes the
+correction. An imperfectly transcribed lyric, song name or isolated vocal term does not block meaning
+when the evaluated sample, diagnosis, correction and observed outcome remain understandable as a chain.
 `material_interruption` requires unrelated semantic content that actually breaks the teaching logic;
-silence, an ASR gap, a vocal demonstration, a self-correction or the speaker's own brief microphone
-distance or placement remark before an immediate live example is not by itself an interruption.
-`device_or_waiting_padding` requires explicit device/network/waiting content. Audibility or connection
-checks, lag, switching networks and trouble playing back a recording are `device_or_waiting_padding`,
-and also `material_interruption` when they split a demonstration.
+silence, an ASR gap, a vocal demonstration, a self-correction or the speaker's brief equipment or
+listening explanation attached to an immediate live example is not by itself an interruption.
+`device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
+asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
+lag, switching networks and trouble playing back a recording are `device_or_waiting_padding`, and also
+`material_interruption` when they split a demonstration. A speaker explaining how listeners can hear
+better is not an audibility check, and a voice that sticks, cracks or lags, described as part of the
+teaching, is not connection lag.
 
 Edge audit. Inspect the first and last cues of the interval separately. A topic announcement, a
 reference to another video, post or session, and a remark that the speaker is resuming, continuing “as I
 was saying” or going “step by step” are setup, not premises: they do not define a term, ask the question
 the clip answers or state a step of the method. Calls to action, purchase/follow/like prompts, device,
 microphone, network or waiting talk, chat reading and filler at either edge are padding whether or not
-they are needed to reach the Profile minimum; the only exception is the speaker's own brief microphone
-distance or placement remark described above. A reference to another video or post is setup when the
-kept interval defines and demonstrates its own method. Trim such edge material when the remaining
-interval is still within the Profile duration and independently complete. Otherwise keep the interval
-and name the problem with `sales_or_cta_padding`, `device_or_waiting_padding` or
-`padded_with_irrelevant_content`; unresolved padding flags are enforced deterministically. This edge
-audit never removes a compared-technique introduction, definition or step label that the comparison or
-conclusion depends on.
+they are needed to reach the Profile minimum; the only exception is the speaker's brief equipment or
+listening explanation described above. A reference to another video or post is setup when the kept
+interval defines and demonstrates its own method. Trim such edge material when the remaining interval is
+still within the Profile duration and independently complete. Otherwise keep the interval and name the
+problem with `sales_or_cta_padding`, `device_or_waiting_padding` or `padded_with_irrelevant_content`;
+unresolved padding flags are enforced deterministically. This edge audit never removes a
+compared-technique introduction, definition or step label that the comparison or conclusion depends on.
 
 Trimming an edge cue never resolves a dependency that the cue disclosed. If the kept interval still
 relies on a sample, step or comparison half outside it, keep `context_dependent_opening` or
@@ -85,9 +89,10 @@ relies on a sample, step or comparison half outside it, keep `context_dependent_
 context-dependent.
 
 The Profile minimum must be met by on-topic content. If removing interior audience chat or comment
-reading, calls to action, greetings or device talk, or edge setup kept only for duration, would leave the
-clip at or under the Profile minimum, flag `padded_with_irrelevant_content`. A closing acknowledgement or
-address to the audience does not count toward this test.
+reading, calls to action, greetings or device talk, or edge setup kept only for duration, would leave a
+clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. A
+closing acknowledgement or address to the audience is neither padding nor subtracted from the duration
+in this test.
 
 Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the
 interval. A category, type or ordinal label that the clip itself contrasts, explains or demonstrates is

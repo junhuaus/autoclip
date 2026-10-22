@@ -881,8 +881,13 @@ def assemble_final_profile_result(
         )
     # Same interval -> same gated flags.  Candidates with an identical final
     # interval describe the same continuous media, so a gated quality flag found
-    # on any of them applies to all of them, whatever their status.  Advisory
-    # flags (context/prior steps) and source_title_mismatch are not shared.
+    # on any of them applies to all of them, whatever their status.  This
+    # includes topic_switch_inside and topic_not_closed: both describe the
+    # media between the same two cues (an internal switch, or an ending that
+    # does not close), not the title or framing a reviewer gave one twin, so a
+    # differently titled twin cannot cure them.  Advisory flags (context/prior
+    # steps) and source_title_mismatch depend on a twin's own framing and are
+    # not shared.
     gated_by_interval: dict[tuple[int, int], set[DualQualityFlag]] = {}
     for value in final_values:
         gated_by_interval.setdefault((value.start_cue_id, value.end_cue_id), set()).update(

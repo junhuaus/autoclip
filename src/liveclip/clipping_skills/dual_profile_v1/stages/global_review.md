@@ -53,21 +53,24 @@ nickname or ordinal attached to an item that the interval itself presents, contr
 recoverable even if it was coined earlier, including when it appears only in the conclusion; do not flag
 it or extend the interval to its coinage. Flag a dependency only when the opening or the conclusion's
 instruction depends on a definition, sample, step or comparison half that the interval never presents.
-Device, connection or playback trouble is padding (and an interruption when it splits a demonstration),
-and trimming an edge never resolves a dependency the trimmed cue disclosed: a clip holding only the
-second half of a before/after comparison is context-dependent. The Profile minimum must be met by
-on-topic content, not by chat, calls to action, greetings or device talk.
+Audibility checks (asking or answering whether someone can hear), connection lag and network or playback
+trouble are padding (and an interruption when they split a demonstration), but a speaker's brief
+explanation of their own equipment or of how listeners hear better, attached to an immediate live
+example, is part of the demonstration. Trimming an edge never resolves a dependency the trimmed cue
+disclosed: a clip holding only the second half of a before/after comparison is context-dependent. The
+Profile minimum must be met by on-topic content, not by chat, calls to action, greetings or device talk.
 
 For a choice or expression lesson, the opening enumeration of available techniques and the explanation
 that their difference is small are required premises for a later “choose by intended sound” conclusion.
-Do not retain a shorter duplicate that begins only at the conclusion and drops those premises. For a live
-diagnosis, sung or spoken example cues immediately preceding the first diagnostic statement are the
-evaluated sample, starting at its first transcribed cue (earlier invitations and song or exercise
+Do not retain a shorter duplicate that begins only at the conclusion and drops those premises. For a
+live diagnosis, sung or spoken example cues immediately preceding the first diagnostic statement are the
+evaluated sample, starting at its first transcribed cue unless transcribed cues inside the interval show
+that an earlier untranscribed sample is the one evaluated (earlier invitations and song or exercise
 negotiation are setup; a participant's own question about their voice that the diagnosis answers is a
-premise); a candidate starting at the diagnosis is incomplete when another candidate includes
-that sample. Retain the complete sample-to-diagnosis-to-correction-to-closing version even when it is
-longer. Do not mark a coherent correction chain as meaning-blocked merely because a lyric, song name or
-isolated technique word is mistranscribed while the method and outcome remain understandable.
+premise); a candidate starting at the diagnosis is incomplete when another candidate includes that
+sample. Retain the complete sample-to-diagnosis-to-correction-to-closing version even when it is longer.
+Do not mark a coherent correction chain as meaning-blocked merely because a lyric, song name or isolated
+technique word is mistranscribed while the method and outcome remain understandable.
 
 When nested choice candidates both repeat the compared names, prefer the one that contains their first
 local introduction and defining property: for example the step/chapter label, the initial enumeration,

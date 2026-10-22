@@ -844,11 +844,69 @@ def test_fresh_audit_must_decide_pairs_its_replacements_create(tmp_path: Path) -
     assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
 
 
-def test_cached_audit_without_created_pair_decision_does_not_crash_a_warm_run(
+def test_warm_rerun_after_a_fresh_audit_decided_a_created_pair(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+    providers: list[AuditCreatedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    # The cold audit was repaired once to decide the pair its replacement created.
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    generated = sum(counter.values())
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    assert sum(counter.values()) == generated
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert warm.calls == {
+        "discovery": 0,
+        "boundary_review": 0,
+        "global_review": 0,
+        "variant_link": 0,
+    }
+    cold_final = (tmp_path / "cold" / "final-validated.json").read_text(encoding="utf-8")
+    warm_final = (tmp_path / "warm" / "final-validated.json").read_text(encoding="utf-8")
+    assert cold_final == warm_final
+
+
+# Global Audit prompt hashes at 4f2c068, the last audit prompt before the
+# created-pair rule.  Any audit cached without that rule carries one of these
+# (or an older) identity and therefore can never be a cache hit now.
+PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES = {
+    "mini_lesson": "ff7f2745be299b993820e377bb46c4cf45f8969a37fb3720d98a61a8590794d5",
+    "short_highlight": "9c0b507b110b62977cafad0657cb2d2cc6ffc71f46410418c983a61e69b73e5a",
+}
+
+
+def test_cache_hit_audits_are_fully_validated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from liveclip.services import dual_profile_evaluation as service
+
+    for profile, old_hash in PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256 != old_hash
 
     transcript = tmp_path / "transcript.srt"
     _write_srt(transcript)
@@ -859,8 +917,10 @@ def test_cached_audit_without_created_pair_decision_does_not_crash_a_warm_run(
         del reasoning_effort
         return AuditCreatedPairProvider(prompt, counter)
 
-    # Simulate an audit output cached under the earlier contract, which only
-    # required decisions for the pairs listed from the initial review.
+    # Negative control: plant an audit that omits the created-pair decision under
+    # the CURRENT prompt identity (impossible in practice, see the hashes above).
+    # A cache hit must be re-validated with the full rule and refused, not
+    # silently accepted under a weaker contract.
     original_pairs = service.nested_candidate_pairs
     with monkeypatch.context() as patch:
         patch.setattr(
@@ -878,29 +938,19 @@ def test_cached_audit_without_created_pair_decision_does_not_crash_a_warm_run(
         )
         run_dual_profile_evaluation(
             transcript_path=transcript,
-            output_dir=tmp_path / "first",
+            output_dir=tmp_path / "planted",
             provider_factory=factory,
             cache_dir=cache,
             discovery_concurrency=2,
         )
-    generated = sum(counter.values())
-    run_dual_profile_evaluation(
-        transcript_path=transcript,
-        output_dir=tmp_path / "warm",
-        provider_factory=factory,
-        cache_dir=cache,
-        discovery_concurrency=2,
-    )
-    assert sum(counter.values()) == generated
-    warm = DualProfileRunManifest.model_validate_json(
-        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
-    )
-    assert warm.calls == {
-        "discovery": 0,
-        "boundary_review": 0,
-        "global_review": 0,
-        "variant_link": 0,
-    }
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
@@ -1023,7 +1073,20 @@ def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
         # A: narrowed audio-note carve-out and device/playback trouble.
         assert "short device-distance statement" not in boundary
         assert "brief functional audio-position note" not in boundary
-        assert "own brief remark about microphone distance or placement" in boundary
+        assert "own brief remark about microphone distance or placement" not in boundary
+        assert (
+            "brief explanation of their own equipment, microphone distance or placement, or of why "
+            "moving closer helps listeners hear, is part of the demonstration" in boundary
+        )
+        assert "An audibility check means asking or answering whether someone can hear" in boundary
+        assert "connection lag" in boundary
+        assert "A speaker explaining how listeners can hear better is not an audibility check" in (
+            boundary
+        )
+        assert "described as part of the teaching, is not connection lag" in boundary
+        for value in (review, audit):
+            assert "asking or answering whether someone can hear" in value
+            assert "brief explanation of their own equipment" in value
         assert "trouble playing back a recording are `device_or_waiting_padding`" in boundary
         assert "and also `material_interruption` when they split a demonstration" in boundary
         assert (
@@ -1033,12 +1096,24 @@ def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
         # C: live diagnosis boundaries come from transcribed cues.
         assert "starts at the first transcribed cue of the evaluated sample" in boundary
         assert "untranscribed gap holds audio" in boundary
+        assert (
+            "An edge may extend into an untranscribed gap only when transcribed cues inside the "
+            "interval show that the sample in that gap is the one being evaluated" in boundary
+        )
+        assert "an earlier untranscribed sample is the one evaluated" in review
         assert "a participant's own question about their voice" in boundary
         assert "starting at its first transcribed cue" in review
         # B2: the Profile minimum must be met by on-topic content.
         assert "The Profile minimum must be met by on-topic content" in boundary
-        assert "at or under the Profile minimum, flag `padded_with_irrelevant_content`" in boundary
-        assert "closing acknowledgement or address to the audience does not count" in boundary
+        assert "at or under the Profile minimum" not in boundary
+        assert (
+            "would leave a clip that no longer satisfies the Profile duration minimum, flag "
+            "`padded_with_irrelevant_content`" in boundary
+        )
+        assert (
+            "closing acknowledgement or address to the audience is neither padding nor subtracted "
+            "from the duration" in boundary
+        )
         # Reviewer P2 wording.
         assert "(a `risk_discovery` record is retained as `blocked`)" in review
         assert "decide every nested pair your replacements create" in audit
