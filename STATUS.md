@@ -169,6 +169,54 @@
     created a `~/.claude/projects` entry (a memory directory and a session
     file). The coder removed both. Production-argv runs created none.
 
+- **Review round 2 at `8ca7bba`: ACCEPT with 3 non-blocking P2s.** Round 3
+  code commit `ad3037213fdfc1cf3090adc2a034b8cdbab2ffef`. Not pushed.
+  - The subscription login is re-checked after each backoff sleep, before
+    the relaunch.
+  - `liveclip doctor` warns (does not fail) when `claude auth status`
+    reports no account email, because the output identity guard is then
+    inactive. Only the boolean `account_identity_guard` is reported.
+  - `.env.example` states that `LIVECLIP_CLAUDE_MODEL` must be a full
+    `claude-` model ID.
+  - Round 3 checks:
+    - ruff, format, mypy and schema exit 0;
+    - `test_claude_cli_provider.py`, `test_codex_rate_limit_message.py` and
+      `test_dual_profile_evaluation.py`: 76 passed, exit 0.
+
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/round3/`.
+- **Benchmark runbook: freeze the reviewed Claude CLI binary.** The
+  interactive Claude Code install can update or re-touch
+  `/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe`
+  mid-run. The contract identity hashes the executable, so the run would
+  abort fail-closed. Before a Claude benchmark, in the worktree that runs
+  it:
+  1. Confirm `claude --version` is the reviewed version (2.1.308).
+  2. Copy it, keeping mode, to the ignored path
+     `.cache/claude-cli/2.1.308/claude`. `.cache/` is already in
+     `.gitignore`; check with `git check-ignore -v`, and never commit the
+     roughly 275 MB file.
+  3. Make the copy read-only (`chmod 0555`) and check that its sha256
+     equals the installed binary's.
+  4. Set `LIVECLIP_CLAUDE_EXECUTABLE=<absolute path of the copy>` and
+     `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
+  5. Run `liveclip doctor` (`claude_cli` must pass with `reviewed_version`
+     2.1.308 and `subscription` true) and one `liveclip smoke-claude`.
+  6. Run `dual-profile-eval --discovery-concurrency 3`.
+
+  Verified 2026-10-21 in the Stage 7 worktree:
+  - The copy's sha256
+    `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`
+    equals the installed binary's, with the same Anthropic code signature.
+  - Doctor `claude_cli` passed: 2.1.308, `claude.ai`, subscription true,
+    identity guard active.
+  - Real `smoke-claude` succeeded in 4578 ms (7.3 s wall under a 300 s
+    guard), with no keychain prompt or hang.
+  - The frozen copy's contract differs from the installed path's only
+    because the identity includes the executable path. Use one path for
+    the whole run.
+  - Global Claude settings were not changed. The copy also never
+    self-updates, because the child env forces `DISABLE_AUTOUPDATER=1`.
+
 ## Stage 6 engineering follow-ups (2026-10-21) — IN PROGRESS, pending acceptance
 
 - **Status: IN PROGRESS, pending tester and reviewer acceptance** on local

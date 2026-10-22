@@ -26,6 +26,17 @@
       - ruff, format, mypy and schema exit 0;
       - targeted pytest 670 passed, exit 0;
       - real 2.1.308 canary and smoke passed.
+  - Review round 2 at `8ca7bba`: ACCEPT with 3 P2s, fixed in round 3 code
+    commit `ad3037213fdfc1cf3090adc2a034b8cdbab2ffef`:
+    - the subscription check re-runs after each backoff sleep;
+    - doctor warns when no account email is reported;
+    - the model-ID comment in `.env.example`.
+
+    The benchmark runbook now freezes the reviewed binary under the ignored
+    `.cache/claude-cli/<version>/claude` and points
+    `LIVECLIP_CLAUDE_EXECUTABLE` at it. This was verified with a real doctor
+    run and a real smoke. Round 3 checks: lint exit 0, 76 targeted tests
+    passed.
   - Scope:
     - the provider (`src/liveclip/providers/llm/claude_cli.py`);
     - settings and selection;

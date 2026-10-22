@@ -277,3 +277,12 @@ Stage 7 review round 1 (`7340355`): CHANGES_REQUIRED, 2 P1. Fix commit
 
 It is pending tester and reviewer. The first Claude benchmark uses
 `--discovery-concurrency 3`.
+
+Stage 7 review round 2 (`8ca7bba`): ACCEPT with 3 P2s, fixed in round 3
+`ad30372`. Before a Claude benchmark:
+- freeze the reviewed CLI binary to `.cache/claude-cli/2.1.308/claude`;
+- point `LIVECLIP_CLAUDE_EXECUTABLE` at it;
+- run doctor and `smoke-claude`;
+- use `--discovery-concurrency 3`.
+
+The runbook is in `STATUS.md`.
