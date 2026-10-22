@@ -9,6 +9,23 @@
   `liveclip dual-profile-eval` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
   Status: **IN PROGRESS, pending acceptance**.
   - Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`.
+  - Review round 1 at `7340355`: CHANGES_REQUIRED (2 P1, 7 P2). Fix commit
+    `fe4350a7ed8b553a9aca980bf78238f42fe6a3ed`, pending tester and reviewer.
+    - P1-1: the subscription login is re-verified in the provider
+      constructor and before every inference call.
+    - P1-2: the reviewed CLI is bumped to 2.1.308 after a full re-review,
+      and `DISABLE_AUTOUPDATER=1` is forced into every child and probe.
+    - P2s:
+      - Codex quota and usage caps are classified before the 429 rule;
+      - tool activity is checked first;
+      - an in-memory account-email output guard;
+      - full `claude-` model IDs only;
+      - the env policy is bound into the contract identity;
+      - extra tests.
+    - Round 2 checks:
+      - ruff, format, mypy and schema exit 0;
+      - targeted pytest 670 passed, exit 0;
+      - real 2.1.308 canary and smoke passed.
   - Scope:
     - the provider (`src/liveclip/providers/llm/claude_cli.py`);
     - settings and selection;
@@ -31,12 +48,25 @@
   dual-profile understanding engine uses the local Claude Code CLI. Real
   calls go through the subscription login only, never an API key.
   - Default model: `claude-opus-5-5`.
-  - Pinned CLI: `2.1.307`.
+  - Pinned CLI: `2.1.307`, then `2.1.308` after the CLI auto-updated the same
+    day (see the bump decision below).
 - 2026-10-21 Selection uses a dedicated `LIVECLIP_STRUCTURED_PROVIDER`
   rather than a new `LIVECLIP_AI_PROVIDER` value, because the latter also
   selects ASR and is persisted in pipeline run identity. `auto` keeps Codex
-  for `*-codex` modes, and Codex behaviour is unchanged apart from the 429
-  message.
+  for `*-codex` modes.
+- 2026-10-21 Codex changes (corrected in review round 2; the earlier wording
+  "unchanged apart from the 429 message" was inaccurate):
+  - Failure classification is widened. Status-style text such as
+    `status|http|code|error … 429` is now a rate limit. Since round 2, quota
+    and usage-cap markers (`insufficient_quota`, quota exceeded, usage limit)
+    are checked first, so a cap is never a transient rate limit.
+  - Zero-exit repair path: a run that exits 0 without a final message but
+    carries a 429 or quota error event now fails as
+    `CODEX_CLI_RATE_LIMITED` or `CODEX_CLI_QUOTA_EXHAUSTED`. Previously it
+    was `STRUCTURED_OUTPUT_INVALID` and consumed the schema repair.
+  - Rate-limit and quota errors carry a cause-specific message instead of
+    "structured model output could not be validated".
+  - No Codex retries were added.
 - 2026-10-21 Isolation without `--bare`. Bare mode never reads OAuth or the
   keychain, so it would force API-key auth; this was confirmed by a real
   "Not logged in" probe. Instead the provider combines:
@@ -54,7 +84,34 @@
   model. They are accepted as non-credential residual context.
 - 2026-10-21 The version pin is a reviewed code constant, as for Codex. It
   is not an environment setting, so an unreviewed CLI cannot be enabled by
-  configuration alone.
+  configuration alone. The Controller confirmed this in review round 1.
+- 2026-10-21 Reviewed bump procedure (also in the `claude_cli.py` comment).
+  For each new version:
+  1. Diff `claude --help` and `claude auth status --help` against the last
+     reviewed copies.
+  2. Run the isolation canary with the exact production argv and env, plus
+     a default-flag control.
+  3. Confirm `--bare` without a key is still "Not logged in" and that auth
+     status still reports `claude.ai` / `firstParty`.
+  4. Run one real `smoke-claude`.
+  5. Stop and report on any drift.
+
+  Applied to 2.1.308: the help text is byte-identical and the behaviour is
+  unchanged.
+- 2026-10-21 Auto-update. `DISABLE_AUTOUPDATER=1` is forced into the child
+  env; the user's global Claude settings are not changed. An interactive
+  Claude session that auto-updates the binary during a run changes the
+  executable hash and version, so the next call fails closed with an
+  identity or version error. The operator can disable auto-update during
+  benchmarks.
+- 2026-10-21 Controller decisions in review round 1:
+  - accept the account email as residual context, with the in-memory output
+    guard;
+  - no manifest schema change (`provider-calls.json` per-call retries
+    suffice);
+  - aliases are rejected;
+  - the code default discovery concurrency stays 5, and the first Claude
+    benchmark uses `--discovery-concurrency 3`.
 
 ## Stage 6 engineering follow-ups (2026-10-21)
 

@@ -267,3 +267,13 @@ It is on local branch `claude/liveclip-stage7-claude-cli` (from `ca80fb7`),
 code commit `84fe07efda188fcf49008908129f93571a74f0cd`, pending tester and reviewer. `smoke-claude` and
 three real Discovery windows passed. The full benchmark was not run. Details
 are in `STATUS.md`. Not pushed.
+
+Stage 7 review round 1 (`7340355`): CHANGES_REQUIRED, 2 P1. Fix commit
+`fe4350a`:
+- per-call subscription check;
+- CLI re-reviewed and pinned at 2.1.308;
+- `DISABLE_AUTOUPDATER=1` forced;
+- all P2s.
+
+It is pending tester and reviewer. The first Claude benchmark uses
+`--discovery-concurrency 3`.

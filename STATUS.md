@@ -103,6 +103,72 @@
   `retry_count` still counts only the semantic retries made by
   `dual_profile_evaluation`.
 
+- **Review round 1 at `7340355`: CHANGES_REQUIRED (2 P1, 7 P2).** Fixes are
+  in code commit `fe4350a7ed8b553a9aca980bf78238f42fe6a3ed`, pending tester
+  and reviewer. Not pushed.
+  - P1-1 (auth gate only once per run): `require_claude_subscription` now
+    runs in the provider constructor and before every inference call, next
+    to the contract re-check. If the login changes to an API key, a Console
+    account or a managed `apiKeyHelper`, the next call is refused before
+    launch.
+  - P1-2 (stale pin): the installed CLI auto-updated to 2.1.308. The full
+    re-review found no drift:
+    - the `--help` and `auth status --help` texts are byte-identical to
+      2.1.307;
+    - the production-argv canary (planted CLAUDE.md plus project hooks)
+      showed no CLAUDE.md, memory, skills, MCP or plugins, and the hook did
+      not fire; the only tool was `StructuredOutput`;
+    - the default-flag control saw the canary, 48 tools and 36 skills, and
+      fired the hook;
+    - `--bare` without a key returned "Not logged in";
+    - auth status reported `claude.ai` / `firstParty`;
+    - `smoke-claude` succeeded (4543 ms, 1 request).
+
+    The constant is now `2.1.308`, with a reviewed bump procedure in the
+    code comment: diff the help texts, run the canary plus control, run the
+    bare and auth probes, run one real smoke, and stop on any drift.
+  - Auto-update: `DISABLE_AUTOUPDATER=1` is forced into every child,
+    including the version and auth probes. The user's global Claude
+    settings are unchanged. An interactive Claude session that auto-updates
+    the binary mid-run changes the executable hash and version, so the next
+    call aborts fail-closed. The operator can disable auto-update during
+    benchmarks.
+  - P2s:
+    - Codex: quota and usage-cap markers are classified before the bare-429
+      rule, and a zero-exit quota event also skips the schema repair. In
+      full, round 1 widened 429 detection and added a zero-exit path;
+      round 2 added the cap-first ordering.
+    - Tool activity is checked first.
+    - The account email from the auth probe stays in memory only
+      (`repr=False`). An answer containing it, case-insensitively, is
+      `STRUCTURED_OUTPUT_INVALID`, and its output is dropped from the repair
+      payload, diagnostics and messages.
+    - `LIVECLIP_CLAUDE_MODEL` must be a full `claude-` ID; aliases are
+      rejected.
+    - The contract identity binds the env allowlist and the forced env
+      values.
+    - New tests cover:
+      - malformed auth probes;
+      - probe env;
+      - cancellation during backoff;
+      - the `_resolve_call` exhaustion message;
+      - the auth flip between calls.
+  - Controller decisions:
+    - the pin stays a code constant;
+    - the email is accepted as residual context, with the guard;
+    - no manifest schema change;
+    - the code default concurrency stays 5, and **the first Claude benchmark
+      uses `--discovery-concurrency 3`**.
+  - Round 2 checks:
+    - ruff, format, mypy and schema exit 0;
+    - targeted pytest 670 passed, exit 0;
+    - the full suite was left to the tester, as directed.
+
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/round2/`.
+  - Probe hygiene: the default-flag control and the `--bare` probe each
+    created a `~/.claude/projects` entry (a memory directory and a session
+    file). The coder removed both. Production-argv runs created none.
+
 ## Stage 6 engineering follow-ups (2026-10-21) — IN PROGRESS, pending acceptance
 
 - **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
