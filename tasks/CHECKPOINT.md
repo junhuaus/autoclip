@@ -241,3 +241,8 @@ The code commit is `a22f9d3`; acceptance is pending.
 - Stage 1 P2-5 is kept strict; the operator question is recorded.
 
 Details are in `STATUS.md`. Not pushed.
+
+Stage 6 review round 1: reviewer ACCEPT at `670478e`, 0 P0/P1, 3 P2. Fix
+round 2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`) is pending acceptance:
+deterministic suspend tests, a remaining-lease renewal rule, and an operator
+note on the `--output-dir` restrictions.

@@ -25,9 +25,22 @@
   - Stage 1 Earlier P2-5: not changed. See the Decision Log.
 
   Evidence and remaining follow-ups are in `STATUS.md`.
+- [ ] 2026-10-21 Stage 6 review round 1: reviewer ACCEPT at `670478e` (0
+  P0/P1, 3 P2). Fix round 2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`), pending
+  acceptance: deterministic in-thread suspends in the suspend tests (P2-1);
+  a remaining-lease renewal rule for failed post-wake renewals and suspends
+  before the first poll (P2-2); an operator note on the `--output-dir`
+  restrictions in `STATUS.md` (P2-3).
 
 ### Decision Log
 
+- 2026-10-21 (Stage 6 round 2, coder; pending review) In addition to the jump
+  rule, the monitor renews on every poll while less than half a heartbeat
+  interval of wall-clock lease remains. Half an interval is below the
+  `lease - heartbeat > heartbeat` margin that settings guarantee, so normal
+  operation is unchanged, and it leaves 15 s of retries with the defaults.
+  The remaining lease is measured on the monitor's own wall clock so that an
+  injected queue `now` cannot cause repeated heartbeats.
 - 2026-10-21 (Stage 6, coder; pending review) Agent v2 risk discovery keeps
   counting only final candidates. MD sections 3.8, 6 and 10 require a risk to
   be discovered and then routed to `manual_review`/`blocked`, and FAIL a risk

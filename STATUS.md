@@ -130,6 +130,65 @@
     `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/`.
   - The coder did not run the full backend suite or `make e2e`; the tester
     owns them.
+- **Operator note: `scripts/evaluate_agent_benchmark.py --output-dir`
+  restrictions (new since Stage 6).**
+  - Missing parent directories are created no-follow with mode `0700`, not
+    the umask default that `mkdir -p` used before.
+  - A path containing `..` is refused, including a relative one.
+  - Every path component must be a real directory. On macOS `/tmp/...` is
+    refused because `/tmp` is a symlink to `/private/tmp`; use
+    `/private/tmp/...`. A symlinked chain is refused before anything is
+    written, so no staging directory is left behind.
+  - The output directory itself must not exist, not even empty (unchanged).
+- Review round 1: reviewer **ACCEPT at `670478e`**, 0 P0/P1, 3 P2. Fix round
+  2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`), pending acceptance:
+  - P2-1 (flaky test): in `test_suspend_longer_than_lease_still_loses_the_lease`
+    the main thread could shift the clock between a poll's wall read and
+    `observe`, so the lease was lost through `observe` with no heartbeat.
+    Every suspend during monitoring is now applied from inside the monitor
+    thread, right after the N-th `observe` returns, so it always lands
+    between two polls. The assertions are kept (`heartbeats == [None]`,
+    expiry unchanged, a later heartbeat refused).
+  - P2-2 (robustness): the jump rule had two false negatives: a renewal
+    after a jump that failed transiently (for example SQLite locked when many
+    processes wake) was retried only one monotonic interval (30 s) later,
+    and a suspend before the monitor's first poll was not seen. The monitor
+    now also makes the heartbeat due on every poll while less than half a
+    heartbeat interval of wall-clock lease remains
+    (`_RENEW_WITHIN_HEARTBEAT_FRACTION = 0.5`, 15 s with the defaults).
+    - The remaining lease is measured on the monitor's own wall clock: the
+      lease length is `lease_expires_at - heartbeat_at` of the claimed lease,
+      and the renewal start is read just before each successful heartbeat.
+      An injected queue `now` (as in the completion inspection tests) can
+      therefore cause at most one early heartbeat at the first poll.
+    - Settings require `lease > 2 * heartbeat`, so a paced heartbeat always
+      finds more than one interval (90 s with the defaults) remaining, and
+      the rule never fires in normal operation.
+    - Fencing is unchanged: renewal still goes only through the fenced
+      heartbeat SQL; an expired lease is refused and lost.
+    - Known limit: after a sleep that leaves more than 15 s, a failed
+      renewal is retried once less than 15 s remain (still before expiry),
+      not on the very next poll.
+    - New deterministic tests: a failed first renewal after a 110 s sleep is
+      retried on the next poll; a 110 s suspend before the first poll is
+      renewed; a 121 s suspend before the first poll is still lost; 20 s
+      remaining with no jump does not renew early; the jump test now covers
+      95 s (jump rule only) and 110 s.
+    - Mutation checks: with the round-1 monitor (`670478e`) the three new
+      rule tests fail and the other five pass; with the pre-Stage 6 monitor
+      (`ca80fb7`) six fail and two pass.
+  - P2-3 (docs): the operator note above.
+  - Coder checks for round 2: at `039c998`, under `caffeinate -dims`:
+    ruff check, ruff format ("448 files already formatted"), mypy (230
+    source files) and the schema check all exit 0; targeted pytest exit 0,
+    333 passed in 562.00 s (the round-1 files plus
+    `test_completion_selection.py`, `test_completion_identity.py`,
+    `test_import_only_pipeline.py` and `test_stage_asset_integrity.py`,
+    without the evaluator and `secure_files` files, which round 2 did not
+    touch); the suspend and lease monitor unit tests 20 times in a loop, 11
+    passed each time, all exit 0.
+  - Round 2 logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/round2/`.
 - Caveats: deterministic validation only; mock/fixture tests. No rendering
   acceptance, human editorial/audio review or model inference.
 
