@@ -1,5 +1,61 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 7 Claude CLI structured provider (2026-10-21)
+
+### Progress
+
+- [ ] 2026-10-21 On local branch `claude/liveclip-stage7-claude-cli` (from
+  `ca80fb7`), add `ClaudeCliStructuredLLMProvider` and select it for
+  `liveclip dual-profile-eval` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
+  Status: **IN PROGRESS, pending acceptance**.
+  - Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`.
+  - Scope:
+    - the provider (`src/liveclip/providers/llm/claude_cli.py`);
+    - settings and selection;
+    - the `claude_cli` doctor check;
+    - `liveclip smoke-claude` and `make smoke-claude`;
+    - the Codex 429 message;
+    - an optional `cwd` for `run_cancellable_process`.
+  - Coder checks: ruff, format, mypy and schema exit 0. Targeted pytest (new tests plus settings, doctor, Codex, structured, semantic, process, readiness, dual-profile and stage-handler suites): 651 passed, exit 0. The full suite did not complete on the overloaded host (load average about 90); one timing-sensitive integration test that failed there passed when re-run alone. The tester's `make test` is authoritative.
+  - Real calls (authorized, subscription login): `smoke-claude` succeeded.
+    Three real dual-profile Discovery windows on the committed fixture
+    passed schema and deterministic validation. The full benchmark was not
+    run.
+
+  Evidence, argv, isolation findings and caveats are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 Operator directive: after Codex 429 failures in cold-19 and
+  cold-20 (concurrent Discovery burst on the ChatGPT login), the
+  dual-profile understanding engine uses the local Claude Code CLI. Real
+  calls go through the subscription login only, never an API key.
+  - Default model: `claude-opus-5-5`.
+  - Pinned CLI: `2.1.307`.
+- 2026-10-21 Selection uses a dedicated `LIVECLIP_STRUCTURED_PROVIDER`
+  rather than a new `LIVECLIP_AI_PROVIDER` value, because the latter also
+  selects ASR and is persisted in pipeline run identity. `auto` keeps Codex
+  for `*-codex` modes, and Codex behaviour is unchanged apart from the 429
+  message.
+- 2026-10-21 Isolation without `--bare`. Bare mode never reads OAuth or the
+  keychain, so it would force API-key auth; this was confirmed by a real
+  "Not logged in" probe. Instead the provider combines:
+  - `--setting-sources=` (this flag, not `--system-prompt`, is what
+    suppresses CLAUDE.md);
+  - `--safe-mode` and `--disable-slash-commands`;
+  - `--strict-mcp-config` with an empty MCP config;
+  - `--tools=`, `--disallowed-tools`, `--permission-mode dontAsk` and
+    `--permission-prompts none`;
+  - a minimal `--system-prompt`;
+  - a fresh empty cwd;
+  - an allowlisted env.
+
+  An environment block and an account-email reminder remain visible to the
+  model. They are accepted as non-credential residual context.
+- 2026-10-21 The version pin is a reviewed code constant, as for Codex. It
+  is not an environment setting, so an unreviewed CLI cannot be enabled by
+  configuration alone.
+
 ## Stage 6 engineering follow-ups (2026-10-21)
 
 ### Progress

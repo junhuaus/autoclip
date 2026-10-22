@@ -250,3 +250,20 @@ note on the `--output-dir` restrictions.
 Stage 6 review round 2: reviewer ACCEPT at `fc06b3e`, one P2 and one nit.
 Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`) is pending acceptance; it
 also fixes a false jump from a descheduled monitor thread, found under load.
+
+## Stage 7 in progress (2026-10-21)
+
+Operator directive: the dual-profile understanding engine moves to the local
+Claude Code CLI after Codex 429 failures in cold-19 and cold-20. Stage 7 adds
+`ClaudeCliStructuredLLMProvider`, selected with
+`LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
+- Default model: `claude-opus-5-5`; CLI pinned to `2.1.307`.
+- Subscription login only: the child env is allowlisted and API-key logins
+  are refused.
+- Context isolation without `--bare`.
+- Bounded 429/529 backoff that names the real cause.
+
+It is on local branch `claude/liveclip-stage7-claude-cli` (from `ca80fb7`),
+code commit `84fe07efda188fcf49008908129f93571a74f0cd`, pending tester and reviewer. `smoke-claude` and
+three real Discovery windows passed. The full benchmark was not run. Details
+are in `STATUS.md`. Not pushed.

@@ -11,6 +11,98 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 7 Claude CLI structured provider (2026-10-21) — IN PROGRESS, pending acceptance
+
+- **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
+  branch `claude/liveclip-stage7-claude-cli`, created from `ca80fb7` (Stage 4
+  docs tip). Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`. Not pushed or merged.
+- Operator directive (2026-10-21): the dual-profile understanding engine
+  switches to the local Claude Code CLI. Reason: the real benchmark runs
+  cold-19 and cold-20 failed within about 7 s. The Codex ChatGPT login
+  returned 429 Too Many Requests on the concurrent Discovery burst, and the
+  pipeline reported only "structured model output could not be validated".
+  Real Claude CLI calls are authorized through the subscription login only,
+  never an API key.
+- What changed:
+  - New `ClaudeCliStructuredLLMProvider` (`src/liveclip/providers/llm/claude_cli.py`).
+    It mirrors the Codex structured provider: the same prompts and payloads,
+    the same strict schema, the single schema repair, and the same
+    `provider-calls.json` and `run-manifest.json` records with
+    `provider=claude_cli`.
+  - Selection: `LIVECLIP_STRUCTURED_PROVIDER=auto|codex-cli|claude-cli`
+    (default `auto`, which keeps the historical Codex mapping). A separate
+    setting is used because `LIVECLIP_AI_PROVIDER` also selects ASR and is
+    persisted in pipeline run identity.
+  - Settings: `LIVECLIP_CLAUDE_EXECUTABLE` (default `claude`),
+    `LIVECLIP_CLAUDE_MODEL` (default `claude-opus-5-5`), a 900 s timeout,
+    and retry settings (5 attempts, 5 s base, 60 s per-wait cap, 300 s
+    total-wait cap).
+  - Efforts map one-to-one: medium for Discovery, high for boundary and
+    global review.
+  - Version pin: CLI `2.1.307` only. The contract identity
+    `claude-cli-editorial-v1.<version>.<sha256>` binds the executable hash,
+    the version, the security profile and an argv-template hash. Cache keys
+    therefore never mix Codex and Claude results.
+  - Rate limits: 429, 529, 5xx and connection errors get exponential
+    backoff with equal jitter. Retries are counted in the call record's
+    `request_count`/`retry_count`. On exhaustion the error names the cause,
+    for example "Claude CLI rate limited (429) after 5 attempts". A
+    subscription usage cap and schema failures are never retried as rate
+    limits.
+  - Codex (small): a 429 now surfaces as "Codex CLI rate limited (429 Too
+    Many Requests) after N attempt(s)". A zero-exit run with no final message
+    but a 429 error event no longer consumes the schema repair. Codex retries
+    were not added.
+  - `liveclip doctor` gains a `claude_cli` check (version, contract, logged
+    in, auth method type, subscription yes/no). New `liveclip smoke-claude`
+    and `make smoke-claude`. `run_cancellable_process` gains an optional
+    `cwd`.
+- Isolation and auth design, verified with real calls:
+  - argv: `--print --output-format json --json-schema <schema> --model
+    --effort --no-session-persistence --tools= --disallowed-tools <list>
+    --permission-mode dontAsk --permission-prompts none
+    --disable-slash-commands --strict-mcp-config --mcp-config
+    {"mcpServers":{}} --setting-sources= --safe-mode --system-prompt
+    <minimal>`. The LiveClip prompt goes on stdin unchanged, with cwd set to
+    a fresh empty temp directory.
+  - `--bare` is not used. Its help says OAuth and keychain are never read; a
+    real `--bare` probe without an API key returned "Not logged in".
+  - The child env is an allowlist (HOME, PATH, USER, LOGNAME, TMPDIR, LANG,
+    LC_ALL, SSL_CERT_FILE, SSL_CERT_DIR). `ANTHROPIC_*`, `CLAUDE_CODE_*` and
+    `CLAUDECODE` are never passed. The run factory refuses any login whose
+    `claude auth status` method is not `claude.ai` with provider
+    `firstParty`.
+  - Real probe in a canary directory with a planted `CLAUDE.md` and project
+    hooks: no CLAUDE.md, memory, skills, MCP servers, plugins or hooks were
+    seen, and the hook did not fire. The only tool was the built-in
+    `StructuredOutput`. A control run with default flags did see the
+    canary, the skills and the MCP servers.
+  - Residual context that cannot be removed without `--bare`: an
+    environment block (temp cwd, platform, date, model name) and an
+    auto-attached account-email reminder. Neither is a credential.
+  - No new `~/.claude/projects` or `~/.claude.json` project entries appeared.
+- Real-call evidence (authorized, subscription login, auth method
+  `claude.ai`):
+  - `smoke-claude`: succeeded, 4542 ms, 1 request, schema valid.
+  - Real dual-profile Discovery on the committed fixture
+    `tests/fixtures/8-30-full-transcript.srt`, `claude-opus-5-5`, effort
+    medium. All three calls passed schema and deterministic validation with
+    no repair and no retry:
+    - `short_highlight` window 0: 6.6 s, 0 candidates;
+    - `short_highlight` window 5: 37.0 s, 5 candidates;
+    - `mini_lesson` window 2: 31.0 s, 3 candidates (the last two ran
+      concurrently).
+  - The full 75-minute benchmark was **not** run; the Controller dispatches
+    it separately.
+- Coder checks: see the Stage 7 Progress entry in
+  `docs/exec-plans/liveclip-agent-runtime-v2.md`. Logs:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/`.
+- Caveats: deterministic tests use fake `claude` executables. Real calls
+  prove only the smoke and three Discovery windows, not benchmark quality.
+  `provider-calls.json` carries transport retries per call. The manifest
+  `retry_count` still counts only the semantic retries made by
+  `dual_profile_evaluation`.
+
 ## Stage 6 engineering follow-ups (2026-10-21) — IN PROGRESS, pending acceptance
 
 - **Status: IN PROGRESS, pending tester and reviewer acceptance** on local
