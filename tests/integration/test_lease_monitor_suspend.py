@@ -162,10 +162,14 @@ def held(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Held]:
         engine.dispose(close=True)
 
 
-def _wait_for_polls(held: _Held, count: int) -> None:
+def _wait_for_polls(held: _Held, monitor: LeaseMonitor, count: int) -> None:
     deadline = time.monotonic() + WAIT_SECONDS
     while len(held.observes) < count:
-        assert time.monotonic() < deadline, "monitor did not poll"
+        assert time.monotonic() < deadline, (
+            f"monitor did not poll: observes={len(held.observes)} "
+            f"heartbeats={held.heartbeats!r} "
+            f"thread_alive={monitor._thread.is_alive()} lost_lease={monitor.lost_lease}"
+        )
         time.sleep(0.005)
 
 
@@ -300,7 +304,7 @@ def test_without_a_wall_clock_jump_the_heartbeat_schedule_is_unchanged(
     monitor = held.monitor()
     monitor.start()
     try:
-        _wait_for_polls(held, 25)
+        _wait_for_polls(held, monitor, 25)
     finally:
         monitor.stop()
 
@@ -345,7 +349,7 @@ def test_a_stall_between_clock_reads_is_not_a_jump(
     monitor = held.monitor()
     monitor.start()
     try:
-        _wait_for_polls(held, 25)
+        _wait_for_polls(held, monitor, 25)
     finally:
         monitor.stop()
 
@@ -365,7 +369,7 @@ def test_more_than_half_an_interval_remaining_does_not_renew_early(held: _Held) 
     monitor = held.monitor()
     monitor.start()
     try:
-        _wait_for_polls(held, 20)
+        _wait_for_polls(held, monitor, 20)
     finally:
         monitor.stop()
 
