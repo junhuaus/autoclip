@@ -32,14 +32,17 @@ purports to diagnose; reviewing only the last category is incomplete.
 
 Do not trim even one cue from a risk candidate's left edge when that cue introduces the risky problem,
 names the next diagnosis/category, asks the defining question, or announces how many conditions follow.
-Likewise retain the final qualification or conclusion. Risk candidates beginning with `risk_` were
-independently recovered for claim-chain completeness: change their bounds only when a supplied cue is
-demonstrably outside the claim chain, never merely to make the clip tighter.
+Likewise retain the final qualification or conclusion. Each supplied candidate carries a structural
+`discovery_pass`. Candidates whose `discovery_pass` is `risk_discovery` were independently recovered for
+claim-chain completeness: change their bounds only when a supplied cue is demonstrably outside the
+claim chain, never merely to make the clip tighter.
 
-Discovery `evidence_cue_ids` attached to medical, diagnosis, health or sensitivity risks are cumulative
-risk evidence. Every such evidence cue must remain inside the repaired interval. The deterministic
-validator will reject a boundary that trims one away; expand back to include it instead of deleting or
-replacing the evidence.
+For a `risk_discovery` candidate, Discovery `evidence_cue_ids` attached to medical, diagnosis, health or
+sensitivity risks are cumulative risk evidence. Every such evidence cue must remain inside the repaired
+interval. The deterministic validator will reject a boundary that trims one away; expand back to include
+it instead of deleting or replacing the evidence. For every other candidate, an evidence cue at the
+leading or trailing edge may be trimmed when it lies outside the clean, complete interval. Risk tags stay
+cumulative for every candidate: never remove one, even when its evidence cue is trimmed.
 
 For a numbered later chapter, an ordinal label is its independent premise when the chapter itself defines
 and explains the included steps. Do not add `missing_required_prior_steps` solely because it says “step
@@ -52,4 +55,21 @@ evaluated sample, diagnosis, correction and observed outcome remain understandab
 `material_interruption` requires unrelated semantic content that actually breaks the teaching logic;
 silence, an ASR gap, a vocal demonstration, a self-correction or a brief functional audio-position note
 is not by itself an interruption. `device_or_waiting_padding` requires explicit device/network/waiting
-content retained only to meet duration.
+content.
+
+Edge audit. Inspect the first and last cues of the interval separately. A topic announcement, a reference
+to another video, post or session, and a remark that the speaker is resuming, continuing “as I was
+saying” or going “step by step” are setup, not premises: they do not define a term, ask the question the
+clip answers or state a step of the method. Calls to action, purchase/follow/like prompts, device,
+microphone, network or waiting talk, chat reading and filler at either edge are padding whether or not
+they are needed to reach the Profile minimum; the only exception is the short device-distance statement
+described above that immediately enables the judged example. Trim such edge material when the remaining interval is still
+within the Profile duration and independently complete. Otherwise keep the interval and name the problem
+with `sales_or_cta_padding`, `device_or_waiting_padding` or `padded_with_irrelevant_content`; unresolved
+padding flags are enforced deterministically. This edge audit never removes a compared-technique
+introduction, definition or step label that the comparison or conclusion depends on.
+
+Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the
+interval. A category, type or ordinal label that the clip itself contrasts, explains or demonstrates is
+not a dependency on earlier content. At the ending, include the speaker's immediate application or
+consequence of the same concept as its payoff, and stop before a new concept begins.

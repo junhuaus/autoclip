@@ -23,6 +23,8 @@ from liveclip.pipeline.dual_profile import (
     DualProfileRunManifest,
     DualRiskTag,
     GlobalReviewItem,
+    NestedPairDecision,
+    NestedPairDecisionKind,
     ProfileBoundaryReviewOutput,
     ProfileDiscoveryOutput,
     ProfileGlobalAuditOutput,
@@ -116,6 +118,7 @@ class ScriptedDualProvider:
                 ProfileGlobalAuditOutput(
                     profile=ClipProfile(str(payload["profile"])),
                     replacements=(),
+                    nested_pair_decisions=(),
                     audit_reason="Mock audit found no corrections.",
                 ),
             )
@@ -446,6 +449,108 @@ class RiskRoutingProvider(ScriptedDualProvider):
         return output
 
 
+class NestedPairProvider(ScriptedDualProvider):
+    """Mini Discovery returns a nested same-start pair; the first audit omits its decision."""
+
+    def __init__(self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int]) -> None:
+        super().__init__(prompt, counter)
+        self.payloads: list[tuple[str, dict[str, object]]] = []
+        self.audit_repairs = 0
+
+    def generate(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        self.payloads.append((response_model.__name__, payload))
+        return super().generate(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            cancel_requested=cancel_requested,
+        )
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs += 1
+            assert any("cover every listed nested pair" in value for value in validation_errors)
+            initial = ProfileGlobalReviewOutput.model_validate_json(
+                json.dumps(payload["initial_global_review"])
+            )
+            outer = next(
+                value for value in initial.reviews if value.candidate_id == "mini_lesson_lesson"
+            )
+            output = ProfileGlobalAuditOutput(
+                profile=ClipProfile.MINI_LESSON,
+                replacements=(
+                    outer.model_copy(
+                        update={
+                            "review_status": CandidateDisposition.REJECTED,
+                            "duplicate_of_candidate_id": "mini_inner",
+                            "score": 60.0,
+                            "review_reason": "Same objective; the inner unit is complete.",
+                        }
+                    ),
+                ),
+                nested_pair_decisions=(
+                    NestedPairDecision(
+                        outer_candidate_id="mini_lesson_lesson",
+                        inner_candidate_id="mini_inner",
+                        decision=NestedPairDecisionKind.DUPLICATE,
+                        reason="Same objective; keep the shortest complete unit.",
+                    ),
+                ),
+                audit_reason="Resolved the listed nested pair.",
+            )
+            return StructuredCallResult(
+                output=cast(OutputModel, output), call_records=(), repaired=True
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        output = super()._output(payload, response_model)
+        if (
+            response_model is ProfileDiscoveryOutput
+            and payload.get("profile") == ClipProfile.MINI_LESSON.value
+            and payload.get("discovery_pass") is None
+        ):
+            discovery = cast(ProfileDiscoveryOutput, output)
+            if discovery.candidates:
+                inner = discovery.candidates[0].model_copy(
+                    update={
+                        "candidate_id": "mini_inner",
+                        "end_cue_id": 10,
+                        "evidence_cue_ids": (1, 10),
+                    }
+                )
+                return cast(
+                    OutputModel,
+                    discovery.model_copy(update={"candidates": (*discovery.candidates, inner)}),
+                )
+        return output
+
+
 def _write_srt(path: Path) -> None:
     cues = []
     for index in range(1, 71):
@@ -558,6 +663,52 @@ def test_service_routes_rejections_from_the_risk_pass_structurally(tmp_path: Pat
     assert mini.statistics.discovered == 3
 
 
+def test_global_audit_must_decide_python_listed_nested_pairs(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[NestedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = NestedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    payloads = [item for provider in providers for item in provider.payloads]
+    audit_payloads = [
+        payload
+        for name, payload in payloads
+        if name == "ProfileGlobalAuditOutput" and payload["profile"] == "mini_lesson"
+    ]
+    assert audit_payloads[0]["nested_pairs"] == [
+        {"outer_candidate_id": "mini_lesson_lesson", "inner_candidate_id": "mini_inner"}
+    ]
+    boundary_payloads = [
+        payload for name, payload in payloads if name == "ProfileBoundaryReviewOutput"
+    ]
+    global_payloads = [payload for name, payload in payloads if name == "ProfileGlobalReviewOutput"]
+    for payload in (*boundary_payloads, *global_payloads):
+        for entry in cast(list[dict[str, object]], payload["candidates"]):
+            assert entry["discovery_pass"] == "base"
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_inner"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_inner"
+
+
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
     short = load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT)
     mini = load_dual_profile_prompt("discovery", ClipProfile.MINI_LESSON)
@@ -596,6 +747,63 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
     assert "candidate_id` must start with `audit_" in audit.instructions
     assert "ownership_interval` literally" in audit.instructions
     assert "strictly less than `ownership_interval.end_ms`" in audit.instructions
+
+
+# Discovery-family prompt identities are frozen: a change would invalidate every
+# cached Discovery call.  Review-stage prompts may evolve independently.
+FROZEN_DISCOVERY_PROMPT_HASHES = {
+    ("short_highlight", "discovery"): (
+        "560083a53e4a04c9d8917c7efeed32849269141ece13df60a522e83ba0d3ef07"
+    ),
+    ("short_highlight", "coverage_audit"): (
+        "5cf38c6d0cff076721437ecb88e64c3b37b7e942af9d7c7756d8c71220b2727d"
+    ),
+    ("mini_lesson", "discovery"): (
+        "bd807b720db282447efc180dfec11f1aa2d94a173d8e4de2bb78b82cbc83b885"
+    ),
+    ("mini_lesson", "coverage_audit"): (
+        "057f0a5bb3a3bdeb24c08dc44cd3f78e6c148742390475c226da4f3fcff091f3"
+    ),
+    ("mini_lesson", "precision_audit"): (
+        "ef399dc6090a7f108a07cee47f858ab28d61b7f00e2d048583ca6cf05d8ec443"
+    ),
+    ("mini_lesson", "precision_confirmation"): (
+        "3ccb77bc963fa0e906207c33a55297dc1245021e8c6e47ad26e1ee4e1a82c5aa"
+    ),
+    ("mini_lesson", "risk_discovery"): (
+        "f136669d1b7560711c74e31b3ed3326cfab6c5df9e0c462d8acca5c12b03f3f9"
+    ),
+}
+
+
+def test_discovery_prompt_identities_are_unchanged() -> None:
+    for (profile, stage), expected in FROZEN_DISCOVERY_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt(stage, ClipProfile(profile)).sha256 == expected
+
+
+def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> None:
+    def text(stage: Any, profile: ClipProfile) -> str:
+        return " ".join(load_dual_profile_prompt(stage, profile).instructions.split())
+
+    for profile in ClipProfile:
+        boundary = text("boundary_review", profile)
+        review = text("global_review", profile)
+        audit = text("global_audit", profile)
+        assert "beginning with `risk_`" not in boundary
+        assert "`discovery_pass` is `risk_discovery`" in boundary
+        assert "only to meet duration" not in boundary
+        assert "whether or not they are needed to reach the Profile minimum" in boundary
+        assert "setup, not premises" in boundary
+        for value in (boundary, review, audit):
+            assert "meaning cannot be recovered from cues inside the interval" in value
+            assert "is not a dependency" in value
+            assert "immediate application or consequence of the same concept" in value
+        assert "also remove `missing_required_prior_steps`" not in audit
+        assert "Boundary Review quality flags are cumulative" in review
+        assert "Boundary Review quality flags are cumulative" in audit
+        assert "`nested_pair_decisions`" in audit
+        assert "containment or a shared edge alone never establishes duplication" in audit
+        assert "shortest independently complete candidate" in audit
 
 
 def test_service_allows_one_deterministic_repair_after_provider_schema_repair(

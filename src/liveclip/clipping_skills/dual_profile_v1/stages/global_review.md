@@ -42,6 +42,14 @@ the current step and reaches the chapter conclusion, it is independently underst
 `missing_required_prior_steps` only when the omitted material contains an actual instruction, result or
 definition without which the current method cannot be understood or performed.
 
+Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the
+interval. A category, type or ordinal label that the clip itself contrasts, explains or demonstrates is
+not a dependency on earlier content. The speaker's immediate application or consequence of the same
+concept is the candidate's payoff, not padding; a new concept after it is outside the candidate. Each
+candidate carries a structural `discovery_pass`; treat `risk_discovery` candidates as dedicated risk
+records. Boundary Review quality flags are cumulative: Python merges them with yours and enforces every
+unresolved flag deterministically, so omitting a Boundary flag from your item never clears it.
+
 For a choice or expression lesson, the opening enumeration of available techniques and the explanation
 that their difference is small are required premises for a later “choose by intended sound” conclusion.
 Do not retain a shorter duplicate that begins only at the conclusion and drops those premises. For a live

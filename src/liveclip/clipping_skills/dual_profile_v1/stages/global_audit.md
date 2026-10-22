@@ -44,7 +44,12 @@ Pay special attention to:
 - later chapters incorrectly marked as missing prior steps merely because they refer to an earlier
   technique. When the chapter locally names that technique, states its role and explains its combination
   with the current step, the reference is self-contained rather than a missing prerequisite. When you
-  correct that error, also remove `missing_required_prior_steps`; status, flags and reason must agree;
+  correct that error, do not repeat `missing_required_prior_steps` in your replacement item;
+  status, flags and reason must agree with the merged flags described below;
+- misapplied `context_dependent_opening`: use it only when the opening's meaning cannot be recovered
+  from cues inside the interval. A category, type or ordinal label that the clip itself contrasts,
+  explains or demonstrates is not a dependency; the speaker's immediate application or consequence of
+  the same concept is the payoff, and a new concept after it is outside the candidate;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
 - risk chains whose opening question/category count or final qualification was trimmed;
 - coherent lessons overblocked because a lyric, song name or isolated term is mistranscribed even though
@@ -59,3 +64,22 @@ narrower later diagnosis replace an overview-to-first-category risk chain. Do no
 initial decision merely to manufacture quantity.
 An empty `replacements` array is valid only when the initial review has no completeness or representative
 error after this audit.
+
+Boundary Review quality flags are cumulative: Python merges them with the review item's flags and
+enforces every unresolved flag deterministically. Removing a flag from a replacement item never clears a
+Boundary flag, so choose a status consistent with the merged flags.
+
+Nested pairs. The payload's `nested_pairs` lists, from the initial review, every same-Profile pair of
+`selected`/`manual_review` candidates that share a start or end cue so that one contains the other.
+Return `nested_pair_decisions` with exactly one entry for each listed pair and no other entries; return
+an empty array when `nested_pairs` is empty. Decide each pair on its content: containment or a shared
+edge alone never establishes duplication.
+
+- `duplicate`: both serve the same central objective. Prefer the shortest independently complete
+  candidate as the representative, and include replacement items so that the other one is `rejected`
+  (a `risk_discovery` candidate may instead be `blocked`) with `duplicate_of_candidate_id` naming the
+  representative.
+- `distinct_objective`: each has its own question, objective or conclusion. Neither may reference the
+  other as its duplicate.
+
+Give a concise reason for every decision.

@@ -23,8 +23,11 @@ from liveclip.pipeline.dual_profile import (
     FinalProfileCandidate,
     FinalProfileResult,
     GlobalReviewItem,
+    NestedPairDecision,
+    NestedPairDecisionKind,
     ProfileBoundaryReviewOutput,
     ProfileDiscoveryOutput,
+    ProfileGlobalAuditOutput,
     ProfileGlobalReviewOutput,
     ProfileManifestStats,
     RawProfileCandidate,
@@ -32,11 +35,13 @@ from liveclip.pipeline.dual_profile import (
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
+    nested_candidate_pairs,
     plan_profile_discovery_windows,
     profile_statistics,
     semantic_cache_key,
     validate_boundary_review_output,
     validate_discovery_output,
+    validate_nested_pair_decisions,
 )
 from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm.structured import _structured_preflight_errors
@@ -253,6 +258,27 @@ def test_boundary_review_cannot_trim_discovery_health_risk_evidence() -> None:
             profile=profile,
             candidates=(raw,),
             transcript=TRANSCRIPT,
+            risk_record_ids=frozenset({raw.candidate_id}),
+        )
+    # The evidence lock is structural: a non-risk-pass candidate with the same
+    # risk tag may trim an edge evidence cue, but never drop the risk tag itself.
+    trimmed = validate_boundary_review_output(
+        ProfileBoundaryReviewOutput(profile=profile, reviews=(review,)),
+        profile=profile,
+        candidates=(raw,),
+        transcript=TRANSCRIPT,
+        risk_record_ids=frozenset(),
+    )
+    assert trimmed.reviews[0].start_cue_id == 826
+    with pytest.raises(ValueError, match="silently removed a Discovery risk"):
+        validate_boundary_review_output(
+            ProfileBoundaryReviewOutput(
+                profile=profile, reviews=(review.model_copy(update={"risk_tags": ()}),)
+            ),
+            profile=profile,
+            candidates=(raw,),
+            transcript=TRANSCRIPT,
+            risk_record_ids=frozenset(),
         )
 
 
@@ -796,6 +822,108 @@ def test_routing_policy_marker_accepts_v1_and_v2() -> None:
             json.dumps({**payload, "routing_policy_version": marker})
         )
         assert loaded.routing_policy_version == marker
+
+
+def _review_item(
+    candidate_id: str,
+    start_cue_id: int,
+    end_cue_id: int,
+    status: CandidateDisposition,
+    duplicate_of: str | None = None,
+) -> GlobalReviewItem:
+    return GlobalReviewItem(
+        candidate_id=candidate_id,
+        profile=ClipProfile.MINI_LESSON,
+        start_cue_id=start_cue_id,
+        end_cue_id=end_cue_id,
+        title="测试候选",
+        hook="测试钩子",
+        summary="完整摘要。",
+        score=70,
+        review_status=status,
+        duplicate_of_candidate_id=duplicate_of,
+        evidence_cue_ids=(start_cue_id,),
+        review_reason="全局审查证据。",
+    )
+
+
+def _nested_pool(*items: GlobalReviewItem) -> ProfileGlobalReviewOutput:
+    return ProfileGlobalReviewOutput(profile=ClipProfile.MINI_LESSON, reviews=items)
+
+
+def test_nested_pairs_list_only_retained_same_edge_containment() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    pool = _nested_pool(
+        _review_item("outer", 100, 160, CandidateDisposition.SELECTED),
+        _review_item("same_start", 100, 140, manual),
+        _review_item("same_end", 120, 160, manual),
+        _review_item("strictly_inside", 110, 150, manual),
+        _review_item("overlap_only", 150, 190, manual),
+        _review_item("rejected_same_start", 100, 130, CandidateDisposition.REJECTED),
+    )
+    assert nested_candidate_pairs(pool) == (
+        ("outer", "same_start"),
+        ("outer", "same_end"),
+    )
+
+
+def test_nested_pair_decisions_must_cover_each_pair_once_and_agree_with_status() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    initial = _nested_pool(
+        _review_item("outer", 100, 160, manual),
+        _review_item("inner", 100, 140, manual),
+    )
+    pairs = nested_candidate_pairs(initial)
+    assert pairs == (("outer", "inner"),)
+    distinct = NestedPairDecision(
+        outer_candidate_id="outer",
+        inner_candidate_id="inner",
+        decision=NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+        reason="内侧候选回答另一个问题。",
+    )
+    validate_nested_pair_decisions(pairs, (distinct,), initial)
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        validate_nested_pair_decisions(pairs, (), initial)
+    with pytest.raises(ValueError, match="more than once"):
+        validate_nested_pair_decisions(pairs, (distinct, distinct), initial)
+    with pytest.raises(ValueError, match="not listed"):
+        validate_nested_pair_decisions(
+            pairs,
+            (distinct.model_copy(update={"inner_candidate_id": "unknown"}),),
+            initial,
+        )
+    duplicate = distinct.model_copy(update={"decision": NestedPairDecisionKind.DUPLICATE})
+    # Containment alone never decides duplication: a duplicate decision needs a
+    # rejected/blocked row that references the other candidate.
+    with pytest.raises(ValueError, match="rejected or blocked"):
+        validate_nested_pair_decisions(pairs, (duplicate,), initial)
+    merged = _nested_pool(
+        _review_item("outer", 100, 160, CandidateDisposition.REJECTED, duplicate_of="inner"),
+        _review_item("inner", 100, 140, manual),
+    )
+    validate_nested_pair_decisions(pairs, (duplicate,), merged)
+    # Either orientation is accepted; the shorter complete candidate may survive.
+    validate_nested_pair_decisions(
+        pairs,
+        (
+            duplicate.model_copy(
+                update={"outer_candidate_id": "inner", "inner_candidate_id": "outer"}
+            ),
+        ),
+        merged,
+    )
+    with pytest.raises(ValueError, match="distinct_objective"):
+        validate_nested_pair_decisions(pairs, (distinct,), merged)
+
+
+def test_global_audit_output_requires_explicit_nested_pair_decisions() -> None:
+    legacy = {"profile": "mini_lesson", "replacements": [], "audit_reason": "旧缓存输出。"}
+    with pytest.raises(ValueError):
+        ProfileGlobalAuditOutput.model_validate_json(json.dumps(legacy))
+    current = ProfileGlobalAuditOutput.model_validate_json(
+        json.dumps({**legacy, "nested_pair_decisions": []})
+    )
+    assert current.nested_pair_decisions == ()
 
 
 def test_cache_identity_contains_profile_and_window() -> None:

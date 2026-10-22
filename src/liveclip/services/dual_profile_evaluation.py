@@ -58,10 +58,12 @@ from liveclip.pipeline.dual_profile import (
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
+    nested_candidate_pairs,
     plan_profile_discovery_windows,
     semantic_cache_key,
     validate_boundary_review_output,
     validate_discovery_output,
+    validate_nested_pair_decisions,
 )
 from liveclip.pipeline.semantic_global import transcript_cues
 from liveclip.pipeline.srt import load_srt_transcript
@@ -610,6 +612,20 @@ def run_dual_profile_evaluation(
         risk_record_ids = frozenset(
             candidate.candidate_id for output in risk_discoveries for candidate in output.candidates
         )
+        # Structural provenance shown to review stages, keyed by the pass that
+        # produced each candidate (never inferred from ID prefixes).
+        discovery_pass_by_id = {
+            candidate.candidate_id: pass_name
+            for pass_name, outputs in (
+                ("base", base_discoveries),
+                ("coverage_audit", audit_discoveries),
+                ("precision_audit", precision_discoveries),
+                ("precision_confirmation", confirmation_discoveries),
+                ("risk_discovery", risk_discoveries),
+            )
+            for output in outputs
+            for candidate in output.candidates
+        }
         all_candidate_ids = [
             candidate.candidate_id
             for output in profile_discoveries
@@ -659,8 +675,12 @@ def run_dual_profile_evaluation(
             current_profile: ClipProfile = profile,
             current_provider: StructuredLLMProvider = boundary_provider,
             failure_event: Event = boundary_failed,
+            current_passes: Mapping[str, str] = discovery_pass_by_id,
+            current_risk_ids: frozenset[str] = risk_record_ids,
         ) -> tuple[int, _ResolvedCall]:
-            boundary_payload = _boundary_payload(current_profile, candidate_chunk, transcript)
+            boundary_payload = _boundary_payload(
+                current_profile, candidate_chunk, transcript, current_passes
+            )
 
             def validate_boundary_call(
                 output_value: ProfileBoundaryReviewOutput,
@@ -670,6 +690,7 @@ def run_dual_profile_evaluation(
                     profile=current_profile,
                     candidates=candidate_chunk,
                     transcript=transcript,
+                    risk_record_ids=current_risk_ids,
                 )
 
             response = _resolve_call(
@@ -716,6 +737,7 @@ def run_dual_profile_evaluation(
             profile=profile,
             candidates=raw_candidates,
             transcript=transcript,
+            risk_record_ids=risk_record_ids,
         )
         boundaries_by_profile[profile] = boundary
 
@@ -763,6 +785,7 @@ def run_dual_profile_evaluation(
             current_boundary: ProfileBoundaryReviewOutput = boundary,
             partition_count: int = len(global_chunks),
             current_risk_ids: frozenset[str] = risk_record_ids,
+            current_passes: Mapping[str, str] = discovery_pass_by_id,
         ) -> tuple[int, _ResolvedCall]:
             candidate_ids = {candidate.candidate_id for candidate in candidate_chunk}
             chunk_discoveries = tuple(
@@ -790,6 +813,7 @@ def run_dual_profile_evaluation(
                     candidate_chunk,
                     chunk_boundary,
                     transcript,
+                    current_passes,
                 ),
                 "review_partition": {
                     "index": chunk_index,
@@ -861,18 +885,22 @@ def run_dual_profile_evaluation(
             reviews=tuple(review_map[candidate.candidate_id] for candidate in raw_candidates),
         )
         validate_global(global_review)
-        global_payload = _global_payload(profile, raw_candidates, boundary, transcript)
+        global_payload = _global_payload(
+            profile, raw_candidates, boundary, transcript, discovery_pass_by_id
+        )
         global_audit_prompt = load_dual_profile_prompt("global_audit", profile)
         global_audit_provider = provider_factory(global_audit_prompt, "high")
         prompt_files[f"{profile.value}.global_audit"] = global_audit_prompt.loaded_files
         prompt_hashes[f"{profile.value}.global_audit"] = global_audit_prompt.sha256
         initial_review_map = {value.candidate_id: value for value in global_review.reviews}
+        nested_pairs = nested_candidate_pairs(global_review)
 
         def validate_global_audit(
             value: ProfileGlobalAuditOutput,
             current_profile: ClipProfile = profile,
             current_initial_ids: frozenset[str] = frozenset(initial_review_map),
             current_global: ProfileGlobalReviewOutput = global_review,
+            current_pairs: tuple[tuple[str, str], ...] = nested_pairs,
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
@@ -888,6 +916,7 @@ def run_dual_profile_evaluation(
                 ),
             )
             validate_global(merged)
+            validate_nested_pair_decisions(current_pairs, value.nested_pair_decisions, merged)
             return value
 
         global_audit_call = _resolve_call(
@@ -896,6 +925,10 @@ def run_dual_profile_evaluation(
             payload={
                 **global_payload,
                 "initial_global_review": global_review.model_dump(mode="json"),
+                "nested_pairs": [
+                    {"outer_candidate_id": outer, "inner_candidate_id": inner}
+                    for outer, inner in nested_pairs
+                ],
             },
             response_model=ProfileGlobalAuditOutput,
             provider=global_audit_provider,
@@ -1454,6 +1487,7 @@ def _boundary_payload(
     profile: ClipProfile,
     candidates: Sequence[RawProfileCandidate],
     transcript: TranscriptDocument,
+    discovery_pass_by_id: Mapping[str, str],
 ) -> dict[str, object]:
     guard_ms = 30_000 if profile == ClipProfile.SHORT_HIGHLIGHT else 60_000
     return {
@@ -1463,6 +1497,7 @@ def _boundary_payload(
         "candidates": [
             {
                 "candidate": value.model_dump(mode="json"),
+                "discovery_pass": discovery_pass_by_id[value.candidate_id],
                 "context": _candidate_context(value, transcript, guard_ms=guard_ms),
             }
             for value in candidates
@@ -1475,6 +1510,7 @@ def _global_payload(
     candidates: Sequence[RawProfileCandidate],
     boundary: ProfileBoundaryReviewOutput,
     transcript: TranscriptDocument,
+    discovery_pass_by_id: Mapping[str, str],
 ) -> dict[str, object]:
     boundary_map = {value.candidate_id: value for value in boundary.reviews}
     guard_ms = 30_000 if profile == ClipProfile.SHORT_HIGHLIGHT else 60_000
@@ -1495,6 +1531,7 @@ def _global_payload(
         candidate_payloads.append(
             {
                 "candidate": value.model_dump(mode="json"),
+                "discovery_pass": discovery_pass_by_id[value.candidate_id],
                 "boundary_review": boundary_map[value.candidate_id].model_dump(mode="json"),
                 "context_refs": context_refs,
             }

@@ -304,11 +304,31 @@ class ProfileGlobalReviewOutput(BaseModel):
     reviews: tuple[GlobalReviewItem, ...]
 
 
+class NestedPairDecisionKind(StrEnum):
+    DUPLICATE = "duplicate"
+    DISTINCT_OBJECTIVE = "distinct_objective"
+
+
+class NestedPairDecision(BaseModel):
+    """Global Audit decision for one Python-listed nested same-Profile pair."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    outer_candidate_id: str
+    inner_candidate_id: str
+    decision: NestedPairDecisionKind
+    reason: str = Field(min_length=1, max_length=600)
+
+
 class ProfileGlobalAuditOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     profile: ClipProfile
     replacements: tuple[GlobalReviewItem, ...]
+    # Required on purpose: every audit output written by this contract carries an
+    # explicit (possibly empty) decision list. Pre-contract cached audit outputs
+    # can never be reused because the audit prompt hash and payload both changed.
+    nested_pair_decisions: tuple[NestedPairDecision, ...]
     audit_reason: str = Field(min_length=1, max_length=1_200)
 
 
@@ -592,9 +612,19 @@ def validate_boundary_review_output(
     profile: ClipProfile,
     candidates: Sequence[RawProfileCandidate],
     transcript: TranscriptDocument,
+    risk_record_ids: Collection[str],
 ) -> ProfileBoundaryReviewOutput:
+    """Validate Boundary Review facts.
+
+    Risk tags are cumulative for every candidate.  The Discovery evidence-cue
+    lock for medical/health/sensitivity risk chains applies only to records of
+    the dedicated risk-discovery pass (``risk_record_ids``, derived
+    structurally); other candidates may trim leading/trailing evidence cues
+    while keeping every risk tag.
+    """
     if output.profile != profile:
         raise ValueError("Boundary Review used the wrong Profile")
+    risk_records = frozenset(risk_record_ids)
     candidate_map = {value.candidate_id: value for value in candidates}
     review_map = {value.candidate_id: value for value in output.reviews}
     if len(candidate_map) != len(candidates) or len(review_map) != len(output.reviews):
@@ -627,15 +657,101 @@ def validate_boundary_review_output(
             DualRiskTag.HEALTH_ADVICE,
             DualRiskTag.SENSITIVITY_REVIEW,
         }
-        if set(raw.risk_tags) & evidence_preservation_tags and any(
-            cue_id < review.start_cue_id or cue_id > review.end_cue_id
-            for cue_id in raw.evidence_cue_ids
+        if (
+            candidate_id in risk_records
+            and set(raw.risk_tags) & evidence_preservation_tags
+            and any(
+                cue_id < review.start_cue_id or cue_id > review.end_cue_id
+                for cue_id in raw.evidence_cue_ids
+            )
         ):
             raise ValueError(
                 "Boundary Review removed a Discovery evidence cue from a medical, health, "
                 "or sensitivity risk chain"
             )
     return output
+
+
+def nested_candidate_pairs(
+    global_review: ProfileGlobalReviewOutput,
+) -> tuple[tuple[str, str], ...]:
+    """List same-Profile selected/manual_review pairs that share a start or end cue.
+
+    Sharing an edge on one continuous interval means one candidate contains the
+    other.  Each pair is returned once as ``(outer_candidate_id, inner_candidate_id)``
+    in deterministic order.  Containment alone never decides duplication; the
+    Global Audit must decide every listed pair explicitly.
+    """
+    retained = sorted(
+        (
+            value
+            for value in global_review.reviews
+            if value.review_status
+            in {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}
+        ),
+        key=lambda value: (value.start_cue_id, -value.end_cue_id, value.candidate_id),
+    )
+    pairs: list[tuple[str, str]] = []
+    for index, outer in enumerate(retained):
+        for inner in retained[index + 1 :]:
+            if outer.profile != inner.profile:
+                continue
+            if inner.start_cue_id != outer.start_cue_id and inner.end_cue_id != outer.end_cue_id:
+                continue
+            if outer.start_cue_id <= inner.start_cue_id and inner.end_cue_id <= outer.end_cue_id:
+                pairs.append((outer.candidate_id, inner.candidate_id))
+    return tuple(pairs)
+
+
+def validate_nested_pair_decisions(
+    pairs: Sequence[tuple[str, str]],
+    decisions: Sequence[NestedPairDecision],
+    merged_review: ProfileGlobalReviewOutput,
+) -> None:
+    """Require exactly one consistent audit decision for every listed nested pair."""
+
+    expected = {frozenset(pair): pair for pair in pairs}
+    seen: set[frozenset[str]] = set()
+    review_map = {value.candidate_id: value for value in merged_review.reviews}
+    for decision in decisions:
+        key = frozenset((decision.outer_candidate_id, decision.inner_candidate_id))
+        if key not in expected:
+            raise ValueError(
+                "Global Audit nested_pair_decisions references a pair that was not listed: "
+                f"{decision.outer_candidate_id}/{decision.inner_candidate_id}"
+            )
+        if key in seen:
+            raise ValueError("Global Audit decided a nested pair more than once")
+        seen.add(key)
+        first, second = (
+            review_map[decision.outer_candidate_id],
+            review_map[decision.inner_candidate_id],
+        )
+        references = [
+            value
+            for value, other in ((first, second), (second, first))
+            if value.duplicate_of_candidate_id == other.candidate_id
+        ]
+        if decision.decision == NestedPairDecisionKind.DUPLICATE:
+            if not any(
+                value.review_status in {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
+                for value in references
+            ):
+                raise ValueError(
+                    "Global Audit nested duplicate must leave one candidate rejected or "
+                    "blocked with duplicate_of_candidate_id referencing the other"
+                )
+        elif references:
+            raise ValueError(
+                "Global Audit marked a nested pair distinct_objective but one candidate "
+                "still references the other as its duplicate"
+            )
+    missing = sorted("/".join(expected[key]) for key in set(expected) - seen)
+    if missing:
+        raise ValueError(
+            "Global Audit nested_pair_decisions must cover every listed nested pair: "
+            + ", ".join(missing[:20])
+        )
 
 
 def assemble_final_profile_result(
@@ -930,6 +1046,8 @@ __all__ = [
     "FinalProfileCandidate",
     "FinalProfileResult",
     "GlobalReviewItem",
+    "NestedPairDecision",
+    "NestedPairDecisionKind",
     "ProfileBoundaryReviewOutput",
     "ProfileDiscoveryOutput",
     "ProfileGlobalAuditOutput",
@@ -941,9 +1059,11 @@ __all__ = [
     "apply_cross_profile_variant_links",
     "assemble_final_profile_result",
     "assert_no_cross_profile_dedup",
+    "nested_candidate_pairs",
     "plan_profile_discovery_windows",
     "profile_statistics",
     "semantic_cache_key",
     "validate_boundary_review_output",
     "validate_discovery_output",
+    "validate_nested_pair_decisions",
 ]
