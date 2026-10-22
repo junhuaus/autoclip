@@ -616,6 +616,7 @@ def _assemble_pool(
     profile: ClipProfile,
     specs: tuple[dict[str, object], ...],
     risk_record_ids: frozenset[str] = frozenset(),
+    top_n: int = 15,
 ) -> FinalProfileResult:
     windows = plan_profile_discovery_windows(TRANSCRIPT, profile)
     discoveries: list[ProfileDiscoveryOutput] = []
@@ -626,7 +627,11 @@ def _assemble_pool(
         start_cue_id = int(cast(int, spec["start_cue_id"]))
         end_cue_id = int(cast(int, spec["end_cue_id"]))
         risk_tags = cast(tuple[DualRiskTag, ...], spec.get("risk_tags", ()))
-        start_ms = TRANSCRIPT.segments[start_cue_id - 1].start_ms
+        boundary_flags = cast(tuple[DualQualityFlag, ...], spec.get("boundary_flags", ()))
+        review_flags = cast(tuple[DualQualityFlag, ...], spec.get("review_flags", ()))
+        raw_start = int(cast(int, spec.get("raw_start_cue_id", start_cue_id)))
+        raw_end = int(cast(int, spec.get("raw_end_cue_id", end_cue_id)))
+        start_ms = TRANSCRIPT.segments[raw_start - 1].start_ms
         window = next(
             value
             for value in windows
@@ -636,8 +641,8 @@ def _assemble_pool(
             profile=profile,
             window_id=window.window_id,
             candidate_id=candidate_id,
-            start_cue_id=start_cue_id,
-            end_cue_id=end_cue_id,
+            start_cue_id=raw_start,
+            end_cue_id=raw_end,
         ).model_copy(update={"risk_tags": risk_tags})
         discoveries.append(
             ProfileDiscoveryOutput(profile=profile, window_id=window.window_id, candidates=(raw,))
@@ -652,6 +657,7 @@ def _assemble_pool(
                 ending_complete=True,
                 central_objective_complete=True,
                 shortest_complete_boundary=True,
+                quality_flags=boundary_flags,
                 risk_tags=risk_tags,
                 evidence_cue_ids=(start_cue_id, end_cue_id),
                 review_reason="边界审查证据。",
@@ -669,6 +675,7 @@ def _assemble_pool(
                 score=float(cast(float, spec.get("score", 70))),
                 review_status=cast(CandidateDisposition, spec["status"]),
                 duplicate_of_candidate_id=cast(str | None, spec.get("duplicate_of")),
+                quality_flags=review_flags,
                 risk_tags=risk_tags,
                 evidence_cue_ids=(start_cue_id, end_cue_id),
                 review_reason=str(spec.get("reason", "全局审查证据。")),
@@ -680,7 +687,7 @@ def _assemble_pool(
         boundaries=ProfileBoundaryReviewOutput(profile=profile, reviews=tuple(boundaries)),
         global_review=ProfileGlobalReviewOutput(profile=profile, reviews=tuple(reviews)),
         transcript=TRANSCRIPT,
-        top_n=15,
+        top_n=top_n,
         risk_record_ids=risk_record_ids,
     )
 
@@ -804,7 +811,6 @@ def test_risk_routing_never_upgrades_to_an_output() -> None:
 
 
 def test_routing_policy_marker_accepts_v1_and_v2() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v2"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker",
@@ -924,6 +930,231 @@ def test_global_audit_output_requires_explicit_nested_pair_decisions() -> None:
         json.dumps({**legacy, "nested_pair_decisions": []})
     )
     assert current.nested_pair_decisions == ()
+
+
+def _by_id(result: FinalProfileResult) -> dict[str, FinalProfileCandidate]:
+    return {
+        value.candidate_id: value
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+    }
+
+
+@pytest.mark.parametrize("flag_side", ["boundary_flags", "review_flags"])
+def test_same_interval_twins_share_gated_flags_both_ways(flag_side: str) -> None:
+    flag = DualQualityFlag.MATERIAL_INTERRUPTION
+    for flagged, clean in (("twin_a", "twin_b"), ("twin_b", "twin_a")):
+        specs = tuple(
+            {
+                "candidate_id": candidate_id,
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                **({flag_side: (flag,)} if candidate_id == flagged else {}),
+            }
+            for candidate_id in ("twin_a", "twin_b")
+        )
+        result = _assemble_pool(profile=ClipProfile.SHORT_HIGHLIGHT, specs=specs)
+        values = _by_id(result)
+        assert result.manual_review == ()
+        assert values[clean].review_status == CandidateDisposition.BLOCKED
+        assert flag in values[clean].quality_flags
+        assert values[clean].review_reason == "Deterministic quality gate: 全局审查证据。"
+        assert (result.statistics.blocked, result.statistics.manual_review) == (2, 0)
+
+
+def test_selected_twin_inheriting_a_gated_flag_is_blocked_without_raising() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "clean_selected",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.SELECTED,
+                "score": 90,
+            },
+            {
+                "candidate_id": "flagged_rejected",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.REJECTED,
+                "boundary_flags": (DualQualityFlag.SALES_OR_CTA_PADDING,),
+            },
+            {
+                "candidate_id": "other_interval",
+                "start_cue_id": 941,
+                "end_cue_id": 959,
+                "status": CandidateDisposition.SELECTED,
+                "score": 88,
+            },
+        ),
+    )
+    values = _by_id(result)
+    assert values["clean_selected"].review_status == CandidateDisposition.BLOCKED
+    assert DualQualityFlag.SALES_OR_CTA_PADDING in values["clean_selected"].quality_flags
+    assert values["clean_selected"].review_reason.startswith("Deterministic quality gate: ")
+    assert values["flagged_rejected"].review_status == CandidateDisposition.REJECTED
+    assert [value.candidate_id for value in result.selected] == ["other_interval"]
+
+
+def test_advisory_and_source_title_flags_are_not_shared_between_twins() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "clean_selected",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.SELECTED,
+                "score": 90,
+            },
+            {
+                "candidate_id": "clean_manual",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "advisory_blocked",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.BLOCKED,
+                "boundary_flags": (
+                    DualQualityFlag.CONTEXT_DEPENDENT_OPENING,
+                    DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,
+                    DualQualityFlag.SOURCE_TITLE_MISMATCH,
+                ),
+            },
+        ),
+    )
+    values = _by_id(result)
+    assert values["clean_selected"].review_status == CandidateDisposition.SELECTED
+    assert values["clean_selected"].quality_flags == ()
+    assert values["clean_manual"].review_status == CandidateDisposition.MANUAL_REVIEW
+    assert values["clean_manual"].quality_flags == ()
+
+
+def test_risk_record_twin_shares_flags_and_stays_blocked() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "risk_pass_twin",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.REJECTED,
+                "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+                "boundary_flags": (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
+            },
+            {
+                "candidate_id": "base_twin",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+        ),
+        risk_record_ids=frozenset({"risk_pass_twin"}),
+    )
+    values = _by_id(result)
+    assert values["risk_pass_twin"].review_status == CandidateDisposition.BLOCKED
+    assert values["risk_pass_twin"].review_reason.startswith("Deterministic risk routing: ")
+    assert values["base_twin"].review_status == CandidateDisposition.BLOCKED
+    assert DualQualityFlag.TOPIC_SWITCH_INSIDE in values["base_twin"].quality_flags
+    assert values["base_twin"].review_reason.startswith("Deterministic quality gate: ")
+
+
+def test_risk_record_excluded_by_top_n_is_retained_blocked() -> None:
+    specs: tuple[dict[str, object], ...] = (
+        {
+            "candidate_id": "top_selected",
+            "start_cue_id": 941,
+            "end_cue_id": 958,
+            "status": CandidateDisposition.SELECTED,
+            "score": 95,
+        },
+        {
+            "candidate_id": "risk_pass_selected",
+            "start_cue_id": 941,
+            "end_cue_id": 959,
+            "status": CandidateDisposition.SELECTED,
+            "score": 80,
+            "risk_tags": (DualRiskTag.COMMERCIAL_CLAIM,),
+        },
+        {
+            "candidate_id": "base_selected",
+            "start_cue_id": 941,
+            "end_cue_id": 960,
+            "status": CandidateDisposition.SELECTED,
+            "score": 79,
+        },
+    )
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=specs,
+        risk_record_ids=frozenset({"risk_pass_selected"}),
+        top_n=1,
+    )
+    values = _by_id(result)
+    assert [value.candidate_id for value in result.selected] == ["top_selected"]
+    risk = values["risk_pass_selected"]
+    assert risk.review_status == CandidateDisposition.BLOCKED
+    assert risk.review_reason == (
+        "Deterministic risk routing: Profile-local Top-N exclusion: 全局审查证据。"
+    )
+    assert values["base_selected"].review_status == CandidateDisposition.REJECTED
+    assert values["base_selected"].review_reason.startswith("Profile-local Top-N exclusion: ")
+
+
+def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "trimmed",
+                "raw_start_cue_id": 940,
+                "raw_end_cue_id": 959,
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+        ),
+    )
+    candidate = result.manual_review[0]
+    assert candidate.evidence_cue_ids == (941, 958)
+    assert all(
+        candidate.start_cue_id <= cue <= candidate.end_cue_id for cue in candidate.evidence_cue_ids
+    )
+
+
+def test_routing_policy_marker_accepts_every_published_version() -> None:
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v3"
+    result = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="marker_v3",
+        start_cue_id=941,
+        end_cue_id=958,
+    )
+    payload = DualProfileFinalResult(
+        source_hash=SOURCE_HASH,
+        requested_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        executed_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        profiles={ClipProfile.SHORT_HIGHLIGHT: result},
+    ).model_dump(mode="json")
+    payload.pop("routing_policy_version")
+    assert (
+        DualProfileFinalResult.model_validate_json(json.dumps(payload)).routing_policy_version
+        is None
+    )
+    for marker in (
+        "manual-review-quality-gate-v1",
+        "quality-gate-risk-routing-v2",
+        "quality-gate-risk-routing-v3",
+    ):
+        loaded = DualProfileFinalResult.model_validate_json(
+            json.dumps({**payload, "routing_policy_version": marker})
+        )
+        assert loaded.routing_policy_version == marker
 
 
 def test_cache_identity_contains_profile_and_window() -> None:

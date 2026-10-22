@@ -901,6 +901,7 @@ def run_dual_profile_evaluation(
             current_initial_ids: frozenset[str] = frozenset(initial_review_map),
             current_global: ProfileGlobalReviewOutput = global_review,
             current_pairs: tuple[tuple[str, str], ...] = nested_pairs,
+            require_created_pairs: bool = True,
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
@@ -916,8 +917,31 @@ def run_dual_profile_evaluation(
                 ),
             )
             validate_global(merged)
-            validate_nested_pair_decisions(current_pairs, value.nested_pair_decisions, merged)
+            required_pairs = current_pairs
+            if require_created_pairs:
+                # Pairs that the audit's own replacements create (for example by
+                # promoting a candidate) must be decided as well.
+                listed = {frozenset(pair) for pair in current_pairs}
+                required_pairs = (
+                    *current_pairs,
+                    *(
+                        pair
+                        for pair in nested_candidate_pairs(merged)
+                        if frozenset(pair) not in listed
+                    ),
+                )
+            validate_nested_pair_decisions(required_pairs, value.nested_pair_decisions, merged)
             return value
+
+        def validate_cached_global_audit(
+            value: ProfileGlobalAuditOutput,
+            current_validator: Callable[..., ProfileGlobalAuditOutput] = validate_global_audit,
+        ) -> ProfileGlobalAuditOutput:
+            # A cache hit is re-validated under the contract it was written with:
+            # outputs cached before the created-pair rule (same prompt hash and
+            # payload) must not crash a warm run. Fresh outputs always face the
+            # full rule above and, if invalid, go through the repair path.
+            return current_validator(value, require_created_pairs=False)
 
         global_audit_call = _resolve_call(
             stage="global_audit",
@@ -932,6 +956,7 @@ def run_dual_profile_evaluation(
             },
             response_model=ProfileGlobalAuditOutput,
             provider=global_audit_provider,
+            validate_cache_hit=validate_cached_global_audit,
             profile=profile,
             source_hash=source_hash,
             window_start=0,
@@ -1291,6 +1316,7 @@ def _resolve_call(
     cache_dir: Path | None,
     validate: Callable[[OutputModel], OutputModel],
     cancel_requested: Callable[[], bool],
+    validate_cache_hit: Callable[[OutputModel], OutputModel] | None = None,
 ) -> _ResolvedCall:
     model_settings = {
         "reasoning_effort": getattr(provider, "reasoning_effort", "provider_default"),
@@ -1329,7 +1355,7 @@ def _resolve_call(
             output = response_model.model_validate_json(
                 json.dumps(raw.get("output"), ensure_ascii=False)
             )
-            validate(output)
+            (validate_cache_hit or validate)(output)
             return _ResolvedCall(
                 output=output,
                 records=(),

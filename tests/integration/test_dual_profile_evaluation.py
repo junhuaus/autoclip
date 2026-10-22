@@ -15,6 +15,7 @@ from liveclip.clipping_skills.dual_profile_v1 import (
 from liveclip.clipping_skills.semantic_global_v1 import SemanticGlobalPromptBundle
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.pipeline.dual_profile import (
+    DUAL_PROFILE_ROUTING_POLICY_VERSION,
     BoundaryReviewItem,
     BoundaryState,
     CandidateDisposition,
@@ -551,6 +552,111 @@ class NestedPairProvider(ScriptedDualProvider):
         return output
 
 
+class AuditCreatedPairProvider(NestedPairProvider):
+    """The inner candidate starts rejected; the audit promotes it, creating a nested pair."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        decide_created_pair_on_repair: bool = True,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.decide_created_pair_on_repair = decide_created_pair_on_repair
+
+    def _audit(self, payload: dict[str, object], *, decide: bool) -> ProfileGlobalAuditOutput:
+        initial = ProfileGlobalReviewOutput.model_validate_json(
+            json.dumps(payload["initial_global_review"])
+        )
+        inner = next(value for value in initial.reviews if value.candidate_id == "mini_inner")
+        return ProfileGlobalAuditOutput(
+            profile=ClipProfile.MINI_LESSON,
+            replacements=(
+                inner.model_copy(
+                    update={
+                        "review_status": CandidateDisposition.MANUAL_REVIEW,
+                        "score": 70.0,
+                        "review_reason": "Distinct narrower objective worth review.",
+                    }
+                ),
+            ),
+            nested_pair_decisions=(
+                (
+                    NestedPairDecision(
+                        outer_candidate_id="mini_lesson_lesson",
+                        inner_candidate_id="mini_inner",
+                        decision=NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+                        reason="Each answers its own question.",
+                    ),
+                )
+                if decide
+                else ()
+            ),
+            audit_reason="Promoted the narrower lesson.",
+        )
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        if response_model is ProfileGlobalAuditOutput and mini:
+            assert payload["nested_pairs"] == []
+            return cast(OutputModel, self._audit(payload, decide=False))
+        output = super()._output(payload, response_model)
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "review_status": CandidateDisposition.REJECTED,
+                                    "score": 60.0,
+                                }
+                            )
+                            if item.candidate_id == "mini_inner"
+                            else item
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs += 1
+            assert any("cover every listed nested pair" in value for value in validation_errors)
+            return StructuredCallResult(
+                output=cast(
+                    OutputModel,
+                    self._audit(payload, decide=self.decide_created_pair_on_repair),
+                ),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
 def _write_srt(path: Path) -> None:
     cues = []
     for index in range(1, 71):
@@ -650,7 +756,7 @@ def test_service_routes_rejections_from_the_risk_pass_structurally(tmp_path: Pat
     DualProfileRunManifest.model_validate_json(
         (output_dir / "run-manifest.json").read_text(encoding="utf-8")
     ).validate_against(final)
-    assert final.routing_policy_version == "quality-gate-risk-routing-v2"
+    assert final.routing_policy_version == DUAL_PROFILE_ROUTING_POLICY_VERSION
     mini = final.profiles[ClipProfile.MINI_LESSON]
     # Same risk_ prefix and same rejection, but only the record produced by the
     # dedicated risk-discovery pass is retained as blocked.
@@ -707,6 +813,94 @@ def test_global_audit_must_decide_python_listed_nested_pairs(tmp_path: Path) -> 
     assert [value.candidate_id for value in mini.selected] == ["mini_inner"]
     assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
     assert mini.rejected[0].duplicate_of_candidate_id == "mini_inner"
+
+
+def test_fresh_audit_must_decide_pairs_its_replacements_create(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[AuditCreatedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.manual_review] == ["mini_inner"]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+
+
+def test_cached_audit_without_created_pair_decision_does_not_crash_a_warm_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    # Simulate an audit output cached under the earlier contract, which only
+    # required decisions for the pairs listed from the initial review.
+    original_pairs = service.nested_candidate_pairs
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            service,
+            "nested_candidate_pairs",
+            lambda review: (
+                ()
+                if any(
+                    item.candidate_id == "mini_inner"
+                    and item.review_status == CandidateDisposition.MANUAL_REVIEW
+                    for item in review.reviews
+                )
+                else original_pairs(review)
+            ),
+        )
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "first",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    generated = sum(counter.values())
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    assert sum(counter.values()) == generated
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert warm.calls == {
+        "discovery": 0,
+        "boundary_review": 0,
+        "global_review": 0,
+        "variant_link": 0,
+    }
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:

@@ -79,8 +79,12 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
 #   v1: manual_review rows with a gated quality flag are downgraded to blocked.
 #   v2: v1 plus records of the dedicated risk-discovery pass are never rejected;
 #       a rejected risk record is retained as blocked (never an output).
-# Artifacts written before either policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v2"
+#   v3: v2 plus same-interval candidates share their gated quality flags (a
+#       selected or manual_review twin that inherits one becomes blocked), risk
+#       records excluded by Top-N are retained as blocked, and final evidence
+#       cue IDs are limited to the final interval.
+# Artifacts written before any policy omit the marker and load as ``None``.
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v3"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -449,7 +453,12 @@ class DualProfileFinalResult(BaseModel):
     # Optional audit marker; absent (``None``) in artifacts that predate the
     # deterministic manual-review quality gate.
     routing_policy_version: (
-        Literal["manual-review-quality-gate-v1", "quality-gate-risk-routing-v2"] | None
+        Literal[
+            "manual-review-quality-gate-v1",
+            "quality-gate-risk-routing-v2",
+            "quality-gate-risk-routing-v3",
+        ]
+        | None
     ) = None
 
     @model_validator(mode="after")
@@ -853,68 +862,97 @@ def assemble_final_profile_result(
                 review_status=status,
                 quality_flags=merged_quality,
                 risk_tags=merged_risks,
+                # Final evidence is limited to the final interval; the raw
+                # Discovery artifacts keep the original evidence cue IDs.
                 evidence_cue_ids=tuple(
-                    dict.fromkeys(
+                    cue_id
+                    for cue_id in dict.fromkeys(
                         (
                             *raw.evidence_cue_ids,
                             *boundary.evidence_cue_ids,
                             *review.evidence_cue_ids,
                         )
                     )
+                    if review.start_cue_id <= cue_id <= review.end_cue_id
                 ),
                 duplicate_of_candidate_id=review.duplicate_of_candidate_id,
                 review_reason=review.review_reason,
             )
         )
+    # Same interval -> same gated flags.  Candidates with an identical final
+    # interval describe the same continuous media, so a gated quality flag found
+    # on any of them applies to all of them, whatever their status.  Advisory
+    # flags (context/prior steps) and source_title_mismatch are not shared.
+    gated_by_interval: dict[tuple[int, int], set[DualQualityFlag]] = {}
+    for value in final_values:
+        gated_by_interval.setdefault((value.start_cue_id, value.end_cue_id), set()).update(
+            set(value.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+        )
+    shared: list[FinalProfileCandidate] = []
+    for value in final_values:
+        inherited = gated_by_interval[(value.start_cue_id, value.end_cue_id)] - set(
+            value.quality_flags
+        )
+        if not inherited:
+            shared.append(value)
+            continue
+        update: dict[str, object] = {
+            "quality_flags": (
+                *value.quality_flags,
+                *sorted(inherited, key=lambda flag: flag.value),
+            )
+        }
+        if value.review_status in {
+            CandidateDisposition.SELECTED,
+            CandidateDisposition.MANUAL_REVIEW,
+        }:
+            # Never raise here: a twin's flag downgrades, it does not invalidate.
+            update["review_status"] = CandidateDisposition.BLOCKED
+            update["review_reason"] = f"Deterministic quality gate: {value.review_reason}"
+        shared.append(value.model_copy(update=update))
     selected = sorted(
-        (value for value in final_values if value.review_status == CandidateDisposition.SELECTED),
+        (value for value in shared if value.review_status == CandidateDisposition.SELECTED),
         key=lambda value: (-value.score, value.start_ms, value.candidate_id),
     )
     keep_ids = {value.candidate_id for value in selected[:top_n]}
     normalized: list[FinalProfileCandidate] = []
-    for value in final_values:
+    for value in shared:
         if (
             value.review_status == CandidateDisposition.SELECTED
             and value.candidate_id not in keep_ids
         ):
-            normalized.append(
-                value.model_copy(
-                    update={
-                        "review_status": CandidateDisposition.REJECTED,
-                        "review_reason": f"Profile-local Top-N exclusion: {value.review_reason}",
-                    }
-                )
+            value = value.model_copy(
+                update={
+                    "review_status": CandidateDisposition.REJECTED,
+                    "review_reason": f"Profile-local Top-N exclusion: {value.review_reason}",
+                }
             )
-        elif (
+        if (
             value.review_status == CandidateDisposition.REJECTED
             and value.candidate_id in risk_records
         ):
             # Benchmark risk rule: risk material ends manual_review or blocked and
-            # never silently disappears.  Keep the duplicate reference and the
-            # rejection evidence; blocked is never materialized.
-            normalized.append(
-                value.model_copy(
-                    update={
-                        "review_status": CandidateDisposition.BLOCKED,
-                        "review_reason": f"Deterministic risk routing: {value.review_reason}",
-                    }
-                )
+            # never silently disappears, including after a Top-N exclusion.  Keep
+            # the duplicate reference and the rejection evidence; blocked is never
+            # materialized.
+            value = value.model_copy(
+                update={
+                    "review_status": CandidateDisposition.BLOCKED,
+                    "review_reason": f"Deterministic risk routing: {value.review_reason}",
+                }
             )
         elif value.review_status == CandidateDisposition.MANUAL_REVIEW and (
             set(value.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
         ):
             # Python only ever downgrades: the merged Boundary/Global quality flags
             # are authoritative over the model's manual_review disposition.
-            normalized.append(
-                value.model_copy(
-                    update={
-                        "review_status": CandidateDisposition.BLOCKED,
-                        "review_reason": f"Deterministic quality gate: {value.review_reason}",
-                    }
-                )
+            value = value.model_copy(
+                update={
+                    "review_status": CandidateDisposition.BLOCKED,
+                    "review_reason": f"Deterministic quality gate: {value.review_reason}",
+                }
             )
-        else:
-            normalized.append(value)
+        normalized.append(value)
     grouped = {
         status: tuple(
             sorted(
