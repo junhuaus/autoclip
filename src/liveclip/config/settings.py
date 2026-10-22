@@ -106,7 +106,9 @@ class Settings(BaseSettings):
         default="claude-opus-5-5",
         min_length=1,
         max_length=100,
-        pattern=r"^[A-Za-z0-9_.:-]+$",
+        # A full model ID, never an alias such as `opus`, so the answering model
+        # can be verified against the configured one on every call.
+        pattern=r"^claude-[A-Za-z0-9_.:-]+$",
         validation_alias="LIVECLIP_CLAUDE_MODEL",
     )
     claude_request_timeout_seconds: float = Field(

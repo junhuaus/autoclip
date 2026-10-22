@@ -12,7 +12,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, cast
@@ -68,7 +68,17 @@ from liveclip.providers.telemetry import (
 CLAUDE_CLI_CONTRACT_PREFIX = "claude-cli-editorial-v1"
 # Reviewed by hand against `claude --help` and real isolation probes. A newer CLI
 # can add tools, context sources or auth paths, so it is refused until reviewed.
-SUPPORTED_CLAUDE_CLI_VERSION = "2.1.307"
+# Reviewed bump procedure (record the evidence in STATUS.md):
+#   1. save `claude --help` and `claude auth status --help` for the new version
+#      and diff them against the last reviewed copies, focusing on every flag in
+#      `claude_cli_argv`, auth, `--bare` and `--setting-sources` semantics;
+#   2. run the isolation canary (planted CLAUDE.md plus project hooks) with the
+#      exact production argv and environment, and a default-flag control run;
+#   3. confirm `--bare` without an API key is still "Not logged in" and that
+#      `claude auth status --json` still reports `claude.ai` / `firstParty`;
+#   4. run one real `liveclip smoke-claude`; stop and report on any drift.
+# 2.1.307 reviewed 2026-10-21; 2.1.308 reviewed 2026-10-21 (help text identical).
+SUPPORTED_CLAUDE_CLI_VERSION = "2.1.308"
 CLAUDE_SECURITY_PROFILE_VERSION = "tool-free-isolated-v1"
 # Real calls are authorized only through the operator's subscription login.
 CLAUDE_SUBSCRIPTION_AUTH_METHOD = "claude.ai"
@@ -129,6 +139,9 @@ _CHILD_ENV_KEYS = frozenset(
     }
 )
 _FORBIDDEN_ENV_PREFIXES = ("ANTHROPIC_", "CLAUDE")
+# Forced into every child, including the version and auth probes: an update
+# must never replace the reviewed executable from inside a LiveClip run.
+_FORCED_CHILD_ENV = {"DISABLE_AUTOUPDATER": "1"}
 
 
 def resolve_claude_executable(configured: str = "claude") -> str:
@@ -153,11 +166,13 @@ def claude_cli_environment(source: Mapping[str, str] | None = None) -> dict[str,
     """Return the allowlisted child environment; API keys never reach the CLI."""
 
     values = os.environ if source is None else source
-    return {
+    environment = {
         key: value
         for key, value in values.items()
         if key.upper() in _CHILD_ENV_KEYS and not key.upper().startswith(_FORBIDDEN_ENV_PREFIXES)
     }
+    environment.update(_FORCED_CHILD_ENV)
+    return environment
 
 
 def claude_cli_argv(
@@ -242,6 +257,8 @@ def claude_cli_contract_version(configured: str = "claude") -> str:
     identity = json.dumps(
         {
             "argv_template_sha256": claude_cli_argv_template_sha256(),
+            "child_env_allowlist": sorted(_CHILD_ENV_KEYS),
+            "child_env_forced": dict(sorted(_FORCED_CHILD_ENV.items())),
             "executable_path": executable,
             "executable_sha256": executable_sha256,
             "executable_size": executable_size,
@@ -261,11 +278,16 @@ def claude_cli_contract_version(configured: str = "claude") -> str:
 
 @dataclass(frozen=True, slots=True)
 class ClaudeCliAuthStatus:
-    """Credential-free login evidence: booleans and the method type only."""
+    """Credential-free login evidence: booleans and the method type only.
+
+    ``account_email`` stays in memory solely for the output guard. It is
+    excluded from ``repr`` and must never be logged, persisted or reported.
+    """
 
     logged_in: bool
     auth_method: str | None
     api_provider: str | None
+    account_email: str | None = field(default=None, repr=False, compare=False)
 
     @property
     def subscription(self) -> bool:
@@ -296,26 +318,27 @@ def claude_cli_auth_status(configured: str = "claude") -> ClaudeCliAuthStatus:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProviderConfigurationError("Claude CLI login probe failed") from exc
     try:
-        value = json.loads(result.stdout)
+        value = json.loads(result.stdout) if result.returncode == 0 else None
     except (json.JSONDecodeError, TypeError):
         value = None
     if not isinstance(value, dict):
         return ClaudeCliAuthStatus(logged_in=False, auth_method=None, api_provider=None)
     method = value.get("authMethod")
     provider = value.get("apiProvider")
+    email = value.get("email")
     return ClaudeCliAuthStatus(
         logged_in=value.get("loggedIn") is True,
         auth_method=method if isinstance(method, str) and _SAFE_MODEL.fullmatch(method) else None,
         api_provider=(
             provider if isinstance(provider, str) and _SAFE_MODEL.fullmatch(provider) else None
         ),
+        account_email=email.strip() if isinstance(email, str) and email.strip() else None,
     )
 
 
-def assert_claude_cli_ready(configured: str = "claude") -> tuple[str, ClaudeCliAuthStatus]:
-    """Verify version, identity and a subscription login without exposing credentials."""
+def require_claude_subscription(configured: str = "claude") -> ClaudeCliAuthStatus:
+    """Refuse anything but the claude.ai subscription login, before every call."""
 
-    contract = claude_cli_contract_version(configured)
     status = claude_cli_auth_status(configured)
     if not status.logged_in:
         raise ProviderConfigurationError("Claude CLI is installed but not logged in")
@@ -324,7 +347,14 @@ def assert_claude_cli_ready(configured: str = "claude") -> tuple[str, ClaudeCliA
             "Claude CLI must use the claude.ai subscription login; other authentication "
             "methods, including API keys, are refused"
         )
-    return contract, status
+    return status
+
+
+def assert_claude_cli_ready(configured: str = "claude") -> tuple[str, ClaudeCliAuthStatus]:
+    """Verify version, identity and a subscription login without exposing credentials."""
+
+    contract = claude_cli_contract_version(configured)
+    return contract, require_claude_subscription(configured)
 
 
 @dataclass(frozen=True, slots=True)
@@ -450,6 +480,9 @@ def parse_claude_cli_result(
         return ClaudeCliOutcome(code, code in _RETRYABLE_FAILURES, _MISSING, None, None)
     usage = _claude_usage(value)
     response_model = _claude_response_model(value, model)
+    # Tool activity fails closed before any other interpretation of the result.
+    if _claude_tool_activity(value):
+        return ClaudeCliOutcome("STRUCTURED_TOOL_EVENT", False, _MISSING, usage, response_model)
     subtype = value.get("subtype")
     if isinstance(subtype, str) and "structured_output" in subtype:
         # The CLI gave up on its own schema retries. That is a schema failure for
@@ -465,9 +498,7 @@ def parse_claude_cli_result(
         )
         code = classify_claude_cli_failure(value.get("api_error_status"), evidence)
         return ClaudeCliOutcome(code, code in _RETRYABLE_FAILURES, _MISSING, usage, response_model)
-    if _claude_tool_activity(value):
-        return ClaudeCliOutcome("STRUCTURED_TOOL_EVENT", False, _MISSING, usage, response_model)
-    if model.startswith("claude-") and response_model != model:
+    if response_model != model:
         return ClaudeCliOutcome("CLAUDE_CLI_MODEL_MISMATCH", False, _MISSING, usage, response_model)
     structured = value.get("structured_output", _MISSING)
     if structured is None:
@@ -568,8 +599,10 @@ class ClaudeCliStructuredLLMProvider:
     ) -> None:
         if reasoning_effort not in CLAUDE_EFFORT_BY_REASONING:
             raise ProviderConfigurationError("Claude structured reasoning effort is invalid")
-        if _SAFE_MODEL.fullmatch(model_name) is None:
-            raise ProviderConfigurationError("LIVECLIP_CLAUDE_MODEL is invalid")
+        if _SAFE_MODEL.fullmatch(model_name) is None or not model_name.startswith("claude-"):
+            raise ProviderConfigurationError(
+                "LIVECLIP_CLAUDE_MODEL must be a full claude- model ID"
+            )
         if not (
             MIN_LLM_REQUEST_TIMEOUT_SECONDS <= timeout_seconds <= MAX_LLM_REQUEST_TIMEOUT_SECONDS
         ):
@@ -589,6 +622,7 @@ class ClaudeCliStructuredLLMProvider:
         if contract_version is not None and contract_version != observed:
             raise ProviderConfigurationError("Claude CLI identity differs from the persisted run")
         self._contract_version = observed
+        require_claude_subscription(self._executable)
 
     @property
     def provider_name(self) -> str:
@@ -786,6 +820,9 @@ class ClaudeCliStructuredLLMProvider:
                 raise ProviderConfigurationError(
                     "Claude CLI identity differs from the persisted run"
                 )
+            # Re-checked before every call: a mid-run login switch to an API key or
+            # a managed apiKeyHelper must never be billed. The email stays in memory.
+            account_email = require_claude_subscription(self._executable).account_email
             if self._execution_contract is not None and cancel_requested():
                 raise ProviderCancelled()
             called_at = datetime.now(UTC) if self._execution_contract is not None else None
@@ -891,6 +928,12 @@ class ClaudeCliStructuredLLMProvider:
                         ensure_ascii=False,
                         separators=(",", ":"),
                     )
+                    if account_email and account_email.casefold() in raw_output.casefold():
+                        # Residual account context leaked into the answer. Drop the
+                        # output entirely so the email is never repaired, logged or
+                        # persisted, and fail as an ordinary schema failure.
+                        raw_output = None
+                        raise ValueError("structured output contains account identity")
                     if lineage_context is not None:
                         preflight_errors = lineage_context.errors(raw_output)
                         if not preflight_errors:
@@ -961,5 +1004,6 @@ __all__ = [
     "claude_cli_contract_version",
     "claude_cli_environment",
     "parse_claude_cli_result",
+    "require_claude_subscription",
     "resolve_claude_executable",
 ]

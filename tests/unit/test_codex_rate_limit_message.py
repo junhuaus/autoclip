@@ -119,3 +119,37 @@ def test_codex_invalid_output_with_unrelated_error_event_still_repairs(
     assert result.repaired is True
     assert result.output.value == "ok"
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "Error: unexpected status 429 Too Many Requests: insufficient_quota",
+        "http 429: You've hit your usage limit. Upgrade or try again later.",
+        "status 429 quota exceeded for this billing period",
+        '{"error":{"code":"usage_limit_reached","status":429}}',
+    ],
+)
+def test_codex_quota_or_usage_caps_are_never_transient_rate_limits(stderr: str) -> None:
+    assert _codex_process_failure_code(stderr) == "CODEX_CLI_QUOTA_EXHAUSTED"
+
+
+def test_codex_zero_exit_quota_event_names_the_cap_and_skips_the_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+    event = json.dumps({"type": "error", "message": "429 You've hit your usage limit"})
+
+    def run(argv: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, event + "\n", "")
+
+    provider = _provider(monkeypatch)
+    monkeypatch.setattr(module, "run_cancellable_process", run)
+
+    with pytest.raises(StructuredProviderError) as error:
+        provider.generate(subject_id="s", payload={}, response_model=Answer)
+
+    assert error.value.code == "CODEX_CLI_QUOTA_EXHAUSTED"
+    assert str(error.value) == "Codex CLI quota exhausted"
+    assert len(calls) == 1

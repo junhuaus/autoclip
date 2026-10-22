@@ -573,6 +573,15 @@ def test_claude_cli_provider_and_model_reach_the_run_manifest(
     contract = f"claude-cli-editorial-v1.2.1.307.{'c' * 64}"
     monkeypatch.setattr(claude_cli_module, "resolve_claude_executable", lambda _value: "/fake")
     monkeypatch.setattr(claude_cli_module, "claude_cli_contract_version", lambda _value: contract)
+    auth_checks: list[str] = []
+
+    def subscription(value: str) -> claude_cli_module.ClaudeCliAuthStatus:
+        auth_checks.append(value)
+        return claude_cli_module.ClaudeCliAuthStatus(
+            logged_in=True, auth_method="claude.ai", api_provider="firstParty"
+        )
+
+    monkeypatch.setattr(claude_cli_module, "require_claude_subscription", subscription)
     scripted = ScriptedDualProvider(
         load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT), {}
     )
@@ -642,3 +651,5 @@ def test_claude_cli_provider_and_model_reach_the_run_manifest(
     assert {call["model"] for call in calls} == {"claude-opus-5-5"}
     assert {call["request_count"] for call in calls} == {1}
     assert {"medium", "high"} <= set(efforts)
+    # One subscription check per provider construction plus one per call.
+    assert len(auth_checks) > len(efforts)

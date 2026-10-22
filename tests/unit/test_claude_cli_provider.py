@@ -10,6 +10,7 @@ import pytest
 from pydantic import BaseModel
 
 import liveclip.cli.doctor as doctor_module
+import liveclip.services.dual_profile_evaluation as dual_profile_module
 from liveclip.clipping_skills.dual_profile_v1 import load_dual_profile_prompt
 from liveclip.config import Settings
 from liveclip.domain.clip_profile import ClipProfile
@@ -28,7 +29,11 @@ from liveclip.providers.llm.claude_cli import (
     claude_cli_environment,
 )
 from liveclip.providers.llm.structured import StructuredProviderError
-from liveclip.providers.telemetry import ProviderCallStatus, ProviderConfigurationError
+from liveclip.providers.telemetry import (
+    ProviderCallStatus,
+    ProviderCancelled,
+    ProviderConfigurationError,
+)
 from liveclip.services.claude_smoke import ClaudeSmokeError, run_claude_smoke
 from liveclip.services.structured_editorial_provider import (
     configured_structured_editorial_provider_factory,
@@ -41,12 +46,16 @@ from pathlib import Path
 here = Path(__file__).resolve().parent
 scenario = json.loads((here / "scenario.json").read_text())
 args = sys.argv[1:]
-if args == ["--version"]:
-    sys.stdout.write(scenario.get("version", "{version} (Claude Code)\\n"))
-    sys.exit(0)
-if args[:2] == ["auth", "status"]:
-    sys.stdout.write(json.dumps(scenario["auth"]))
-    sys.exit(0)
+if args == ["--version"] or args[:2] == ["auth", "status"]:
+    kind = "version" if args == ["--version"] else "auth"
+    with (here / "probes.jsonl").open("a") as stream:
+        stream.write(json.dumps({{"kind": kind, "argv": args, "env": dict(os.environ)}}) + "\\n")
+    if kind == "version":
+        sys.stdout.write(scenario.get("version", "{version} (Claude Code)\\n"))
+        sys.exit(0)
+    auth = scenario["auth"]
+    sys.stdout.write(auth["raw"] if "raw" in auth else json.dumps(auth))
+    sys.exit(auth.get("returncode", 0) if isinstance(auth.get("returncode"), int) else 0)
 log = here / "calls.jsonl"
 index = len(log.read_text().splitlines()) if log.exists() else 0
 stdin = sys.stdin.read()
@@ -149,6 +158,20 @@ def _install_fake(
     return executable
 
 
+def _set_auth(executable: Path, auth: dict[str, object]) -> None:
+    path = executable.parent / "scenario.json"
+    scenario = json.loads(path.read_text(encoding="utf-8"))
+    scenario["auth"] = auth
+    path.write_text(json.dumps(scenario), encoding="utf-8")
+
+
+def _probes(executable: Path) -> list[dict[str, Any]]:
+    log = executable.parent / "probes.jsonl"
+    if not log.exists():
+        return []
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
 def _calls(executable: Path) -> list[dict[str, Any]]:
     log = executable.parent / "calls.jsonl"
     if not log.exists():
@@ -245,7 +268,9 @@ def test_child_environment_is_allowlisted_and_never_carries_api_keys(tmp_path: P
     assert not [key for key in env if key.upper().startswith(("ANTHROPIC_", "CLAUDE"))]
     assert "OPENAI_API_KEY" not in env
     assert "sk-ant-fixture-never-forward" not in json.dumps(call)
+    assert env["DISABLE_AUTOUPDATER"] == "1"
     allowed = {
+        "DISABLE_AUTOUPDATER",
         "HOME",
         "LANG",
         "LC_ALL",
@@ -272,16 +297,17 @@ def test_environment_helper_drops_keys_even_with_lowercase_or_lookalike_names() 
         "HTTPS_PROXY": "https://user:pass@proxy.invalid",
     }
 
-    assert claude_cli_environment(source) == {
+    assert claude_cli_environment({**source, "DISABLE_AUTOUPDATER": "0"}) == {
         "HOME": "/home/fixture",
         "PATH": "/usr/bin",
         "SSL_CERT_FILE": "/etc/ssl/cert.pem",
+        "DISABLE_AUTOUPDATER": "1",
     }
 
 
 @pytest.mark.parametrize(
     "version",
-    ["2.1.308 (Claude Code)\n", "2.1.306 (Claude Code)\n", "2.1.307\n", "2.1.307 (Claude Code)\r"],
+    ["2.1.309 (Claude Code)\n", "2.1.307 (Claude Code)\n", "2.1.308\n", "2.1.308 (Claude Code)\r"],
 )
 def test_unreviewed_or_malformed_version_is_refused_before_inference(
     tmp_path: Path, version: str
@@ -292,7 +318,7 @@ def test_unreviewed_or_malformed_version_is_refused_before_inference(
         _provider(executable)
 
     assert _calls(executable) == []
-    if version.startswith(("2.1.308 (", "2.1.306 (")):
+    if version.startswith(("2.1.309 (", "2.1.307 (")):
         assert SUPPORTED_CLAUDE_CLI_VERSION in str(error.value)
         assert "has not been reviewed" in str(error.value)
 
@@ -616,6 +642,9 @@ def test_settings_validate_structured_provider_and_claude_defaults() -> None:
         Settings(structured_provider="claude")
     with pytest.raises(ValueError):
         Settings(claude_model="opus; rm -rf /")
+    for alias in ("opus", "sonnet", "fable", "opus-5-5"):
+        with pytest.raises(ValueError):
+            Settings(claude_model=alias)
     with pytest.raises(ValueError):
         Settings(claude_retry_base_seconds=90, claude_retry_max_seconds=30)
 
@@ -701,3 +730,199 @@ def test_smoke_fails_without_mock_fallback_on_out_of_range_boundaries(tmp_path: 
 
     with pytest.raises(ClaudeSmokeError):
         run_claude_smoke(Settings(claude_executable=str(executable)))
+
+
+def test_auth_is_rechecked_before_every_call_and_api_key_never_launches(
+    tmp_path: Path,
+) -> None:
+    executable = _install_fake(tmp_path, [_success({"value": "ok"})])
+    provider = _provider(executable)
+    provider.generate(subject_id="first", payload={}, response_model=Answer)
+    _set_auth(executable, {"loggedIn": True, "authMethod": "apiKey", "apiProvider": "firstParty"})
+
+    with pytest.raises(ProviderConfigurationError) as error:
+        provider.generate(subject_id="second", payload={}, response_model=Answer)
+
+    assert "subscription" in str(error.value)
+    assert len(_calls(executable)) == 1
+
+
+def test_provider_construction_refuses_a_non_subscription_login(tmp_path: Path) -> None:
+    executable = _install_fake(
+        tmp_path, [], auth={"loggedIn": True, "authMethod": "apiKey", "apiProvider": "firstParty"}
+    )
+
+    with pytest.raises(ProviderConfigurationError):
+        _provider(executable)
+    assert _calls(executable) == []
+
+
+@pytest.mark.parametrize(
+    "auth",
+    [
+        {"raw": "Logged in as someone (not JSON)"},
+        {"raw": json.dumps(_SUBSCRIPTION_AUTH), "returncode": 1},
+        {"loggedIn": True, "authMethod": "claude.ai"},
+        {"raw": "[]"},
+    ],
+    ids=["non-json", "nonzero-exit", "no-api-provider", "not-an-object"],
+)
+def test_malformed_auth_probes_refuse(tmp_path: Path, auth: dict[str, object]) -> None:
+    executable = _install_fake(tmp_path, [], auth=auth)
+
+    with pytest.raises(ProviderConfigurationError):
+        assert_claude_cli_ready(str(executable))
+    with pytest.raises(ProviderConfigurationError):
+        _provider(executable)
+    assert _calls(executable) == []
+
+
+def test_version_and_auth_probes_use_the_allowlisted_env_without_autoupdate(
+    tmp_path: Path,
+) -> None:
+    executable = _install_fake(tmp_path, [_success({"value": "ok"})])
+    _provider(executable).generate(subject_id="s", payload={}, response_model=Answer)
+
+    probes = _probes(executable)
+    assert {probe["kind"] for probe in probes} == {"version", "auth"}
+    for probe in probes:
+        env = probe["env"]
+        assert env["DISABLE_AUTOUPDATER"] == "1"
+        assert not [key for key in env if key.upper().startswith(("ANTHROPIC_", "CLAUDE"))]
+        assert "OPENAI_API_KEY" not in env
+    (call,) = _calls(executable)
+    assert call["env"]["DISABLE_AUTOUPDATER"] == "1"
+
+
+def test_cancellation_during_backoff_stops_before_the_next_attempt(tmp_path: Path) -> None:
+    executable = _install_fake(tmp_path, [_api_error(429, "API Error: 429")])
+    cancelled: list[bool] = []
+
+    provider = ClaudeCliStructuredLLMProvider(
+        prompts=load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT),
+        model_name="claude-opus-5-5",
+        claude_executable=str(executable),
+        timeout_seconds=30,
+        reasoning_effort="medium",
+        sleep=lambda _delay, _cancel: cancelled.append(True),
+        jitter=lambda: 0.5,
+    )
+
+    with pytest.raises(ProviderCancelled):
+        provider.generate(
+            subject_id="s",
+            payload={},
+            response_model=Answer,
+            cancel_requested=lambda: bool(cancelled),
+        )
+    assert cancelled == [True]
+    assert len(_calls(executable)) == 1
+
+
+def test_account_email_in_output_is_an_invalid_answer_and_never_leaks(tmp_path: Path) -> None:
+    leaked = {"value": "contact FIXTURE-PERSON@Example.INVALID now"}
+    executable = _install_fake(tmp_path, [_success(leaked), _success(leaked)])
+
+    with pytest.raises(StructuredProviderError) as error:
+        _provider(executable).generate(subject_id="s", payload={}, response_model=Answer)
+
+    assert error.value.code == "STRUCTURED_OUTPUT_INVALID"
+    evidence = json.dumps(
+        {
+            "message": str(error.value),
+            "attempts": error.value.repair_attempts,
+            "records": [record.model_dump(mode="json") for record in error.value.call_records],
+        },
+        ensure_ascii=False,
+        default=str,
+    ).casefold()
+    assert "fixture-person@example.invalid" not in evidence
+    calls = _calls(executable)
+    assert len(calls) == 2
+    # The repair prompt never echoes the leaked identity back to the model.
+    assert "fixture-person@example.invalid" not in calls[1]["stdin"].casefold()
+
+
+def test_account_email_answer_is_repaired_once(tmp_path: Path) -> None:
+    executable = _install_fake(
+        tmp_path,
+        [_success({"value": "fixture-person@example.invalid"}), _success({"value": "clean"})],
+    )
+
+    result = _provider(executable).generate(subject_id="s", payload={}, response_model=Answer)
+
+    assert result.repaired is True
+    assert result.output.value == "clean"
+    assert "fixture-person" not in json.dumps(result.repair_attempts, default=str)
+
+
+def test_tool_activity_wins_over_a_structured_output_retry_subtype(tmp_path: Path) -> None:
+    response = _success(None)
+    response["stdout"]["subtype"] = "error_max_structured_output_retries"
+    response["stdout"]["is_error"] = True
+    response["stdout"]["permission_denials"] = [{"tool_name": "Bash"}]
+    executable = _install_fake(tmp_path, [response])
+
+    with pytest.raises(StructuredProviderError) as error:
+        _provider(executable).generate(subject_id="s", payload={}, response_model=Answer)
+
+    assert error.value.code == "STRUCTURED_TOOL_EVENT"
+    assert len(_calls(executable)) == 1
+
+
+def test_contract_identity_binds_the_child_environment_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = _install_fake(tmp_path, [])
+    contract = claude_cli_contract_version(str(executable))
+
+    monkeypatch.setattr(claude_module, "_FORCED_CHILD_ENV", {"DISABLE_AUTOUPDATER": "0"})
+    forced_changed = claude_cli_contract_version(str(executable))
+    monkeypatch.undo()
+    monkeypatch.setattr(
+        claude_module, "_CHILD_ENV_KEYS", claude_module._CHILD_ENV_KEYS | {"NODE_OPTIONS"}
+    )
+    allowlist_changed = claude_cli_contract_version(str(executable))
+
+    assert len({contract, forced_changed, allowlist_changed}) == 3
+
+
+def test_provider_refuses_model_aliases(tmp_path: Path) -> None:
+    executable = _install_fake(tmp_path, [])
+
+    with pytest.raises(ProviderConfigurationError):
+        ClaudeCliStructuredLLMProvider(
+            prompts=load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT),
+            model_name="opus",
+            claude_executable=str(executable),
+            timeout_seconds=30,
+        )
+
+
+def test_resolve_call_regeneration_exhaustion_names_the_real_cause(tmp_path: Path) -> None:
+    executable = _install_fake(tmp_path, [_api_error(429, "API Error: 429")])
+    policy = ClaudeCliRetryPolicy(
+        max_attempts=2, base_delay_seconds=1.0, max_delay_seconds=1.0, total_wait_seconds=60.0
+    )
+    provider = _provider(executable, policy=policy)
+
+    with pytest.raises(StructuredProviderError) as error:
+        dual_profile_module._resolve_call(
+            stage="discovery",
+            subject_id="window_1",
+            payload={"window_id": "window_1"},
+            response_model=Answer,
+            provider=provider,
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            source_hash="f" * 64,
+            window_start=0,
+            window_end=1,
+            cache_dir=None,
+            validate=lambda output: output,
+            cancel_requested=lambda: False,
+        )
+
+    # One generate plus the single regeneration, two attempts each.
+    assert str(error.value) == "Claude CLI rate limited (429) after 4 attempts"
+    assert [record.request_count for record in error.value.call_records] == [2, 2]
+    assert len(_calls(executable)) == 4

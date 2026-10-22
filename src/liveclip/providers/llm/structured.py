@@ -1128,14 +1128,15 @@ class CodexStructuredLLMProvider:
                         raise ValueError(" | ".join(preflight_errors))
                 except (SecureFileError, ValidationError, ValueError) as exc:
                     # A zero-exit run without a final message can still carry a
-                    # 429 error event. That is a rate limit, not a schema failure,
-                    # so it must not consume the repair or hide the real cause.
-                    if (
-                        raw_output is None
-                        and _codex_process_failure_code("", stdout=result.stdout)
-                        == "CODEX_CLI_RATE_LIMITED"
-                    ):
-                        failure_code = "CODEX_CLI_RATE_LIMITED"
+                    # 429 or quota error event. That is not a schema failure, so it
+                    # must not consume the repair or hide the real cause.
+                    event_code = (
+                        _codex_process_failure_code("", stdout=result.stdout)
+                        if raw_output is None
+                        else None
+                    )
+                    if event_code in {"CODEX_CLI_RATE_LIMITED", "CODEX_CLI_QUOTA_EXHAUSTED"}:
+                        failure_code = event_code
                     else:
                         failure_code = "STRUCTURED_OUTPUT_INVALID"
                         repair_attempts = (
