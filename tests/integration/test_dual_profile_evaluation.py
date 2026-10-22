@@ -21,6 +21,7 @@ from liveclip.pipeline.dual_profile import (
     CrossProfileVariantLinkOutput,
     DualProfileFinalResult,
     DualProfileRunManifest,
+    DualRiskTag,
     GlobalReviewItem,
     ProfileBoundaryReviewOutput,
     ProfileDiscoveryOutput,
@@ -361,6 +362,90 @@ class InvalidDeterministicRepairProvider(SchemaThenDeterministicRepairProvider):
         )
 
 
+class RiskRoutingProvider(ScriptedDualProvider):
+    """Adds a risk-pass record and a base-pass look-alike that share the risk_ prefix."""
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        profile = ClipProfile.MINI_LESSON
+        if response_model is ProfileDiscoveryOutput and mini:
+            window_id = str(payload["window_id"])
+            ownership = cast(dict[str, object], payload["ownership_interval"])
+            discovery_pass = payload.get("discovery_pass")
+            if int(ownership["start_ms"]) == 0 and discovery_pass in {None, "risk_discovery"}:
+                base = cast(ProfileDiscoveryOutput, super()._output(payload, response_model))
+                extra = RawProfileCandidate(
+                    candidate_id=(
+                        "risk_from_pass" if discovery_pass == "risk_discovery" else "risk_lookalike"
+                    ),
+                    profile=profile,
+                    source_window_id=window_id,
+                    start_cue_id=2 if discovery_pass is None else 3,
+                    end_cue_id=12 if discovery_pass is None else 13,
+                    evidence_cue_ids=(4,),
+                    title="风险相关内容",
+                    summary="包含健康主张的教学片段。",
+                    boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
+                    risk_tags=(DualRiskTag.MEDICAL_CLAIM,),
+                )
+                candidates = (extra,) if discovery_pass else (*base.candidates, extra)
+                return cast(
+                    OutputModel,
+                    ProfileDiscoveryOutput(
+                        profile=profile, window_id=window_id, candidates=candidates
+                    ),
+                )
+        output = super()._output(payload, response_model)
+        if response_model is ProfileBoundaryReviewOutput:
+            raw = {
+                value.candidate_id: value
+                for value in (
+                    RawProfileCandidate.model_validate_json(json.dumps(item["candidate"]))
+                    for item in cast(list[dict[str, Any]], payload["candidates"])
+                )
+            }
+            boundary = cast(ProfileBoundaryReviewOutput, output)
+            return cast(
+                OutputModel,
+                boundary.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(update={"risk_tags": raw[item.candidate_id].risk_tags})
+                            for item in boundary.reviews
+                        )
+                    }
+                ),
+            )
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item
+                            if not item.candidate_id.startswith("risk_")
+                            else item.model_copy(
+                                update={
+                                    "score": 60.0,
+                                    "review_status": CandidateDisposition.REJECTED,
+                                    "duplicate_of_candidate_id": "mini_lesson_lesson",
+                                    "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+                                    "review_reason": "Duplicate of the representative lesson.",
+                                }
+                            )
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
 def _write_srt(path: Path) -> None:
     cues = []
     for index in range(1, 71):
@@ -435,6 +520,42 @@ def test_dual_profile_service_executes_independent_pools_and_reuses_profile_cach
         "global_review": 0,
         "variant_link": 0,
     }
+
+
+def test_service_routes_rejections_from_the_risk_pass_structurally(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RiskRoutingProvider(prompt, counter)
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    ).validate_against(final)
+    assert final.routing_policy_version == "quality-gate-risk-routing-v2"
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    # Same risk_ prefix and same rejection, but only the record produced by the
+    # dedicated risk-discovery pass is retained as blocked.
+    assert [value.candidate_id for value in mini.blocked] == ["risk_from_pass"]
+    assert mini.blocked[0].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert mini.blocked[0].review_reason.startswith("Deterministic risk routing: ")
+    assert [value.candidate_id for value in mini.rejected] == ["risk_lookalike"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    assert mini.statistics.discovered == 3
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:

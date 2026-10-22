@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -577,11 +578,224 @@ def test_pre_gate_final_artifacts_still_load_without_routing_policy_marker() -> 
     marked = DualProfileFinalResult.model_validate_json(
         json.dumps({**payload, "routing_policy_version": DUAL_PROFILE_ROUTING_POLICY_VERSION})
     )
-    assert marked.routing_policy_version == "manual-review-quality-gate-v1"
+    assert marked.routing_policy_version == DUAL_PROFILE_ROUTING_POLICY_VERSION
     with pytest.raises(ValueError):
         DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": "unknown-policy"})
         )
+
+
+def _assemble_pool(
+    *,
+    profile: ClipProfile,
+    specs: tuple[dict[str, object], ...],
+    risk_record_ids: frozenset[str] = frozenset(),
+) -> FinalProfileResult:
+    windows = plan_profile_discovery_windows(TRANSCRIPT, profile)
+    discoveries: list[ProfileDiscoveryOutput] = []
+    boundaries: list[BoundaryReviewItem] = []
+    reviews: list[GlobalReviewItem] = []
+    for spec in specs:
+        candidate_id = str(spec["candidate_id"])
+        start_cue_id = int(cast(int, spec["start_cue_id"]))
+        end_cue_id = int(cast(int, spec["end_cue_id"]))
+        risk_tags = cast(tuple[DualRiskTag, ...], spec.get("risk_tags", ()))
+        start_ms = TRANSCRIPT.segments[start_cue_id - 1].start_ms
+        window = next(
+            value
+            for value in windows
+            if value.ownership_start_ms <= start_ms < value.ownership_end_ms
+        )
+        raw = _raw(
+            profile=profile,
+            window_id=window.window_id,
+            candidate_id=candidate_id,
+            start_cue_id=start_cue_id,
+            end_cue_id=end_cue_id,
+        ).model_copy(update={"risk_tags": risk_tags})
+        discoveries.append(
+            ProfileDiscoveryOutput(profile=profile, window_id=window.window_id, candidates=(raw,))
+        )
+        boundaries.append(
+            BoundaryReviewItem(
+                candidate_id=candidate_id,
+                profile=profile,
+                start_cue_id=start_cue_id,
+                end_cue_id=end_cue_id,
+                opening_complete=True,
+                ending_complete=True,
+                central_objective_complete=True,
+                shortest_complete_boundary=True,
+                risk_tags=risk_tags,
+                evidence_cue_ids=(start_cue_id, end_cue_id),
+                review_reason="边界审查证据。",
+            )
+        )
+        reviews.append(
+            GlobalReviewItem(
+                candidate_id=candidate_id,
+                profile=profile,
+                start_cue_id=start_cue_id,
+                end_cue_id=end_cue_id,
+                title="测试候选",
+                hook="测试钩子",
+                summary="完整摘要。",
+                score=float(cast(float, spec.get("score", 70))),
+                review_status=cast(CandidateDisposition, spec["status"]),
+                duplicate_of_candidate_id=cast(str | None, spec.get("duplicate_of")),
+                risk_tags=risk_tags,
+                evidence_cue_ids=(start_cue_id, end_cue_id),
+                review_reason=str(spec.get("reason", "全局审查证据。")),
+            )
+        )
+    return assemble_final_profile_result(
+        profile=profile,
+        discoveries=tuple(discoveries),
+        boundaries=ProfileBoundaryReviewOutput(profile=profile, reviews=tuple(boundaries)),
+        global_review=ProfileGlobalReviewOutput(profile=profile, reviews=tuple(reviews)),
+        transcript=TRANSCRIPT,
+        top_n=15,
+        risk_record_ids=risk_record_ids,
+    )
+
+
+_RISK_POOL: tuple[dict[str, object], ...] = (
+    {
+        "candidate_id": "parent_lesson",
+        "start_cue_id": 940,
+        "end_cue_id": 991,
+        "status": CandidateDisposition.BLOCKED,
+        "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+    },
+    {
+        "candidate_id": "pass_record_duplicate",
+        "start_cue_id": 941,
+        "end_cue_id": 991,
+        "status": CandidateDisposition.REJECTED,
+        "duplicate_of": "parent_lesson",
+        "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+        "reason": "与父候选重复。",
+    },
+    {
+        "candidate_id": "base_duplicate",
+        "start_cue_id": 942,
+        "end_cue_id": 991,
+        "status": CandidateDisposition.REJECTED,
+        "duplicate_of": "parent_lesson",
+        "reason": "与父候选重复。",
+    },
+    {
+        "candidate_id": "pass_record_low_value",
+        "start_cue_id": 943,
+        "end_cue_id": 991,
+        "status": CandidateDisposition.REJECTED,
+        "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+        "reason": "价值不足。",
+    },
+)
+
+
+def test_risk_pass_duplicate_is_retained_blocked_with_its_reference() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=_RISK_POOL,
+        risk_record_ids=frozenset({"pass_record_duplicate", "pass_record_low_value"}),
+    )
+    blocked = {value.candidate_id: value for value in result.blocked}
+    duplicate = blocked["pass_record_duplicate"]
+    assert duplicate.duplicate_of_candidate_id == "parent_lesson"
+    assert duplicate.review_reason == "Deterministic risk routing: 与父候选重复。"
+    assert duplicate.risk_tags == (DualRiskTag.MEDICAL_CLAIM,)
+    low_value = blocked["pass_record_low_value"]
+    assert low_value.duplicate_of_candidate_id is None
+    assert low_value.review_reason == "Deterministic risk routing: 价值不足。"
+    # A non-risk-pass duplicate keeps the model rejection.
+    assert [value.candidate_id for value in result.rejected] == ["base_duplicate"]
+    assert result.rejected[0].review_reason == "与父候选重复。"
+    assert result.selected == () and result.manual_review == ()
+    # Lineage and recomputed counts are conserved.
+    assert result.statistics.discovered == 4
+    assert (result.statistics.blocked, result.statistics.rejected) == (3, 1)
+    assert set(result.raw_candidate_ids) == {
+        source
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+        for source in value.source_candidate_ids
+    }
+    FinalProfileResult.model_validate(result.model_dump(mode="python"))
+
+
+def test_risk_routing_is_inert_without_structural_risk_record_ids() -> None:
+    result = _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=_RISK_POOL)
+    assert [value.candidate_id for value in result.blocked] == ["parent_lesson"]
+    assert {value.candidate_id for value in result.rejected} == {
+        "pass_record_duplicate",
+        "base_duplicate",
+        "pass_record_low_value",
+    }
+
+
+def test_blocked_duplicate_is_accepted_only_for_risk_pass_records() -> None:
+    specs = (
+        _RISK_POOL[0],
+        {**_RISK_POOL[1], "status": CandidateDisposition.BLOCKED},
+    )
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=specs,
+        risk_record_ids=frozenset({"pass_record_duplicate"}),
+    )
+    blocked = {value.candidate_id: value for value in result.blocked}
+    assert blocked["pass_record_duplicate"].duplicate_of_candidate_id == "parent_lesson"
+    assert blocked["pass_record_duplicate"].review_reason == "与父候选重复。"
+    with pytest.raises(ValueError, match="rejected audit row"):
+        _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=specs)
+    for status in (CandidateDisposition.MANUAL_REVIEW, CandidateDisposition.SELECTED):
+        with pytest.raises(ValueError, match="rejected audit row"):
+            _assemble_pool(
+                profile=ClipProfile.MINI_LESSON,
+                specs=(_RISK_POOL[0], {**_RISK_POOL[1], "status": status, "score": 90}),
+                risk_record_ids=frozenset({"pass_record_duplicate"}),
+            )
+
+
+def test_risk_routing_never_upgrades_to_an_output() -> None:
+    manual = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "pass_record_manual",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+            },
+        ),
+        risk_record_ids=frozenset({"pass_record_manual"}),
+    )
+    assert [value.candidate_id for value in manual.manual_review] == ["pass_record_manual"]
+    assert manual.manual_review[0].review_reason == "全局审查证据。"
+
+
+def test_routing_policy_marker_accepts_v1_and_v2() -> None:
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v2"
+    result = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="marker",
+        start_cue_id=941,
+        end_cue_id=958,
+    )
+    payload = DualProfileFinalResult(
+        source_hash=SOURCE_HASH,
+        requested_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        executed_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        profiles={ClipProfile.SHORT_HIGHLIGHT: result},
+    ).model_dump(mode="json")
+    for marker in ("manual-review-quality-gate-v1", "quality-gate-risk-routing-v2", None):
+        loaded = DualProfileFinalResult.model_validate_json(
+            json.dumps({**payload, "routing_policy_version": marker})
+        )
+        assert loaded.routing_policy_version == marker
 
 
 def test_cache_identity_contains_profile_and_window() -> None:

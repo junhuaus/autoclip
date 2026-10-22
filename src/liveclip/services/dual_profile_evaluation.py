@@ -605,6 +605,11 @@ def run_dual_profile_evaluation(
             *confirmation_discoveries,
             *risk_discoveries,
         )
+        # Structural risk-pass membership: taken from the dedicated risk-discovery
+        # pass outputs, never inferred from candidate-ID prefixes.
+        risk_record_ids = frozenset(
+            candidate.candidate_id for output in risk_discoveries for candidate in output.candidates
+        )
         all_candidate_ids = [
             candidate.candidate_id
             for output in profile_discoveries
@@ -724,6 +729,7 @@ def run_dual_profile_evaluation(
             current_profile: ClipProfile = profile,
             current_discoveries: tuple[ProfileDiscoveryOutput, ...] = profile_discoveries,
             current_boundary: ProfileBoundaryReviewOutput = boundary,
+            current_risk_ids: frozenset[str] = risk_record_ids,
         ) -> ProfileGlobalReviewOutput:
             review = value
             assemble_final_profile_result(
@@ -734,6 +740,7 @@ def run_dual_profile_evaluation(
                 transcript=transcript,
                 top_n=resolved.top_n[current_profile],
                 score_threshold_exclusive=resolved.score_threshold_exclusive,
+                risk_record_ids=current_risk_ids,
             )
             return review
 
@@ -755,6 +762,7 @@ def run_dual_profile_evaluation(
             current_discoveries: tuple[ProfileDiscoveryOutput, ...] = profile_discoveries,
             current_boundary: ProfileBoundaryReviewOutput = boundary,
             partition_count: int = len(global_chunks),
+            current_risk_ids: frozenset[str] = risk_record_ids,
         ) -> tuple[int, _ResolvedCall]:
             candidate_ids = {candidate.candidate_id for candidate in candidate_chunk}
             chunk_discoveries = tuple(
@@ -801,6 +809,7 @@ def run_dual_profile_evaluation(
                     transcript=transcript,
                     top_n=resolved.top_n[current_profile],
                     score_threshold_exclusive=resolved.score_threshold_exclusive,
+                    risk_record_ids=current_risk_ids,
                 )
                 return review_value
 
@@ -920,6 +929,7 @@ def run_dual_profile_evaluation(
             transcript=transcript,
             top_n=resolved.top_n[profile],
             score_threshold_exclusive=resolved.score_threshold_exclusive,
+            risk_record_ids=risk_record_ids,
         )
 
     assert_no_cross_profile_dedup(results.values())

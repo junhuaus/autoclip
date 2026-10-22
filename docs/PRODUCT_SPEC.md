@@ -298,7 +298,10 @@ once and records content decision, publication decision, semantic duplicate rela
 structured rejection evidence. Python validates complete candidate-ID coverage, cue/time facts,
 continuous boundaries, duration, exact score arithmetic, enumerated gates and the final Top-N ceiling.
 It never invents semantic quality, upgrades a model rejection, materializes manual/blocked content or
-forces a reference clip count. Historical `semantic_global_v1/v2` behavior remains replayable.
+forces a reference clip count. The one explicit exception: in dual-profile runs a rejected record
+from the dedicated risk-discovery pass is retained as `blocked` (never an output) so risk material
+stays auditable, per the dual-profile benchmark risk rule. Historical `semantic_global_v1/v2`
+behavior remains replayable.
 
 `LLMProvider` has OpenAI Responses, Codex CLI and Mock implementations. Both real implementations use strict structured output, send only one bounded candidate plus small context and quality signals, enable no tools, and treat transcript content as untrusted data rather than instructions. Codex uses controlled non-interactive execution and saved local authentication; it receives text only after ASR. They return value, hook and completeness judgment, boundary suggestions, score/rank, concise Chinese title, reason, risks, and whitelisted caption/effect selections. Layout is system-owned and absent from the model wire schema. Prompt files are versioned. Calls persist model, prompt version/hash, time, request ID, usage, and result status. Model and optional prices are configuration; prices are never hardcoded.
 

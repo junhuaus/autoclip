@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from enum import StrEnum
 from typing import Final, Literal
 
@@ -75,9 +75,12 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
         DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
     }
 )
-# Audit marker for final results assembled with the manual-review quality gate.
-# Artifacts written before the gate omit it and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "manual-review-quality-gate-v1"
+# Audit marker for the deterministic final routing policy.
+#   v1: manual_review rows with a gated quality flag are downgraded to blocked.
+#   v2: v1 plus records of the dedicated risk-discovery pass are never rejected;
+#       a rejected risk record is retained as blocked (never an output).
+# Artifacts written before either policy omit the marker and load as ``None``.
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v2"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -425,7 +428,9 @@ class DualProfileFinalResult(BaseModel):
     profiles: dict[ClipProfile, FinalProfileResult]
     # Optional audit marker; absent (``None``) in artifacts that predate the
     # deterministic manual-review quality gate.
-    routing_policy_version: Literal["manual-review-quality-gate-v1"] | None = None
+    routing_policy_version: (
+        Literal["manual-review-quality-gate-v1", "quality-gate-risk-routing-v2"] | None
+    ) = None
 
     @model_validator(mode="after")
     def validate_execution(self) -> DualProfileFinalResult:
@@ -642,7 +647,16 @@ def assemble_final_profile_result(
     transcript: TranscriptDocument,
     top_n: int,
     score_threshold_exclusive: float = 75.0,
+    risk_record_ids: Collection[str] = frozenset(),
 ) -> FinalProfileResult:
+    """Validate review stages and deterministically route final dispositions.
+
+    ``risk_record_ids`` must be derived structurally from the dedicated
+    risk-discovery pass output, never from candidate-ID prefixes.  A rejected
+    risk record is retained as ``blocked`` so risk material stays auditable.
+    Routing only ever downgrades or retains; it never produces an output.
+    """
+    risk_records = frozenset(risk_record_ids)
     raw_candidates = tuple(value for output in discoveries for value in output.candidates)
     raw_map = {value.candidate_id: value for value in raw_candidates}
     if len(raw_map) != len(raw_candidates):
@@ -678,7 +692,12 @@ def assemble_final_profile_result(
             representative = raw_map.get(review.duplicate_of_candidate_id)
             if representative is None or representative.profile != profile:
                 raise ValueError("semantic duplicate must reference the same Profile")
-            if review.review_status != CandidateDisposition.REJECTED:
+            allowed_duplicate_statuses = (
+                {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
+                if candidate_id in risk_records
+                else {CandidateDisposition.REJECTED}
+            )
+            if review.review_status not in allowed_duplicate_statuses:
                 raise ValueError("duplicate candidate must be retained as a rejected audit row")
         merged_quality = tuple(dict.fromkeys((*boundary.quality_flags, *review.quality_flags)))
         merged_risks = tuple(
@@ -747,6 +766,21 @@ def assemble_final_profile_result(
                     update={
                         "review_status": CandidateDisposition.REJECTED,
                         "review_reason": f"Profile-local Top-N exclusion: {value.review_reason}",
+                    }
+                )
+            )
+        elif (
+            value.review_status == CandidateDisposition.REJECTED
+            and value.candidate_id in risk_records
+        ):
+            # Benchmark risk rule: risk material ends manual_review or blocked and
+            # never silently disappears.  Keep the duplicate reference and the
+            # rejection evidence; blocked is never materialized.
+            normalized.append(
+                value.model_copy(
+                    update={
+                        "review_status": CandidateDisposition.BLOCKED,
+                        "review_reason": f"Deterministic risk routing: {value.review_reason}",
                     }
                 )
             )
