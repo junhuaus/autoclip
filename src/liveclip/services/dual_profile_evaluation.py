@@ -40,6 +40,7 @@ from liveclip.media.secure_files import (
 )
 from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
+    DUAL_PROFILE_ROUTING_POLICY_VERSION,
     BoundaryReviewItem,
     CrossProfileVariantLinkOutput,
     DiscoveryWindow,
@@ -985,6 +986,7 @@ def run_dual_profile_evaluation(
         requested_profiles=resolved.requested_profiles,
         executed_profiles=tuple(results),
         profiles=results,
+        routing_policy_version=DUAL_PROFILE_ROUTING_POLICY_VERSION,
     )
     elapsed_ms = round((time.monotonic() - started) * 1_000)
     manifest = DualProfileRunManifest(

@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -60,6 +60,24 @@ class DualRiskTag(StrEnum):
 
 
 AUTO_BLOCKING_QUALITY_FLAGS = frozenset(DualQualityFlag)
+# PRODUCT_SPEC: unresolved boundary, cleanliness, padding and mixed-topic quality
+# flags drop the candidate.  A model ``manual_review`` disposition cannot keep such a
+# row reviewable; final assembly deterministically downgrades it to ``blocked``.
+# Opening-context and prior-step flags remain advisory for human review.
+MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
+    {
+        DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+        DualQualityFlag.SALES_OR_CTA_PADDING,
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.TOPIC_SWITCH_INSIDE,
+        DualQualityFlag.TOPIC_NOT_CLOSED,
+        DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+    }
+)
+# Audit marker for final results assembled with the manual-review quality gate.
+# Artifacts written before the gate omit it and load as ``None``.
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "manual-review-quality-gate-v1"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -405,6 +423,9 @@ class DualProfileFinalResult(BaseModel):
     requested_profiles: tuple[ClipProfile, ...]
     executed_profiles: tuple[ClipProfile, ...]
     profiles: dict[ClipProfile, FinalProfileResult]
+    # Optional audit marker; absent (``None``) in artifacts that predate the
+    # deterministic manual-review quality gate.
+    routing_policy_version: Literal["manual-review-quality-gate-v1"] | None = None
 
     @model_validator(mode="after")
     def validate_execution(self) -> DualProfileFinalResult:
@@ -729,6 +750,19 @@ def assemble_final_profile_result(
                     }
                 )
             )
+        elif value.review_status == CandidateDisposition.MANUAL_REVIEW and (
+            set(value.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+        ):
+            # Python only ever downgrades: the merged Boundary/Global quality flags
+            # are authoritative over the model's manual_review disposition.
+            normalized.append(
+                value.model_copy(
+                    update={
+                        "review_status": CandidateDisposition.BLOCKED,
+                        "review_reason": f"Deterministic quality gate: {value.review_reason}",
+                    }
+                )
+            )
         else:
             normalized.append(value)
     grouped = {
@@ -846,6 +880,8 @@ __all__ = [
     "AUTO_BLOCKING_QUALITY_FLAGS",
     "AUTO_BLOCKING_RISK_TAGS",
     "DUAL_PROFILE_ALGORITHM_VERSION",
+    "DUAL_PROFILE_ROUTING_POLICY_VERSION",
+    "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
     "BoundaryReviewItem",
     "BoundaryState",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,12 +8,15 @@ import pytest
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
+    DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     PROFILE_DURATION_CONTRACTS,
     BoundaryReviewItem,
     BoundaryState,
     CandidateDisposition,
     CrossProfileVariantLinkOutput,
     DualProfileFinalResult,
+    DualProfileRunManifest,
     DualQualityFlag,
     DualRiskTag,
     FinalProfileCandidate,
@@ -21,12 +25,14 @@ from liveclip.pipeline.dual_profile import (
     ProfileBoundaryReviewOutput,
     ProfileDiscoveryOutput,
     ProfileGlobalReviewOutput,
+    ProfileManifestStats,
     RawProfileCandidate,
     VariantLinkItem,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
     plan_profile_discovery_windows,
+    profile_statistics,
     semantic_cache_key,
     validate_boundary_review_output,
     validate_discovery_output,
@@ -72,9 +78,11 @@ def _assemble(
     end_cue_id: int,
     status: CandidateDisposition = CandidateDisposition.SELECTED,
     quality_flags: tuple[DualQualityFlag, ...] = (),
+    boundary_quality_flags: tuple[DualQualityFlag, ...] | None = None,
     risk_tags: tuple[DualRiskTag, ...] = (),
     score: float = 90,
 ) -> FinalProfileResult:
+    boundary_flags = quality_flags if boundary_quality_flags is None else boundary_quality_flags
     windows = plan_profile_discovery_windows(TRANSCRIPT, profile)
     start_ms = TRANSCRIPT.segments[start_cue_id - 1].start_ms
     window = next(
@@ -98,11 +106,11 @@ def _assemble(
         profile=profile,
         start_cue_id=start_cue_id,
         end_cue_id=end_cue_id,
-        opening_complete=not quality_flags,
-        ending_complete=not quality_flags,
-        central_objective_complete=not quality_flags,
-        shortest_complete_boundary=not quality_flags,
-        quality_flags=quality_flags,
+        opening_complete=not boundary_flags,
+        ending_complete=not boundary_flags,
+        central_objective_complete=not boundary_flags,
+        shortest_complete_boundary=not boundary_flags,
+        quality_flags=boundary_flags,
         risk_tags=risk_tags,
         evidence_cue_ids=(start_cue_id, end_cue_id),
         review_reason="边界审查证据。",
@@ -394,6 +402,186 @@ def test_rgr02_quality_flags_forbid_automatic_selection() -> None:
         quality_flags=flags,
     )
     assert manual.blocked[0].quality_flags == flags
+
+
+def test_manual_review_quality_gate_flag_set_uses_existing_enum_members() -> None:
+    assert {value.value for value in MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS} == {
+        "padded_with_irrelevant_content",
+        "sales_or_cta_padding",
+        "device_or_waiting_padding",
+        "material_interruption",
+        "topic_switch_inside",
+        "topic_not_closed",
+        "asr_uncertain_blocks_meaning",
+    }
+    assert DualQualityFlag.CONTEXT_DEPENDENT_OPENING not in MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+    assert DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS not in MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+
+
+def test_boundary_flag_dropped_by_global_review_blocks_manual_review_candidate() -> None:
+    # warm-22 shape: Boundary flags material_interruption, Global Review claims it is
+    # resolved and returns manual_review without it; the merged flag must still gate.
+    result = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="singing_channel_tight_voice",
+        start_cue_id=941,
+        end_cue_id=958,
+        status=CandidateDisposition.MANUAL_REVIEW,
+        boundary_quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+    )
+    assert result.manual_review == ()
+    assert len(result.blocked) == 1
+    blocked = result.blocked[0]
+    assert blocked.review_status == CandidateDisposition.BLOCKED
+    assert blocked.quality_flags == (DualQualityFlag.MATERIAL_INTERRUPTION,)
+    assert blocked.review_reason == "Deterministic quality gate: 全局审查证据。"
+    assert result.statistics.discovered == 1
+    assert result.statistics.manual_review == 0
+    assert result.statistics.blocked == 1
+    assert result.statistics.selected == 0
+    assert result.statistics.rejected == 0
+    final = DualProfileFinalResult(
+        source_hash=SOURCE_HASH,
+        requested_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        executed_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        profiles={ClipProfile.SHORT_HIGHLIGHT: result},
+        routing_policy_version=DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    )
+    DualProfileRunManifest(
+        source_hash=SOURCE_HASH,
+        requested_profiles=final.requested_profiles,
+        executed_profiles=final.executed_profiles,
+        profiles={
+            ClipProfile.SHORT_HIGHLIGHT: ProfileManifestStats(**result.statistics.model_dump())
+        },
+        provider="fake",
+        model="fake",
+        prompt_files={},
+        prompt_hashes={},
+        calls={},
+        input_tokens=0,
+        output_tokens=0,
+        latency_ms=0,
+        cache_hits=0,
+        repair_count=0,
+    ).validate_against(final)
+
+
+@pytest.mark.parametrize("flag", sorted(MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS))
+def test_every_gated_quality_flag_downgrades_manual_review_to_blocked(
+    flag: DualQualityFlag,
+) -> None:
+    result = _assemble(
+        profile=ClipProfile.MINI_LESSON,
+        candidate_id=f"gated_{flag.value}",
+        start_cue_id=940,
+        end_cue_id=991,
+        status=CandidateDisposition.MANUAL_REVIEW,
+        quality_flags=(flag,),
+    )
+    assert result.manual_review == ()
+    assert [value.candidate_id for value in result.blocked] == [f"gated_{flag.value}"]
+    assert result.blocked[0].review_reason.startswith("Deterministic quality gate: ")
+    assert (result.statistics.manual_review, result.statistics.blocked) == (0, 1)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        (DualQualityFlag.CONTEXT_DEPENDENT_OPENING,),
+        (DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,),
+        (
+            DualQualityFlag.CONTEXT_DEPENDENT_OPENING,
+            DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,
+        ),
+    ],
+)
+def test_advisory_quality_flags_keep_manual_review(flags: tuple[DualQualityFlag, ...]) -> None:
+    result = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="context_dependent",
+        start_cue_id=941,
+        end_cue_id=958,
+        status=CandidateDisposition.MANUAL_REVIEW,
+        boundary_quality_flags=flags,
+    )
+    assert result.blocked == ()
+    assert len(result.manual_review) == 1
+    assert result.manual_review[0].review_reason == "全局审查证据。"
+    assert result.manual_review[0].quality_flags == flags
+    assert (result.statistics.manual_review, result.statistics.blocked) == (1, 0)
+
+
+def test_quality_gate_never_upgrades_or_touches_other_dispositions() -> None:
+    selected = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="selected_clean",
+        start_cue_id=941,
+        end_cue_id=958,
+    )
+    assert [value.candidate_id for value in selected.selected] == ["selected_clean"]
+    assert selected.selected[0].review_reason == "全局审查证据。"
+    for status in (CandidateDisposition.BLOCKED, CandidateDisposition.REJECTED):
+        result = _assemble(
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            candidate_id=f"{status.value}_gated",
+            start_cue_id=941,
+            end_cue_id=958,
+            status=status,
+            quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+        )
+        values = result.blocked if status == CandidateDisposition.BLOCKED else result.rejected
+        assert len(values) == 1
+        assert values[0].review_status == status
+        assert values[0].review_reason == "全局审查证据。"
+    with pytest.raises(ValueError, match="blocking quality"):
+        _assemble(
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            candidate_id="selected_gated",
+            start_cue_id=941,
+            end_cue_id=958,
+            boundary_quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+        )
+
+
+def test_pre_gate_final_artifacts_still_load_without_routing_policy_marker() -> None:
+    # A historical artifact: no routing_policy_version and a manual_review row that
+    # still carries a gated flag.  Loading must not re-route or raise.
+    candidate = _assemble(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        candidate_id="historical_manual",
+        start_cue_id=941,
+        end_cue_id=958,
+        status=CandidateDisposition.MANUAL_REVIEW,
+    ).manual_review[0]
+    legacy_candidate = candidate.model_copy(
+        update={"quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,)}
+    )
+    legacy_profile = FinalProfileResult(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        raw_candidate_ids=("historical_manual",),
+        manual_review=(legacy_candidate,),
+        statistics=profile_statistics(("historical_manual",), (legacy_candidate,)),
+    )
+    payload = DualProfileFinalResult(
+        source_hash=SOURCE_HASH,
+        requested_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        executed_profiles=(ClipProfile.SHORT_HIGHLIGHT,),
+        profiles={ClipProfile.SHORT_HIGHLIGHT: legacy_profile},
+    ).model_dump(mode="json")
+    payload.pop("routing_policy_version")
+    assert "routing_policy_version" not in payload
+    loaded = DualProfileFinalResult.model_validate_json(json.dumps(payload))
+    assert loaded.routing_policy_version is None
+    assert loaded.profiles[ClipProfile.SHORT_HIGHLIGHT].manual_review == (legacy_candidate,)
+    marked = DualProfileFinalResult.model_validate_json(
+        json.dumps({**payload, "routing_policy_version": DUAL_PROFILE_ROUTING_POLICY_VERSION})
+    )
+    assert marked.routing_policy_version == "manual-review-quality-gate-v1"
+    with pytest.raises(ValueError):
+        DualProfileFinalResult.model_validate_json(
+            json.dumps({**payload, "routing_policy_version": "unknown-policy"})
+        )
 
 
 def test_cache_identity_contains_profile_and_window() -> None:
