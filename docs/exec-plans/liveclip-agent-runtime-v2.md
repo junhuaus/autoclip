@@ -1,5 +1,36 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 9 dual-profile routing and review-prompt batch (2026-10-22)
+
+- [x] 2026-10-22 **Stage 9 ACCEPTED** at `56aa93c` on
+  `claude/liveclip-stage8-routing`: `bfdef3b` (twin gated-flag union,
+  Top-N risk → blocked, final evidence filter, audit-created nested
+  pairs), `703cfbb` (review-prompt batch A/B2/C/D plus P2 wording),
+  `56aa93c` (review fix: cache-hit leniency removed; equipment/audibility
+  carve-out; duration-minimum wording; softened untranscribed-gap rule;
+  twin-flag comment). Not pushed.
+  - Reviewer round 1 at `703cfbb`: CHANGES_REQUIRED (P1 warm-run crash on
+    cached audits deciding created pairs; P2 anchor risks L01/S04, S08,
+    rule C). Re-review ACCEPT for `4f2c068..56aa93c`.
+  - Tester PASS at `56aa93c`: `make lint` 0; `make test` x2 exit 0,
+    backend 2790 passed / 0 failed / 0 skipped (1433.30 s, 1421.72 s),
+    vitest 14/80, e2e 4/4 both; targeted 182; AC, no sleep.
+- Decision Log (2026-10-22): routing policy `quality-gate-risk-routing-v3`
+  (v1/v2/None still load). Cache hits of the Global Audit are validated
+  with the full created-pair rule; pre-rule audits cannot be hits because
+  their audit prompt hash differs. Scratch prediction caches contain
+  synthetic outputs and must never seed a warm run.
+- Real runs (diagnostic only; Discovery from cold-21/warm-22, prompts
+  iterated on this transcript): warm-25 stopped on the usage limit after
+  2474 s (73 of 75 new calls cached); warm-26 (233 hits, 2 new calls + 1
+  audit repair, 1194 s) strict PASS 97.5, no hard failures, no PASS
+  blockers, short 7/8 (S06 missed: its only candidate model-blocked with
+  `context_dependent_opening`), mini 6/6, R01/R02 blocked; 13 renders pass
+  automatic checks; human review pending. Details in `STATUS.md`.
+- [ ] Next: a fresh acceptance run (method pending user decision because of
+  the subscription quota), then human editorial/audio review, then
+  push/merge only with explicit consent.
+
 ## Stage 8 dual-profile routing and review-stage fixes (2026-10-22)
 
 - [x] 2026-10-22 **Stage 8 ACCEPTED** at `4f2c068` on local branch
@@ -40,7 +71,8 @@
   653 s) strict FAIL 92.5, no PASS blockers, short 7/8, mini 5/6, hard
   failures `negative_anchor_output` and `forbidden_composite_interval`.
   Details in `STATUS.md`.
-- [ ] Next: Stage 9 (same-interval flag union, Top-N risk routing, final
+- [x] (Historical next step; Stage 9 ACCEPTED, warm-25 run, see above.)
+  Stage 9 (same-interval flag union, Top-N risk routing, final
   evidence filtering, post-audit nested pairs, consolidated review prompt
   batch), then warm-25 (diagnostic), then a fresh cold acceptance run
   (`cache_hits=0`, about 230 calls) started right after a subscription

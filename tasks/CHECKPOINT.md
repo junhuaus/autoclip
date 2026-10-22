@@ -340,5 +340,29 @@ contract. Real runs (frozen 2.1.308, subscription): cold-21 and warm-23
 stopped on the usage limit; warm-22 FAIL 90.0 (F1+F2 replay 95.0); warm-24
 FAIL 92.5 with no PASS blockers (diagnostic only). Details in `STATUS.md`.
 
-Next: Stage 9, then warm-25 (diagnostic), then a fresh cold acceptance run
-right after a subscription usage-limit reset. Not pushed.
+(Historical next step.) Stage 9, then warm-25 (diagnostic), then a fresh
+cold acceptance run right after a subscription usage-limit reset. Not pushed.
+
+## Stage 9 accepted at 56aa93c (2026-10-22)
+
+Branch `claude/liveclip-stage8-routing`, local only: `bfdef3b` (twin
+gated-flag union, Top-N risk → blocked, evidence filter, audit-created
+pairs), `703cfbb` (review-prompt batch), `56aa93c` (review fix: cache-hit
+leniency removed, equipment/audibility carve-out, duration-minimum
+wording, softened untranscribed-gap rule, twin-flag comment). Reviewer
+round 1 at `703cfbb` CHANGES_REQUIRED (P1 warm-run crash on cached audits;
+P2 anchor risks L01/S04, S08, rule C); re-review ACCEPT for
+`4f2c068..56aa93c`. Tester PASS at `56aa93c` (lint 0; `make test` x2 exit
+0, backend 2790 passed / 0 failed / 0 skipped, 1433.30 s and 1421.72 s;
+vitest 14/80; e2e 4/4 both; targeted 182; AC, no sleep). Routing policy v3.
+
+Real diagnostic runs: warm-25 stopped on the usage limit (73 of 75 new
+calls cached); warm-26 strict PASS 97.5, no hard failures, no PASS
+blockers, short 7/8 (S06 missed), mini 6/6, 13 renders pass automatic
+checks, human review pending. Warm runs are diagnostic only (Discovery
+from cold-21/warm-22; prompts iterated on this transcript). Scratch
+prediction caches are synthetic and must never seed a warm run.
+
+Next: a fresh acceptance run (method pending user decision because of the
+subscription quota), then human editorial/audio review, then push/merge
+only with explicit consent. Not pushed.

@@ -18,6 +18,82 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 9 dual-profile routing and review-prompt batch (2026-10-22) — ACCEPTED at 56aa93c
+
+- **Status: ACCEPTED** (2026-10-22) on local branch
+  `claude/liveclip-stage8-routing`. Not pushed or merged. Code commits:
+  - `bfdef3bee12c664bf6b0f21cad86eb656d6a0635`: same-interval gated-flag
+    union (a `selected`/`manual_review` twin that inherits a gated flag
+    becomes `blocked`, never raising; advisory flags and
+    `source_title_mismatch` are not shared); risk records excluded by Top-N
+    are retained as `blocked`; final `evidence_cue_ids` are limited to the
+    final interval (raw Discovery artifacts keep the originals); a fresh
+    Global Audit must also decide nested pairs its own replacements create.
+  - `703cfbbf1f3b5815f1db3dca409ae6b2607e8336`: consolidated review-prompt
+    batch in `stages/boundary_review.md`, `global_review.md` and
+    `global_audit.md` only (rules A, B2, C, D plus the reviewer P2
+    wording). Discovery prompts are byte-identical and their hashes stay
+    pinned.
+  - `56aa93c15b56c9a0f2d226c1203166365dca4b87`: review fix. The Global
+    Audit cache-hit leniency is removed, so cache hits are re-validated
+    with the same rule as fresh outputs (safe because pre-rule audits
+    carry an older audit prompt hash); the equipment/audibility carve-out
+    (a speaker's brief explanation of their own equipment or of why moving
+    closer helps listeners hear is part of the demonstration; an
+    audibility check is asking or answering whether someone can hear;
+    "lag" is connection lag); the duration-minimum wording ("no longer
+    satisfies the Profile duration minimum"; a closing acknowledgement is
+    neither padding nor subtracted); the softened untranscribed-gap rule;
+    a comment on why twins share `topic_switch_inside`/`topic_not_closed`.
+- Routing-policy marker: `quality-gate-risk-routing-v3` (v1, v2 and a
+  missing marker still load). `DUAL_PROFILE_ALGORITHM_VERSION` unchanged.
+- Reviewer round 1 at `703cfbb`: CHANGES_REQUIRED. P1: a warm run crashed
+  on a cached audit that had decided a pair created by its own
+  replacements (the lenient cache-hit validator rejected it as unlisted).
+  P2: prompt anchor risks for L01/S04 (equipment/audibility carve-out too
+  narrow), S08 (duration-minimum wording) and rule C (untranscribed gaps).
+  Re-review: ACCEPT for `4f2c068..56aa93c`.
+- Tester: PASS at `56aa93c` on AC, no sleep: `make lint` exit 0; `make
+  test` x2 exit 0, backend 2790 passed / 0 failed / 0 skipped each
+  (1433.30 s, 1421.72 s), vitest 14 files / 80 tests, e2e 4/4 both runs;
+  targeted 182 passed. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-56aa93c/`.
+- Coder evidence (offline, no model calls): replays and cache predictions
+  under `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-B/`, `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-C/` and `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-D/`. Against the
+  warm-24 cache: all 160 Discovery-family calls hit, 75 misses (Boundary
+  54, Global Review 18, Audit 2, Variant 1); warm-24 replay FAIL 92.5 with
+  only `audit_squeezed_voice_channel_no_shouting_136_178` moving to
+  `blocked`.
+- **Never use the scratch caches** under `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-C/predict-*` and
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-D/predict-*` (or the earlier `stage8-f3/predict-*`) as a
+  warm-cache source: they contain synthetic, replayed outputs.
+
+### Real Claude runs after Stage 9 (2026-10-22, frozen Claude CLI 2.1.308, subscription login)
+
+Warm runs are **diagnostic only**: their Discovery outputs came from
+cold-21/warm-22, and the review prompts were iterated against this same
+transcript. They are not acceptance evidence.
+
+- warm-25 (diagnostic, Stage 9 code, cache from warm-24): stopped on the
+  subscription usage limit after 2474 s with 73 of the 75 new calls
+  cached. Not a quality result. Raw twin disagreement on gated flags was
+  6/24 (warm-24: 9/24).
+- warm-26 (diagnostic, Stage 9 code, cache from warm-25, `cache_hits` 233,
+  2 new calls plus 1 audit repair, 1194 s): strict **PASS 97.5**, no hard
+  failures, no PASS blockers.
+  - Short 7/8: S03 is now hit; S06 is missed because its only candidate
+    `sh0009_step5_balanced_mix` was model-blocked with
+    `context_dependent_opening`.
+  - Mini 6/6 (L07 is back). R01 and R02 routed (blocked).
+  - `sh22_find_voice_from_phonation` (N09) is now blocked; the forbidden
+    composite cleared.
+  - Informational: N08 manual review; title/hook faithfulness.
+  - Post-union twin disagreement on gated flags: 0/24.
+  - 13 renders passed automatic checks (S06 not rendered); human visual
+    and audio review is pending.
+- **Next step:** a fresh acceptance run (method pending a user decision
+  because of the subscription quota), then human editorial/audio review,
+  then push/merge only with explicit operator consent.
+
 ## Stage 8 dual-profile routing and review-stage fixes (2026-10-22) — ACCEPTED at 4f2c068
 
 - **Status: ACCEPTED** (2026-10-22) on local branch
@@ -113,7 +189,7 @@ only**; acceptance needs a fresh cold run (`cache_hits=0`, about 230 calls).
     editorial/audio review is pending.
 - Subscription quota is a real constraint: cold-21 and warm-23 both hit the
   usage limit. Start the cold acceptance run right after a limit reset.
-- **Next step:** Stage 9 (same-interval flag union, Top-N risk routing,
+- (Historical; Stage 9 is ACCEPTED, see above.) **Next step:** Stage 9 (same-interval flag union, Top-N risk routing,
   final evidence filtering, post-audit nested pairs, consolidated review
   prompt batch), then warm-25 as a diagnostic, then the cold acceptance
   run.
