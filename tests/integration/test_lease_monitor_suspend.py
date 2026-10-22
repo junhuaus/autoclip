@@ -17,12 +17,14 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from lease_suspend import ShiftedWallClock
 from sqlalchemy import insert, select
 from sqlalchemy.engine import Engine
 
+import liveclip.application.lease_monitor as lease_monitor_module
 from liveclip.application.lease_monitor import LeaseMonitor
 from liveclip.application.tasks import HeartbeatResult, TaskLease, TaskQueueTransientError
 from liveclip.db.base import Base
@@ -39,6 +41,9 @@ RUN_ID = "r" * 32
 # The monitor renews on every poll once less than half an interval remains.
 RENEW_WITHIN_SECONDS = HEARTBEAT_SECONDS / 2
 FAILED = "failed"
+# Upper bound for waiting on the monitor thread.  A passing run takes
+# milliseconds; the bound only has to survive a starved thread on a loaded host.
+WAIT_SECONDS = 30
 
 
 @dataclass
@@ -52,6 +57,10 @@ class _Held:
     heartbeat_done: threading.Event = field(default_factory=threading.Event)
     suspend_after_observe: dict[int, timedelta] = field(default_factory=dict)
     failing_heartbeats: int = 0
+    # (observe calls, heartbeat calls) when the first renewal succeeded, read in
+    # the monitor thread, so assertions on it do not depend on how quickly the
+    # main thread stops the monitor afterwards.
+    first_renewal: tuple[int, int] | None = None
 
     def shifted_now(self) -> datetime:
         return datetime.now(UTC) + self.clock.offset
@@ -71,7 +80,8 @@ class _Held:
             raise TaskQueueTransientError("simulated locked database")
         result = self.queue.heartbeat(lease)
         self.heartbeats.append(result)
-        if result is not None:
+        if result is not None and self.first_renewal is None:
+            self.first_renewal = (len(self.observes), len(self.heartbeats))
             self.heartbeat_done.set()
         return result
 
@@ -153,14 +163,14 @@ def held(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Held]:
 
 
 def _wait_for_polls(held: _Held, count: int) -> None:
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + WAIT_SECONDS
     while len(held.observes) < count:
         assert time.monotonic() < deadline, "monitor did not poll"
         time.sleep(0.005)
 
 
 def _wait_until_stopped(monitor: LeaseMonitor) -> None:
-    monitor._thread.join(timeout=5)
+    monitor._thread.join(timeout=WAIT_SECONDS)
     assert not monitor._thread.is_alive()
 
 
@@ -179,12 +189,12 @@ def test_suspend_shorter_than_lease_renews_immediately_and_keeps_the_lease(
     monitor = held.monitor()
     monitor.start()
     try:
-        assert held.heartbeat_done.wait(timeout=5)
+        assert held.heartbeat_done.wait(timeout=WAIT_SECONDS)
     finally:
         monitor.stop()
 
-    assert len(held.observes) == 1
-    assert len(held.heartbeats) == 1
+    # Renewed by the first heartbeat, on the poll right after the suspend.
+    assert held.first_renewal == (1, 1)
     renewed = held.heartbeats[0]
     assert isinstance(renewed, HeartbeatResult)
     assert monitor.lost_lease is False
@@ -227,12 +237,13 @@ def test_failed_renewal_after_a_suspend_is_retried_before_expiry(held: _Held) ->
     monitor = held.monitor()
     monitor.start()
     try:
-        assert held.heartbeat_done.wait(timeout=5)
+        assert held.heartbeat_done.wait(timeout=WAIT_SECONDS)
     finally:
         monitor.stop()
 
+    # The failed renewal and its retry are consecutive polls after the suspend.
+    assert held.first_renewal == (1, 2)
     assert held.heartbeats[0] == FAILED
-    assert len(held.heartbeats) == 2
     renewed = held.heartbeats[1]
     assert isinstance(renewed, HeartbeatResult)
     assert monitor.lost_lease is False
@@ -248,11 +259,12 @@ def test_suspend_before_the_first_poll_is_renewed_while_unexpired(held: _Held) -
     monitor = held.monitor()
     monitor.start()
     try:
-        assert held.heartbeat_done.wait(timeout=5)
+        assert held.heartbeat_done.wait(timeout=WAIT_SECONDS)
     finally:
         monitor.stop()
 
-    assert len(held.heartbeats) == 1
+    # Renewed by the first heartbeat, on the first poll.
+    assert held.first_renewal == (0, 1)
     renewed = held.heartbeats[0]
     assert isinstance(renewed, HeartbeatResult)
     assert monitor.lost_lease is False
@@ -300,10 +312,55 @@ def test_without_a_wall_clock_jump_the_heartbeat_schedule_is_unchanged(
 
 
 @pytest.mark.integration
+def test_a_stall_between_clock_reads_is_not_a_jump(
+    held: _Held, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # On a loaded host the monitor thread can be descheduled between its wall
+    # and monotonic reads; both clocks then advance together, which is not a
+    # suspend.  Inject a 3 s stall right after the monitor's first wall read.
+    stall = timedelta(seconds=3)
+    clock = held.clock
+    real_monotonic = time.monotonic
+    monotonic_offset = [0.0]
+    pending = [True]
+    shifted = lease_monitor_module.datetime
+
+    class StallAfterFirstWallRead(shifted):  # type: ignore[misc,valid-type]
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[no-untyped-def,override]
+            value = super().now(tz)
+            if pending[0]:
+                pending[0] = False
+                clock.suspend(stall)
+                monotonic_offset[0] += stall.total_seconds()
+            return value
+
+    monkeypatch.setattr(lease_monitor_module, "datetime", StallAfterFirstWallRead)
+    monkeypatch.setattr(
+        lease_monitor_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: real_monotonic() + monotonic_offset[0]),
+    )
+    original_expiry = held.stored_expiry()
+    monitor = held.monitor()
+    monitor.start()
+    try:
+        _wait_for_polls(held, 25)
+    finally:
+        monitor.stop()
+
+    assert pending == [False]
+    assert held.heartbeats == []
+    assert monitor.lost_lease is False
+    assert held.stored_expiry() == original_expiry
+
+
+@pytest.mark.integration
 def test_more_than_half_an_interval_remaining_does_not_renew_early(held: _Held) -> None:
-    # Documented threshold: with 20 s of the lease left (above the 15 s rule)
-    # and no jump seen by the monitor, the paced schedule is kept.
-    held.clock.suspend(timedelta(seconds=LEASE_SECONDS - RENEW_WITHIN_SECONDS - 5))
+    # Documented threshold: with 25 s of the lease left (10 s above the 15 s
+    # rule, slack for a loaded host) and no jump seen by the monitor, the paced
+    # schedule is kept.
+    held.clock.suspend(timedelta(seconds=LEASE_SECONDS - RENEW_WITHIN_SECONDS - 10))
     original_expiry = held.stored_expiry()
     monitor = held.monitor()
     monitor.start()

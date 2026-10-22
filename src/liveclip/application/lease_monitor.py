@@ -134,14 +134,19 @@ class LeaseMonitor:
                 self._cancel.set()
 
     def _run(self) -> None:
+        last_before = time.monotonic()
         last_wall = datetime.now(UTC)
-        last_monotonic = time.monotonic()
-        next_heartbeat = last_monotonic + self._heartbeat_seconds
+        next_heartbeat = time.monotonic() + self._heartbeat_seconds
         while not self._stop.wait(self._poll_seconds):
+            # Each wall read is bracketed by monotonic reads.  Subtracting the
+            # widest monotonic span gives a lower bound of the jump, so a thread
+            # descheduled between two clock reads on a loaded host is never
+            # mistaken for a suspend.
+            before = time.monotonic()
             wall = datetime.now(UTC)
             monotonic = time.monotonic()
-            jump = (wall - last_wall).total_seconds() - (monotonic - last_monotonic)
-            last_wall, last_monotonic = wall, monotonic
+            jump = (wall - last_wall).total_seconds() - (monotonic - last_before)
+            last_wall, last_before = wall, before
             remaining = self._lease_seconds - (wall - self._renewed_at).total_seconds()
             if (
                 jump > _WALL_CLOCK_JUMP_SECONDS
