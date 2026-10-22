@@ -913,6 +913,8 @@ class ClaudeCliStructuredLLMProvider:
                 waited += delay
                 if cancel_requested():
                     raise cancelled()
+                # A login switch during the backoff must not bill the relaunch.
+                account_email = require_claude_subscription(self._executable).account_email
 
             failure_code = outcome.failure_code
             output: StructuredModel | None = None

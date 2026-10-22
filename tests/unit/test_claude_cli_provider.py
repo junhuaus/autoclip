@@ -926,3 +926,58 @@ def test_resolve_call_regeneration_exhaustion_names_the_real_cause(tmp_path: Pat
     assert str(error.value) == "Claude CLI rate limited (429) after 4 attempts"
     assert [record.request_count for record in error.value.call_records] == [2, 2]
     assert len(_calls(executable)) == 4
+
+
+def test_login_switch_during_backoff_refuses_the_relaunch(tmp_path: Path) -> None:
+    executable = _install_fake(tmp_path, [_api_error(429, "API Error: 429")])
+
+    def switch_login(_delay: float, _cancel: object) -> None:
+        _set_auth(
+            executable, {"loggedIn": True, "authMethod": "apiKey", "apiProvider": "firstParty"}
+        )
+
+    provider = ClaudeCliStructuredLLMProvider(
+        prompts=load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT),
+        model_name="claude-opus-5-5",
+        claude_executable=str(executable),
+        timeout_seconds=30,
+        reasoning_effort="medium",
+        sleep=switch_login,
+        jitter=lambda: 0.5,
+    )
+
+    with pytest.raises(ProviderConfigurationError) as error:
+        provider.generate(subject_id="s", payload={}, response_model=Answer)
+
+    assert "subscription" in str(error.value)
+    assert len(_calls(executable)) == 1
+
+
+def test_doctor_warns_without_an_account_email_and_never_reports_one(tmp_path: Path) -> None:
+    executable = _install_fake(
+        tmp_path,
+        [],
+        auth={"loggedIn": True, "authMethod": "claude.ai", "apiProvider": "firstParty"},
+    )
+
+    check = doctor_module._claude_cli_check(
+        Settings(structured_provider="claude-cli", claude_executable=str(executable))
+    )
+
+    assert check.status == "warning"
+    assert "identity guard is inactive" in check.summary
+    assert check.details["account_identity_guard"] is False
+    assert check.details["subscription"] is True
+    assert "@" not in json.dumps(check.as_dict())
+
+
+def test_doctor_reports_the_identity_guard_without_the_email(tmp_path: Path) -> None:
+    executable = _install_fake(tmp_path, [])
+
+    check = doctor_module._claude_cli_check(
+        Settings(structured_provider="claude-cli", claude_executable=str(executable))
+    )
+
+    assert check.status == "pass"
+    assert check.details["account_identity_guard"] is True
+    assert "@" not in json.dumps(check.as_dict())

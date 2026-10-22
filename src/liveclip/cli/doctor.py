@@ -487,6 +487,15 @@ def _claude_cli_check(settings: Settings) -> DoctorCheck:
             "Claude CLI must use the claude.ai subscription login, not an API key",
             details,
         )
+    # Only presence is reported; the email itself never leaves memory.
+    details["account_identity_guard"] = auth.account_email is not None
+    if auth.account_email is None:
+        return DoctorCheck(
+            "claude_cli",
+            "warning",
+            "Claude CLI login reports no account email; the output identity guard is inactive",
+            details,
+        )
     return DoctorCheck(
         "claude_cli",
         "pass",
