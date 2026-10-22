@@ -246,3 +246,7 @@ Stage 6 review round 1: reviewer ACCEPT at `670478e`, 0 P0/P1, 3 P2. Fix
 round 2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`) is pending acceptance:
 deterministic suspend tests, a remaining-lease renewal rule, and an operator
 note on the `--output-dir` restrictions.
+
+Stage 6 review round 2: reviewer ACCEPT at `fc06b3e`, one P2 and one nit.
+Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`) is pending acceptance; it
+also fixes a false jump from a descheduled monitor thread, found under load.

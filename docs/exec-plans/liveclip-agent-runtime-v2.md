@@ -31,6 +31,11 @@
   a remaining-lease renewal rule for failed post-wake renewals and suspends
   before the first poll (P2-2); an operator note on the `--output-dir`
   restrictions in `STATUS.md` (P2-3).
+- [ ] 2026-10-21 Stage 6 review round 2: reviewer ACCEPT at `fc06b3e` (one
+  P2, one nit). Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`), pending
+  acceptance: thread-independent renewal assertions, a lower-bound jump
+  estimate so a descheduled monitor thread is not mistaken for a suspend
+  (found under load), and the injected-`now` wording in `STATUS.md`.
 
 ### Decision Log
 

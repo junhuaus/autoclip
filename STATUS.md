@@ -160,7 +160,9 @@
       lease length is `lease_expires_at - heartbeat_at` of the claimed lease,
       and the renewal start is read just before each successful heartbeat.
       An injected queue `now` (as in the completion inspection tests) can
-      therefore cause at most one early heartbeat at the first poll.
+      therefore cause at most one or two early heartbeats at start:
+      `reconcile_completion` calls `monitor.refresh()` right after `start()`,
+      so the first poll may race it. Both heartbeats are fenced and harmless.
     - Settings require `lease > 2 * heartbeat`, so a paced heartbeat always
       finds more than one interval (90 s with the defaults) remaining, and
       the rule never fires in normal operation.
@@ -189,6 +191,57 @@
     passed each time, all exit 0.
   - Round 2 logs:
     `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/round2/`.
+- Review round 2: reviewer **ACCEPT at `fc06b3e`**, one P2 and one nit. Fix
+  round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`), pending acceptance:
+  - P2 (flaky assert): `assert len(held.observes) == 1` depended on how fast
+    the main thread stopped the monitor. The test helper now records
+    `(observe calls, heartbeat calls)` inside the monitor thread when the
+    first renewal succeeds (`first_renewal`), and the renewal tests assert
+    that value: `(1, 1)` after a suspend, `(1, 2)` for a failed renewal and
+    its retry, `(0, 1)` for a suspend before the first poll. The other count
+    assertions were checked; they are read after the monitor thread exits or
+    cover a window with no possible further heartbeat. Test wait bounds were
+    raised from 5 s to 30 s (`WAIT_SECONDS`); they are only upper bounds.
+  - Found while looping under load (load average 70--110): a monitor thread
+    descheduled between its wall and monotonic reads made both clocks
+    advance together but looked like a jump, causing one unneeded heartbeat
+    (reproduced: a 2.57 s apparent jump at the first poll in
+    `test_more_than_half_an_interval_remaining_does_not_renew_early`). In
+    production this costs one fenced heartbeat; in the tests it was a flake.
+    Fix in `lease_monitor.py`: each wall read is bracketed by monotonic reads
+    and the jump is the lower bound
+    `(wall - last_wall) - (monotonic_after - last_monotonic_before)`, so a
+    stall never inflates it, while a real suspend still shows almost in full.
+    New deterministic regression
+    `test_a_stall_between_clock_reads_is_not_a_jump` injects a 3 s stall
+    right after the first wall read; it fails with the round-2 monitor
+    (`fc06b3e`) and passes now. The threshold test's slack was also raised
+    from 5 s to 10 s.
+  - Nit: the injected-`now` note now says "at most one or two early
+    heartbeats at start" (`reconcile_completion` calls `monitor.refresh()`
+    right after `start()`, so the first poll may race it).
+  - Coder checks for round 3, at `7de4760`, under `caffeinate -dims`:
+    - ruff check, ruff format ("448 files already formatted"), mypy (230
+      source files) and the schema check: all exit 0.
+    - Under heavy host load (load average 57--111 on 10 cores, from other
+      concurrent runs): the suspend and lease monitor unit tests 20 times,
+      19 exit 0 and 1 exit 1. The failure was a 30 s
+      `monitor did not poll` timeout in the stall test (the whole run took
+      31.85 s), i.e. the test process was starved, not a wrong heartbeat.
+      The targeted suites in the same window: exit 1, 327 passed, 7 failed,
+      all in `test_delivery_progress.py` with `lost_lease` from a render
+      lease of 30 s (heartbeat 5 s), which is consistent with the same
+      starvation expiring the lease. Re-run alone during that window,
+      `test_delivery_progress.py` passed 22/22 (exit 0).
+    - Re-run at load average 21--27: the 20x loop, 12 passed each time, all
+      exit 0; targeted suites exit 0, 334 passed in 583.58 s (the round-2
+      file set).
+    - Round 2's first under-load loop also had one failure (1 failed, 10
+      passed, 6.29 s). Its log was deleted by the coder's cleanup before it
+      was read, so its cause is unknown; the 40-run reproduction found the
+      false-jump flake fixed above.
+  - Round 3 logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/round3/`.
 - Caveats: deterministic validation only; mock/fixture tests. No rendering
   acceptance, human editorial/audio review or model inference.
 
