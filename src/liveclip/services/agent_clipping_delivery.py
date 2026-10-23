@@ -221,15 +221,17 @@ def render_agent_clipping_result(
             final_profile_dir = output_dir / profile_name
             clip_id = _render_clip_id(candidate.artifact_id)
             captions = _candidate_captions(value, transcript=transcript)
-            primary_title = value.titles.primary_title if value.titles is not None else None
+            score = _required_int(candidate.data, "score")
+            # Model prose (primary title, score_reason) stays in the render manifest
+            # and review package; the guarded EditPlan text is product-generated.
             plan = EditPlan(
                 candidate_id=clip_id,
                 source_start_ms=_required_int(candidate.data, "start_ms"),
                 source_end_ms=_required_int(candidate.data, "end_ms"),
-                score=float(_required_int(candidate.data, "score")),
-                title=(primary_title or "待拟标题")[:40],
+                score=float(score),
+                title="Agent 候选切片",
                 hook="Agent 候选切片",
-                reason=_required_str(candidate.data, "score_reason")[:240],
+                reason=f"Agent candidate rendered with score {score} of 100.",
                 layout=Layout.CENTER_CROP,
                 caption_template=CaptionTemplate.CLEAN_ZH_V1,
                 effect=Effect.NONE,

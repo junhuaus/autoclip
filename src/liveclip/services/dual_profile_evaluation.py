@@ -47,6 +47,7 @@ from liveclip.pipeline.dual_profile import (
     DualProfileFinalResult,
     DualProfileRunConfig,
     DualProfileRunManifest,
+    FinalProfileCandidate,
     FinalProfileResult,
     GlobalReviewItem,
     ProfileBoundaryReviewOutput,
@@ -1170,9 +1171,11 @@ def render_dual_profile_candidates(
                 source_start_ms=candidate.start_ms,
                 source_end_ms=candidate.end_ms,
                 score=candidate.score,
-                title=candidate.title[:40],
-                hook=candidate.hook[:80],
-                reason=candidate.review_reason[:240],
+                # Model prose (title/hook/review_reason) stays in the final JSON and
+                # review package; the guarded EditPlan text is product-generated.
+                title=f"Dual-profile {profile.value}",
+                hook=f"Dual-profile {candidate.review_status.value} candidate",
+                reason=_dual_profile_render_reason(profile, candidate),
                 layout=Layout.CENTER_CROP,
                 caption_template=CaptionTemplate.CLEAN_ZH_V1,
                 effect=Effect.NONE,
@@ -1275,6 +1278,15 @@ def _source_streams(path: Path) -> dict[str, int]:
     if "video_stream_index" not in selected or "audio_stream_index" not in selected:
         raise ValueError("source video must contain normal video and audio streams")
     return selected
+
+
+def _dual_profile_render_reason(profile: ClipProfile, candidate: FinalProfileCandidate) -> str:
+    """Deterministic EditPlan reason built only from validated enums and the score."""
+
+    return (
+        f"Dual-profile {profile.value} candidate rendered with final status "
+        f"{candidate.review_status.value} and score {candidate.score:.2f}."
+    )
 
 
 def _render_clip_id(candidate_id: str) -> str:
