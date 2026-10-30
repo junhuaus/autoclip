@@ -27,7 +27,7 @@ from liveclip.agent_tools.titles import (
     SaveTitleOptionsArguments,
     build_title_options_artifact,
 )
-from liveclip.domain.edit_plan import EditPlan
+from liveclip.domain.edit_plan import EditPlan, reject_executable_text
 from liveclip.services.agent_clipping_delivery import (
     AgentClippingDeliveryError,
     export_agent_clipping_review_package,
@@ -100,11 +100,21 @@ def test_agent_render_and_review_package_preserve_agent_evidence(
         assert "全部切片脚本.json" in archive.namelist()
 
 
+@pytest.mark.parametrize(
+    "unsafe_reason",
+    [
+        # Stage 10 P2: the plain English "make" false positive, isolated.
+        "Cues 1 through 2 make a complete boundary for this lesson.",
+        "Cues 1 through 2 make a complete boundary; rm -rf / is not a caption.",
+    ],
+)
 def test_agent_render_plan_uses_product_text_not_model_score_reason(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    unsafe_reason: str,
 ) -> None:
-    unsafe_reason = "Cues 1 through 2 make a complete boundary; rm -rf / is not a caption."
+    with pytest.raises(ValueError, match="executable"):
+        reject_executable_text(unsafe_reason)
     source, transcript, result_path = _run_evidence(tmp_path, score_reason=unsafe_reason)
     _install_fake_media(monkeypatch)
     plans: list[EditPlan] = []

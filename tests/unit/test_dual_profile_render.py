@@ -426,3 +426,87 @@ def test_dual_profile_render_plan_never_carries_model_prose_into_guarded_fields(
         values[field] = unsafe
         with pytest.raises(ValueError, match="executable"):
             EditPlan(**values)
+
+
+def test_dual_profile_render_plan_uses_manual_review_product_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 10 P2: manual_review rows get their own deterministic product strings."""
+
+    plain_make = "These cues make a complete lesson about breath support."
+    with pytest.raises(ValueError, match="executable"):
+        reject_executable_text(plain_make)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"immutable-source")
+    transcript = tmp_path / "transcript.srt"
+    transcript.write_text("1\n00:01:40,000 --> 00:03:20,001\n长片字幕\n", encoding="utf-8")
+    manual = _candidate(
+        candidate_id="ml0002-manual",
+        profile=ClipProfile.MINI_LESSON,
+        start_ms=100_000,
+        end_ms=200_001,
+        cue_id=1,
+        review_reason=plain_make,
+        review_status=CandidateDisposition.MANUAL_REVIEW,
+    )
+    final = DualProfileFinalResult(
+        source_hash="a" * 64,
+        requested_profiles=(ClipProfile.MINI_LESSON,),
+        executed_profiles=(ClipProfile.MINI_LESSON,),
+        profiles={
+            ClipProfile.MINI_LESSON: FinalProfileResult(
+                profile=ClipProfile.MINI_LESSON,
+                raw_candidate_ids=(manual.candidate_id,),
+                manual_review=(manual,),
+                statistics=profile_statistics((manual.candidate_id,), (manual,)),
+            )
+        },
+    )
+    final_path = tmp_path / "final.json"
+    final_path.write_text(json.dumps(final.model_dump(mode="json")), encoding="utf-8")
+    monkeypatch.setattr(
+        evaluation_module,
+        "run_ffprobe",
+        lambda _path: {
+            "streams": [
+                {"codec_type": "video", "index": 0, "disposition": {"attached_pic": 0}},
+                {"codec_type": "audio", "index": 1},
+            ]
+        },
+    )
+    plans: list[EditPlan] = []
+
+    def fake_render(**kwargs: Any) -> SimpleNamespace:
+        plans.append(kwargs["revision"].plan)
+        output_path = kwargs["output_path"]
+        output_path.write_bytes(b"render")
+        quality = output_path.parent / f"{output_path.stem}-quality.json"
+        contact = output_path.parent / f"{output_path.stem}-contact.png"
+        quality.write_text("{}", encoding="utf-8")
+        contact.write_bytes(b"contact")
+        return SimpleNamespace(
+            sha256="b" * 64,
+            quality_report_path=quality,
+            contact_sheet_path=contact,
+            contact_sheet_sha256="c" * 64,
+            encoder="fixture",
+            attempts=1,
+        )
+
+    monkeypatch.setattr(evaluation_module, "render_edit_plan_revision", fake_render)
+    manifest = render_dual_profile_candidates(
+        source_video=source.resolve(),
+        transcript_path=transcript,
+        final_result_path=final_path,
+        output_dir=tmp_path / "renders",
+    )
+
+    assert manifest["clip_count"] == 1
+    assert [(plan.title, plan.hook, plan.reason) for plan in plans] == [
+        (
+            "Dual-profile mini_lesson",
+            "Dual-profile manual_review candidate",
+            "Dual-profile mini_lesson candidate rendered with final status "
+            "manual_review and score 90.00.",
+        )
+    ]

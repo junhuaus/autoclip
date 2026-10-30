@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29)
+
+- [x] 2026-10-29 Stage 11 implemented on `claude/liveclip-stage8-routing`
+  (code commit after `d6b90c6`), **pending independent tester and
+  reviewer**. Not pushed.
+  - Scope: the V5 and legacy mini-lesson edit, the
+    `semantic_global`/`semantic_windowed` `_edit` and the V5 persisted-plan
+    replay in `pipeline/stage_handlers.py`, which copied model title, hook
+    and `review_reason[:240]` into EditPlan (Stage 10 reviewer P1).
+  - User decision (binding): rewrite through the existing Global Review
+    repair loop first; if the rewrite still trips the guard, block only
+    that clip with a deterministic flag/reason; the rest of the run
+    completes; the guard is not narrowed.
+  - `pipeline/edit_text_guard.py`: single EditPlan builder shared by build
+    and replay (byte-identical for passing text); per-field probe through
+    the real `EditPlan`; deterministic downgrades (V4/V5 and v3 →
+    `blocked` with `deterministic_text_guard_gate`; legacy
+    `semantic_global` → `rejected` with
+    `deterministic_text_guard_changed_kept_to_rejected`; no promotion).
+  - `DeferredValidationError` (in `pipeline/semantic_executor.py`): stage
+    validators raise it after every shared validator passed; repair loops
+    spend their sole repair on it; with no repair left (rewrite still
+    unsafe, schema repair spent, cache hit, durable outcome replay) the
+    output is accepted and the downgrade applies.
+  - Shared validators, guard patterns, dual-profile prompts/cache keys/
+    `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark files, evaluator thresholds
+    and frozen loop-engineering files are unchanged. No new enum.
+  - Tests: `tests/unit/test_edit_text_guard.py` (13) and
+    `tests/integration/test_edit_text_guard_pipeline.py` (37), mock only;
+    Stage 10 P2 nits (plain "make" Agent test; dual-profile
+    `manual_review` strings). Details in `STATUS.md`.
+- Decision Log (2026-10-29): the text guard is a stage-level deferred
+  rule, not part of the shared Global Review validators, so dual-profile
+  evaluation and benchmark outcomes cannot change. The legacy
+  `semantic_global` contract has no `blocked` bucket; `rejected` is the
+  only deterministic non-delivery state there. A guard hit on a cached or
+  durable output is blocked without a new model call (no repair remains).
+- [ ] Next: independent tester (`make lint`, `make test`) and reviewer on
+  the Stage 11 SHA; then human review of the cold-27 `renders-r2` clips;
+  push/merge only with explicit user consent.
+
 ## Stage 10 render guard false positive and cold-27 (2026-10-23)
 
 - [x] 2026-10-23 **Stage 10 ACCEPTED** at `0515ef7` on
@@ -48,7 +89,8 @@
 - Evidence categories stay distinct: deterministic validation, rendering
   plus human review, and real-model inference are separate kinds of
   evidence. Details in `STATUS.md`.
-- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages),
+- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages;
+  2026-10-29 implemented, pending verification, see above),
   human review of the `renders-r2` clips, optional holdout livestream
   (overfitting risk), investigate the L07/S06 run-to-run variance;
   push/merge only with explicit user consent.

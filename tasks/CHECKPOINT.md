@@ -391,3 +391,20 @@ review is PENDING and not claimed. Details in `STATUS.md`.
 Next: Stage 11 (guard-safe text in persisted pipeline edit stages), human
 review of the renders, optional holdout livestream, the L07/S06 variance;
 push/merge only with explicit consent. Not pushed.
+
+## Stage 11 implemented, pending verification (2026-10-29)
+
+Branch `claude/liveclip-stage8-routing`, local only. The Stage 11 code
+commit follows docs commit `d6b90c6`. Persisted pipeline edit stages (V5 and
+legacy mini-lesson, `semantic_global`/`semantic_windowed`, and the V5
+replay) now send guard-tripping Global Review title/hook/reason back through
+the existing repair loop once; a rewrite that still trips the unchanged
+guard, or a cached/durable output with no repair left, blocks only that
+candidate (`deterministic_text_guard_gate`; legacy `semantic_global`:
+`rejected` with `deterministic_text_guard_changed_kept_to_rejected`). The
+rest of the run completes. Shared validators, guard patterns, dual-profile
+prompts/cache keys and benchmark files are unchanged. New tests: 13 unit,
+37 integration (mock only). Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 11 SHA, human review of
+the cold-27 renders, then push/merge only with explicit consent. Not pushed.

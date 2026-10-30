@@ -18,6 +18,84 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** on local
+  branch `claude/liveclip-stage8-routing` (code commit directly after the
+  docs commit `d6b90c6`). Not pushed or merged.
+- Origin: the Stage 10 reviewer P1. In
+  `src/liveclip/pipeline/stage_handlers.py` the V5 mini-lesson edit, the
+  legacy mini-lesson edit, the `semantic_global`/`semantic_windowed`
+  `_edit` and the V5 persisted-plan replay copied the model title, hook
+  and `review_reason[:240]` straight into EditPlan. In these paths the
+  model text is real product content (web review, release description,
+  review package, burned title), so harmless prose that trips the
+  unchanged `reject_executable_text` guard ("X make Y", a title such as
+  "ffmpeg 入门") made the edit stage raise and failed the whole
+  generation.
+- **User decision (binding):** first ask the model to rewrite the text
+  through the existing Global Review repair loop; if the rewrite still
+  trips the guard, block only that clip with a deterministic flag/reason
+  and let the rest of the run finish. The guard is not narrowed.
+- Implementation:
+  - New `src/liveclip/pipeline/edit_text_guard.py`: one EditPlan builder
+    (`build_ai_edit_plan`, `profile_v4_edit_plan`) used by every build site
+    and by the V5 replay, so plan construction cannot drift and is
+    byte-identical for guard-passing text; `edit_plan_text_errors` probes
+    each text field through the real `EditPlan` model on the same truncated
+    value (so it mirrors stripping, length, display normalization and the
+    guard exactly); deterministic downgrade functions.
+  - The stage validators (not the shared
+    `validate_profile_global_review_v4` / `validate_global_review_v3` /
+    `validate_global_review`, which dual-profile evaluation and benchmarks
+    share) raise `DeferredValidationError` (new, in
+    `pipeline/semantic_executor.py`) after every shared validator passed.
+    All repair loops (`_run_v4_requests`, the durable semantic-unit
+    executor, the local `_edit` loop) spend their sole repair on it with
+    an error prefixed "Deterministic text guard: " naming the field.
+  - When no repair remains (rewrite still unsafe; the schema repair spent
+    it; a semantic-cache hit; a durable semantic-unit outcome replay), the
+    output is accepted and only the affected candidate is downgraded: V4/V5
+    Profile and v3 rows to `blocked` with validation note
+    `deterministic_text_guard_gate`; the legacy `semantic_global` contract
+    has no blocked bucket, so its selected/manual row becomes `rejected`
+    with `deterministic_text_guard_changed_kept_to_rejected`. Statistics
+    stay consistent; Python never rewrites model text and never promotes a
+    Top-N-excluded candidate. Hard validation errors still fail as before.
+  - No new enum: validation notes are free strings, so schemas, web types
+    and the exported EditPlan JSON Schema are unchanged.
+  - `docs/PRODUCT_SPEC.md` records the behavior (amendment 2026-10-29).
+- Unchanged: guard patterns; dual-profile prompts, cache keys and
+  `DUAL_PROFILE_ALGORITHM_VERSION`; benchmark JSON/MD and evaluator
+  thresholds; the frozen `tools/loop_engineering` files.
+- Tests (mock/fixture only, no model calls):
+  - `tests/unit/test_edit_text_guard.py` (13): the isolated plain "make"
+    false positive; the "ffmpeg 入门" title; truncation/stripping parity;
+    byte-identical plans; V4/v3/legacy downgrades (only the violator,
+    statistics, no promotion, identity for passing text); executor repair,
+    accepted rewrite, schema-repair-spent and hard-failure paths.
+  - `tests/integration/test_edit_text_guard_pipeline.py` (37): full mock
+    pipeline runs for mini-lesson configs V8 (legacy), V9, V11 and V13 and
+    for `semantic_windowed` v3 and legacy `semantic_global`, each local and
+    bounded, with a "make" reason and an "ffmpeg 入门" title that are either
+    repaired by the mock rewrite or blocked; lineage runs crash once after
+    the EditPlan commit so the replay re-applies the gate; cache and
+    durable-outcome retries block without new model calls; every run
+    completes.
+  - Stage 10 P2 nits: the Agent render test now also runs the plain "make"
+    reason alone; a new dual-profile render test covers the
+    `manual_review` product strings.
+- Coder verification (mock/fixture only): targeted pytest over the 15
+  affected files (new tests, stage handlers, semantic executor/unit
+  recovery, lineage runtime, persistent mock pipeline, transport budget,
+  semantic profiles, EditPlan, dual-profile render, Agent delivery) 468
+  passed in 453.38 s; further checks 7 passed (import-only, review-delivery,
+  asset-integrity, worker-race integration), 170 passed (dual-profile and
+  benchmark unit), 681 passed (semantic global/lineage/validation unit);
+  `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+  make lint` exit 0. Full `make test`, the independent tester and the
+  reviewer are pending.
+
 ## Stage 10 render guard false positive (2026-10-23) — ACCEPTED at 0515ef7
 
 - **Status: ACCEPTED** on local branch `claude/liveclip-stage8-routing`.
@@ -98,7 +176,8 @@ acceptance activity and is **not** claimed here.
     h264_videotoolbox 1080x1920. The sha256 of `final-validated.json` and
     `run-manifest.json` is unchanged by the render.
   - Human visual and audio review is **PENDING**.
-- Open follow-ups: Stage 11 (persisted pipeline edit stages, below);
+- Open follow-ups: Stage 11 (persisted pipeline edit stages; implemented,
+  pending verification, see the Stage 11 section above);
   human review of the `renders-r2` clips; an optional holdout livestream
   (overfitting risk: the prompts were tuned on one transcript); the
   L07/S06 run-to-run variance; push and merge only with explicit user

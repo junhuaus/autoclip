@@ -8,7 +8,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import suppress
 from dataclasses import dataclass
 from threading import Event
-from typing import Literal
+from typing import Literal, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -60,6 +60,35 @@ _TRANSIENT_FAILURES = frozenset(
 
 class SemanticEvidenceConflict(RuntimeError):
     """Call IDs must remain unambiguous; conflict never authorizes semantic repair."""
+
+
+_ValidatedT = TypeVar("_ValidatedT")
+
+
+class DeferredValidationError(ValueError):
+    """Every hard validator passed; only a deterministic product rule failed.
+
+    A repair loop spends its sole semantic repair on this error exactly like any
+    other validation error. When no repair remains (the repair is spent, the
+    output came from a cache or a durable outcome), the loop accepts ``accepted``
+    instead of failing, and the caller applies a deterministic downgrade such as
+    blocking the affected candidate. It never upgrades or rewrites model output.
+    """
+
+    def __init__(self, message: str, *, accepted: object) -> None:
+        super().__init__(message)
+        self.accepted = accepted
+
+
+def validate_or_accept_deferred(
+    validate: Callable[[_ValidatedT], _ValidatedT], value: _ValidatedT
+) -> _ValidatedT:
+    """Validate an output that has no repair left; deferred rules do not fail it."""
+
+    try:
+        return validate(value)
+    except DeferredValidationError as exc:
+        return cast(_ValidatedT, exc.accepted)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,28 +218,40 @@ def execute_semantic_unit(
             validated = received(result, "initial_or_schema_repaired")
         except ValueError as exc:
             detail = str(exc)
-            events.append({"phase": "initial", "error": detail})
-            if repair_spent:
-                return failure("STRUCTURED_OUTPUT_INVALID")
-            if cancel_requested():
-                raise ProviderCancelled() from exc
-            # Reserve the sole semantic repair before calling the adapter. A failed
-            # repair transport attempt never permits another initial request.
-            repair_spent = True
-            repaired = provider.repair(
-                subject_id=request.subject_id,
-                payload=request.repair_payload(
-                    request.payload(), result.output.model_copy(deep=True), (detail,)
-                ),
-                response_model=request.response_model,
-                validation_errors=(detail,),
-                cancel_requested=cancel_requested,
+            deferred = isinstance(exc, DeferredValidationError)
+            events.append(
+                {"phase": "initial", "error": detail, **({"deferred": True} if deferred else {})}
             )
-            try:
-                validated = received(repaired, "domain_repair")
-            except ValueError as repair_error:
-                events.append({"phase": "repair", "error": str(repair_error)})
+            if repair_spent and isinstance(exc, DeferredValidationError):
+                # No repair remains; the caller downgrades deterministically.
+                validated = cast(BaseModel, exc.accepted)
+            elif repair_spent:
                 return failure("STRUCTURED_OUTPUT_INVALID")
+            else:
+                if cancel_requested():
+                    raise ProviderCancelled() from exc
+                # Reserve the sole semantic repair before calling the adapter. A failed
+                # repair transport attempt never permits another initial request.
+                repair_spent = True
+                repaired = provider.repair(
+                    subject_id=request.subject_id,
+                    payload=request.repair_payload(
+                        request.payload(), result.output.model_copy(deep=True), (detail,)
+                    ),
+                    response_model=request.response_model,
+                    validation_errors=(detail,),
+                    cancel_requested=cancel_requested,
+                )
+                try:
+                    validated = received(repaired, "domain_repair")
+                except DeferredValidationError as repair_deferred:
+                    events.append(
+                        {"phase": "repair", "error": str(repair_deferred), "deferred": True}
+                    )
+                    validated = cast(BaseModel, repair_deferred.accepted)
+                except ValueError as repair_error:
+                    events.append({"phase": "repair", "error": str(repair_error)})
+                    return failure("STRUCTURED_OUTPUT_INVALID")
         return SemanticUnitOutcome(
             disposition="succeeded",
             repair_spent=repair_spent,

@@ -26,6 +26,7 @@ from liveclip.pipeline.semantic_executor import (
     SemanticUnitOutcome,
     SemanticUnitRequest,
     run_bounded_semantic_units,
+    validate_or_accept_deferred,
 )
 from liveclip.pipeline.semantic_transport import canonical_json
 from liveclip.providers.llm.structured import StructuredLLMProvider, StructuredProviderError
@@ -220,7 +221,9 @@ def run_persisted_semantic_units(
                 raw_model = request.response_model.model_validate_json(
                     json.dumps(outcome.raw_output)
                 )
-                validated = request.validate(raw_model)
+                # A durable success may hold a deferred-rule output that was accepted
+                # after its repair; the caller re-applies the same deterministic gate.
+                validated = validate_or_accept_deferred(request.validate, raw_model)
             except ValueError as exc:
                 raise SemanticRecoveryError("SEMANTIC_UNIT_EVIDENCE_INVALID") from exc
             if validated.model_dump(mode="json") != outcome.validated_output:
