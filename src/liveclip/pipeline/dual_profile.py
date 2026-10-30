@@ -484,6 +484,34 @@ class ProfileManifestStats(BaseModel):
     rejected: int = Field(ge=0)
 
 
+class StaleCacheResolution(BaseModel):
+    """One cached output that failed current validation under ``--refresh-stale-cache``.
+
+    The stale entry is never modified. ``superseding_cache_key`` names the entry
+    whose model settings add the sha256 of the stale output's canonical JSON
+    (``model_dump``); ``reused`` is true when that entry already existed.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    stage: str = Field(min_length=1, max_length=64)
+    profile: str = Field(min_length=1, max_length=64)
+    cache_key: str = Field(pattern=r"^[a-f0-9]{64}$")
+    superseding_cache_key: str = Field(pattern=r"^[a-f0-9]{64}$")
+    error_summary: str = Field(min_length=1, max_length=500)
+    reused: bool
+
+
+class BoundaryOpeningFallback(BaseModel):
+    """Rows downgraded to ``opening_complete=false`` after repair and regeneration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    profile: ClipProfile
+    subject_id: str = Field(min_length=1, max_length=160)
+    candidate_ids: tuple[str, ...] = Field(min_length=1)
+
+
 class DualProfileRunManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -504,6 +532,19 @@ class DualProfileRunManifest(BaseModel):
     cache_hits: int = Field(ge=0)
     retry_count: int = Field(default=0, ge=0)
     repair_count: int = Field(ge=0)
+    # Stage 12b audit fields; manifests written before them load with the defaults.
+    stale_cache_refresh_enabled: bool = False
+    stale_cache_resolution_count: int = Field(default=0, ge=0)
+    stale_cache_resolutions: tuple[StaleCacheResolution, ...] = ()
+    boundary_opening_fallbacks: tuple[BoundaryOpeningFallback, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_stale_cache_audit(self) -> DualProfileRunManifest:
+        if self.stale_cache_resolution_count != len(self.stale_cache_resolutions):
+            raise ValueError("stale cache resolution count differs from its records")
+        if self.stale_cache_resolutions and not self.stale_cache_refresh_enabled:
+            raise ValueError("stale cache resolutions require the explicit refresh option")
+        return self
 
     def validate_against(self, result: DualProfileFinalResult) -> None:
         if (
@@ -615,6 +656,43 @@ def validate_discovery_output(
     return output
 
 
+class BoundaryOpeningInvariantError(ValueError):
+    """The only Boundary Review failure: ``context_dependent_opening`` rows that also
+    claim ``opening_complete=true``. Every violating candidate ID is listed."""
+
+    def __init__(self, candidate_ids: tuple[str, ...]) -> None:
+        self.candidate_ids = candidate_ids
+        super().__init__(
+            "Boundary Review context_dependent_opening requires opening_complete=false; "
+            f"violating candidates: {', '.join(candidate_ids)}. Set opening_complete to "
+            "false for each, or remove the flag where the opening is complete"
+        )
+
+
+def apply_boundary_opening_fallback(
+    output: ProfileBoundaryReviewOutput,
+    candidate_ids: Collection[str],
+) -> ProfileBoundaryReviewOutput:
+    """Conservative last resort after repair and regeneration: only downgrade.
+
+    The listed rows keep their ``context_dependent_opening`` flag and get
+    ``opening_complete=false``; nothing else changes, so the candidate can never be
+    selected but stays reviewable under the advisory-flag contract.
+    """
+
+    targets = frozenset(candidate_ids)
+    return output.model_copy(
+        update={
+            "reviews": tuple(
+                item.model_copy(update={"opening_complete": False})
+                if item.candidate_id in targets
+                else item
+                for item in output.reviews
+            )
+        }
+    )
+
+
 def validate_boundary_review_output(
     output: ProfileBoundaryReviewOutput,
     *,
@@ -642,6 +720,7 @@ def validate_boundary_review_output(
         raise ValueError("Boundary Review must cover every raw candidate exactly once")
     cue_map = {value.cue_id: value for value in transcript_cues(transcript)}
     contract = PROFILE_DURATION_CONTRACTS[profile]
+    opening_violations: list[str] = []
     for candidate_id, review in review_map.items():
         if review.profile != profile:
             raise ValueError("Boundary Review candidate crossed Profile boundaries")
@@ -661,12 +740,9 @@ def validate_boundary_review_output(
             review.opening_complete
         ):
             # Consistency invariant: a kept opening dependency cannot coexist with a
-            # complete opening; the existing repair path asks for one coherent answer.
-            raise ValueError(
-                f"Boundary Review {candidate_id}: context_dependent_opening requires "
-                "opening_complete=false; set opening_complete to false or remove the flag "
-                "if the opening is complete"
-            )
+            # complete opening. Collected so one message names every violating row;
+            # it is raised only after every other check passed.
+            opening_violations.append(candidate_id)
         raw = candidate_map[candidate_id]
         if not set(review.risk_tags).issuperset(raw.risk_tags):
             raise ValueError("Boundary Review silently removed a Discovery risk")
@@ -688,6 +764,8 @@ def validate_boundary_review_output(
                 "Boundary Review removed a Discovery evidence cue from a medical, health, "
                 "or sensitivity risk chain"
             )
+    if opening_violations:
+        raise BoundaryOpeningInvariantError(tuple(opening_violations))
     return output
 
 
@@ -1119,6 +1197,8 @@ __all__ = [
     "DUAL_PROFILE_ROUTING_POLICY_VERSION",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
+    "BoundaryOpeningFallback",
+    "BoundaryOpeningInvariantError",
     "BoundaryReviewItem",
     "BoundaryState",
     "CandidateDisposition",
@@ -1141,7 +1221,9 @@ __all__ = [
     "ProfileManifestStats",
     "ProfileStatistics",
     "RawProfileCandidate",
+    "StaleCacheResolution",
     "VariantLinkItem",
+    "apply_boundary_opening_fallback",
     "apply_cross_profile_variant_links",
     "assemble_final_profile_result",
     "assert_no_cross_profile_dedup",

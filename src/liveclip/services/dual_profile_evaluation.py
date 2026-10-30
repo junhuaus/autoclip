@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import TypeVar, cast
 
 from pydantic import BaseModel
@@ -41,6 +41,8 @@ from liveclip.media.secure_files import (
 from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    BoundaryOpeningFallback,
+    BoundaryOpeningInvariantError,
     BoundaryReviewItem,
     CrossProfileVariantLinkOutput,
     DiscoveryWindow,
@@ -56,6 +58,8 @@ from liveclip.pipeline.dual_profile import (
     ProfileGlobalReviewOutput,
     ProfileManifestStats,
     RawProfileCandidate,
+    StaleCacheResolution,
+    apply_boundary_opening_fallback,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
@@ -109,8 +113,14 @@ def run_dual_profile_evaluation(
     cache_dir: Path | None = None,
     discovery_concurrency: int = 5,
     cancel_requested: Callable[[], bool] = lambda: False,
+    refresh_stale_cache: bool = False,
 ) -> dict[str, object]:
-    """Run independent short and mini semantic tracks over one transcript."""
+    """Run independent short and mini semantic tracks over one transcript.
+
+    ``refresh_stale_cache`` is off by default: a cached output that fails current
+    validation then fails the run closed. When explicitly enabled, such an entry is
+    repaired under a superseding key and recorded in the run manifest.
+    """
 
     if not 1 <= discovery_concurrency <= 8:
         raise ValueError("Discovery concurrency must be between one and eight")
@@ -125,6 +135,7 @@ def run_dual_profile_evaluation(
     cache_hits = 0
     retry_count = 0
     repair_count = 0
+    resolution_audit = _ResolutionAudit(refresh_stale_cache=refresh_stale_cache)
     prompt_files: dict[str, tuple[str, ...]] = {}
     prompt_hashes: dict[str, str] = {}
     stage_counts = {
@@ -177,6 +188,7 @@ def run_dual_profile_evaluation(
                 return validate_discovery_call(output_value, window)
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="discovery",
                 subject_id=window.window_id,
                 payload=payload,
@@ -258,6 +270,7 @@ def run_dual_profile_evaluation(
                 return validated
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="coverage_audit",
                 subject_id=f"{window.window_id}.coverage",
                 payload=payload,
@@ -358,6 +371,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="precision_audit",
                     subject_id=f"{window.window_id}.precision",
                     payload=payload,
@@ -456,6 +470,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="precision_confirmation",
                     subject_id=f"{window.window_id}.confirmation",
                     payload=payload,
@@ -564,6 +579,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="risk_discovery",
                     subject_id=f"{window.window_id}.risk",
                     payload=payload,
@@ -696,6 +712,7 @@ def run_dual_profile_evaluation(
                 )
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="boundary_review",
                 subject_id=f"{current_profile.value}.boundary.{chunk_index:03d}",
                 payload=boundary_payload,
@@ -708,6 +725,7 @@ def run_dual_profile_evaluation(
                 cache_dir=cache_dir,
                 validate=validate_boundary_call,
                 cancel_requested=lambda: cancel_requested() or failure_event.is_set(),
+                conservative_fallback=_boundary_opening_fallback,
             )
             return chunk_index, response
 
@@ -840,6 +858,7 @@ def run_dual_profile_evaluation(
                 return review_value
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="global_review",
                 subject_id=f"{current_profile.value}.global.{chunk_index:03d}",
                 payload=chunk_payload,
@@ -933,6 +952,7 @@ def run_dual_profile_evaluation(
             return value
 
         global_audit_call = _resolve_call(
+            resolution_audit=resolution_audit,
             stage="global_audit",
             subject_id=f"{profile.value}.global_audit",
             payload={
@@ -1015,6 +1035,7 @@ def run_dual_profile_evaluation(
         return value
 
     variant_call = _resolve_call(
+        resolution_audit=resolution_audit,
         stage="variant_link",
         subject_id="cross_profile.variant_link",
         payload=variant_payload,
@@ -1045,6 +1066,7 @@ def run_dual_profile_evaluation(
         routing_policy_version=DUAL_PROFILE_ROUTING_POLICY_VERSION,
     )
     elapsed_ms = round((time.monotonic() - started) * 1_000)
+    stale_resolutions = resolution_audit.stale_resolutions()
     manifest = DualProfileRunManifest(
         source_hash=source_hash,
         requested_profiles=resolved.requested_profiles,
@@ -1064,6 +1086,10 @@ def run_dual_profile_evaluation(
         cache_hits=cache_hits,
         retry_count=retry_count,
         repair_count=repair_count,
+        stale_cache_refresh_enabled=refresh_stale_cache,
+        stale_cache_resolution_count=len(stale_resolutions),
+        stale_cache_resolutions=stale_resolutions,
+        boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
     )
     manifest.validate_against(final)
     _write_json(
@@ -1305,6 +1331,57 @@ def _render_clip_id(candidate_id: str) -> str:
 _MAX_SUPERSEDED_CACHE_ENTRIES = 4
 
 
+class _ResolutionAudit:
+    """Run-level record of opt-in stale-cache refreshes and conservative fallbacks."""
+
+    def __init__(self, *, refresh_stale_cache: bool) -> None:
+        self.refresh_stale_cache = refresh_stale_cache
+        self._lock = Lock()
+        self._stale: list[StaleCacheResolution] = []
+        self._fallbacks: list[BoundaryOpeningFallback] = []
+
+    def record_stale(
+        self,
+        stage: str,
+        profile: str,
+        cache_key: str,
+        superseding_cache_key: str,
+        error: str,
+        *,
+        reused: bool,
+    ) -> None:
+        summary = " ".join(error.split())[:500] or "validation failed"
+        with self._lock:
+            self._stale.append(
+                StaleCacheResolution(
+                    stage=stage,
+                    profile=profile,
+                    cache_key=cache_key,
+                    superseding_cache_key=superseding_cache_key,
+                    error_summary=summary,
+                    reused=reused,
+                )
+            )
+
+    def record_opening_fallback(
+        self, profile: ClipProfile, subject_id: str, candidate_ids: tuple[str, ...]
+    ) -> None:
+        with self._lock:
+            self._fallbacks.append(
+                BoundaryOpeningFallback(
+                    profile=profile, subject_id=subject_id, candidate_ids=candidate_ids
+                )
+            )
+
+    def stale_resolutions(self) -> tuple[StaleCacheResolution, ...]:
+        with self._lock:
+            return tuple(sorted(self._stale, key=lambda v: (v.stage, v.profile, v.cache_key)))
+
+    def opening_fallbacks(self) -> tuple[BoundaryOpeningFallback, ...]:
+        with self._lock:
+            return tuple(sorted(self._fallbacks, key=lambda v: (v.profile, v.subject_id)))
+
+
 @dataclass(frozen=True)
 class _GeneratedCall:
     result: StructuredCallResult[BaseModel]
@@ -1350,6 +1427,17 @@ def _generate_with_semantic_retry(
     return _GeneratedCall(result, tuple(result.call_records), 0)
 
 
+def _boundary_opening_fallback(
+    output: ProfileBoundaryReviewOutput, error: ValueError
+) -> tuple[ProfileBoundaryReviewOutput, tuple[str, ...]] | None:
+    """After repair and regeneration, only the opening invariant may be resolved,
+    and only by downgrading ``opening_complete``; any other failure stays fatal."""
+
+    if not isinstance(error, BoundaryOpeningInvariantError):
+        return None
+    return apply_boundary_opening_fallback(output, error.candidate_ids), error.candidate_ids
+
+
 def _resolve_call(
     *,
     stage: str,
@@ -1364,7 +1452,15 @@ def _resolve_call(
     cache_dir: Path | None,
     validate: Callable[[OutputModel], OutputModel],
     cancel_requested: Callable[[], bool],
+    resolution_audit: _ResolutionAudit | None = None,
+    conservative_fallback: Callable[
+        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
+    ]
+    | None = None,
 ) -> _ResolvedCall:
+    # Without an explicit audit the Stage 9 fail-closed default applies.
+    if resolution_audit is None:
+        resolution_audit = _ResolutionAudit(refresh_stale_cache=False)
     model_settings = {
         "reasoning_effort": getattr(provider, "reasoning_effort", "provider_default"),
         "contract_version": provider.contract_version,
@@ -1395,29 +1491,40 @@ def _resolve_call(
         )
 
     key, cache_path = cache_location(cache_settings)
-    # A cache entry that fails the current deterministic validation (for example one
-    # written before a validator invariant was added under an unchanged prompt) is
-    # stale, not fatal. It stays untouched as immutable evidence and its output goes
-    # through the ordinary repair path; the result is cached under a key bound to the
-    # stale output's bytes, so a later run finds the repaired entry.
+    # Stage 9 contract: every cache hit is fully validated, and by default a cached
+    # output that fails current validation fails the run closed. Only with the
+    # explicit refresh option is such an entry treated as stale: it stays untouched,
+    # its output goes through the ordinary repair path, and the result is cached under
+    # a superseding key whose settings add the sha256 of the stale output's canonical
+    # JSON (``model_dump``). Every stale resolution is recorded in the run manifest.
     stale: tuple[OutputModel, ValueError] | None = None
+    pending_link: tuple[str, str, str] | None = None
     for _ in range(_MAX_SUPERSEDED_CACHE_ENTRIES + 1):
         if cache_path is None:
             break
         try:
             raw = json.loads(read_regular_text_no_follow(cache_path, max_bytes=32 * 1024 * 1024))
         except SecureFileMissing:
+            if pending_link is not None:
+                resolution_audit.record_stale(stage, profile_value, *pending_link, reused=False)
             break
         except (SecureFileError, json.JSONDecodeError) as exc:
             raise ValueError("dual Profile cache exists but is not trusted") from exc
+        if pending_link is not None:
+            resolution_audit.record_stale(stage, profile_value, *pending_link, reused=True)
+            pending_link = None
         if not isinstance(raw, dict) or raw.get("cache_key") != key:
             raise ValueError("dual Profile cache identity is invalid")
-        output_text = json.dumps(raw.get("output"), ensure_ascii=False)
-        output = response_model.model_validate_json(output_text)
+        output = response_model.model_validate_json(
+            json.dumps(raw.get("output"), ensure_ascii=False)
+        )
         try:
             validate(output)
         except ValueError as stale_error:
+            if not resolution_audit.refresh_stale_cache:
+                raise
             stale = (output, stale_error)
+            stale_key = key
             cache_settings = {
                 **cache_settings,
                 "supersedes_cache_output_sha256": hashlib.sha256(
@@ -1430,6 +1537,7 @@ def _resolve_call(
                 ).hexdigest(),
             }
             key, cache_path = cache_location(cache_settings)
+            pending_link = (stale_key, key, str(stale_error))
             continue
         return _ResolvedCall(
             output=output,
@@ -1509,10 +1617,27 @@ def _resolve_call(
             try:
                 output = validate(validation_retry_result.output)
             except ValueError as final_error:
-                raise ValueError(
-                    "deterministic validation still failed after one repair and one "
-                    f"regeneration: {final_error}"
-                ) from final_error
+                rescued = (
+                    conservative_fallback(validation_retry_result.output, final_error)
+                    if conservative_fallback is not None
+                    else None
+                )
+                if rescued is None:
+                    raise ValueError(
+                        "deterministic validation still failed after one repair and one "
+                        f"regeneration: {final_error}"
+                    ) from final_error
+                fixed_output, fallback_ids = rescued
+                try:
+                    output = validate(fixed_output)
+                except ValueError:
+                    raise ValueError(
+                        "deterministic validation still failed after one repair and one "
+                        f"regeneration: {final_error}"
+                    ) from final_error
+                resolution_audit.record_opening_fallback(
+                    ClipProfile(profile_value), subject_id, fallback_ids
+                )
     if cache_path is not None:
         ensure_directory_no_follow(cache_path.parent)
         payload_text = (

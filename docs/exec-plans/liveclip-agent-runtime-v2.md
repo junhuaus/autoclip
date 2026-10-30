@@ -1,5 +1,22 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 12b dual-profile review fixes (2026-10-29)
+
+- [x] 2026-10-29 Stage 12b implemented on `claude/liveclip-stage8-routing`
+  (reviewer P2s at `88c97e9`), **pending independent tester and
+  reviewer**. Not pushed.
+  - Stage 9 fail-closed is the default again for stale cached outputs;
+    repair under a superseding key is opt-in (`--refresh-stale-cache`) and
+    every resolution plus a count is recorded in `run-manifest.json`.
+  - The Boundary Review invariant error lists every violating ID; if it is
+    the only failure left after repair and regeneration, a downgrade-only
+    fallback sets `opening_complete=false` on those rows and records them
+    in the manifest. Any other failure still fails.
+  - Docs: the superseding key adds the sha256 of the stale output's
+    canonical JSON, not its bytes. No prompt or prompt-hash change.
+- [ ] Next: independent tester and reviewer on the Stage 12b SHA; real run
+  only with the user's go-ahead.
+
 ## Stage 12 dual-profile flag contract alignment (2026-10-29)
 
 - [x] 2026-10-29 **Stage 12 ACCEPTED** at
@@ -19,8 +36,8 @@
   in `STATUS.md`; decisions in the dual-profile ExecPlan.
 - [x] (Historical next step; done 2026-10-29.) Independent tester and
   reviewer on the Stage 12 SHA.
-- [ ] Next: Stage 12b (reviewer P2s); real run only with the user's
-  go-ahead.
+- [ ] Next: Stage 12b (reviewer P2s; implemented 2026-10-29, pending
+  verification, see above); real run only with the user's go-ahead.
 
 ## Stage 11b guard repair fallback and repair message (2026-10-29)
 

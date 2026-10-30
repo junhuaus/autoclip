@@ -1,11 +1,16 @@
-"""Stage 12: the dual-profile flag contract in prompts matches the code."""
+"""Stage 12/12b: the dual-profile flag contract in prompts matches the code; the
+stale-cache refresh is an explicit opt-in."""
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from typer.testing import CliRunner
 
+import liveclip.cli.app as cli_module
 from liveclip.clipping_skills.dual_profile_v1 import load_dual_profile_prompt
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.pipeline.dual_profile import (
@@ -71,3 +76,35 @@ def test_audit_prompt_allows_duplicate_pairs_through_a_shared_representative(
 ) -> None:
     text = _text("global_audit", profile)
     assert "duplicates of the same third representative" in text
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"), [((), False), (("--refresh-stale-cache",), True)]
+)
+def test_dual_profile_eval_cli_stale_cache_refresh_is_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arguments: tuple[str, ...], expected: bool
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(cli_module, "get_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        cli_module, "configured_dual_profile_provider_factory", lambda _settings: None
+    )
+    monkeypatch.setattr(cli_module, "run_dual_profile_evaluation", fake_run)
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "dual-profile-eval",
+            "--transcript",
+            str(tmp_path / "transcript.srt"),
+            "--output",
+            str(tmp_path / "output"),
+            *arguments,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["refresh_stale_cache"] is expected

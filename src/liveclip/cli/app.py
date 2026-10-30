@@ -1290,6 +1290,17 @@ def dual_profile_eval(
         int,
         typer.Option("--discovery-concurrency", min=1, max=8),
     ] = 5,
+    refresh_stale_cache: Annotated[
+        bool,
+        typer.Option(
+            "--refresh-stale-cache",
+            help=(
+                "Repair cached outputs that fail current validation under a superseding "
+                "cache key and record each one in the run manifest. Off by default: a "
+                "stale cache entry fails the run."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run independent short-highlight and mini-lesson semantic tracks."""
 
@@ -1307,6 +1318,7 @@ def dual_profile_eval(
             ),
             cache_dir=cache,
             discovery_concurrency=discovery_concurrency,
+            refresh_stale_cache=refresh_stale_cache,
         )
     except (ValidationError, ValueError, RuntimeError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)

@@ -72,7 +72,8 @@ imported by production modules.
 - [x] 2026-10-29 Stage 11b implemented (first recorded as pending independent tester and reviewer; ACCEPTED with code `31e6712` verified at the tip `88c97e9`): guard repair fallback to the initial output (failed call or hard-invalid rewrite after a deferred-only initial output) plus the deterministic gate, repair message naming field and matched token within the legacy 240-character limit, v3 `suspicious_exact_top_n` recomputed; dual-profile prompts, cache keys and benchmark files unchanged (evidence in `STATUS.md`).
 - [x] 2026-10-29 Stage 12 implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` the same day: tester PASS, lint rc 0, backend 2886 passed in 1681.85 s, vitest 14/80, e2e 4, targeted 159, no sleep 18:34–19:11; reviewer ACCEPT, no P0/P1, five P2s for Stage 12b); real run pending: Global Review/Audit prompts state the exact gated (`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) and advisory flag classes with a drift test; advisory-only coherent candidates are `manual_review` with the disagreement stated; Boundary Review invariant `context_dependent_opening` ⇒ `opening_complete=false` (repair path); stale cache entries are repaired instead of crashing (superseding key, entry untouched); nested-pair `duplicate` accepted through a shared representative. Discovery prompts unchanged; Boundary Review, Global Review and Global Audit caches are invalidated (warm rerun from cold-27: about 73 new calls, 160 hits). Evidence in `STATUS.md`.
 - [x] (Historical next step; done 2026-10-29 at `88c97e9`.) Independent tester and reviewer for Stages 11b and 12.
-- [ ] Next: Stage 12b (reviewer P2s), then a real run only with the user's go-ahead; human review of the cold-27 renders and of the L07 gap.
+- [x] 2026-10-29 Stage 12b implemented, pending independent tester and reviewer: stale cached outputs fail closed by default again (Stage 9 contract); repair under a superseding key (sha256 of the stale output's canonical JSON) is opt-in via `--refresh-stale-cache` and recorded in `run-manifest.json`; the Boundary Review invariant error lists every violating ID, and when it is the only failure left after repair and regeneration a downgrade-only fallback sets `opening_complete=false` and records the IDs; no prompt or prompt-hash change (evidence in `STATUS.md`).
+- [ ] Next: independent tester and reviewer for Stage 12b, then a real run only with the user's go-ahead; human review of the cold-27 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -498,7 +499,10 @@ prompts and compares them with `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS` and
 in code and stated in the prompt, accepting the Boundary Review cache
 invalidation (52 calls) because a model that is not told the contract would
 spend repairs on it; (3) a cached output that fails current validation is
-repaired under a superseding key rather than crashing or being rewritten;
+repaired under a superseding key rather than crashing or being rewritten
+(superseded by Stage 12b: the default fails closed again and the repair is
+opt-in through `--refresh-stale-cache`, recorded in the run manifest; the
+superseding key adds the sha256 of the stale output's canonical JSON);
 (4) `DUAL_PROFILE_ALGORITHM_VERSION` stays unchanged because the prompt hashes
 already re-key the affected stages.
 

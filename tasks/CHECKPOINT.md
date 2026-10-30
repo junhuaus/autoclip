@@ -475,3 +475,18 @@ lint rc 0; backend 2886 passed in 1681.85 s; vitest 14/80; e2e 4 passed;
 targeted 159; no sleep 18:34–19:11. Reviewer ACCEPT, no P0/P1, five P2s,
 which become Stage 12b. Real run still pending the user's go-ahead.
 
+## Stage 12b implemented, pending verification (2026-10-29)
+
+Branch `claude/liveclip-stage8-routing`, local only, on top of the docs
+commit that accepted Stages 11b and 12. Reviewer P2s: stale cached
+dual-profile outputs fail closed by default again (Stage 9); the repair
+under a superseding key is opt-in through `--refresh-stale-cache` and every
+resolution plus a count is recorded in `run-manifest.json`; the Boundary
+Review invariant error lists every violating ID, with a downgrade-only
+fallback (`opening_complete=false`, IDs in the manifest) only when it is
+the sole failure left after repair and regeneration. No prompt or
+prompt-hash change, so the warm-rerun estimate (about 73 calls) holds.
+Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 12b SHA. Not pushed.
+

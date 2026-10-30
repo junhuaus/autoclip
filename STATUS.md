@@ -18,6 +18,73 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 12b dual-profile review fixes (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** on local
+  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
+  that accepted Stages 11b and 12 at `88c97e9`). Not pushed or merged.
+- Origin: the Stage 12 reviewer P2s at `88c97e9`.
+- P2-1 (Controller decision): the Stage 9 fail-closed contract is the
+  default again. A cached dual-profile output that fails current
+  validation re-raises its validation error, exactly as before Stage 12.
+  Stale-cache repair/regeneration is now opt-in through
+  `liveclip dual-profile-eval --refresh-stale-cache` (service argument
+  `refresh_stale_cache=False` by default). When opted in, every stale
+  resolution is recorded in `run-manifest.json`:
+  `stale_cache_resolutions` (stage, Profile, stale `cache_key`,
+  `superseding_cache_key`, `error_summary`, `reused`),
+  `stale_cache_resolution_count` and `stale_cache_refresh_enabled`. A
+  later opted-in run that reuses an existing superseding entry records it
+  with `reused: true`. Without the option a stale primary entry still fails
+  closed even if a superseding entry exists. The manifest validator
+  requires the count to match and forbids resolutions without the option.
+  The new manifest fields have defaults, so earlier manifests still load.
+- P2-2: the Boundary Review invariant error
+  (`BoundaryOpeningInvariantError`) now lists every violating candidate ID
+  in one message and is raised only after every other check passed, so
+  any other failure keeps its own plain error. When the repair and the
+  regeneration are exhausted and that invariant is the only remaining
+  failure, `apply_boundary_opening_fallback` sets `opening_complete=false`
+  on exactly those rows (only a downgrade; the flag stays), the output is
+  re-validated, the IDs are recorded in the manifest's
+  `boundary_opening_fallbacks`, and the run continues. Any other failure
+  still fails as before.
+- P2-4: the opt-in test asserts that a third run reuses the superseding
+  audit entry with 0 calls.
+- P2-5: the docs now say the superseding key adds the sha256 of the stale
+  output's canonical JSON (`model_dump`, sorted keys), not of its bytes.
+- No prompt, prompt hash, `DUAL_PROFILE_ALGORITHM_VERSION`, Discovery
+  prompt, benchmark JSON/MD, evaluator threshold, guard pattern or frozen
+  `tools/loop_engineering` change. The Boundary Review, Global Review and
+  Global Audit prompt hashes are identical to `88c97e9`, so the warm-rerun
+  estimate from the cold-27 cache (about 73 new calls, 160 hits) still
+  holds; that estimate needs no `--refresh-stale-cache` because the
+  re-keyed stages have no stale entries.
+- Tests (mock/fixture only): restored Stage 9 test (a stale cached audit
+  fails closed by default and leaves the cache unchanged); opt-in test
+  (one repair, entry byte-identical, manifest records the resolution, a
+  third run reuses the superseding entry with 0 calls, a run without the
+  option still fails closed); the Boundary Review stale test now checks
+  both default and opt-in; all-IDs message and no masking of other
+  failures; invariant-only fallback and its manifest record; a fallback
+  that never masks another failure; manifest audit consistency; CLI opt-in
+  flag.
+- Coder verification (mock/fixture only, under `caffeinate -dims` on an
+  awake machine): all dual-profile and benchmark test files plus the
+  affected CLI files (`tests/integration/test_dual_profile_evaluation.py`,
+  `tests/unit/test_dual_profile*.py`, both benchmark-evaluator files, the
+  Claude CLI provider, Codex rate-limit message, CLI retry and doctor
+  files) 286 passed in 21.46 s; `PYTHONDONTWRITEBYTECODE=1
+  NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin make lint` rc 0. A broader
+  run over every test file importing `liveclip.cli` (778 tests) had two
+  `test_persistent_mock_pipeline.py` failures with `proxy_render`
+  `LEASE_EXPIRED` and one transient Claude CLI fake-subprocess failure
+  while the machine was sleeping or overloaded. The `LEASE_EXPIRED`
+  failure reproduced on the clean baseline `f7c98dd`, so it is
+  environmental. Awake reruns passed: both persistent-mock tests 2 passed,
+  and the Claude CLI provider file 58 passed. Full `make test`, the
+  independent tester and the reviewer are pending.
+
 ## Stage 12 dual-profile flag contract alignment (2026-10-29) — ACCEPTED at 88c97e9; REAL RUN PENDING
 
 - **Status: ACCEPTED** (2026-10-29) at
@@ -57,7 +124,10 @@
 - Boundary Review invariant: `validate_boundary_review_output` raises a
   validation error (routed to the existing repair) when a row carries
   `context_dependent_opening` with `opening_complete=true`.
-- Stale cache entries (`services/dual_profile_evaluation.py::_resolve_call`):
+- Stale cache entries (`services/dual_profile_evaluation.py::_resolve_call`;
+  **changed by Stage 12b**: this path is now opt-in through
+  `--refresh-stale-cache`, the default fails closed again, and the
+  superseding key adds the sha256 of the stale output's canonical JSON):
   Stage 9 made cache hits fully validated, but a failing cached output
   crashed the run. Now a cached output that fails the current validation
   is stale, not fatal: the entry is left untouched, its output goes through

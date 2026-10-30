@@ -12,6 +12,7 @@ from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     PROFILE_DURATION_CONTRACTS,
+    BoundaryOpeningInvariantError,
     BoundaryReviewItem,
     BoundaryState,
     CandidateDisposition,
@@ -32,6 +33,7 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
     RawProfileCandidate,
     VariantLinkItem,
+    apply_boundary_opening_fallback,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
@@ -315,7 +317,9 @@ def test_boundary_review_opening_flag_requires_an_incomplete_opening() -> None:
         )
 
     with pytest.raises(
-        ValueError, match="opening_flag: context_dependent_opening requires opening_complete=false"
+        BoundaryOpeningInvariantError,
+        match="context_dependent_opening requires opening_complete=false; violating "
+        "candidates: opening_flag",
     ):
         validate(review)
     # Either coherent answer is valid: an incomplete opening that keeps the flag,
@@ -325,6 +329,142 @@ def test_boundary_review_opening_flag_requires_an_incomplete_opening() -> None:
     validate(
         review.model_copy(update={"quality_flags": (DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,)})
     )
+
+
+def test_boundary_opening_invariant_lists_every_violation_and_never_masks_others() -> None:
+    profile = ClipProfile.MINI_LESSON
+    raws = tuple(
+        _raw(
+            profile=profile,
+            window_id="mini_window",
+            candidate_id=candidate_id,
+            start_cue_id=825,
+            end_cue_id=939,
+        )
+        for candidate_id in ("first_flag", "clean", "second_flag")
+    )
+
+    def item(candidate_id: str, *, flagged: bool) -> BoundaryReviewItem:
+        return BoundaryReviewItem(
+            candidate_id=candidate_id,
+            profile=profile,
+            start_cue_id=825,
+            end_cue_id=939,
+            opening_complete=True,
+            ending_complete=True,
+            central_objective_complete=True,
+            shortest_complete_boundary=True,
+            quality_flags=(DualQualityFlag.CONTEXT_DEPENDENT_OPENING,) if flagged else (),
+            evidence_cue_ids=(825, 939),
+            review_reason="边界审查。",
+        )
+
+    output = ProfileBoundaryReviewOutput(
+        profile=profile,
+        reviews=(
+            item("first_flag", flagged=True),
+            item("clean", flagged=False),
+            item("second_flag", flagged=True),
+        ),
+    )
+
+    def validate(value: ProfileBoundaryReviewOutput) -> ProfileBoundaryReviewOutput:
+        return validate_boundary_review_output(
+            value, profile=profile, candidates=raws, transcript=TRANSCRIPT, risk_record_ids=()
+        )
+
+    with pytest.raises(BoundaryOpeningInvariantError) as caught:
+        validate(output)
+    assert caught.value.candidate_ids == ("first_flag", "second_flag")
+    assert "violating candidates: first_flag, second_flag." in str(caught.value)
+    # Any other failure, even on a later row, is a plain error, not the invariant.
+    broken = output.model_copy(
+        update={
+            "reviews": (
+                *output.reviews[:2],
+                output.reviews[2].model_copy(update={"evidence_cue_ids": (940,)}),
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="evidence lies outside") as other:
+        validate(broken)
+    assert not isinstance(other.value, BoundaryOpeningInvariantError)
+    # The conservative fallback only downgrades the listed rows and then validates.
+    fixed = apply_boundary_opening_fallback(output, caught.value.candidate_ids)
+    assert validate(fixed) == fixed
+    assert [value.opening_complete for value in fixed.reviews] == [False, True, False]
+    assert [value.quality_flags for value in fixed.reviews] == [
+        value.quality_flags for value in output.reviews
+    ]
+
+
+def test_run_manifest_stale_cache_audit_is_consistent() -> None:
+    base = {
+        "source_hash": SOURCE_HASH,
+        "requested_profiles": ["short_highlight"],
+        "executed_profiles": ["short_highlight"],
+        "profiles": {
+            "short_highlight": {
+                "discovered": 0,
+                "selected": 0,
+                "manual_review": 0,
+                "blocked": 0,
+                "rejected": 0,
+            }
+        },
+        "provider": "mock",
+        "model": "mock",
+        "prompt_files": {},
+        "prompt_hashes": {},
+        "calls": {},
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "latency_ms": 0,
+        "cache_hits": 0,
+        "repair_count": 0,
+    }
+    # Manifests written before Stage 12b load with the defaults.
+    legacy = DualProfileRunManifest.model_validate_json(json.dumps(base))
+    assert legacy.stale_cache_refresh_enabled is False
+    assert legacy.stale_cache_resolutions == ()
+    resolution = {
+        "stage": "boundary_review",
+        "profile": "short_highlight",
+        "cache_key": "a" * 64,
+        "superseding_cache_key": "b" * 64,
+        "error_summary": "invariant",
+        "reused": False,
+    }
+    DualProfileRunManifest.model_validate_json(
+        json.dumps(
+            {
+                **base,
+                "stale_cache_refresh_enabled": True,
+                "stale_cache_resolution_count": 1,
+                "stale_cache_resolutions": [resolution],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="count differs"):
+        DualProfileRunManifest.model_validate_json(
+            json.dumps(
+                {
+                    **base,
+                    "stale_cache_refresh_enabled": True,
+                    "stale_cache_resolutions": [resolution],
+                }
+            )
+        )
+    with pytest.raises(ValueError, match="explicit refresh option"):
+        DualProfileRunManifest.model_validate_json(
+            json.dumps(
+                {
+                    **base,
+                    "stale_cache_resolution_count": 1,
+                    "stale_cache_resolutions": [resolution],
+                }
+            )
+        )
 
 
 def test_long_discovery_uses_six_hundred_second_context_and_three_hundred_ownership() -> None:

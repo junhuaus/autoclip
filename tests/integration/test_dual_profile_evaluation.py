@@ -900,10 +900,17 @@ PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES = {
 }
 
 
-def test_cache_hit_audits_are_fully_validated(
+def _plant_stale_created_pair_audit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+    counter: dict[str, int],
+) -> tuple[Path, Path, dict[Path, bytes]]:
+    """Plant an audit that omits the created-pair decision under the CURRENT prompt.
+
+    This is impossible in practice (see the hashes above); it models a cache entry
+    written under a weaker validation contract.
+    """
+
     from liveclip.services import dual_profile_evaluation as service
 
     for profile, old_hash in PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES.items():
@@ -912,17 +919,11 @@ def test_cache_hit_audits_are_fully_validated(
     transcript = tmp_path / "transcript.srt"
     _write_srt(transcript)
     cache = tmp_path / "cache"
-    counter: dict[str, int] = {}
 
     def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
         del reasoning_effort
         return AuditCreatedPairProvider(prompt, counter)
 
-    # Negative control: plant an audit that omits the created-pair decision under
-    # the CURRENT prompt identity (impossible in practice, see the hashes above).
-    # A cache hit must be re-validated with the full rule and refused, not
-    # silently accepted under a weaker contract.  Since Stage 12 a refused (stale)
-    # entry is repaired through the ordinary repair path instead of failing the run.
     original_pairs = service.nested_candidate_pairs
     with monkeypatch.context() as patch:
         patch.setattr(
@@ -947,31 +948,110 @@ def test_cache_hit_audits_are_fully_validated(
         )
     planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
     assert planted
+    return transcript, cache, planted
+
+
+def test_cache_hit_audits_are_fully_validated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Negative control (Stage 9 contract, the default): a cache hit is re-validated
+    # with the full rule and refused, failing closed rather than being accepted
+    # under a weaker contract or silently refreshed.
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    assert {path: path.read_bytes() for path in planted} == planted
+    assert set(cache.glob("*/global_audit/*.json")) == set(planted)
+
+
+def test_opt_in_stale_cache_refresh_repairs_once_and_reuses_the_superseding_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
     providers: list[AuditCreatedPairProvider] = []
 
-    def tracking_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
         del reasoning_effort
         provider = AuditCreatedPairProvider(prompt, counter)
         providers.append(provider)
         return provider
 
-    run_dual_profile_evaluation(
-        transcript_path=transcript,
-        output_dir=tmp_path / "warm",
-        provider_factory=tracking_factory,
-        cache_dir=cache,
-        discovery_concurrency=2,
-    )
-    # The stale audit was refused: its repair (asserting the "cover every listed
-    # nested pair" error) decided the created pair, and the planted entry is intact.
+    def run(name: str) -> DualProfileRunManifest:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / name,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+            refresh_stale_cache=True,
+        )
+        return DualProfileRunManifest.model_validate_json(
+            (tmp_path / name / "run-manifest.json").read_text(encoding="utf-8")
+        )
+
+    warm = run("warm")
+    # The stale audit was refused and repaired once (the repair asserts the "cover
+    # every listed nested pair" error); the planted entry stays byte-identical.
     assert sum(provider.audit_repairs for provider in providers) == 1
     assert {path: path.read_bytes() for path in planted} == planted
-    warm = DualProfileFinalResult.model_validate_json(
+    final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "warm" / "final-validated.json").read_text(encoding="utf-8")
     )
     assert [
-        value.candidate_id for value in warm.profiles[ClipProfile.MINI_LESSON].manual_review
+        value.candidate_id for value in final.profiles[ClipProfile.MINI_LESSON].manual_review
     ] == ["mini_inner"]
+    # The resolution is visible in the run artifacts, not only in cache files.
+    assert warm.stale_cache_refresh_enabled is True
+    assert warm.stale_cache_resolution_count == 1
+    (resolution,) = warm.stale_cache_resolutions
+    assert (resolution.stage, resolution.profile) == ("global_audit", "mini_lesson")
+    assert resolution.cache_key in {path.stem for path in planted}
+    assert "cover every listed nested pair" in resolution.error_summary
+    assert resolution.reused is False
+    superseding = (
+        cache / "mini_lesson" / "global_audit" / f"{resolution.superseding_cache_key}.json"
+    )
+    assert (
+        "supersedes_cache_output_sha256"
+        in json.loads(superseding.read_text("utf-8"))["model_settings"]
+    )
+    assert warm.calls["global_review"] == 1
+
+    # A third run reuses the superseding audit entry with zero calls.
+    generated = dict(counter)
+    third = run("third")
+    assert counter == generated
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    assert set(third.calls.values()) == {0}
+    (reused,) = third.stale_cache_resolutions
+    assert reused.reused is True
+    assert reused.superseding_cache_key == resolution.superseding_cache_key
+    assert {path: path.read_bytes() for path in planted} == planted
+
+    # Without the option the stale primary entry still fails closed.
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "default",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
 
 
 class OpeningFlagBoundaryProvider(ScriptedDualProvider):
@@ -1136,14 +1216,26 @@ def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
     planted = {path: path.read_bytes() for path in sorted(cache.glob("*/boundary_review/*.json"))}
     assert len(planted) == len(ClipProfile)
 
-    # The warm run re-validates each cached Boundary Review, refuses it and sends it
-    # through the existing repair path instead of crashing.
+    # By default (Stage 9 contract) the violating cached entry fails the run closed.
+    with pytest.raises(ValueError, match="context_dependent_opening requires"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "default",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    assert not any(provider.boundary_repairs for provider in providers)
+
+    # With the explicit option the warm run re-validates each cached Boundary
+    # Review, refuses it and sends it through the existing repair path.
     run_dual_profile_evaluation(
         transcript_path=transcript,
         output_dir=tmp_path / "warm",
         provider_factory=factory,
         cache_dir=cache,
         discovery_concurrency=1,
+        refresh_stale_cache=True,
     )
     repairs = [errors for provider in providers for errors in provider.boundary_repairs]
     assert len(repairs) == len(ClipProfile)
@@ -1152,6 +1244,15 @@ def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
     )
     assert warm.calls["discovery"] == 0
     assert warm.calls["boundary_review"] == len(ClipProfile)
+    assert warm.stale_cache_resolution_count == len(ClipProfile)
+    assert {value.stage for value in warm.stale_cache_resolutions} == {"boundary_review"}
+    assert {value.profile for value in warm.stale_cache_resolutions} == {
+        profile.value for profile in ClipProfile
+    }
+    assert not any(value.reused for value in warm.stale_cache_resolutions)
+    assert {value.cache_key for value in warm.stale_cache_resolutions} == {
+        path.stem for path in planted
+    }
     # Cache entries are immutable evidence: the stale entry is untouched and the
     # repaired output is stored under a key bound to the stale output's bytes.
     assert {path: path.read_bytes() for path in planted} == planted
@@ -1175,6 +1276,7 @@ def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
         provider_factory=factory,
         cache_dir=cache,
         discovery_concurrency=1,
+        refresh_stale_cache=True,
     )
     assert counter == generated
     assert len([errors for provider in providers for errors in provider.boundary_repairs]) == len(
@@ -1184,6 +1286,97 @@ def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
         (tmp_path / "third" / "run-manifest.json").read_text(encoding="utf-8")
     )
     assert set(third.calls.values()) == {0}
+    assert third.stale_cache_resolution_count == len(ClipProfile)
+    assert all(value.reused for value in third.stale_cache_resolutions)
+
+
+class StubbornOpeningFlagProvider(OpeningFlagBoundaryProvider):
+    """Repair and regeneration keep violating the opening invariant."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        also_break_evidence: bool = False,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.also_break_evidence = also_break_evidence
+
+    def _boundary(self, payload: dict[str, object], *, opening_complete: bool) -> Any:
+        del opening_complete
+        output = super()._boundary(payload, opening_complete=True)
+        if not self.also_break_evidence:
+            return output
+        return output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(update={"evidence_cue_ids": (item.end_cue_id + 1,)})
+                    for item in output.reviews
+                )
+            }
+        )
+
+
+def test_exhausted_opening_invariant_alone_falls_back_conservatively(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[StubbornOpeningFlagProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = StubbornOpeningFlagProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "output",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    # One repair per chunk, then one regeneration, then the deterministic fallback.
+    assert len([e for p in providers for e in p.boundary_repairs]) == len(ClipProfile)
+    manifest = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "output" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert {value.profile for value in manifest.boundary_opening_fallbacks} == set(ClipProfile)
+    assert sorted(
+        candidate_id
+        for value in manifest.boundary_opening_fallbacks
+        for candidate_id in value.candidate_ids
+    ) == sorted(f"{profile.value}_lesson" for profile in ClipProfile)
+    assert manifest.stale_cache_resolutions == ()
+    boundary = json.loads((tmp_path / "output" / "boundary-review.json").read_text("utf-8"))
+    for profile_output in boundary["profiles"].values():
+        for item in profile_output["reviews"]:
+            # Only downgraded: the flag stays and the opening is marked incomplete.
+            assert item["opening_complete"] is False
+            assert item["quality_flags"] == ["context_dependent_opening"]
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "output" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    for result in final.profiles.values():
+        assert result.selected == ()
+
+
+def test_opening_fallback_never_masks_another_validation_failure(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return StubbornOpeningFlagProvider(prompt, counter, also_break_evidence=True)
+
+    with pytest.raises(ValueError, match="evidence lies outside its final interval"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=1,
+        )
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
