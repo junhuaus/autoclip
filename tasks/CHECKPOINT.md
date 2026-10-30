@@ -490,3 +490,28 @@ Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 12b SHA. Not pushed.
 
+
+## Stage 12b accepted at a7088c4; warm-28 diagnostic FAIL 95.0 (2026-10-30)
+
+Stage 12b is ACCEPTED at `a7088c490468cb36e48fc60fd512bf6923140593` on
+`claude/liveclip-stage8-routing` (local only). Tester PASS: lint rc 0;
+backend 2893 passed in 1675.40 s; vitest 14/80; e2e 4; targeted 102; no
+sleep 10:34–11:09; high load from an unrelated project, no failures.
+Reviewer ACCEPT, no P0/P1; P2-A (opening fallback provenance lost on a warm
+cache hit), P2-B (manifest does not cross-check fallbacks/resolutions) and
+two P3s become Stage 12c.
+
+warm-28 (real Claude CLI, warm from a byte-verified copy of the cold-27
+cache, diagnostic only) at `a7088c4`: eval rc 0 in 2510 s; 160 hits, 73 new
+calls plus 4 repairs, 0 retries, 0 pre-existing cache files changed.
+Strict FAIL 95.0 (rc 1, no PASS blockers): short 8/8, mini 5/6 (L07
+missed), two N07 hard failures (`audit_sh0009…` negative-anchor output,
+`ml0007…core` padding). 14 renders pass automatic checks; human review
+pending. Root cause: Boundary Review cleared Discovery gated flags without
+trimming, and the audit never compares non-nested overlapping pairs.
+User decisions (binding): Fix 1 Discovery gated-flag persistence, Fix 2
+overlap adjudication at ≥50% of the shorter candidate (Stage 13). Details
+in `STATUS.md`.
+
+Next: Stage 12c and Stage 13, then independent tester and reviewer; a real
+run only with the user's go-ahead. Not pushed.

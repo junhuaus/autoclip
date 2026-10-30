@@ -72,8 +72,10 @@ imported by production modules.
 - [x] 2026-10-29 Stage 11b implemented (first recorded as pending independent tester and reviewer; ACCEPTED with code `31e6712` verified at the tip `88c97e9`): guard repair fallback to the initial output (failed call or hard-invalid rewrite after a deferred-only initial output) plus the deterministic gate, repair message naming field and matched token within the legacy 240-character limit, v3 `suspicious_exact_top_n` recomputed; dual-profile prompts, cache keys and benchmark files unchanged (evidence in `STATUS.md`).
 - [x] 2026-10-29 Stage 12 implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` the same day: tester PASS, lint rc 0, backend 2886 passed in 1681.85 s, vitest 14/80, e2e 4, targeted 159, no sleep 18:34–19:11; reviewer ACCEPT, no P0/P1, five P2s for Stage 12b); real run pending: Global Review/Audit prompts state the exact gated (`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) and advisory flag classes with a drift test; advisory-only coherent candidates are `manual_review` with the disagreement stated; Boundary Review invariant `context_dependent_opening` ⇒ `opening_complete=false` (repair path); stale cache entries are repaired instead of crashing (superseding key, entry untouched); nested-pair `duplicate` accepted through a shared representative. Discovery prompts unchanged; Boundary Review, Global Review and Global Audit caches are invalidated (warm rerun from cold-27: about 73 new calls, 160 hits). Evidence in `STATUS.md`.
 - [x] (Historical next step; done 2026-10-29 at `88c97e9`.) Independent tester and reviewer for Stages 11b and 12.
-- [x] 2026-10-29 Stage 12b implemented, pending independent tester and reviewer: stale cached outputs fail closed by default again (Stage 9 contract); repair under a superseding key (sha256 of the stale output's canonical JSON) is opt-in via `--refresh-stale-cache` and recorded in `run-manifest.json`; the Boundary Review invariant error lists every violating ID, and when it is the only failure left after repair and regeneration a downgrade-only fallback sets `opening_complete=false` and records the IDs; no prompt or prompt-hash change (evidence in `STATUS.md`).
-- [ ] Next: independent tester and reviewer for Stage 12b, then a real run only with the user's go-ahead; human review of the cold-27 renders and of the L07 gap.
+- [x] 2026-10-29 Stage 12b implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `a7088c490468cb36e48fc60fd512bf6923140593` on 2026-10-30: tester PASS, lint rc 0, backend 2893 passed in 1675.40 s, vitest 14/80, e2e 4, targeted 102, no sleep 10:34–11:09, high load from an unrelated project with no failures; reviewer ACCEPT, no P0/P1, P2-A/P2-B and two P3s for Stage 12c): stale cached outputs fail closed by default again (Stage 9 contract); repair under a superseding key (sha256 of the stale output's canonical JSON) is opt-in via `--refresh-stale-cache` and recorded in `run-manifest.json`; the Boundary Review invariant error lists every violating ID, and when it is the only failure left after repair and regeneration a downgrade-only fallback sets `opening_complete=false` and records the IDs; no prompt or prompt-hash change (evidence in `STATUS.md`).
+- [x] (Historical next step; done 2026-10-30.) Independent tester and reviewer for Stage 12b, then a real run with the user's go-ahead (warm-28 below).
+- [x] 2026-10-30 warm-28 (real Claude CLI at `a7088c4`, warm from a byte-verified `cp -Rp` copy of the cold-27 cache, diagnostic only): eval rc 0 in 2510 s; 160 Discovery-family hits; 73 new calls (Boundary Review 52, Global Review 18, audit 2, variant 1) plus 4 repairs; 0 retries; 0 pre-existing cache files changed; strict FAIL 95.0 with no PASS blockers (short 8/8, mini 5/6 with L07 missed, two N07 hard failures); 14 renders pass automatic checks, human review pending. Root cause and the binding user decisions (Fix 1 Discovery gated-flag persistence, Fix 2 overlap adjudication) are in the Decisions and Recovery Notes below and in `STATUS.md`.
+- [ ] Next: Stage 12c (reviewer P2-A/P2-B/P3s of Stage 12b) and Stage 13 (Fix 1 and Fix 2), independent tester and reviewer, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -278,6 +280,12 @@ two deterministic report files.
   - The branch was rebased onto the Stage 3 docs tip `427e80c`. The rebased
     commits are `2c4de9a`, `0440c17` and `8b14aa3`, with identical code
     diffs.
+- 2026-10-30 (user, binding, after the warm-28 root-cause analysis): Fix 1,
+  keep Discovery gated flags unless Boundary Review actually trims the
+  interval; Fix 2, the Global Audit also adjudicates same-Profile
+  overlapping pairs at ≥50% of the shorter candidate. Both are general (no
+  anchor times, IDs or wording) and are implemented as Stage 13; evidence
+  in the Recovery Notes and `STATUS.md`.
 
 ## Risks and mitigations
 
@@ -505,6 +513,58 @@ opt-in through `--refresh-stale-cache`, recorded in the run manifest; the
 superseding key adds the sha256 of the stale output's canonical JSON);
 (4) `DUAL_PROFILE_ALGORITHM_VERSION` stays unchanged because the prompt hashes
 already re-key the affected stages.
+
+2026-10-30 (Stage 12b ACCEPTED at `a7088c4`; warm-28 diagnostic): tester
+PASS (lint rc 0; backend 2893 passed in 1675.40 s; vitest 14/80; e2e 4;
+targeted 102; no sleep 10:34–11:09; high unrelated load, no failures);
+reviewer ACCEPT with no P0/P1 (P2-A, P2-B and two P3s become Stage 12c).
+warm-28 (real Claude CLI, warm, diagnostic) at `a7088c4`:
+
+  - Roots `data/evaluations/dual-profile-benchmark-20261030-claude-warm-28`
+    and `data/evaluations/dual-profile-cache-20261030-claude-warm-28` (a
+    `cp -Rp` copy of the cold-27 cache, 233 files, byte-verified); attempt
+    start epoch 1793383796; eval rc 0 in 2510 s.
+  - 160 hits (Discovery family only); 73 new calls (Boundary Review 52,
+    Global Review 18, audit 2, variant 1) plus 4 repairs (77 records); 0
+    retries; no 429/529/usage-limit errors; tokens in 7,336,802 / out
+    740,519. 73 new cache files, all with mtime at or after the start; 0 of
+    the 233 pre-existing files changed; no stale resolutions and no opening
+    fallbacks.
+  - Strict FAIL 95.0 (evaluator rc 1, no PASS blockers), durable output in
+    `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-28`
+    (`evidence/`). Short 8/8 (S06 `sh0009_balanced_mix_step5` selected at
+    −2300/+2860 ms); mini 5/6 (L07: the exact `precision_yuge…`, cues
+    2855–2974, was rejected as the nested duplicate of `confirm_6001180…`
+    starting at cue 2854, −30540 ms); R01 blocked, R02 `manual_review`.
+    Hard failures, both on N07: `negative_anchor_output` for
+    `audit_sh0009_throat_tight_strong_mix_diagnosis` (short,
+    `manual_review`, 2295000–2351600) and `irrelevant_padding` for
+    `ml0007_strong_mix_vs_yanyin_core` (mini, `manual_review`,
+    2369520–2538460, 34,680 ms of N07 outside L04).
+  - Renders: 14 clips in `<run>/renders/`, rc 0 in 253 s, automatic checks
+    pass; human review pending.
+  - Root cause (read-only): on identical Discovery inputs, warm-28 Boundary
+    Review cleared Discovery's gated flags without removing cues
+    (`audit_sh0009`: `topic_switch_inside` cleared on an unchanged
+    interval; `ml0007_core`: start trimmed to cue 1036 and
+    `material_interruption`/`device_or_waiting_padding` cleared), while
+    cold-27 kept them; Global Review and the audit followed Boundary Review
+    in both runs. A pre-existing gap exposed by sampling, not a Stage 12
+    regression: the advisory-flag path (b) and the repair/fallback path (c)
+    are ruled out. N07 hard-failed 2 of 5 Claude-era runs (warm-22,
+    warm-28); warm-26 passed only because its audit happened to deduplicate.
+    The audit compares nested pairs only, so the 93%-overlapping non-nested
+    `ml0007_core` / `audit_ml0008` (the L04 match) was never compared. L07
+    (also missed in cold-27 and warm-24) comes from a conflict between the
+    Boundary Review untranscribed-gap clause and the song-selection trim
+    clause; human listening of 01:40:07.5–01:40:35.0 is pending.
+
+Decisions 2026-10-30 (user, binding; implemented as Stage 13): (1) Fix 1,
+Discovery gated flags (`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) are kept
+unless Boundary Review actually trims the interval; (2) Fix 2, the Global
+Audit also adjudicates same-Profile overlapping pairs whose overlap is at
+least 50% of the shorter candidate. Stage 12c takes the Stage 12b reviewer
+P2-A, P2-B and P3s.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

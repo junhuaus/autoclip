@@ -18,11 +18,95 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 12b dual-profile review fixes (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+## warm-28 real Claude CLI warm diagnostic at a7088c4 (2026-10-30) — strict FAIL 95.0 (diagnostic only)
 
-- **Status: implemented, pending independent tester and reviewer** on local
-  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
-  that accepted Stages 11b and 12 at `88c97e9`). Not pushed or merged.
+Evidence categories stay distinct: this run is real-model inference evidence
+(warm, diagnostic, not an acceptance run); the strict evaluator result is
+deterministic validation of that output; rendering plus human
+editorial/audio review is a separate acceptance activity and is **not**
+claimed here.
+
+- Code: HEAD `a7088c490468cb36e48fc60fd512bf6923140593` (Stage 12b, accepted
+  below). Frozen Claude CLI 2.1.308 binary, subscription login.
+- Roots: `data/evaluations/dual-profile-benchmark-20261030-claude-warm-28`
+  and cache `data/evaluations/dual-profile-cache-20261030-claude-warm-28`.
+  The cache was copied with `cp -Rp` from the cold-27 cache (233 files,
+  byte-verified). Attempt start epoch 1793383796.
+- Eval rc 0 in 2510 s.
+- Calls and cost: 160 cache hits (Discovery family only); 73 new calls
+  (Boundary Review 52, Global Review 18, Global Audit 2, variant link 1)
+  plus 4 repairs, 77 provider records; 0 retries; no 429, 529 or
+  usage-limit errors. Tokens: input 7,336,802, output 740,519.
+- Cache provenance: 73 new cache files, all with mtime at or after the
+  attempt start; 0 of the 233 pre-existing files changed;
+  `stale_cache_resolution_count` 0; `boundary_opening_fallbacks` `[]`.
+- Strict result: **FAIL 95.0**, evaluator rc 1, no PASS blockers. Durable
+  output: `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-28`
+  (evidence in its `evidence/` subfolder).
+  - Short 8/8. S06 matched by `sh0009_balanced_mix_step5` (selected,
+    −2300/+2860 ms).
+  - Mini 5/6. L07 missed: the exact `precision_yuge…` candidate (cues
+    2855–2974) was rejected as the nested duplicate of `confirm_6001180…`,
+    which starts at cue 2854, −30540 ms from the anchor.
+  - R01 `blocked`, R02 `manual_review`.
+  - Hard failures, both on negative anchor N07 (2284100–2404200, chat,
+    devices and fragments; must not pad L03):
+    1. `negative_anchor_output`: `audit_sh0009_throat_tight_strong_mix_diagnosis`
+       (short, `manual_review`, 2295000–2351600).
+    2. `irrelevant_padding`: `ml0007_strong_mix_vs_yanyin_core` (mini,
+       `manual_review`, 2369520–2538460; 34,680 ms of N07 outside L04).
+- Renders: 14 clips into `<run>/renders/`, rc 0 in 253 s, all automatic
+  checks pass. Human visual/audio review is PENDING.
+- Read-only root-cause analysis:
+  - The divergence from cold-27 happened at Boundary Review. On identical
+    Discovery inputs, warm-28 Boundary Review cleared Discovery's gated
+    flags without removing cues: `audit_sh0009` cleared
+    `topic_switch_inside` on an unchanged interval; `ml0007_core` trimmed
+    its start to cue 1036 and cleared `material_interruption` and
+    `device_or_waiting_padding`. cold-27 Boundary Review kept them; Global
+    Review and the Global Audit followed Boundary Review in both runs.
+  - This is a pre-existing gap exposed by sampling, not a Stage 12
+    regression. Ruled out: (b) both rows were unflagged after Boundary
+    Review, so the gated (not advisory) flag contract never applied; (c)
+    neither row was in a repaired Boundary Review batch and there were no
+    fallbacks.
+  - History: N07 caused a hard FAIL in 2 of 5 Claude-era runs (warm-22,
+    warm-28). The warm-26 PASS survived only because its audit happened to
+    deduplicate.
+  - The Global Audit adjudicates only nested pairs, so the 93%-overlapping,
+    non-nested pair `ml0007_core` / `audit_ml0008` (the L04 match) was never
+    compared.
+  - L07 was also missed in cold-27 and warm-24. The cause is a conflict
+    between the Boundary Review untranscribed-gap clause and the
+    song-selection trim clause. Human listening of 01:40:07.5–01:40:35.0 is
+    still pending with the user.
+- **User decisions (2026-10-30, binding):**
+  - Fix 1: keep Discovery gated flags unless Boundary Review actually trims
+    the interval.
+  - Fix 2: the Global Audit also adjudicates same-Profile overlapping pairs
+    whose overlap is at least 50% of the shorter candidate.
+  - Both are scheduled as Stage 13; the reviewer P2s/P3s of Stage 12b are
+    Stage 12c.
+
+## Stage 12b dual-profile review fixes (2026-10-29) — ACCEPTED at a7088c4
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `a7088c490468cb36e48fc60fd512bf6923140593` on local branch
+  `claude/liveclip-stage8-routing` (code commit after the docs commit that
+  accepted Stages 11b and 12 at `88c97e9`). Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
+- Tester: **PASS** at `a7088c4`. `make lint` rc 0; backend 2893 passed in
+  1675.40 s; vitest 14 files / 80; e2e 4; targeted 102. No sleep in the
+  10:34–11:09 window on 2026-10-30. The machine was under high load from an
+  unrelated project; there were no failures.
+- Reviewer: **ACCEPT** at `a7088c4`, no P0/P1. P2-A (the Boundary Review
+  opening fallback provenance is lost on a warm cache hit, because the
+  fallback output is cached as if it were model output) and P2-B (the
+  manifest does not cross-check `boundary_opening_fallbacks` or the stale
+  resolutions) go to Stage 12c. P3s: no repo tests for mis-keyed or
+  untrusted cache entries in either refresh mode, and `reused=True` is
+  recorded before the superseding entry's identity check.
 - Origin: the Stage 12 reviewer P2s at `88c97e9`.
 - P2-1 (Controller decision): the Stage 9 fail-closed contract is the
   default again. A cached dual-profile output that fails current
@@ -82,8 +166,9 @@
   while the machine was sleeping or overloaded. The `LEASE_EXPIRED`
   failure reproduced on the clean baseline `f7c98dd`, so it is
   environmental. Awake reruns passed: both persistent-mock tests 2 passed,
-  and the Claude CLI provider file 58 passed. Full `make test`, the
-  independent tester and the reviewer are pending.
+  and the Claude CLI provider file 58 passed. (At the time, full `make
+  test`, the independent tester and the reviewer were pending; all passed
+  at `a7088c4`, see above.)
 
 ## Stage 12 dual-profile flag contract alignment (2026-10-29) — ACCEPTED at 88c97e9; REAL RUN PENDING
 

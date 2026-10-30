@@ -1,10 +1,45 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## warm-28 warm diagnostic and Stage 13 decisions (2026-10-30)
+
+- [x] 2026-10-30 warm-28 (real Claude CLI, warm from a byte-verified copy of
+  the cold-27 cache, diagnostic only) at `a7088c4`: eval rc 0 in 2510 s;
+  160 Discovery-family hits, 73 new calls (Boundary Review 52, Global
+  Review 18, audit 2, variant 1) plus 4 repairs; 0 retries; no
+  usage-limit errors; 0 pre-existing cache files changed; no stale
+  resolutions or opening fallbacks. Strict **FAIL 95.0** (evaluator rc 1,
+  no PASS blockers): short 8/8, mini 5/6 (L07 missed again), R01 blocked,
+  R02 `manual_review`; two hard failures on N07
+  (`audit_sh0009_throat_tight_strong_mix_diagnosis`
+  `negative_anchor_output`; `ml0007_strong_mix_vs_yanyin_core`
+  `irrelevant_padding`). 14 renders pass automatic checks; human review
+  pending. Details and the read-only root cause in `STATUS.md`.
+- [x] Root cause (read-only): Boundary Review cleared Discovery gated flags
+  without trimming (or after trimming only the start); the Global Audit
+  compares nested pairs only, so a 93%-overlapping non-nested pair was
+  never adjudicated. Pre-existing gap exposed by sampling, not a Stage 12
+  regression.
+- [x] User decisions (2026-10-30, binding): Fix 1, Discovery gated flags
+  persist unless Boundary Review shrinks the interval; Fix 2, the Global
+  Audit also adjudicates same-Profile overlapping pairs at ≥50% of the
+  shorter candidate.
+- [ ] Next: Stage 12c (reviewer P2-A/P2-B/P3s) and Stage 13 (Fix 1 and
+  Fix 2), then independent tester and reviewer; a real run only with the
+  user's go-ahead.
+
 ## Stage 12b dual-profile review fixes (2026-10-29)
 
 - [x] 2026-10-29 Stage 12b implemented on `claude/liveclip-stage8-routing`
-  (reviewer P2s at `88c97e9`), **pending independent tester and
-  reviewer**. Not pushed.
+  (reviewer P2s at `88c97e9`); **ACCEPTED at
+  `a7088c490468cb36e48fc60fd512bf6923140593` on 2026-10-30** (first
+  recorded as pending independent tester and reviewer). Tester PASS: lint
+  rc 0; backend 2893 passed in 1675.40 s; vitest 14/80; e2e 4; targeted
+  102; no sleep 10:34–11:09; high load from an unrelated project, no
+  failures. Reviewer ACCEPT, no P0/P1; P2-A (opening fallback provenance
+  lost on a warm cache hit) and P2-B (manifest does not cross-check
+  fallbacks/stale resolutions) plus two P3s (no mis-keyed/untrusted cache
+  tests in either mode; `reused=True` recorded before the identity check)
+  become Stage 12c. Not pushed.
   - Stage 9 fail-closed is the default again for stale cached outputs;
     repair under a superseding key is opt-in (`--refresh-stale-cache`) and
     every resolution plus a count is recorded in `run-manifest.json`.
@@ -14,8 +49,9 @@
     in the manifest. Any other failure still fails.
   - Docs: the superseding key adds the sha256 of the stale output's
     canonical JSON, not its bytes. No prompt or prompt-hash change.
-- [ ] Next: independent tester and reviewer on the Stage 12b SHA; real run
-  only with the user's go-ahead.
+- [x] (Historical next step; done 2026-10-30 at `a7088c4`.) Independent
+  tester and reviewer on the Stage 12b SHA; the warm-28 real run followed
+  with the user's go-ahead (see above).
 
 ## Stage 12 dual-profile flag contract alignment (2026-10-29)
 
@@ -36,8 +72,9 @@
   in `STATUS.md`; decisions in the dual-profile ExecPlan.
 - [x] (Historical next step; done 2026-10-29.) Independent tester and
   reviewer on the Stage 12 SHA.
-- [ ] Next: Stage 12b (reviewer P2s; implemented 2026-10-29, pending
-  verification, see above); real run only with the user's go-ahead.
+- [x] (Historical next step; Stage 12b ACCEPTED at `a7088c4` on
+  2026-10-30, and the warm-28 real run followed.) Stage 12b (reviewer
+  P2s); real run only with the user's go-ahead.
 
 ## Stage 11b guard repair fallback and repair message (2026-10-29)
 
