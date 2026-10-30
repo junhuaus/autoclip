@@ -1411,14 +1411,21 @@ def plan_audit_pair_fallback(
 
     1. no persisted Discovery gated flag first (final routing blocks such a
        member anyway);
-    2. (Stage 13c) more resolved duplicates first, so a representative is kept
-       and its duplicates are not orphaned whenever possible;
-    3. shorter duration, then earlier start, then smaller ID.
+    2. shorter duration (the user-approved "keep the shortest independently
+       complete version" policy; a duplicate count is only a proxy and must
+       not override it);
+    3. (Stage 13c) more resolved duplicates, so among equally long members a
+       representative is kept and its duplicates are not orphaned;
+    4. earlier start, then smaller ID.
+
+    Duplicates of a blocked representative are orphaned and recorded by the
+    caller (``orphaned_duplicate``); nothing is promoted.
 
     A visited member that is not yet blocked is kept and every violating partner
     not yet decided is blocked, so every blocked member has a kept near-identical
-    partner that stays retained.  Without persisted flags or duplicates this
-    blocks the longer member (ties: later start, then larger ID).  Coverage
+    partner that stays retained.  Without persisted flags this blocks the
+    longer member (ties: fewer resolved duplicates, then later start, then
+    larger ID).  Coverage
     caveat: near-identical is not identical; for same-end or near-copy pairs the
     blocked longer member can hold media the kept shorter member lacks, which is
     the keep-the-shortest-complete-version policy.  (In a chain A > B > C where C
@@ -1441,8 +1448,8 @@ def plan_audit_pair_fallback(
         partners,
         key=lambda key: (
             key in persisted,
-            -len(duplicates.get(key, ())),
             spans[key][1] - spans[key][0],
+            -len(duplicates.get(key, ())),
             spans[key][0],
             key,
         ),

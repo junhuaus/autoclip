@@ -2407,32 +2407,91 @@ def test_run_manifest_cross_checks_audit_pair_fallbacks() -> None:
 # Stage 13c: representatives are kept first; orphans are recorded.
 
 
-def test_audit_fallback_keeps_a_representative_before_a_shorter_member(tmp_path: Path) -> None:
+def test_audit_fallback_keeps_the_shorter_member_over_a_representative(
+    tmp_path: Path,
+) -> None:
+    from liveclip.services.dual_profile_evaluation import _audit_pair_fallback, _merge_audit
+
     transcript = _second_transcript(tmp_path)
     manual = CandidateDisposition.MANUAL_REVIEW
-    pool = _pool(
+    initial = _pool(
         ClipProfile.MINI_LESSON,
-        ("short", 1, 100, manual),  # 100 s
-        ("rep", 3, 105, manual),  # 103 s, representative of one duplicate
-        ("dup", 50, 150, CandidateDisposition.REJECTED),
+        ("short", 1, 100, manual),  # [0, 100): 100 s
+        ("rep", 3, 105, manual),  # [2, 105): 103 s, representative of one duplicate
+        ("dup", 150, 250, manual),  # unrelated to both; a review-level duplicate of rep
     )
-    pool = pool.model_copy(
-        update={
-            "reviews": tuple(
-                item.model_copy(update={"duplicate_of_candidate_id": "rep"})
-                if item.candidate_id == "dup"
-                else item
-                for item in pool.reviews
-            )
-        }
+    pairs = audit_candidate_pairs(initial, transcript)
+    assert [pair.members for pair in pairs] == [frozenset(("short", "rep"))]
+    audit = ProfileGlobalAuditOutput(
+        profile=ClipProfile.MINI_LESSON,
+        replacements=(
+            _review_item("dup", 150, 250, CandidateDisposition.REJECTED, duplicate_of="rep"),
+        ),
+        nested_pair_decisions=(
+            _decision("short", "rep", NestedPairDecisionKind.DISTINCT_OBJECTIVE),
+        ),
+        audit_reason="审计。",
     )
-    blocks = plan_audit_pair_fallback(_near_error(("short", "rep")), pool, transcript)
-    assert blocks == (("short", ("short", "rep")),)
+    merged = _merge_audit(audit, initial)
+    # Shortest-complete policy (Controller decision): the shorter member is kept
+    # even though the longer one represents a duplicate.
+    assert plan_audit_pair_fallback(_near_error(("short", "rep")), merged, transcript) == (
+        ("rep", ("short", "rep")),
+    )
     # Persisted flags still come first.
-    blocks = plan_audit_pair_fallback(
-        _near_error(("short", "rep")), pool, transcript, persisted_flag_ids={"rep"}
+    assert plan_audit_pair_fallback(
+        _near_error(("short", "rep")), merged, transcript, persisted_flag_ids={"short"}
+    ) == (("short", ("short", "rep")),)
+
+    def validate(
+        value: ProfileGlobalAuditOutput, blocked: frozenset[str] = frozenset()
+    ) -> ProfileGlobalAuditOutput:
+        del blocked
+        validate_audit_pair_decisions(
+            pairs, value.nested_pair_decisions, _merge_audit(value, initial)
+        )
+        return value
+
+    with pytest.raises(AuditPairRuleError) as caught:
+        validate(audit)
+    result = _audit_pair_fallback(
+        audit, caught.value, ClipProfile.MINI_LESSON, initial, validate, transcript, frozenset()
     )
-    assert blocks == (("rep", ("short", "rep")),)
+    assert result is not None
+    fixed, affected, records = result
+    assert affected == ("rep",)
+    # The orphaned duplicate is recorded (not a listed pair) and stays rejected.
+    assert [
+        (r.rule, r.blocked_candidate_id, r.duplicate_candidate_id, r.pair_kind) for r in records
+    ] == [
+        (AuditPairRule.NEAR_IDENTICAL_PAIR, "rep", None, None),
+        (AuditPairRule.ORPHANED_DUPLICATE, "rep", "dup", None),
+    ]
+    statuses = {v.candidate_id: v.review_status for v in _merge_audit(fixed, initial).reviews}
+    assert statuses == {
+        "short": CandidateDisposition.MANUAL_REVIEW,
+        "rep": CandidateDisposition.BLOCKED,
+        "dup": CandidateDisposition.REJECTED,
+    }
+
+
+def test_equal_duration_is_tie_broken_by_representative_count(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    pool = _nested_pool(
+        _review_item("early", 1, 100, manual),  # [0, 100)
+        _review_item("rep", 3, 102, manual),  # [2, 102): same 100 s, later start
+        _review_item("dup", 150, 250, rejected, duplicate_of="rep"),
+    )
+    # Without the duplicate the earlier start would be kept; with it, rep is kept.
+    assert plan_audit_pair_fallback(_near_error(("early", "rep")), pool, transcript) == (
+        ("early", ("early", "rep")),
+    )
+    no_duplicate = _nested_pool(*pool.reviews[:2])
+    assert plan_audit_pair_fallback(_near_error(("early", "rep")), no_duplicate, transcript) == (
+        ("rep", ("early", "rep")),
+    )
 
 
 def test_unavoidable_orphans_are_recorded_with_their_pair_kind(tmp_path: Path) -> None:

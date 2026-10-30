@@ -1585,9 +1585,9 @@ def _audit_pair_fallback(
 
     Eligible only when every remaining failure is a deterministic audit-pair rule
     (``AuditPairRuleError``). Each violating near-identical pair is resolved by
-    blocking a member chosen by ``plan_audit_pair_fallback`` (representatives are
-    kept first, so duplicates are orphaned only when unavoidable); one record per
-    resolved pair. Every duplicate whose resolved representative the fallback
+    blocking a member chosen by ``plan_audit_pair_fallback`` (the shorter member
+    is kept; among equally long members the representative of more duplicates);
+    one record per resolved pair. Every duplicate whose resolved representative the fallback
     blocked is recorded as an ``orphaned_duplicate`` (nested, overlap,
     containment or unlisted). Representative-rule violations of the model's own
     output cannot be fixed without promoting a candidate, so the model's duplicate

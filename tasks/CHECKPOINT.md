@@ -607,7 +607,9 @@ Global Review-level duplicates of persisted-flag representatives. Offline:
 exactly 3 calls; forced fallback has no unrecorded orphan and a
 byte-identical warm rerun. Open trade-off: under a forced fallback,
 representative-first keeps `ml0007…core` over the L04 match. Details in
-`STATUS.md`.
+`STATUS.md`. (Resolved in the second 13c commit by the Controller decision
+"length before representative count": the forced fallback now keeps the L04
+match and records the 2 orphaned duplicates of `ml0007…core`.)
 
 Next: independent tester and reviewer on the Stage 13c SHA; a real run only
 with the user's go-ahead. Not pushed.

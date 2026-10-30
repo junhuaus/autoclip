@@ -7,8 +7,10 @@
   independent tester and reviewer; real run pending**. Python only: the
   audit prompt hash and every cache key are unchanged (3-call estimate
   holds). Must land before the real run.
-  - Fallback keep order: persisted-flag key, then more resolved duplicates
-    first, then shorter/earlier/smaller ID. Unavoidable orphans are recorded
+  - Fallback keep order (Controller decision, second 13c commit): persisted-flag
+    key, then shorter duration, then more resolved duplicates, then
+    earlier/smaller ID (first 13c commit `4543d0a` had representatives
+    before duration). Unavoidable orphans are recorded
     (`orphaned_duplicate` with pair kind); every resolved pair is recorded.
   - Containment near-copy: inner ≥ 9/10 or ends within tolerance only
     (starts criterion removed; correction logged).
@@ -18,8 +20,9 @@
     (GR-level duplicates rely on the prompt sentence alone).
   - Offline (warm-28 cache copies): exactly 3 calls; pair counts unchanged;
     forced fallback has no unrecorded orphan and a byte-identical warm
-    rerun. Trade-off: representative-first keeps `ml0007…core` over the L04
-    match under a forced fallback (details in `STATUS.md`).
+    rerun. The representative-first trade-off (`ml0007…core` kept over the
+    L04 match) is resolved by length-first: the forced fallback now keeps
+    `audit_ml0008…` and records 2 orphans (details in `STATUS.md`).
 - [ ] Next: independent tester and reviewer on the Stage 13c SHA; a real
   run only with the user's go-ahead.
 

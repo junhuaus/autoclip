@@ -326,6 +326,15 @@ two deterministic report files.
   resolved representative of more duplicates is kept first (after the
   persisted-flag key); unavoidable orphans are recorded; Python-only reason
   prefixes are reserved.
+- 2026-10-30 (Controller decision, Stage 13c, supersedes the keep-order part
+  of the entry above): the audit fallback keep order is no persisted
+  Discovery gated flag → shorter duration → more resolved duplicates →
+  earlier start → smaller ID. Rationale: representative-first kept the 169 s
+  `ml0007…core` (cause of warm-28's N07 padding FAIL) and blocked the 142 s
+  L04 match under a forced fallback; the user-approved dedup policy is "keep
+  the shortest independently complete version", and a duplicate count is
+  only a proxy. The P2-A orphan risk is accepted; orphans are recorded,
+  never promoted.
 
 ## Risks and mitigations
 

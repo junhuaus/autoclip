@@ -31,11 +31,14 @@
   the 3-call estimate holds.
 - P2-A, orphaned duplicates (`plan_audit_pair_fallback`,
   `resolved_duplicates`, `_audit_pair_fallback`):
-  - Keep order, fully deterministic:
+  - Keep order, fully deterministic (final, after the Controller decision
+    below):
     1. no persisted Discovery gated flag first;
-    2. more resolved duplicates first (a representative is kept before a
-       shorter non-representative);
-    3. shorter duration, then earlier start, then smaller ID.
+    2. shorter duration;
+    3. more resolved duplicates;
+    4. earlier start, then smaller ID.
+    (History: the first 13c commit `4543d0a` put "more resolved duplicates"
+    before duration.)
   - Unavoidable orphans are recorded: every duplicate whose resolved
     representative the fallback blocked gets an `orphaned_duplicate` record
     (blocked representative, duplicate, `pair_kind` nested, overlap,
@@ -99,8 +102,9 @@
     - The L02 match appears only in its two nested pairs, and its sub-clip
       `audit_ml0006_step3…` only in a nested pair with
       `ml0006_steps1to3_from_step_marker`.
-  - Forced-fallback replay (the placeholder audit keeps every pair, so the
-    mini audit takes initial + repair + regeneration, then the fallback):
+  - Forced-fallback replay at `4543d0a` (representative-first order,
+    superseded; the placeholder audit keeps every pair, so the mini audit
+    takes initial + repair + regeneration, then the fallback):
     - 5 near-identical records and 1 `orphaned_duplicate` record
       (`risk_yanyin_beginner_warning_core` →
       `risk_yanyin_warning_full_chain`, a Global Review-level duplicate);
@@ -109,7 +113,8 @@
     - `final-validated.json`, `global-review.json` and
       `boundary-review.json` were byte-identical, and the manifest was
       identical apart from the call counters.
-  - **Trade-off found (needs a decision):** under the forced fallback,
+  - **Trade-off found** (decided by the Controller, see below): under the
+    forced fallback,
     representative-first keeps `ml0007_strong_mix_vs_yanyin_core` (the
     representative of 2 Global Review duplicates; Boundary Review trimmed
     it, so it has no persisted flag) and blocks
@@ -121,6 +126,40 @@
       complete version.
   - The placeholder audit's `persisted_flag_representative_duplicates` (mini
     7, short 1) is not evidence; the real run measures it.
+- **Controller decision (2026-10-30): length before representative count.**
+  - Rationale: representative-first kept `ml0007…core`, the 169 s clip that
+    caused warm-28's N07 padding hard FAIL, and blocked the 142 s L04
+    match. That reintroduces the failure Stage 13 targets and loses a
+    P0-adjacent hit.
+  - The user approved "keep the shortest independently complete version"
+    as the dedup policy; a duplicate count is only a proxy and can
+    contradict it. The P2-A orphan risk is accepted: orphans are recorded,
+    never promoted.
+  - Code: `plan_audit_pair_fallback` keep order is persisted-flag key →
+    shorter duration → more resolved duplicates → earlier start → smaller
+    ID.
+  - Tests: the shorter member is kept over a longer representative, and its
+    orphan is recorded with the kept/blocked statuses; equal duration is
+    tie-broken by representative count.
+  - Forced-fallback replay at the new order (fresh scratchpad copy of the
+    warm-28 cache):
+    - in the `ml0007_strong_mix_vs_yanyin_core` /
+      `audit_ml0008_yanyin_myth_core_chain` pair the L04 match
+      `audit_ml0008…` is **kept** (`manual_review`) and `ml0007…core` is
+      blocked;
+    - 5 near-identical records: `audit_6246760…` blocked for its 2
+      containment pairs; `ml0007…core` blocked for 2 pairs (with
+      `audit_ml0008…` and `risk_yanyin_beginner_warning_core`);
+      `risk_age_decline_permanent_damage_2975_3066` blocked for its pair
+      with `ml0021_decline_lowfirst_core`;
+    - 2 `orphaned_duplicate` records, both Global Review-level duplicates
+      (pair kind none) of `ml0007…core`: `ml0007_strong_mix_vs_yanyin_full`
+      and `ml0008_yanyin_beginner_myth`;
+    - no unrecorded orphan; the warm rerun made 0 calls with 233 hits;
+      `final-validated.json`, `global-review.json` and `boundary-review.json`
+      are byte-identical, and the manifest is identical apart from the call
+      counters.
+  - Sentinel replay at the new order: 230 hits, exactly 3 calls.
 - Tests (mock/fixture only):
   - Unit:
     - containment boundaries updated: starts 5 s and 1 s now unlisted;
