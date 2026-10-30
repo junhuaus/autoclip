@@ -547,3 +547,18 @@ Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 12c and Stage 13 SHAs;
 a real run only with the user's go-ahead. Not pushed.
+
+## Stages 12c and 13 accepted at b5da41c (2026-10-30)
+
+Stage 12c (code `4a30497`) and Stage 13 (code
+`b5da41c7a60dec2f8e05417e64505cafe7dd5547`) are ACCEPTED at the tip
+`b5da41c` on `claude/liveclip-stage8-routing` (local only). Tester PASS:
+lint rc 0; backend 2953 passed in 1632.59 s; vitest 14/80; e2e 4; targeted
+222; no sleep 14:04–14:37. Reviewer ACCEPT, no P0/P1: 16/16 mutants
+killed; Fix-1-only replay FAIL 93.0 offline (95.0 post-hoc with real
+tokens, identical rows); post-hoc cold-27 PASS 95.0 and warm-26 PASS 97.5
+unchanged, no hits lost; evaluator output on cold-27/warm-28
+byte-identical. P2s become Stage 13b. P3s: a 1-cue trim on either edge
+clears every Discovery gated flag, including end-edge flags (R01 record
+1881 → 1882; user told); a stale marked fallback entry cannot be refreshed
+under `--refresh-stale-cache` (deliberate). Real run still pending.

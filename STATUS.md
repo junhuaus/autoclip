@@ -18,11 +18,32 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30) — ACCEPTED at b5da41c; REAL RUN PENDING
 
-- **Status: implemented, pending independent tester and reviewer; real run
-  pending** on local branch `claude/liveclip-stage8-routing` (code commit
-  after the Stage 12c commit). Not pushed or merged.
+- **Status: ACCEPTED** (2026-10-30) at
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` on local branch
+  `claude/liveclip-stage8-routing`, together with Stage 12c (`4a30497`);
+  real run pending. Not pushed or merged. (History: first recorded as
+  implemented, pending independent tester and reviewer; real run pending.)
+- Tester: **PASS** at `b5da41c`. `make lint` rc 0; backend 2953 passed in
+  1632.59 s; vitest 14 files / 80; e2e 4; targeted 222. No sleep in the
+  14:04–14:37 window on 2026-10-30.
+- Reviewer: **ACCEPT** at `b5da41c`, no P0/P1.
+  - 16/16 mutants killed.
+  - The Fix-1-only replay reproduced FAIL 93.0. The 2-point drop is only
+    the offline `call_data` artifact: a post-hoc evaluation with the real
+    tokens gives 95.0 with identical rows.
+  - Post-hoc runs with the Stage 13 routing: cold-27 stays PASS 95.0 and
+    warm-26 stays PASS 97.5, with no hits lost. Evaluator output on cold-27
+    and warm-28 is byte-identical.
+  - P2s (audit unaware of persisted flags; no audit fallback; near-copy
+    containment) are taken up as Stage 13b.
+  - P3, literal-rule consequence (the user has been told): a 1-cue trim on
+    either edge clears every Discovery gated flag, including end-edge flags
+    such as `topic_not_closed` (the R01 record went from cue 1881 to 1882).
+  - P3, deliberate: under `--refresh-stale-cache`, a marked fallback entry
+    (Stage 12c) that later goes stale cannot be refreshed; its marker
+    verification fails closed instead.
 - Origin: the warm-28 root cause and the binding user decisions of
   2026-10-30 (warm-28 section below). General: no anchor times, IDs or
   wording appear in code, prompts or tests.
@@ -164,11 +185,17 @@
   frozen `tools/loop_engineering`, Discovery/Boundary Review/Global Review
   prompts.
 
-## Stage 12c fallback provenance and manifest cross-checks (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 12c fallback provenance and manifest cross-checks (2026-10-30) — ACCEPTED at b5da41c
 
-- **Status: implemented, pending independent tester and reviewer** on local
-  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
-  that accepted Stage 12b at `a7088c4`). Not pushed or merged.
+- **Status: ACCEPTED** (2026-10-30). Code commit
+  `4a3049732c3bed64b2387c24e99943195403bc46`, verified at the tip
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` together with Stage 13 (see
+  the tester and reviewer bullets in the Stage 13 section; the reviewer's
+  deliberate-behavior P3 on stale marked entries is recorded there). On
+  local branch `claude/liveclip-stage8-routing` (code commit after the docs
+  commit that accepted Stage 12b at `a7088c4`). Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
 - Origin: the Stage 12b reviewer P2-A, P2-B and P3s at `a7088c4`.
 - P2-A (fallback provenance on a warm hit). Design: the cache keeps the
   **raw** model output (the regenerated output that still failed only the

@@ -3,8 +3,19 @@
 ## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
 
 - [x] 2026-10-30 Stage 13 implemented on `claude/liveclip-stage8-routing`
-  (binding user decisions after warm-28), **pending independent tester and
-  reviewer; real run pending**. Not pushed.
+  (binding user decisions after warm-28); **ACCEPTED at
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` on 2026-10-30** (first
+  recorded as pending independent tester and reviewer); real run pending.
+  Not pushed. Tester PASS: lint rc 0; backend 2953 passed (1632.59 s);
+  vitest 14/80; e2e 4; targeted 222; no sleep 14:04–14:37. Reviewer
+  ACCEPT, no P0/P1: 16/16 mutants killed; the Fix-1-only replay reproduced
+  FAIL 93.0 (post-hoc with real tokens 95.0, identical rows); post-hoc
+  cold-27 stays PASS 95.0 and warm-26 PASS 97.5 with no hits lost;
+  evaluator output on cold-27/warm-28 byte-identical. P2s become Stage 13b.
+  P3s: a 1-cue trim on either edge clears every Discovery gated flag,
+  including end-edge flags such as `topic_not_closed` (R01 record 1881 →
+  1882; the user has been told); under `--refresh-stale-cache` a marked
+  fallback entry that later goes stale cannot be refreshed (deliberate).
   - Fix 1: Discovery gated flags persist into the final flags unless
     Boundary Review shrank the interval on an edge; `selected`/`manual_review`
     rows that keep one become `blocked` ("Deterministic flag persistence: ").
@@ -23,14 +34,17 @@
     output into `blocked` with every hit kept (strict FAIL 93.0 offline,
     only `irrelevant_padding` left; −2 is the token-less `call_data`
     item). Final code: exactly 3 calls (2 audits + variant link), 230 hits.
-- [ ] Next: independent tester and reviewer on the Stage 12c and Stage 13
-  SHAs; a real warm or cold run only with the user's go-ahead.
+- [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent
+  tester and reviewer on the Stage 12c and Stage 13 SHAs.
+- [ ] Next: Stage 13b (reviewer P2s), then a real warm or cold run only
+  with the user's go-ahead.
 
 ## Stage 12c fallback provenance and manifest cross-checks (2026-10-30)
 
 - [x] 2026-10-30 Stage 12c implemented on `claude/liveclip-stage8-routing`
-  (Stage 12b reviewer P2-A/P2-B/P3s at `a7088c4`), **pending independent
-  tester and reviewer**. Not pushed.
+  (Stage 12b reviewer P2-A/P2-B/P3s at `a7088c4`); **ACCEPTED** (code
+  `4a30497`, verified at the tip `b5da41c` with Stage 13; first recorded as
+  pending independent tester and reviewer). Not pushed.
   - P2-A: the cache keeps the raw model output plus a verified
     `conservative_fallback` marker on fallback entries only; a hit re-applies
     the deterministic opening fallback and re-records it, so warm reruns
@@ -44,8 +58,8 @@
     stale resolutions (`cache_key != superseding_cache_key`).
   - P3s: `reused=True` only after the superseding identity check; tests for
     mis-keyed, garbage-JSON and symlinked entries in both refresh modes.
-- [ ] Next: independent tester and reviewer (together with Stage 13, see
-  above).
+- [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent
+  tester and reviewer (together with Stage 13).
 
 ## warm-28 warm diagnostic and Stage 13 decisions (2026-10-30)
 
