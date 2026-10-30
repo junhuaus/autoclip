@@ -92,7 +92,6 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
 #       selected or manual_review row that keeps one becomes blocked.
 # Artifacts written before any policy omit the marker and load as ``None``.
 DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v4"
-FLAG_PERSISTENCE_REASON_PREFIX: Final = "Deterministic flag persistence: "
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -580,6 +579,8 @@ class AuditPairRule(StrEnum):
     NEAR_IDENTICAL_PAIR = "near_identical_pair"
     OVERLAP_REPRESENTATIVE = "overlap_representative"
     PERSISTED_FLAG_REPRESENTATIVE = "persisted_flag_representative"
+    # Stage 13c: a duplicate whose resolved representative the fallback blocked.
+    ORPHANED_DUPLICATE = "orphaned_duplicate"
 
 
 class AuditPairViolation(BaseModel):
@@ -595,15 +596,43 @@ class AuditPairViolation(BaseModel):
 
 
 AUDIT_FALLBACK_REASON_PREFIX: Final = "Deterministic audit fallback: "
+FLAG_PERSISTENCE_REASON_PREFIX: Final = "Deterministic flag persistence: "
+QUALITY_GATE_REASON_PREFIX: Final = "Deterministic quality gate: "
+RISK_ROUTING_REASON_PREFIX: Final = "Deterministic risk routing: "
+TOP_N_REASON_PREFIX: Final = "Profile-local Top-N exclusion: "
+# Reason prefixes that only Python may write (Stage 13c). Model review reasons
+# may not start with one, so every prefixed final row is a Python decision.
+DETERMINISTIC_REASON_PREFIXES: Final = (
+    AUDIT_FALLBACK_REASON_PREFIX,
+    FLAG_PERSISTENCE_REASON_PREFIX,
+    QUALITY_GATE_REASON_PREFIX,
+    RISK_ROUTING_REASON_PREFIX,
+    TOP_N_REASON_PREFIX,
+)
+
+
+def reject_reserved_reason_prefixes(items: Iterable[GlobalReviewItem]) -> None:
+    """Model review reasons may not start with a Python-only routing prefix."""
+
+    for item in items:
+        if item.review_reason.startswith(DETERMINISTIC_REASON_PREFIXES):
+            raise ValueError(
+                f"review_reason of {item.candidate_id} starts with a prefix reserved for "
+                "deterministic Python routing; write the reason without it"
+            )
 
 
 class AuditPairFallback(BaseModel):
     """One downgrade-only Global Audit fallback action recorded in the run manifest.
 
-    ``near_identical_pair``: ``blocked_candidate_id`` (a member of the pair) was
-    blocked; the other member stays retained and covers the same media.
+    ``near_identical_pair``: the pair was resolved by blocking
+    ``blocked_candidate_id`` (a member of the pair); one record per resolved pair.
     Representative rules: the model's duplicate ``duplicate_candidate_id`` was
     accepted unchanged (nothing can be fixed without promoting a candidate).
+    ``orphaned_duplicate``: the fallback blocked ``blocked_candidate_id``, the
+    resolved representative of the rejected duplicate ``duplicate_candidate_id``;
+    ``pair_kind`` names the listed pair of the two, or is ``None`` when they were
+    not a listed pair (a Global Review-level duplicate).
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -614,6 +643,7 @@ class AuditPairFallback(BaseModel):
     inner_candidate_id: str = Field(min_length=1)
     blocked_candidate_id: str | None = None
     duplicate_candidate_id: str | None = None
+    pair_kind: AuditPairKind | None = None
 
     @model_validator(mode="after")
     def validate_shape(self) -> AuditPairFallback:
@@ -621,9 +651,23 @@ class AuditPairFallback(BaseModel):
         if len(members) != 2:
             raise ValueError("audit pair fallback must name two different candidates")
         if self.rule == AuditPairRule.NEAR_IDENTICAL_PAIR:
-            if self.blocked_candidate_id not in members or self.duplicate_candidate_id:
+            if (
+                self.blocked_candidate_id not in members
+                or self.duplicate_candidate_id
+                or self.pair_kind is not None
+            ):
                 raise ValueError("near-identical audit fallback must block one pair member")
-        elif self.duplicate_candidate_id not in members or self.blocked_candidate_id:
+        elif self.rule == AuditPairRule.ORPHANED_DUPLICATE:
+            if {self.blocked_candidate_id, self.duplicate_candidate_id} != members:
+                raise ValueError(
+                    "orphaned-duplicate audit fallback must name the blocked representative "
+                    "and its duplicate"
+                )
+        elif (
+            self.duplicate_candidate_id not in members
+            or self.blocked_candidate_id
+            or self.pair_kind is not None
+        ):
             raise ValueError("representative audit fallback must name the pair's duplicate")
         return self
 
@@ -655,6 +699,12 @@ class DualProfileRunManifest(BaseModel):
     boundary_opening_fallbacks: tuple[BoundaryOpeningFallback, ...] = ()
     # Stage 13b audit field; manifests written before it load with the default.
     audit_pair_fallbacks: tuple[AuditPairFallback, ...] = ()
+    # Stage 13c run diagnostic: per Profile, the rejected/blocked duplicates of the
+    # final merged review whose resolved representative carries persisted
+    # Discovery gated flags (so the representative is blocked by routing and the
+    # duplicates are lost with it). The audit validator enforces this only for
+    # listed pairs; Global Review-level duplicates rely on the prompt alone.
+    persisted_flag_representative_duplicates: dict[ClipProfile, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_stale_cache_audit(self) -> DualProfileRunManifest:
@@ -691,22 +741,35 @@ class DualProfileRunManifest(BaseModel):
         ]
         if len(actions) != len(set(actions)):
             raise ValueError("audit pair fallback repeats an action")
-        blocked = [
-            (value.profile, value.blocked_candidate_id)
+        near = [
+            value
             for value in self.audit_pair_fallbacks
-            if value.blocked_candidate_id is not None
+            if value.rule == AuditPairRule.NEAR_IDENTICAL_PAIR
         ]
-        if len(blocked) != len(set(blocked)):
-            raise ValueError("audit pair fallback blocks a candidate more than once")
-        kept = {
-            (value.profile, member)
-            for value in self.audit_pair_fallbacks
-            if value.blocked_candidate_id is not None
-            for member in (value.outer_candidate_id, value.inner_candidate_id)
-            if member != value.blocked_candidate_id
-        }
-        if kept & set(blocked):
-            raise ValueError("audit pair fallback blocked the member it keeps for another pair")
+        blocked = {(value.profile, value.blocked_candidate_id) for value in near}
+        # Every blocked member keeps at least one retained near-identical partner.
+        for profile, candidate_id in blocked:
+            if not any(
+                value.profile == profile
+                and value.blocked_candidate_id == candidate_id
+                and (
+                    profile,
+                    value.inner_candidate_id
+                    if value.outer_candidate_id == candidate_id
+                    else value.outer_candidate_id,
+                )
+                not in blocked
+                for value in near
+            ):
+                raise ValueError(
+                    "audit pair fallback blocked a member without a kept near-identical partner"
+                )
+        for value in self.audit_pair_fallbacks:
+            if (
+                value.rule == AuditPairRule.ORPHANED_DUPLICATE
+                and (value.profile, value.blocked_candidate_id) not in blocked
+            ):
+                raise ValueError("orphaned duplicate names a representative the fallback kept")
 
     def validate_against(
         self,
@@ -770,20 +833,16 @@ class DualProfileRunManifest(BaseModel):
                         raise ValueError(
                             "Boundary opening fallback candidate still claims a complete opening"
                         )
+        fallback_blocked = {
+            (value.profile, value.blocked_candidate_id)
+            for value in self.audit_pair_fallbacks
+            if value.rule == AuditPairRule.NEAR_IDENTICAL_PAIR
+        }
         for action in self.audit_pair_fallbacks:
             profile_result = result.profiles.get(action.profile)
             if profile_result is None:
                 raise ValueError("audit pair fallback names an unexecuted Profile")
-            status_by_id = {
-                value.candidate_id: value
-                for group in (
-                    profile_result.selected,
-                    profile_result.manual_review,
-                    profile_result.blocked,
-                    profile_result.rejected,
-                )
-                for value in group
-            }
+            status_by_id = _final_rows(profile_result)
             if not {action.outer_candidate_id, action.inner_candidate_id} <= set(status_by_id):
                 raise ValueError("audit pair fallback names a candidate outside the run")
             if action.blocked_candidate_id is not None:
@@ -792,10 +851,49 @@ class DualProfileRunManifest(BaseModel):
                     blocked_row.review_reason.startswith(AUDIT_FALLBACK_REASON_PREFIX)
                 ):
                     raise ValueError("audit pair fallback candidate was not blocked by it")
-            if action.duplicate_candidate_id is not None and status_by_id[
-                action.duplicate_candidate_id
-            ].review_status not in {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}:
-                raise ValueError("audit pair fallback duplicate became an output")
+            if action.duplicate_candidate_id is not None:
+                duplicate_row = status_by_id[action.duplicate_candidate_id]
+                if duplicate_row.review_status not in {
+                    CandidateDisposition.REJECTED,
+                    CandidateDisposition.BLOCKED,
+                }:
+                    raise ValueError("audit pair fallback duplicate became an output")
+                if (
+                    action.rule == AuditPairRule.ORPHANED_DUPLICATE
+                    and duplicate_row.duplicate_of_candidate_id is None
+                ):
+                    raise ValueError("orphaned duplicate lost its duplicate reference")
+        # Reverse checks (Stage 13c): every Python-only prefix in the final arrays
+        # is backed by its deterministic decision, so a model-written prefix is
+        # refused here as well as at review validation.
+        for profile, profile_result in result.profiles.items():
+            for value in _final_rows(profile_result).values():
+                reason = value.review_reason
+                if reason.startswith(AUDIT_FALLBACK_REASON_PREFIX) and (
+                    (profile, value.candidate_id) not in fallback_blocked
+                ):
+                    raise ValueError(
+                        "final row carries the audit fallback prefix without a manifest record"
+                    )
+                if reason.startswith(TOP_N_REASON_PREFIX):
+                    required_status = CandidateDisposition.REJECTED
+                elif reason.startswith(DETERMINISTIC_REASON_PREFIXES):
+                    required_status = CandidateDisposition.BLOCKED
+                else:
+                    continue
+                if value.review_status != required_status:
+                    raise ValueError(
+                        "final row carries a deterministic routing prefix inconsistent with "
+                        "its status"
+                    )
+
+
+def _final_rows(result: FinalProfileResult) -> dict[str, FinalProfileCandidate]:
+    return {
+        value.candidate_id: value
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+    }
 
 
 def plan_profile_discovery_windows(
@@ -1053,8 +1151,9 @@ def audit_candidate_pairs(
     * ``containment`` (Stage 13b): one candidate strictly inside the other without
       a shared edge cue, listed only when it is a near-copy: the inner duration is
       at least ``AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION`` of the outer, or the ends
-      or the starts are within the tolerance.  Always ``near_identical``.  Other
-      containment (a full lesson with a shorter clip inside it) stays unlisted.
+      are within the tolerance (Stage 13c: close starts alone do not qualify).
+      Always ``near_identical``.  Other containment (a full lesson with a shorter
+      clip inside it) stays unlisted.
     """
 
     nested = nested_candidate_pairs(global_review)
@@ -1097,11 +1196,12 @@ def audit_candidate_pairs(
                 )
                 outer_start, outer_end = spans[outer.candidate_id]
                 inner_start, inner_end = spans[inner.candidate_id]
+                # User decision (2026-10-30): near-copy means the inner covers at
+                # least 9/10 of the outer, or the ends are within the tolerance.
                 if (
                     inner_end - inner_start
                     >= (outer_end - outer_start) * AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION
                     or outer_end - inner_end <= tolerance_ms
-                    or inner_start - outer_start <= tolerance_ms
                 ):
                     pairs.append(
                         AuditCandidatePair(
@@ -1281,6 +1381,23 @@ def validate_audit_pair_decisions(
         raise AuditPairRuleError(tuple(violations))
 
 
+def resolved_duplicates(
+    merged_review: ProfileGlobalReviewOutput,
+) -> dict[str, tuple[str, ...]]:
+    """Map each representative to the non-retained duplicates that resolve to it."""
+
+    review_map = {value.candidate_id: value for value in merged_review.reviews}
+    retained = {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}
+    result: dict[str, list[str]] = {}
+    for value in merged_review.reviews:
+        if value.duplicate_of_candidate_id is None or value.review_status in retained:
+            continue
+        representative = _duplicate_representative(value.candidate_id, review_map)
+        if representative is not None and representative != value.candidate_id:
+            result.setdefault(representative, []).append(value.candidate_id)
+    return {key: tuple(sorted(values)) for key, values in result.items()}
+
+
 def plan_audit_pair_fallback(
     error: AuditPairRuleError,
     merged_review: ProfileGlobalReviewOutput,
@@ -1290,18 +1407,25 @@ def plan_audit_pair_fallback(
 ) -> tuple[tuple[str, tuple[str, str]], ...]:
     """Choose which members to block for violating near-identical pairs.
 
-    Downgrade-only and coverage-preserving: members of violating pairs are
-    visited in keep order (no persisted Discovery gated flag first, because final
-    routing would block such a member anyway; then shorter duration, earlier
-    start, smaller ID); a visited member that is not yet blocked is kept and every
-    violating partner not yet decided is blocked.  So each blocked member is the
-    longer member (ties: later start, then lexicographically larger ID) of a pair
-    whose other member stays retained, unless the shorter member carries
-    persisted flags; and the fallback never removes the only retained member
-    covering an interval, since every blocked member has a kept near-identical
-    partner.  (In a chain A > B > C where C blocks B, the pair A/B is already
-    resolved by B's block, so A, whose only near-identical partner is now
-    blocked, is kept.)  Returns ``(blocked_id, (outer_id, inner_id))`` pairs.
+    Members of violating pairs are visited in a fully deterministic keep order:
+
+    1. no persisted Discovery gated flag first (final routing blocks such a
+       member anyway);
+    2. (Stage 13c) more resolved duplicates first, so a representative is kept
+       and its duplicates are not orphaned whenever possible;
+    3. shorter duration, then earlier start, then smaller ID.
+
+    A visited member that is not yet blocked is kept and every violating partner
+    not yet decided is blocked, so every blocked member has a kept near-identical
+    partner that stays retained.  Without persisted flags or duplicates this
+    blocks the longer member (ties: later start, then larger ID).  Coverage
+    caveat: near-identical is not identical; for same-end or near-copy pairs the
+    blocked longer member can hold media the kept shorter member lacks, which is
+    the keep-the-shortest-complete-version policy.  (In a chain A > B > C where C
+    blocks B, A/B is already resolved by B's block and A stays retained.)
+
+    Returns one ``(blocked_id, (outer_id, inner_id))`` per violating pair, where
+    ``blocked_id`` is the member whose block resolved that pair first.
     """
 
     review_map = {value.candidate_id: value for value in merged_review.reviews}
@@ -1312,20 +1436,34 @@ def plan_audit_pair_fallback(
         partners.setdefault(pair[1], {})[pair[0]] = pair
     spans = candidate_spans_ms((review_map[key] for key in partners), transcript)
     persisted = frozenset(persisted_flag_ids)
+    duplicates = resolved_duplicates(merged_review)
     order = sorted(
         partners,
-        key=lambda key: (key in persisted, spans[key][1] - spans[key][0], spans[key][0], key),
+        key=lambda key: (
+            key in persisted,
+            -len(duplicates.get(key, ())),
+            spans[key][1] - spans[key][0],
+            spans[key][0],
+            key,
+        ),
     )
     kept: set[str] = set()
-    blocked: dict[str, tuple[str, str]] = {}
+    block_sequence: dict[str, int] = {}
     for candidate_id in order:
-        if candidate_id in blocked:
+        if candidate_id in block_sequence:
             continue
         kept.add(candidate_id)
-        for partner, pair in sorted(partners[candidate_id].items()):
-            if partner not in kept and partner not in blocked:
-                blocked[partner] = pair
-    return tuple(sorted(blocked.items()))
+        for partner in sorted(partners[candidate_id]):
+            if partner not in kept and partner not in block_sequence:
+                block_sequence[partner] = len(block_sequence)
+    resolutions: list[tuple[str, tuple[str, str]]] = []
+    for pair in sorted({pair for values in partners.values() for pair in values.values()}):
+        blocked = sorted(
+            (member for member in pair if member in block_sequence),
+            key=block_sequence.__getitem__,
+        )
+        resolutions.append((blocked[0], pair))
+    return tuple(sorted(resolutions))
 
 
 def apply_audit_pair_blocks(
@@ -1603,7 +1741,7 @@ def assemble_final_profile_result(
         }:
             # Never raise here: a twin's flag downgrades, it does not invalidate.
             update["review_status"] = CandidateDisposition.BLOCKED
-            update["review_reason"] = f"Deterministic quality gate: {value.review_reason}"
+            update["review_reason"] = f"{QUALITY_GATE_REASON_PREFIX}{value.review_reason}"
         shared.append(value.model_copy(update=update))
     selected = sorted(
         (value for value in shared if value.review_status == CandidateDisposition.SELECTED),
@@ -1619,7 +1757,7 @@ def assemble_final_profile_result(
             value = value.model_copy(
                 update={
                     "review_status": CandidateDisposition.REJECTED,
-                    "review_reason": f"Profile-local Top-N exclusion: {value.review_reason}",
+                    "review_reason": f"{TOP_N_REASON_PREFIX}{value.review_reason}",
                 }
             )
         if (
@@ -1633,7 +1771,7 @@ def assemble_final_profile_result(
             value = value.model_copy(
                 update={
                     "review_status": CandidateDisposition.BLOCKED,
-                    "review_reason": f"Deterministic risk routing: {value.review_reason}",
+                    "review_reason": f"{RISK_ROUTING_REASON_PREFIX}{value.review_reason}",
                 }
             )
         elif value.review_status == CandidateDisposition.MANUAL_REVIEW and (
@@ -1644,7 +1782,7 @@ def assemble_final_profile_result(
             value = value.model_copy(
                 update={
                     "review_status": CandidateDisposition.BLOCKED,
-                    "review_reason": f"Deterministic quality gate: {value.review_reason}",
+                    "review_reason": f"{QUALITY_GATE_REASON_PREFIX}{value.review_reason}",
                 }
             )
         normalized.append(value)
@@ -1794,11 +1932,15 @@ __all__ = [
     "AUDIT_SAME_END_TOLERANCE_MS",
     "AUTO_BLOCKING_QUALITY_FLAGS",
     "AUTO_BLOCKING_RISK_TAGS",
+    "DETERMINISTIC_REASON_PREFIXES",
     "DUAL_PROFILE_ALGORITHM_VERSION",
     "DUAL_PROFILE_ROUTING_POLICY_VERSION",
     "FLAG_PERSISTENCE_REASON_PREFIX",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
+    "QUALITY_GATE_REASON_PREFIX",
+    "RISK_ROUTING_REASON_PREFIX",
+    "TOP_N_REASON_PREFIX",
     "AuditCandidatePair",
     "AuditPairFallback",
     "AuditPairKind",
@@ -1844,6 +1986,8 @@ __all__ = [
     "plan_audit_pair_fallback",
     "plan_profile_discovery_windows",
     "profile_statistics",
+    "reject_reserved_reason_prefixes",
+    "resolved_duplicates",
     "semantic_cache_key",
     "validate_audit_pair_decisions",
     "validate_boundary_review_output",

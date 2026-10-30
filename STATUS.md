@@ -18,6 +18,125 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 13c audit fallback keep order and contract alignment (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+
+- **Status: implemented, pending independent tester and reviewer; real run
+  pending** on local branch `claude/liveclip-stage8-routing` (code commit
+  after the docs commit that accepted Stage 13b at `e48f601`). Not pushed or
+  merged. It must land before the real run: once a real run writes
+  fallback-marked audit entries, a later change to the fallback would make
+  them fail closed on warm reruns.
+- Python only. No prompt changed: Global Audit stays short
+  `bb9d2e6ad638…` / mini `4c8313b0d62b…`, every cache key is unchanged, and
+  the 3-call estimate holds.
+- P2-A, orphaned duplicates (`plan_audit_pair_fallback`,
+  `resolved_duplicates`, `_audit_pair_fallback`):
+  - Keep order, fully deterministic:
+    1. no persisted Discovery gated flag first;
+    2. more resolved duplicates first (a representative is kept before a
+       shorter non-representative);
+    3. shorter duration, then earlier start, then smaller ID.
+  - Unavoidable orphans are recorded: every duplicate whose resolved
+    representative the fallback blocked gets an `orphaned_duplicate` record
+    (blocked representative, duplicate, `pair_kind` nested, overlap,
+    containment, or none for a Global Review-level duplicate). Nothing is
+    promoted.
+  - Before this, a block-caused representative violation of an overlap pair
+    was recorded as an "accepted" duplicate; it is now an orphan record.
+    "Accepted" records only ever come from the model's own output.
+  - Wording corrected in PRODUCT_SPEC and the Stage 13b section: every
+    blocked member keeps a retained near-identical partner. But for same-end
+    and near-copy pairs the blocked longer member can hold media the kept
+    member lacks, which is the keep-the-shortest-complete-version policy.
+- Controller correction (user decision alignment): containment near-copy
+  listing now follows the user decision exactly. The inner duration must be
+  ≥ 9/10 of the outer, or the ends must be within
+  `AUDIT_SAME_END_TOLERANCE_MS`. "Starts within the tolerance" was never
+  approved and is removed; the decision log records the correction.
+  - The audit prompt still mentions containment starts in its
+    `near_identical` parenthetical. It is not changed here (to keep the hash
+    and cache keys). It describes a superset of the code, and the model
+    reads the precomputed field.
+- P3-2: a block that resolves several near-identical pairs records each pair
+  it resolves. The manifest cross-check changed accordingly: every blocked
+  member must have at least one record whose other member is not blocked,
+  and an orphan must name a fallback-blocked representative.
+- P3-3, reserved prefixes:
+  - Model review reasons may not start with a Python-only prefix
+    (`DETERMINISTIC_REASON_PREFIXES`: audit fallback, flag persistence,
+    quality gate, risk routing, Top-N). This is checked in Global Review
+    chunk validation and on Global Audit replacements (repairable). Only
+    rows the audit fallback itself blocked may carry its prefix.
+  - Reverse manifest check: every final row with the audit-fallback prefix
+    needs a near-identical fallback record. A Top-N prefix requires
+    `rejected`; every other prefix requires `blocked`.
+  - Checked read-only: every existing `final-validated.json` and
+    `run-manifest.json` pair under `data/evaluations` (25 runs, including
+    cold-27, warm-26 and warm-28) still passes `validate_against`, and no
+    warm-28 Global Review or audit cache entry starts with a reserved prefix.
+  - The strict evaluator output for cold-27 (PASS, rc 0) and warm-28 (FAIL,
+    rc 1) is byte-identical to the stored results.
+- P3-5: new tests kill M17 (a blocked row without the fallback prefix fails
+  the manifest check) and M21 (the representative rule on containment
+  pairs).
+- P2-B (documented, plus a diagnostic):
+  - The persisted-flag representative rule is enforced only on listed
+    (Global Review-retained) pairs. Duplicates the Global Review already
+    made that point to a persisted-flag representative rely on the prompt
+    sentence alone.
+  - The run manifest now reports `persisted_flag_representative_duplicates`
+    (per Profile, over the final merged review) so the real run can measure
+    it. Earlier manifests load with `{}`.
+- Offline evidence (fresh scratchpad `cp -Rp` copies of the warm-28 cache;
+  nothing written under `data/`):
+  - Sentinel replay: 230 hits and exactly 3 model calls (2 audits + variant
+    link), no fail-closed.
+  - Pair counts are unchanged from Stage 13b:
+    - short: nested 4, overlap 2, containment 0, near_identical 0;
+    - mini: nested 44, overlap 13, containment 2, near_identical 5.
+    - Both reviewer-identified containment pairs are still listed (both are
+      end-close).
+    - The L02 match appears only in its two nested pairs, and its sub-clip
+      `audit_ml0006_step3…` only in a nested pair with
+      `ml0006_steps1to3_from_step_marker`.
+  - Forced-fallback replay (the placeholder audit keeps every pair, so the
+    mini audit takes initial + repair + regeneration, then the fallback):
+    - 5 near-identical records and 1 `orphaned_duplicate` record
+      (`risk_yanyin_beginner_warning_core` →
+      `risk_yanyin_warning_full_chain`, a Global Review-level duplicate);
+    - no unrecorded orphan;
+    - the warm rerun had 0 calls and 233 hits;
+    - `final-validated.json`, `global-review.json` and
+      `boundary-review.json` were byte-identical, and the manifest was
+      identical apart from the call counters.
+  - **Trade-off found (needs a decision):** under the forced fallback,
+    representative-first keeps `ml0007_strong_mix_vs_yanyin_core` (the
+    representative of 2 Global Review duplicates; Boundary Review trimmed
+    it, so it has no persisted flag) and blocks
+    `audit_ml0008_yanyin_myth_core_chain`, the L04 match.
+    - The Stage 13b order would have kept the shorter L04 match and
+      orphaned the 2 duplicates.
+    - This matters only if the real audit fails the near-identical rule
+      three times. The prompt tie-break steers the model to the shortest
+      complete version.
+  - The placeholder audit's `persisted_flag_representative_duplicates` (mini
+    7, short 1) is not evidence; the real run measures it.
+- Tests (mock/fixture only):
+  - Unit:
+    - containment boundaries updated: starts 5 s and 1 s now unlisted;
+      short end tolerance 3/4 s;
+    - representative kept first;
+    - unavoidable nested orphan recorded with its kind;
+    - every resolved pair recorded;
+    - representative rule on containment pairs (M21);
+    - reserved prefixes;
+    - reverse prefix checks;
+    - blocked row without the prefix (M17);
+    - an orphan naming a kept representative is refused.
+  - Integration: a persisted-flag representative violation accepted and
+    counted in the new diagnostic; a model-written fallback prefix repaired.
+- `docs/PRODUCT_SPEC.md`: Stage 13c amendment and inline corrections.
+
 ## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30) — ACCEPTED at e48f601; REAL RUN PENDING
 
 - **Status: ACCEPTED** (2026-10-30) at
@@ -68,7 +187,11 @@
   - Coverage guarantee: members are visited in keep order and a kept member
     blocks its still-undecided violating partners, so every blocked member
     has a near-identical partner that stays retained. The fallback never
-    removes the only retained member covering an interval.
+    removes the only retained member covering an interval. (Corrected by Stage 13c: this overstates it. Every blocked member keeps a
+    retained near-identical partner, but for same-end and near-copy pairs
+    the blocked longer member can hold media the kept member lacks, which is
+    the keep-the-shortest-complete-version policy. Duplicates of a blocked
+    representative were also not recorded; Stage 13c records them.)
   - Deviation 1 (persisted flags): a member with persisted gated flags is
     kept last, because final routing would block it anyway.
   - Deviation 2 (chains): in a chain A > B > C, C blocks B; the pair A/B is
@@ -100,7 +223,9 @@
     `pair_kind: containment`, always `near_identical: true`, only when it
     is a near-copy: the inner duration is at least 9/10 of the outer, or the
     ends or the starts are within `AUDIT_SAME_END_TOLERANCE_MS` (short
-    3000, mini 5000).
+    3000, mini 5000). (Corrected by Stage 13c: the user approved only the
+    9/10 and end-tolerance criteria; the starts criterion was a Controller
+    addition and is removed.)
   - Other containment stays unlisted, which protects a full lesson with a
     sub-clip inside it.
   - The near-identical and representative rules apply to containment pairs

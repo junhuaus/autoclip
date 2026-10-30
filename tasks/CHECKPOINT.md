@@ -592,3 +592,22 @@ sentinel replay 230 hits and exactly 3 calls, no fail-closed; a
 forced-fallback cold → warm replay byte-identical. Follow-ups and a
 containment-criteria correction become Stage 13c, which must land before
 the real run. Real run still pending.
+
+## Stage 13c implemented, pending verification; real run pending (2026-10-30)
+
+Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
+that accepted Stage 13b. Python only (audit prompt hash and cache keys
+unchanged; 3-call estimate holds); must land before the real run. The audit
+fallback keeps representatives first and records unavoidable orphans and
+every resolved pair; containment near-copy listing follows the user
+decision exactly (inner ≥ 9/10 or ends within tolerance; the starts
+criterion is removed as a Controller correction); Python-only reason
+prefixes are reserved and reverse-checked; a manifest diagnostic counts
+Global Review-level duplicates of persisted-flag representatives. Offline:
+exactly 3 calls; forced fallback has no unrecorded orphan and a
+byte-identical warm rerun. Open trade-off: under a forced fallback,
+representative-first keeps `ml0007…core` over the L04 match. Details in
+`STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 13c SHA; a real run only
+with the user's go-ahead. Not pushed.

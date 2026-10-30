@@ -15,6 +15,7 @@ from liveclip.pipeline.dual_profile import (
     AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION,
     AUDIT_OVERLAP_MIN_SHORTER_FRACTION,
     AUDIT_SAME_END_TOLERANCE_MS,
+    DETERMINISTIC_REASON_PREFIXES,
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     FLAG_PERSISTENCE_REASON_PREFIX,
@@ -58,6 +59,7 @@ from liveclip.pipeline.dual_profile import (
     plan_audit_pair_fallback,
     plan_profile_discovery_windows,
     profile_statistics,
+    reject_reserved_reason_prefixes,
     semantic_cache_key,
     validate_audit_pair_decisions,
     validate_boundary_review_output,
@@ -2132,8 +2134,10 @@ def test_nested_pair_semantics_are_unchanged_by_overlap_rules() -> None:
         ((1, 200), (11, 189), False),  # 179/200, edges 10 s and 11 s away
         ((1, 200), (101, 195), True),  # ends 5 s apart (mini tolerance)
         ((1, 200), (101, 194), False),  # ends 6 s apart
-        ((1, 200), (6, 100), True),  # starts 5 s apart
-        ((1, 200), (7, 100), False),  # starts 6 s apart
+        # Stage 13c correction: close starts alone are not a near-copy (the user
+        # approved only the 9/10 and end-tolerance criteria).
+        ((1, 200), (6, 100), False),  # starts 5 s apart
+        ((1, 200), (2, 100), False),  # starts 1 s apart
         ((1, 300), (101, 202), False),  # 102/300 = 0.34, distant edges: a full lesson's sub-clip
     ],
 )
@@ -2158,12 +2162,14 @@ def test_containment_is_listed_only_as_a_near_copy(
 
 
 @pytest.mark.parametrize(("gap", "listed"), [(3, True), (4, False)])
-def test_short_containment_uses_the_short_tolerance(tmp_path: Path, gap: int, listed: bool) -> None:
+def test_short_containment_uses_the_short_end_tolerance(
+    tmp_path: Path, gap: int, listed: bool
+) -> None:
     transcript = _second_transcript(tmp_path)
     manual = CandidateDisposition.MANUAL_REVIEW
-    # outer [0, 90); inner [gap, 50): only the starts can be close.
+    # outer [0, 90); inner [40, 90 - gap): only the ends can be close.
     pool = _pool(
-        ClipProfile.SHORT_HIGHLIGHT, ("outer", 1, 90, manual), ("inner", gap + 1, 50, manual)
+        ClipProfile.SHORT_HIGHLIGHT, ("outer", 1, 90, manual), ("inner", 41, 90 - gap, manual)
     )
     assert bool(audit_candidate_pairs(pool, transcript)) is listed
 
@@ -2266,8 +2272,11 @@ def test_audit_fallback_keeps_a_retained_partner_for_every_block(tmp_path: Path)
         ("b", 5, 125, manual),
         ("c", 9, 120, manual),
     )
-    blocks = dict(plan_audit_pair_fallback(_near_error(("a", "b"), ("b", "c")), pool, transcript))
-    assert set(blocks) == {"b"}
+    # One block resolves two pairs: both are recorded (Stage 13c P3-2).
+    assert plan_audit_pair_fallback(_near_error(("a", "b"), ("b", "c")), pool, transcript) == (
+        ("b", ("a", "b")),
+        ("b", ("b", "c")),
+    )
     # A member that persisted flags will block is never the kept one.
     blocks = dict(
         plan_audit_pair_fallback(
@@ -2376,7 +2385,7 @@ def test_run_manifest_cross_checks_audit_pair_fallbacks() -> None:
             _audit_fallback_manifest(result, [broken])
     with pytest.raises(ValueError, match="repeats an action"):
         _audit_fallback_manifest(result, [near, near])
-    with pytest.raises(ValueError, match="blocked the member it keeps"):
+    with pytest.raises(ValueError, match="without a kept near-identical partner"):
         _audit_fallback_manifest(
             result,
             [
@@ -2393,3 +2402,238 @@ def test_run_manifest_cross_checks_audit_pair_fallbacks() -> None:
     bad, final = _audit_fallback_manifest(result, [became_output])
     with pytest.raises(ValueError, match="became an output"):
         bad.validate_against(final)
+
+
+# Stage 13c: representatives are kept first; orphans are recorded.
+
+
+def test_audit_fallback_keeps_a_representative_before_a_shorter_member(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    pool = _pool(
+        ClipProfile.MINI_LESSON,
+        ("short", 1, 100, manual),  # 100 s
+        ("rep", 3, 105, manual),  # 103 s, representative of one duplicate
+        ("dup", 50, 150, CandidateDisposition.REJECTED),
+    )
+    pool = pool.model_copy(
+        update={
+            "reviews": tuple(
+                item.model_copy(update={"duplicate_of_candidate_id": "rep"})
+                if item.candidate_id == "dup"
+                else item
+                for item in pool.reviews
+            )
+        }
+    )
+    blocks = plan_audit_pair_fallback(_near_error(("short", "rep")), pool, transcript)
+    assert blocks == (("short", ("short", "rep")),)
+    # Persisted flags still come first.
+    blocks = plan_audit_pair_fallback(
+        _near_error(("short", "rep")), pool, transcript, persisted_flag_ids={"rep"}
+    )
+    assert blocks == (("rep", ("short", "rep")),)
+
+
+def test_unavoidable_orphans_are_recorded_with_their_pair_kind(tmp_path: Path) -> None:
+    from liveclip.services.dual_profile_evaluation import _audit_pair_fallback, _merge_audit
+
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    initial = _pool(
+        ClipProfile.MINI_LESSON,
+        ("a", 1, 100, manual),  # [0, 100)
+        ("b", 3, 104, manual),  # [2, 104): near-identical with a; longer
+        ("x", 3, 60, manual),  # nested with b (shared start cue)
+        ("y", 200, 300, manual),  # unrelated, not listed with a
+    )
+    pairs = audit_candidate_pairs(initial, transcript)
+    kinds = {pair.members: pair for pair in pairs}
+    assert kinds[frozenset(("a", "b"))].near_identical
+    assert kinds[frozenset(("b", "x"))].pair_kind == AuditPairKind.NESTED
+    assert frozenset(("a", "y")) not in kinds
+
+    def duplicate(candidate_id: str, start: int, end: int, of: str) -> GlobalReviewItem:
+        return _review_item(candidate_id, start, end, rejected, duplicate_of=of)
+
+    decisions = tuple(
+        _decision(
+            pair.outer_candidate_id,
+            pair.inner_candidate_id,
+            NestedPairDecisionKind.DUPLICATE
+            if pair.members == frozenset(("b", "x"))
+            else NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+        )
+        for pair in pairs
+    )
+    audit = ProfileGlobalAuditOutput(
+        profile=ClipProfile.MINI_LESSON,
+        replacements=(duplicate("x", 3, 60, "b"), duplicate("y", 200, 300, "a")),
+        nested_pair_decisions=decisions,
+        audit_reason="审计。",
+    )
+
+    def validate(
+        value: ProfileGlobalAuditOutput, blocked: frozenset[str] = frozenset()
+    ) -> ProfileGlobalAuditOutput:
+        del blocked
+        validate_audit_pair_decisions(
+            pairs, value.nested_pair_decisions, _merge_audit(value, initial)
+        )
+        return value
+
+    with pytest.raises(AuditPairRuleError) as caught:
+        validate(audit)
+    result = _audit_pair_fallback(
+        audit, caught.value, ClipProfile.MINI_LESSON, initial, validate, transcript, frozenset()
+    )
+    assert result is not None
+    _fixed, affected, records = result
+    # a and b each represent one duplicate; b is longer, so it is blocked and its
+    # nested duplicate x is orphaned and recorded; nothing is promoted.
+    assert affected == ("b",)
+    assert [
+        (r.rule, r.blocked_candidate_id, r.duplicate_candidate_id, r.pair_kind) for r in records
+    ] == [
+        (AuditPairRule.NEAR_IDENTICAL_PAIR, "b", None, None),
+        (AuditPairRule.ORPHANED_DUPLICATE, "b", "x", AuditPairKind.NESTED),
+    ]
+
+
+def test_representative_rule_applies_to_containment_pairs() -> None:
+    rejected = CandidateDisposition.REJECTED
+    containment = AuditCandidatePair(
+        outer_candidate_id="outer",
+        inner_candidate_id="inner",
+        pair_kind=AuditPairKind.CONTAINMENT,
+        near_identical=True,
+    )
+    merged = _nested_pool(
+        _review_item("outer", 100, 200, rejected, duplicate_of="inner"),
+        _review_item("inner", 105, 198, rejected),
+    )
+    with pytest.raises(AuditPairRuleError) as caught:
+        validate_audit_pair_decisions(
+            (containment,),
+            (_decision("outer", "inner", NestedPairDecisionKind.DUPLICATE),),
+            merged,
+        )
+    (violation,) = caught.value.violations
+    assert violation.rule == AuditPairRule.OVERLAP_REPRESENTATIVE
+
+
+def test_model_reasons_may_not_start_with_a_python_only_prefix() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    for prefix in DETERMINISTIC_REASON_PREFIXES:
+        item = _review_item("a", 100, 200, manual).model_copy(
+            update={"review_reason": f"{prefix}model text"}
+        )
+        with pytest.raises(ValueError, match="reserved for deterministic Python routing"):
+            reject_reserved_reason_prefixes((item,))
+    # Mid-text mentions are fine.
+    reject_reserved_reason_prefixes(
+        (
+            _review_item("a", 100, 200, manual).model_copy(
+                update={"review_reason": "Deterministic claims are discussed here."}
+            ),
+        )
+    )
+
+
+def test_manifest_reverse_checks_python_only_prefixes() -> None:
+    def pool(status: CandidateDisposition, reason: str) -> FinalProfileResult:
+        return _assemble_pool(
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            specs=(
+                {
+                    "candidate_id": "row",
+                    "start_cue_id": 941,
+                    "end_cue_id": 958,
+                    "status": status,
+                    "reason": reason,
+                },
+            ),
+        )
+
+    blocked = CandidateDisposition.BLOCKED
+    manifest, final = _fallback_manifest(pool(blocked, f"{AUDIT_FALLBACK_REASON_PREFIX}x"))
+    with pytest.raises(ValueError, match="without a manifest record"):
+        manifest.validate_against(final)
+    for status, prefix in (
+        (blocked, "Profile-local Top-N exclusion: "),
+        (CandidateDisposition.REJECTED, "Deterministic quality gate: "),
+    ):
+        manifest, final = _fallback_manifest(pool(status, f"{prefix}x"))
+        with pytest.raises(ValueError, match="inconsistent with its status"):
+            manifest.validate_against(final)
+
+
+def test_manifest_requires_the_fallback_prefix_on_a_blocked_row() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "kept",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "blocked_by_model",
+                "start_cue_id": 941,
+                "end_cue_id": 959,
+                "status": CandidateDisposition.BLOCKED,
+            },
+        ),
+    )
+    manifest, final = _audit_fallback_manifest(
+        result,
+        [
+            {
+                "profile": "short_highlight",
+                "rule": "near_identical_pair",
+                "outer_candidate_id": "kept",
+                "inner_candidate_id": "blocked_by_model",
+                "blocked_candidate_id": "blocked_by_model",
+            }
+        ],
+    )
+    with pytest.raises(ValueError, match="was not blocked by it"):
+        manifest.validate_against(final)
+
+
+def test_orphan_records_must_name_a_fallback_blocked_representative() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "rep",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "dup",
+                "start_cue_id": 941,
+                "end_cue_id": 960,
+                "status": CandidateDisposition.REJECTED,
+                "duplicate_of": "rep",
+            },
+        ),
+    )
+    with pytest.raises(ValueError, match="representative the fallback kept"):
+        _audit_fallback_manifest(
+            result,
+            [
+                {
+                    "profile": "short_highlight",
+                    "rule": "orphaned_duplicate",
+                    "outer_candidate_id": "rep",
+                    "inner_candidate_id": "dup",
+                    "blocked_candidate_id": "rep",
+                    "duplicate_candidate_id": "dup",
+                    "pair_kind": "nested",
+                }
+            ],
+        )

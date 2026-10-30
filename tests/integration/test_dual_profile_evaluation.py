@@ -1744,6 +1744,12 @@ class OverlapPairProvider(ScriptedDualProvider):
             replacements = (duplicate("mini_lesson_lesson", "mini_overlap"),)
         elif mode == "keep_lesson":
             replacements = (duplicate("mini_overlap", "mini_lesson_lesson"),)
+        elif mode == "prefixed":
+            replacements = (
+                by_id["mini_lesson_lesson"].model_copy(
+                    update={"review_reason": "Deterministic audit fallback: model-written."}
+                ),
+            )
         elif mode == "dup_blocked_rep":
             replacements = (
                 duplicate("mini_lesson_lesson", "mini_overlap"),
@@ -2157,6 +2163,49 @@ def test_representative_rule_fallback_accepts_and_records_without_promoting(
     assert mini.selected == () and mini.manual_review == ()
     assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
     assert [value.candidate_id for value in mini.blocked] == ["mini_overlap"]
+
+
+def test_persisted_representative_violation_is_accepted_and_counted(tmp_path: Path) -> None:
+    # The audit keeps insisting on a representative that persisted flags will block.
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=3,
+        first_audit="keep_lesson",
+        repair_audit="keep_lesson",
+        flag_lesson=True,
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    manifest = _manifest(tmp_path, "run")
+    (record,) = manifest.audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id) == (
+        "persisted_flag_representative",
+        "mini_overlap",
+    )
+    # Run diagnostic for the real run (Stage 13c P2-B).
+    assert manifest.persisted_flag_representative_duplicates == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 1,
+    }
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == ()
+    assert [value.candidate_id for value in mini.blocked] == ["mini_lesson_lesson"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_overlap"]
+
+
+def test_model_written_fallback_prefix_is_repaired(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="prefixed", repair_audit="distinct"
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "reserved for deterministic Python routing" in errors[0]
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
+    assert not any(
+        value.review_reason.startswith("Deterministic audit fallback: ")
+        for result in final.profiles.values()
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+    )
 
 
 def test_audit_fallback_never_masks_another_failure(tmp_path: Path) -> None:

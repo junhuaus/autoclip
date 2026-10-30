@@ -39,6 +39,7 @@ from liveclip.media.secure_files import (
     write_text_immutable_no_follow,
 )
 from liveclip.pipeline.dual_profile import (
+    AUDIT_FALLBACK_REASON_PREFIX,
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     AuditCandidatePair,
@@ -73,6 +74,8 @@ from liveclip.pipeline.dual_profile import (
     discovery_persisted_flags,
     plan_audit_pair_fallback,
     plan_profile_discovery_windows,
+    reject_reserved_reason_prefixes,
+    resolved_duplicates,
     semantic_cache_key,
     validate_audit_pair_decisions,
     validate_boundary_review_output,
@@ -156,6 +159,7 @@ def run_dual_profile_evaluation(
     boundaries_by_profile: dict[ClipProfile, ProfileBoundaryReviewOutput] = {}
     global_by_profile: dict[ClipProfile, ProfileGlobalReviewOutput] = {}
     results: dict[ClipProfile, FinalProfileResult] = {}
+    persisted_representative_duplicates: dict[ClipProfile, int] = {}
     model_name = ""
     provider_name = ""
 
@@ -856,6 +860,7 @@ def run_dual_profile_evaluation(
             def validate_global_chunk(
                 review_value: ProfileGlobalReviewOutput,
             ) -> ProfileGlobalReviewOutput:
+                reject_reserved_reason_prefixes(review_value.reviews)
                 assemble_final_profile_result(
                     profile=current_profile,
                     discoveries=chunk_discoveries,
@@ -945,9 +950,21 @@ def run_dual_profile_evaluation(
             current_global: ProfileGlobalReviewOutput = global_review,
             current_pairs: tuple[AuditCandidatePair, ...] = audit_pairs,
             current_persisted: frozenset[str] = persisted_flag_ids,
+            *,
+            fallback_blocked: frozenset[str] = frozenset(),
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
+            # Python-only prefixes; only rows the audit fallback itself blocked may
+            # carry the audit fallback prefix.
+            reject_reserved_reason_prefixes(
+                item
+                for item in value.replacements
+                if not (
+                    item.candidate_id in fallback_blocked
+                    and item.review_reason.startswith(AUDIT_FALLBACK_REASON_PREFIX)
+                )
+            )
             replacement_map = {item.candidate_id: item for item in value.replacements}
             if len(replacement_map) != len(value.replacements):
                 raise ValueError("Global Audit replacement candidate IDs are not unique")
@@ -986,17 +1003,20 @@ def run_dual_profile_evaluation(
             error: ValueError,
             current_profile: ClipProfile = profile,
             current_global: ProfileGlobalReviewOutput = global_review,
-            current_validate: Callable[
-                [ProfileGlobalAuditOutput], ProfileGlobalAuditOutput
-            ] = validate_global_audit,
+            current_validate: Callable[..., ProfileGlobalAuditOutput] = validate_global_audit,
             current_persisted: frozenset[str] = persisted_flag_ids,
         ) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
+            def validate_fixed(
+                fixed: ProfileGlobalAuditOutput, blocked: frozenset[str]
+            ) -> ProfileGlobalAuditOutput:
+                return current_validate(fixed, fallback_blocked=blocked)
+
             return _audit_pair_fallback(
                 value,
                 error,
                 current_profile,
                 current_global,
-                current_validate,
+                validate_fixed,
                 transcript,
                 current_persisted,
             )
@@ -1048,6 +1068,11 @@ def run_dual_profile_evaluation(
         repair_count += global_audit_call.repair_count
         stage_counts["global_review"] += int(not global_audit_call.cache_hit)
         global_by_profile[profile] = global_review
+        persisted_representative_duplicates[profile] = sum(
+            len(duplicates)
+            for representative, duplicates in resolved_duplicates(global_review).items()
+            if representative in persisted_flag_ids
+        )
         results[profile] = assemble_final_profile_result(
             profile=profile,
             discoveries=profile_discoveries,
@@ -1152,6 +1177,7 @@ def run_dual_profile_evaluation(
         stale_cache_resolutions=stale_resolutions,
         boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
         audit_pair_fallbacks=resolution_audit.audit_fallbacks(),
+        persisted_flag_representative_duplicates=persisted_representative_duplicates,
     )
     manifest.validate_against(final, boundaries=boundaries_by_profile)
     _write_json(
@@ -1551,37 +1577,60 @@ def _audit_pair_fallback(
     error: ValueError,
     profile: ClipProfile,
     initial: ProfileGlobalReviewOutput,
-    validate: Callable[[ProfileGlobalAuditOutput], ProfileGlobalAuditOutput],
+    validate: Callable[[ProfileGlobalAuditOutput, frozenset[str]], ProfileGlobalAuditOutput],
     transcript: TranscriptDocument,
     persisted_flag_ids: frozenset[str],
 ) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
-    """Downgrade-only Global Audit fallback (Stage 13b), after repair and regeneration.
+    """Downgrade-only Global Audit fallback (Stage 13b/13c), after repair and regeneration.
 
     Eligible only when every remaining failure is a deterministic audit-pair rule
     (``AuditPairRuleError``). Each violating near-identical pair is resolved by
-    blocking its longer member while the other member stays retained (see
-    ``plan_audit_pair_fallback``). Representative-rule violations cannot be fixed
-    without promoting a candidate, so the model's duplicate is accepted unchanged
-    and recorded. Any other failure, or a near-identical violation the blocks do
-    not resolve, keeps the run failing.
+    blocking a member chosen by ``plan_audit_pair_fallback`` (representatives are
+    kept first, so duplicates are orphaned only when unavoidable); one record per
+    resolved pair. Every duplicate whose resolved representative the fallback
+    blocked is recorded as an ``orphaned_duplicate`` (nested, overlap,
+    containment or unlisted). Representative-rule violations of the model's own
+    output cannot be fixed without promoting a candidate, so the model's duplicate
+    is accepted unchanged and recorded. Nothing is ever promoted. Any other
+    failure, or a near-identical violation the blocks do not resolve, keeps the
+    run failing.
     """
 
     if not isinstance(error, AuditPairRuleError):
         return None
-    blocks = plan_audit_pair_fallback(
-        error,
-        _merge_audit(output, initial),
-        transcript,
-        persisted_flag_ids=persisted_flag_ids,
+    merged = _merge_audit(output, initial)
+    resolutions = plan_audit_pair_fallback(
+        error, merged, transcript, persisted_flag_ids=persisted_flag_ids
     )
-    fixed = apply_audit_pair_blocks(output, initial, [blocked for blocked, _ in blocks])
+    blocked_ids = frozenset(blocked for blocked, _ in resolutions)
+    fixed = apply_audit_pair_blocks(output, initial, sorted(blocked_ids))
     remaining: tuple[AuditPairViolation, ...] = ()
     try:
-        validate(fixed)
+        validate(fixed, blocked_ids)
     except AuditPairRuleError as remaining_error:
         if remaining_error.near_identical:
             return None
         remaining = remaining_error.violations
+    listed_kinds: dict[frozenset[str], tuple[AuditCandidatePair, ...]] = {}
+    for pair in (
+        *audit_candidate_pairs(initial, transcript),
+        *audit_candidate_pairs(merged, transcript),
+    ):
+        listed_kinds.setdefault(pair.members, (pair,))
+    orphans = sorted(
+        (representative, duplicate)
+        for representative, duplicates in resolved_duplicates(merged).items()
+        if representative in blocked_ids
+        for duplicate in duplicates
+    )
+    orphan_ids = {duplicate for _, duplicate in orphans}
+    original = set(error.violations)
+    accepted = [value for value in dict.fromkeys(remaining) if value in original]
+    if any(
+        value not in original and value.duplicate_candidate_id not in orphan_ids
+        for value in remaining
+    ):
+        return None
     records: list[BaseModel] = [
         AuditPairFallback(
             profile=profile,
@@ -1590,8 +1639,26 @@ def _audit_pair_fallback(
             inner_candidate_id=pair[1],
             blocked_candidate_id=blocked,
         )
-        for blocked, pair in blocks
+        for blocked, pair in resolutions
     ]
+    for representative, duplicate in orphans:
+        listed = listed_kinds.get(frozenset((representative, duplicate)))
+        outer, inner = (
+            (listed[0].outer_candidate_id, listed[0].inner_candidate_id)
+            if listed
+            else (representative, duplicate)
+        )
+        records.append(
+            AuditPairFallback(
+                profile=profile,
+                rule=AuditPairRule.ORPHANED_DUPLICATE,
+                outer_candidate_id=outer,
+                inner_candidate_id=inner,
+                blocked_candidate_id=representative,
+                duplicate_candidate_id=duplicate,
+                pair_kind=listed[0].pair_kind if listed else None,
+            )
+        )
     records.extend(
         AuditPairFallback(
             profile=profile,
@@ -1600,11 +1667,11 @@ def _audit_pair_fallback(
             inner_candidate_id=value.inner_candidate_id,
             duplicate_candidate_id=value.duplicate_candidate_id,
         )
-        for value in dict.fromkeys(remaining)
+        for value in accepted
     )
     affected = sorted(
-        {blocked for blocked, _ in blocks}
-        | {value.duplicate_candidate_id for value in remaining if value.duplicate_candidate_id}
+        blocked_ids
+        | {value.duplicate_candidate_id for value in accepted if value.duplicate_candidate_id}
     )
     if not affected:
         return None

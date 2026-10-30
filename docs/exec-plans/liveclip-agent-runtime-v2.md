@@ -1,5 +1,28 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13c audit fallback keep order and contract alignment (2026-10-30)
+
+- [x] 2026-10-30 Stage 13c implemented on `claude/liveclip-stage8-routing`
+  (Stage 13b reviewer P2/P3s and a Controller correction), **pending
+  independent tester and reviewer; real run pending**. Python only: the
+  audit prompt hash and every cache key are unchanged (3-call estimate
+  holds). Must land before the real run.
+  - Fallback keep order: persisted-flag key, then more resolved duplicates
+    first, then shorter/earlier/smaller ID. Unavoidable orphans are recorded
+    (`orphaned_duplicate` with pair kind); every resolved pair is recorded.
+  - Containment near-copy: inner ≥ 9/10 or ends within tolerance only
+    (starts criterion removed; correction logged).
+  - Python-only reason prefixes are reserved in Global Review and audit
+    outputs; the manifest reverse-checks prefixed final rows.
+  - Manifest diagnostic `persisted_flag_representative_duplicates`
+    (GR-level duplicates rely on the prompt sentence alone).
+  - Offline (warm-28 cache copies): exactly 3 calls; pair counts unchanged;
+    forced fallback has no unrecorded orphan and a byte-identical warm
+    rerun. Trade-off: representative-first keeps `ml0007…core` over the L04
+    match under a forced fallback (details in `STATUS.md`).
+- [ ] Next: independent tester and reviewer on the Stage 13c SHA; a real
+  run only with the user's go-ahead.
+
 ## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30)
 
 - [x] 2026-10-30 Stage 13b implemented on `claude/liveclip-stage8-routing`
@@ -23,15 +46,18 @@
     `audit_pair_fallbacks` with manifest cross-checks; cached as raw output
     plus a verified marker, so warm reruns reproduce it.
   - P2-3: near-copy containment pairs (inner ≥ 9/10 of outer, or ends or
-    starts within 3 s/5 s) are listed as `containment`, always
+    starts within 3 s/5 s; the starts criterion was removed by Stage 13c as
+    a Controller correction) are listed as `containment`, always
     near-identical; other containment stays unlisted.
   - Only `global_audit.md` changed (hashes in `STATUS.md`). Offline on a
     warm-28 cache copy: exactly 3 calls; mini now lists 2 containment pairs
     (the two reviewer-identified pairs); L02 stays protected.
 - [x] (Historical next step; done 2026-10-30 at `e48f601`.) Independent
   tester and reviewer on the Stage 13b SHA.
-- [ ] Next: Stage 13c (must land before the real run), then a real run only
-  with the user's go-ahead.
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 13c section above.) Stage 13c.
+- [ ] Next: a real run only with the user's go-ahead, after Stage 13c is
+  verified.
 
 ## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
 

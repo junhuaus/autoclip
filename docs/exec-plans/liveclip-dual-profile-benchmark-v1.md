@@ -80,7 +80,8 @@ imported by production modules.
 - [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent tester and reviewer for Stages 12c and 13.
 - [x] 2026-10-30 Stage 13b implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `e48f6018bc9456278585ca1f63f0d0c225834697` the same day: tester PASS, lint rc 0, backend 2976 passed in 1632.67 s, vitest 14/80, e2e 4, targeted 245, no sleep 14:49–15:22; reviewer ACCEPT, no P0/P1, 23/27 mutants killed, Deviation 3 endorsed, sentinel replay 230 hits and exactly 3 calls, forced-fallback cold → warm replay byte-identical; P2s/P3s and a containment-criteria correction for Stage 13c); real run pending: audit candidates carry the persisted Discovery gated flags (same function as routing) and a duplicate may not resolve to such a representative; a downgrade-only Global Audit fallback (after repair and regeneration, only when the deterministic pair rules are the sole failures) blocks the longer member of each near-identical pair while keeping a retained partner and records every action in `audit_pair_fallbacks` (cached as raw output plus a verified marker); near-copy containment pairs (inner ≥ 9/10, or ends or starts within the tolerance) are listed as near-identical `containment` pairs. Only the Global Audit prompt changed; a warm-28 cache-copy replay still needs exactly 3 calls. Evidence in `STATUS.md`.
 - [x] (Historical next step; done 2026-10-30 at `e48f601`.) Independent tester and reviewer for Stage 13b.
-- [ ] Next: Stage 13c (before the real run), then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
+- [x] 2026-10-30 Stage 13c implemented, pending independent tester and reviewer; real run pending (Python only; audit prompt hash and cache keys unchanged): audit fallback keeps representatives first and records unavoidable orphans and every resolved pair; containment near-copy limited to the user-approved criteria (inner ≥ 9/10 or ends within tolerance; starts removed); Python-only reason prefixes reserved and reverse-checked; manifest diagnostic for Global Review-level duplicates of persisted-flag representatives. warm-28 cache-copy replays: exactly 3 calls; forced fallback has no unrecorded orphan and a byte-identical warm rerun. Evidence and a keep-order trade-off in `STATUS.md`.
+- [ ] Next: independent tester and reviewer for Stage 13c, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -305,13 +306,26 @@ two deterministic report files.
   keep a retained representative; nested semantics are unchanged.
 - 2026-10-30 (user, binding; Stage 13b): a containment pair (strictly inside,
   no shared edge) is listed for the audit only as a near-copy (inner ≥ 9/10
-  of the outer, or ends or starts within the 3 s/5 s tolerance) and is then
+  of the outer, or ends or starts within the 3 s/5 s tolerance; corrected
+  2026-10-30 by Stage 13c, see below: starts are not a criterion) and is then
   near-identical; other containment stays unlisted to protect full lessons
   with a sub-clip inside. Implementation choices: the audit fallback never
   promotes and never moves rejected rows; representative-rule violations are
   accepted and recorded because no downgrade can fix them; members with
   persisted Discovery gated flags are kept last when choosing which
   near-identical member to block.
+- 2026-10-30 (Controller correction, Stage 13c): the user approved
+  containment near-copy listing only for inner ≥ 9/10 of the outer OR ends
+  within `AUDIT_SAME_END_TOLERANCE_MS`. "Starts within the tolerance" was a
+  Controller addition the user never approved; it is removed from code,
+  tests and docs. The Global Audit prompt is not changed (to keep its hash
+  and the cache keys), so its parenthetical still mentions containment
+  starts; it describes a superset of the code and the model reads the
+  precomputed `near_identical` field. Also Stage 13c: when choosing which
+  near-identical member the audit fallback blocks, a member that is the
+  resolved representative of more duplicates is kept first (after the
+  persisted-flag key); unavoidable orphans are recorded; Python-only reason
+  prefixes are reserved.
 
 ## Risks and mitigations
 
