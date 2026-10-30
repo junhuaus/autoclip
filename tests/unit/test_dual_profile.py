@@ -11,6 +11,7 @@ import pytest
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.domain.transcript import TranscriptDocument
 from liveclip.pipeline.dual_profile import (
+    AUDIT_FALLBACK_REASON_PREFIX,
     AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION,
     AUDIT_OVERLAP_MIN_SHORTER_FRACTION,
     AUDIT_SAME_END_TOLERANCE_MS,
@@ -21,6 +22,9 @@ from liveclip.pipeline.dual_profile import (
     PROFILE_DURATION_CONTRACTS,
     AuditCandidatePair,
     AuditPairKind,
+    AuditPairRule,
+    AuditPairRuleError,
+    AuditPairViolation,
     BoundaryOpeningInvariantError,
     BoundaryReviewItem,
     BoundaryState,
@@ -42,6 +46,7 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
     RawProfileCandidate,
     VariantLinkItem,
+    apply_audit_pair_blocks,
     apply_boundary_opening_fallback,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
@@ -50,6 +55,7 @@ from liveclip.pipeline.dual_profile import (
     boundary_shrank_interval,
     discovery_persisted_flags,
     nested_candidate_pairs,
+    plan_audit_pair_fallback,
     plan_profile_discovery_windows,
     profile_statistics,
     semantic_cache_key,
@@ -2114,3 +2120,276 @@ def test_nested_pair_semantics_are_unchanged_by_overlap_rules() -> None:
             _review_item("inner", 100, 140, rejected),
         ),
     )
+
+
+# Stage 13b P2-3: near-copy containment pairs.
+
+
+@pytest.mark.parametrize(
+    ("outer", "inner", "listed"),
+    [
+        ((1, 200), (11, 190), True),  # [10,190) of [0,200): 180/200 = exactly 9/10
+        ((1, 200), (11, 189), False),  # 179/200, edges 10 s and 11 s away
+        ((1, 200), (101, 195), True),  # ends 5 s apart (mini tolerance)
+        ((1, 200), (101, 194), False),  # ends 6 s apart
+        ((1, 200), (6, 100), True),  # starts 5 s apart
+        ((1, 200), (7, 100), False),  # starts 6 s apart
+        ((1, 300), (101, 202), False),  # 102/300 = 0.34, distant edges: a full lesson's sub-clip
+    ],
+)
+def test_containment_is_listed_only_as_a_near_copy(
+    tmp_path: Path, outer: tuple[int, int], inner: tuple[int, int], listed: bool
+) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    pool = _pool(
+        ClipProfile.MINI_LESSON,
+        ("inner", inner[0], inner[1], manual),
+        ("outer", outer[0], outer[1], manual),
+    )
+    pairs = audit_candidate_pairs(pool, transcript)
+    if not listed:
+        assert pairs == ()
+        return
+    (pair,) = pairs
+    assert pair.pair_kind == AuditPairKind.CONTAINMENT
+    assert (pair.outer_candidate_id, pair.inner_candidate_id) == ("outer", "inner")
+    assert pair.near_identical is True
+
+
+@pytest.mark.parametrize(("gap", "listed"), [(3, True), (4, False)])
+def test_short_containment_uses_the_short_tolerance(tmp_path: Path, gap: int, listed: bool) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    # outer [0, 90); inner [gap, 50): only the starts can be close.
+    pool = _pool(
+        ClipProfile.SHORT_HIGHLIGHT, ("outer", 1, 90, manual), ("inner", gap + 1, 50, manual)
+    )
+    assert bool(audit_candidate_pairs(pool, transcript)) is listed
+
+
+def test_shared_edge_containment_stays_nested(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    pool = _pool(ClipProfile.MINI_LESSON, ("outer", 1, 200, manual), ("inner", 1, 195, manual))
+    (pair,) = audit_candidate_pairs(pool, transcript)
+    assert (pair.pair_kind, pair.near_identical) == (AuditPairKind.NESTED, False)
+
+
+# Stage 13b P2-1: persisted-flag representative rule.
+
+
+def test_duplicate_may_not_resolve_to_a_representative_with_persisted_flags() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    nested = AuditCandidatePair(
+        outer_candidate_id="outer", inner_candidate_id="inner", pair_kind=AuditPairKind.NESTED
+    )
+    merged = _nested_pool(
+        _review_item("outer", 100, 160, rejected, duplicate_of="inner"),
+        _review_item("inner", 100, 140, manual),
+    )
+    decision = (_decision("outer", "inner", NestedPairDecisionKind.DUPLICATE),)
+    validate_audit_pair_decisions((nested,), decision, merged)
+    validate_audit_pair_decisions((nested,), decision, merged, persisted_flag_ids={"outer"})
+    with pytest.raises(AuditPairRuleError, match="persisted Discovery gated flags") as caught:
+        validate_audit_pair_decisions((nested,), decision, merged, persisted_flag_ids={"inner"})
+    (violation,) = caught.value.violations
+    assert violation.rule == AuditPairRule.PERSISTED_FLAG_REPRESENTATIVE
+    assert violation.duplicate_candidate_id == "outer"
+
+
+def test_pair_rule_error_is_raised_only_after_every_other_check() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    near = AuditCandidatePair(
+        outer_candidate_id="a",
+        inner_candidate_id="b",
+        pair_kind=AuditPairKind.OVERLAP,
+        near_identical=True,
+    )
+    both = _nested_pool(_review_item("a", 100, 200, manual), _review_item("b", 110, 205, manual))
+    with pytest.raises(ValueError, match="cover every listed nested pair") as caught:
+        validate_audit_pair_decisions((near,), (), both)
+    assert not isinstance(caught.value, AuditPairRuleError)
+    with pytest.raises(AuditPairRuleError) as rule_error:
+        validate_audit_pair_decisions(
+            (near,), (_decision("a", "b", NestedPairDecisionKind.DISTINCT_OBJECTIVE),), both
+        )
+    assert [v.rule for v in rule_error.value.violations] == [AuditPairRule.NEAR_IDENTICAL_PAIR]
+
+
+# Stage 13b P2-2: deterministic audit fallback.
+
+
+def _near_error(*pairs: tuple[str, str]) -> AuditPairRuleError:
+    return AuditPairRuleError(
+        tuple(
+            AuditPairViolation(
+                rule=AuditPairRule.NEAR_IDENTICAL_PAIR,
+                outer_candidate_id=outer,
+                inner_candidate_id=inner,
+            )
+            for outer, inner in pairs
+        )
+    )
+
+
+def test_audit_fallback_blocks_the_longer_member_with_deterministic_ties(
+    tmp_path: Path,
+) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    pool = _pool(
+        ClipProfile.MINI_LESSON,
+        ("long", 1, 120, manual),  # 120 s
+        ("short", 5, 115, manual),  # 111 s
+        ("same_a", 201, 300, manual),  # 100 s starting at 200 s
+        ("same_b", 205, 304, manual),  # 100 s starting at 204 s -> later start blocked
+        ("tie_a", 301, 390, manual),  # identical spans: larger ID blocked
+        ("tie_b", 301, 390, manual),
+    )
+    blocks = plan_audit_pair_fallback(
+        _near_error(("long", "short"), ("same_a", "same_b"), ("tie_a", "tie_b")),
+        pool,
+        transcript,
+    )
+    assert [blocked for blocked, _ in blocks] == ["long", "same_b", "tie_b"]
+
+
+def test_audit_fallback_keeps_a_retained_partner_for_every_block(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    # Chain a > b > c: c blocks b; a's only partner b is then blocked, so a is kept.
+    pool = _pool(
+        ClipProfile.MINI_LESSON,
+        ("a", 1, 130, manual),
+        ("b", 5, 125, manual),
+        ("c", 9, 120, manual),
+    )
+    blocks = dict(plan_audit_pair_fallback(_near_error(("a", "b"), ("b", "c")), pool, transcript))
+    assert set(blocks) == {"b"}
+    # A member that persisted flags will block is never the kept one.
+    blocks = dict(
+        plan_audit_pair_fallback(
+            _near_error(("a", "b")), pool, transcript, persisted_flag_ids={"b"}
+        )
+    )
+    assert set(blocks) == {"b"}
+
+
+def test_apply_audit_pair_blocks_only_downgrades_retained_rows() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    initial = _nested_pool(_review_item("a", 100, 200, manual), _review_item("b", 110, 205, manual))
+    audit = ProfileGlobalAuditOutput(
+        profile=ClipProfile.MINI_LESSON,
+        replacements=(_review_item("a", 100, 200, CandidateDisposition.SELECTED),),
+        nested_pair_decisions=(),
+        audit_reason="审计。",
+    )
+    fixed = apply_audit_pair_blocks(audit, initial, ["a", "b"])
+    rows = {value.candidate_id: value for value in fixed.replacements}
+    assert {value.review_status for value in rows.values()} == {CandidateDisposition.BLOCKED}
+    assert all(
+        value.review_reason.startswith(AUDIT_FALLBACK_REASON_PREFIX) for value in rows.values()
+    )
+    rejected = audit.model_copy(
+        update={"replacements": (_review_item("a", 100, 200, CandidateDisposition.REJECTED),)}
+    )
+    with pytest.raises(ValueError, match="only a retained candidate"):
+        apply_audit_pair_blocks(rejected, initial, ["a"])
+
+
+def _audit_fallback_manifest(
+    result: FinalProfileResult, actions: Sequence[Mapping[str, object]]
+) -> tuple[DualProfileRunManifest, DualProfileFinalResult]:
+    manifest, final = _fallback_manifest(result)
+    return (
+        DualProfileRunManifest.model_validate_json(
+            json.dumps({**manifest.model_dump(mode="json"), "audit_pair_fallbacks": list(actions)})
+        ),
+        final,
+    )
+
+
+def test_run_manifest_cross_checks_audit_pair_fallbacks() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "kept",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "fallback_blocked",
+                "start_cue_id": 941,
+                "end_cue_id": 959,
+                "status": CandidateDisposition.BLOCKED,
+                "reason": f"{AUDIT_FALLBACK_REASON_PREFIX}审计。",
+            },
+            {
+                "candidate_id": "dup",
+                "start_cue_id": 941,
+                "end_cue_id": 960,
+                "status": CandidateDisposition.REJECTED,
+                "duplicate_of": "kept",
+            },
+        ),
+    )
+    near = {
+        "profile": "short_highlight",
+        "rule": "near_identical_pair",
+        "outer_candidate_id": "kept",
+        "inner_candidate_id": "fallback_blocked",
+        "blocked_candidate_id": "fallback_blocked",
+    }
+    rep_rule = {
+        "profile": "short_highlight",
+        "rule": "overlap_representative",
+        "outer_candidate_id": "kept",
+        "inner_candidate_id": "dup",
+        "duplicate_candidate_id": "dup",
+    }
+    manifest, final = _audit_fallback_manifest(result, [near, rep_rule])
+    manifest.validate_against(final)
+    # Legacy manifests load without the field.
+    legacy = manifest.model_dump(mode="json")
+    legacy.pop("audit_pair_fallbacks")
+    assert DualProfileRunManifest.model_validate_json(json.dumps(legacy)).audit_pair_fallbacks == ()
+    for broken, message in (
+        ({**near, "blocked_candidate_id": "kept"}, "was not blocked by it"),
+        (
+            {**near, "inner_candidate_id": "ghost", "blocked_candidate_id": "ghost"},
+            "outside the run",
+        ),
+    ):
+        bad, final = _audit_fallback_manifest(result, [broken])
+        with pytest.raises(ValueError, match=message):
+            bad.validate_against(final)
+    for broken, message in (
+        ({**near, "blocked_candidate_id": None}, "must block one pair member"),
+        ({**rep_rule, "duplicate_candidate_id": None}, "must name the pair's duplicate"),
+        ({**near, "inner_candidate_id": "kept", "blocked_candidate_id": "kept"}, "two different"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            _audit_fallback_manifest(result, [broken])
+    with pytest.raises(ValueError, match="repeats an action"):
+        _audit_fallback_manifest(result, [near, near])
+    with pytest.raises(ValueError, match="blocked the member it keeps"):
+        _audit_fallback_manifest(
+            result,
+            [
+                near,
+                {
+                    **near,
+                    "outer_candidate_id": "fallback_blocked",
+                    "inner_candidate_id": "dup",
+                    "blocked_candidate_id": "dup",
+                },
+            ],
+        )
+    became_output = {**rep_rule, "duplicate_candidate_id": "kept", "inner_candidate_id": "dup"}
+    bad, final = _audit_fallback_manifest(result, [became_output])
+    with pytest.raises(ValueError, match="became an output"):
+        bad.validate_against(final)

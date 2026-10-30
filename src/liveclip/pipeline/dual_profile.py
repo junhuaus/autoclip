@@ -324,6 +324,9 @@ class NestedPairDecisionKind(StrEnum):
 class AuditPairKind(StrEnum):
     NESTED = "nested"
     OVERLAP = "overlap"
+    # Stage 13b: strict containment without a shared edge, listed only when the
+    # inner candidate is a near-copy of the outer one (always ``near_identical``).
+    CONTAINMENT = "containment"
 
 
 # Overlap adjudication (Stage 13): a same-Profile retained pair in which neither
@@ -573,6 +576,58 @@ class BoundaryOpeningFallback(BaseModel):
         return self
 
 
+class AuditPairRule(StrEnum):
+    NEAR_IDENTICAL_PAIR = "near_identical_pair"
+    OVERLAP_REPRESENTATIVE = "overlap_representative"
+    PERSISTED_FLAG_REPRESENTATIVE = "persisted_flag_representative"
+
+
+class AuditPairViolation(BaseModel):
+    """One violation of a deterministic Stage 13/13b audit-pair rule."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    rule: AuditPairRule
+    outer_candidate_id: str
+    inner_candidate_id: str
+    # The member removed as a duplicate (representative rules only).
+    duplicate_candidate_id: str | None = None
+
+
+AUDIT_FALLBACK_REASON_PREFIX: Final = "Deterministic audit fallback: "
+
+
+class AuditPairFallback(BaseModel):
+    """One downgrade-only Global Audit fallback action recorded in the run manifest.
+
+    ``near_identical_pair``: ``blocked_candidate_id`` (a member of the pair) was
+    blocked; the other member stays retained and covers the same media.
+    Representative rules: the model's duplicate ``duplicate_candidate_id`` was
+    accepted unchanged (nothing can be fixed without promoting a candidate).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    profile: ClipProfile
+    rule: AuditPairRule
+    outer_candidate_id: str = Field(min_length=1)
+    inner_candidate_id: str = Field(min_length=1)
+    blocked_candidate_id: str | None = None
+    duplicate_candidate_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> AuditPairFallback:
+        members = {self.outer_candidate_id, self.inner_candidate_id}
+        if len(members) != 2:
+            raise ValueError("audit pair fallback must name two different candidates")
+        if self.rule == AuditPairRule.NEAR_IDENTICAL_PAIR:
+            if self.blocked_candidate_id not in members or self.duplicate_candidate_id:
+                raise ValueError("near-identical audit fallback must block one pair member")
+        elif self.duplicate_candidate_id not in members or self.blocked_candidate_id:
+            raise ValueError("representative audit fallback must name the pair's duplicate")
+        return self
+
+
 class DualProfileRunManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -598,6 +653,8 @@ class DualProfileRunManifest(BaseModel):
     stale_cache_resolution_count: int = Field(default=0, ge=0)
     stale_cache_resolutions: tuple[StaleCacheResolution, ...] = ()
     boundary_opening_fallbacks: tuple[BoundaryOpeningFallback, ...] = ()
+    # Stage 13b audit field; manifests written before it load with the default.
+    audit_pair_fallbacks: tuple[AuditPairFallback, ...] = ()
 
     @model_validator(mode="after")
     def validate_stale_cache_audit(self) -> DualProfileRunManifest:
@@ -623,6 +680,33 @@ class DualProfileRunManifest(BaseModel):
         subjects = [(value.profile, value.subject_id) for value in self.boundary_opening_fallbacks]
         if len(subjects) != len(set(subjects)):
             raise ValueError("Boundary opening fallback repeats a Boundary Review batch")
+        actions = [
+            (
+                value.profile,
+                value.rule,
+                frozenset((value.outer_candidate_id, value.inner_candidate_id)),
+                value.duplicate_candidate_id,
+            )
+            for value in self.audit_pair_fallbacks
+        ]
+        if len(actions) != len(set(actions)):
+            raise ValueError("audit pair fallback repeats an action")
+        blocked = [
+            (value.profile, value.blocked_candidate_id)
+            for value in self.audit_pair_fallbacks
+            if value.blocked_candidate_id is not None
+        ]
+        if len(blocked) != len(set(blocked)):
+            raise ValueError("audit pair fallback blocks a candidate more than once")
+        kept = {
+            (value.profile, member)
+            for value in self.audit_pair_fallbacks
+            if value.blocked_candidate_id is not None
+            for member in (value.outer_candidate_id, value.inner_candidate_id)
+            if member != value.blocked_candidate_id
+        }
+        if kept & set(blocked):
+            raise ValueError("audit pair fallback blocked the member it keeps for another pair")
 
     def validate_against(
         self,
@@ -686,6 +770,32 @@ class DualProfileRunManifest(BaseModel):
                         raise ValueError(
                             "Boundary opening fallback candidate still claims a complete opening"
                         )
+        for action in self.audit_pair_fallbacks:
+            profile_result = result.profiles.get(action.profile)
+            if profile_result is None:
+                raise ValueError("audit pair fallback names an unexecuted Profile")
+            status_by_id = {
+                value.candidate_id: value
+                for group in (
+                    profile_result.selected,
+                    profile_result.manual_review,
+                    profile_result.blocked,
+                    profile_result.rejected,
+                )
+                for value in group
+            }
+            if not {action.outer_candidate_id, action.inner_candidate_id} <= set(status_by_id):
+                raise ValueError("audit pair fallback names a candidate outside the run")
+            if action.blocked_candidate_id is not None:
+                blocked_row = status_by_id[action.blocked_candidate_id]
+                if blocked_row.review_status != CandidateDisposition.BLOCKED or not (
+                    blocked_row.review_reason.startswith(AUDIT_FALLBACK_REASON_PREFIX)
+                ):
+                    raise ValueError("audit pair fallback candidate was not blocked by it")
+            if action.duplicate_candidate_id is not None and status_by_id[
+                action.duplicate_candidate_id
+            ].review_status not in {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}:
+                raise ValueError("audit pair fallback duplicate became an output")
 
 
 def plan_profile_discovery_windows(
@@ -933,13 +1043,18 @@ def audit_candidate_pairs(
 ) -> tuple[AuditCandidatePair, ...]:
     """List every same-Profile retained pair the Global Audit must decide.
 
-    Nested pairs are exactly ``nested_candidate_pairs``.  Overlap pairs are the
-    other selected/manual_review pairs in which neither candidate contains the
-    other and the shared media is at least ``AUDIT_OVERLAP_MIN_SHORTER_FRACTION``
-    of the shorter candidate's duration.  Containment without a shared edge stays
-    unlisted, as before.  An overlap pair is ``near_identical`` when the members
-    end within the Profile's ``AUDIT_SAME_END_TOLERANCE_MS`` or share at least
-    ``AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION`` of the shorter candidate.
+    * ``nested``: exactly ``nested_candidate_pairs`` (shared edge cue, containment).
+    * ``overlap``: other selected/manual_review pairs in which neither candidate
+      contains the other and the shared media is at least
+      ``AUDIT_OVERLAP_MIN_SHORTER_FRACTION`` of the shorter candidate.  It is
+      ``near_identical`` when the ends are within the Profile's
+      ``AUDIT_SAME_END_TOLERANCE_MS`` or the overlap is at least
+      ``AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION`` of the shorter candidate.
+    * ``containment`` (Stage 13b): one candidate strictly inside the other without
+      a shared edge cue, listed only when it is a near-copy: the inner duration is
+      at least ``AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION`` of the outer, or the ends
+      or the starts are within the tolerance.  Always ``near_identical``.  Other
+      containment (a full lesson with a shorter clip inside it) stays unlisted.
     """
 
     nested = nested_candidate_pairs(global_review)
@@ -949,7 +1064,7 @@ def audit_candidate_pairs(
         )
         for outer, inner in nested
     ]
-    cue_map = {value.cue_id: value for value in transcript_cues(transcript)}
+    nested_keys = {frozenset(pair) for pair in nested}
     retained = sorted(
         (
             value
@@ -959,26 +1074,43 @@ def audit_candidate_pairs(
         ),
         key=lambda value: (value.start_cue_id, -value.end_cue_id, value.candidate_id),
     )
-    try:
-        spans = {
-            value.candidate_id: (
-                cue_map[value.start_cue_id].start_ms,
-                cue_map[value.end_cue_id].end_ms,
-            )
-            for value in retained
-        }
-    except KeyError as exc:
-        raise ValueError("Global Review references an unknown cue") from exc
+    spans = candidate_spans_ms(retained, transcript)
     tolerance_ms = AUDIT_SAME_END_TOLERANCE_MS[global_review.profile]
     for index, first in enumerate(retained):
         for second in retained[index + 1 :]:
             if first.profile != second.profile:
                 continue
+            if frozenset((first.candidate_id, second.candidate_id)) in nested_keys:
+                continue
             first_start, first_end = spans[first.candidate_id]
             second_start, second_end = spans[second.candidate_id]
-            if (first_start <= second_start and second_end <= first_end) or (
-                second_start <= first_start and first_end <= second_end
-            ):
+            first_inside = second_start <= first_start and first_end <= second_end
+            second_inside = first_start <= second_start and second_end <= first_end
+            if first_inside or second_inside:
+                outer, inner = (
+                    (second, first)
+                    if first_inside and not second_inside
+                    else (
+                        first,
+                        second,
+                    )
+                )
+                outer_start, outer_end = spans[outer.candidate_id]
+                inner_start, inner_end = spans[inner.candidate_id]
+                if (
+                    inner_end - inner_start
+                    >= (outer_end - outer_start) * AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION
+                    or outer_end - inner_end <= tolerance_ms
+                    or inner_start - outer_start <= tolerance_ms
+                ):
+                    pairs.append(
+                        AuditCandidatePair(
+                            outer_candidate_id=outer.candidate_id,
+                            inner_candidate_id=inner.candidate_id,
+                            pair_kind=AuditPairKind.CONTAINMENT,
+                            near_identical=True,
+                        )
+                    )
                 continue
             overlap_ms = min(first_end, second_end) - max(first_start, second_start)
             shorter_ms = min(first_end - first_start, second_end - second_start)
@@ -998,6 +1130,24 @@ def audit_candidate_pairs(
     return tuple(pairs)
 
 
+def candidate_spans_ms(
+    reviews: Iterable[GlobalReviewItem], transcript: TranscriptDocument
+) -> dict[str, tuple[int, int]]:
+    """Exact ``(start_ms, end_ms)`` of each review item from its cue IDs."""
+
+    cue_map = {value.cue_id: value for value in transcript_cues(transcript)}
+    try:
+        return {
+            value.candidate_id: (
+                cue_map[value.start_cue_id].start_ms,
+                cue_map[value.end_cue_id].end_ms,
+            )
+            for value in reviews
+        }
+    except KeyError as exc:
+        raise ValueError("Global Review references an unknown cue") from exc
+
+
 def _duplicate_representative(
     candidate_id: str, review_map: Mapping[str, GlobalReviewItem]
 ) -> str | None:
@@ -1015,25 +1165,67 @@ def _duplicate_representative(
         current = following
 
 
+class AuditPairRuleError(ValueError):
+    """The only Global Audit failures left are deterministic audit-pair rules.
+
+    Raised only after every other audit check passed, so a caller can tell these
+    (eligible for the downgrade-only audit fallback) from any other failure.
+    """
+
+    def __init__(self, violations: tuple[AuditPairViolation, ...]) -> None:
+        self.violations = violations
+        messages = []
+        for value in violations[:20]:
+            pair = f"{value.outer_candidate_id}/{value.inner_candidate_id}"
+            if value.rule == AuditPairRule.NEAR_IDENTICAL_PAIR:
+                messages.append(
+                    f"Global Audit near-identical pair {pair} cannot keep both candidates "
+                    "selected or manual_review; keep one representative"
+                )
+            elif value.rule == AuditPairRule.OVERLAP_REPRESENTATIVE:
+                messages.append(
+                    f"Global Audit overlap duplicate {pair} must keep a selected or "
+                    "manual_review representative"
+                )
+            else:
+                messages.append(
+                    f"Global Audit duplicate {pair} resolves to a representative with "
+                    "persisted Discovery gated flags, which Python will block; choose a "
+                    "representative without persisted flags"
+                )
+        super().__init__("; ".join(messages))
+
+    @property
+    def near_identical(self) -> tuple[AuditPairViolation, ...]:
+        return tuple(v for v in self.violations if v.rule == AuditPairRule.NEAR_IDENTICAL_PAIR)
+
+
 def validate_audit_pair_decisions(
     pairs: Sequence[AuditCandidatePair],
     decisions: Sequence[NestedPairDecision],
     merged_review: ProfileGlobalReviewOutput,
+    *,
+    persisted_flag_ids: Collection[str] = frozenset(),
 ) -> None:
-    """Require one consistent audit decision for every listed nested or overlap pair.
+    """Require one consistent audit decision for every listed pair.
 
     Every pair uses the ``validate_nested_pair_decisions`` semantics (exact
     coverage, direct or shared-representative duplicates, ``distinct_objective``
-    without a direct reference).  Overlap pairs add two deterministic rules:
+    without a direct reference); those failures raise a plain ``ValueError``
+    first.  Then the deterministic rules below are collected into one
+    ``AuditPairRuleError``:
 
-    * a ``duplicate`` decision must leave the resolved representative of each
-      removed member ``selected`` or ``manual_review``, so deduplication never
-      deletes the last retained version of that media;
-    * a ``near_identical`` pair may not leave both members ``selected`` or
-      ``manual_review``.  Whether a free-text reason really names a distinct
-      objective cannot be checked deterministically, so near-identical media is
-      never kept twice; the audit keeps one representative (or rejects/blocks a
-      member on its own merits).
+    * ``near_identical`` pairs (overlap or containment) may not leave both
+      members ``selected`` or ``manual_review``.  Whether a free-text reason
+      really names a distinct objective cannot be checked deterministically, so
+      near-identical media is never kept twice;
+    * a ``duplicate`` decision on an overlap or containment pair must leave the
+      resolved representative of each removed member ``selected`` or
+      ``manual_review``, so deduplication never deletes the last retained version;
+    * (Stage 13b) a ``duplicate`` decision on any pair may not resolve to a
+      representative in ``persisted_flag_ids`` (Discovery gated flags that will
+      persist into final routing), because Python will block that representative
+      and its duplicates would be lost with it.
     """
 
     validate_nested_pair_decisions(
@@ -1043,19 +1235,21 @@ def validate_audit_pair_decisions(
     )
     review_map = {value.candidate_id: value for value in merged_review.reviews}
     retained = {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}
+    persisted = frozenset(persisted_flag_ids)
     decision_map = {
         frozenset((value.outer_candidate_id, value.inner_candidate_id)): value
         for value in decisions
     }
+    violations: list[AuditPairViolation] = []
     for pair in pairs:
-        if pair.pair_kind != AuditPairKind.OVERLAP:
-            continue
         members = [review_map[candidate_id] for candidate_id in sorted(pair.members)]
+        identity = {
+            "outer_candidate_id": pair.outer_candidate_id,
+            "inner_candidate_id": pair.inner_candidate_id,
+        }
         if pair.near_identical and all(value.review_status in retained for value in members):
-            raise ValueError(
-                "Global Audit near-identical overlap pair "
-                f"{pair.outer_candidate_id}/{pair.inner_candidate_id} cannot keep both "
-                "candidates selected or manual_review; keep one representative"
+            violations.append(
+                AuditPairViolation(rule=AuditPairRule.NEAR_IDENTICAL_PAIR, **identity)
             )
         if decision_map[pair.members].decision != NestedPairDecisionKind.DUPLICATE:
             continue
@@ -1063,16 +1257,107 @@ def validate_audit_pair_decisions(
             if value.review_status in retained or value.duplicate_of_candidate_id is None:
                 continue
             representative = _duplicate_representative(value.candidate_id, review_map)
-            if (
+            if pair.pair_kind != AuditPairKind.NESTED and (
                 representative is None
                 or representative == value.candidate_id
                 or review_map[representative].review_status not in retained
             ):
-                raise ValueError(
-                    "Global Audit overlap duplicate "
-                    f"{pair.outer_candidate_id}/{pair.inner_candidate_id} must keep a "
-                    "selected or manual_review representative"
+                violations.append(
+                    AuditPairViolation(
+                        rule=AuditPairRule.OVERLAP_REPRESENTATIVE,
+                        duplicate_candidate_id=value.candidate_id,
+                        **identity,
+                    )
                 )
+            elif representative is not None and representative in persisted:
+                violations.append(
+                    AuditPairViolation(
+                        rule=AuditPairRule.PERSISTED_FLAG_REPRESENTATIVE,
+                        duplicate_candidate_id=value.candidate_id,
+                        **identity,
+                    )
+                )
+    if violations:
+        raise AuditPairRuleError(tuple(violations))
+
+
+def plan_audit_pair_fallback(
+    error: AuditPairRuleError,
+    merged_review: ProfileGlobalReviewOutput,
+    transcript: TranscriptDocument,
+    *,
+    persisted_flag_ids: Collection[str] = frozenset(),
+) -> tuple[tuple[str, tuple[str, str]], ...]:
+    """Choose which members to block for violating near-identical pairs.
+
+    Downgrade-only and coverage-preserving: members of violating pairs are
+    visited in keep order (no persisted Discovery gated flag first, because final
+    routing would block such a member anyway; then shorter duration, earlier
+    start, smaller ID); a visited member that is not yet blocked is kept and every
+    violating partner not yet decided is blocked.  So each blocked member is the
+    longer member (ties: later start, then lexicographically larger ID) of a pair
+    whose other member stays retained, unless the shorter member carries
+    persisted flags; and the fallback never removes the only retained member
+    covering an interval, since every blocked member has a kept near-identical
+    partner.  (In a chain A > B > C where C blocks B, the pair A/B is already
+    resolved by B's block, so A, whose only near-identical partner is now
+    blocked, is kept.)  Returns ``(blocked_id, (outer_id, inner_id))`` pairs.
+    """
+
+    review_map = {value.candidate_id: value for value in merged_review.reviews}
+    partners: dict[str, dict[str, tuple[str, str]]] = {}
+    for value in error.near_identical:
+        pair = (value.outer_candidate_id, value.inner_candidate_id)
+        partners.setdefault(pair[0], {})[pair[1]] = pair
+        partners.setdefault(pair[1], {})[pair[0]] = pair
+    spans = candidate_spans_ms((review_map[key] for key in partners), transcript)
+    persisted = frozenset(persisted_flag_ids)
+    order = sorted(
+        partners,
+        key=lambda key: (key in persisted, spans[key][1] - spans[key][0], spans[key][0], key),
+    )
+    kept: set[str] = set()
+    blocked: dict[str, tuple[str, str]] = {}
+    for candidate_id in order:
+        if candidate_id in blocked:
+            continue
+        kept.add(candidate_id)
+        for partner, pair in sorted(partners[candidate_id].items()):
+            if partner not in kept and partner not in blocked:
+                blocked[partner] = pair
+    return tuple(sorted(blocked.items()))
+
+
+def apply_audit_pair_blocks(
+    output: ProfileGlobalAuditOutput,
+    initial_review: ProfileGlobalReviewOutput,
+    blocked_ids: Collection[str],
+) -> ProfileGlobalAuditOutput:
+    """Downgrade the listed retained candidates to ``blocked`` in the audit output."""
+
+    targets = frozenset(blocked_ids)
+    replacement_map = {value.candidate_id: value for value in output.replacements}
+    updated = list(output.replacements)
+    for item in initial_review.reviews:
+        if item.candidate_id not in targets:
+            continue
+        base = replacement_map.get(item.candidate_id, item)
+        if base.review_status not in {
+            CandidateDisposition.SELECTED,
+            CandidateDisposition.MANUAL_REVIEW,
+        }:
+            raise ValueError("audit fallback may block only a retained candidate")
+        blocked = base.model_copy(
+            update={
+                "review_status": CandidateDisposition.BLOCKED,
+                "review_reason": f"{AUDIT_FALLBACK_REASON_PREFIX}{base.review_reason}"[:800],
+            }
+        )
+        if item.candidate_id in replacement_map:
+            updated = [blocked if v.candidate_id == item.candidate_id else v for v in updated]
+        else:
+            updated.append(blocked)
+    return output.model_copy(update={"replacements": tuple(updated)})
 
 
 def validate_nested_pair_decisions(
@@ -1503,6 +1788,7 @@ def assert_no_cross_profile_dedup(results: Iterable[FinalProfileResult]) -> None
 
 
 __all__ = [
+    "AUDIT_FALLBACK_REASON_PREFIX",
     "AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION",
     "AUDIT_OVERLAP_MIN_SHORTER_FRACTION",
     "AUDIT_SAME_END_TOLERANCE_MS",
@@ -1514,7 +1800,11 @@ __all__ = [
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
     "AuditCandidatePair",
+    "AuditPairFallback",
     "AuditPairKind",
+    "AuditPairRule",
+    "AuditPairRuleError",
+    "AuditPairViolation",
     "BoundaryOpeningFallback",
     "BoundaryOpeningInvariantError",
     "BoundaryReviewItem",
@@ -1541,14 +1831,17 @@ __all__ = [
     "RawProfileCandidate",
     "StaleCacheResolution",
     "VariantLinkItem",
+    "apply_audit_pair_blocks",
     "apply_boundary_opening_fallback",
     "apply_cross_profile_variant_links",
     "assemble_final_profile_result",
     "assert_no_cross_profile_dedup",
     "audit_candidate_pairs",
     "boundary_shrank_interval",
+    "candidate_spans_ms",
     "discovery_persisted_flags",
     "nested_candidate_pairs",
+    "plan_audit_pair_fallback",
     "plan_profile_discovery_windows",
     "profile_statistics",
     "semantic_cache_key",

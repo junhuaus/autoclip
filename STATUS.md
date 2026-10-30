@@ -18,6 +18,141 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+
+- **Status: implemented, pending independent tester and reviewer; real run
+  pending** on local branch `claude/liveclip-stage8-routing` (code commit
+  after the docs commit that accepted Stages 12c and 13 at `b5da41c`). Not
+  pushed or merged.
+- Origin: the Stage 13 reviewer P2s and the binding user decision on
+  near-copy containment (2026-10-30). Everything lands before the real run.
+  The Global Audit prompt hash already changed in Stage 13, so there is no
+  extra cache cost.
+- P2-1, the audit knows about persisted flags:
+  - Problem: a representative that Fix 1 later blocks took its duplicates
+    with it in every replay (cold-27 lost 5 rows, warm-28 3, warm-26 9).
+  - Payload: each audit candidate (audit payload only; the Global Review
+    payloads are unchanged) carries `persisted_discovery_gated_flags`. It is
+    computed with `discovery_persisted_flags`, the same function Fix 1
+    routing uses, so the two cannot drift.
+  - Prompt: `global_audit.md` gains one general sentence. A candidate with
+    persisted gated flags will be blocked, so it must never be chosen as a
+    duplicate representative or kept as the retained member of a pair.
+  - Validator: a `duplicate` decision on any listed pair whose resolved
+    representative carries persisted gated flags fails with rule
+    `persisted_flag_representative` and goes to repair.
+- P2-2, deterministic Global Audit fallback (`AuditPairRuleError`,
+  `plan_audit_pair_fallback`, `apply_audit_pair_blocks`):
+  - When it applies: the pair rules (near-identical, overlap
+    representative, persisted-flag representative) raise one structured
+    error, and only after every other audit check passed. When, after
+    repair and regeneration, these are the only failures left, a
+    downgrade-only fallback runs instead of aborting.
+  - Near-identical rule: each violating pair is resolved by blocking its
+    longer member (ties: later start, then the lexicographically larger
+    ID), with the reason prefix "Deterministic audit fallback: ".
+  - Coverage guarantee: members are visited in keep order and a kept member
+    blocks its still-undecided violating partners, so every blocked member
+    has a near-identical partner that stays retained. The fallback never
+    removes the only retained member covering an interval.
+  - Deviation 1 (persisted flags): a member with persisted gated flags is
+    kept last, because final routing would block it anyway.
+  - Deviation 2 (chains): in a chain A > B > C, C blocks B; the pair A/B is
+    then already resolved, so A, whose only partner is now blocked, stays
+    retained.
+  - Deviation 3 (representative rules): these violations cannot be fixed
+    without promoting a candidate. The fallback accepts the model's
+    duplicate unchanged and records it. It never promotes, and it never
+    turns a rejected row into blocked.
+  - Any other failure still raises, as does a near-identical violation the
+    blocks do not resolve.
+  - Manifest: every action is recorded in `audit_pair_fallbacks`
+    (`AuditPairFallback`: profile, rule, pair IDs, `blocked_candidate_id`
+    or `duplicate_candidate_id`). Earlier manifests load with an empty
+    tuple.
+  - Cross-checks, as in Stage 12c: shape per rule; unique actions and
+    blocked IDs; a kept member is never blocked by another record; IDs
+    belong to the run; a blocked member ends `blocked` with the fallback
+    prefix; an accepted duplicate never becomes an output.
+  - Cache: as for the Stage 12c Boundary Review fallback, the cache keeps
+    the raw audit output plus a verified `conservative_fallback` marker
+    (stage and affected IDs). A warm hit re-applies the fallback and
+    re-records it; a tampered marker fails closed.
+  - The fallback protocol is now generic: the stage fallback returns the
+    validated output, the marker IDs and the manifest records. The Boundary
+    Review fallback was moved onto it without any behavior change.
+- P2-3, near-copy containment (binding user decision):
+  - A containment pair (strictly inside, no shared edge cue) is listed as
+    `pair_kind: containment`, always `near_identical: true`, only when it
+    is a near-copy: the inner duration is at least 9/10 of the outer, or the
+    ends or the starts are within `AUDIT_SAME_END_TOLERANCE_MS` (short
+    3000, mini 5000).
+  - Other containment stays unlisted, which protects a full lesson with a
+    sub-clip inside it.
+  - The near-identical and representative rules apply to containment pairs
+    as to overlap pairs.
+- P3 wording:
+  - `global_audit.md` no longer says "end at the same point". It refers to
+    the precomputed `near_identical` field (ends, or for containment
+    starts, within the boundary tolerance, or ≥90% of the shorter).
+  - The Stage 13 "byte-identical payload" wording is corrected above.
+- Prompt hashes:
+  - Global Audit: short `48d61543a335…` → `bb9d2e6ad6382f7fac8293a718ffb189465d3a84e5dee7759579d57b8b936d71`;
+    mini `1c710835f281…` → `4c8313b0d62b649f6e45c51d0e4cfdce4c240fe6e0cceac08e470992a9348934`.
+    Relative to warm-28's cached audits (`746b625e589b…`, `cb115e030631…`),
+    the audits still simply miss.
+  - Unchanged: the Discovery family, Boundary Review (`3119f245c2cd`,
+    `62fedbec56dc`), Global Review (`1faa9412f673`, `aea87440f0ab`) and
+    variant link (`def25b05bd98`).
+- Offline evidence (sentinel provider on a scratchpad `cp -Rp` copy of the
+  warm-28 cache; nothing written under `data/`):
+  - Calls: 230 hits and exactly **3** model calls (Global Audit short,
+    Global Audit mini, variant link), with no fail-closed error. Discovery,
+    Boundary Review and Global Review all hit. With a sentinel that allows
+    nothing, the first call is the short audit. A real rerun therefore
+    needs 3 calls plus any repairs.
+  - Pairs in the new audit payloads:
+
+    | Profile | nested | overlap | containment near-copy | near_identical |
+    |---|---|---|---|---|
+    | short | 4 | 2 | 0 | 0 |
+    | mini | 44 | 13 | 2 | 5 (3 overlap + 2 containment) |
+
+  - The two reviewer-identified containment pairs are now listed:
+    `audit_6246760_age_decline_recovery_chain` ⊃ `ml0021_decline_lowfirst_core`
+    and ⊃ `risk_age_decline_permanent_damage_2975_3066`.
+  - The L02 match `ml0006_steps1to4_through_transition` appears only in its
+    two existing nested pairs. Its containment of
+    `audit_ml0006_step3_strongmix_vs_falsetto_contrast` stays unlisted.
+  - Persisted flags: short 32 of 89 audit candidates (5 of them retained in
+    the initial review); mini 55 of 116 (4 retained).
+- Tests (mock/fixture only):
+  - Unit:
+    - near-copy containment boundaries: exactly 9/10 listed and 179/200
+      not; ends 5/6 s; starts 5/6 s; a 0.34 sub-clip with distant edges
+      stays unlisted; short tolerance 3/4 s;
+    - shared-edge containment stays nested;
+    - the persisted-flag representative rule;
+    - pair-rule errors are raised only after every other check;
+    - fallback block choice and ties, the chain and persisted-flag keep
+      order, and downgrade-only blocks;
+    - manifest `audit_pair_fallbacks` cross-checks.
+  - Integration:
+    - the audit-only persisted-flag payload field;
+    - a persisted-flag representative repaired;
+    - the near-identical fallback cold → warm round trip with refresh off
+      and on (final output and manifest record reproduced with 0 calls,
+      cache untouched, raw output plus marker);
+    - representative-only violations accepted and recorded without
+      promotion;
+    - other failures still raise;
+    - a tampered audit marker fails closed;
+    - prompt wording checks.
+- `docs/PRODUCT_SPEC.md`: Stage 13b amendment.
+- Unchanged: Discovery, Boundary Review and Global Review prompts, cache-key
+  derivation, `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark JSON/MD,
+  evaluator thresholds, guard patterns, frozen `tools/loop_engineering`.
+
 ## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30) — ACCEPTED at b5da41c; REAL RUN PENDING
 
 - **Status: ACCEPTED** (2026-10-30) at
@@ -65,9 +200,11 @@
     persisted flags; (3) Profile-local Top-N over rows still `selected`,
     so a persisted-flag row never takes a slot; (4) risk-record routing and
     the manual-review quality gate.
-  - Applied at final assembly only, so the Global Review and Global Audit
-    request payloads (built from the Discovery candidates, the Boundary
-    Review output and the model's Global Review) are byte-identical.
+  - Applied at final assembly only, so persistence itself changes no
+    request payload: the Global Review payloads are byte-identical, and the
+    Global Audit payload changed only through Fix 2 (the pair list key was
+    renamed from `nested_pairs` to `audit_pairs`). (Wording corrected by
+    Stage 13b; it first said both payloads were byte-identical.)
   - `DUAL_PROFILE_ROUTING_POLICY_VERSION` is now
     `quality-gate-risk-routing-v4`; v1–v3 and unmarked artifacts still load.
 - **Fix 2, overlap adjudication** (`audit_candidate_pairs`,

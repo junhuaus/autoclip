@@ -1706,8 +1706,10 @@ class OverlapPairProvider(ScriptedDualProvider):
         first_audit: str,
         repair_audit: str,
         prompt_sha256: str | None = None,
+        flag_lesson: bool = False,
     ) -> None:
         super().__init__(prompt, counter)
+        self.flag_lesson = flag_lesson
         self.overlap_start = overlap_start
         self.first_audit = first_audit
         self.repair_audit = repair_audit
@@ -1726,15 +1728,30 @@ class OverlapPairProvider(ScriptedDualProvider):
             json.dumps(payload["initial_global_review"])
         )
         replacements: tuple[GlobalReviewItem, ...] = ()
+        by_id = {value.candidate_id: value for value in initial.reviews}
+
+        def duplicate(removed: str, representative: str) -> GlobalReviewItem:
+            return by_id[removed].model_copy(
+                update={
+                    "review_status": CandidateDisposition.REJECTED,
+                    "duplicate_of_candidate_id": representative,
+                    "score": 60.0,
+                    "review_reason": "Same objective; keep one representative.",
+                }
+            )
+
         if mode == "duplicate":
-            lesson = next(v for v in initial.reviews if v.candidate_id == "mini_lesson_lesson")
+            replacements = (duplicate("mini_lesson_lesson", "mini_overlap"),)
+        elif mode == "keep_lesson":
+            replacements = (duplicate("mini_overlap", "mini_lesson_lesson"),)
+        elif mode == "dup_blocked_rep":
             replacements = (
-                lesson.model_copy(
+                duplicate("mini_lesson_lesson", "mini_overlap"),
+                by_id["mini_overlap"].model_copy(
                     update={
-                        "review_status": CandidateDisposition.REJECTED,
-                        "duplicate_of_candidate_id": "mini_overlap",
+                        "review_status": CandidateDisposition.BLOCKED,
                         "score": 60.0,
-                        "review_reason": "Same objective; keep one representative.",
+                        "review_reason": "Blocked on its own merits.",
                     }
                 ),
             )
@@ -1747,7 +1764,7 @@ class OverlapPairProvider(ScriptedDualProvider):
                     inner_candidate_id=str(pair["inner_candidate_id"]),
                     decision=(
                         NestedPairDecisionKind.DUPLICATE
-                        if mode == "duplicate"
+                        if mode in {"duplicate", "keep_lesson", "dup_blocked_rep"}
                         else NestedPairDecisionKind.DISTINCT_OBJECTIVE
                     ),
                     reason="Decided on content.",
@@ -1775,6 +1792,17 @@ class OverlapPairProvider(ScriptedDualProvider):
         ):
             discovery = cast(ProfileDiscoveryOutput, output)
             if discovery.candidates:
+                if self.flag_lesson:
+                    discovery = discovery.model_copy(
+                        update={
+                            "candidates": tuple(
+                                value.model_copy(
+                                    update={"quality_flags": (DualQualityFlag.TOPIC_SWITCH_INSIDE,)}
+                                )
+                                for value in discovery.candidates
+                            )
+                        }
+                    )
                 end = self.overlap_start + 10
                 overlap = discovery.candidates[0].model_copy(
                     update={
@@ -1782,6 +1810,7 @@ class OverlapPairProvider(ScriptedDualProvider):
                         "start_cue_id": self.overlap_start,
                         "end_cue_id": end,
                         "evidence_cue_ids": (self.overlap_start, end),
+                        "quality_flags": (),
                     }
                 )
                 return cast(
@@ -1825,6 +1854,9 @@ def _overlap_run(
     cache: Path | None = None,
     audit_prompt_overrides: dict[str, str] | None = None,
     counter: dict[str, int] | None = None,
+    flag_lesson: bool = False,
+    refresh_stale_cache: bool = False,
+    no_calls: bool = False,
 ) -> tuple[list[OverlapPairProvider], DualProfileFinalResult]:
     transcript = tmp_path / "transcript.srt"
     if not transcript.exists():
@@ -1842,8 +1874,11 @@ def _overlap_run(
             first_audit=first_audit,
             repair_audit=repair_audit,
             prompt_sha256=override,
+            flag_lesson=flag_lesson,
         )
         providers.append(provider)
+        if no_calls:
+            return NoCallProvider(prompt, {})
         return provider
 
     run_dual_profile_evaluation(
@@ -1852,6 +1887,7 @@ def _overlap_run(
         provider_factory=factory,
         cache_dir=cache,
         discovery_concurrency=1,
+        refresh_stale_cache=refresh_stale_cache,
     )
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / name / "final-validated.json").read_text(encoding="utf-8")
@@ -1975,8 +2011,11 @@ def test_old_contract_audit_under_the_current_identity_fails_closed(
         patch.setattr(
             service,
             "validate_audit_pair_decisions",
-            lambda pairs, decisions, merged: full(
-                tuple(pair for pair in pairs if pair.pair_kind == "nested"), decisions, merged
+            lambda pairs, decisions, merged, **kwargs: full(
+                tuple(pair for pair in pairs if pair.pair_kind == "nested"),
+                decisions,
+                merged,
+                **kwargs,
             ),
         )
         _overlap_run(
@@ -1998,6 +2037,158 @@ def test_old_contract_audit_under_the_current_identity_fails_closed(
             cache=cache,
         )
     assert {path: path.read_bytes() for path in planted} == planted
+
+
+def _manifest(tmp_path: Path, name: str) -> DualProfileRunManifest:
+    return DualProfileRunManifest.model_validate_json(
+        (tmp_path / name / "run-manifest.json").read_text(encoding="utf-8")
+    )
+
+
+def test_audit_payload_lists_persisted_discovery_flags_only_for_the_audit(
+    tmp_path: Path,
+) -> None:
+    providers, _ = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="duplicate",
+        repair_audit="duplicate",
+        flag_lesson=True,
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    flags = {
+        cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+            "persisted_discovery_gated_flags"
+        ]
+        for entry in cast(list[dict[str, object]], payload["candidates"])
+    }
+    assert flags == {"mini_lesson_lesson": ["topic_switch_inside"], "mini_overlap": []}
+
+
+def test_audit_may_not_keep_a_representative_that_persisted_flags_will_block(
+    tmp_path: Path,
+) -> None:
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="keep_lesson",
+        repair_audit="duplicate",
+        flag_lesson=True,
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "persisted Discovery gated flags" in errors[0]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_overlap"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_near_identical_audit_fallback_blocks_one_member_and_round_trips(
+    tmp_path: Path, refresh: bool
+) -> None:
+    cache = tmp_path / "cache"
+    # The audit insists on keeping both near-identical members (initial, repair and
+    # regeneration alike); the downgrade-only fallback lets the run finish.
+    providers, cold_final = _overlap_run(
+        tmp_path,
+        "cold",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    cold = _manifest(tmp_path, "cold")
+    (record,) = cold.audit_pair_fallbacks
+    # Both span 110 s; the later-starting member is blocked, the other is kept.
+    assert (record.rule, record.blocked_candidate_id) == ("near_identical_pair", "mini_overlap")
+    mini = cold_final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    (blocked,) = mini.blocked
+    assert blocked.review_reason.startswith("Deterministic audit fallback: ")
+    (entry_path,) = cache.glob("mini_lesson/global_audit/*.json")
+    entry = json.loads(entry_path.read_text(encoding="utf-8"))
+    assert entry["conservative_fallback"] == {
+        "stage": "global_audit",
+        "candidate_ids": ["mini_overlap"],
+    }
+    # The cache keeps the raw model output (no block in it).
+    assert entry["output"]["replacements"] == []
+    before = {path: path.read_bytes() for path in cache.glob("*/*/*.json")}
+
+    _overlap_run(
+        tmp_path,
+        "warm",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+        refresh_stale_cache=refresh,
+        no_calls=True,
+    )
+    warm = _manifest(tmp_path, "warm")
+    assert set(warm.calls.values()) == {0}
+    assert warm.audit_pair_fallbacks == cold.audit_pair_fallbacks
+    for name in ("final-validated.json", "global-review.json"):
+        assert (tmp_path / "warm" / name).read_bytes() == (tmp_path / "cold" / name).read_bytes()
+    assert {path: path.read_bytes() for path in cache.glob("*/*/*.json")} == before
+
+
+def test_representative_rule_fallback_accepts_and_records_without_promoting(
+    tmp_path: Path,
+) -> None:
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="dup_blocked_rep",
+        repair_audit="dup_blocked_rep",
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    (record,) = _manifest(tmp_path, "run").audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id, record.blocked_candidate_id) == (
+        "overlap_representative",
+        "mini_lesson_lesson",
+        None,
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == ()
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert [value.candidate_id for value in mini.blocked] == ["mini_overlap"]
+
+
+def test_audit_fallback_never_masks_another_failure(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        _overlap_run(tmp_path, "run", overlap_start=2, first_audit="omit", repair_audit="omit")
+
+
+def test_tampered_audit_fallback_marker_fails_closed(tmp_path: Path) -> None:
+    cache = tmp_path / "cache"
+    _overlap_run(
+        tmp_path,
+        "cold",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+    )
+    (entry_path,) = cache.glob("mini_lesson/global_audit/*.json")
+    entry = json.loads(entry_path.read_text(encoding="utf-8"))
+    entry["conservative_fallback"]["candidate_ids"] = ["mini_lesson_lesson"]
+    entry_path.chmod(0o600)
+    entry_path.write_text(json.dumps(entry), encoding="utf-8")
+    with pytest.raises(ValueError, match="fallback marker is invalid"):
+        _overlap_run(
+            tmp_path,
+            "warm",
+            overlap_start=2,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+            no_calls=True,
+        )
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
@@ -2100,6 +2291,12 @@ def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> Non
         assert "`overlap`: neither contains the other" in audit
         assert "do not keep both `selected`/`manual_review`" in audit
         assert "keep the shortest independently complete version" in audit
+        # Stage 13b: near-copy containment, the precomputed field and persisted flags.
+        assert "`containment`: one lies strictly inside the other" in audit
+        assert "precomputed `near_identical` field" in audit
+        assert "the two end at the same point" not in audit
+        assert "`persisted_discovery_gated_flags`" in audit
+        assert "never choose it as a duplicate representative" in audit
 
 
 def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:

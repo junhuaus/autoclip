@@ -90,23 +90,30 @@ or make it `manual_review` and state the disagreement in `review_reason`; do not
 the flag exists.
 
 Listed pairs. The payload's `audit_pairs` lists, from the initial review, same-Profile pairs of
-`selected`/`manual_review` candidates in two kinds (`pair_kind`):
+`selected`/`manual_review` candidates in three kinds (`pair_kind`):
 
 - `nested`: the two share a start or end cue so that one contains the other (`outer_candidate_id` is
   the containing candidate);
 - `overlap`: neither contains the other, but they share at least half of the shorter candidate's
-  duration (`outer_candidate_id` is the earlier-starting candidate).
+  duration (`outer_candidate_id` is the earlier-starting candidate);
+- `containment`: one lies strictly inside the other and is a near-copy of it (`outer_candidate_id` is
+  the containing candidate).
 
-Return `nested_pair_decisions` with exactly one entry for each listed pair of either kind and no other
+Return `nested_pair_decisions` with exactly one entry for each listed pair of any kind and no other
 entries; return an empty array when `audit_pairs` is empty. Decide each pair on its content:
 containment, a shared edge or overlap alone never establishes duplication. Python re-lists pairs after
 applying your replacements, so also decide every pair your replacements create (for example by
 promoting a candidate).
 
-An `overlap` pair marked `near_identical` (the two end at the same point, or share at least 90% of the
-shorter candidate) is nearly the same media: do not keep both `selected`/`manual_review`. Decide
-`duplicate` and keep one representative, unless you reject or block a member on its own merits. When
-an `overlap` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
+A pair whose precomputed `near_identical` field is true (Python sets it when the two end, or for a
+`containment` pair start, within the boundary tolerance, or share at least 90% of the shorter
+candidate) is nearly the same media: do not keep both `selected`/`manual_review`. Decide `duplicate`
+and keep one representative, unless you reject or block a member on its own merits. When an `overlap`
+or `containment` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
+
+Each candidate's `persisted_discovery_gated_flags` lists gated flags that Python will keep in final
+routing, so a candidate with any of them will be blocked: never choose it as a duplicate
+representative or keep it as the retained member of a pair.
 
 When overlapping or nested versions serve the same objective, keep the shortest independently complete
 version. Material that only one version adds beyond the shared objective (chat, waiting, equipment or

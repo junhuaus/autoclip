@@ -562,3 +562,21 @@ byte-identical. P2s become Stage 13b. P3s: a 1-cue trim on either edge
 clears every Discovery gated flag, including end-edge flags (R01 record
 1881 → 1882; user told); a stale marked fallback entry cannot be refreshed
 under `--refresh-stale-cache` (deliberate). Real run still pending.
+
+## Stage 13b implemented, pending verification; real run pending (2026-10-30)
+
+Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
+that accepted Stages 12c and 13. Reviewer P2s: audit candidates carry
+their persisted Discovery gated flags (same function as routing) and a
+duplicate may not resolve to such a representative; a downgrade-only
+Global Audit fallback (only when the deterministic pair rules are the sole
+failures after repair and regeneration) blocks the longer member of each
+near-identical pair while keeping a retained partner, accepts
+representative-rule violations unchanged, records everything in
+`audit_pair_fallbacks` and round-trips through the cache marker; near-copy
+containment pairs are listed as near-identical. Only `global_audit.md`
+changed; a warm-28 cache-copy replay still needs exactly 3 calls. Details
+in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 13b SHA; a real run only
+with the user's go-ahead. Not pushed.

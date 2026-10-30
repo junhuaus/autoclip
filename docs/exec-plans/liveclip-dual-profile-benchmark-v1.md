@@ -78,7 +78,8 @@ imported by production modules.
 - [x] 2026-10-30 Stage 12c implemented (first recorded as pending independent tester and reviewer; ACCEPTED with code `4a30497` verified at the tip `b5da41c` together with Stage 13): Boundary Review opening-fallback entries cache the raw model output plus a verified `conservative_fallback` marker, so a warm hit re-applies the deterministic fallback and reproduces the manifest record; manifest cross-checks for fallback records and stale resolutions; `reused=True` recorded only after the identity check; untrusted-cache tests in both refresh modes. No cache-key or prompt change (a warm-28 cache copy still replays with 0 calls; evidence in `STATUS.md`).
 - [x] 2026-10-30 Stage 13 implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `b5da41c7a60dec2f8e05417e64505cafe7dd5547` the same day: tester PASS, lint rc 0, backend 2953 passed in 1632.59 s, vitest 14/80, e2e 4, targeted 222, no sleep 14:04–14:37; reviewer ACCEPT, no P0/P1, 16/16 mutants killed, post-hoc cold-27 PASS 95.0 and warm-26 PASS 97.5 unchanged with no hits lost, Fix-1-only replay 93.0 offline = 95.0 with real tokens; P2s for Stage 13b; P3s: a 1-cue trim on either edge clears every Discovery gated flag including end-edge flags such as `topic_not_closed`, R01 record 1881 → 1882, user told; a stale marked fallback entry cannot be refreshed under `--refresh-stale-cache`, deliberate); real run pending: Fix 1 Discovery gated-flag persistence at final assembly (unless Boundary Review shrank an edge; routing policy `quality-gate-risk-routing-v4`; order validation → persistence → twin union → Top-N → risk routing/quality gate); Fix 2 Global Audit overlap pairs (≥1/2 of the shorter, non-containing; near-identical pairs may not keep both retained; overlap duplicates keep a retained representative). Only the Global Audit prompt changed. Offline replays of a warm-28 cache copy: Fix 1 alone needs only the variant-link call and gives strict FAIL 93.0 offline with every hit kept and the N07 negative-anchor output blocked; final code needs exactly 3 calls (2 audits, 1 variant link). Evidence in `STATUS.md`.
 - [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent tester and reviewer for Stages 12c and 13.
-- [ ] Next: Stage 13b (reviewer P2s: audit awareness of persisted flags, deterministic audit fallback, near-copy containment pairs), then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
+- [x] 2026-10-30 Stage 13b implemented, pending independent tester and reviewer; real run pending: audit candidates carry the persisted Discovery gated flags (same function as routing) and a duplicate may not resolve to such a representative; a downgrade-only Global Audit fallback (after repair and regeneration, only when the deterministic pair rules are the sole failures) blocks the longer member of each near-identical pair while keeping a retained partner and records every action in `audit_pair_fallbacks` (cached as raw output plus a verified marker); near-copy containment pairs (inner ≥ 9/10, or ends or starts within the tolerance) are listed as near-identical `containment` pairs. Only the Global Audit prompt changed; a warm-28 cache-copy replay still needs exactly 3 calls. Evidence in `STATUS.md`.
+- [ ] Next: independent tester and reviewer for Stage 13b, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -291,7 +292,9 @@ two deterministic report files.
   in the Recovery Notes and `STATUS.md`.
 - 2026-10-30 (Stage 13 implementation choices): persistence is applied at
   final assembly after the unchanged review-stage validation, so cached
-  Global Review/Audit outputs and their payloads are untouched; shrink means
+  outputs validate as before and persistence changes no payload (the audit
+  payload changed only through Fix 2's `audit_pairs` key; wording corrected
+  by Stage 13b); shrink means
   start cue later or end cue earlier. Overlap pairs exclude containment
   without a shared edge (the focused-lesson-inside-a-broader-lesson case
   stays allowed, as for nested pairs). "Unless the reason names the distinct
@@ -299,6 +302,15 @@ two deterministic report files.
   overlap pair (same end within 3 s short / 5 s mini, or ≥90% of the
   shorter) may never keep both members retained; overlap duplicates must
   keep a retained representative; nested semantics are unchanged.
+- 2026-10-30 (user, binding; Stage 13b): a containment pair (strictly inside,
+  no shared edge) is listed for the audit only as a near-copy (inner ≥ 9/10
+  of the outer, or ends or starts within the 3 s/5 s tolerance) and is then
+  near-identical; other containment stays unlisted to protect full lessons
+  with a sub-clip inside. Implementation choices: the audit fallback never
+  promotes and never moves rejected rows; representative-rule violations are
+  accepted and recorded because no downgrade can fix them; members with
+  persisted Discovery gated flags are kept last when choosing which
+  near-identical member to block.
 
 ## Risks and mitigations
 

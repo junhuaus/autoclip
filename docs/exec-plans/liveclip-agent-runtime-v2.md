@@ -1,5 +1,30 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30)
+
+- [x] 2026-10-30 Stage 13b implemented on `claude/liveclip-stage8-routing`
+  (Stage 13 reviewer P2s; binding user decision on near-copy containment),
+  **pending independent tester and reviewer; real run pending**. Not
+  pushed.
+  - P2-1: audit candidates carry `persisted_discovery_gated_flags` (same
+    function as Fix 1; audit payload only); one general prompt sentence; a
+    duplicate resolving to a persisted-flag representative is invalid.
+  - P2-2: after repair and regeneration, if only the deterministic pair
+    rules fail, a downgrade-only fallback blocks the longer member of each
+    near-identical pair (ties: later start, larger ID; persisted-flag
+    members kept last; every blocked member keeps a retained partner) and
+    accepts representative-rule violations unchanged; all recorded in
+    `audit_pair_fallbacks` with manifest cross-checks; cached as raw output
+    plus a verified marker, so warm reruns reproduce it.
+  - P2-3: near-copy containment pairs (inner ≥ 9/10 of outer, or ends or
+    starts within 3 s/5 s) are listed as `containment`, always
+    near-identical; other containment stays unlisted.
+  - Only `global_audit.md` changed (hashes in `STATUS.md`). Offline on a
+    warm-28 cache copy: exactly 3 calls; mini now lists 2 containment pairs
+    (the two reviewer-identified pairs); L02 stays protected.
+- [ ] Next: independent tester and reviewer on the Stage 13b SHA; a real
+  run only with the user's go-ahead.
+
 ## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
 
 - [x] 2026-10-30 Stage 13 implemented on `claude/liveclip-stage8-routing`
@@ -21,7 +46,9 @@
     rows that keep one become `blocked` ("Deterministic flag persistence: ").
     Order: validation (unchanged) → persistence → twin union → Top-N → risk
     routing / quality gate. Routing policy `quality-gate-risk-routing-v4`
-    (v1–v3 still load). Global Review/Audit payloads byte-identical.
+    (v1–v3 still load). Persistence changes no payload (Global Review
+    payloads byte-identical; the audit payload changed only through Fix 2's
+    `audit_pairs` key; wording corrected by Stage 13b).
   - Fix 2: the Global Audit also decides same-Profile overlap pairs (neither
     contains the other, overlap ≥ 1/2 of the shorter); payload `audit_pairs`
     with `pair_kind` and `near_identical`; near-identical pairs (same end
@@ -36,8 +63,10 @@
     item). Final code: exactly 3 calls (2 audits + variant link), 230 hits.
 - [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent
   tester and reviewer on the Stage 12c and Stage 13 SHAs.
-- [ ] Next: Stage 13b (reviewer P2s), then a real warm or cold run only
-  with the user's go-ahead.
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 13b section above.) Stage 13b (reviewer P2s).
+- [ ] Next: a real warm or cold run only with the user's go-ahead, after
+  Stage 13b is verified.
 
 ## Stage 12c fallback provenance and manifest cross-checks (2026-10-30)
 

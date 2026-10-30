@@ -42,6 +42,10 @@ from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     AuditCandidatePair,
+    AuditPairFallback,
+    AuditPairRule,
+    AuditPairRuleError,
+    AuditPairViolation,
     BoundaryOpeningFallback,
     BoundaryOpeningInvariantError,
     BoundaryReviewItem,
@@ -60,11 +64,14 @@ from liveclip.pipeline.dual_profile import (
     ProfileManifestStats,
     RawProfileCandidate,
     StaleCacheResolution,
+    apply_audit_pair_blocks,
     apply_boundary_opening_fallback,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
     audit_candidate_pairs,
+    discovery_persisted_flags,
+    plan_audit_pair_fallback,
     plan_profile_discovery_windows,
     semantic_cache_key,
     validate_audit_pair_decisions,
@@ -712,10 +719,11 @@ def run_dual_profile_evaluation(
                     risk_record_ids=current_risk_ids,
                 )
 
+            boundary_subject = f"{current_profile.value}.boundary.{chunk_index:03d}"
             response = _resolve_call(
                 resolution_audit=resolution_audit,
                 stage="boundary_review",
-                subject_id=f"{current_profile.value}.boundary.{chunk_index:03d}",
+                subject_id=boundary_subject,
                 payload=boundary_payload,
                 response_model=ProfileBoundaryReviewOutput,
                 provider=current_provider,
@@ -726,7 +734,9 @@ def run_dual_profile_evaluation(
                 cache_dir=cache_dir,
                 validate=validate_boundary_call,
                 cancel_requested=lambda: cancel_requested() or failure_event.is_set(),
-                conservative_fallback=_boundary_opening_fallback,
+                conservative_fallback=_boundary_opening_fallback(
+                    current_profile, boundary_subject, validate_boundary_call
+                ),
             )
             return chunk_index, response
 
@@ -916,6 +926,17 @@ def run_dual_profile_evaluation(
         prompt_hashes[f"{profile.value}.global_audit"] = global_audit_prompt.sha256
         initial_review_map = {value.candidate_id: value for value in global_review.reviews}
         audit_pairs = audit_candidate_pairs(global_review, transcript)
+        # Stage 13b: the Discovery gated flags that WILL persist into final routing
+        # (no Boundary Review shrink), computed by the same function the routing
+        # uses, so the audit's view and the final routing cannot drift.
+        boundary_by_id = {value.candidate_id: value for value in boundary.reviews}
+        persisted_by_id = {
+            candidate.candidate_id: discovery_persisted_flags(
+                candidate, boundary_by_id[candidate.candidate_id]
+            )
+            for candidate in raw_candidates
+        }
+        persisted_flag_ids = frozenset(key for key, flags in persisted_by_id.items() if flags)
 
         def validate_global_audit(
             value: ProfileGlobalAuditOutput,
@@ -923,6 +944,7 @@ def run_dual_profile_evaluation(
             current_initial_ids: frozenset[str] = frozenset(initial_review_map),
             current_global: ProfileGlobalReviewOutput = global_review,
             current_pairs: tuple[AuditCandidatePair, ...] = audit_pairs,
+            current_persisted: frozenset[str] = persisted_flag_ids,
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
@@ -931,12 +953,7 @@ def run_dual_profile_evaluation(
                 raise ValueError("Global Audit replacement candidate IDs are not unique")
             if not set(replacement_map) <= current_initial_ids:
                 raise ValueError("Global Audit references an unknown candidate")
-            merged = ProfileGlobalReviewOutput(
-                profile=current_profile,
-                reviews=tuple(
-                    replacement_map.get(item.candidate_id, item) for item in current_global.reviews
-                ),
-            )
+            merged = _merge_audit(value, current_global)
             validate_global(merged)
             # Pairs that the audit's own replacements create (for example by
             # promoting a candidate) must be decided as well. Cache hits are
@@ -954,8 +971,35 @@ def run_dual_profile_evaluation(
                     if pair.members not in listed
                 ),
             )
-            validate_audit_pair_decisions(required_pairs, value.nested_pair_decisions, merged)
+            # The deterministic pair rules raise AuditPairRuleError, and only after
+            # every other check passed, so the audit fallback can tell them apart.
+            validate_audit_pair_decisions(
+                required_pairs,
+                value.nested_pair_decisions,
+                merged,
+                persisted_flag_ids=current_persisted,
+            )
             return value
+
+        def audit_pair_fallback(
+            value: ProfileGlobalAuditOutput,
+            error: ValueError,
+            current_profile: ClipProfile = profile,
+            current_global: ProfileGlobalReviewOutput = global_review,
+            current_validate: Callable[
+                [ProfileGlobalAuditOutput], ProfileGlobalAuditOutput
+            ] = validate_global_audit,
+            current_persisted: frozenset[str] = persisted_flag_ids,
+        ) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
+            return _audit_pair_fallback(
+                value,
+                error,
+                current_profile,
+                current_global,
+                current_validate,
+                transcript,
+                current_persisted,
+            )
 
         global_audit_call = _resolve_call(
             resolution_audit=resolution_audit,
@@ -963,6 +1007,19 @@ def run_dual_profile_evaluation(
             subject_id=f"{profile.value}.global_audit",
             payload={
                 **global_payload,
+                # Audit payload only: the Global Review payloads stay unchanged.
+                "candidates": [
+                    {
+                        **entry,
+                        "persisted_discovery_gated_flags": [
+                            flag.value
+                            for flag in persisted_by_id[
+                                cast(dict[str, str], entry["candidate"])["candidate_id"]
+                            ]
+                        ],
+                    }
+                    for entry in cast(list[dict[str, object]], global_payload["candidates"])
+                ],
                 "initial_global_review": global_review.model_dump(mode="json"),
                 "audit_pairs": [pair.model_dump(mode="json") for pair in audit_pairs],
             },
@@ -975,6 +1032,7 @@ def run_dual_profile_evaluation(
             cache_dir=cache_dir,
             validate=validate_global_audit,
             cancel_requested=cancel_requested,
+            conservative_fallback=audit_pair_fallback,
         )
         global_audit = cast(ProfileGlobalAuditOutput, global_audit_call.output)
         replacement_map = {item.candidate_id: item for item in global_audit.replacements}
@@ -1093,6 +1151,7 @@ def run_dual_profile_evaluation(
         stale_cache_resolution_count=len(stale_resolutions),
         stale_cache_resolutions=stale_resolutions,
         boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
+        audit_pair_fallbacks=resolution_audit.audit_fallbacks(),
     )
     manifest.validate_against(final, boundaries=boundaries_by_profile)
     _write_json(
@@ -1342,6 +1401,7 @@ class _ResolutionAudit:
         self._lock = Lock()
         self._stale: list[StaleCacheResolution] = []
         self._fallbacks: list[BoundaryOpeningFallback] = []
+        self._audit_fallbacks: list[AuditPairFallback] = []
 
     def record_stale(
         self,
@@ -1366,15 +1426,15 @@ class _ResolutionAudit:
                 )
             )
 
-    def record_opening_fallback(
-        self, profile: ClipProfile, subject_id: str, candidate_ids: tuple[str, ...]
-    ) -> None:
+    def record_fallbacks(self, records: Sequence[BaseModel]) -> None:
         with self._lock:
-            self._fallbacks.append(
-                BoundaryOpeningFallback(
-                    profile=profile, subject_id=subject_id, candidate_ids=candidate_ids
-                )
-            )
+            for record in records:
+                if isinstance(record, BoundaryOpeningFallback):
+                    self._fallbacks.append(record)
+                elif isinstance(record, AuditPairFallback):
+                    self._audit_fallbacks.append(record)
+                else:
+                    raise TypeError("unknown conservative fallback record")
 
     def stale_resolutions(self) -> tuple[StaleCacheResolution, ...]:
         with self._lock:
@@ -1383,6 +1443,22 @@ class _ResolutionAudit:
     def opening_fallbacks(self) -> tuple[BoundaryOpeningFallback, ...]:
         with self._lock:
             return tuple(sorted(self._fallbacks, key=lambda v: (v.profile, v.subject_id)))
+
+    def audit_fallbacks(self) -> tuple[AuditPairFallback, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    self._audit_fallbacks,
+                    key=lambda v: (
+                        v.profile,
+                        v.rule,
+                        v.outer_candidate_id,
+                        v.inner_candidate_id,
+                        v.blocked_candidate_id or "",
+                        v.duplicate_candidate_id or "",
+                    ),
+                )
+            )
 
 
 @dataclass(frozen=True)
@@ -1430,15 +1506,109 @@ def _generate_with_semantic_retry(
     return _GeneratedCall(result, tuple(result.call_records), 0)
 
 
+# A stage's deterministic last-resort fallback: given the output that still failed
+# after repair and regeneration and its error, return the fully validated fixed
+# output, the affected candidate IDs (the cache marker) and the manifest records,
+# or ``None`` when the failure is not eligible.
+_FallbackResult = tuple[OutputModel, tuple[str, ...], tuple[BaseModel, ...]]
+_ConservativeFallback = Callable[[OutputModel, ValueError], _FallbackResult[OutputModel] | None]
+
+
 def _boundary_opening_fallback(
-    output: ProfileBoundaryReviewOutput, error: ValueError
-) -> tuple[ProfileBoundaryReviewOutput, tuple[str, ...]] | None:
+    profile: ClipProfile,
+    subject_id: str,
+    validate: Callable[[ProfileBoundaryReviewOutput], ProfileBoundaryReviewOutput],
+) -> _ConservativeFallback[ProfileBoundaryReviewOutput]:
     """After repair and regeneration, only the opening invariant may be resolved,
     and only by downgrading ``opening_complete``; any other failure stays fatal."""
 
-    if not isinstance(error, BoundaryOpeningInvariantError):
+    def fallback(
+        output: ProfileBoundaryReviewOutput, error: ValueError
+    ) -> _FallbackResult[ProfileBoundaryReviewOutput] | None:
+        if not isinstance(error, BoundaryOpeningInvariantError):
+            return None
+        fixed = validate(apply_boundary_opening_fallback(output, error.candidate_ids))
+        record = BoundaryOpeningFallback(
+            profile=profile, subject_id=subject_id, candidate_ids=error.candidate_ids
+        )
+        return fixed, error.candidate_ids, (record,)
+
+    return fallback
+
+
+def _merge_audit(
+    value: ProfileGlobalAuditOutput, initial: ProfileGlobalReviewOutput
+) -> ProfileGlobalReviewOutput:
+    replacement_map = {item.candidate_id: item for item in value.replacements}
+    return ProfileGlobalReviewOutput(
+        profile=initial.profile,
+        reviews=tuple(replacement_map.get(item.candidate_id, item) for item in initial.reviews),
+    )
+
+
+def _audit_pair_fallback(
+    output: ProfileGlobalAuditOutput,
+    error: ValueError,
+    profile: ClipProfile,
+    initial: ProfileGlobalReviewOutput,
+    validate: Callable[[ProfileGlobalAuditOutput], ProfileGlobalAuditOutput],
+    transcript: TranscriptDocument,
+    persisted_flag_ids: frozenset[str],
+) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
+    """Downgrade-only Global Audit fallback (Stage 13b), after repair and regeneration.
+
+    Eligible only when every remaining failure is a deterministic audit-pair rule
+    (``AuditPairRuleError``). Each violating near-identical pair is resolved by
+    blocking its longer member while the other member stays retained (see
+    ``plan_audit_pair_fallback``). Representative-rule violations cannot be fixed
+    without promoting a candidate, so the model's duplicate is accepted unchanged
+    and recorded. Any other failure, or a near-identical violation the blocks do
+    not resolve, keeps the run failing.
+    """
+
+    if not isinstance(error, AuditPairRuleError):
         return None
-    return apply_boundary_opening_fallback(output, error.candidate_ids), error.candidate_ids
+    blocks = plan_audit_pair_fallback(
+        error,
+        _merge_audit(output, initial),
+        transcript,
+        persisted_flag_ids=persisted_flag_ids,
+    )
+    fixed = apply_audit_pair_blocks(output, initial, [blocked for blocked, _ in blocks])
+    remaining: tuple[AuditPairViolation, ...] = ()
+    try:
+        validate(fixed)
+    except AuditPairRuleError as remaining_error:
+        if remaining_error.near_identical:
+            return None
+        remaining = remaining_error.violations
+    records: list[BaseModel] = [
+        AuditPairFallback(
+            profile=profile,
+            rule=AuditPairRule.NEAR_IDENTICAL_PAIR,
+            outer_candidate_id=pair[0],
+            inner_candidate_id=pair[1],
+            blocked_candidate_id=blocked,
+        )
+        for blocked, pair in blocks
+    ]
+    records.extend(
+        AuditPairFallback(
+            profile=profile,
+            rule=value.rule,
+            outer_candidate_id=value.outer_candidate_id,
+            inner_candidate_id=value.inner_candidate_id,
+            duplicate_candidate_id=value.duplicate_candidate_id,
+        )
+        for value in dict.fromkeys(remaining)
+    )
+    affected = sorted(
+        {blocked for blocked, _ in blocks}
+        | {value.duplicate_candidate_id for value in remaining if value.duplicate_candidate_id}
+    )
+    if not affected:
+        return None
+    return fixed, tuple(affected), tuple(records)
 
 
 _FALLBACK_MARKER_FIELD = "conservative_fallback"
@@ -1449,11 +1619,8 @@ def _replay_cached_fallback(
     stage: str,
     output: OutputModel,
     validate: Callable[[OutputModel], OutputModel],
-    conservative_fallback: Callable[
-        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
-    ]
-    | None,
-) -> tuple[OutputModel, tuple[str, ...]]:
+    conservative_fallback: _ConservativeFallback[OutputModel] | None,
+) -> _FallbackResult[OutputModel]:
     """Re-apply a recorded conservative fallback to a cached raw model output.
 
     The marker must name this stage and exactly the candidates the fallback would
@@ -1476,7 +1643,7 @@ def _replay_cached_fallback(
     try:
         validate(output)
     except ValueError as error:
-        rescued = _apply_conservative_fallback(conservative_fallback, output, error, validate)
+        rescued = _apply_conservative_fallback(conservative_fallback, output, error)
     else:
         raise invalid
     if rescued is None or list(rescued[1]) != marker["candidate_ids"]:
@@ -1485,24 +1652,16 @@ def _replay_cached_fallback(
 
 
 def _apply_conservative_fallback(
-    conservative_fallback: Callable[
-        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
-    ]
-    | None,
+    conservative_fallback: _ConservativeFallback[OutputModel] | None,
     output: OutputModel,
     error: ValueError,
-    validate: Callable[[OutputModel], OutputModel],
-) -> tuple[OutputModel, tuple[str, ...]] | None:
+) -> _FallbackResult[OutputModel] | None:
     """Apply the stage's deterministic fallback; ``None`` unless it fully validates."""
 
     if conservative_fallback is None:
         return None
-    rescued = conservative_fallback(output, error)
-    if rescued is None:
-        return None
-    fixed_output, fallback_ids = rescued
     try:
-        return validate(fixed_output), fallback_ids
+        return conservative_fallback(output, error)
     except ValueError:
         return None
 
@@ -1522,10 +1681,7 @@ def _resolve_call(
     validate: Callable[[OutputModel], OutputModel],
     cancel_requested: Callable[[], bool],
     resolution_audit: _ResolutionAudit | None = None,
-    conservative_fallback: Callable[
-        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
-    ]
-    | None = None,
+    conservative_fallback: _ConservativeFallback[OutputModel] | None = None,
 ) -> _ResolvedCall:
     # Without an explicit audit the Stage 9 fail-closed default applies.
     if resolution_audit is None:
@@ -1596,12 +1752,10 @@ def _resolve_call(
             # resolved it with the deterministic conservative fallback after repair
             # and regeneration, so the same fallback is re-applied and recorded: a
             # warm rerun reproduces the cold output and the manifest record.
-            fixed_hit, hit_fallback_ids = _replay_cached_fallback(
+            fixed_hit, _hit_ids, hit_records = _replay_cached_fallback(
                 raw[_FALLBACK_MARKER_FIELD], stage, output, validate, conservative_fallback
             )
-            resolution_audit.record_opening_fallback(
-                ClipProfile(profile_value), subject_id, hit_fallback_ids
-            )
+            resolution_audit.record_fallbacks(hit_records)
             return _ResolvedCall(
                 output=fixed_hit,
                 records=(),
@@ -1716,19 +1870,16 @@ def _resolve_call(
                     conservative_fallback,
                     validation_retry_result.output,
                     final_error,
-                    validate,
                 )
                 if rescued is None:
                     raise ValueError(
                         "deterministic validation still failed after one repair and one "
                         f"regeneration: {final_error}"
                     ) from final_error
-                output, fallback_ids = rescued
+                output, fallback_ids, fallback_records = rescued
                 cached_output = validation_retry_result.output
                 fallback_marker = {"stage": stage, "candidate_ids": list(fallback_ids)}
-                resolution_audit.record_opening_fallback(
-                    ClipProfile(profile_value), subject_id, fallback_ids
-                )
+                resolution_audit.record_fallbacks(fallback_records)
     if cache_path is not None:
         ensure_directory_no_follow(cache_path.parent)
         cache_document: dict[str, object] = {
