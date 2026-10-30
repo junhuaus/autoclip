@@ -408,3 +408,27 @@ prompts/cache keys and benchmark files are unchanged. New tests: 13 unit,
 
 Next: independent tester and reviewer on the Stage 11 SHA, human review of
 the cold-27 renders, then push/merge only with explicit consent. Not pushed.
+
+## Stage 11 accepted at ed24a34 (2026-10-29)
+
+Stage 11 is ACCEPTED at `ed24a346fe0d908dcecdec56ff87d250675a759b` on
+`claude/liveclip-stage8-routing` (local only). Tester PASS: `make lint` rc
+0; backend 2844 passed / 0 failed / 0 skipped (1629.85 s); vitest 14
+files / 80; e2e 4 (mock review-delivery 1, real review-delivery 1,
+completion-goal-real 2); targeted 61; `make test` wall time 1851 s; no
+sleep 17:29–18:03 PDT. Reviewer ACCEPT, no P0/P1 (independently ran
+backend 2844 passed); its P2s become Stage 11b.
+
+The cold-27 strict-eval output
+`data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27` is
+complete (PASS 95.0); its provenance proof was rebuilt there read-only with
+the attempt-start epoch from the runner's report (the original
+`attempt-start.txt` was lost). A read-only S06/L07 variance analysis is in
+`STATUS.md`: warm-26 vs cold-27 differ only by model sampling; S06 was lost
+to a prompt claim that Python enforces every flag (it gates only
+`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`); L07 was lost to a representative
+chosen −30540 ms early across a 27.46 s untranscribed gap. Human listening
+of that gap is pending with the user.
+
+Next: Stage 11b (reviewer P2s), Stage 12 (general flag-contract
+alignment), human review of the cold-27 renders. Not pushed.

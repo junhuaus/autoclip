@@ -2,9 +2,20 @@
 
 ## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29)
 
-- [x] 2026-10-29 Stage 11 implemented on `claude/liveclip-stage8-routing`
-  (code commit after `d6b90c6`), **pending independent tester and
-  reviewer**. Not pushed.
+- [x] 2026-10-29 **Stage 11 ACCEPTED** at
+  `ed24a346fe0d908dcecdec56ff87d250675a759b` on
+  `claude/liveclip-stage8-routing` (code commit after `d6b90c6`; first
+  recorded as implemented, pending independent tester and reviewer). Not
+  pushed.
+  - Tester PASS at `ed24a34`: `make lint` rc 0; backend 2844 passed / 0
+    failed / 0 skipped (1629.85 s); vitest 14 files / 80; e2e 4 (mock
+    review-delivery 1, real review-delivery 1, completion-goal-real 2);
+    targeted 61; `make test` wall time 1851 s; no sleep 17:29–18:03 PDT
+    2026-10-29.
+  - Reviewer ACCEPT at `ed24a34`, no P0/P1; independently ran backend
+    2844 passed. P2s (guard-repair fallback on hard-invalid repair output,
+    repair message truncation, test gaps, v3 `suspicious_exact_top_n`)
+    carried into Stage 11b.
   - Scope: the V5 and legacy mini-lesson edit, the
     `semantic_global`/`semantic_windowed` `_edit` and the V5 persisted-plan
     replay in `pipeline/stage_handlers.py`, which copied model title, hook
@@ -37,8 +48,10 @@
   `semantic_global` contract has no `blocked` bucket; `rejected` is the
   only deterministic non-delivery state there. A guard hit on a cached or
   durable output is blocked without a new model call (no repair remains).
-- [ ] Next: independent tester (`make lint`, `make test`) and reviewer on
-  the Stage 11 SHA; then human review of the cold-27 `renders-r2` clips;
+- [x] (Historical next step; done 2026-10-29.) Independent tester (`make
+  lint`, `make test`) and reviewer on the Stage 11 SHA.
+- [ ] Next: Stage 11b (reviewer P2s), human review of the cold-27
+  `renders-r2` clips, human listening of the L07 untranscribed gap;
   push/merge only with explicit user consent.
 
 ## Stage 10 render guard false positive and cold-27 (2026-10-23)
@@ -76,10 +89,26 @@
   `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts −30540 ms
   early); R01 blocked, R02 `manual_review`; twin union 0/23 groups differ;
   nested pairs short 0, mini 36 (16 duplicate, 20 distinct_objective).
-  Strict-eval output:
-  `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+  Strict-eval output (complete, PASS 95.0):
+  `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`;
+  its provenance proof was rebuilt there read-only, with the attempt-start
+  epoch taken from the runner's report because the original
+  `attempt-start.txt` was lost.
   Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 / cold-27 PASS 95.0;
   L07 and S06 vary with the model's `context_dependent_opening` judgments.
+- S06/L07 variance analysis (2026-10-29, read-only, no model calls):
+  warm-26 and cold-27 had identical prompt hashes and Discovery inputs, so
+  their differences are pure model sampling; cold-18 (gpt-5.6-sol via
+  `codex_cli`, older prompts) is not comparable. S06 (warm-26): Boundary
+  Review kept a Discovery `context_dependent_opening` flag while setting
+  `opening_complete=true`; Global Review disagreed with the flag but chose
+  `blocked` because the prompts claimed Python enforces every flag, while
+  Python gates only `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`. L07 (cold-27):
+  the anchor start follows a 27.46 s untranscribed gap
+  (01:40:07.540–01:40:35.000); 3 of 6 Boundary Review calls started at
+  setup cue 2854 to capture it, and the single Global Audit chose that
+  version as representative (−30540 ms from the anchor). Human listening
+  of the gap is pending with the user.
 - Renders: the first attempt into `renders/` failed closed after 5 of 14
   clips (Stage 10 bug; partial directory without a manifest, kept
   untouched). The re-render at `0515ef7` into `renders-r2/` succeeded (rc
@@ -90,7 +119,8 @@
   plus human review, and real-model inference are separate kinds of
   evidence. Details in `STATUS.md`.
 - [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages;
-  2026-10-29 implemented, pending verification, see above),
+  2026-10-29 implemented, pending verification; ACCEPTED at `ed24a34`
+  the same day, see above),
   human review of the `renders-r2` clips, optional holdout livestream
   (overfitting risk), investigate the L07/S06 run-to-run variance;
   push/merge only with explicit user consent.
@@ -124,8 +154,10 @@
   automatic checks; human review pending. Details in `STATUS.md`.
 - [x] (Historical next step; cold-27 ran, see the Stage 10 section above.)
   A fresh acceptance run (method pending user decision because of
-  the subscription quota), then human editorial/audio review, then
-  push/merge only with explicit consent.
+  the subscription quota).
+- [ ] Still pending from that step: human editorial/audio review, then
+  push/merge only with explicit consent. (Corrected 2026-10-29: these
+  parts were previously under the `[x]` above.)
 
 ## Stage 8 dual-profile routing and review-stage fixes (2026-10-22)
 

@@ -18,11 +18,23 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — ACCEPTED at ed24a34
 
-- **Status: implemented, pending independent tester and reviewer** on local
-  branch `claude/liveclip-stage8-routing` (code commit directly after the
-  docs commit `d6b90c6`). Not pushed or merged.
+- **Status: ACCEPTED** (2026-10-29) on local branch
+  `claude/liveclip-stage8-routing`. Not pushed or merged. Code commit
+  `ed24a346fe0d908dcecdec56ff87d250675a759b` (directly after the docs
+  commit `d6b90c6`). (History: this section was first recorded as
+  implemented, pending independent tester and reviewer.)
+- Tester: **PASS** at `ed24a34`. `make lint` rc 0. `make test`: backend
+  2844 passed, 0 failed, 0 skipped in 1629.85 s; vitest 14 files / 80
+  passed; e2e 4 passed (mock review-delivery 1, real review-delivery 1,
+  completion-goal-real 2); targeted 61 passed; `make test` wall time
+  1851 s. No sleep in the 17:29–18:03 PDT 2026-10-29 window.
+- Reviewer: **ACCEPT** at `ed24a34`, no P0/P1. The reviewer independently
+  ran the backend suite (2844 passed). Its P2 findings (repair fallback
+  when the guard repair returns hard-invalid output, the truncated repair
+  message, test gaps, the v3 `suspicious_exact_top_n` counter) are taken up
+  as Stage 11b below.
 - Origin: the Stage 10 reviewer P1. In
   `src/liveclip/pipeline/stage_handlers.py` the V5 mini-lesson edit, the
   legacy mini-lesson edit, the `semantic_global`/`semantic_windowed`
@@ -93,8 +105,8 @@
   asset-integrity, worker-race integration), 170 passed (dual-profile and
   benchmark unit), 681 passed (semantic global/lineage/validation unit);
   `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
-  make lint` exit 0. Full `make test`, the independent tester and the
-  reviewer are pending.
+  make lint` exit 0. (At the time, full `make test`, the independent tester
+  and the reviewer were pending; see the tester and reviewer bullets above.)
 
 ## Stage 10 render guard false positive (2026-10-23) — ACCEPTED at 0515ef7
 
@@ -162,11 +174,36 @@ acceptance activity and is **not** claimed here.
     Nested pairs: short 0; mini 36 (16 `duplicate`, 20
     `distinct_objective`).
   - Durable strict-eval output:
-    `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`
-    (being written by a runner at the time of this record).
+    `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+    (2026-10-29 update: this output is complete, strict **PASS 95.0**. The
+    provenance proof was rebuilt there read-only; its attempt-start epoch
+    comes from the runner's report because the original
+    `attempt-start.txt` was lost. An earlier version of this record said
+    the output was still being written by a runner.)
 - Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 (diagnostic) /
   cold-27 PASS 95.0. L07 and S06 vary between runs with the model's
   `context_dependent_opening` judgments.
+- S06/L07 variance analysis (2026-10-29, read-only over the ignored run
+  artifacts; no model calls):
+  - warm-26 and cold-27 had identical prompt hashes and identical
+    Discovery inputs, so their differences come purely from model
+    sampling. cold-18 used gpt-5.6-sol through `codex_cli` with older
+    prompts and is not comparable.
+  - S06 (missed in warm-26): Boundary Review kept a Discovery
+    `context_dependent_opening` flag on the candidate while also setting
+    `opening_complete=true`. Global Review disagreed with the flag but
+    chose `blocked` because the review prompts claimed that Python
+    enforces every unresolved flag. Python actually gates only
+    `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`; advisory flags only forbid
+    `selected`.
+  - L07 (missed in cold-27): the anchor start sits after a 27.46 s
+    untranscribed gap (01:40:07.540–01:40:35.000). 3 of 6 Boundary Review
+    calls started at setup cue 2854 to capture the gap; the single Global
+    Audit then chose the cue-2854 version as the representative, which is
+    −30540 ms from the anchor.
+  - Human listening of that gap is pending with the user.
+  - Follow-up: a general flag-contract alignment that is not tuned to any
+    anchor (planned as Stage 12).
 - Renders:
   - The first attempt into `<run>/renders/` failed closed after 5 of 14
     clips (the Stage 10 bug). That partial directory has no manifest and
@@ -176,12 +213,13 @@ acceptance activity and is **not** claimed here.
     h264_videotoolbox 1080x1920. The sha256 of `final-validated.json` and
     `run-manifest.json` is unchanged by the render.
   - Human visual and audio review is **PENDING**.
-- Open follow-ups: Stage 11 (persisted pipeline edit stages; implemented,
-  pending verification, see the Stage 11 section above);
+- Open follow-ups: Stage 11 (persisted pipeline edit stages; ACCEPTED at
+  `ed24a34` on 2026-10-29, see the Stage 11 section above; first recorded
+  here as implemented, pending verification);
   human review of the `renders-r2` clips; an optional holdout livestream
   (overfitting risk: the prompts were tuned on one transcript); the
-  L07/S06 run-to-run variance; push and merge only with explicit user
-  consent.
+  L07/S06 run-to-run variance (analysed read-only above; human listening
+  of the L07 gap pending); push and merge only with explicit user consent.
 
 ## Stage 9 dual-profile routing and review-prompt batch (2026-10-22) — ACCEPTED at 56aa93c
 

@@ -63,11 +63,12 @@ imported by production modules.
 - [x] 2026-10-22 Stage 8 ACCEPTED at `4f2c068` (branch `claude/liveclip-stage8-routing`; F1 quality-gate routing, F2 risk-pass rejected → blocked, F3–F5 review-stage fixes and `nested_pair_decisions`; evidence in `STATUS.md`). Real diagnostic runs: warm-22 strict FAIL 90.0, its F1+F2 offline replay FAIL 95.0, warm-23 stopped on the usage limit, warm-24 (Stage 8 code) strict FAIL 92.5 with no PASS blockers.
 - [x] (Historical next step.) Stage 9, then warm-25 (diagnostic), then a fresh cold acceptance run (`cache_hits=0`, about 230 calls) right after a subscription usage-limit reset.
 - [x] 2026-10-22 Stage 9 ACCEPTED at `56aa93c` (`bfdef3b`, `703cfbb`, `56aa93c`; routing policy v3; evidence in `STATUS.md`). warm-25 stopped on the usage limit (73 of 75 new calls cached). warm-26 (diagnostic only) strict PASS 97.5, no hard failures, no PASS blockers; short 7/8 (S06 missed), mini 6/6; 13 renders pass automatic checks, human review pending.
-- [x] (Historical next step; cold-27 ran.) A fresh acceptance run (method pending user decision because of the subscription quota), then human editorial/audio review, then push/merge only with explicit consent.
+- [x] (Historical next step; cold-27 ran.) A fresh acceptance run (method pending user decision because of the subscription quota).
+- [ ] Still pending from that step: human editorial/audio review, then push/merge only with explicit consent. (Corrected 2026-10-29: these parts were previously marked `[x]` together with the cold-27 run.)
 - [x] 2026-10-23 Stage 10 ACCEPTED at `0515ef7` (render EditPlans use deterministic product text instead of model prose; the executable-text guard is unchanged; evidence in `STATUS.md`).
 - [x] 2026-10-23 cold-27 (fresh resumable acceptance attempt, real Claude CLI, HEAD `e173c28`, `cache_hits` 0, 233 calls, one segment, no usage limit): strict PASS 95.0, 0 hard failures; short 8/8, mini 5/6 (L07 missed); 14 renders in `renders-r2/` pass automatic checks; human review pending.
-- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages), human editorial/audio review of the cold-27 renders, optional holdout livestream, the L07/S06 run-to-run variance; push/merge only with explicit consent.
-- [x] 2026-10-29 Stage 11 implemented, pending independent tester and reviewer: the persisted pipeline edit stages ask the model to rewrite guard-tripping title/hook/reason once through the existing Global Review repair loop and otherwise block only that candidate (`deterministic_text_guard_gate`); the shared Global Review validators, dual-profile prompts/cache keys and benchmark files are unchanged, so benchmark outcomes cannot move (evidence in `STATUS.md`).
+- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages; ACCEPTED at `ed24a34` on 2026-10-29), human editorial/audio review of the cold-27 renders, optional holdout livestream, the L07/S06 run-to-run variance (analysed read-only 2026-10-29; human listening of the L07 gap pending); push/merge only with explicit consent.
+- [x] 2026-10-29 Stage 11 implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `ed24a346fe0d908dcecdec56ff87d250675a759b` the same day, tester PASS and reviewer ACCEPT with no P0/P1, evidence in `STATUS.md`): the persisted pipeline edit stages ask the model to rewrite guard-tripping title/hook/reason once through the existing Global Review repair loop and otherwise block only that candidate (`deterministic_text_guard_gate`); the shared Global Review validators, dual-profile prompts/cache keys and benchmark files are unchanged, so benchmark outcomes cannot move (evidence in `STATUS.md`).
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -451,8 +452,11 @@ cold-27 is a fresh, resumable acceptance attempt with the frozen Claude CLI
     `audit_sh0011_self_taught_era_intuition` lies inside supplemental O01
     (no gate). Twin union: 0 of 23 groups differ on gated flags. Nested
     pairs: short 0; mini 36 (16 `duplicate`, 20 `distinct_objective`).
-    Durable strict-eval output:
+    Durable strict-eval output (complete, PASS 95.0):
     `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+    Its provenance proof was rebuilt there read-only; the attempt-start
+    epoch comes from the runner's report because the original
+    `attempt-start.txt` was lost.
   - Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 (diagnostic) /
     cold-27 PASS 95.0. L07 and S06 vary between runs with the model's
     `context_dependent_opening` judgments.
@@ -462,6 +466,26 @@ cold-27 is a fresh, resumable acceptance attempt with the frozen Claude CLI
     black-frame and edge checks pass; h264_videotoolbox 1080x1920;
     `final-validated.json` and `run-manifest.json` sha256 unchanged).
     Human visual and audio review is PENDING.
+
+2026-10-29 (Stage 11 ACCEPTED at `ed24a34`; S06/L07 variance analysis):
+Stage 11 tester PASS (lint rc 0; backend 2844 passed / 0 failed / 0
+skipped in 1629.85 s; vitest 14/80; e2e 4; targeted 61; `make test` wall
+1851 s; no sleep) and reviewer ACCEPT with no P0/P1; the reviewer P2s are
+Stage 11b. A read-only variance analysis found:
+
+  - warm-26 and cold-27 had identical prompt hashes and Discovery inputs,
+    so their differences come purely from model sampling. cold-18 used
+    gpt-5.6-sol via `codex_cli` with older prompts and is not comparable.
+  - S06 (warm-26): Boundary Review kept a Discovery
+    `context_dependent_opening` flag while also setting
+    `opening_complete=true`. Global Review disagreed with the flag but
+    chose `blocked` because the prompts claimed Python enforces every
+    flag; Python actually gates only `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`.
+  - L07 (cold-27): the anchor start sits after a 27.46 s untranscribed
+    gap (01:40:07.540–01:40:35.000). 3 of 6 Boundary Review calls started
+    at setup cue 2854 to capture the gap; the single Global Audit chose the
+    cue-2854 version as representative, −30540 ms from the anchor.
+  - Human listening of that gap is pending with the user.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict
