@@ -282,6 +282,51 @@ def test_boundary_review_cannot_trim_discovery_health_risk_evidence() -> None:
         )
 
 
+def test_boundary_review_opening_flag_requires_an_incomplete_opening() -> None:
+    profile = ClipProfile.MINI_LESSON
+    raw = _raw(
+        profile=profile,
+        window_id="mini_window",
+        candidate_id="opening_flag",
+        start_cue_id=825,
+        end_cue_id=939,
+    )
+    review = BoundaryReviewItem(
+        candidate_id=raw.candidate_id,
+        profile=profile,
+        start_cue_id=825,
+        end_cue_id=939,
+        opening_complete=True,
+        ending_complete=True,
+        central_objective_complete=True,
+        shortest_complete_boundary=True,
+        quality_flags=(DualQualityFlag.CONTEXT_DEPENDENT_OPENING,),
+        evidence_cue_ids=(825, 939),
+        review_reason="保留了开头依赖标记。",
+    )
+
+    def validate(item: BoundaryReviewItem) -> ProfileBoundaryReviewOutput:
+        return validate_boundary_review_output(
+            ProfileBoundaryReviewOutput(profile=profile, reviews=(item,)),
+            profile=profile,
+            candidates=(raw,),
+            transcript=TRANSCRIPT,
+            risk_record_ids=frozenset(),
+        )
+
+    with pytest.raises(
+        ValueError, match="opening_flag: context_dependent_opening requires opening_complete=false"
+    ):
+        validate(review)
+    # Either coherent answer is valid: an incomplete opening that keeps the flag,
+    # or a complete opening without it.  Other flags are not constrained.
+    validate(review.model_copy(update={"opening_complete": False}))
+    validate(review.model_copy(update={"quality_flags": ()}))
+    validate(
+        review.model_copy(update={"quality_flags": (DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,)})
+    )
+
+
 def test_long_discovery_uses_six_hundred_second_context_and_three_hundred_ownership() -> None:
     windows = plan_profile_discovery_windows(TRANSCRIPT, ClipProfile.MINI_LESSON)
     assert windows
@@ -920,6 +965,82 @@ def test_nested_pair_decisions_must_cover_each_pair_once_and_agree_with_status()
     )
     with pytest.raises(ValueError, match="distinct_objective"):
         validate_nested_pair_decisions(pairs, (distinct,), merged)
+
+
+def test_nested_duplicate_accepts_members_of_a_three_way_cluster_with_one_representative() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    # Three identical intervals of one lesson: every pair is listed.
+    initial = _nested_pool(
+        _review_item("rep", 100, 160, manual),
+        _review_item("dup_a", 100, 160, manual),
+        _review_item("dup_b", 100, 160, manual),
+    )
+    pairs = nested_candidate_pairs(initial)
+    assert {frozenset(pair) for pair in pairs} == {
+        frozenset(("rep", "dup_a")),
+        frozenset(("rep", "dup_b")),
+        frozenset(("dup_a", "dup_b")),
+    }
+    merged = _nested_pool(
+        _review_item("rep", 100, 160, manual),
+        _review_item("dup_a", 100, 160, rejected, duplicate_of="rep"),
+        _review_item("dup_b", 100, 160, rejected, duplicate_of="rep"),
+    )
+
+    def decide(kind: NestedPairDecisionKind) -> tuple[NestedPairDecision, ...]:
+        return tuple(
+            NestedPairDecision(
+                outer_candidate_id=outer,
+                inner_candidate_id=inner,
+                decision=kind,
+                reason="同一课程的三个版本。",
+            )
+            for outer, inner in pairs
+        )
+
+    # All three pairs are true duplicates, including the two non-representatives.
+    validate_nested_pair_decisions(pairs, decide(NestedPairDecisionKind.DUPLICATE), merged)
+    # Existing guarantees are kept: distinct_objective still forbids a direct reference.
+    with pytest.raises(ValueError, match="distinct_objective"):
+        validate_nested_pair_decisions(
+            pairs, decide(NestedPairDecisionKind.DISTINCT_OBJECTIVE), merged
+        )
+    # A shared representative needs both members left rejected/blocked as duplicates.
+    retained_member = _nested_pool(
+        _review_item("rep", 100, 160, manual),
+        _review_item("dup_a", 100, 160, rejected, duplicate_of="rep"),
+        _review_item("dup_b", 100, 160, manual),
+    )
+    with pytest.raises(ValueError, match="same representative"):
+        validate_nested_pair_decisions(
+            pairs, decide(NestedPairDecisionKind.DUPLICATE), retained_member
+        )
+    # Different representatives are not a shared-representative duplicate.
+    split = _nested_pool(
+        _review_item("rep", 100, 160, manual),
+        _review_item("dup_a", 100, 160, rejected, duplicate_of="rep"),
+        _review_item("dup_b", 100, 160, rejected, duplicate_of="other"),
+        _review_item("other", 100, 140, manual),
+    )
+    a_b = tuple(
+        decision
+        for decision in decide(NestedPairDecisionKind.DUPLICATE)
+        if {decision.outer_candidate_id, decision.inner_candidate_id} == {"dup_a", "dup_b"}
+    )
+    with pytest.raises(ValueError, match="same representative"):
+        validate_nested_pair_decisions(
+            tuple(p for p in pairs if set(p) == {"dup_a", "dup_b"}), a_b, split
+        )
+    # A duplicate-reference cycle resolves to no representative.
+    cycle = _nested_pool(
+        _review_item("dup_a", 100, 160, rejected, duplicate_of="dup_b"),
+        _review_item("dup_b", 100, 160, rejected, duplicate_of="dup_a"),
+    )
+    # (The direct reference still satisfies the original rule for this pair.)
+    validate_nested_pair_decisions(
+        tuple(p for p in pairs if set(p) == {"dup_a", "dup_b"}), a_b, cycle
+    )
 
 
 def test_global_audit_output_requires_explicit_nested_pair_decisions() -> None:

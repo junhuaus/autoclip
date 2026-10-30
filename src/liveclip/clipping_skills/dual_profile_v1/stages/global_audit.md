@@ -76,9 +76,18 @@ initial decision merely to manufacture quantity.
 An empty `replacements` array is valid only when the initial review has no completeness or representative
 error after this audit.
 
-Boundary Review quality flags are cumulative: Python merges them with the review item's flags and
-enforces every unresolved flag deterministically. Removing a flag from a replacement item never clears a
-Boundary flag, so choose a status consistent with the merged flags.
+Boundary Review quality flags are cumulative: Python merges them with the review item's flags. Removing
+a flag from a replacement item never clears a Boundary flag, so choose a status consistent with the
+merged flags.
+
+Python enforces the merged quality flags in two classes. Gated flags (Python forces `blocked`):
+`padded_with_irrelevant_content`, `sales_or_cta_padding`, `device_or_waiting_padding`,
+`material_interruption`, `topic_switch_inside`, `topic_not_closed`, `asr_uncertain_blocks_meaning`.
+Advisory flags (Python only forbids `selected`): `context_dependent_opening`,
+`missing_required_prior_steps`, `source_title_mismatch`. An advisory flag alone never forces `blocked`.
+When you judge a candidate whose only merged flags are advisory to be coherent and self-contained, keep
+or make it `manual_review` and state the disagreement in `review_reason`; do not block it merely because
+the flag exists.
 
 Nested pairs. The payload's `nested_pairs` lists, from the initial review, every same-Profile pair of
 `selected`/`manual_review` candidates that share a start or end cue so that one contains the other.
@@ -91,6 +100,9 @@ also decide every nested pair your replacements create (for example by promoting
   candidate as the representative, and include replacement items so that the other one is `rejected`
   (a `risk_discovery` candidate may instead be `blocked`) with `duplicate_of_candidate_id` naming the
   representative.
+  When both candidates of a listed pair are duplicates of the same third representative (for example
+  in a cluster of three versions of one lesson), the pair is also `duplicate`: each may reference that
+  shared representative instead of the other.
 - `distinct_objective`: each has its own question, objective or conclusion. Neither may reference the
   other as its duplicate.
 

@@ -69,6 +69,7 @@ from liveclip.pipeline.dual_profile import (
 from liveclip.pipeline.semantic_global import transcript_cues
 from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm.structured import (
+    StructuredCallResult,
     StructuredLLMProvider,
     StructuredProviderError,
 )
@@ -1300,6 +1301,55 @@ def _render_clip_id(candidate_id: str) -> str:
     return f"dual-{digest}"
 
 
+# Bound on stale (now-invalid) cache entries chained by superseding keys.
+_MAX_SUPERSEDED_CACHE_ENTRIES = 4
+
+
+@dataclass(frozen=True)
+class _GeneratedCall:
+    result: StructuredCallResult[BaseModel]
+    records: tuple[ProviderCallRecord, ...]
+    retry_count: int
+
+
+def _generate_with_semantic_retry(
+    *,
+    provider: StructuredLLMProvider,
+    subject_id: str,
+    payload: dict[str, object],
+    response_model: type[BaseModel],
+    cancel_requested: Callable[[], bool],
+) -> _GeneratedCall:
+    """One initial request plus at most one retry after a structured provider failure."""
+
+    try:
+        result = provider.generate(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            cancel_requested=cancel_requested,
+        )
+    except StructuredProviderError as first_error:
+        try:
+            retried = provider.generate(
+                subject_id=f"{subject_id}.semantic_retry_1",
+                payload=payload,
+                response_model=response_model,
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as second_error:
+            raise StructuredProviderError(
+                second_error.code,
+                (*first_error.call_records, *second_error.call_records),
+                repair_attempts=(
+                    *first_error.repair_attempts,
+                    *second_error.repair_attempts,
+                ),
+            ) from second_error
+        return _GeneratedCall(retried, (*first_error.call_records, *retried.call_records), 1)
+    return _GeneratedCall(result, tuple(result.call_records), 0)
+
+
 def _resolve_call(
     *,
     stage: str,
@@ -1328,80 +1378,102 @@ def _resolve_call(
         "payload_sha256": payload_sha256,
         "output_model": response_model.__name__,
     }
-    key = semantic_cache_key(
-        source_hash=source_hash,
-        profile=profile,
-        window_start=window_start,
-        window_end=window_end,
-        prompt_hash=provider.prompt_sha256,
-        model=provider.model_name,
-        model_settings=cache_settings,
-    )
     profile_value = profile.value if isinstance(profile, ClipProfile) else profile
-    cache_path = cache_dir / profile_value / stage / f"{key}.json" if cache_dir else None
-    if cache_path is not None:
+
+    def cache_location(settings: Mapping[str, object]) -> tuple[str, Path | None]:
+        location_key = semantic_cache_key(
+            source_hash=source_hash,
+            profile=profile,
+            window_start=window_start,
+            window_end=window_end,
+            prompt_hash=provider.prompt_sha256,
+            model=provider.model_name,
+            model_settings=dict(settings),
+        )
+        return location_key, (
+            cache_dir / profile_value / stage / f"{location_key}.json" if cache_dir else None
+        )
+
+    key, cache_path = cache_location(cache_settings)
+    # A cache entry that fails the current deterministic validation (for example one
+    # written before a validator invariant was added under an unchanged prompt) is
+    # stale, not fatal. It stays untouched as immutable evidence and its output goes
+    # through the ordinary repair path; the result is cached under a key bound to the
+    # stale output's bytes, so a later run finds the repaired entry.
+    stale: tuple[OutputModel, ValueError] | None = None
+    for _ in range(_MAX_SUPERSEDED_CACHE_ENTRIES + 1):
+        if cache_path is None:
+            break
         try:
             raw = json.loads(read_regular_text_no_follow(cache_path, max_bytes=32 * 1024 * 1024))
         except SecureFileMissing:
-            raw = None
+            break
         except (SecureFileError, json.JSONDecodeError) as exc:
             raise ValueError("dual Profile cache exists but is not trusted") from exc
-        if raw is not None:
-            if not isinstance(raw, dict) or raw.get("cache_key") != key:
-                raise ValueError("dual Profile cache identity is invalid")
-            output = response_model.model_validate_json(
-                json.dumps(raw.get("output"), ensure_ascii=False)
-            )
+        if not isinstance(raw, dict) or raw.get("cache_key") != key:
+            raise ValueError("dual Profile cache identity is invalid")
+        output_text = json.dumps(raw.get("output"), ensure_ascii=False)
+        output = response_model.model_validate_json(output_text)
+        try:
             validate(output)
-            return _ResolvedCall(
-                output=output,
-                records=(),
-                cache_hit=True,
-                retry_count=0,
-                repair_count=0,
-            )
+        except ValueError as stale_error:
+            stale = (output, stale_error)
+            cache_settings = {
+                **cache_settings,
+                "supersedes_cache_output_sha256": hashlib.sha256(
+                    json.dumps(
+                        output.model_dump(mode="json"),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+            }
+            key, cache_path = cache_location(cache_settings)
+            continue
+        return _ResolvedCall(
+            output=output,
+            records=(),
+            cache_hit=True,
+            retry_count=0,
+            repair_count=0,
+        )
+    else:
+        raise ValueError("dual Profile cache has too many superseded entries")
     semantic_retry_count = 0
-    prior_records: list[ProviderCallRecord] = []
-    try:
-        result = provider.generate(
+    records: list[ProviderCallRecord] = []
+    resolved_repair_count = 0
+    first_output: OutputModel
+    first_error: ValueError | None
+    if stale is not None:
+        first_output, first_error = stale
+    else:
+        result = _generate_with_semantic_retry(
+            provider=provider,
             subject_id=subject_id,
             payload=payload,
             response_model=response_model,
             cancel_requested=cancel_requested,
         )
-    except StructuredProviderError as first_error:
-        semantic_retry_count = 1
-        prior_records.extend(first_error.call_records)
+        semantic_retry_count = result.retry_count
+        records.extend(result.records)
+        first_output = cast(OutputModel, result.result.output)
+        resolved_repair_count = max(int(result.result.repaired), len(result.result.repair_attempts))
         try:
-            result = provider.generate(
-                subject_id=f"{subject_id}.semantic_retry_1",
-                payload=payload,
-                response_model=response_model,
-                cancel_requested=cancel_requested,
-            )
-        except StructuredProviderError as second_error:
-            raise StructuredProviderError(
-                second_error.code,
-                (*prior_records, *second_error.call_records),
-                repair_attempts=(
-                    *first_error.repair_attempts,
-                    *second_error.repair_attempts,
-                ),
-            ) from second_error
-    records = [*prior_records, *result.call_records]
-    resolved_repair_count = max(int(result.repaired), len(result.repair_attempts))
-    try:
-        output = validate(result.output)
-    except ValueError as exc:
+            output = validate(first_output)
+            first_error = None
+        except ValueError as exc:
+            first_error = exc
+    if first_error is not None:
         repaired_result = provider.repair(
             subject_id=subject_id,
             payload={
                 **payload,
-                "invalid_output": result.output.model_dump(mode="json"),
-                "deterministic_validation_errors": [str(exc)[:2_000]],
+                "invalid_output": first_output.model_dump(mode="json"),
+                "deterministic_validation_errors": [str(first_error)[:2_000]],
             },
             response_model=response_model,
-            validation_errors=(str(exc)[:500],),
+            validation_errors=(str(first_error)[:500],),
             cancel_requested=cancel_requested,
         )
         records.extend(repaired_result.call_records)

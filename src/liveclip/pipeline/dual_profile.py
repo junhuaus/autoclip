@@ -657,6 +657,16 @@ def validate_boundary_review_output(
             for cue_id in review.evidence_cue_ids
         ):
             raise ValueError("Boundary Review evidence lies outside its final interval")
+        if DualQualityFlag.CONTEXT_DEPENDENT_OPENING in review.quality_flags and (
+            review.opening_complete
+        ):
+            # Consistency invariant: a kept opening dependency cannot coexist with a
+            # complete opening; the existing repair path asks for one coherent answer.
+            raise ValueError(
+                f"Boundary Review {candidate_id}: context_dependent_opening requires "
+                "opening_complete=false; set opening_complete to false or remove the flag "
+                "if the opening is complete"
+            )
         raw = candidate_map[candidate_id]
         if not set(review.risk_tags).issuperset(raw.risk_tags):
             raise ValueError("Boundary Review silently removed a Discovery risk")
@@ -717,11 +727,33 @@ def validate_nested_pair_decisions(
     decisions: Sequence[NestedPairDecision],
     merged_review: ProfileGlobalReviewOutput,
 ) -> None:
-    """Require exactly one consistent audit decision for every listed nested pair."""
+    """Require exactly one consistent audit decision for every listed nested pair.
+
+    A ``duplicate`` decision needs one member left rejected/blocked with a direct
+    duplicate reference to the other, or both members left rejected/blocked as
+    duplicates that resolve to the same third representative (a cluster of three or
+    more versions of one lesson).  ``distinct_objective`` forbids a direct reference.
+    """
 
     expected = {frozenset(pair): pair for pair in pairs}
     seen: set[frozenset[str]] = set()
     review_map = {value.candidate_id: value for value in merged_review.reviews}
+    non_retained = {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
+
+    def representative(candidate_id: str) -> str | None:
+        """Follow duplicate references to the retained representative (cycle-safe)."""
+
+        visited: set[str] = set()
+        current = candidate_id
+        while True:
+            if current in visited or current not in review_map:
+                return None
+            visited.add(current)
+            following = review_map[current].duplicate_of_candidate_id
+            if following is None:
+                return current
+            current = following
+
     for decision in decisions:
         key = frozenset((decision.outer_candidate_id, decision.inner_candidate_id))
         if key not in expected:
@@ -742,13 +774,24 @@ def validate_nested_pair_decisions(
             if value.duplicate_of_candidate_id == other.candidate_id
         ]
         if decision.decision == NestedPairDecisionKind.DUPLICATE:
-            if not any(
-                value.review_status in {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
-                for value in references
+            shared = representative(first.candidate_id)
+            shares_representative = (
+                shared is not None
+                and shared not in {first.candidate_id, second.candidate_id}
+                and shared == representative(second.candidate_id)
+                and all(
+                    value.duplicate_of_candidate_id is not None
+                    and value.review_status in non_retained
+                    for value in (first, second)
+                )
+            )
+            if not shares_representative and not any(
+                value.review_status in non_retained for value in references
             ):
                 raise ValueError(
                     "Global Audit nested duplicate must leave one candidate rejected or "
-                    "blocked with duplicate_of_candidate_id referencing the other"
+                    "blocked with duplicate_of_candidate_id referencing the other, or both "
+                    "rejected or blocked as duplicates of the same representative"
                 )
         elif references:
             raise ValueError(

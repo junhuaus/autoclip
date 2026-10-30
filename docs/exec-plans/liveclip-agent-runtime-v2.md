@@ -1,5 +1,21 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 12 dual-profile flag contract alignment (2026-10-29)
+
+- [x] 2026-10-29 Stage 12 implemented on `claude/liveclip-stage8-routing`,
+  **pending independent tester and reviewer; real run pending**. Not
+  pushed. General, not anchor-tuned: Global Review/Audit prompts list the
+  exact gated and advisory flags (drift test); advisory-only coherent
+  candidates are `manual_review`; Boundary Review invariant
+  `context_dependent_opening` ⇒ `opening_complete=false` via the repair
+  path; stale dual-profile cache entries are repaired under a superseding
+  key instead of crashing; nested-pair `duplicate` through a shared
+  representative. Discovery prompts unchanged; Boundary Review, Global
+  Review and Global Audit caches invalidated. Details and the cache impact
+  in `STATUS.md`; decisions in the dual-profile ExecPlan.
+- [ ] Next: independent tester and reviewer on the Stage 12 SHA; real run
+  only with the user's go-ahead.
+
 ## Stage 11b guard repair fallback and repair message (2026-10-29)
 
 - [x] 2026-10-29 Stage 11b implemented on `claude/liveclip-stage8-routing`

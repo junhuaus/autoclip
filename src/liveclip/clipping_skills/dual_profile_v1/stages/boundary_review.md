@@ -87,6 +87,8 @@ Trimming an edge cue never resolves a dependency that the cue disclosed. If the 
 relies on a sample, step or comparison half outside it, keep `context_dependent_opening` or
 `missing_required_prior_steps`. A clip containing only the second half of a before/after comparison is
 context-dependent.
+A review item that keeps `context_dependent_opening` must set `opening_complete` to false; if the
+opening is complete, do not keep that flag.
 
 The Profile minimum must be met by on-topic content. If removing interior audience chat or comment
 reading, calls to action, greetings or device talk, or edge setup kept only for duration, would leave a

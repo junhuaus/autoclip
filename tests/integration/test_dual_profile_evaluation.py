@@ -22,6 +22,7 @@ from liveclip.pipeline.dual_profile import (
     CrossProfileVariantLinkOutput,
     DualProfileFinalResult,
     DualProfileRunManifest,
+    DualQualityFlag,
     DualRiskTag,
     GlobalReviewItem,
     NestedPairDecision,
@@ -920,7 +921,8 @@ def test_cache_hit_audits_are_fully_validated(
     # Negative control: plant an audit that omits the created-pair decision under
     # the CURRENT prompt identity (impossible in practice, see the hashes above).
     # A cache hit must be re-validated with the full rule and refused, not
-    # silently accepted under a weaker contract.
+    # silently accepted under a weaker contract.  Since Stage 12 a refused (stale)
+    # entry is repaired through the ordinary repair path instead of failing the run.
     original_pairs = service.nested_candidate_pairs
     with monkeypatch.context() as patch:
         patch.setattr(
@@ -943,14 +945,245 @@ def test_cache_hit_audits_are_fully_validated(
             cache_dir=cache,
             discovery_concurrency=2,
         )
-    with pytest.raises(ValueError, match="cover every listed nested pair"):
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    assert planted
+    providers: list[AuditCreatedPairProvider] = []
+
+    def tracking_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=tracking_factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    # The stale audit was refused: its repair (asserting the "cover every listed
+    # nested pair" error) decided the created pair, and the planted entry is intact.
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    assert {path: path.read_bytes() for path in planted} == planted
+    warm = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "warm" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert [
+        value.candidate_id for value in warm.profiles[ClipProfile.MINI_LESSON].manual_review
+    ] == ["mini_inner"]
+
+
+class OpeningFlagBoundaryProvider(ScriptedDualProvider):
+    """Boundary Review keeps `context_dependent_opening` with `opening_complete=true`.
+
+    Its repair (or a later honest answer) sets `opening_complete=false`. Global
+    Review routes a candidate with any merged flag to `manual_review`.
+    """
+
+    def __init__(self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int]) -> None:
+        super().__init__(prompt, counter)
+        self.boundary_repairs: list[tuple[str, ...]] = []
+
+    def _boundary(self, payload: dict[str, object], *, opening_complete: bool) -> Any:
+        output = cast(
+            ProfileBoundaryReviewOutput,
+            super()._output(payload, ProfileBoundaryReviewOutput),
+        )
+        return output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(
+                        update={
+                            "opening_complete": opening_complete,
+                            "quality_flags": (DualQualityFlag.CONTEXT_DEPENDENT_OPENING,),
+                        }
+                    )
+                    for item in output.reviews
+                )
+            }
+        )
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileBoundaryReviewOutput:
+            return cast(OutputModel, self._boundary(payload, opening_complete=True))
+        output = super()._output(payload, response_model)
+        if response_model is ProfileGlobalReviewOutput:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "review_status": CandidateDisposition.MANUAL_REVIEW,
+                                    "score": 70.0,
+                                    "review_reason": (
+                                        "Coherent; disagrees with the advisory opening flag."
+                                    ),
+                                }
+                            )
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileBoundaryReviewOutput:
+            self.boundary_repairs.append(validation_errors)
+            return StructuredCallResult(
+                output=cast(OutputModel, self._boundary(payload, opening_complete=False)),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
+def _opening_flag_factory(counter: dict[str, int], providers: list[OpeningFlagBoundaryProvider]):
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = OpeningFlagBoundaryProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    return factory
+
+
+def test_boundary_opening_flag_invariant_is_repaired_not_fatal(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[OpeningFlagBoundaryProvider] = []
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "output",
+        provider_factory=_opening_flag_factory(counter, providers),
+        discovery_concurrency=1,
+    )
+    repairs = [errors for provider in providers for errors in provider.boundary_repairs]
+    # One Boundary Review chunk per Profile, each repaired once through the existing path.
+    assert len(repairs) == len(ClipProfile)
+    assert all(
+        "context_dependent_opening requires opening_complete=false" in errors[0]
+        for errors in repairs
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "output" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    for result in final.profiles.values():
+        # Advisory-only flag: the coherent candidate stays reviewable, not blocked.
+        assert [value.review_status for value in result.manual_review] == [
+            CandidateDisposition.MANUAL_REVIEW
+        ]
+        assert result.blocked == ()
+
+
+def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+    providers: list[OpeningFlagBoundaryProvider] = []
+    factory = _opening_flag_factory(counter, providers)
+
+    # Plant Boundary Review cache entries written under a validator without the
+    # invariant (as a pre-invariant cache under an unchanged prompt would be).
+    original = service.validate_boundary_review_output
+
+    def lenient(output, **kwargs):
+        relaxed = output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(update={"opening_complete": False}) for item in output.reviews
+                )
+            }
+        )
+        original(relaxed, **kwargs)
+        return output
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "validate_boundary_review_output", lenient)
         run_dual_profile_evaluation(
             transcript_path=transcript,
-            output_dir=tmp_path / "warm",
+            output_dir=tmp_path / "planted",
             provider_factory=factory,
             cache_dir=cache,
-            discovery_concurrency=2,
+            discovery_concurrency=1,
         )
+    assert not any(provider.boundary_repairs for provider in providers)
+    planted = {path: path.read_bytes() for path in sorted(cache.glob("*/boundary_review/*.json"))}
+    assert len(planted) == len(ClipProfile)
+
+    # The warm run re-validates each cached Boundary Review, refuses it and sends it
+    # through the existing repair path instead of crashing.
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    repairs = [errors for provider in providers for errors in provider.boundary_repairs]
+    assert len(repairs) == len(ClipProfile)
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert warm.calls["discovery"] == 0
+    assert warm.calls["boundary_review"] == len(ClipProfile)
+    # Cache entries are immutable evidence: the stale entry is untouched and the
+    # repaired output is stored under a key bound to the stale output's bytes.
+    assert {path: path.read_bytes() for path in planted} == planted
+    boundary_files = sorted(cache.glob("*/boundary_review/*.json"))
+    assert len(boundary_files) == 2 * len(ClipProfile)
+    superseding = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in boundary_files
+        if path not in planted
+    ]
+    assert all("supersedes_cache_output_sha256" in value["model_settings"] for value in superseding)
+    assert all(
+        not item["opening_complete"] for value in superseding for item in value["output"]["reviews"]
+    )
+
+    # A third run resolves every stage from the cache, including the repaired entry.
+    generated = dict(counter)
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "third",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    assert counter == generated
+    assert len([errors for provider in providers for errors in provider.boundary_repairs]) == len(
+        ClipProfile
+    )
+    third = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "third" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(third.calls.values()) == {0}
 
 
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:

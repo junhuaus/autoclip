@@ -447,3 +447,22 @@ instruction within the legacy 240-character truncation; the v3
 
 Next: independent tester and reviewer on the Stage 11b SHA. Not pushed.
 
+## Stage 12 implemented, pending verification; real run pending (2026-10-29)
+
+Branch `claude/liveclip-stage8-routing`, local only, after Stage 11b
+`31e6712`. General dual-profile flag-contract alignment (no anchor tuning):
+Global Review/Audit prompts list the exact gated flags
+(`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) and advisory flags, with a unit test
+that keeps them equal to the code; advisory-only coherent candidates go to
+`manual_review` with the disagreement stated; Boundary Review must not keep
+`context_dependent_opening` with `opening_complete=true` (validation error,
+existing repair); stale cached outputs are repaired under a superseding key
+instead of crashing; nested-pair `duplicate` is accepted through a shared
+representative (three-way clusters). Discovery prompts unchanged. A warm
+rerun from the cold-27 cache would make about 73 new calls (Boundary Review
+52, Global Review/Audit 20, variant link 1) with 160 Discovery hits.
+Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 11b and Stage 12 SHAs;
+a real run only with the user's go-ahead. Not pushed.
+

@@ -47,8 +47,8 @@ interval. A category, type or ordinal label that the clip itself contrasts, expl
 not a dependency on earlier content. The speaker's immediate application or consequence of the same
 concept is the candidate's payoff, not padding; a new concept after it is outside the candidate. Each
 candidate carries a structural `discovery_pass`; treat `risk_discovery` candidates as dedicated risk
-records. Boundary Review quality flags are cumulative: Python merges them with yours and enforces every
-unresolved flag deterministically, so omitting a Boundary flag from your item never clears it. A number,
+records. Boundary Review quality flags are cumulative: Python merges them with yours, so omitting a
+Boundary flag from your item never clears it. A number,
 nickname or ordinal attached to an item that the interval itself presents, contrasts or demonstrates is
 recoverable even if it was coined earlier, including when it appears only in the conclusion; do not flag
 it or extend the interval to its coinage. Flag a dependency only when the opening or the conclusion's
@@ -59,6 +59,16 @@ explanation of their own equipment or of how listeners hear better, attached to 
 example, is part of the demonstration. Trimming an edge never resolves a dependency the trimmed cue
 disclosed: a clip holding only the second half of a before/after comparison is context-dependent. The
 Profile minimum must be met by on-topic content, not by chat, calls to action, greetings or device talk.
+
+Python enforces the merged quality flags in two classes. Gated flags (Python forces `blocked`):
+`padded_with_irrelevant_content`, `sales_or_cta_padding`, `device_or_waiting_padding`,
+`material_interruption`, `topic_switch_inside`, `topic_not_closed`, `asr_uncertain_blocks_meaning`.
+Advisory flags (Python only forbids `selected`): `context_dependent_opening`,
+`missing_required_prior_steps`, `source_title_mismatch`. An advisory flag alone never forces `blocked`.
+When you agree that it applies, route the candidate by the rules above (a missing required premise is
+`blocked` or `rejected`). When you judge a candidate whose only merged flags are advisory to be coherent
+and self-contained, use `manual_review` and state the disagreement in `review_reason`; do not block it
+merely because the flag exists.
 
 For a choice or expression lesson, the opening enumeration of available techniques and the explanation
 that their difference is small are required premises for a later “choose by intended sound” conclusion.

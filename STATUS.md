@@ -18,6 +18,87 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 12 dual-profile flag contract alignment (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+
+- **Status: implemented, pending independent tester and reviewer; real
+  run pending.** Local branch `claude/liveclip-stage8-routing`, code
+  commit after the Stage 11b commit `31e6712`. Not pushed or merged.
+- Origin: the read-only S06/L07 variance analysis (Stage 11 section). The
+  change is general: no anchor times, IDs or wording are used anywhere.
+- Prompts match the code (`clipping_skills/dual_profile_v1/stages/`):
+  - `global_review.md` and `global_audit.md` no longer claim that Python
+    enforces every unresolved flag. Both list the exact classes. Gated
+    flags (Python forces `blocked`; the members of
+    `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`): `padded_with_irrelevant_content`,
+    `sales_or_cta_padding`, `device_or_waiting_padding`,
+    `material_interruption`, `topic_switch_inside`, `topic_not_closed`,
+    `asr_uncertain_blocks_meaning`. Advisory flags (Python only forbids
+    `selected`): `context_dependent_opening`,
+    `missing_required_prior_steps`, `source_title_mismatch`. A candidate
+    the reviewer judges coherent and self-contained with only advisory
+    flags is `manual_review`, with the disagreement in `review_reason`.
+    Rules A/B2/C/D, the equipment carve-out and all other text are kept.
+  - `global_audit.md` also states that a listed pair whose members are
+    both duplicates of the same third representative is `duplicate`.
+  - `boundary_review.md` (one sentence): a review item that keeps
+    `context_dependent_opening` must set `opening_complete` to false.
+  - Discovery-family prompts and `variant_link` are byte-identical.
+  - `tests/unit/test_dual_profile_flag_contract.py` parses both flag lists
+    from both prompts for both Profiles and asserts they equal the code
+    sets, so they cannot drift.
+- Boundary Review invariant: `validate_boundary_review_output` raises a
+  validation error (routed to the existing repair) when a row carries
+  `context_dependent_opening` with `opening_complete=true`.
+- Stale cache entries (`services/dual_profile_evaluation.py::_resolve_call`):
+  Stage 9 made cache hits fully validated, but a failing cached output
+  crashed the run. Now a cached output that fails the current validation
+  is stale, not fatal: the entry is left untouched, its output goes through
+  the ordinary repair path (repair, then one deterministic regeneration),
+  and the result is cached under a key whose settings add
+  `supersedes_cache_output_sha256` (bounded chain of 4). A later run finds
+  the superseding entry as a normal hit. This applies to every
+  dual-profile stage; the Stage 9 cached-audit test now asserts the stale
+  audit is refused and repaired instead of failing the run. Untrusted or
+  mis-keyed cache files still raise.
+- Nested pairs: `validate_nested_pair_decisions` accepts `duplicate` when
+  both members are rejected/blocked duplicates that resolve (cycle-safe) to
+  the same third representative, as in a three-way identical cluster.
+  Every other guarantee is unchanged (direct-reference duplicates,
+  `distinct_objective` forbids a direct reference, exact coverage, no
+  unlisted or repeated pairs).
+- `DUAL_PROFILE_ALGORITHM_VERSION` is unchanged: the prompt hashes already
+  change the affected cache keys, and the stale-entry path covers any
+  cache whose prompt did not change.
+- Cache impact for a warm rerun from the cold-27 cache: Discovery family
+  (160 calls) unchanged and fully cached; Boundary Review prompt hashes
+  changed for both Profiles (short `e685d6172f6f` → `3119f245c2cd`, mini
+  `9a09affa78a3` → `62fedbec56dc`), so all 52 calls are new; Global Review
+  (`832c171685e9` → `1faa9412f673`, `6b14c92b237e` → `aea87440f0ab`) and
+  Global Audit (`6aa8a0148446` → `746b625e589b`, `13b53905799a` →
+  `cb115e030631`) changed, so all 20 calls are new; the variant-link prompt
+  is unchanged but its payload is built from the new final candidates, so
+  expect 1 new call. Estimate: about 73 new calls (plus any repairs) and
+  160 cache hits.
+- `docs/PRODUCT_SPEC.md`: Stage 12 amendment.
+- Unchanged: guard patterns, benchmark JSON/MD, evaluator thresholds,
+  frozen `tools/loop_engineering`, Discovery prompts and hashes.
+- Tests (mock/fixture only): flag-contract unit tests (9); Boundary Review
+  invariant unit test; three-way cluster nested-pair unit test;
+  integration tests for a fresh Boundary Review repaired by the invariant
+  (advisory-only candidate stays `manual_review`), a planted violating
+  cached Boundary Review repaired with the stale entry untouched and a
+  superseding entry reused by a third run with zero calls, and the updated
+  Stage 9 cached-audit test.
+- Coder verification (mock/fixture only): all dual-profile and benchmark
+  test files (`tests/integration/test_dual_profile_evaluation.py`,
+  `tests/unit/test_dual_profile*.py`, both benchmark-evaluator files, the
+  Claude CLI provider and Codex rate-limit message files) 267 passed in
+  20.52 s; `PYTHONDONTWRITEBYTECODE=1
+  NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin make lint` rc 0. Full `make
+  test`, the independent tester and the reviewer are pending.
+- Next: independent tester and reviewer; then a real run (warm from the
+  cold-27 cache, or cold) only with the user's go-ahead.
+
 ## Stage 11b guard repair fallback and repair message (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer** on local
