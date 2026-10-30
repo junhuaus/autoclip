@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from enum import StrEnum
@@ -503,13 +504,28 @@ class StaleCacheResolution(BaseModel):
 
 
 class BoundaryOpeningFallback(BaseModel):
-    """Rows downgraded to ``opening_complete=false`` after repair and regeneration."""
+    """Rows downgraded to ``opening_complete=false`` after repair and regeneration.
+
+    The fallback exists only for Boundary Review, so ``subject_id`` must name one of
+    the Profile's Boundary Review batches (``<profile>.boundary.<NNN>``).
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     profile: ClipProfile
     subject_id: str = Field(min_length=1, max_length=160)
     candidate_ids: tuple[str, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_boundary_subject(self) -> BoundaryOpeningFallback:
+        if (
+            re.fullmatch(rf"{re.escape(self.profile.value)}\.boundary\.\d{{3,}}", self.subject_id)
+            is None
+        ):
+            raise ValueError("Boundary opening fallback must name a Boundary Review batch")
+        if len(set(self.candidate_ids)) != len(self.candidate_ids):
+            raise ValueError("Boundary opening fallback repeats a candidate")
+        return self
 
 
 class DualProfileRunManifest(BaseModel):
@@ -544,9 +560,34 @@ class DualProfileRunManifest(BaseModel):
             raise ValueError("stale cache resolution count differs from its records")
         if self.stale_cache_resolutions and not self.stale_cache_refresh_enabled:
             raise ValueError("stale cache resolutions require the explicit refresh option")
+        self._check_audit_records()
         return self
 
-    def validate_against(self, result: DualProfileFinalResult) -> None:
+    def _check_audit_records(self) -> None:
+        if any(
+            value.cache_key == value.superseding_cache_key for value in self.stale_cache_resolutions
+        ):
+            raise ValueError("stale cache resolution must name a different superseding key")
+        fallback_ids = [
+            (value.profile, candidate_id)
+            for value in self.boundary_opening_fallbacks
+            for candidate_id in value.candidate_ids
+        ]
+        if len(fallback_ids) != len(set(fallback_ids)):
+            raise ValueError("Boundary opening fallback candidate IDs are not unique")
+        subjects = [(value.profile, value.subject_id) for value in self.boundary_opening_fallbacks]
+        if len(subjects) != len(set(subjects)):
+            raise ValueError("Boundary opening fallback repeats a Boundary Review batch")
+
+    def validate_against(
+        self,
+        result: DualProfileFinalResult,
+        *,
+        boundaries: Mapping[ClipProfile, ProfileBoundaryReviewOutput] | None = None,
+    ) -> None:
+        """Cross-check the manifest with the final result (and, when the run's
+        Boundary Review output is available, with that output too)."""
+
         if (
             self.source_hash != result.source_hash
             or self.requested_profiles != result.requested_profiles
@@ -559,6 +600,47 @@ class DualProfileRunManifest(BaseModel):
         }
         if self.profiles != expected:
             raise ValueError("run manifest Profile counts differ from final arrays")
+        self._check_audit_records()
+        for fallback in self.boundary_opening_fallbacks:
+            profile_result = result.profiles.get(fallback.profile)
+            if profile_result is None:
+                raise ValueError("Boundary opening fallback names an unexecuted Profile")
+            # Every final row traces to exactly one Boundary Review row (assembly
+            # requires full coverage), so final membership is Boundary membership.
+            final_ids = {
+                value.candidate_id
+                for group in (
+                    profile_result.selected,
+                    profile_result.manual_review,
+                    profile_result.blocked,
+                    profile_result.rejected,
+                )
+                for value in group
+            }
+            selected_ids = {value.candidate_id for value in profile_result.selected}
+            for candidate_id in fallback.candidate_ids:
+                if candidate_id not in final_ids:
+                    raise ValueError("Boundary opening fallback names a candidate outside the run")
+                if candidate_id in selected_ids:
+                    raise ValueError("Boundary opening fallback candidate was selected")
+            if boundaries is not None:
+                boundary = boundaries.get(fallback.profile)
+                rows = (
+                    {value.candidate_id: value for value in boundary.reviews}
+                    if boundary is not None
+                    else {}
+                )
+                for candidate_id in fallback.candidate_ids:
+                    row = rows.get(candidate_id)
+                    if row is None:
+                        raise ValueError(
+                            "Boundary opening fallback names a candidate outside the "
+                            "Boundary Review output"
+                        )
+                    if row.opening_complete:
+                        raise ValueError(
+                            "Boundary opening fallback candidate still claims a complete opening"
+                        )
 
 
 def plan_profile_discovery_windows(

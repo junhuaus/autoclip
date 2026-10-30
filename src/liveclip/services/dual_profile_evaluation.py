@@ -1091,7 +1091,7 @@ def run_dual_profile_evaluation(
         stale_cache_resolutions=stale_resolutions,
         boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
     )
-    manifest.validate_against(final)
+    manifest.validate_against(final, boundaries=boundaries_by_profile)
     _write_json(
         output_dir / "boundary-review.json",
         {
@@ -1438,6 +1438,72 @@ def _boundary_opening_fallback(
     return apply_boundary_opening_fallback(output, error.candidate_ids), error.candidate_ids
 
 
+_FALLBACK_MARKER_FIELD = "conservative_fallback"
+
+
+def _replay_cached_fallback(
+    marker: object,
+    stage: str,
+    output: OutputModel,
+    validate: Callable[[OutputModel], OutputModel],
+    conservative_fallback: Callable[
+        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
+    ]
+    | None,
+) -> tuple[OutputModel, tuple[str, ...]]:
+    """Re-apply a recorded conservative fallback to a cached raw model output.
+
+    The marker must name this stage and exactly the candidates the fallback would
+    downgrade now, the raw output must fail current validation, and the downgraded
+    output must pass it; anything else is an untrusted cache entry and fails closed
+    in both refresh modes.
+    """
+
+    invalid = ValueError("dual Profile cache fallback marker is invalid")
+    if (
+        conservative_fallback is None
+        or not isinstance(marker, dict)
+        or set(marker) != {"stage", "candidate_ids"}
+        or marker["stage"] != stage
+        or not isinstance(marker["candidate_ids"], list)
+        or not marker["candidate_ids"]
+        or not all(isinstance(value, str) for value in marker["candidate_ids"])
+    ):
+        raise invalid
+    try:
+        validate(output)
+    except ValueError as error:
+        rescued = _apply_conservative_fallback(conservative_fallback, output, error, validate)
+    else:
+        raise invalid
+    if rescued is None or list(rescued[1]) != marker["candidate_ids"]:
+        raise invalid
+    return rescued
+
+
+def _apply_conservative_fallback(
+    conservative_fallback: Callable[
+        [OutputModel, ValueError], tuple[OutputModel, tuple[str, ...]] | None
+    ]
+    | None,
+    output: OutputModel,
+    error: ValueError,
+    validate: Callable[[OutputModel], OutputModel],
+) -> tuple[OutputModel, tuple[str, ...]] | None:
+    """Apply the stage's deterministic fallback; ``None`` unless it fully validates."""
+
+    if conservative_fallback is None:
+        return None
+    rescued = conservative_fallback(output, error)
+    if rescued is None:
+        return None
+    fixed_output, fallback_ids = rescued
+    try:
+        return validate(fixed_output), fallback_ids
+    except ValueError:
+        return None
+
+
 def _resolve_call(
     *,
     stage: str,
@@ -1492,7 +1558,9 @@ def _resolve_call(
 
     key, cache_path = cache_location(cache_settings)
     # Stage 9 contract: every cache hit is fully validated, and by default a cached
-    # output that fails current validation fails the run closed. Only with the
+    # output that fails current validation fails the run closed. A cached raw output
+    # whose entry carries the conservative-fallback marker is re-resolved with the
+    # same deterministic fallback (Stage 12c), never treated as stale. Only with the
     # explicit refresh option is such an entry treated as stale: it stays untouched,
     # its output goes through the ordinary repair path, and the result is cached under
     # a superseding key whose settings add the sha256 of the stale output's canonical
@@ -1510,14 +1578,34 @@ def _resolve_call(
             break
         except (SecureFileError, json.JSONDecodeError) as exc:
             raise ValueError("dual Profile cache exists but is not trusted") from exc
-        if pending_link is not None:
-            resolution_audit.record_stale(stage, profile_value, *pending_link, reused=True)
-            pending_link = None
         if not isinstance(raw, dict) or raw.get("cache_key") != key:
             raise ValueError("dual Profile cache identity is invalid")
         output = response_model.model_validate_json(
             json.dumps(raw.get("output"), ensure_ascii=False)
         )
+        has_marker = _FALLBACK_MARKER_FIELD in raw
+        if pending_link is not None:
+            # Recorded only once the superseding entry passed its identity check.
+            resolution_audit.record_stale(stage, profile_value, *pending_link, reused=True)
+            pending_link = None
+        if has_marker:
+            # The cache holds the raw model output. Its marker says the cold run
+            # resolved it with the deterministic conservative fallback after repair
+            # and regeneration, so the same fallback is re-applied and recorded: a
+            # warm rerun reproduces the cold output and the manifest record.
+            fixed_hit, hit_fallback_ids = _replay_cached_fallback(
+                raw[_FALLBACK_MARKER_FIELD], stage, output, validate, conservative_fallback
+            )
+            resolution_audit.record_opening_fallback(
+                ClipProfile(profile_value), subject_id, hit_fallback_ids
+            )
+            return _ResolvedCall(
+                output=fixed_hit,
+                records=(),
+                cache_hit=True,
+                retry_count=0,
+                repair_count=0,
+            )
         try:
             validate(output)
         except ValueError as stale_error:
@@ -1551,6 +1639,10 @@ def _resolve_call(
     semantic_retry_count = 0
     records: list[ProviderCallRecord] = []
     resolved_repair_count = 0
+    # After a conservative fallback the cache keeps the raw model output plus a
+    # marker naming the downgraded candidates; otherwise it keeps ``output``.
+    cached_output: OutputModel | None = None
+    fallback_marker: dict[str, object] | None = None
     first_output: OutputModel
     first_error: ValueError | None
     if stale is not None:
@@ -1617,50 +1709,45 @@ def _resolve_call(
             try:
                 output = validate(validation_retry_result.output)
             except ValueError as final_error:
-                rescued = (
-                    conservative_fallback(validation_retry_result.output, final_error)
-                    if conservative_fallback is not None
-                    else None
+                rescued = _apply_conservative_fallback(
+                    conservative_fallback,
+                    validation_retry_result.output,
+                    final_error,
+                    validate,
                 )
                 if rescued is None:
                     raise ValueError(
                         "deterministic validation still failed after one repair and one "
                         f"regeneration: {final_error}"
                     ) from final_error
-                fixed_output, fallback_ids = rescued
-                try:
-                    output = validate(fixed_output)
-                except ValueError:
-                    raise ValueError(
-                        "deterministic validation still failed after one repair and one "
-                        f"regeneration: {final_error}"
-                    ) from final_error
+                output, fallback_ids = rescued
+                cached_output = validation_retry_result.output
+                fallback_marker = {"stage": stage, "candidate_ids": list(fallback_ids)}
                 resolution_audit.record_opening_fallback(
                     ClipProfile(profile_value), subject_id, fallback_ids
                 )
     if cache_path is not None:
         ensure_directory_no_follow(cache_path.parent)
+        cache_document: dict[str, object] = {
+            "schema_version": "1",
+            "cache_key": key,
+            "source_hash": source_hash,
+            "profile": profile_value,
+            "stage": stage,
+            "window_start": window_start,
+            "window_end": window_end,
+            "prompt_hash": provider.prompt_sha256,
+            "model": provider.model_name,
+            "model_settings": cache_settings,
+            "output_model": response_model.__name__,
+            "output": (cached_output or output).model_dump(mode="json"),
+        }
+        if fallback_marker is not None:
+            # Only fallback entries carry the marker, so every other entry keeps
+            # exactly the bytes earlier code wrote.
+            cache_document[_FALLBACK_MARKER_FIELD] = fallback_marker
         payload_text = (
-            json.dumps(
-                {
-                    "schema_version": "1",
-                    "cache_key": key,
-                    "source_hash": source_hash,
-                    "profile": profile_value,
-                    "stage": stage,
-                    "window_start": window_start,
-                    "window_end": window_end,
-                    "prompt_hash": provider.prompt_sha256,
-                    "model": provider.model_name,
-                    "model_settings": cache_settings,
-                    "output_model": response_model.__name__,
-                    "output": output.model_dump(mode="json"),
-                },
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n"
+            json.dumps(cache_document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         )
         try:
             write_text_immutable_no_follow(

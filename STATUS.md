@@ -18,6 +18,65 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 12c fallback provenance and manifest cross-checks (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** on local
+  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
+  that accepted Stage 12b at `a7088c4`). Not pushed or merged.
+- Origin: the Stage 12b reviewer P2-A, P2-B and P3s at `a7088c4`.
+- P2-A (fallback provenance on a warm hit). Design: the cache keeps the
+  **raw** model output (the regenerated output that still failed only the
+  opening invariant), plus a marker field `conservative_fallback`
+  (`{"stage": "boundary_review", "candidate_ids": [...]}`) that is written
+  only on fallback entries. On a hit, a marked entry is re-resolved with the
+  same deterministic `apply_boundary_opening_fallback`, re-validated and
+  recorded again in `boundary_opening_fallbacks`, so a warm rerun
+  reproduces the cold final output **and** the manifest record. Why a
+  marker in addition to raw output (deviation from "raw only"): a raw
+  output that violates the opening invariant is ambiguous. It is either a
+  cold-run fallback (repair and regeneration already exhausted) or a
+  stale/planted entry, which the Stage 9/12b contract must fail closed by
+  default and repair only under `--refresh-stale-cache` (an existing test
+  plants exactly such an entry). Re-applying the fallback to every
+  violating hit would silently bypass that contract and skip the
+  repair-and-regeneration precondition. The marker is verified, never
+  trusted: it must name this stage and exactly the candidates the fallback
+  downgrades now, the raw output must fail current validation and the
+  downgraded output must pass; otherwise the run fails closed ("fallback
+  marker is invalid") in both refresh modes. Unmarked entries keep exactly
+  the bytes earlier code wrote. No cache-key change: the key is derived
+  from the request, not from file content, so cold-27 and warm-28 entries
+  still hit (offline replay of a warm-28 cache copy at this code: 233 hits,
+  0 calls, `final-validated.json` byte-identical to warm-28).
+- P2-B (manifest cross-checks). `BoundaryOpeningFallback` now requires a
+  Boundary Review subject (`<profile>.boundary.<NNN>`) and unique
+  candidate IDs; the manifest requires unique (Profile, candidate) pairs
+  and unique batches across fallback records, and every stale resolution
+  must name a `superseding_cache_key` different from its `cache_key`.
+  `validate_against(result, boundaries=...)` additionally checks that
+  every fallback ID belongs to an executed Profile, exists in the run's
+  final arrays (which are exactly the Boundary Review rows) and is never
+  `selected`; when the run's Boundary Review output is supplied (the
+  evaluation service passes it), each fallback row must exist there with
+  `opening_complete=false`. The delivery export, which has no Boundary
+  Review output, keeps calling `validate_against(final)` and gets every
+  check except that last one.
+- P3s: `reused=True` is recorded only after the superseding entry passed
+  its identity check and parsed. New tests cover mis-keyed, garbage-JSON
+  and symlinked cache entries for Discovery, Boundary Review and Global
+  Audit with refresh off and on (all raise), and an untrusted superseding
+  entry (never recorded as reused).
+- No prompt, prompt hash, cache-key derivation, Discovery cache,
+  `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark JSON/MD, evaluator threshold,
+  guard pattern or frozen `tools/loop_engineering` change.
+- Tests (mock/fixture only): cold → warm fallback round trip with a
+  provider that fails on any call (refresh off and on; final, Boundary and
+  Global Review artifacts byte-identical; the manifest record reproduced;
+  the cache untouched); five tampered-marker cases × two refresh modes;
+  18 untrusted-entry cases; 3 untrusted-superseding cases; manifest
+  cross-check unit tests.
+- `docs/PRODUCT_SPEC.md`: Stage 12c amendment.
+
 ## warm-28 real Claude CLI warm diagnostic at a7088c4 (2026-10-30) — strict FAIL 95.0 (diagnostic only)
 
 Evidence categories stay distinct: this run is real-model inference evidence

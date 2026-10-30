@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -465,6 +466,173 @@ def test_run_manifest_stale_cache_audit_is_consistent() -> None:
                 }
             )
         )
+
+
+def _fallback_manifest(
+    result: FinalProfileResult,
+    *,
+    fallbacks: Sequence[Mapping[str, object]] = (),
+    resolutions: Sequence[Mapping[str, object]] = (),
+) -> tuple[DualProfileRunManifest, DualProfileFinalResult]:
+    final = DualProfileFinalResult(
+        source_hash=SOURCE_HASH,
+        requested_profiles=(result.profile,),
+        executed_profiles=(result.profile,),
+        profiles={result.profile: result},
+        routing_policy_version=DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    )
+    manifest = DualProfileRunManifest.model_validate_json(
+        json.dumps(
+            {
+                "source_hash": SOURCE_HASH,
+                "requested_profiles": [result.profile.value],
+                "executed_profiles": [result.profile.value],
+                "profiles": {result.profile.value: result.statistics.model_dump(mode="json")},
+                "provider": "mock",
+                "model": "mock",
+                "prompt_files": {},
+                "prompt_hashes": {},
+                "calls": {},
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "latency_ms": 0,
+                "cache_hits": 0,
+                "repair_count": 0,
+                "stale_cache_refresh_enabled": bool(resolutions),
+                "stale_cache_resolution_count": len(resolutions),
+                "stale_cache_resolutions": list(resolutions),
+                "boundary_opening_fallbacks": list(fallbacks),
+            }
+        )
+    )
+    return manifest, final
+
+
+def _fallback_pool() -> FinalProfileResult:
+    return _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                "candidate_id": "fallback_manual",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "clean_selected",
+                "start_cue_id": 941,
+                "end_cue_id": 959,
+                "status": CandidateDisposition.SELECTED,
+                "score": 90,
+            },
+        ),
+    )
+
+
+def _boundaries_for(
+    result: FinalProfileResult, *, incomplete: frozenset[str]
+) -> dict[ClipProfile, ProfileBoundaryReviewOutput]:
+    rows = tuple(
+        BoundaryReviewItem(
+            candidate_id=value.candidate_id,
+            profile=result.profile,
+            start_cue_id=value.start_cue_id,
+            end_cue_id=value.end_cue_id,
+            opening_complete=value.candidate_id not in incomplete,
+            ending_complete=True,
+            central_objective_complete=True,
+            shortest_complete_boundary=True,
+            quality_flags=(
+                (DualQualityFlag.CONTEXT_DEPENDENT_OPENING,)
+                if value.candidate_id in incomplete
+                else ()
+            ),
+            evidence_cue_ids=(value.start_cue_id,),
+            review_reason="边界审查证据。",
+        )
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+    )
+    return {result.profile: ProfileBoundaryReviewOutput(profile=result.profile, reviews=rows)}
+
+
+def test_run_manifest_cross_checks_boundary_opening_fallbacks() -> None:
+    result = _fallback_pool()
+    record = {
+        "profile": "short_highlight",
+        "subject_id": "short_highlight.boundary.001",
+        "candidate_ids": ["fallback_manual"],
+    }
+    manifest, final = _fallback_manifest(result, fallbacks=[record])
+    manifest.validate_against(final)
+    manifest.validate_against(
+        final, boundaries=_boundaries_for(result, incomplete=frozenset({"fallback_manual"}))
+    )
+    # The Boundary Review row must really carry the downgrade.
+    with pytest.raises(ValueError, match="still claims a complete opening"):
+        manifest.validate_against(final, boundaries=_boundaries_for(result, incomplete=frozenset()))
+    with pytest.raises(ValueError, match="outside the Boundary Review output"):
+        manifest.validate_against(
+            final,
+            boundaries={
+                ClipProfile.SHORT_HIGHLIGHT: ProfileBoundaryReviewOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT, reviews=()
+                )
+            },
+        )
+    # Unknown, selected, repeated and non-Boundary-Review records are refused.
+    unknown, final = _fallback_manifest(result, fallbacks=[{**record, "candidate_ids": ["ghost"]}])
+    with pytest.raises(ValueError, match="outside the run"):
+        unknown.validate_against(final)
+    selected, final = _fallback_manifest(
+        result, fallbacks=[{**record, "candidate_ids": ["clean_selected"]}]
+    )
+    with pytest.raises(ValueError, match="was selected"):
+        selected.validate_against(final)
+    with pytest.raises(ValueError, match="repeats a candidate"):
+        _fallback_manifest(
+            result, fallbacks=[{**record, "candidate_ids": ["fallback_manual", "fallback_manual"]}]
+        )
+    with pytest.raises(ValueError, match="candidate IDs are not unique"):
+        _fallback_manifest(
+            result,
+            fallbacks=[record, {**record, "subject_id": "short_highlight.boundary.002"}],
+        )
+    with pytest.raises(ValueError, match="repeats a Boundary Review batch"):
+        _fallback_manifest(
+            result,
+            fallbacks=[record, {**record, "candidate_ids": ["clean_selected"]}],
+        )
+    for subject in (
+        "short_highlight.global.001",
+        "mini_lesson.boundary.001",
+        "short_highlight.boundary.001.extra",
+        "short_highlight.global_audit",
+    ):
+        with pytest.raises(ValueError, match="must name a Boundary Review batch"):
+            _fallback_manifest(result, fallbacks=[{**record, "subject_id": subject}])
+    other_profile, final = _fallback_manifest(
+        result,
+        fallbacks=[{**record, "profile": "mini_lesson", "subject_id": "mini_lesson.boundary.001"}],
+    )
+    with pytest.raises(ValueError, match="unexecuted Profile"):
+        other_profile.validate_against(final)
+
+
+def test_run_manifest_stale_resolution_must_name_a_different_superseding_key() -> None:
+    result = _fallback_pool()
+    resolution = {
+        "stage": "global_audit",
+        "profile": "short_highlight",
+        "cache_key": "a" * 64,
+        "superseding_cache_key": "b" * 64,
+        "error_summary": "stale",
+        "reused": True,
+    }
+    manifest, final = _fallback_manifest(result, resolutions=[resolution])
+    manifest.validate_against(final)
+    with pytest.raises(ValueError, match="different superseding key"):
+        _fallback_manifest(result, resolutions=[{**resolution, "superseding_cache_key": "a" * 64}])
 
 
 def test_long_discovery_uses_six_hundred_second_context_and_three_hundred_ownership() -> None:

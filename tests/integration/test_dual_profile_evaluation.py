@@ -1379,6 +1379,223 @@ def test_opening_fallback_never_masks_another_validation_failure(tmp_path: Path)
         )
 
 
+class NoCallProvider(ScriptedDualProvider):
+    """Any model call fails the test: a warm rerun must be served from the cache."""
+
+    def generate(self, **kwargs: Any) -> Any:
+        raise AssertionError(f"unexpected model call: {kwargs['subject_id']}")
+
+    def repair(self, **kwargs: Any) -> Any:
+        raise AssertionError(f"unexpected model repair: {kwargs['subject_id']}")
+
+
+def _no_call_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+    del reasoning_effort
+    return NoCallProvider(prompt, {})
+
+
+def _stubborn_cold_run(tmp_path: Path) -> tuple[Path, Path, DualProfileRunManifest]:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return StubbornOpeningFlagProvider(prompt, counter)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    cold = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "cold" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    return transcript, cache, cold
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_opening_fallback_round_trips_through_the_cache(tmp_path: Path, refresh: bool) -> None:
+    transcript, cache, cold = _stubborn_cold_run(tmp_path)
+    assert {value.profile for value in cold.boundary_opening_fallbacks} == set(ClipProfile)
+    # The cache keeps only the raw model output; a marker names the downgraded rows.
+    boundary_files = sorted(cache.glob("*/boundary_review/*.json"))
+    assert len(boundary_files) == len(ClipProfile)
+    for path in boundary_files:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        assert all(item["opening_complete"] for item in entry["output"]["reviews"])
+        assert entry["conservative_fallback"] == {
+            "stage": "boundary_review",
+            "candidate_ids": [f"{entry['profile']}_lesson"],
+        }
+        assert "supersedes_cache_output_sha256" not in entry["model_settings"]
+    # Ordinary entries are written exactly as before (no marker field).
+    others = [path for path in cache.glob("*/*/*.json") if path not in boundary_files]
+    assert others
+    assert not any(
+        "conservative_fallback" in json.loads(path.read_text("utf-8")) for path in others
+    )
+    before = {path: path.read_bytes() for path in cache.glob("*/*/*.json")}
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=_no_call_factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+        refresh_stale_cache=refresh,
+    )
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(warm.calls.values()) == {0}
+    assert warm.boundary_opening_fallbacks == cold.boundary_opening_fallbacks
+    assert warm.stale_cache_resolutions == ()
+    for name in ("final-validated.json", "boundary-review.json", "global-review.json"):
+        assert (tmp_path / "warm" / name).read_bytes() == (tmp_path / "cold" / name).read_bytes()
+    assert {path: path.read_bytes() for path in cache.glob("*/*/*.json")} == before
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+@pytest.mark.parametrize(
+    "tamper",
+    ["wrong_ids", "wrong_stage", "extra_key", "not_a_mapping", "valid_output"],
+)
+def test_tampered_fallback_marker_fails_closed(tmp_path: Path, refresh: bool, tamper: str) -> None:
+    transcript, cache, _ = _stubborn_cold_run(tmp_path)
+    path = sorted(cache.glob("short_highlight/boundary_review/*.json"))[0]
+    entry = json.loads(path.read_text(encoding="utf-8"))
+    marker = entry["conservative_fallback"]
+    if tamper == "wrong_ids":
+        marker["candidate_ids"] = ["someone_else"]
+    elif tamper == "wrong_stage":
+        marker["stage"] = "global_review"
+    elif tamper == "extra_key":
+        marker["note"] = "x"
+    elif tamper == "not_a_mapping":
+        entry["conservative_fallback"] = ["short_highlight_lesson"]
+    else:
+        # A marker on an output that already validates is not a fallback entry.
+        for item in entry["output"]["reviews"]:
+            item["opening_complete"] = False
+    path.chmod(0o600)
+    path.write_text(json.dumps(entry), encoding="utf-8")
+    with pytest.raises(ValueError, match="fallback marker is invalid"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+            refresh_stale_cache=refresh,
+        )
+
+
+def _scripted_cold_cache(tmp_path: Path) -> tuple[Path, Path]:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ScriptedDualProvider(prompt, {})
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    return transcript, cache
+
+
+def _corrupt_cache_entry(path: Path, corruption: str) -> None:
+    original = path.read_text(encoding="utf-8")
+    path.chmod(0o600)
+    if corruption == "mis_keyed":
+        entry = json.loads(original)
+        entry["cache_key"] = "0" * 64
+        path.write_text(json.dumps(entry), encoding="utf-8")
+    elif corruption == "garbage_json":
+        path.write_text("{not json", encoding="utf-8")
+    else:
+        target = path.with_name("symlink-target.txt")
+        target.write_text(original, encoding="utf-8")
+        path.unlink()
+        path.symlink_to(target)
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+@pytest.mark.parametrize("corruption", ["mis_keyed", "garbage_json", "symlink"])
+@pytest.mark.parametrize("stage", ["discovery", "boundary_review", "global_audit"])
+def test_untrusted_dual_profile_cache_entries_always_raise(
+    tmp_path: Path, refresh: bool, corruption: str, stage: str
+) -> None:
+    transcript, cache = _scripted_cold_cache(tmp_path)
+    path = sorted(cache.glob(f"short_highlight/{stage}/*.json"))[0]
+    _corrupt_cache_entry(path, corruption)
+    expected = "identity is invalid" if corruption == "mis_keyed" else "is not trusted"
+    with pytest.raises(ValueError, match=expected):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+            refresh_stale_cache=refresh,
+        )
+
+
+@pytest.mark.parametrize("corruption", ["mis_keyed", "garbage_json", "symlink"])
+def test_untrusted_superseding_entry_raises_and_is_never_recorded_as_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "refresh",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+        refresh_stale_cache=True,
+    )
+    (superseding,) = set(cache.glob("*/global_audit/*.json")) - set(planted)
+    _corrupt_cache_entry(superseding, corruption)
+    recorded: list[bool] = []
+    original_record = service._ResolutionAudit.record_stale
+
+    def spy(self: Any, *args: Any, reused: bool) -> None:
+        recorded.append(reused)
+        original_record(self, *args, reused=reused)
+
+    monkeypatch.setattr(service._ResolutionAudit, "record_stale", spy)
+    expected = "identity is invalid" if corruption == "mis_keyed" else "is not trusted"
+    with pytest.raises(ValueError, match=expected):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "third",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+            refresh_stale_cache=True,
+        )
+    assert True not in recorded
+
+
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
     short = load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT)
     mini = load_dual_profile_prompt("discovery", ClipProfile.MINI_LESSON)

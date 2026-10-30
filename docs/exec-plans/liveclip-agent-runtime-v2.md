@@ -1,5 +1,25 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 12c fallback provenance and manifest cross-checks (2026-10-30)
+
+- [x] 2026-10-30 Stage 12c implemented on `claude/liveclip-stage8-routing`
+  (Stage 12b reviewer P2-A/P2-B/P3s at `a7088c4`), **pending independent
+  tester and reviewer**. Not pushed.
+  - P2-A: the cache keeps the raw model output plus a verified
+    `conservative_fallback` marker on fallback entries only; a hit re-applies
+    the deterministic opening fallback and re-records it, so warm reruns
+    reproduce the final output and the manifest record. Raw-only
+    re-application was rejected because an invariant-violating raw output is
+    indistinguishable from a stale entry that must fail closed by default.
+    No cache-key change.
+  - P2-B: manifest cross-checks for fallback records (Boundary Review
+    subject, unique IDs and batches, IDs in the run, never `selected`,
+    `opening_complete=false` in the supplied Boundary Review output) and
+    stale resolutions (`cache_key != superseding_cache_key`).
+  - P3s: `reused=True` only after the superseding identity check; tests for
+    mis-keyed, garbage-JSON and symlinked entries in both refresh modes.
+- [ ] Next: independent tester and reviewer (together with Stage 13).
+
 ## warm-28 warm diagnostic and Stage 13 decisions (2026-10-30)
 
 - [x] 2026-10-30 warm-28 (real Claude CLI, warm from a byte-verified copy of

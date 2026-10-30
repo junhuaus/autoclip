@@ -515,3 +515,17 @@ in `STATUS.md`.
 
 Next: Stage 12c and Stage 13, then independent tester and reviewer; a real
 run only with the user's go-ahead. Not pushed.
+
+## Stage 12c implemented, pending verification (2026-10-30)
+
+Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
+that accepted Stage 12b. Reviewer P2-A: opening-fallback cache entries keep
+the raw model output plus a verified `conservative_fallback` marker, so a
+warm hit re-applies the fallback and reproduces the manifest record (raw
+only was rejected: it cannot be told apart from a stale entry that must
+fail closed). P2-B: manifest cross-checks for fallback records and stale
+resolutions. P3s: `reused=True` after the identity check; untrusted-cache
+tests in both refresh modes. No cache-key or prompt change. Details in
+`STATUS.md`.
+
+Next: Stage 13, then independent tester and reviewer. Not pushed.
