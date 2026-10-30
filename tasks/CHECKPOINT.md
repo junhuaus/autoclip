@@ -580,3 +580,15 @@ in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 13b SHA; a real run only
 with the user's go-ahead. Not pushed.
+
+## Stage 13b accepted at e48f601 (2026-10-30)
+
+Stage 13b is ACCEPTED at `e48f6018bc9456278585ca1f63f0d0c225834697` on
+`claude/liveclip-stage8-routing` (local only). Tester PASS: lint rc 0;
+backend 2976 passed in 1632.67 s; vitest 14/80; e2e 4; targeted 245; no
+sleep 14:49–15:22. Reviewer ACCEPT, no P0/P1: 23/27 mutants killed;
+Deviation 3 (accept representative-rule duplicates unchanged) endorsed;
+sentinel replay 230 hits and exactly 3 calls, no fail-closed; a
+forced-fallback cold → warm replay byte-identical. Follow-ups and a
+containment-criteria correction become Stage 13c, which must land before
+the real run. Real run still pending.

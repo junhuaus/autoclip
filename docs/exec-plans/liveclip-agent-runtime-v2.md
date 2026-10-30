@@ -3,9 +3,15 @@
 ## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30)
 
 - [x] 2026-10-30 Stage 13b implemented on `claude/liveclip-stage8-routing`
-  (Stage 13 reviewer P2s; binding user decision on near-copy containment),
-  **pending independent tester and reviewer; real run pending**. Not
-  pushed.
+  (Stage 13 reviewer P2s; binding user decision on near-copy containment);
+  **ACCEPTED at `e48f6018bc9456278585ca1f63f0d0c225834697` on 2026-10-30**
+  (first recorded as pending independent tester and reviewer); real run
+  pending. Not pushed. Tester PASS: lint rc 0; backend 2976 passed
+  (1632.67 s); vitest 14/80; e2e 4; targeted 245; no sleep 14:49–15:22.
+  Reviewer ACCEPT, no P0/P1: 23/27 mutants killed; Deviation 3 endorsed;
+  sentinel replay 230 hits / exactly 3 calls / no fail-closed;
+  forced-fallback cold → warm replay byte-identical. P2s/P3s and a
+  containment-criteria correction become Stage 13c.
   - P2-1: audit candidates carry `persisted_discovery_gated_flags` (same
     function as Fix 1; audit payload only); one general prompt sentence; a
     duplicate resolving to a persisted-flag representative is invalid.
@@ -22,8 +28,10 @@
   - Only `global_audit.md` changed (hashes in `STATUS.md`). Offline on a
     warm-28 cache copy: exactly 3 calls; mini now lists 2 containment pairs
     (the two reviewer-identified pairs); L02 stays protected.
-- [ ] Next: independent tester and reviewer on the Stage 13b SHA; a real
-  run only with the user's go-ahead.
+- [x] (Historical next step; done 2026-10-30 at `e48f601`.) Independent
+  tester and reviewer on the Stage 13b SHA.
+- [ ] Next: Stage 13c (must land before the real run), then a real run only
+  with the user's go-ahead.
 
 ## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
 

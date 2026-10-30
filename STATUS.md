@@ -18,12 +18,26 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30) — ACCEPTED at e48f601; REAL RUN PENDING
 
-- **Status: implemented, pending independent tester and reviewer; real run
-  pending** on local branch `claude/liveclip-stage8-routing` (code commit
-  after the docs commit that accepted Stages 12c and 13 at `b5da41c`). Not
-  pushed or merged.
+- **Status: ACCEPTED** (2026-10-30) at
+  `e48f6018bc9456278585ca1f63f0d0c225834697` on local branch
+  `claude/liveclip-stage8-routing` (code commit after the docs commit that
+  accepted Stages 12c and 13 at `b5da41c`); real run pending. Not pushed or
+  merged. (History: first recorded as implemented, pending independent
+  tester and reviewer; real run pending.)
+- Tester: **PASS** at `e48f601`. `make lint` rc 0; backend 2976 passed in
+  1632.67 s; vitest 14 files / 80; e2e 4; targeted 245. No sleep in the
+  14:49–15:22 window on 2026-10-30.
+- Reviewer: **ACCEPT** at `e48f601`, no P0/P1. 23/27 mutants killed.
+  Deviation 3 is endorsed: accepting the model's duplicate unchanged is the
+  only downgrade-only option for representative-rule violations. Sentinel
+  replay: 230 hits, exactly 3 calls, no fail-closed. A forced-fallback
+  cold → warm replay was byte-identical. The P2s and P3s (fallback keep
+  order and orphaned duplicates, record granularity, a reverse prefix
+  cross-check, mutant-killing tests, the GR-level persisted-flag gap) and a
+  Controller correction of the containment criteria are taken up as
+  Stage 13c.
 - Origin: the Stage 13 reviewer P2s and the binding user decision on
   near-copy containment (2026-10-30). Everything lands before the real run.
   The Global Audit prompt hash already changed in Stage 13, so there is no
