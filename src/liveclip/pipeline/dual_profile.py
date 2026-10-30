@@ -6,6 +6,8 @@ import re
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from enum import StrEnum
+from fractions import Fraction
+from types import MappingProxyType
 from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -84,8 +86,13 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
 #       selected or manual_review twin that inherits one becomes blocked), risk
 #       records excluded by Top-N are retained as blocked, and final evidence
 #       cue IDs are limited to the final interval.
+#   v4: v3 plus Discovery gated-flag persistence: a gated flag that Discovery
+#       raised on a candidate survives into the final flags unless Boundary
+#       Review shrank that candidate's interval on at least one edge; a
+#       selected or manual_review row that keeps one becomes blocked.
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v3"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v4"
+FLAG_PERSISTENCE_REASON_PREFIX: Final = "Deterministic flag persistence: "
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -314,8 +321,45 @@ class NestedPairDecisionKind(StrEnum):
     DISTINCT_OBJECTIVE = "distinct_objective"
 
 
+class AuditPairKind(StrEnum):
+    NESTED = "nested"
+    OVERLAP = "overlap"
+
+
+# Overlap adjudication (Stage 13): a same-Profile retained pair in which neither
+# candidate contains the other is listed for the Global Audit when the shared
+# media is at least this fraction of the shorter candidate's duration.
+AUDIT_OVERLAP_MIN_SHORTER_FRACTION: Final = Fraction(1, 2)
+# An overlap pair sharing at least this fraction of the shorter candidate, or
+# ending at the same point within the Profile's boundary tolerance, is
+# near-identical media: the audit may not keep both members retained.
+AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION: Final = Fraction(9, 10)
+AUDIT_SAME_END_TOLERANCE_MS: Final[Mapping[ClipProfile, int]] = MappingProxyType(
+    {ClipProfile.SHORT_HIGHLIGHT: 3_000, ClipProfile.MINI_LESSON: 5_000}
+)
+
+
+class AuditCandidatePair(BaseModel):
+    """One Python-listed same-Profile pair the Global Audit must decide.
+
+    ``outer_candidate_id`` is the containing candidate of a nested pair, or the
+    earlier-starting candidate of an overlap pair.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    outer_candidate_id: str
+    inner_candidate_id: str
+    pair_kind: AuditPairKind
+    near_identical: bool = False
+
+    @property
+    def members(self) -> frozenset[str]:
+        return frozenset((self.outer_candidate_id, self.inner_candidate_id))
+
+
 class NestedPairDecision(BaseModel):
-    """Global Audit decision for one Python-listed nested same-Profile pair."""
+    """Global Audit decision for one Python-listed same-Profile pair (nested or overlap)."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -458,6 +502,7 @@ class DualProfileFinalResult(BaseModel):
             "manual-review-quality-gate-v1",
             "quality-gate-risk-routing-v2",
             "quality-gate-risk-routing-v3",
+            "quality-gate-risk-routing-v4",
         ]
         | None
     ) = None
@@ -882,6 +927,154 @@ def nested_candidate_pairs(
     return tuple(pairs)
 
 
+def audit_candidate_pairs(
+    global_review: ProfileGlobalReviewOutput,
+    transcript: TranscriptDocument,
+) -> tuple[AuditCandidatePair, ...]:
+    """List every same-Profile retained pair the Global Audit must decide.
+
+    Nested pairs are exactly ``nested_candidate_pairs``.  Overlap pairs are the
+    other selected/manual_review pairs in which neither candidate contains the
+    other and the shared media is at least ``AUDIT_OVERLAP_MIN_SHORTER_FRACTION``
+    of the shorter candidate's duration.  Containment without a shared edge stays
+    unlisted, as before.  An overlap pair is ``near_identical`` when the members
+    end within the Profile's ``AUDIT_SAME_END_TOLERANCE_MS`` or share at least
+    ``AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION`` of the shorter candidate.
+    """
+
+    nested = nested_candidate_pairs(global_review)
+    pairs = [
+        AuditCandidatePair(
+            outer_candidate_id=outer, inner_candidate_id=inner, pair_kind=AuditPairKind.NESTED
+        )
+        for outer, inner in nested
+    ]
+    cue_map = {value.cue_id: value for value in transcript_cues(transcript)}
+    retained = sorted(
+        (
+            value
+            for value in global_review.reviews
+            if value.review_status
+            in {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}
+        ),
+        key=lambda value: (value.start_cue_id, -value.end_cue_id, value.candidate_id),
+    )
+    try:
+        spans = {
+            value.candidate_id: (
+                cue_map[value.start_cue_id].start_ms,
+                cue_map[value.end_cue_id].end_ms,
+            )
+            for value in retained
+        }
+    except KeyError as exc:
+        raise ValueError("Global Review references an unknown cue") from exc
+    tolerance_ms = AUDIT_SAME_END_TOLERANCE_MS[global_review.profile]
+    for index, first in enumerate(retained):
+        for second in retained[index + 1 :]:
+            if first.profile != second.profile:
+                continue
+            first_start, first_end = spans[first.candidate_id]
+            second_start, second_end = spans[second.candidate_id]
+            if (first_start <= second_start and second_end <= first_end) or (
+                second_start <= first_start and first_end <= second_end
+            ):
+                continue
+            overlap_ms = min(first_end, second_end) - max(first_start, second_start)
+            shorter_ms = min(first_end - first_start, second_end - second_start)
+            if overlap_ms <= 0 or overlap_ms < shorter_ms * AUDIT_OVERLAP_MIN_SHORTER_FRACTION:
+                continue
+            pairs.append(
+                AuditCandidatePair(
+                    outer_candidate_id=first.candidate_id,
+                    inner_candidate_id=second.candidate_id,
+                    pair_kind=AuditPairKind.OVERLAP,
+                    near_identical=(
+                        abs(first_end - second_end) <= tolerance_ms
+                        or overlap_ms >= shorter_ms * AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION
+                    ),
+                )
+            )
+    return tuple(pairs)
+
+
+def _duplicate_representative(
+    candidate_id: str, review_map: Mapping[str, GlobalReviewItem]
+) -> str | None:
+    """Follow duplicate references to the retained representative (cycle-safe)."""
+
+    visited: set[str] = set()
+    current = candidate_id
+    while True:
+        if current in visited or current not in review_map:
+            return None
+        visited.add(current)
+        following = review_map[current].duplicate_of_candidate_id
+        if following is None:
+            return current
+        current = following
+
+
+def validate_audit_pair_decisions(
+    pairs: Sequence[AuditCandidatePair],
+    decisions: Sequence[NestedPairDecision],
+    merged_review: ProfileGlobalReviewOutput,
+) -> None:
+    """Require one consistent audit decision for every listed nested or overlap pair.
+
+    Every pair uses the ``validate_nested_pair_decisions`` semantics (exact
+    coverage, direct or shared-representative duplicates, ``distinct_objective``
+    without a direct reference).  Overlap pairs add two deterministic rules:
+
+    * a ``duplicate`` decision must leave the resolved representative of each
+      removed member ``selected`` or ``manual_review``, so deduplication never
+      deletes the last retained version of that media;
+    * a ``near_identical`` pair may not leave both members ``selected`` or
+      ``manual_review``.  Whether a free-text reason really names a distinct
+      objective cannot be checked deterministically, so near-identical media is
+      never kept twice; the audit keeps one representative (or rejects/blocks a
+      member on its own merits).
+    """
+
+    validate_nested_pair_decisions(
+        tuple((pair.outer_candidate_id, pair.inner_candidate_id) for pair in pairs),
+        decisions,
+        merged_review,
+    )
+    review_map = {value.candidate_id: value for value in merged_review.reviews}
+    retained = {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}
+    decision_map = {
+        frozenset((value.outer_candidate_id, value.inner_candidate_id)): value
+        for value in decisions
+    }
+    for pair in pairs:
+        if pair.pair_kind != AuditPairKind.OVERLAP:
+            continue
+        members = [review_map[candidate_id] for candidate_id in sorted(pair.members)]
+        if pair.near_identical and all(value.review_status in retained for value in members):
+            raise ValueError(
+                "Global Audit near-identical overlap pair "
+                f"{pair.outer_candidate_id}/{pair.inner_candidate_id} cannot keep both "
+                "candidates selected or manual_review; keep one representative"
+            )
+        if decision_map[pair.members].decision != NestedPairDecisionKind.DUPLICATE:
+            continue
+        for value in members:
+            if value.review_status in retained or value.duplicate_of_candidate_id is None:
+                continue
+            representative = _duplicate_representative(value.candidate_id, review_map)
+            if (
+                representative is None
+                or representative == value.candidate_id
+                or review_map[representative].review_status not in retained
+            ):
+                raise ValueError(
+                    "Global Audit overlap duplicate "
+                    f"{pair.outer_candidate_id}/{pair.inner_candidate_id} must keep a "
+                    "selected or manual_review representative"
+                )
+
+
 def validate_nested_pair_decisions(
     pairs: Sequence[tuple[str, str]],
     decisions: Sequence[NestedPairDecision],
@@ -901,18 +1094,7 @@ def validate_nested_pair_decisions(
     non_retained = {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
 
     def representative(candidate_id: str) -> str | None:
-        """Follow duplicate references to the retained representative (cycle-safe)."""
-
-        visited: set[str] = set()
-        current = candidate_id
-        while True:
-            if current in visited or current not in review_map:
-                return None
-            visited.add(current)
-            following = review_map[current].duplicate_of_candidate_id
-            if following is None:
-                return current
-            current = following
+        return _duplicate_representative(candidate_id, review_map)
 
     for decision in decisions:
         key = frozenset((decision.outer_candidate_id, decision.inner_candidate_id))
@@ -983,6 +1165,16 @@ def assemble_final_profile_result(
     risk-discovery pass output, never from candidate-ID prefixes.  A rejected
     risk record is retained as ``blocked`` so risk material stays auditable.
     Routing only ever downgrades or retains; it never produces an output.
+
+    Deterministic routing order (v4), each step only downgrading:
+
+    1. validation of the review stages (unchanged: it sees only the merged
+       Boundary/Global flags, so cached review outputs validate exactly as
+       before), then Discovery gated-flag persistence per candidate;
+    2. same-interval twin union of gated flags (it includes persisted flags);
+    3. Profile-local Top-N over the rows still ``selected`` (rows blocked by
+       steps 1--2 never take a slot);
+    4. risk-record routing and the manual_review quality gate.
     """
     risk_records = frozenset(risk_record_ids)
     raw_candidates = tuple(value for output in discoveries for value in output.candidates)
@@ -1046,6 +1238,16 @@ def assemble_final_profile_result(
                 and boundary.shortest_complete_boundary
             ):
                 raise ValueError("selected candidate failed deterministic boundary facts")
+        persisted = discovery_persisted_flags(raw, boundary, merged_quality)
+        review_reason = review.review_reason
+        if persisted and status in {
+            CandidateDisposition.SELECTED,
+            CandidateDisposition.MANUAL_REVIEW,
+        }:
+            # Never raise here: a persisted Discovery flag downgrades, it does not
+            # invalidate the review output (its validation above is unchanged).
+            status = CandidateDisposition.BLOCKED
+            review_reason = f"{FLAG_PERSISTENCE_REASON_PREFIX}{review.review_reason}"
         final_values.append(
             FinalProfileCandidate(
                 candidate_id=candidate_id,
@@ -1063,7 +1265,7 @@ def assemble_final_profile_result(
                 summary=review.summary,
                 score=review.score,
                 review_status=status,
-                quality_flags=merged_quality,
+                quality_flags=(*merged_quality, *persisted),
                 risk_tags=merged_risks,
                 # Final evidence is limited to the final interval; the raw
                 # Discovery artifacts keep the original evidence cue IDs.
@@ -1079,7 +1281,7 @@ def assemble_final_profile_result(
                     if review.start_cue_id <= cue_id <= review.end_cue_id
                 ),
                 duplicate_of_candidate_id=review.duplicate_of_candidate_id,
-                review_reason=review.review_reason,
+                review_reason=review_reason,
             )
         )
     # Same interval -> same gated flags.  Candidates with an identical final
@@ -1182,6 +1384,34 @@ def assemble_final_profile_result(
     )
 
 
+def boundary_shrank_interval(raw: RawProfileCandidate, boundary: BoundaryReviewItem) -> bool:
+    """True when Boundary Review moved the start later or the end earlier."""
+
+    return boundary.start_cue_id > raw.start_cue_id or boundary.end_cue_id < raw.end_cue_id
+
+
+def discovery_persisted_flags(
+    raw: RawProfileCandidate,
+    boundary: BoundaryReviewItem,
+    merged_quality: Collection[DualQualityFlag] = (),
+) -> tuple[DualQualityFlag, ...]:
+    """Discovery gated flags that survive Boundary Review (routing policy v4).
+
+    A gated flag (``MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS``) that Discovery raised on
+    the candidate describes media inside its Discovery interval.  Boundary Review
+    can only resolve it by removing media: when it shrank the interval on at least
+    one edge, the Boundary/Global flags are authoritative.  An unchanged or only
+    extended interval still contains the flagged media, so clearing the flag in a
+    review stage does not clear it here.  Advisory flags are never persisted.
+    Returns the persisted flags not already in ``merged_quality``, in enum order.
+    """
+
+    if boundary_shrank_interval(raw, boundary):
+        return ()
+    gated = set(raw.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+    return tuple(flag for flag in DualQualityFlag if flag in gated and flag not in merged_quality)
+
+
 def profile_statistics(
     raw_candidate_ids: Sequence[str],
     final_candidates: Sequence[FinalProfileCandidate],
@@ -1273,12 +1503,18 @@ def assert_no_cross_profile_dedup(results: Iterable[FinalProfileResult]) -> None
 
 
 __all__ = [
+    "AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION",
+    "AUDIT_OVERLAP_MIN_SHORTER_FRACTION",
+    "AUDIT_SAME_END_TOLERANCE_MS",
     "AUTO_BLOCKING_QUALITY_FLAGS",
     "AUTO_BLOCKING_RISK_TAGS",
     "DUAL_PROFILE_ALGORITHM_VERSION",
     "DUAL_PROFILE_ROUTING_POLICY_VERSION",
+    "FLAG_PERSISTENCE_REASON_PREFIX",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
+    "AuditCandidatePair",
+    "AuditPairKind",
     "BoundaryOpeningFallback",
     "BoundaryOpeningInvariantError",
     "BoundaryReviewItem",
@@ -1309,10 +1545,14 @@ __all__ = [
     "apply_cross_profile_variant_links",
     "assemble_final_profile_result",
     "assert_no_cross_profile_dedup",
+    "audit_candidate_pairs",
+    "boundary_shrank_interval",
+    "discovery_persisted_flags",
     "nested_candidate_pairs",
     "plan_profile_discovery_windows",
     "profile_statistics",
     "semantic_cache_key",
+    "validate_audit_pair_decisions",
     "validate_boundary_review_output",
     "validate_discovery_output",
     "validate_nested_pair_decisions",

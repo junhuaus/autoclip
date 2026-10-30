@@ -529,3 +529,21 @@ tests in both refresh modes. No cache-key or prompt change. Details in
 `STATUS.md`.
 
 Next: Stage 13, then independent tester and reviewer. Not pushed.
+
+## Stage 13 implemented, pending verification; real run pending (2026-10-30)
+
+Branch `claude/liveclip-stage8-routing`, local only, after Stage 12c. Fix 1:
+Discovery gated flags persist unless Boundary Review shrank an edge
+(selected/manual_review → blocked, "Deterministic flag persistence: ";
+routing policy v4; order validation → persistence → twin union → Top-N →
+risk routing/quality gate). Fix 2: the Global Audit also decides
+same-Profile overlap pairs at ≥1/2 of the shorter candidate; near-identical
+pairs (same end within 3 s/5 s or ≥90%) cannot keep both retained; overlap
+duplicates keep a retained representative. Only `global_audit.md` changed.
+Offline warm-28 cache-copy replays: Fix 1 alone → 1 call (variant link),
+strict FAIL 93.0 offline with every hit kept and the N07 negative-anchor
+output blocked; final code → exactly 3 calls (2 audits + variant link).
+Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 12c and Stage 13 SHAs;
+a real run only with the user's go-ahead. Not pushed.

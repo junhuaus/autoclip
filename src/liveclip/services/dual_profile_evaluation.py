@@ -41,6 +41,7 @@ from liveclip.media.secure_files import (
 from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    AuditCandidatePair,
     BoundaryOpeningFallback,
     BoundaryOpeningInvariantError,
     BoundaryReviewItem,
@@ -63,12 +64,12 @@ from liveclip.pipeline.dual_profile import (
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
-    nested_candidate_pairs,
+    audit_candidate_pairs,
     plan_profile_discovery_windows,
     semantic_cache_key,
+    validate_audit_pair_decisions,
     validate_boundary_review_output,
     validate_discovery_output,
-    validate_nested_pair_decisions,
 )
 from liveclip.pipeline.semantic_global import transcript_cues
 from liveclip.pipeline.srt import load_srt_transcript
@@ -914,14 +915,14 @@ def run_dual_profile_evaluation(
         prompt_files[f"{profile.value}.global_audit"] = global_audit_prompt.loaded_files
         prompt_hashes[f"{profile.value}.global_audit"] = global_audit_prompt.sha256
         initial_review_map = {value.candidate_id: value for value in global_review.reviews}
-        nested_pairs = nested_candidate_pairs(global_review)
+        audit_pairs = audit_candidate_pairs(global_review, transcript)
 
         def validate_global_audit(
             value: ProfileGlobalAuditOutput,
             current_profile: ClipProfile = profile,
             current_initial_ids: frozenset[str] = frozenset(initial_review_map),
             current_global: ProfileGlobalReviewOutput = global_review,
-            current_pairs: tuple[tuple[str, str], ...] = nested_pairs,
+            current_pairs: tuple[AuditCandidatePair, ...] = audit_pairs,
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
@@ -943,12 +944,17 @@ def run_dual_profile_evaluation(
             # current audit prompt hash was written and validated under it, and
             # audits cached before the rule carry an older prompt hash, so they
             # can never be cache hits.
-            listed = {frozenset(pair) for pair in current_pairs}
+            # Nested and overlap pairs alike (Stage 13).
+            listed = {pair.members for pair in current_pairs}
             required_pairs = (
                 *current_pairs,
-                *(pair for pair in nested_candidate_pairs(merged) if frozenset(pair) not in listed),
+                *(
+                    pair
+                    for pair in audit_candidate_pairs(merged, transcript)
+                    if pair.members not in listed
+                ),
             )
-            validate_nested_pair_decisions(required_pairs, value.nested_pair_decisions, merged)
+            validate_audit_pair_decisions(required_pairs, value.nested_pair_decisions, merged)
             return value
 
         global_audit_call = _resolve_call(
@@ -958,10 +964,7 @@ def run_dual_profile_evaluation(
             payload={
                 **global_payload,
                 "initial_global_review": global_review.model_dump(mode="json"),
-                "nested_pairs": [
-                    {"outer_candidate_id": outer, "inner_candidate_id": inner}
-                    for outer, inner in nested_pairs
-                ],
+                "audit_pairs": [pair.model_dump(mode="json") for pair in audit_pairs],
             },
             response_model=ProfileGlobalAuditOutput,
             provider=global_audit_provider,

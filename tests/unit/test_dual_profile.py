@@ -2,17 +2,25 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from fractions import Fraction
 from pathlib import Path
 from typing import cast
 
 import pytest
 
 from liveclip.domain.clip_profile import ClipProfile
+from liveclip.domain.transcript import TranscriptDocument
 from liveclip.pipeline.dual_profile import (
+    AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION,
+    AUDIT_OVERLAP_MIN_SHORTER_FRACTION,
+    AUDIT_SAME_END_TOLERANCE_MS,
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    FLAG_PERSISTENCE_REASON_PREFIX,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     PROFILE_DURATION_CONTRACTS,
+    AuditCandidatePair,
+    AuditPairKind,
     BoundaryOpeningInvariantError,
     BoundaryReviewItem,
     BoundaryState,
@@ -38,10 +46,14 @@ from liveclip.pipeline.dual_profile import (
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
+    audit_candidate_pairs,
+    boundary_shrank_interval,
+    discovery_persisted_flags,
     nested_candidate_pairs,
     plan_profile_discovery_windows,
     profile_statistics,
     semantic_cache_key,
+    validate_audit_pair_decisions,
     validate_boundary_review_output,
     validate_discovery_output,
     validate_nested_pair_decisions,
@@ -982,6 +994,7 @@ def _assemble_pool(
         risk_tags = cast(tuple[DualRiskTag, ...], spec.get("risk_tags", ()))
         boundary_flags = cast(tuple[DualQualityFlag, ...], spec.get("boundary_flags", ()))
         review_flags = cast(tuple[DualQualityFlag, ...], spec.get("review_flags", ()))
+        discovery_flags = cast(tuple[DualQualityFlag, ...], spec.get("discovery_flags", ()))
         raw_start = int(cast(int, spec.get("raw_start_cue_id", start_cue_id)))
         raw_end = int(cast(int, spec.get("raw_end_cue_id", end_cue_id)))
         start_ms = TRANSCRIPT.segments[raw_start - 1].start_ms
@@ -996,7 +1009,7 @@ def _assemble_pool(
             candidate_id=candidate_id,
             start_cue_id=raw_start,
             end_cue_id=raw_end,
-        ).model_copy(update={"risk_tags": risk_tags})
+        ).model_copy(update={"risk_tags": risk_tags, "quality_flags": discovery_flags})
         discoveries.append(
             ProfileDiscoveryOutput(profile=profile, window_id=window.window_id, candidates=(raw,))
         )
@@ -1557,7 +1570,7 @@ def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
 
 
 def test_routing_policy_marker_accepts_every_published_version() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v3"
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v4"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker_v3",
@@ -1579,6 +1592,7 @@ def test_routing_policy_marker_accepts_every_published_version() -> None:
         "manual-review-quality-gate-v1",
         "quality-gate-risk-routing-v2",
         "quality-gate-risk-routing-v3",
+        "quality-gate-risk-routing-v4",
     ):
         loaded = DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": marker})
@@ -1703,4 +1717,400 @@ def test_dual_profile_uses_its_own_preflight_contract() -> None:
             {"candidates": [{"candidate_id": "direct-contract"}]},
         )
         == []
+    )
+
+
+# Stage 13 Fix 1: Discovery gated-flag persistence (routing policy v4).
+
+_GATED = DualQualityFlag.TOPIC_SWITCH_INSIDE
+
+
+def _persistence_spec(
+    candidate_id: str,
+    *,
+    raw: tuple[int, int],
+    final: tuple[int, int],
+    status: CandidateDisposition = CandidateDisposition.MANUAL_REVIEW,
+    discovery_flags: tuple[DualQualityFlag, ...] = (_GATED,),
+    score: float = 70,
+) -> dict[str, object]:
+    return {
+        "candidate_id": candidate_id,
+        "raw_start_cue_id": raw[0],
+        "raw_end_cue_id": raw[1],
+        "start_cue_id": final[0],
+        "end_cue_id": final[1],
+        "status": status,
+        "discovery_flags": discovery_flags,
+        "score": score,
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw", "final"),
+    [((941, 958), (941, 958)), ((941, 958), (940, 958)), ((941, 958), (940, 959))],
+    ids=["unchanged", "extended_start", "extended_both"],
+)
+def test_discovery_gated_flag_survives_an_unchanged_or_extended_interval(
+    raw: tuple[int, int], final: tuple[int, int]
+) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(_persistence_spec("flagged", raw=raw, final=final),),
+    )
+    assert result.manual_review == ()
+    (blocked,) = result.blocked
+    assert _GATED in blocked.quality_flags
+    assert blocked.review_reason == f"{FLAG_PERSISTENCE_REASON_PREFIX}全局审查证据。"
+    assert (result.statistics.manual_review, result.statistics.blocked) == (0, 1)
+
+
+@pytest.mark.parametrize(
+    ("raw", "final"),
+    [((940, 958), (941, 958)), ((941, 959), (941, 958)), ((940, 958), (941, 959))],
+    ids=["start_later", "end_earlier", "start_later_end_extended"],
+)
+def test_a_trimmed_edge_lets_boundary_review_clear_the_discovery_flag(
+    raw: tuple[int, int], final: tuple[int, int]
+) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(_persistence_spec("trimmed", raw=raw, final=final),),
+    )
+    (kept,) = result.manual_review
+    assert kept.quality_flags == ()
+    assert result.blocked == ()
+
+
+def test_advisory_discovery_flags_are_never_persisted() -> None:
+    advisory = (
+        DualQualityFlag.CONTEXT_DEPENDENT_OPENING,
+        DualQualityFlag.MISSING_REQUIRED_PRIOR_STEPS,
+        DualQualityFlag.SOURCE_TITLE_MISMATCH,
+    )
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "advisory", raw=(941, 958), final=(941, 958), discovery_flags=advisory
+            ),
+        ),
+    )
+    (kept,) = result.manual_review
+    assert kept.quality_flags == ()
+    assert kept.review_reason == "全局审查证据。"
+
+
+def test_flag_persistence_only_downgrades_and_never_raises_or_promotes() -> None:
+    specs = (
+        _persistence_spec(
+            "selected_flagged",
+            raw=(941, 958),
+            final=(941, 958),
+            status=CandidateDisposition.SELECTED,
+            score=95,
+        ),
+        _persistence_spec(
+            "rejected_flagged",
+            raw=(941, 959),
+            final=(941, 959),
+            status=CandidateDisposition.REJECTED,
+        ),
+        _persistence_spec(
+            "blocked_flagged", raw=(941, 960), final=(941, 960), status=CandidateDisposition.BLOCKED
+        ),
+    )
+    result = _assemble_pool(profile=ClipProfile.SHORT_HIGHLIGHT, specs=specs)
+    values = _by_id(result)
+    # A selected row is downgraded to blocked (FinalProfileCandidate forbids a
+    # selected row with a gated flag), never rejected as invalid.
+    assert values["selected_flagged"].review_status == CandidateDisposition.BLOCKED
+    assert values["selected_flagged"].review_reason.startswith(FLAG_PERSISTENCE_REASON_PREFIX)
+    # Rejected and blocked rows keep their status; the flag is recorded.
+    assert values["rejected_flagged"].review_status == CandidateDisposition.REJECTED
+    assert values["rejected_flagged"].review_reason == "全局审查证据。"
+    assert values["blocked_flagged"].review_status == CandidateDisposition.BLOCKED
+    assert values["blocked_flagged"].review_reason == "全局审查证据。"
+    assert all(_GATED in value.quality_flags for value in values.values())
+    assert result.selected == () and result.manual_review == ()
+
+
+def test_flag_persistence_runs_before_twin_union_and_top_n() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            # Highest score, but its unchanged interval keeps a Discovery gated flag.
+            _persistence_spec(
+                "flagged_top",
+                raw=(941, 958),
+                final=(941, 958),
+                status=CandidateDisposition.SELECTED,
+                score=99,
+            ),
+            # Same final interval, clean everywhere: it inherits the persisted flag.
+            {
+                "candidate_id": "twin",
+                "start_cue_id": 941,
+                "end_cue_id": 958,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "clean_second",
+                "start_cue_id": 941,
+                "end_cue_id": 959,
+                "status": CandidateDisposition.SELECTED,
+                "score": 80,
+            },
+        ),
+        top_n=1,
+    )
+    values = _by_id(result)
+    # The blocked row never takes the single Top-N slot.
+    assert [value.candidate_id for value in result.selected] == ["clean_second"]
+    assert values["flagged_top"].review_status == CandidateDisposition.BLOCKED
+    assert values["flagged_top"].review_reason.startswith(FLAG_PERSISTENCE_REASON_PREFIX)
+    assert values["twin"].review_status == CandidateDisposition.BLOCKED
+    assert _GATED in values["twin"].quality_flags
+    assert values["twin"].review_reason.startswith("Deterministic quality gate: ")
+
+
+def test_persisted_flags_helper_reports_only_new_gated_flags() -> None:
+    raw = _raw(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        window_id="w",
+        candidate_id="c",
+        start_cue_id=10,
+        end_cue_id=20,
+    ).model_copy(
+        update={
+            "quality_flags": (
+                DualQualityFlag.MATERIAL_INTERRUPTION,
+                DualQualityFlag.CONTEXT_DEPENDENT_OPENING,
+                DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+            )
+        }
+    )
+
+    def boundary(start: int, end: int) -> BoundaryReviewItem:
+        return BoundaryReviewItem(
+            candidate_id="c",
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            start_cue_id=start,
+            end_cue_id=end,
+            opening_complete=True,
+            ending_complete=True,
+            central_objective_complete=True,
+            shortest_complete_boundary=True,
+            evidence_cue_ids=(start,),
+            review_reason="r",
+        )
+
+    assert not boundary_shrank_interval(raw, boundary(9, 21))
+    assert boundary_shrank_interval(raw, boundary(11, 21))
+    assert boundary_shrank_interval(raw, boundary(9, 19))
+    assert discovery_persisted_flags(raw, boundary(10, 20)) == (
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+    )
+    assert discovery_persisted_flags(
+        raw, boundary(10, 20), (DualQualityFlag.MATERIAL_INTERRUPTION,)
+    ) == (DualQualityFlag.DEVICE_OR_WAITING_PADDING,)
+    assert discovery_persisted_flags(raw, boundary(11, 20)) == ()
+
+
+# Stage 13 Fix 2: overlap adjudication in the Global Audit.
+
+
+def _second_transcript(tmp_path: Path) -> TranscriptDocument:
+    """400 one-second cues: cue N spans [(N-1) s, N s)."""
+
+    path = tmp_path / "seconds.srt"
+    lines = []
+    for index in range(1, 401):
+        start, end = index - 1, index
+        lines.append(
+            f"{index}\n00:{start // 60:02d}:{start % 60:02d},000 --> "
+            f"00:{end // 60:02d}:{end % 60:02d},000\n内容{index}\n"
+        )
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return load_srt_transcript(path)
+
+
+def _pool(profile: ClipProfile, *items: tuple[str, int, int, CandidateDisposition]):
+    return ProfileGlobalReviewOutput(
+        profile=profile,
+        reviews=tuple(
+            _review_item(candidate_id, start, end, status).model_copy(update={"profile": profile})
+            for candidate_id, start, end, status in items
+        ),
+    )
+
+
+def test_overlap_constants_are_named_and_exact() -> None:
+    assert Fraction(1, 2) == AUDIT_OVERLAP_MIN_SHORTER_FRACTION
+    assert Fraction(9, 10) == AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION
+    assert dict(AUDIT_SAME_END_TOLERANCE_MS) == {
+        ClipProfile.SHORT_HIGHLIGHT: 3_000,
+        ClipProfile.MINI_LESSON: 5_000,
+    }
+
+
+def test_audit_pairs_list_overlaps_at_half_the_shorter_candidate(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    # Cue N spans [(N-1) s, N s); a candidate [s, e] spans [(s-1) s, e s).
+    pool = _pool(
+        ClipProfile.MINI_LESSON,
+        ("a", 1, 100, manual),  # [0, 100)
+        ("half", 51, 150, manual),  # [50, 150): overlap 50 of 100 -> exactly 50%
+        ("below", 52, 160, manual),  # [51, 160): overlap 49 of 100 with a -> below
+        ("inside", 10, 60, manual),  # strictly inside a: containment, never listed
+        ("same_start", 1, 80, manual),  # nested with a (shared start cue)
+        ("rejected", 40, 120, CandidateDisposition.REJECTED),  # not retained
+    )
+    pairs = audit_candidate_pairs(pool, transcript)
+    by_members = {pair.members: pair for pair in pairs}
+    assert by_members[frozenset(("a", "same_start"))].pair_kind == AuditPairKind.NESTED
+    half = by_members[frozenset(("a", "half"))]
+    assert (half.pair_kind, half.outer_candidate_id, half.near_identical) == (
+        AuditPairKind.OVERLAP,
+        "a",
+        False,
+    )
+    assert frozenset(("a", "below")) not in by_members
+    assert frozenset(("a", "inside")) not in by_members
+    assert not any("rejected" in pair.members for pair in pairs)
+    # half [50,150) vs below [51,160): overlap 99 of 100 -> near-identical.
+    assert by_members[frozenset(("half", "below"))].near_identical is True
+    # Nested pairs come first and are exactly nested_candidate_pairs.
+    nested = [pair for pair in pairs if pair.pair_kind == AuditPairKind.NESTED]
+    assert [(p.outer_candidate_id, p.inner_candidate_id) for p in nested] == list(
+        nested_candidate_pairs(pool)
+    )
+    assert pairs[: len(nested)] == tuple(nested)
+
+
+@pytest.mark.parametrize(
+    ("profile", "end_gap_s", "near"),
+    [
+        (ClipProfile.SHORT_HIGHLIGHT, 3, True),
+        (ClipProfile.SHORT_HIGHLIGHT, 4, False),
+        (ClipProfile.MINI_LESSON, 5, True),
+        (ClipProfile.MINI_LESSON, 6, False),
+    ],
+)
+def test_same_end_within_the_profile_tolerance_is_near_identical(
+    tmp_path: Path, profile: ClipProfile, end_gap_s: int, near: bool
+) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    # first [0, 60); second [40, 60 + gap): overlap 20 s of 20 + gap s (< 90%).
+    pool = _pool(profile, ("first", 1, 60, manual), ("second", 41, 60 + end_gap_s, manual))
+    (pair,) = audit_candidate_pairs(pool, transcript)
+    assert pair.pair_kind == AuditPairKind.OVERLAP
+    assert pair.near_identical is near
+
+
+def test_ninety_percent_of_the_shorter_candidate_is_near_identical(tmp_path: Path) -> None:
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    exactly = _pool(
+        ClipProfile.MINI_LESSON, ("first", 1, 100, manual), ("second", 11, 120, manual)
+    )  # [0,100) vs [10,120): overlap 90 of 100 -> 90%; ends 20 s apart
+    (pair,) = audit_candidate_pairs(exactly, transcript)
+    assert pair.near_identical is True
+    below = _pool(ClipProfile.MINI_LESSON, ("first", 1, 100, manual), ("second", 12, 120, manual))
+    (pair,) = audit_candidate_pairs(below, transcript)
+    assert pair.near_identical is False
+
+
+def _decision(outer: str, inner: str, kind: NestedPairDecisionKind) -> NestedPairDecision:
+    return NestedPairDecision(
+        outer_candidate_id=outer, inner_candidate_id=inner, decision=kind, reason="审计理由。"
+    )
+
+
+def test_audit_must_decide_overlap_pairs_with_the_safety_rules() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    near = AuditCandidatePair(
+        outer_candidate_id="long",
+        inner_candidate_id="short",
+        pair_kind=AuditPairKind.OVERLAP,
+        near_identical=True,
+    )
+    loose = near.model_copy(update={"near_identical": False})
+    both_kept = _nested_pool(
+        _review_item("long", 100, 200, manual), _review_item("short", 110, 205, manual)
+    )
+    distinct = _decision("long", "short", NestedPairDecisionKind.DISTINCT_OBJECTIVE)
+    duplicate = _decision("long", "short", NestedPairDecisionKind.DUPLICATE)
+    # Every overlap pair must be decided.
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        validate_audit_pair_decisions((near,), (), both_kept)
+    # A loose overlap may keep both members as distinct objectives.
+    validate_audit_pair_decisions((loose,), (distinct,), both_kept)
+    # A near-identical pair may not keep both, whatever the reason says.
+    with pytest.raises(ValueError, match="cannot keep both"):
+        validate_audit_pair_decisions((near,), (distinct,), both_kept)
+    # Keeping one representative resolves it.
+    deduped = _nested_pool(
+        _review_item("long", 100, 200, rejected, duplicate_of="short"),
+        _review_item("short", 110, 205, manual),
+    )
+    validate_audit_pair_decisions((near,), (duplicate,), deduped)
+    # Rejecting/blocking a member on its own merits is also allowed.
+    own_merits = _nested_pool(
+        _review_item("long", 100, 200, CandidateDisposition.BLOCKED),
+        _review_item("short", 110, 205, manual),
+    )
+    validate_audit_pair_decisions((near,), (distinct,), own_merits)
+    # Existing semantics still apply: distinct_objective forbids a direct reference.
+    with pytest.raises(ValueError, match="distinct_objective"):
+        validate_audit_pair_decisions((near,), (distinct,), deduped)
+    # Deduplication never deletes the last retained version of the media.
+    no_representative = _nested_pool(
+        _review_item("long", 100, 200, rejected, duplicate_of="short"),
+        _review_item("short", 110, 205, rejected),
+    )
+    with pytest.raises(ValueError, match="representative"):
+        validate_audit_pair_decisions((loose,), (duplicate,), no_representative)
+    # A shared third representative must itself stay retained.
+    cluster = _nested_pool(
+        _review_item("long", 100, 200, rejected, duplicate_of="rep"),
+        _review_item("short", 110, 205, rejected, duplicate_of="rep"),
+        _review_item("rep", 105, 204, manual),
+    )
+    validate_audit_pair_decisions((near,), (duplicate,), cluster)
+    blocked_rep = _nested_pool(
+        _review_item("long", 100, 200, rejected, duplicate_of="rep"),
+        _review_item("short", 110, 205, rejected, duplicate_of="rep"),
+        _review_item("rep", 105, 204, CandidateDisposition.BLOCKED),
+    )
+    with pytest.raises(ValueError, match="representative"):
+        validate_audit_pair_decisions((near,), (duplicate,), blocked_rep)
+
+
+def test_nested_pair_semantics_are_unchanged_by_overlap_rules() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    rejected = CandidateDisposition.REJECTED
+    nested = AuditCandidatePair(
+        outer_candidate_id="outer", inner_candidate_id="inner", pair_kind=AuditPairKind.NESTED
+    )
+    # Nested pairs may still keep both as distinct objectives ...
+    validate_audit_pair_decisions(
+        (nested,),
+        (_decision("outer", "inner", NestedPairDecisionKind.DISTINCT_OBJECTIVE),),
+        _nested_pool(
+            _review_item("outer", 100, 160, manual), _review_item("inner", 100, 140, manual)
+        ),
+    )
+    # ... and the existing duplicate rule is unchanged (no retained-representative rule).
+    validate_audit_pair_decisions(
+        (nested,),
+        (_decision("outer", "inner", NestedPairDecisionKind.DUPLICATE),),
+        _nested_pool(
+            _review_item("outer", 100, 160, rejected, duplicate_of="inner"),
+            _review_item("inner", 100, 140, rejected),
+        ),
     )

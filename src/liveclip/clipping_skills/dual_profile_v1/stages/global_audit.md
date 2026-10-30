@@ -89,12 +89,28 @@ When you judge a candidate whose only merged flags are advisory to be coherent a
 or make it `manual_review` and state the disagreement in `review_reason`; do not block it merely because
 the flag exists.
 
-Nested pairs. The payload's `nested_pairs` lists, from the initial review, every same-Profile pair of
-`selected`/`manual_review` candidates that share a start or end cue so that one contains the other.
-Return `nested_pair_decisions` with exactly one entry for each listed pair and no other entries; return
-an empty array when `nested_pairs` is empty. Decide each pair on its content: containment or a shared
-edge alone never establishes duplication. Python re-lists pairs after applying your replacements, so
-also decide every nested pair your replacements create (for example by promoting a candidate).
+Listed pairs. The payload's `audit_pairs` lists, from the initial review, same-Profile pairs of
+`selected`/`manual_review` candidates in two kinds (`pair_kind`):
+
+- `nested`: the two share a start or end cue so that one contains the other (`outer_candidate_id` is
+  the containing candidate);
+- `overlap`: neither contains the other, but they share at least half of the shorter candidate's
+  duration (`outer_candidate_id` is the earlier-starting candidate).
+
+Return `nested_pair_decisions` with exactly one entry for each listed pair of either kind and no other
+entries; return an empty array when `audit_pairs` is empty. Decide each pair on its content:
+containment, a shared edge or overlap alone never establishes duplication. Python re-lists pairs after
+applying your replacements, so also decide every pair your replacements create (for example by
+promoting a candidate).
+
+An `overlap` pair marked `near_identical` (the two end at the same point, or share at least 90% of the
+shorter candidate) is nearly the same media: do not keep both `selected`/`manual_review`. Decide
+`duplicate` and keep one representative, unless you reject or block a member on its own merits. When
+an `overlap` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
+
+When overlapping or nested versions serve the same objective, keep the shortest independently complete
+version. Material that only one version adds beyond the shared objective (chat, waiting, equipment or
+playback trouble, another topic) is a reason to reject that version as the duplicate, not to keep it.
 
 - `duplicate`: both serve the same central objective. Prefer the shortest independently complete
   candidate as the representative, and include replacement items so that the other one is `rejected`

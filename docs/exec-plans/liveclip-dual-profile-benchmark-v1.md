@@ -76,7 +76,8 @@ imported by production modules.
 - [x] (Historical next step; done 2026-10-30.) Independent tester and reviewer for Stage 12b, then a real run with the user's go-ahead (warm-28 below).
 - [x] 2026-10-30 warm-28 (real Claude CLI at `a7088c4`, warm from a byte-verified `cp -Rp` copy of the cold-27 cache, diagnostic only): eval rc 0 in 2510 s; 160 Discovery-family hits; 73 new calls (Boundary Review 52, Global Review 18, audit 2, variant 1) plus 4 repairs; 0 retries; 0 pre-existing cache files changed; strict FAIL 95.0 with no PASS blockers (short 8/8, mini 5/6 with L07 missed, two N07 hard failures); 14 renders pass automatic checks, human review pending. Root cause and the binding user decisions (Fix 1 Discovery gated-flag persistence, Fix 2 overlap adjudication) are in the Decisions and Recovery Notes below and in `STATUS.md`.
 - [x] 2026-10-30 Stage 12c implemented, pending independent tester and reviewer: Boundary Review opening-fallback entries cache the raw model output plus a verified `conservative_fallback` marker, so a warm hit re-applies the deterministic fallback and reproduces the manifest record; manifest cross-checks for fallback records and stale resolutions; `reused=True` recorded only after the identity check; untrusted-cache tests in both refresh modes. No cache-key or prompt change (a warm-28 cache copy still replays with 0 calls; evidence in `STATUS.md`).
-- [ ] Next: Stage 12c (reviewer P2-A/P2-B/P3s of Stage 12b) and Stage 13 (Fix 1 and Fix 2), independent tester and reviewer, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
+- [x] 2026-10-30 Stage 13 implemented, pending independent tester and reviewer; real run pending: Fix 1 Discovery gated-flag persistence at final assembly (unless Boundary Review shrank an edge; routing policy `quality-gate-risk-routing-v4`; order validation → persistence → twin union → Top-N → risk routing/quality gate); Fix 2 Global Audit overlap pairs (≥1/2 of the shorter, non-containing; near-identical pairs may not keep both retained; overlap duplicates keep a retained representative). Only the Global Audit prompt changed. Offline replays of a warm-28 cache copy: Fix 1 alone needs only the variant-link call and gives strict FAIL 93.0 offline with every hit kept and the N07 negative-anchor output blocked; final code needs exactly 3 calls (2 audits, 1 variant link). Evidence in `STATUS.md`.
+- [ ] Next: independent tester and reviewer for Stages 12c and 13, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -287,6 +288,16 @@ two deterministic report files.
   overlapping pairs at ≥50% of the shorter candidate. Both are general (no
   anchor times, IDs or wording) and are implemented as Stage 13; evidence
   in the Recovery Notes and `STATUS.md`.
+- 2026-10-30 (Stage 13 implementation choices): persistence is applied at
+  final assembly after the unchanged review-stage validation, so cached
+  Global Review/Audit outputs and their payloads are untouched; shrink means
+  start cue later or end cue earlier. Overlap pairs exclude containment
+  without a shared edge (the focused-lesson-inside-a-broader-lesson case
+  stays allowed, as for nested pairs). "Unless the reason names the distinct
+  objective" cannot be checked deterministically, so a near-identical
+  overlap pair (same end within 3 s short / 5 s mini, or ≥90% of the
+  shorter) may never keep both members retained; overlap duplicates must
+  keep a retained representative; nested semantics are unchanged.
 
 ## Risks and mitigations
 

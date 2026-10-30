@@ -604,7 +604,7 @@ class AuditCreatedPairProvider(NestedPairProvider):
     ) -> OutputModel:
         mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
         if response_model is ProfileGlobalAuditOutput and mini:
-            assert payload["nested_pairs"] == []
+            assert payload["audit_pairs"] == []
             return cast(OutputModel, self._audit(payload, decide=False))
         output = super()._output(payload, response_model)
         if response_model is ProfileGlobalReviewOutput and mini:
@@ -796,8 +796,13 @@ def test_global_audit_must_decide_python_listed_nested_pairs(tmp_path: Path) -> 
         for name, payload in payloads
         if name == "ProfileGlobalAuditOutput" and payload["profile"] == "mini_lesson"
     ]
-    assert audit_payloads[0]["nested_pairs"] == [
-        {"outer_candidate_id": "mini_lesson_lesson", "inner_candidate_id": "mini_inner"}
+    assert audit_payloads[0]["audit_pairs"] == [
+        {
+            "outer_candidate_id": "mini_lesson_lesson",
+            "inner_candidate_id": "mini_inner",
+            "pair_kind": "nested",
+            "near_identical": False,
+        }
     ]
     boundary_payloads = [
         payload for name, payload in payloads if name == "ProfileBoundaryReviewOutput"
@@ -924,19 +929,19 @@ def _plant_stale_created_pair_audit(
         del reasoning_effort
         return AuditCreatedPairProvider(prompt, counter)
 
-    original_pairs = service.nested_candidate_pairs
+    original_pairs = service.audit_candidate_pairs
     with monkeypatch.context() as patch:
         patch.setattr(
             service,
-            "nested_candidate_pairs",
-            lambda review: (
+            "audit_candidate_pairs",
+            lambda review, transcript: (
                 ()
                 if any(
                     item.candidate_id == "mini_inner"
                     and item.review_status == CandidateDisposition.MANUAL_REVIEW
                     for item in review.reviews
                 )
-                else original_pairs(review)
+                else original_pairs(review, transcript)
             ),
         )
         run_dual_profile_evaluation(
@@ -1596,6 +1601,405 @@ def test_untrusted_superseding_entry_raises_and_is_never_recorded_as_reused(
     assert True not in recorded
 
 
+class DiscoveryFlagProvider(ScriptedDualProvider):
+    """Base Discovery flags a gated issue; Boundary Review silently clears it.
+
+    ``trim`` makes Boundary Review move the mini candidate's start one cue later.
+    """
+
+    def __init__(
+        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, trim: bool
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.trim = trim
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        output = super()._output(payload, response_model)
+        if response_model is ProfileDiscoveryOutput and payload.get("discovery_pass") is None:
+            discovery = cast(ProfileDiscoveryOutput, output)
+            return cast(
+                OutputModel,
+                discovery.model_copy(
+                    update={
+                        "candidates": tuple(
+                            value.model_copy(
+                                update={"quality_flags": (DualQualityFlag.TOPIC_SWITCH_INSIDE,)}
+                            )
+                            for value in discovery.candidates
+                        )
+                    }
+                ),
+            )
+        if (
+            self.trim
+            and response_model in {ProfileBoundaryReviewOutput, ProfileGlobalReviewOutput}
+            and payload.get("profile") == ClipProfile.MINI_LESSON.value
+        ):
+            reviews = cast(Any, output).reviews
+            return cast(
+                OutputModel,
+                cast(Any, output).model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(update={"start_cue_id": 2, "evidence_cue_ids": (2, 11)})
+                            for item in reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
+@pytest.mark.parametrize("trim", [False, True])
+def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
+    tmp_path: Path, trim: bool
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return DiscoveryFlagProvider(prompt, {}, trim=trim)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert final.routing_policy_version == "quality-gate-risk-routing-v4"
+    short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    # Short: unchanged interval, so the Discovery flag cleared by review still gates.
+    assert short.selected == ()
+    (blocked,) = short.blocked
+    assert DualQualityFlag.TOPIC_SWITCH_INSIDE in blocked.quality_flags
+    assert blocked.review_reason.startswith("Deterministic flag persistence: ")
+    if trim:
+        # A trimmed start lets Boundary Review resolve the Discovery flag.
+        assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+        assert mini.selected[0].quality_flags == ()
+    else:
+        assert mini.selected == ()
+        assert [value.candidate_id for value in mini.blocked] == ["mini_lesson_lesson"]
+
+
+class OverlapPairProvider(ScriptedDualProvider):
+    """Mini Discovery adds a non-nested candidate that overlaps the base lesson.
+
+    The base mini lesson spans cues 1-11 ([0 s, 110 s)). ``overlap_start`` cue 2
+    gives [10 s, 120 s) (100 of 110 s shared: near-identical); cue 3 gives
+    [20 s, 130 s) (90 of 110 s: an ordinary overlap). The first audit decides no
+    pair (``first_audit="omit"``) or keeps both as distinct objectives
+    (``first_audit="distinct"``); its repair applies ``repair_audit``.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        overlap_start: int,
+        first_audit: str,
+        repair_audit: str,
+        prompt_sha256: str | None = None,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.overlap_start = overlap_start
+        self.first_audit = first_audit
+        self.repair_audit = repair_audit
+        self._prompt_override = prompt_sha256
+        self.audit_payloads: list[dict[str, object]] = []
+        self.audit_repairs: list[tuple[str, ...]] = []
+
+    @property
+    def prompt_sha256(self) -> str:
+        return self._prompt_override or super().prompt_sha256
+
+    def _audit(self, payload: dict[str, object], mode: str) -> ProfileGlobalAuditOutput:
+        profile = ClipProfile(str(payload["profile"]))
+        pairs = cast(list[dict[str, object]], payload["audit_pairs"])
+        initial = ProfileGlobalReviewOutput.model_validate_json(
+            json.dumps(payload["initial_global_review"])
+        )
+        replacements: tuple[GlobalReviewItem, ...] = ()
+        if mode == "duplicate":
+            lesson = next(v for v in initial.reviews if v.candidate_id == "mini_lesson_lesson")
+            replacements = (
+                lesson.model_copy(
+                    update={
+                        "review_status": CandidateDisposition.REJECTED,
+                        "duplicate_of_candidate_id": "mini_overlap",
+                        "score": 60.0,
+                        "review_reason": "Same objective; keep one representative.",
+                    }
+                ),
+            )
+        decisions = (
+            ()
+            if mode == "omit"
+            else tuple(
+                NestedPairDecision(
+                    outer_candidate_id=str(pair["outer_candidate_id"]),
+                    inner_candidate_id=str(pair["inner_candidate_id"]),
+                    decision=(
+                        NestedPairDecisionKind.DUPLICATE
+                        if mode == "duplicate"
+                        else NestedPairDecisionKind.DISTINCT_OBJECTIVE
+                    ),
+                    reason="Decided on content.",
+                )
+                for pair in pairs
+            )
+        )
+        return ProfileGlobalAuditOutput(
+            profile=profile,
+            replacements=replacements,
+            nested_pair_decisions=decisions,
+            audit_reason="Overlap audit.",
+        )
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        if response_model is ProfileGlobalAuditOutput and mini:
+            self.audit_payloads.append(payload)
+            return cast(OutputModel, self._audit(payload, self.first_audit))
+        output = super()._output(payload, response_model)
+        if (
+            response_model is ProfileDiscoveryOutput
+            and mini
+            and payload.get("discovery_pass") is None
+        ):
+            discovery = cast(ProfileDiscoveryOutput, output)
+            if discovery.candidates:
+                end = self.overlap_start + 10
+                overlap = discovery.candidates[0].model_copy(
+                    update={
+                        "candidate_id": "mini_overlap",
+                        "start_cue_id": self.overlap_start,
+                        "end_cue_id": end,
+                        "evidence_cue_ids": (self.overlap_start, end),
+                    }
+                )
+                return cast(
+                    OutputModel,
+                    discovery.model_copy(update={"candidates": (*discovery.candidates, overlap)}),
+                )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs.append(validation_errors)
+            return StructuredCallResult(
+                output=cast(OutputModel, self._audit(payload, self.repair_audit)),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
+def _overlap_run(
+    tmp_path: Path,
+    name: str,
+    *,
+    overlap_start: int,
+    first_audit: str,
+    repair_audit: str,
+    cache: Path | None = None,
+    audit_prompt_overrides: dict[str, str] | None = None,
+    counter: dict[str, int] | None = None,
+) -> tuple[list[OverlapPairProvider], DualProfileFinalResult]:
+    transcript = tmp_path / "transcript.srt"
+    if not transcript.exists():
+        _write_srt(transcript)
+    providers: list[OverlapPairProvider] = []
+    shared_counter = counter if counter is not None else {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        override = (audit_prompt_overrides or {}).get(prompt.sha256)
+        provider = OverlapPairProvider(
+            prompt,
+            shared_counter,
+            overlap_start=overlap_start,
+            first_audit=first_audit,
+            repair_audit=repair_audit,
+            prompt_sha256=override,
+        )
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / name,
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / name / "final-validated.json").read_text(encoding="utf-8")
+    )
+    return providers, final
+
+
+def test_global_audit_must_decide_overlap_pairs(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="omit", repair_audit="distinct"
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    assert payload["audit_pairs"] == [
+        {
+            "outer_candidate_id": "mini_lesson_lesson",
+            "inner_candidate_id": "mini_overlap",
+            "pair_kind": "overlap",
+            "near_identical": False,
+        }
+    ]
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "cover every listed nested pair" in errors[0]
+    # An ordinary overlap may keep both as distinct objectives.
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert {value.candidate_id for value in mini.selected} == {"mini_lesson_lesson", "mini_overlap"}
+
+
+def test_near_identical_overlap_pair_cannot_keep_both(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=2, first_audit="distinct", repair_audit="duplicate"
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    (pair,) = cast(list[dict[str, object]], payload["audit_pairs"])
+    assert (pair["pair_kind"], pair["near_identical"]) == ("overlap", True)
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "cannot keep both candidates" in errors[0]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_overlap"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_overlap"
+
+
+# Global Audit prompt hashes at a7088c4 (Stage 12b), before overlap pairs.
+PRE_OVERLAP_AUDIT_PROMPT_HASHES = {
+    "mini_lesson": "cb115e0306315ec87c9e76bc7a6d73cd568aa4783fcc77dcbf8ce040c8e7a35d",
+    "short_highlight": "746b625e589b3a6a555ca34b425ebc25916fdaea8f10b264d37570dd5c6f6d32",
+}
+
+
+def test_cached_audit_without_overlap_decisions_misses_under_the_new_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    for profile, old_hash in PRE_OVERLAP_AUDIT_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256 != old_hash
+    cache = tmp_path / "cache"
+    nested_only = service.audit_candidate_pairs
+
+    def old_contract(review: Any, transcript: Any) -> Any:
+        return tuple(pair for pair in nested_only(review, transcript) if pair.pair_kind == "nested")
+
+    counter: dict[str, int] = {}
+    # An audit written by the pre-overlap contract: no overlap pair was listed or
+    # decided, under the old audit prompt identity.
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "audit_candidate_pairs", old_contract)
+        _overlap_run(
+            tmp_path,
+            "old",
+            overlap_start=2,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+            audit_prompt_overrides={
+                load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256: old_hash
+                for profile, old_hash in PRE_OVERLAP_AUDIT_PROMPT_HASHES.items()
+            },
+            counter=counter,
+        )
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    assert len(planted) == len(ClipProfile)
+    audits_before = counter["ProfileGlobalAuditOutput"]
+
+    # Under the current prompt the old entries are simply cache misses: the audit
+    # is regenerated (and must decide the overlap pair), never failed closed.
+    providers, final = _overlap_run(
+        tmp_path,
+        "new",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="duplicate",
+        cache=cache,
+        counter=counter,
+    )
+    assert counter["ProfileGlobalAuditOutput"] == audits_before + len(ClipProfile)
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    assert [value.candidate_id for value in final.profiles[ClipProfile.MINI_LESSON].selected] == [
+        "mini_overlap"
+    ]
+    assert {path: path.read_bytes() for path in planted} == planted
+    manifest = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "new" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest.calls["discovery"] == 0
+    assert manifest.calls["boundary_review"] == 0
+
+
+def test_old_contract_audit_under_the_current_identity_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Impossible in practice (the audit prompt hash changed); models an audit that
+    # omits its overlap decision but sits under the current identity and payload.
+    from liveclip.services import dual_profile_evaluation as service
+
+    cache = tmp_path / "cache"
+    full = service.validate_audit_pair_decisions
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            service,
+            "validate_audit_pair_decisions",
+            lambda pairs, decisions, merged: full(
+                tuple(pair for pair in pairs if pair.pair_kind == "nested"), decisions, merged
+            ),
+        )
+        _overlap_run(
+            tmp_path,
+            "planted",
+            overlap_start=3,
+            first_audit="omit",
+            repair_audit="omit",
+            cache=cache,
+        )
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        _overlap_run(
+            tmp_path,
+            "warm",
+            overlap_start=3,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+        )
+    assert {path: path.read_bytes() for path in planted} == planted
+
+
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
     short = load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT)
     mini = load_dual_profile_prompt("discovery", ClipProfile.MINI_LESSON)
@@ -1689,8 +2093,13 @@ def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> Non
         assert "Boundary Review quality flags are cumulative" in review
         assert "Boundary Review quality flags are cumulative" in audit
         assert "`nested_pair_decisions`" in audit
-        assert "containment or a shared edge alone never establishes duplication" in audit
+        assert "containment, a shared edge or overlap alone never establishes duplication" in audit
         assert "shortest independently complete candidate" in audit
+        # Stage 13: overlap pairs, the near-identical rule and the general tie-break.
+        assert "`audit_pairs`" in audit and "`nested_pairs`" not in audit
+        assert "`overlap`: neither contains the other" in audit
+        assert "do not keep both `selected`/`manual_review`" in audit
+        assert "keep the shortest independently complete version" in audit
 
 
 def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
@@ -1759,7 +2168,7 @@ def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
         )
         # Reviewer P2 wording.
         assert "(a `risk_discovery` record is retained as `blocked`)" in review
-        assert "decide every nested pair your replacements create" in audit
+        assert "decide every pair your replacements create" in audit
         # Earlier asserted phrases are kept.
         assert "status, flags and reason must agree" in audit
         assert "setup, not premises" in boundary

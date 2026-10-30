@@ -18,6 +18,152 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+
+- **Status: implemented, pending independent tester and reviewer; real run
+  pending** on local branch `claude/liveclip-stage8-routing` (code commit
+  after the Stage 12c commit). Not pushed or merged.
+- Origin: the warm-28 root cause and the binding user decisions of
+  2026-10-30 (warm-28 section below). General: no anchor times, IDs or
+  wording appear in code, prompts or tests.
+- **Fix 1, Discovery gated-flag persistence** (`assemble_final_profile_result`,
+  helpers `discovery_persisted_flags` and `boundary_shrank_interval`):
+  - For each final candidate, the gated flags
+    (`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) on its Discovery record
+    (whichever pass produced it) survive into the final merged flags unless
+    Boundary Review shrank the interval on at least one edge (start cue
+    later or end cue earlier). Extension alone or an unchanged interval
+    keeps them; advisory flags are never persisted.
+  - A `selected` or `manual_review` row that keeps one becomes `blocked`
+    with the sibling prefix "Deterministic flag persistence: "; rejected
+    and blocked rows keep their status and record the flag. Python only
+    downgrades; it never raises here and never promotes.
+  - Order (documented in the docstring): (1) review-stage validation,
+    unchanged because it sees only the merged Boundary/Global flags, then
+    persistence; (2) same-interval twin union, which therefore shares
+    persisted flags; (3) Profile-local Top-N over rows still `selected`,
+    so a persisted-flag row never takes a slot; (4) risk-record routing and
+    the manual-review quality gate.
+  - Applied at final assembly only, so the Global Review and Global Audit
+    request payloads (built from the Discovery candidates, the Boundary
+    Review output and the model's Global Review) are byte-identical.
+  - `DUAL_PROFILE_ROUTING_POLICY_VERSION` is now
+    `quality-gate-risk-routing-v4`; v1–v3 and unmarked artifacts still load.
+- **Fix 2, overlap adjudication** (`audit_candidate_pairs`,
+  `validate_audit_pair_decisions`, `AuditCandidatePair`, `AuditPairKind`):
+  - The audit payload's pair list is now `audit_pairs` (it was
+    `nested_pairs`). Each entry has `outer_candidate_id`,
+    `inner_candidate_id`, `pair_kind` (`nested` | `overlap`) and
+    `near_identical`.
+  - Nested pairs are exactly the previous `nested_candidate_pairs`.
+  - Overlap pairs are the other retained (`selected`/`manual_review`)
+    same-Profile pairs where neither contains the other and the shared media
+    is at least `AUDIT_OVERLAP_MIN_SHORTER_FRACTION` = 1/2 of the shorter
+    candidate. `outer_candidate_id` is the earlier-starting member.
+  - Containment without a shared edge stays unlisted, as before. Reason: in
+    warm-28 such a pair includes the L02 match and a focused sub-lesson
+    inside it; containment is the "focused lesson inside a broader lesson"
+    case, which the audit may legitimately keep as distinct.
+  - The audit must decide every pair of either kind, including pairs its
+    replacements create, through the existing `validate_nested_pair_decisions`
+    semantics (including the Stage 12 shared-representative rule). The
+    output schema is unchanged: decisions stay in `nested_pair_decisions`.
+  - Safety rule. An overlap pair is `near_identical` when the ends are
+    within `AUDIT_SAME_END_TOLERANCE_MS` (short 3000, mini 5000) or the
+    overlap is at least `AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION` = 9/10 of
+    the shorter candidate. Such a pair may not keep both members
+    `selected`/`manual_review`.
+  - Why this rule instead of "unless the reason names the distinct
+    objective": a free-text reason cannot be checked deterministically, and
+    any keyword test would be gameable and language-dependent. Two retained
+    same-Profile clips sharing ≥90% of the shorter one (or the same ending)
+    are near-identical media, so the simplest sound rule is never to keep
+    both. The audit keeps one representative, or rejects/blocks a member on
+    its own merits.
+  - Representative rule. An overlap `duplicate` must leave the resolved
+    representative `selected` or `manual_review`, so deduplication never
+    deletes the last retained version of that media. Nested-pair semantics
+    are deliberately unchanged ("preserve existing guarantees"; a test pins
+    this).
+  - Known limit: a representative that deterministic routing later blocks
+    (gated flags) takes its duplicate with it, because Python never
+    promotes.
+- `global_audit.md` (both Profiles; minimal and general): the "Nested
+  pairs" paragraph became "Listed pairs" (both kinds, `audit_pairs`), plus
+  the near-identical rule, the retained-representative rule and the
+  tie-break "keep the shortest independently complete version; material
+  only one version adds beyond the shared objective is a reason to reject
+  that version".
+- Prompt hashes:
+  - Changed: Global Audit short `746b625e589b…` → `48d61543a335…`, mini
+    `cb115e030631…` → `1c710835f281…`.
+  - Unchanged: Discovery family, Boundary Review (`3119f245c2cd`,
+    `62fedbec56dc`), Global Review (`1faa9412f673`, `aea87440f0ab`) and
+    variant link (`def25b05bd98`).
+  - No cache-key derivation change, and `DUAL_PROFILE_ALGORITHM_VERSION` is
+    unchanged (the prompt hash already re-keys the audit).
+- Offline evidence (all against `cp -Rp` copies of
+  `data/evaluations/dual-profile-cache-20261030-claude-warm-28` in the
+  session scratchpad; nothing was written under `data/`; the harness, a
+  sentinel provider with the warm-28 provider identity, first reproduced
+  warm-28 at `a7088c4` with 233 hits, 0 calls and a byte-identical
+  `final-validated.json`):
+  - Fix 1 alone (before Fix 2 was wired): Discovery, Boundary Review,
+    Global Review and both Global Audits all hit. The only model call is
+    variant link (1), which cannot hit: its payload lists the final
+    `selected`/`manual_review` candidates, and Fix 1 changes them. With an
+    offline variant-link stub that reuses the warm-28 group labels (232
+    hits, 1 stubbed call), 8 rows move `manual_review` → `blocked`
+    (`audit_sh0009_throat_tight_strong_mix_diagnosis`,
+    `audit_sh0006_breathy_mix_intro_vs_weak_mix`,
+    `sh0018_nasal_highnote_core`, `sh0018_nasal_highnote_diag`,
+    `sh_0016_vocal_cord_issue_check_first`, `ml_0018_tangtang_nasal_diagnosis`,
+    `precision_ml_0018_tangtang_nasal_correction_loop`, and
+    `ml14_nasal_problem_full` through the twin union). Other already-blocked
+    rows gain flags.
+  - Strict evaluator on that offline result (scratchpad output): **FAIL
+    93.0**; hard failure `irrelevant_padding` only (`ml0007…core`, Fix 2's
+    target); `negative_anchor_output` is gone; short 8/8, mini 5/6 (L07
+    still missed), R01 blocked, R02 `manual_review`, no PASS blockers, no
+    lost hit. The 2-point drop from 95.0 is the audit item `call_data`:
+    the offline replay records no tokens. It is not a routing effect.
+  - Final code: the sentinel allows only `global_audit` and `variant_link`
+    (offline placeholders used only to get past them). 230 hits and exactly
+    **3** model calls: Global Audit short, Global Audit mini, variant link.
+    Discovery, Boundary Review and Global Review all hit.
+    - The warm-28 audit entries simply miss under the new prompt hash; they
+      are not failed closed.
+    - The new audits receive short 4 nested + 2 overlap pairs (0
+      near-identical) and mini 44 nested + 13 overlap pairs. The 3 mini
+      near-identical pairs include `ml0007…core` / `audit_ml0008…` (93%).
+    - A real rerun from the warm-28 cache would therefore make about 3
+      calls plus any repairs.
+- Tests (mock/fixture only):
+  - Unit, Fix 1 (10): unchanged/extended intervals keep the flag;
+    start-later, end-earlier and start-later-with-extended-end clear it;
+    advisory flags are unaffected; only downgrades (selected → blocked
+    without raising; rejected/blocked unchanged); order of persistence,
+    twin union and Top-N; helper semantics.
+  - Unit, Fix 2 (9): named constants; pair generation at exactly 50%
+    (listed) and just below (not listed); containment and rejected rows are
+    not listed; nested pairs first and unchanged; same-end tolerance per
+    Profile at the boundary (3/4 s short, 5/6 s mini); 90% boundary; safety
+    and representative rules; nested semantics unchanged.
+  - Integration (6): the service persists a Discovery flag unless Boundary
+    Review trims (both cases); the audit must decide an overlap pair (an
+    omitted decision is repaired); a near-identical pair kept as distinct is
+    repaired to one representative; an old audit without overlap decisions
+    (pre-overlap prompt identity) simply misses and is regenerated with the
+    planted entry untouched; the same old-contract audit under the current
+    identity and payload fails closed.
+  - Updated: the payload key and monkeypatch target (`audit_pairs`,
+    `audit_candidate_pairs`), the audit prompt wording checks, and the
+    routing-policy marker (v4 accepted, v1–v3 still load).
+- `docs/PRODUCT_SPEC.md`: Stage 13 amendment.
+- Unchanged: benchmark JSON/MD, evaluator thresholds, guard patterns,
+  frozen `tools/loop_engineering`, Discovery/Boundary Review/Global Review
+  prompts.
+
 ## Stage 12c fallback provenance and manifest cross-checks (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer** on local

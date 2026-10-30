@@ -1,5 +1,31 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
+
+- [x] 2026-10-30 Stage 13 implemented on `claude/liveclip-stage8-routing`
+  (binding user decisions after warm-28), **pending independent tester and
+  reviewer; real run pending**. Not pushed.
+  - Fix 1: Discovery gated flags persist into the final flags unless
+    Boundary Review shrank the interval on an edge; `selected`/`manual_review`
+    rows that keep one become `blocked` ("Deterministic flag persistence: ").
+    Order: validation (unchanged) → persistence → twin union → Top-N → risk
+    routing / quality gate. Routing policy `quality-gate-risk-routing-v4`
+    (v1–v3 still load). Global Review/Audit payloads byte-identical.
+  - Fix 2: the Global Audit also decides same-Profile overlap pairs (neither
+    contains the other, overlap ≥ 1/2 of the shorter); payload `audit_pairs`
+    with `pair_kind` and `near_identical`; near-identical pairs (same end
+    within 3 s/5 s, or ≥ 9/10 of the shorter) may not keep both retained;
+    an overlap duplicate must keep a retained representative; nested
+    semantics unchanged. Only `global_audit.md` changed (both Profile
+    hashes).
+  - Offline (warm-28 cache copies in the scratchpad): Fix 1 alone hits every
+    stage except variant link (1 call) and turns the N07 negative-anchor
+    output into `blocked` with every hit kept (strict FAIL 93.0 offline,
+    only `irrelevant_padding` left; −2 is the token-less `call_data`
+    item). Final code: exactly 3 calls (2 audits + variant link), 230 hits.
+- [ ] Next: independent tester and reviewer on the Stage 12c and Stage 13
+  SHAs; a real warm or cold run only with the user's go-ahead.
+
 ## Stage 12c fallback provenance and manifest cross-checks (2026-10-30)
 
 - [x] 2026-10-30 Stage 12c implemented on `claude/liveclip-stage8-routing`
@@ -18,7 +44,8 @@
     stale resolutions (`cache_key != superseding_cache_key`).
   - P3s: `reused=True` only after the superseding identity check; tests for
     mis-keyed, garbage-JSON and symlinked entries in both refresh modes.
-- [ ] Next: independent tester and reviewer (together with Stage 13).
+- [ ] Next: independent tester and reviewer (together with Stage 13, see
+  above).
 
 ## warm-28 warm diagnostic and Stage 13 decisions (2026-10-30)
 
@@ -43,8 +70,9 @@
   persist unless Boundary Review shrinks the interval; Fix 2, the Global
   Audit also adjudicates same-Profile overlapping pairs at ≥50% of the
   shorter candidate.
-- [ ] Next: Stage 12c (reviewer P2-A/P2-B/P3s) and Stage 13 (Fix 1 and
-  Fix 2), then independent tester and reviewer; a real run only with the
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 12c and Stage 13 sections above.) Stage 12c and Stage 13.
+- [ ] Next: independent tester and reviewer; a real run only with the
   user's go-ahead.
 
 ## Stage 12b dual-profile review fixes (2026-10-29)
