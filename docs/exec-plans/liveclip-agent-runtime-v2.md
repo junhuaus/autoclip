@@ -1,5 +1,32 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 11b guard repair fallback and repair message (2026-10-29)
+
+- [x] 2026-10-29 Stage 11b implemented on `claude/liveclip-stage8-routing`
+  (reviewer P2s at `ed24a34`), **pending independent tester and
+  reviewer**. Not pushed.
+  - Deferred-only initial output + unusable repair (failed call or
+    hard-invalid rewrite) → initial output accepted, deterministic gate
+    applied, `repair_fallback` validation event; in the durable executor
+    the committed `raw_output` stays the initial output so replay is
+    consistent, and `repair_spent` matches the presence of a repair call
+    record. Hard-invalid initial output still fails as before.
+  - Repair message: prefix, then the instruction, then per field
+    `candidate <id> <field> matched "<token>"`; fits the legacy 240-char
+    truncation. Read-only `executable_text_match` reuses the unchanged
+    patterns.
+  - v3 `suspicious_exact_top_n` recomputed after demotion.
+  - Tests: unit 13 → 21, integration 37 → 58 (fallback at every loop,
+    schema-repair-spent block in the local loops, legacy cache retry).
+    Details in `STATUS.md`.
+- Decision Log (2026-10-29): a failed repair call after a deferred-only
+  initial output falls back for every `StructuredProviderError` code,
+  including global codes, because the initial output already passed every
+  hard validator and the user decision requires the rest of the run to
+  finish; other units still surface a global provider failure on their own
+  calls. Cancellation and configuration errors keep their existing paths.
+- [ ] Next: independent tester and reviewer on the Stage 11b SHA.
+
 ## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29)
 
 - [x] 2026-10-29 **Stage 11 ACCEPTED** at

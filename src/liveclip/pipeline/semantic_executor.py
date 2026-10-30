@@ -80,6 +80,24 @@ class DeferredValidationError(ValueError):
         self.accepted = accepted
 
 
+DEFERRED_REPAIR_FALLBACK_NOTE = (
+    "deferred-rule repair was unusable; the initial output, which passed every hard "
+    "validator, is accepted and the caller applies its deterministic gate"
+)
+
+
+def deferred_repair_fallback_event(reason: str) -> dict[str, object]:
+    """Audit event for a deferred-only initial output whose repair was unusable."""
+
+    return {
+        "phase": "repair_fallback",
+        "deferred": True,
+        "fallback": "initial_output",
+        "reason": reason,
+        "note": DEFERRED_REPAIR_FALLBACK_NOTE,
+    }
+
+
 def validate_or_accept_deferred(
     validate: Callable[[_ValidatedT], _ValidatedT], value: _ValidatedT
 ) -> _ValidatedT:
@@ -218,13 +236,13 @@ def execute_semantic_unit(
             validated = received(result, "initial_or_schema_repaired")
         except ValueError as exc:
             detail = str(exc)
-            deferred = isinstance(exc, DeferredValidationError)
+            deferred = exc if isinstance(exc, DeferredValidationError) else None
             events.append(
                 {"phase": "initial", "error": detail, **({"deferred": True} if deferred else {})}
             )
-            if repair_spent and isinstance(exc, DeferredValidationError):
+            if repair_spent and deferred is not None:
                 # No repair remains; the caller downgrades deterministically.
-                validated = cast(BaseModel, exc.accepted)
+                validated = cast(BaseModel, deferred.accepted)
             elif repair_spent:
                 return failure("STRUCTURED_OUTPUT_INVALID")
             else:
@@ -233,25 +251,56 @@ def execute_semantic_unit(
                 # Reserve the sole semantic repair before calling the adapter. A failed
                 # repair transport attempt never permits another initial request.
                 repair_spent = True
-                repaired = provider.repair(
-                    subject_id=request.subject_id,
-                    payload=request.repair_payload(
-                        request.payload(), result.output.model_copy(deep=True), (detail,)
-                    ),
-                    response_model=request.response_model,
-                    validation_errors=(detail,),
-                    cancel_requested=cancel_requested,
-                )
+                initial_raw = raw
+                repaired: StructuredCallResult[BaseModel] | None = None
                 try:
-                    validated = received(repaired, "domain_repair")
-                except DeferredValidationError as repair_deferred:
-                    events.append(
-                        {"phase": "repair", "error": str(repair_deferred), "deferred": True}
+                    repaired = provider.repair(
+                        subject_id=request.subject_id,
+                        payload=request.repair_payload(
+                            request.payload(), result.output.model_copy(deep=True), (detail,)
+                        ),
+                        response_model=request.response_model,
+                        validation_errors=(detail,),
+                        cancel_requested=cancel_requested,
                     )
-                    validated = cast(BaseModel, repair_deferred.accepted)
-                except ValueError as repair_error:
-                    events.append({"phase": "repair", "error": str(repair_error)})
-                    return failure("STRUCTURED_OUTPUT_INVALID")
+                except StructuredProviderError as repair_call_error:
+                    if deferred is None:
+                        raise
+                    # Only a deferred rule failed initially, so the initial output stays
+                    # authoritative and the caller's deterministic gate applies.
+                    retain(repair_call_error.call_records)
+                    attempts.extend(repair_call_error.repair_attempts)
+                    events.append(
+                        deferred_repair_fallback_event(
+                            f"repair call failed: {repair_call_error.code}"
+                        )
+                    )
+                    # Evidence consistency: a success records repair_spent exactly when
+                    # a repair call record exists.
+                    repair_spent = any(
+                        record.operation.endswith(".repair") for record in records.values()
+                    )
+                    validated = cast(BaseModel, deferred.accepted)
+                if repaired is not None:
+                    try:
+                        validated = received(repaired, "domain_repair")
+                    except DeferredValidationError as repair_deferred:
+                        events.append(
+                            {"phase": "repair", "error": str(repair_deferred), "deferred": True}
+                        )
+                        validated = cast(BaseModel, repair_deferred.accepted)
+                    except ValueError as repair_error:
+                        events.append({"phase": "repair", "error": str(repair_error)})
+                        if deferred is None:
+                            return failure("STRUCTURED_OUTPUT_INVALID")
+                        # The hard-invalid rewrite is discarded. The committed raw
+                        # output stays the initial one, so durable replay revalidates it
+                        # to the same accepted value.
+                        events.append(
+                            deferred_repair_fallback_event("repair output failed validation")
+                        )
+                        raw = initial_raw
+                        validated = cast(BaseModel, deferred.accepted)
         return SemanticUnitOutcome(
             disposition="succeeded",
             repair_spent=repair_spent,

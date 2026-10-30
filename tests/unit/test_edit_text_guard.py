@@ -15,12 +15,15 @@ from liveclip.domain.edit_plan import (
     EditPlan,
     Effect,
     Layout,
+    executable_text_match,
     reject_executable_text,
 )
 from liveclip.pipeline.edit_text_guard import (
     TEXT_GUARD_BLOCK_NOTE,
     TEXT_GUARD_ERROR_PREFIX,
+    TEXT_GUARD_INSTRUCTION,
     TEXT_GUARD_REJECT_NOTE,
+    TEXT_GUARD_TOKEN_CHARACTERS,
     block_global_review_text_violations,
     block_profile_v4_text_violations,
     build_ai_edit_plan,
@@ -29,8 +32,10 @@ from liveclip.pipeline.edit_text_guard import (
     profile_v4_edit_plan,
     profile_v4_text_errors,
     raise_for_text_guard,
+    text_guard_message,
 )
 from liveclip.pipeline.semantic_executor import (
+    DEFERRED_REPAIR_FALLBACK_NOTE,
     DeferredValidationError,
     SemanticUnitRequest,
     execute_semantic_unit,
@@ -54,7 +59,7 @@ from liveclip.pipeline.semantic_profiles import (
     ValidatedCandidateV4,
     ValidatedProfileResultV4,
 )
-from liveclip.providers.llm.structured import StructuredCallResult
+from liveclip.providers.llm.structured import StructuredCallResult, StructuredProviderError
 from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
 
 # The cold-27 false positive: an English review reason that uses the verb "make".
@@ -74,9 +79,9 @@ def test_plain_make_reason_is_the_isolated_false_positive() -> None:
         hook=("learning_outcome", "学会区分气声与漏气。"),
         reason=("review_reason", MAKE_REASON),
     )
-    assert len(errors) == 1
-    assert errors[0].startswith(f"{TEXT_GUARD_ERROR_PREFIX}candidate unit_a: review_reason")
-    assert "first 240 characters" in errors[0]
+    assert errors == ('candidate unit_a review_reason (first 240 chars) matched "make"',)
+    message = text_guard_message(errors)
+    assert message.startswith(f"{TEXT_GUARD_ERROR_PREFIX}{TEXT_GUARD_INSTRUCTION} ")
 
 
 def test_ffmpeg_title_and_hook_are_reported_by_source_field() -> None:
@@ -86,11 +91,65 @@ def test_ffmpeg_title_and_hook_are_reported_by_source_field() -> None:
         hook=("hook", "run ffmpeg to learn"),
         reason=("review_reason", SAFE_REASON),
     )
-    assert len(errors) == 2
-    assert errors[0].startswith(f"{TEXT_GUARD_ERROR_PREFIX}candidate unit_b: title is rejected")
-    assert errors[1].startswith(
-        f"{TEXT_GUARD_ERROR_PREFIX}candidate unit_b: hook (its first 80 characters) is rejected"
+    assert errors == (
+        'candidate unit_b title matched "ffmpeg"',
+        'candidate unit_b hook (first 80 chars) matched "ffmpeg"',
     )
+
+
+def test_guard_message_names_field_and_token_and_survives_legacy_truncation() -> None:
+    # The cold-27 shape: a long identifier and the plain "make" in the reason.
+    errors = edit_plan_text_errors(
+        "sh0006_breathy_mix_vs_leak",
+        title=("title", SAFE_TITLE),
+        hook=("hook", "练习"),
+        reason=("review_reason", MAKE_REASON),
+    )
+    message = text_guard_message(errors)
+    # Legacy contracts cut the repair message to 240 characters; the instruction
+    # comes first and the field and matched token still fit.
+    legacy = message[:240]
+    assert legacy.startswith(TEXT_GUARD_ERROR_PREFIX)
+    assert TEXT_GUARD_INSTRUCTION in legacy
+    assert "sh0006_breathy_mix_vs_leak review_reason" in legacy
+    assert 'matched "make"' in legacy
+    assert len(TEXT_GUARD_ERROR_PREFIX + TEXT_GUARD_INSTRUCTION) < 160
+    # Only the model's own field text is quoted, bounded in length.
+    long_path = "/" + "/".join(["segment"] * 30)
+    (path_error,) = edit_plan_text_errors(
+        "unit_p",
+        title=("title", SAFE_TITLE),
+        hook=("hook", "练习"),
+        reason=("review_reason", f"见 {long_path}"),
+    )
+    token = path_error.split("matched ", 1)[1]
+    assert json.loads(token) == long_path[:TEXT_GUARD_TOKEN_CHARACTERS]
+
+
+def test_guard_message_reports_non_pattern_editplan_limits() -> None:
+    # A title EditPlan rejects for display length, not for an executable pattern.
+    (error,) = edit_plan_text_errors(
+        "unit_len",
+        title=("title", "长" * 41),
+        hook=("hook", "练习"),
+        reason=("review_reason", SAFE_REASON),
+    )
+    assert error == "candidate unit_len title fails the EditPlan text limits"
+
+
+def test_executable_text_match_mirrors_the_unchanged_guard() -> None:
+    assert executable_text_match(MAKE_REASON) == "make"
+    assert executable_text_match(FFMPEG_TITLE) == "ffmpeg"
+    assert executable_text_match(SAFE_REASON) is None
+    for value in (MAKE_REASON, FFMPEG_TITLE, SAFE_REASON, "a && b", "x /tmp/y"):
+        rejected = True
+        try:
+            reject_executable_text(value)
+        except ValueError:
+            pass
+        else:
+            rejected = False
+        assert rejected == (executable_text_match(value) is not None)
 
 
 def test_guard_check_mirrors_editplan_truncation_and_stripping() -> None:
@@ -309,7 +368,50 @@ def test_global_v3_gate_blocks_selected_title_violation() -> None:
     assert gated.statistics.blocked_count == 1
     assert gated.statistics.eligible_before_top_n_count == 1
     assert gated.validation_notes == (f"cand_ffmpeg:{TEXT_GUARD_BLOCK_NOTE}",)
+    assert gated.statistics.suspicious_exact_top_n is False
     assert block_global_review_text_violations(gated) is gated
+
+
+def test_global_v3_gate_recomputes_suspicious_exact_top_n() -> None:
+    def review(*selected: ValidatedCandidateReviewV3, suspicious: bool) -> ValidatedGlobalReviewV3:
+        return ValidatedGlobalReviewV3(
+            selected=selected,
+            manual_review=(),
+            blocked=(),
+            rejected=(),
+            top_n_excluded=(),
+            statistics=GlobalReviewStatisticsV3(
+                discovery_candidate_count=2,
+                boundary_kept_count=2,
+                boundary_repaired_count=0,
+                boundary_dropped_count=0,
+                eligible_before_top_n_count=len(selected),
+                selected_count=len(selected),
+                manual_count=0,
+                blocked_count=0,
+                rejected_count=0,
+                top_n_excluded_count=0,
+                suspicious_exact_top_n=suspicious,
+            ),
+            validation_notes=(),
+        )
+
+    unsafe = _v3_candidate("cand_ffmpeg", 1_000, title=FFMPEG_TITLE)
+    kept = _v3_candidate("cand_keep", 9_000)
+    # Validator: discovery == eligible == Top-N ceiling (2). One demotion clears it.
+    gated = block_global_review_text_violations(review(unsafe, kept, suspicious=True))
+    assert gated.statistics.eligible_before_top_n_count == 1
+    assert gated.statistics.suspicious_exact_top_n is False
+    # Without a demotion the result is returned unchanged.
+    clean = review(kept, _v3_candidate("cand_two", 20_000), suspicious=True)
+    assert block_global_review_text_violations(clean) is clean
+    # A false flag can never become true after a demotion.
+    assert (
+        block_global_review_text_violations(
+            review(unsafe, kept, suspicious=False)
+        ).statistics.suspicious_exact_top_n
+        is False
+    )
 
 
 def _legacy_clip(clip_id, start_ms, decision, *, title=SAFE_TITLE, reason=SAFE_REASON):
@@ -419,6 +521,12 @@ class _Provider:
     def repair(self, *, subject_id, validation_errors, **_):
         self.repairs.append(validation_errors)
         assert self.repaired is not None
+        if self.repaired == "call_fails":
+            raise StructuredProviderError(
+                "STRUCTURED_PROVIDER_TIMEOUT", (_record(subject_id, "repair"),)
+            )
+        if self.repaired == "call_fails_unrecorded":
+            raise StructuredProviderError("STRUCTURED_PROVIDER_TIMEOUT", ())
         return StructuredCallResult(
             output=_Answer(value=self.repaired),
             call_records=(_record(subject_id, "repair"),),
@@ -475,3 +583,58 @@ def test_validate_or_accept_deferred_only_relaxes_the_deferred_rule() -> None:
         validate_or_accept_deferred(_guarded, _Answer(value="broken"))
     with pytest.raises(DeferredValidationError):
         _guarded(_Answer(value=MAKE_REASON))
+
+
+def _replayed(outcome) -> dict[str, object]:
+    """What durable replay derives from the committed raw output."""
+
+    raw = _Answer.model_validate_json(json.dumps(outcome.raw_output))
+    return validate_or_accept_deferred(_guarded, raw).model_dump(mode="json")
+
+
+def test_executor_falls_back_to_the_initial_output_when_the_repair_is_hard_invalid() -> None:
+    provider = _Provider(MAKE_REASON, "broken")
+    outcome = execute_semantic_unit(_unit(), provider, cancel_requested=lambda: False)
+    assert outcome.disposition == "succeeded" and outcome.repair_spent
+    assert outcome.validated_output == {"value": MAKE_REASON}
+    # The committed raw output is the initial one, so replay stays consistent.
+    assert outcome.raw_output == {"value": MAKE_REASON}
+    assert _replayed(outcome) == outcome.validated_output
+    # The discarded rewrite is still kept as audit evidence.
+    assert [output["phase"] for output in outcome.agent_outputs] == [
+        "initial_or_schema_repaired",
+        "domain_repair",
+    ]
+    phases = [event["phase"] for event in outcome.validation_events]
+    assert phases == ["initial", "repair", "repair_fallback"]
+    fallback = outcome.validation_events[-1]
+    assert fallback["fallback"] == "initial_output"
+    assert fallback["reason"] == "repair output failed validation"
+    assert fallback["note"] == DEFERRED_REPAIR_FALLBACK_NOTE
+
+
+@pytest.mark.parametrize(
+    ("mode", "recorded"), [("call_fails", True), ("call_fails_unrecorded", False)]
+)
+def test_executor_falls_back_to_the_initial_output_when_the_repair_call_fails(
+    mode: str, recorded: bool
+) -> None:
+    provider = _Provider(MAKE_REASON, mode)
+    outcome = execute_semantic_unit(_unit(), provider, cancel_requested=lambda: False)
+    assert outcome.disposition == "succeeded"
+    assert outcome.validated_output == outcome.raw_output == {"value": MAKE_REASON}
+    assert _replayed(outcome) == outcome.validated_output
+    # Durable evidence requires repair_spent exactly when a repair record exists.
+    assert outcome.repair_spent is recorded
+    assert any(r.operation.endswith(".repair") for r in outcome.call_records) is recorded
+    fallback = outcome.validation_events[-1]
+    assert fallback["phase"] == "repair_fallback"
+    assert fallback["reason"] == "repair call failed: STRUCTURED_PROVIDER_TIMEOUT"
+
+
+def test_executor_hard_invalid_initial_output_still_fails_when_the_repair_call_fails() -> None:
+    provider = _Provider("broken", "call_fails")
+    outcome = execute_semantic_unit(_unit(), provider, cancel_requested=lambda: False)
+    assert outcome.disposition == "exhausted"
+    assert outcome.failure_code == "STRUCTURED_PROVIDER_TIMEOUT"
+    assert outcome.validated_output is None

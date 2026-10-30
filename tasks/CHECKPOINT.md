@@ -432,3 +432,18 @@ of that gap is pending with the user.
 
 Next: Stage 11b (reviewer P2s), Stage 12 (general flag-contract
 alignment), human review of the cold-27 renders. Not pushed.
+
+## Stage 11b implemented, pending verification (2026-10-29)
+
+Branch `claude/liveclip-stage8-routing`, local only. Reviewer P2s from
+Stage 11: a deferred-only initial Global Review output whose repair call
+fails or whose rewrite is hard-invalid now falls back to the initial output
+plus the deterministic block/reject gate (durable executor, local V4 loop,
+local `semantic_global` helper), with a `repair_fallback` validation event;
+the guard repair message names the field and matched token and keeps its
+instruction within the legacy 240-character truncation; the v3
+`suspicious_exact_top_n` counter is recomputed after demotion. Tests: unit
+13 → 21, integration 37 → 58 (mock only). Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 11b SHA. Not pushed.
+

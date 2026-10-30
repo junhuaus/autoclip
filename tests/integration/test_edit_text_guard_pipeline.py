@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import func, select
@@ -55,9 +56,14 @@ from liveclip.pipeline.edit_text_guard import (
     TEXT_GUARD_ERROR_PREFIX,
     TEXT_GUARD_REJECT_NOTE,
 )
+from liveclip.pipeline.semantic_executor import DEFERRED_REPAIR_FALLBACK_NOTE
 from liveclip.pipeline.stage_handlers import PipelineStageHandlers
 from liveclip.providers.asr.mock import MockASRProvider, MockScriptSegment
-from liveclip.providers.llm.structured import MockStructuredLLMProvider, StructuredCallResult
+from liveclip.providers.llm.structured import (
+    MockStructuredLLMProvider,
+    StructuredCallResult,
+    StructuredProviderError,
+)
 from liveclip.renderer.quality import MediaValidationTransientError
 from liveclip.services.demo_media import create_demo_source
 
@@ -80,9 +86,26 @@ def _rewrite(raw: dict[str, object], field: str, text: str) -> None:
         row[_SOURCE_FIELD[field]] = text
 
 
+def _break(raw: dict[str, object]) -> None:
+    """Keep the schema but violate a hard validator (unknown candidate or cue)."""
+
+    rows = raw.get("reviews", raw.get("clips"))
+    assert isinstance(rows, list) and rows
+    for row in rows:
+        if "candidate_id" in row:
+            row["candidate_id"] = "unknown_candidate_zz"
+        else:
+            row["start_cue_id"] = row["end_cue_id"] = 999_999
+
+
 def _guard_provider(
     field: str, mode: str, phases: list[str], repair_errors: list[str]
 ) -> type[MockStructuredLLMProvider]:
+    """Modes: ``repaired`` (the rewrite is safe), ``blocked`` (still unsafe),
+    ``invalid_repair`` (the rewrite is hard-invalid), ``failed_repair`` (the repair
+    call fails) and ``schema_spent`` (the initial answer already used the schema
+    repair, so no domain repair remains)."""
+
     requests: dict[str, dict[str, object]] = {}
 
     class GuardTextProvider(MockStructuredLLMProvider):
@@ -109,13 +132,17 @@ def _guard_provider(
             repair_errors.extend(validation_errors)
             # The mock answers the immutable request; the rewrite below models the
             # Agent correcting only the rejected text field.
-            return super().repair(
+            result = super().repair(
                 subject_id=subject_id,
                 payload=requests[subject_id],
                 response_model=response_model,
                 validation_errors=validation_errors,
                 cancel_requested=cancel_requested,
             )
+            if mode == "failed_repair":
+                # The repair call was made (and recorded) but the provider failed it.
+                raise StructuredProviderError("STRUCTURED_PROVIDER_TIMEOUT", result.call_records)
+            return result
 
         def _generate(self, *, subject_id, payload, response_model, cancel_requested, phase):
             result = super()._generate(
@@ -131,10 +158,12 @@ def _guard_provider(
             unsafe = phase == "initial" or mode == "blocked"
             raw = result.output.model_dump(mode="json")
             _rewrite(raw, field, UNSAFE[field] if unsafe else SAFE[field])
+            if phase == "repair" and mode == "invalid_repair":
+                _break(raw)
             return StructuredCallResult(
                 output=response_model.model_validate_json(json.dumps(raw, ensure_ascii=False)),
                 call_records=result.call_records,
-                repaired=result.repaired,
+                repaired=result.repaired or (phase == "initial" and mode == "schema_spent"),
             )
 
     return GuardTextProvider
@@ -343,10 +372,13 @@ def _run(tmp_path: Path, config, *, field, mode, mini_lesson, crash_after_edit, 
         )
         with engine.connect() as connection:
             revision_rows = connection.scalar(select(func.count()).select_from(EditPlanRevisionRow))
-        # The guard error, not an unrelated validation error, drove the one repair.
-        assert repair_errors and all(
-            error.startswith(TEXT_GUARD_ERROR_PREFIX) for error in repair_errors
-        )
+        if mode == "schema_spent":
+            assert repair_errors == []
+        else:
+            # The guard error, not an unrelated validation error, drove the one repair.
+            assert repair_errors and all(
+                error.startswith(TEXT_GUARD_ERROR_PREFIX) for error in repair_errors
+            )
         return snapshot, edit, revision_rows, phases, wrapper.edit_calls
     finally:
         engine.dispose(close=True)
@@ -504,14 +536,15 @@ def test_semantic_global_edit_repairs_or_blocks_guard_tripping_text(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("contract", ["v3", "legacy"])
 @pytest.mark.parametrize("bounded", [False, True])
 def test_semantic_global_retry_blocks_cached_guard_text_without_new_calls(
-    tmp_path: Path, bounded: bool, monkeypatch
+    tmp_path: Path, contract: str, bounded: bool, monkeypatch
 ) -> None:
     failures = _fail_edit_write_once(monkeypatch)
     snapshot, edit, revision_rows, phases, _ = _run(
         tmp_path,
-        _semantic_global_config("v3", bounded),
+        _semantic_global_config(contract, bounded),
         field="title",
         mode="blocked",
         mini_lesson=False,
@@ -519,7 +552,150 @@ def test_semantic_global_retry_blocks_cached_guard_text_without_new_calls(
         duration_ms=24_000,
     )
     assert failures and snapshot.status == PipelineRunStatus.COMPLETED
+    # The retry resolves Global Review from the cache or the durable outcome.
     assert phases == ["initial", "repair"]
     assert revision_rows == 0 and edit["revisions"] == []
-    blocked = edit["semantic_global"]["validated"]["blocked"]
-    assert blocked and blocked[0]["validation_notes"][-1] == TEXT_GUARD_BLOCK_NOTE
+    _assert_semantic_global_gated(edit["semantic_global"]["validated"], contract, "title")
+
+
+def _assert_semantic_global_gated(validated: dict[str, object], contract: str, field: str) -> None:
+    """The initial (model-authored, unsafe) row is blocked (v3) or rejected (legacy)."""
+
+    assert validated["selected"] == []
+    if contract == "v3":
+        blocked = validated["blocked"]
+        assert isinstance(blocked, list) and len(blocked) == 1
+        assert blocked[0]["validation_notes"][-1] == TEXT_GUARD_BLOCK_NOTE
+        assert blocked[0]["review"][_SOURCE_FIELD[field]] == UNSAFE[field]
+        return
+    rejected = [
+        value
+        for value in cast(list[dict[str, Any]], validated["rejected"])
+        if value["validation_notes"][-1:] == [TEXT_GUARD_REJECT_NOTE]
+    ]
+    assert len(rejected) == 1
+    assert rejected[0]["clip"][_SOURCE_FIELD[field]] == UNSAFE[field]
+    assert validated["manual_review"] == []
+
+
+def _fallback_events(events: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [event for event in events if event.get("phase") == "repair_fallback"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("version", ["8", "9", "11", "13"])
+@pytest.mark.parametrize("mode", ["invalid_repair", "failed_repair"])
+def test_mini_lesson_unusable_guard_repair_falls_back_to_initial_and_blocks(
+    tmp_path: Path, version: str, mode: str
+) -> None:
+    """A deferred-only initial output survives a hard-invalid or failed rewrite."""
+
+    lineage = version != "8"
+    snapshot, edit, revision_rows, phases, edit_calls = _run(
+        tmp_path,
+        _mini_lesson_config(version),
+        field="reason",
+        mode=mode,
+        mini_lesson=True,
+        crash_after_edit=lineage,
+        duration_ms=125_000,
+    )
+    assert snapshot.status == PipelineRunStatus.COMPLETED
+    assert phases == ["initial", "repair"]
+    if lineage:
+        # The durable outcome replays to the same accepted initial output.
+        assert edit_calls == 2
+    semantic = edit["semantic_v5" if lineage else "semantic_v4"]
+    profile = semantic["profiles"]["mini_lesson"]
+    events = _events(semantic["stage_audits"]["global_review"])
+    assert events[0].get("deferred") is True
+    (fallback,) = _fallback_events(events)
+    assert fallback["fallback"] == "initial_output"
+    assert fallback["note"] == DEFERRED_REPAIR_FALLBACK_NOTE
+    expected_reason = (
+        "repair output failed validation"
+        if mode == "invalid_repair"
+        else "repair call failed: STRUCTURED_PROVIDER_TIMEOUT"
+    )
+    assert fallback["reason"] == expected_reason
+    assert revision_rows == 0 and edit["revisions"] == []
+    assert profile["selected"] == []
+    (blocked,) = profile["blocked"]
+    assert blocked["validation_notes"][-1] == TEXT_GUARD_BLOCK_NOTE
+    # The initial output, not the discarded rewrite, is what was gated.
+    assert blocked["review"]["review_reason"] == UNSAFE["reason"]
+    assert blocked["review"]["candidate_id"] != "unknown_candidate_zz"
+    assert profile["statistics"]["blocked_count"] == 1
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("contract", ["v3", "legacy"])
+@pytest.mark.parametrize("bounded", [False, True])
+@pytest.mark.parametrize("mode", ["invalid_repair", "failed_repair"])
+def test_semantic_global_unusable_guard_repair_falls_back_to_initial_and_blocks(
+    tmp_path: Path, contract: str, bounded: bool, mode: str
+) -> None:
+    snapshot, edit, revision_rows, phases, _ = _run(
+        tmp_path,
+        _semantic_global_config(contract, bounded),
+        field="reason",
+        mode=mode,
+        mini_lesson=False,
+        crash_after_edit=False,
+        duration_ms=24_000,
+    )
+    assert snapshot.status == PipelineRunStatus.COMPLETED
+    assert phases == ["initial", "repair"]
+    semantic = edit["semantic_global"]
+    events = semantic["prompt_debug"]["validation_events"]
+    assert events[0].get("deferred") is True
+    (fallback,) = _fallback_events(events)
+    assert fallback["fallback"] == "initial_output"
+    # The raw Global Review kept for audit and cache is the initial output.
+    raw_rows = semantic["raw_global_review"].get(
+        "reviews", semantic["raw_global_review"].get("clips")
+    )
+    assert all(row["review_reason"] == UNSAFE["reason"] for row in raw_rows)
+    assert revision_rows == 0 and edit["revisions"] == []
+    _assert_semantic_global_gated(semantic["validated"], contract, "reason")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "config_name", ["mini_lesson_v8", "semantic_global_v3", "semantic_global_legacy"]
+)
+def test_schema_repair_spent_blocks_guard_text_in_local_loops(
+    tmp_path: Path, config_name: str
+) -> None:
+    """The local V4 and semantic_global loops: no domain repair remains, so block."""
+
+    mini = config_name == "mini_lesson_v8"
+    config = (
+        _mini_lesson_config("8")
+        if mini
+        else _semantic_global_config(config_name.rsplit("_", 1)[-1], False)
+    )
+    snapshot, edit, revision_rows, phases, _ = _run(
+        tmp_path,
+        config,
+        field="reason",
+        mode="schema_spent",
+        mini_lesson=mini,
+        crash_after_edit=False,
+        duration_ms=125_000 if mini else 24_000,
+    )
+    assert snapshot.status == PipelineRunStatus.COMPLETED
+    assert phases == ["initial"]
+    assert revision_rows == 0 and edit["revisions"] == []
+    if mini:
+        profile = edit["semantic_v4"]["profiles"]["mini_lesson"]
+        (blocked,) = profile["blocked"]
+        assert blocked["validation_notes"][-1] == TEXT_GUARD_BLOCK_NOTE
+        events = _events(edit["semantic_v4"]["stage_audits"]["global_review"])
+    else:
+        semantic = edit["semantic_global"]
+        _assert_semantic_global_gated(
+            semantic["validated"], config_name.rsplit("_", 1)[-1], "reason"
+        )
+        events = semantic["prompt_debug"]["validation_events"]
+    assert [event.get("deferred") for event in events] == [True]

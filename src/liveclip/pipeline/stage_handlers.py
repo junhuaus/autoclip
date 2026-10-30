@@ -112,6 +112,7 @@ from liveclip.pipeline.edit_text_guard import (
     profile_v4_edit_plan,
     profile_v4_text_errors,
     raise_for_text_guard,
+    text_guard_message,
 )
 from liveclip.pipeline.editing import edit_and_rank_candidates
 from liveclip.pipeline.semantic_cache import (
@@ -127,6 +128,7 @@ from liveclip.pipeline.semantic_clipping import (
 from liveclip.pipeline.semantic_executor import (
     DeferredValidationError,
     SemanticUnitRequest,
+    deferred_repair_fallback_event,
     validate_or_accept_deferred,
 )
 from liveclip.pipeline.semantic_global import (
@@ -3660,8 +3662,14 @@ class PipelineStageHandlers:
         validation_events: list[dict[str, object]],
         cancel_requested: Callable[[], bool],
     ) -> tuple[ValidatedGlobalReview | ValidatedGlobalReviewV3, BaseModel]:
-        """Spend the sole semantic-global repair; a remaining text-guard hit is deferred."""
+        """Spend the sole semantic-global repair; a remaining text-guard hit is deferred.
 
+        When only a deferred rule failed initially and the repair call fails or its
+        output fails a hard validator, the initial output is kept (and cached by the
+        caller) and the caller's deterministic gate downgrades the affected clips.
+        """
+
+        deferred = error if isinstance(error, DeferredValidationError) else None
         try:
             repaired = provider.repair(
                 subject_id=work.run_id,
@@ -3681,6 +3689,17 @@ class PipelineStageHandlers:
                 repair_exc.call_records,
                 cache_hit=False,
             )
+            if deferred is not None:
+                validation_events.append(
+                    {
+                        "stage": "global_review_repair",
+                        **deferred_repair_fallback_event(f"repair call failed: {repair_exc.code}"),
+                    }
+                )
+                return (
+                    cast(ValidatedGlobalReview | ValidatedGlobalReviewV3, deferred.accepted),
+                    initial_output,
+                )
             if getattr(work.config, "semantic_transport_contract", None) is not None:
                 aggregate = _aggregate_semantic_failures(
                     [repair_exc],
@@ -3724,6 +3743,18 @@ class PipelineStageHandlers:
                     ),
                 }
             )
+            if deferred is not None:
+                # The hard-invalid rewrite is discarded; the initial output is kept.
+                validation_events.append(
+                    {
+                        "stage": "global_review_repair",
+                        **deferred_repair_fallback_event("repair output failed validation"),
+                    }
+                )
+                return (
+                    cast(ValidatedGlobalReview | ValidatedGlobalReviewV3, deferred.accepted),
+                    initial_output,
+                )
             raise StructuredProviderError(
                 "STRUCTURED_OUTPUT_INVALID",
                 (),
@@ -3737,7 +3768,9 @@ class PipelineStageHandlers:
                     "stage": "global_review_repair",
                     "error": _semantic_error_detail(
                         work,
-                        DeferredValidationError(" | ".join(guard_errors), accepted=validated),
+                        DeferredValidationError(
+                            text_guard_message(guard_errors), accepted=validated
+                        ),
                         legacy_limit=1_000,
                     ),
                     "deferred": True,
@@ -4157,6 +4190,8 @@ class PipelineStageHandlers:
                         first_error = first_error or failure
                         continue
                     else:
+                        deferred_error = exc if isinstance(exc, DeferredValidationError) else None
+                        repaired: StructuredCallResult[V4Output] | None = None
                         try:
                             repaired = provider.repair(
                                 subject_id=f"{work.run_id}.{stage}.{subject_id}",
@@ -4183,59 +4218,84 @@ class PipelineStageHandlers:
                             subject_call_ids[subject_id].extend(
                                 record.call_id for record in repair_exc.call_records
                             )
-                            failures.append((subject_id, cache_key, repair_exc))
-                            first_error = first_error or repair_exc
-                            continue
-                        self._state.record_provider_calls(
-                            fence, repaired.call_records, cache_hit=False
-                        )
-                        call_records.extend(repaired.call_records)
-                        subject_call_ids[subject_id].extend(
-                            record.call_id for record in repaired.call_records
-                        )
-                        agent_outputs.append(
-                            {
-                                "subject_id": subject_id,
-                                "phase": "domain_repair",
-                                "repaired": True,
-                                "repair_attempts": list(repaired.repair_attempts),
-                                "output": repaired.output.model_dump(mode="json"),
-                            }
-                        )
-                        try:
-                            validated = validator(repaired.output)
-                        except DeferredValidationError as repair_deferred:
+                            if deferred_error is None:
+                                failures.append((subject_id, cache_key, repair_exc))
+                                first_error = first_error or repair_exc
+                                continue
+                            # Only a deferred rule failed initially, so the initial
+                            # output stays; the caller's deterministic gate applies.
                             validation_events.append(
                                 {
                                     "subject_id": subject_id,
-                                    "phase": "repair",
-                                    "error": str(repair_deferred)
-                                    if complete_audit
-                                    else str(repair_deferred)[:1_000],
-                                    "deferred": True,
+                                    **deferred_repair_fallback_event(
+                                        f"repair call failed: {repair_exc.code}"
+                                    ),
                                 }
                             )
-                            # The rewrite still trips the guard; the caller blocks only
-                            # the affected candidates deterministically.
-                            validated = cast(V4Output, repair_deferred.accepted)
-                        except ValueError as repair_error:
-                            validation_events.append(
+                            validated = cast(V4Output, deferred_error.accepted)
+                        if repaired is not None:
+                            self._state.record_provider_calls(
+                                fence, repaired.call_records, cache_hit=False
+                            )
+                            call_records.extend(repaired.call_records)
+                            subject_call_ids[subject_id].extend(
+                                record.call_id for record in repaired.call_records
+                            )
+                            agent_outputs.append(
                                 {
                                     "subject_id": subject_id,
-                                    "phase": "repair",
-                                    "error": str(repair_error)
-                                    if complete_audit
-                                    else str(repair_error)[:1_000],
+                                    "phase": "domain_repair",
+                                    "repaired": True,
+                                    "repair_attempts": list(repaired.repair_attempts),
+                                    "output": repaired.output.model_dump(mode="json"),
                                 }
                             )
-                            failure = StructuredProviderError(
-                                "STRUCTURED_OUTPUT_INVALID",
-                                (),
-                                repair_attempts=repaired.repair_attempts,
-                            )
-                            failures.append((subject_id, cache_key, failure))
-                            first_error = first_error or failure
-                            continue
+                            try:
+                                validated = validator(repaired.output)
+                            except DeferredValidationError as repair_deferred:
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        "phase": "repair",
+                                        "error": str(repair_deferred)
+                                        if complete_audit
+                                        else str(repair_deferred)[:1_000],
+                                        "deferred": True,
+                                    }
+                                )
+                                # The rewrite still trips the guard; the caller blocks
+                                # only the affected candidates deterministically.
+                                validated = cast(V4Output, repair_deferred.accepted)
+                            except ValueError as repair_error:
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        "phase": "repair",
+                                        "error": str(repair_error)
+                                        if complete_audit
+                                        else str(repair_error)[:1_000],
+                                    }
+                                )
+                                if deferred_error is None:
+                                    failure = StructuredProviderError(
+                                        "STRUCTURED_OUTPUT_INVALID",
+                                        (),
+                                        repair_attempts=repaired.repair_attempts,
+                                    )
+                                    failures.append((subject_id, cache_key, failure))
+                                    first_error = first_error or failure
+                                    continue
+                                # The hard-invalid rewrite is discarded; the initial
+                                # output (cached below) is gated deterministically.
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        **deferred_repair_fallback_event(
+                                            "repair output failed validation"
+                                        ),
+                                    }
+                                )
+                                validated = cast(V4Output, deferred_error.accepted)
                 write_semantic_stage_cache(
                     cache_dir=cache_dir,
                     cache_key=cache_key,

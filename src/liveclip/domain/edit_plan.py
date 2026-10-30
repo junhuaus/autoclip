@@ -189,6 +189,20 @@ def reject_executable_text(value: str) -> None:
         raise ValueError("text resembles an executable path, command, script, SQL, or filter")
 
 
+def executable_text_match(value: str) -> str | None:
+    """Return the first substring the executable-text patterns match, for diagnostics.
+
+    Read-only companion of ``reject_executable_text``: it uses the same patterns in
+    the same order and never decides acceptance itself.
+    """
+
+    for pattern in _EXECUTABLE_PATTERNS:
+        match = pattern.search(value)
+        if match is not None:
+            return match.group(0).strip() or match.group(0)
+    return None
+
+
 def validate_edit_plan_bounds(
     plan: EditPlan,
     *,

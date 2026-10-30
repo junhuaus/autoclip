@@ -18,6 +18,80 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 11b guard repair fallback and repair message (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** on local
+  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
+  that accepted Stage 11). Not pushed or merged.
+- Origin: the Stage 11 reviewer P2s at `ed24a34`, under the binding user
+  decision "rewrite first, if still unsafe block that clip, and the rest of
+  the run must finish".
+- Repair fallback: when the initial Global Review output passed every hard
+  validator and only the deferred text guard failed, an unusable repair no
+  longer fails the run. If the repair call fails (`StructuredProviderError`)
+  or the rewrite fails a hard validator, the rewrite is discarded, the
+  initial output is accepted and the same deterministic gate applies
+  (V4/V5 and v3 → `blocked` with `deterministic_text_guard_gate`; legacy
+  `semantic_global` → `rejected`). A validation event with
+  `phase: repair_fallback`, `fallback: initial_output`, a reason ("repair
+  output failed validation" or "repair call failed: <code>") and a fixed
+  note records it. Sites: the durable executor
+  (`pipeline/semantic_executor.py`), the local V4 loop
+  (`_run_v4_requests`) and the local `semantic_global` helper
+  (`_repair_semantic_global_review`) in `pipeline/stage_handlers.py`.
+  - Durable executor: the committed `raw_output` stays the initial output,
+    so durable replay revalidates it to the same accepted value; the
+    discarded rewrite stays in `agent_outputs` as evidence. On a failed
+    repair call `repair_spent` equals whether a repair call record exists,
+    which the durable evidence check requires.
+  - Local loops cache the initial output, so a later cache hit gates it
+    the same way without a new call.
+  - A hard-invalid initial output still fails exactly as before (including
+    when the repair call fails). Cancellation and configuration errors are
+    unchanged.
+- Repair message: "Deterministic text guard: " is now followed first by the
+  rewrite instruction ("rewrite each listed field as plain prose with the
+  same meaning; no command words, file paths or shell syntax.") and then,
+  per failing field, `candidate <id> <field>[ (first N chars)] matched
+  "<token>"` (or `fails the EditPlan text limits` when no executable
+  pattern matched). The prefix and instruction take 135 characters, so the
+  legacy 240-character truncation keeps the instruction, and for the
+  cold-27 shape also the field and the matched "make". The token comes from
+  the new read-only `executable_text_match` in `domain/edit_plan.py`, which
+  reuses the unchanged patterns in the same order; it quotes at most 40
+  characters of the model's own field text and nothing else.
+- v3 `suspicious_exact_top_n` is recomputed after a demotion. The
+  validator sets it when the discovery count and the eligible count both
+  equal the Top-N ceiling, so it was true only with eligible == discovery
+  count; the gate keeps it true only while that still holds (any demotion
+  clears it; a false flag can never become true).
+- `docs/PRODUCT_SPEC.md`: Stage 11b amendment after the Stage 11 one.
+- Unchanged: guard patterns, shared validators, dual-profile prompts and
+  cache keys, benchmark JSON/MD, evaluator thresholds, frozen
+  `tools/loop_engineering`.
+- Tests (mock/fixture only):
+  - `tests/unit/test_edit_text_guard.py` (13 → 21): message field/token
+    naming and legacy truncation, non-pattern limits, matcher parity with
+    the guard, v3 counter recomputation, executor fallback on a
+    hard-invalid rewrite and on a failed repair call (recorded and
+    unrecorded), hard-invalid initial plus failed repair still fails.
+  - `tests/integration/test_edit_text_guard_pipeline.py` (37 → 58):
+    deferred initial then hard-invalid or failed repair → fallback to the
+    initial output and block, at every loop (V8 local V4, V9/V11/V13
+    durable with replay after the EditPlan commit, `semantic_windowed` v3
+    and legacy `semantic_global`, local and bounded); schema repair already
+    spent → block in the local V4 and both local `semantic_global` loops;
+    legacy cache retry (local and bounded).
+- Coder verification (mock/fixture only): targeted pytest over the two
+  Stage 11 test files plus the semantic executor, semantic lineage
+  runtime, EditPlan, stage handlers, semantic profiles, structured
+  transport budget, semantic unit recovery, lineage runtime pipeline,
+  persistent mock pipeline, transport budget pipeline, all dual-profile and
+  both benchmark-evaluator test files: 663 passed in 527.30 s;
+  `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+  make lint` rc 0. Full `make test`, the independent tester and the
+  reviewer are pending.
+
 ## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — ACCEPTED at ed24a34
 
 - **Status: ACCEPTED** (2026-10-29) on local branch

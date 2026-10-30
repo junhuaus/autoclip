@@ -24,11 +24,18 @@ untouched because dual-profile evaluation and benchmarks share them.
 from __future__ import annotations
 
 import dataclasses
+import json
 from collections.abc import Sequence
 
 from pydantic import ValidationError
 
-from liveclip.domain.edit_plan import CaptionTemplate, EditPlan, Effect, Layout
+from liveclip.domain.edit_plan import (
+    CaptionTemplate,
+    EditPlan,
+    Effect,
+    Layout,
+    executable_text_match,
+)
 from liveclip.pipeline.semantic_executor import DeferredValidationError
 from liveclip.pipeline.semantic_global import (
     ClipOrigin,
@@ -52,6 +59,13 @@ PROFILE_V4_PROMPT_VERSION = "semantic_topic_chain_v1.global_review"
 TEXT_GUARD_BLOCK_NOTE = "deterministic_text_guard_gate"
 TEXT_GUARD_REJECT_NOTE = "deterministic_text_guard_changed_kept_to_rejected"
 TEXT_GUARD_ERROR_PREFIX = "Deterministic text guard: "
+# The instruction comes first so that a legacy contract, which truncates the repair
+# message to 240 characters, always keeps it; field details follow.
+TEXT_GUARD_INSTRUCTION = (
+    "rewrite each listed field as plain prose with the same meaning; "
+    "no command words, file paths or shell syntax."
+)
+TEXT_GUARD_TOKEN_CHARACTERS = 40
 
 _PROBE_FIELDS: dict[str, object] = {
     "candidate_id": "text_guard_probe",
@@ -129,12 +143,14 @@ def edit_plan_text_errors(
     hook: tuple[str, str],
     reason: tuple[str, str],
 ) -> tuple[str, ...]:
-    """Return one repair instruction per text field that EditPlan would reject.
+    """Return one finding per text field that EditPlan would reject.
 
     Each pair is ``(source field name, model text)``. Every field is probed through
     the real ``EditPlan`` model with safe values elsewhere, so the check mirrors
     its exact text constraints (stripping, length, display normalization and the
-    unchanged executable-text guard) on the same truncated value.
+    unchanged executable-text guard) on the same truncated value. A finding names
+    the candidate, the source field and the matched substring of the model's own
+    field text; ``text_guard_message`` turns findings into the repair message.
     """
 
     errors: list[str] = []
@@ -147,15 +163,22 @@ def edit_plan_text_errors(
         try:
             EditPlan.model_validate({**_PROBE_FIELDS, plan_field: text})
         except ValidationError:
-            scope = "" if limit is None else f" (its first {limit} characters)"
-            errors.append(
-                f"{TEXT_GUARD_ERROR_PREFIX}candidate {candidate_id}: {source_field}{scope} "
-                "is rejected by the product-text guard because it resembles an executable "
-                "path, command, script, SQL, or filter. Rewrite it as plain viewer-facing "
-                "prose with the same meaning, without command words, file paths, or shell "
-                "syntax."
+            scope = "" if limit is None else f" (first {limit} chars)"
+            token = executable_text_match(text.strip())
+            detail = (
+                "fails the EditPlan text limits"
+                if token is None
+                else "matched "
+                + json.dumps(token[:TEXT_GUARD_TOKEN_CHARACTERS], ensure_ascii=False)
             )
+            errors.append(f"candidate {candidate_id} {source_field}{scope} {detail}")
     return tuple(errors)
+
+
+def text_guard_message(errors: Sequence[str]) -> str:
+    """One repair message: prefix and instruction first, then every finding."""
+
+    return f"{TEXT_GUARD_ERROR_PREFIX}{TEXT_GUARD_INSTRUCTION} " + "; ".join(errors)
 
 
 def _profile_v4_candidate_errors(value: ValidatedCandidateV4) -> tuple[str, ...]:
@@ -216,7 +239,7 @@ def raise_for_text_guard(errors: Sequence[str], *, accepted: object) -> None:
     """Request the repair loop's rewrite; without a repair the output is accepted."""
 
     if errors:
-        raise DeferredValidationError(" | ".join(errors), accepted=accepted)
+        raise DeferredValidationError(text_guard_message(errors), accepted=accepted)
 
 
 def block_profile_v4_text_violations(result: ValidatedProfileResultV4) -> ValidatedProfileResultV4:
@@ -301,6 +324,15 @@ def _block_global_v3_text_violations(result: ValidatedGlobalReviewV3) -> Validat
             ),
             "selected_count": len(selected),
             "blocked_count": len(blocked),
+            # Recomputed exactly: the validator sets it when the discovery count and
+            # the eligible count both equal the Top-N ceiling, so it was true only
+            # with eligible == discovery count, and any demotion breaks that. The
+            # ceiling itself is not needed and no count can rise.
+            "suspicious_exact_top_n": (
+                result.statistics.suspicious_exact_top_n
+                and result.statistics.eligible_before_top_n_count - len(demoted)
+                == result.statistics.discovery_candidate_count
+            ),
         }
     )
     return dataclasses.replace(
