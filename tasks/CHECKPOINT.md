@@ -613,3 +613,26 @@ match and records the 2 orphaned duplicates of `ml0007…core`.)
 
 Next: independent tester and reviewer on the Stage 13c SHA; a real run only
 with the user's go-ahead. Not pushed.
+
+## Stage 13c accepted at 6089884; warm-29 failed closed (2026-10-30)
+
+Stage 13c is ACCEPTED at `608988463c9e98a7eb861e28a5a80360ea29366d` on
+`claude/liveclip-stage8-routing` (local only). Tester PASS: backend 2986,
+vitest 80, e2e 4, targeted 255. Reviewer ACCEPT, no P0/P1; P3s (stale
+"representatives first" wording, reserved-prefix and fallback test gaps)
+become Stage 13d.
+
+warm-29 (real Claude CLI at `6089884`, pinned 2.1.308, warm from a
+byte-identical copy of the warm-28 cache, 306 files; attempt start epoch
+1793401583) FAILED CLOSED after 263 s in the short Global Audit:
+`deterministic validation still failed after one repair and one
+regeneration: duplicate candidate must be retained as a rejected audit
+row`. No provider-calls, manifest or new cache file; raw outputs
+unrecoverable. Root cause: the pair validator accepts a `blocked` duplicate
+for any candidate while final assembly accepts it only for risk-discovery
+records, and the audit prompt gives no guidance for a pair whose members
+both carry persisted flags; the audit fallback never saw the plain
+`ValueError`. Controller decisions (Stage 13d) in `STATUS.md`.
+
+Next: Stage 13d, then independent tester and reviewer; a real run only
+with the user's go-ahead. Not pushed.

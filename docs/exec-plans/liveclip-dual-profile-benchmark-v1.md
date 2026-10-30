@@ -81,7 +81,10 @@ imported by production modules.
 - [x] 2026-10-30 Stage 13b implemented (first recorded as pending independent tester and reviewer; ACCEPTED at `e48f6018bc9456278585ca1f63f0d0c225834697` the same day: tester PASS, lint rc 0, backend 2976 passed in 1632.67 s, vitest 14/80, e2e 4, targeted 245, no sleep 14:49–15:22; reviewer ACCEPT, no P0/P1, 23/27 mutants killed, Deviation 3 endorsed, sentinel replay 230 hits and exactly 3 calls, forced-fallback cold → warm replay byte-identical; P2s/P3s and a containment-criteria correction for Stage 13c); real run pending: audit candidates carry the persisted Discovery gated flags (same function as routing) and a duplicate may not resolve to such a representative; a downgrade-only Global Audit fallback (after repair and regeneration, only when the deterministic pair rules are the sole failures) blocks the longer member of each near-identical pair while keeping a retained partner and records every action in `audit_pair_fallbacks` (cached as raw output plus a verified marker); near-copy containment pairs (inner ≥ 9/10, or ends or starts within the tolerance) are listed as near-identical `containment` pairs. Only the Global Audit prompt changed; a warm-28 cache-copy replay still needs exactly 3 calls. Evidence in `STATUS.md`.
 - [x] (Historical next step; done 2026-10-30 at `e48f601`.) Independent tester and reviewer for Stage 13b.
 - [x] 2026-10-30 Stage 13c implemented, pending independent tester and reviewer; real run pending (Python only; audit prompt hash and cache keys unchanged): audit fallback keeps representatives first and records unavoidable orphans and every resolved pair; containment near-copy limited to the user-approved criteria (inner ≥ 9/10 or ends within tolerance; starts removed); Python-only reason prefixes reserved and reverse-checked; manifest diagnostic for Global Review-level duplicates of persisted-flag representatives. warm-28 cache-copy replays: exactly 3 calls; forced fallback has no unrecorded orphan and a byte-identical warm rerun. Evidence and a keep-order trade-off in `STATUS.md`.
-- [ ] Next: independent tester and reviewer for Stage 13c, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
+- [x] (Historical next step; done 2026-10-30 at `6089884`.) Independent tester and reviewer for Stage 13c, then a real run with the user's go-ahead (warm-29 below).
+- [x] 2026-10-30 Stage 13c ACCEPTED at `608988463c9e98a7eb861e28a5a80360ea29366d` (code `4543d0a` and `6089884`; tester PASS: backend 2986 passed, vitest 80, e2e 4, targeted 255; reviewer ACCEPT, no P0/P1; P3s for Stage 13d: stale "representatives first" wording, reserved-prefix test gaps, audit fallback test gaps).
+- [x] 2026-10-30 warm-29 (real Claude CLI at `6089884`, pinned 2.1.308, warm from a byte-identical `cp -Rp` copy of the warm-28 cache, 306 files, diagnostic only): FAILED CLOSED after 263 s in the short Global Audit (`deterministic validation still failed after one repair and one regeneration: duplicate candidate must be retained as a rejected audit row`); no provider-calls, manifest or new cache file; raw model outputs unrecoverable. Root cause: the pair validator accepts a `blocked` duplicate for any candidate while final assembly accepts it only for risk-discovery records, and the audit prompt gives no guidance for a pair whose members both carry persisted flags. Not a quality result. Details in the Recovery Notes and `STATUS.md`.
+- [ ] Next: Stage 13d (Controller decisions 2026-10-30: failure observability and validator messages; duplicate-status contract alignment and an audit-prompt-only change; Stage 13c reviewer P3s), then independent tester and reviewer, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -335,6 +338,24 @@ two deterministic report files.
   the shortest independently complete version", and a duplicate count is
   only a proxy. The P2-A orphan risk is accepted; orphans are recorded,
   never promoted.
+- 2026-10-30 (Controller decisions after warm-29, Stage 13d): (1) when
+  validation is exhausted after repair and regeneration in any stage, a
+  typed error carries every attempt's structured output, error and provider
+  call records, and the service writes `failed-<profile>-<stage>.json`, a
+  partial `provider-calls.json` and a failure manifest to the run directory
+  only (never the cache), then re-raises; (2) validator messages name the
+  candidate IDs, current status, duplicate target and allowed statuses, and
+  report every violation at once where feasible; (3) final assembly accepts
+  a duplicate as `rejected` or `blocked` for any candidate, matching the
+  pair validator (both are non-output); a `selected`/`manual_review`
+  duplicate stays a hard error and is never coerced; (4) only
+  `global_audit.md` changes: a duplicate ends `rejected` or `blocked`,
+  Python blocks only retained rows with gated or persisted flags and never
+  changes a rejected row, and a pair whose members both carry persisted
+  flags is `distinct_objective` or both become duplicates of a
+  non-persisted representative; the stale containment-starts wording is
+  fixed in the same edit; (5) check the audit validation order for the
+  fallback; (6) the Stage 13c reviewer P3s.
 
 ## Risks and mitigations
 
@@ -614,6 +635,39 @@ unless Boundary Review actually trims the interval; (2) Fix 2, the Global
 Audit also adjudicates same-Profile overlapping pairs whose overlap is at
 least 50% of the shorter candidate. Stage 12c takes the Stage 12b reviewer
 P2-A, P2-B and P3s.
+
+2026-10-30 (Stage 13c ACCEPTED at `6089884`; warm-29 failed closed): tester
+PASS (backend 2986 passed; vitest 80; e2e 4; targeted 255); reviewer ACCEPT
+with no P0/P1 (P3s become Stage 13d). warm-29 (real Claude CLI, warm,
+diagnostic) at `6089884`:
+
+  - Roots `data/evaluations/dual-profile-benchmark-20261030-claude-warm-29`
+    and `data/evaluations/dual-profile-cache-20261030-claude-warm-29` (a
+    `cp -Rp` copy of the warm-28 cache, 306 files, byte-identical); pinned
+    Claude CLI 2.1.308; attempt start epoch 1793401583; evidence in
+    `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-29/evidence/`.
+  - eval rc 1 after 263 s in the short Global Audit, the first uncached
+    call: `deterministic validation still failed after one repair and one
+    regeneration: duplicate candidate must be retained as a rejected audit
+    row`. 0 new, 0 removed and 0 changed cache files; no provider-calls,
+    manifest or final result; only `discovery-short.json` in the run
+    directory. The raw model outputs are unrecoverable (the Claude CLI runs
+    without session persistence and the service wrote nothing on failure).
+  - Root cause (read-only reconstruction of the short audit payload and
+    offline what-if simulations): `validate_nested_pair_decisions` accepts
+    a `blocked` duplicate for any candidate and says so in its message,
+    while `assemble_final_profile_result` accepts it only for risk-discovery
+    records (the short Profile has none). The audit prompt says a candidate
+    with persisted flags "will be blocked" without saying a duplicate stays
+    rejected, and gives no guidance for the nested pair
+    `sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core`, whose
+    members both carry persisted flags. A `blocked` non-risk duplicate
+    reproduces the exact stderr; the model can oscillate between the two
+    messages. The audit fallback handles only `AuditPairRuleError`, and
+    this was a plain `ValueError` from the merged-audit assembly check,
+    which runs before the pair rules.
+  - Decisions: see the 2026-10-30 Controller decisions after warm-29
+    (Stage 13d) in the Decisions section.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

@@ -1,10 +1,38 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## warm-29 real run failed closed; Stage 13d decided (2026-10-30)
+
+- [x] 2026-10-30 warm-29 (real Claude CLI at `6089884`, pinned 2.1.308,
+  warm from a byte-identical `cp -Rp` copy of the warm-28 cache, 306
+  files; attempt start epoch 1793401583; diagnostic only) **failed
+  closed** after 263 s in the short Global Audit: `deterministic validation
+  still failed after one repair and one regeneration: duplicate candidate
+  must be retained as a rejected audit row`. No provider-calls, manifest
+  or new cache file (0 new / 0 changed); the raw model outputs are
+  unrecoverable. Not a quality result.
+  - Root cause (read-only reconstruction and offline what-if sims): the
+    pair validator accepts a `blocked` duplicate for any candidate, final
+    assembly only for risk-discovery records; the audit prompt does not
+    say a duplicate stays rejected despite persisted flags, nor what to do
+    when both members of a pair carry them
+    (`sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core`). The
+    audit fallback only sees `AuditPairRuleError`; this was a plain
+    `ValueError` raised before the pair rules.
+- [ ] Next: Stage 13d (Controller decisions in `STATUS.md`): failure
+  observability and validator messages (Python only); duplicate-status
+  contract alignment (`rejected` or `blocked` for any duplicate; a
+  retained duplicate stays a hard error) and an edit of `global_audit.md`
+  only; the Stage 13c reviewer P3s. Then independent tester and reviewer,
+  then a real run only with the user's go-ahead.
+
 ## Stage 13c audit fallback keep order and contract alignment (2026-10-30)
 
 - [x] 2026-10-30 Stage 13c implemented on `claude/liveclip-stage8-routing`
-  (Stage 13b reviewer P2/P3s and a Controller correction), **pending
-  independent tester and reviewer; real run pending**. Python only: the
+  (Stage 13b reviewer P2/P3s and a Controller correction); first recorded
+  as pending independent tester and reviewer; **ACCEPTED at
+  `608988463c9e98a7eb861e28a5a80360ea29366d`** the same day (tester PASS:
+  backend 2986, vitest 80, e2e 4, targeted 255; reviewer ACCEPT, no P0/P1,
+  P3s for Stage 13d). Python only: the
   audit prompt hash and every cache key are unchanged (3-call estimate
   holds). Must land before the real run.
   - Fallback keep order (Controller decision, second 13c commit): persisted-flag
@@ -23,8 +51,9 @@
     rerun. The representative-first trade-off (`ml0007…core` kept over the
     L04 match) is resolved by length-first: the forced fallback now keeps
     `audit_ml0008…` and records 2 orphans (details in `STATUS.md`).
-- [ ] Next: independent tester and reviewer on the Stage 13c SHA; a real
-  run only with the user's go-ahead.
+- [x] (Historical next step; done 2026-10-30 at `6089884`, then warm-29
+  above.) Independent tester and reviewer on the Stage 13c SHA; a real
+  run with the user's go-ahead.
 
 ## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30)
 

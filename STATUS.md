@@ -18,14 +18,111 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 13c audit fallback keep order and contract alignment (2026-10-30) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+## warm-29 real run (2026-10-30) — FAILED CLOSED in the short Global Audit; Stage 13d decided
 
-- **Status: implemented, pending independent tester and reviewer; real run
-  pending** on local branch `claude/liveclip-stage8-routing` (code commit
-  after the docs commit that accepted Stage 13b at `e48f601`). Not pushed or
-  merged. It must land before the real run: once a real run writes
-  fallback-marked audit entries, a later change to the fallback would make
-  them fail closed on warm reruns.
+- **Result: failed closed, not a quality result.** Real Claude CLI at
+  `6089884` (Stage 13c accepted code), warm, diagnostic. No
+  `provider-calls.json`, `run-manifest.json` or new cache file was written.
+- Setup:
+  - pinned Claude CLI 2.1.308 (`.cache/claude-cli/2.1.308/claude`);
+  - attempt start epoch 1793401583 (2026-10-30 16:06:23 -0700), eval
+    started 1793401601;
+  - roots `data/evaluations/dual-profile-benchmark-20261030-claude-warm-29`
+    (run) and `data/evaluations/dual-profile-cache-20261030-claude-warm-29`
+    (cache), with evidence in
+    `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-29/evidence/`;
+  - the cache is a `cp -Rp` copy of the warm-28 cache: 306 files,
+    byte-identical before the run; after the run 0 new, 0 removed and 0
+    pre-existing files changed, and the warm-28 source cache is unchanged;
+  - `--discovery-concurrency 3`; 0 sleep/wake entries; 0 email matches in
+    the scratch output and evidence.
+- Failure: eval rc 1 after 263 s, in the short Global Audit (the first
+  uncached call). Stderr:
+  `deterministic validation still failed after one repair and one regeneration: duplicate candidate must be retained as a rejected audit row`.
+  The run directory holds only `discovery-short.json`.
+- The raw model outputs (initial, repair, regeneration) cannot be recovered:
+  `claude_cli.py` runs with `--no-session-persistence` in a temporary
+  directory and keeps stdout in memory, and the service writes nothing on
+  a validation failure.
+- Read-only analysis (offline reconstruction of the exact short audit
+  payload from a cache copy, plus what-if simulations with crafted audit
+  outputs; scripts in the session scratchpad `w29/`):
+  - **Root cause: two validators contradict each other.**
+    `validate_nested_pair_decisions` accepts a `rejected` or `blocked`
+    duplicate for any candidate, and its error text tells the model
+    "rejected or blocked with duplicate_of_candidate_id". Final assembly
+    (`assemble_final_profile_result`) accepts a `blocked` duplicate only for
+    `risk_discovery` records, and the short Profile has none.
+  - `global_audit.md` (Stage 13b) says a candidate with persisted gated
+    flags "will be blocked". It never says a duplicate stays rejected even
+    when it carries such flags, and gives no guidance when both members of
+    a pair carry persisted flags. The short payload's nested pair
+    `sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core` is such a
+    pair (both `manual_review`, both with persisted `material_interruption`).
+  - Short payload: 89 candidates (47 manual_review, 34 blocked, 6 rejected,
+    2 selected); 6 audit pairs (4 nested, 2 overlap, 0 near-identical); 32
+    candidates with persisted gated flags; no risk records.
+  - The simulations reproduce the exact warm-29 stderr when a non-risk
+    duplicate is set to `blocked`, and show that the model can oscillate
+    between the two validators' messages across repair and regeneration.
+  - `_audit_pair_fallback` only handles `AuditPairRuleError`. This failure
+    was a plain `ValueError` from the final-assembly check of the merged
+    audit, which runs before the pair rules, so no fallback ran.
+  - The validator message names no candidate and uses "retained" in the
+    opposite sense to the prompt.
+- Controller decisions (2026-10-30), implemented as Stage 13d:
+  - **Commit Q, failure observability and validator messages (Python
+    only).** When validation is exhausted after repair and regeneration
+    (any stage), raise a typed error carrying each attempt's structured
+    output, each error and the provider call records; the service writes
+    `failed-<profile>-<stage>.json`, a partial `provider-calls.json` and a
+    failure manifest to the run directory only (never the cache) and
+    re-raises; the CLI still exits non-zero. Validator messages name the
+    candidate IDs, the current status, the duplicate target and the allowed
+    statuses, separate a retained duplicate from a wrong non-output status,
+    report every violation in one message where feasible, and the
+    pair-validator text matches the final rule. No prompt or cache-key
+    change.
+  - **Commit R, contract alignment and audit prompt.** Final assembly
+    accepts a duplicate as `rejected` or `blocked` for any candidate,
+    matching the pair validator (both statuses are non-output). A
+    `selected`/`manual_review` duplicate stays a hard error and is never
+    coerced. Python still never promotes, and a blocked risk duplicate
+    stays legal. Only `global_audit.md` changes (never `main.md`,
+    `repair.md`, the profile files or another stage file, which would
+    invalidate about 230 cached calls): a duplicate ends `rejected` or
+    `blocked`; Python blocks only retained rows with gated or persisted
+    flags and never changes a rejected row; when both members of a listed
+    pair carry persisted flags, decide `distinct_objective` or make both
+    duplicates of a non-persisted representative. The stale containment
+    "starts" wording in the `near_identical` parenthetical is fixed in the
+    same edit. Both audits already miss at `6089884`, so the next run still
+    costs 3 calls plus repairs. Also: check the audit validation order so
+    the fallback sees whether pair rules are the only remaining failures;
+    the Stage 13c reviewer P3s.
+
+## Stage 13c audit fallback keep order and contract alignment (2026-10-30) — ACCEPTED at 6089884; warm-29 FAILED CLOSED
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `608988463c9e98a7eb861e28a5a80360ea29366d` on local branch
+  `claude/liveclip-stage8-routing` (two code commits, `4543d0a` and
+  `6089884`, after the docs commit that accepted Stage 13b at `e48f601`).
+  Not pushed or merged. (History: first recorded as implemented, pending
+  independent tester and reviewer; real run pending. It had to land before
+  the real run: once a real run writes fallback-marked audit entries, a
+  later change to the fallback would make them fail closed on warm reruns.)
+- Tester: **PASS** at `6089884`. Backend 2986 passed; vitest 80; e2e 4;
+  targeted 255.
+- Reviewer: **ACCEPT** at `6089884`, no P0/P1. P3s, taken up by Stage 13d:
+  - stale "representatives first" wording (dual-profile ExecPlan, this
+    file, a test comment);
+  - reserved-prefix test gaps: the Global Review chunk check, a full prefix
+    appearing mid-text being allowed, the audit exemption limited to
+    fallback-blocked IDs, a hard-coded list of all five prefixes;
+  - audit fallback test gaps: merged vs initial plan, orphan record shape,
+    the orphan keeping its duplicate reference.
+- The first real run on this code, warm-29, failed closed in the short
+  Global Audit (section above).
 - Python only. No prompt changed: Global Audit stays short
   `bb9d2e6ad638…` / mini `4c8313b0d62b…`, every cache key is unchanged, and
   the 3-call estimate holds.
