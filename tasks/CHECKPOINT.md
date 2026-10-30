@@ -466,3 +466,12 @@ Details in `STATUS.md`.
 Next: independent tester and reviewer on the Stage 11b and Stage 12 SHAs;
 a real run only with the user's go-ahead. Not pushed.
 
+## Stages 11b and 12 accepted at 88c97e9 (2026-10-29)
+
+Stage 11b (code `31e6712`) and Stage 12 (code
+`88c97e950bd981fe5f63a9c90753b2eb39cb0f60`) are ACCEPTED at the tip
+`88c97e9` on `claude/liveclip-stage8-routing` (local only). Tester PASS:
+lint rc 0; backend 2886 passed in 1681.85 s; vitest 14/80; e2e 4 passed;
+targeted 159; no sleep 18:34–19:11. Reviewer ACCEPT, no P0/P1, five P2s,
+which become Stage 12b. Real run still pending the user's go-ahead.
+

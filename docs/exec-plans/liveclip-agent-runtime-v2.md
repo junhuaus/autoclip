@@ -2,9 +2,13 @@
 
 ## Stage 12 dual-profile flag contract alignment (2026-10-29)
 
-- [x] 2026-10-29 Stage 12 implemented on `claude/liveclip-stage8-routing`,
-  **pending independent tester and reviewer; real run pending**. Not
-  pushed. General, not anchor-tuned: Global Review/Audit prompts list the
+- [x] 2026-10-29 **Stage 12 ACCEPTED** at
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` on
+  `claude/liveclip-stage8-routing` (first recorded as implemented, pending
+  independent tester and reviewer); real run pending. Not pushed.
+  Tester PASS at `88c97e9`: lint rc 0; backend 2886 passed (1681.85 s);
+  vitest 14/80; e2e 4; targeted 159; no sleep 18:34–19:11. Reviewer
+  ACCEPT, no P0/P1, five P2s (Stage 12b). General, not anchor-tuned: Global Review/Audit prompts list the
   exact gated and advisory flags (drift test); advisory-only coherent
   candidates are `manual_review`; Boundary Review invariant
   `context_dependent_opening` ⇒ `opening_complete=false` via the repair
@@ -13,14 +17,17 @@
   representative. Discovery prompts unchanged; Boundary Review, Global
   Review and Global Audit caches invalidated. Details and the cache impact
   in `STATUS.md`; decisions in the dual-profile ExecPlan.
-- [ ] Next: independent tester and reviewer on the Stage 12 SHA; real run
-  only with the user's go-ahead.
+- [x] (Historical next step; done 2026-10-29.) Independent tester and
+  reviewer on the Stage 12 SHA.
+- [ ] Next: Stage 12b (reviewer P2s); real run only with the user's
+  go-ahead.
 
 ## Stage 11b guard repair fallback and repair message (2026-10-29)
 
-- [x] 2026-10-29 Stage 11b implemented on `claude/liveclip-stage8-routing`
-  (reviewer P2s at `ed24a34`), **pending independent tester and
-  reviewer**. Not pushed.
+- [x] 2026-10-29 **Stage 11b ACCEPTED** (code `31e6712`, verified at the
+  tip `88c97e9` with Stage 12: tester PASS, reviewer ACCEPT with no P0/P1;
+  first recorded as pending independent tester and reviewer) on
+  `claude/liveclip-stage8-routing` (reviewer P2s at `ed24a34`). Not pushed.
   - Deferred-only initial output + unusable repair (failed call or
     hard-invalid rewrite) → initial output accepted, deterministic gate
     applied, `repair_fallback` validation event; in the durable executor
@@ -41,7 +48,8 @@
   hard validator and the user decision requires the rest of the run to
   finish; other units still surface a global provider failure on their own
   calls. Cancellation and configuration errors keep their existing paths.
-- [ ] Next: independent tester and reviewer on the Stage 11b SHA.
+- [x] (Historical next step; done 2026-10-29 at `88c97e9`.) Independent
+  tester and reviewer on the Stage 11b SHA.
 
 ## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29)
 

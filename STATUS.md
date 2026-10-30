@@ -18,11 +18,19 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 12 dual-profile flag contract alignment (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+## Stage 12 dual-profile flag contract alignment (2026-10-29) — ACCEPTED at 88c97e9; REAL RUN PENDING
 
-- **Status: implemented, pending independent tester and reviewer; real
-  run pending.** Local branch `claude/liveclip-stage8-routing`, code
-  commit after the Stage 11b commit `31e6712`. Not pushed or merged.
+- **Status: ACCEPTED** (2026-10-29) at
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` on local branch
+  `claude/liveclip-stage8-routing`; real run pending. Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
+- Tester: **PASS** at `88c97e9` (covers Stage 11b `31e6712` and Stage 12
+  `88c97e9`). `make lint` rc 0; backend 2886 passed in 1681.85 s; vitest
+  14 files / 80; e2e 4 passed; targeted 159 passed. No sleep in the
+  18:34–19:11 window on 2026-10-29.
+- Reviewer: **ACCEPT** at `88c97e9`, no P0/P1, five P2s (taken up as
+  Stage 12b below).
 - Origin: the read-only S06/L07 variance analysis (Stage 11 section). The
   change is general: no anchor times, IDs or wording are used anywhere.
 - Prompts match the code (`clipping_skills/dual_profile_v1/stages/`):
@@ -99,11 +107,14 @@
 - Next: independent tester and reviewer; then a real run (warm from the
   cold-27 cache, or cold) only with the user's go-ahead.
 
-## Stage 11b guard repair fallback and repair message (2026-10-29) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 11b guard repair fallback and repair message (2026-10-29) — ACCEPTED at 88c97e9
 
-- **Status: implemented, pending independent tester and reviewer** on local
-  branch `claude/liveclip-stage8-routing` (code commit after the docs commit
-  that accepted Stage 11). Not pushed or merged.
+- **Status: ACCEPTED** (2026-10-29). Code commit
+  `31e6712a054465142f5d39ad0fc12e60fc2fad4e`, verified at the tip
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` together with Stage 12 (see
+  the tester and reviewer bullets in the Stage 12 section). Not pushed or
+  merged. (History: first recorded as implemented, pending independent
+  tester and reviewer.)
 - Origin: the Stage 11 reviewer P2s at `ed24a34`, under the binding user
   decision "rewrite first, if still unsafe block that clip, and the rest of
   the run must finish".
@@ -170,8 +181,8 @@
   persistent mock pipeline, transport budget pipeline, all dual-profile and
   both benchmark-evaluator test files: 663 passed in 527.30 s;
   `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
-  make lint` rc 0. Full `make test`, the independent tester and the
-  reviewer are pending.
+  make lint` rc 0. (At the time, full `make test`, the independent tester
+  and the reviewer were pending; all passed at `88c97e9`.)
 
 ## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — ACCEPTED at ed24a34
 
