@@ -18,6 +18,92 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 10 render guard false positive (2026-10-23) — ACCEPTED at 0515ef7
+
+- **Status: ACCEPTED** on local branch `claude/liveclip-stage8-routing`.
+  Not pushed or merged. Code commit
+  `0515ef75f93b68b1bc57794a0c8f356d7c00023e`.
+- Root cause: `render_dual_profile_candidates` copied the model
+  `review_reason[:240]` and the title/hook into the guarded EditPlan
+  fields. The unchanged `reject_executable_text` guard then matched the
+  English word "make" in candidate `sh0006_breathy_mix_vs_leak`, and the
+  cold-27 render failed closed after 5 of 14 clips.
+- Fix: the guarded EditPlan fields (title, hook, reason) now carry
+  deterministic product text built from validated enums and the score, in
+  both the dual-profile and the Agent render paths. Model prose stays in
+  the final JSON, the render manifest and the review package. The guard
+  and its patterns are unchanged.
+- Tester: PASS at `0515ef7`, no sleep in the window: `make lint` rc 0;
+  `make test` rc 0, backend 2792 passed in 1444.08 s, vitest 14 files /
+  80 tests, e2e mock 1, real review-delivery 1, completion-goal 2;
+  targeted 25 passed.
+- Reviewer: ACCEPT. P2 nits: the Agent test mixes "make" with "rm -rf",
+  so it does not isolate the plain "make" false positive; the
+  `manual_review` strings have no coverage.
+- Reviewer P1 (decided by the user, Stage 11 below): the persisted
+  pipeline edit stages in `src/liveclip/pipeline/stage_handlers.py` still
+  put model `review_reason[:240]` and title/hook straight into EditPlan.
+
+### cold-27 real Claude CLI acceptance attempt (2026-10-23, frozen Claude CLI 2.1.308, subscription login)
+
+This is a fresh, resumable acceptance attempt, not a warm diagnostic.
+Evidence categories stay distinct: this run is real-model inference
+evidence; the strict evaluator result is deterministic validation of that
+output; rendering plus human editorial/audio review is a separate
+acceptance activity and is **not** claimed here.
+
+- Code: HEAD `e173c28d9ef076ba2a730f42ca57829a34e01e24` (Stage 9 code).
+- Roots: `data/evaluations/dual-profile-benchmark-20261023-claude-cold-27`
+  and `data/evaluations/dual-profile-cache-20261023-claude-cold-27`. Both
+  were absent at the start and the cache started empty. Doctor and
+  `smoke-claude` OK.
+- One segment (no cold-27b was needed); no usage limit was hit. Eval rc 0
+  in 3756 s.
+- Calls: `cache_hits` 0; 233 calls (Discovery 160, Boundary Review 52,
+  Global Review/Audit 20, variant link 1); 239 provider records; 6
+  repairs; 0 retries; no 429, 529 or usage-limit errors. Tokens: input
+  11,460,411, output 1,059,863. Latency per call: median 26.4 s, p95
+  98.9 s.
+- Provenance: 233 cache files, all with mtime at or after the attempt
+  start (epoch 1792779597). None is content-identical to any of the 3972
+  key files in 20 earlier roots; 81 file names also appear in earlier
+  roots, which is expected because cache keys are deterministic.
+- Strict result: **PASS 95.0**, evaluator exit 0, 0 hard failures.
+  - Components: short 20, mini 25, risk 10, boundary 15, both Profiles 15,
+    audit 10.
+  - Short 8/8. S06 matched by `sh0009_balanced_mix_step5` (selected,
+    −2300/+2860 ms).
+  - Mini 5/6, L01–L05 hit. L07 missed: all three boundary-matching
+    candidates carry `context_dependent_opening` (blocked/rejected); the
+    kept `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts
+    −30540 ms early.
+  - R01 blocked; R02 `manual_review`.
+  - The second auto-selected clip `audit_sh0011_self_taught_era_intuition`
+    lies inside supplemental O01; no gate applies.
+  - Twin union: 0 of 23 groups differ on gated flags after the union.
+    Nested pairs: short 0; mini 36 (16 `duplicate`, 20
+    `distinct_objective`).
+  - Durable strict-eval output:
+    `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`
+    (being written by a runner at the time of this record).
+- Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 (diagnostic) /
+  cold-27 PASS 95.0. L07 and S06 vary between runs with the model's
+  `context_dependent_opening` judgments.
+- Renders:
+  - The first attempt into `<run>/renders/` failed closed after 5 of 14
+    clips (the Stage 10 bug). That partial directory has no manifest and
+    is kept untouched.
+  - The re-render at `0515ef7` into `<run>/renders-r2/` succeeded: rc 0,
+    244 s, 14 clips. Automatic checks (decode, black-frame, edge) passed;
+    h264_videotoolbox 1080x1920. The sha256 of `final-validated.json` and
+    `run-manifest.json` is unchanged by the render.
+  - Human visual and audio review is **PENDING**.
+- Open follow-ups: Stage 11 (persisted pipeline edit stages, below);
+  human review of the `renders-r2` clips; an optional holdout livestream
+  (overfitting risk: the prompts were tuned on one transcript); the
+  L07/S06 run-to-run variance; push and merge only with explicit user
+  consent.
+
 ## Stage 9 dual-profile routing and review-prompt batch (2026-10-22) — ACCEPTED at 56aa93c
 
 - **Status: ACCEPTED** (2026-10-22) on local branch
@@ -90,7 +176,7 @@ transcript. They are not acceptance evidence.
   - Post-union twin disagreement on gated flags: 0/24.
   - 13 renders passed automatic checks (S06 not rendered); human visual
     and audio review is pending.
-- **Next step:** a fresh acceptance run (method pending a user decision
+- (Historical; cold-27 ran, see the Stage 10 section above.) **Next step:** a fresh acceptance run (method pending a user decision
   because of the subscription quota), then human editorial/audio review,
   then push/merge only with explicit operator consent.
 

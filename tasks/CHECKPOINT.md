@@ -363,6 +363,31 @@ checks, human review pending. Warm runs are diagnostic only (Discovery
 from cold-21/warm-22; prompts iterated on this transcript). Scratch
 prediction caches are synthetic and must never seed a warm run.
 
-Next: a fresh acceptance run (method pending user decision because of the
-subscription quota), then human editorial/audio review, then push/merge
-only with explicit consent. Not pushed.
+(Historical next step; cold-27 ran.) A fresh acceptance run (method
+pending user decision because of the subscription quota), then human
+editorial/audio review, then push/merge only with explicit consent. Not
+pushed.
+
+## Stage 10 accepted at 0515ef7; cold-27 PASS 95.0 (2026-10-23)
+
+Branch `claude/liveclip-stage8-routing`, local only. Stage 10 code commit
+`0515ef7`: render EditPlans (dual-profile and Agent paths) carry
+deterministic product text instead of the model `review_reason[:240]` and
+title/hook, which had tripped the unchanged `reject_executable_text` guard
+on the word "make". Tester PASS at `0515ef7` (lint rc 0; `make test` rc 0,
+backend 2792 passed in 1444.08 s; vitest 14/80; e2e mock 1, real
+review-delivery 1, completion-goal 2; targeted 25; no sleep). Reviewer
+ACCEPT with P2 nits (Agent test mixes "make" with "rm -rf"; no
+`manual_review` string coverage) and a user-decided P1 for Stage 11.
+
+cold-27 (real Claude CLI, fresh resumable acceptance attempt at `e173c28`,
+`cache_hits` 0, 233 calls, one segment, no usage limit, 3756 s): strict
+PASS 95.0, 0 hard failures; short 8/8, mini 5/6 (L07 missed on
+`context_dependent_opening`); R01 blocked, R02 `manual_review`. Render
+re-run at `0515ef7` into `renders-r2/` (14 clips) passes automatic checks;
+the partial `renders/` directory is kept untouched. Human visual/audio
+review is PENDING and not claimed. Details in `STATUS.md`.
+
+Next: Stage 11 (guard-safe text in persisted pipeline edit stages), human
+review of the renders, optional holdout livestream, the L07/S06 variance;
+push/merge only with explicit consent. Not pushed.

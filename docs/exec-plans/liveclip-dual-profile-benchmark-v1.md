@@ -63,7 +63,10 @@ imported by production modules.
 - [x] 2026-10-22 Stage 8 ACCEPTED at `4f2c068` (branch `claude/liveclip-stage8-routing`; F1 quality-gate routing, F2 risk-pass rejected → blocked, F3–F5 review-stage fixes and `nested_pair_decisions`; evidence in `STATUS.md`). Real diagnostic runs: warm-22 strict FAIL 90.0, its F1+F2 offline replay FAIL 95.0, warm-23 stopped on the usage limit, warm-24 (Stage 8 code) strict FAIL 92.5 with no PASS blockers.
 - [x] (Historical next step.) Stage 9, then warm-25 (diagnostic), then a fresh cold acceptance run (`cache_hits=0`, about 230 calls) right after a subscription usage-limit reset.
 - [x] 2026-10-22 Stage 9 ACCEPTED at `56aa93c` (`bfdef3b`, `703cfbb`, `56aa93c`; routing policy v3; evidence in `STATUS.md`). warm-25 stopped on the usage limit (73 of 75 new calls cached). warm-26 (diagnostic only) strict PASS 97.5, no hard failures, no PASS blockers; short 7/8 (S06 missed), mini 6/6; 13 renders pass automatic checks, human review pending.
-- [ ] Next: a fresh acceptance run (method pending user decision because of the subscription quota), then human editorial/audio review, then push/merge only with explicit consent.
+- [x] (Historical next step; cold-27 ran.) A fresh acceptance run (method pending user decision because of the subscription quota), then human editorial/audio review, then push/merge only with explicit consent.
+- [x] 2026-10-23 Stage 10 ACCEPTED at `0515ef7` (render EditPlans use deterministic product text instead of model prose; the executable-text guard is unchanged; evidence in `STATUS.md`).
+- [x] 2026-10-23 cold-27 (fresh resumable acceptance attempt, real Claude CLI, HEAD `e173c28`, `cache_hits` 0, 233 calls, one segment, no usage limit): strict PASS 95.0, 0 hard failures; short 8/8, mini 5/6 (L07 missed); 14 renders in `renders-r2/` pass automatic checks; human review pending.
+- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages), human editorial/audio review of the cold-27 renders, optional holdout livestream, the L07/S06 run-to-run variance; push/merge only with explicit consent.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -409,6 +412,62 @@ acceptance evidence. The scratch prediction caches (`stage8-f3`,
 never seed a warm run. Next: a fresh acceptance run (method pending a user
 decision because of the subscription quota), then human editorial/audio
 review, then push/merge only with explicit consent.
+
+2026-10-23 (Stage 10 ACCEPTED at `0515ef7`; cold-27): the cold-27 render
+failed closed after 5 of 14 clips because `render_dual_profile_candidates`
+copied the model `review_reason[:240]` and title/hook into the guarded
+EditPlan fields and the unchanged `reject_executable_text` guard matched
+"make" in `sh0006_breathy_mix_vs_leak`. Stage 10 fills those fields with
+deterministic product text in the dual-profile and Agent render paths; the
+guard is unchanged. Tester PASS at `0515ef7` (lint rc 0; `make test` rc 0,
+backend 2792 passed in 1444.08 s, vitest 14/80, e2e mock 1, real
+review-delivery 1, completion-goal 2; targeted 25; no sleep). Reviewer
+ACCEPT with P2 nits (the Agent test mixes "make" with "rm -rf"; no
+`manual_review` string coverage).
+
+cold-27 is a fresh, resumable acceptance attempt with the frozen Claude CLI
+2.1.308 (subscription login) at HEAD `e173c28`:
+
+  - Roots `data/evaluations/dual-profile-benchmark-20261023-claude-cold-27`
+    and `data/evaluations/dual-profile-cache-20261023-claude-cold-27`, both
+    absent at the start, cache empty. Doctor and smoke OK. One segment (no
+    cold-27b), no usage limit. Eval rc 0 in 3756 s.
+  - `cache_hits` 0; 233 calls (Discovery 160, Boundary Review 52, Global
+    Review/Audit 20, variant link 1); 239 provider records; 6 repairs; 0
+    retries; no 429, 529 or usage-limit errors. Tokens 11,460,411 in /
+    1,059,863 out. Latency per call median 26.4 s, p95 98.9 s.
+  - Provenance: 233 cache files, all with mtime at or after the attempt
+    start (epoch 1792779597); 0 content-identical to any of 3972 key files
+    in 20 earlier roots; 81 shared names are expected (deterministic keys).
+  - Strict **PASS 95.0**, evaluator exit 0, 0 hard failures. Components:
+    short 20, mini 25, risk 10, boundary 15, both Profiles 15, audit 10.
+    Short 8/8 (S06 matched by `sh0009_balanced_mix_step5`, selected,
+    −2300/+2860 ms). Mini 5/6, L01–L05 hit; L07 missed because all three
+    boundary-matching candidates carry `context_dependent_opening`
+    (blocked/rejected) and the kept
+    `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts −30540 ms
+    early. R01 blocked, R02 `manual_review`. Second auto-selected clip
+    `audit_sh0011_self_taught_era_intuition` lies inside supplemental O01
+    (no gate). Twin union: 0 of 23 groups differ on gated flags. Nested
+    pairs: short 0; mini 36 (16 `duplicate`, 20 `distinct_objective`).
+    Durable strict-eval output:
+    `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+  - Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 (diagnostic) /
+    cold-27 PASS 95.0. L07 and S06 vary between runs with the model's
+    `context_dependent_opening` judgments.
+  - Renders: the first attempt into `<run>/renders/` failed closed after 5
+    of 14 clips (no manifest; kept untouched). The re-render at `0515ef7`
+    into `<run>/renders-r2/` succeeded (rc 0, 244 s, 14 clips; decode,
+    black-frame and edge checks pass; h264_videotoolbox 1080x1920;
+    `final-validated.json` and `run-manifest.json` sha256 unchanged).
+    Human visual and audio review is PENDING.
+
+Deterministic validation, rendering plus human editorial/audio review, and
+real-model inference remain separate kinds of evidence; the cold-27 strict
+PASS does not claim human review. Next: Stage 11 (guard-safe text in the
+persisted pipeline edit stages), human review of the renders, an optional
+holdout livestream (prompts were tuned on one transcript), the L07/S06
+run-to-run variance, then push/merge only with explicit consent.
 
 Historical recovery point (loose evaluator): fresh-cache run
 `data/evaluations/dual-profile-benchmark-20260924-final-cold-18` was the

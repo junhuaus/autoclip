@@ -1,5 +1,58 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 10 render guard false positive and cold-27 (2026-10-23)
+
+- [x] 2026-10-23 **Stage 10 ACCEPTED** at `0515ef7` on
+  `claude/liveclip-stage8-routing`. Root cause: `render_dual_profile_candidates`
+  copied the model `review_reason[:240]` and title/hook into the guarded
+  EditPlan fields, and the unchanged `reject_executable_text` guard matched
+  "make" in `sh0006_breathy_mix_vs_leak`. Fix: deterministic product text
+  in those fields in the dual-profile and Agent render paths; the guard is
+  unchanged. Not pushed.
+  - Tester PASS at `0515ef7`: `make lint` rc 0; `make test` rc 0, backend
+    2792 passed (1444.08 s), vitest 14/80, e2e mock 1, real
+    review-delivery 1, completion-goal 2; targeted 25; no sleep.
+  - Reviewer ACCEPT; P2 nits: the Agent test mixes "make" with "rm -rf";
+    no coverage of the `manual_review` strings. P1 (user-decided, Stage
+    11): the persisted pipeline edit stages still copy model text into
+    EditPlan.
+- Real run cold-27 (fresh resumable acceptance attempt, frozen Claude CLI
+  2.1.308, subscription login, HEAD `e173c28`): new roots
+  `dual-profile-benchmark-20261023-claude-cold-27` and
+  `dual-profile-cache-20261023-claude-cold-27` (both absent at start, empty
+  cache); doctor and smoke OK; one segment, no usage limit; eval rc 0 in
+  3756 s; `cache_hits` 0, 233 calls (Discovery 160, Boundary 52, Global
+  Review/Audit 20, variant 1), 239 provider records, 6 repairs, 0 retries,
+  no 429/529/usage-limit; tokens 11,460,411 in / 1,059,863 out; latency
+  median 26.4 s, p95 98.9 s. Provenance: 233 cache files, all mtime at or
+  after epoch 1792779597; 0 content-identical to 3972 key files in 20
+  earlier roots (81 shared names, expected for deterministic keys).
+- cold-27 strict **PASS 95.0**, exit 0, 0 hard failures (short 20, mini
+  25, risk 10, boundary 15, both Profiles 15, audit 10). Short 8/8 (S06 via
+  `sh0009_balanced_mix_step5`, selected, −2300/+2860 ms); mini 5/6 (L07
+  missed: all three boundary-matching candidates carry
+  `context_dependent_opening`; the kept
+  `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts −30540 ms
+  early); R01 blocked, R02 `manual_review`; twin union 0/23 groups differ;
+  nested pairs short 0, mini 36 (16 duplicate, 20 distinct_objective).
+  Strict-eval output:
+  `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+  Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 / cold-27 PASS 95.0;
+  L07 and S06 vary with the model's `context_dependent_opening` judgments.
+- Renders: the first attempt into `renders/` failed closed after 5 of 14
+  clips (Stage 10 bug; partial directory without a manifest, kept
+  untouched). The re-render at `0515ef7` into `renders-r2/` succeeded (rc
+  0, 244 s, 14 clips; decode/black-frame/edge pass; h264_videotoolbox
+  1080x1920; `final-validated.json` and `run-manifest.json` sha256
+  unchanged). Human visual/audio review is PENDING and is not claimed.
+- Evidence categories stay distinct: deterministic validation, rendering
+  plus human review, and real-model inference are separate kinds of
+  evidence. Details in `STATUS.md`.
+- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages),
+  human review of the `renders-r2` clips, optional holdout livestream
+  (overfitting risk), investigate the L07/S06 run-to-run variance;
+  push/merge only with explicit user consent.
+
 ## Stage 9 dual-profile routing and review-prompt batch (2026-10-22)
 
 - [x] 2026-10-22 **Stage 9 ACCEPTED** at `56aa93c` on
@@ -27,7 +80,8 @@
   blockers, short 7/8 (S06 missed: its only candidate model-blocked with
   `context_dependent_opening`), mini 6/6, R01/R02 blocked; 13 renders pass
   automatic checks; human review pending. Details in `STATUS.md`.
-- [ ] Next: a fresh acceptance run (method pending user decision because of
+- [x] (Historical next step; cold-27 ran, see the Stage 10 section above.)
+  A fresh acceptance run (method pending user decision because of
   the subscription quota), then human editorial/audio review, then
   push/merge only with explicit consent.
 
