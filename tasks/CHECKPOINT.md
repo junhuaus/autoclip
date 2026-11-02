@@ -654,3 +654,26 @@ Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 13d SHA; a real run only
 with the user's go-ahead. Not pushed.
+
+## Stage 13d accepted at bc150c5; warm-29b strict PASS 95.0 (2026-11-01)
+
+Stage 13d is ACCEPTED at `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9` on
+`claude/liveclip-stage8-routing` (local only). Tester PASS: lint rc 0,
+backend 3000 passed in 1663.46 s, vitest 14/80, e2e 4, targeted 327, no
+sleep 19:50–20:22. Reviewer ACCEPT, no P0/P1: only the Global Audit hashes
+changed, 11 of 12 mutants killed, sims reproduced, strict evaluator on
+cold-27/warm-28 byte-identical, Decision 3 legitimate. Reviewer P2/P3s
+become Stage 13e.
+
+warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308, warm from a copy of
+the warm-29 cache, 306 files; attempt start epoch 1793593441; diagnostic
+only, NOT acceptance evidence): eval rc 0 in 666 s; 230 hits, exactly 3 new
+calls plus 1 repair; cache 306 → 309, 0 pre-existing changed; no fallback.
+Strict PASS 95.0: short 8/8, mini 5/6 (L07 still missed), R01 blocked, R02
+manual_review; both warm-28 N07 failures cleared. 14 renders rc 0,
+automatic checks pass; human review and the L07 listening pending. Roots
+`data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261101-claude-warm-29b`.
+
+Next: Stage 13e reviewer follow-ups (Python and tests only), independent
+verification, then cold-30 (fresh cold run at the final code) as the
+acceptance run, only with the user's go-ahead. Not pushed.

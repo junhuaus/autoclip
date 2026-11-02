@@ -86,7 +86,10 @@ imported by production modules.
 - [x] 2026-10-30 warm-29 (real Claude CLI at `6089884`, pinned 2.1.308, warm from a byte-identical `cp -Rp` copy of the warm-28 cache, 306 files, diagnostic only): FAILED CLOSED after 263 s in the short Global Audit (`deterministic validation still failed after one repair and one regeneration: duplicate candidate must be retained as a rejected audit row`); no provider-calls, manifest or new cache file; raw model outputs unrecoverable. Root cause: the pair validator accepts a `blocked` duplicate for any candidate while final assembly accepts it only for risk-discovery records, and the audit prompt gives no guidance for a pair whose members both carry persisted flags. Not a quality result. Details in the Recovery Notes and `STATUS.md`.
 - [x] (Historical next step; implemented 2026-11-01, pending verification, see below.) Stage 13d.
 - [x] 2026-11-01 Stage 13d implemented, pending independent tester and reviewer; real run pending (code `6e1152c` and the following commit): validation exhaustion raises `DualProfileValidationExhaustedError` and writes `failed-<profile>-<stage>.json`, a partial `provider-calls.json` and `failure-manifest.json` to the run directory only (CLI still exits 1); candidate-naming validator messages that report every violation; final assembly accepts a duplicate as `rejected` or `blocked` for any candidate (a retained duplicate stays a hard error, never coerced); merged-audit assembly and pair errors are reported together and only a pair-rule-only failure reaches the fallback; only `global_audit.md` changed (short `686a9fbafa60…`, mini `bdb7ff0545a9…`); Stage 13c reviewer P3s. warm-29 cache-copy replays: sentinel 230 hits and exactly 3 calls; forced fallback unchanged and byte-identical warm; the analyst's 11 warm-29 what-ifs: 10 accepted, 1 (retained duplicate) fails closed with evidence in the run directory and the cache untouched. Evidence in `STATUS.md`.
-- [ ] Next: independent tester and reviewer for Stage 13d, then a real run only with the user's go-ahead; human review of the cold-27 and warm-28 renders and of the L07 gap.
+- [x] (Historical next step; done 2026-11-01 at `bc150c5`, then warm-29b below.) Independent tester and reviewer for Stage 13d, then a real run with the user's go-ahead.
+- [x] 2026-11-01 Stage 13d ACCEPTED at `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9` (code `6e1152c` and `bc150c5`; tester PASS: lint rc 0, backend 3000 passed in 1663.46 s, vitest 14/80, e2e 4, targeted 327, no sleep 19:50–20:22; reviewer ACCEPT, no P0/P1: only the Global Audit hashes changed (short `686a9fba…`, mini `bdb7ff05…`), 11 of 12 mutants killed, sims reproduced, strict evaluator on cold-27/warm-28 byte-identical, Decision 3 legitimate (a blocked duplicate can count as R01/R02 routing like any blocked candidate); P2/P3 findings for Stage 13e).
+- [x] 2026-11-01 warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308, warm from a `cp -Rp` copy of the warm-29 cache, 306 files, attempt start epoch 1793593441; **diagnostic only, not acceptance evidence**): eval rc 0 in 666 s; 230 hits, exactly 3 new calls plus 1 repair (4 records), 0 retries, tokens in 1,773,780 / out 81,778; cache 306 → 309 with 0 pre-existing files changed; no stale resolution, no boundary or audit fallback. Strict **PASS 95.0** (short 8/8 with S06; mini 5/6, L07 still missed; R01 blocked, R02 manual_review; no hard failures, no PASS blockers). Both warm-28 N07 failures cleared. 14 renders rc 0 in 266 s, automatic checks pass; human review pending. Details in the Recovery Notes and `STATUS.md`.
+- [ ] Next: Stage 13e reviewer follow-ups (Python and tests only), independent verification, then cold-30 (fresh cold run at the final code) as the acceptance run, only with the user's go-ahead; human review of the cold-27, warm-28 and warm-29b renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -369,6 +372,11 @@ two deterministic report files.
   The prefix exemption for fallback-blocked rows moved into
   `reject_reserved_reason_prefixes(..., fallback_blocked=...)` unchanged in
   behavior, so it can be tested directly.
+- 2026-11-01 (Stage 13d acceptance and warm-29b): the reviewer judged
+  Decision 3 legitimate: a blocked duplicate can count as R01/R02 routing,
+  exactly like any blocked candidate. warm-29b is warm and diagnostic only;
+  acceptance requires a fresh cold run at the final code (cold-30), after
+  the Stage 13e reviewer follow-ups are verified.
 
 ## Risks and mitigations
 
@@ -696,6 +704,45 @@ the cache untouched (at `6089884`: 7 failed, 4 accepted). Recovery: a
 failed real run now leaves its attempts in the run directory; the next
 real run needs only the 2 audits and the variant link (the audit hashes
 changed; all other entries hit).
+
+2026-11-01 (Stage 13d ACCEPTED at `bc150c5`; warm-29b strict PASS 95.0):
+tester PASS (lint rc 0; backend 3000 passed in 1663.46 s; vitest 14/80;
+e2e 4; targeted 327); reviewer ACCEPT with no P0/P1 (P2/P3s become Stage
+13e). warm-29b (real Claude CLI, warm, diagnostic, not acceptance evidence)
+at `bc150c5`:
+
+  - Roots `data/evaluations/dual-profile-benchmark-20261101-claude-warm-29b`
+    and `data/evaluations/dual-profile-cache-20261101-claude-warm-29b` (a
+    `cp -Rp` copy of the warm-29 cache, 306 files); pinned Claude CLI
+    2.1.308; attempt start epoch 1793593441; strict-eval output and evidence
+    in `data/evaluations/dual-profile-strict-eval-20261101-claude-warm-29b`.
+  - eval rc 0 in 666 s; 230 hits; exactly 3 new calls (short audit 108.5 s,
+    mini audit 456.7 s, variant link 48.2 s) plus 1 short-audit repair, 4
+    records; 0 retries, no 429/529/limit; tokens in 1,773,780 / out 81,778;
+    cache 306 → 309, 0 pre-existing changed, all new files after the start;
+    stale 0, `boundary_opening_fallbacks` and `audit_pair_fallbacks` empty,
+    `persisted_flag_representative_duplicates` mini 6 / short 0.
+  - Strict PASS 95.0 (short 20, mini 25, risk 10, boundary 15, both 15,
+    audit 10): short 8/8 (S06 `sh0009_balanced_mix_step5`); mini 5/6 (L07
+    missed: exact `precision_yuge…` rejected, `confirm_6001180…` starts
+    −30540 ms); R01 blocked, R02 manual_review, no misroutes. Both warm-28
+    N07 failures cleared: `audit_sh0009_throat_tight_strong_mix_diagnosis`
+    blocked by flag persistence (`topic_switch_inside`); the audit made
+    `ml0007_strong_mix_vs_yanyin_core` a rejected near-identical overlap
+    duplicate of `audit_ml0008_yanyin_myth_core_chain` (L04 hit, stays
+    manual_review), without a fallback.
+  - Audit pairs: short 6 (nested 2 dup + 2 distinct; overlap 2 distinct);
+    mini 59 (nested 21 dup / 23 distinct; overlap 3 near-identical dup / 10
+    distinct; containment 2 near-identical dup). Unflagged manual_review
+    rows short 36, mini 16 (warm-28 41/19); twin gated disagreement 0/21.
+  - 14 renders rc 0 in 266 s, automatic checks pass; human review and the
+    L07 gap listening are pending with the user.
+  - Comparison: cold-27 PASS 95.0; warm-26 PASS 97.5; warm-28 FAIL 95.0
+    (N07 ×2); warm-29 failed closed; warm-29b PASS 95.0.
+  - Recovery: the next step is Stage 13e (Python and tests only; every
+    prompt hash and cache key unchanged, so a warm-29b cache-copy replay
+    must hit all 233 entries with 0 calls), then cold-30 as the acceptance
+    run with the user's go-ahead.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

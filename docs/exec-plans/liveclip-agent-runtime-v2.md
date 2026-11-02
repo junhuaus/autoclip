@@ -1,11 +1,40 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13d accepted at bc150c5; warm-29b strict PASS 95.0 (2026-11-01)
+
+- [x] 2026-11-01 Stage 13d **ACCEPTED** at
+  `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9`. Tester PASS: lint rc 0;
+  backend 3000 passed in 1663.46 s; vitest 14 files / 80 tests; e2e 4;
+  targeted 327; no sleep 19:50–20:22. Reviewer ACCEPT, no P0/P1: only the
+  Global Audit hashes changed (short `686a9fba…`, mini `bdb7ff05…`); 11 of
+  12 mutants killed; simulations reproduced; strict evaluator on cold-27
+  and warm-28 byte-identical; Decision 3 legitimate (a blocked duplicate
+  can count as R01/R02 routing like any blocked candidate). Reviewer P2/P3
+  findings become Stage 13e.
+- [x] 2026-11-01 warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308,
+  warm from a `cp -Rp` copy of the warm-29 cache, 306 files; attempt start
+  epoch 1793593441; **diagnostic only, not acceptance evidence**): eval rc 0
+  in 666 s; 230 hits, exactly 3 new calls (short audit, mini audit, variant
+  link) plus 1 repair, 4 records, 0 retries; tokens in 1,773,780 / out
+  81,778; cache 306 → 309, 0 pre-existing changed; stale 0, no boundary or
+  audit fallback. **Strict PASS 95.0** (short 20, mini 25, risk 10,
+  boundary 15, both 15, audit 10): short 8/8; mini 5/6 (L07 still missed);
+  R01 blocked, R02 manual_review. Both warm-28 N07 failures cleared (flag
+  persistence blocks `audit_sh0009…`; the audit made `ml0007…core` a
+  rejected duplicate of the L04 match `audit_ml0008…`). 14 renders rc 0,
+  automatic checks pass; human review pending. Details in `STATUS.md`.
+- [ ] Next: Stage 13e reviewer follow-ups (Python and tests only; no prompt,
+  cache-key or algorithm change), independent verification, then cold-30
+  (fresh cold run at the final code) as the acceptance run, only with the
+  user's go-ahead; human review of the renders and the L07 gap.
+
 ## Stage 13d failure observability and duplicate-status alignment (2026-11-01)
 
 - [x] 2026-11-01 Stage 13d implemented on `claude/liveclip-stage8-routing`
-  (Controller decisions after warm-29), **pending independent tester and
-  reviewer; real run pending**. Code `6e1152c` (Python only) and the
-  following commit.
+  (Controller decisions after warm-29), first recorded as **pending
+  independent tester and reviewer; real run pending**; ACCEPTED at
+  `bc150c5` the same day (section above). Code `6e1152c` (Python only) and
+  the following commit.
   - Validation exhaustion raises `DualProfileValidationExhaustedError` and
     writes `failed-<profile>-<stage>.json`, a partial `provider-calls.json`
     and `failure-manifest.json` to the run directory only; CLI exit 1.
@@ -20,8 +49,9 @@
   - Offline (warm-29 cache copies): sentinel 230 hits / exactly 3 calls;
     analyst what-ifs 10 accepted, 1 retained duplicate fails closed with
     run-directory evidence and an untouched cache.
-- [ ] Next: independent tester and reviewer on the Stage 13d SHA; a real
-  run only with the user's go-ahead.
+- [x] (Historical next step; done 2026-11-01 at `bc150c5`, then warm-29b
+  above.) Independent tester and reviewer on the Stage 13d SHA; a real run
+  with the user's go-ahead.
 
 ## warm-29 real run failed closed; Stage 13d decided (2026-10-30)
 

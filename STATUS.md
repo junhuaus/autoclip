@@ -18,10 +18,92 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 13d failure observability and duplicate-status alignment (2026-11-01) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+## warm-29b real run (2026-11-01) — strict PASS 95.0 (warm diagnostic, NOT acceptance evidence)
 
-- **Status: implemented, pending independent tester and reviewer; real run
-  pending** on local branch `claude/liveclip-stage8-routing`, in two code
+Evidence categories stay distinct: this run is real-model inference evidence
+(warm, diagnostic, **not** an acceptance run); the strict evaluator result is
+deterministic validation of that output; rendering plus human
+editorial/audio review is a separate acceptance activity and is **not**
+claimed here. Acceptance needs a fresh cold run at the final code (planned
+as cold-30, after the Stage 13e cleanup is verified).
+
+- Code: HEAD `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9` (Stage 13d,
+  accepted below). Pinned Claude CLI 2.1.308, subscription login.
+- Roots: `data/evaluations/dual-profile-benchmark-20261101-claude-warm-29b`
+  (run) and cache `data/evaluations/dual-profile-cache-20261101-claude-warm-29b`,
+  a `cp -Rp` copy of the warm-29 cache (306 files). Attempt start epoch
+  1793593441 (2026-11-01 20:24:01 -0800).
+- Eval rc 0 in 666 s.
+- Calls and provenance:
+  - 230 cache hits; exactly 3 new calls (short Global Audit 108.5 s, mini
+    Global Audit 456.7 s, variant link 48.2 s) plus 1 repair (short Global
+    Audit), 4 provider records; 0 retries; no 429, 529 or usage-limit
+    errors. Tokens: input 1,773,780, output 81,778.
+  - Cache 306 → 309 files; 0 pre-existing files changed; every new file
+    has mtime at or after the attempt start; the warm-29 source cache is
+    unchanged.
+  - Manifest: stale cache resolutions 0; `boundary_opening_fallbacks` `[]`;
+    `audit_pair_fallbacks` `[]` (no fallback used);
+    `persisted_flag_representative_duplicates` mini 6, short 0.
+- Strict result: **PASS 95.0**, evaluator rc 0, no hard failures, no PASS
+  blockers. Durable output:
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-warm-29b`
+  (evidence in its `evidence/` subfolder).
+  - Components: short 20, mini 25, risk 10, boundary 15, both 15, audit 10.
+  - Short 8/8; S06 matched by `sh0009_balanced_mix_step5` (selected).
+  - Mini 5/6: L01–L05 hit. L07 still missed: the exact `precision_yuge…`
+    candidate was rejected; `confirm_6001180…` starts −30540 ms from the
+    anchor.
+  - R01 `blocked`, R02 `manual_review`; no misroutes.
+- Both warm-28 N07 hard failures are cleared:
+  - `audit_sh0009_throat_tight_strong_mix_diagnosis` is `blocked` with
+    "Deterministic flag persistence: " (`topic_switch_inside`).
+  - `ml0007_strong_mix_vs_yanyin_core` vs the L04 match
+    `audit_ml0008_yanyin_myth_core_chain`: the audit decided the overlap
+    near-identical pair as a duplicate. `ml0007…core` is `rejected` with
+    `duplicate_of_candidate_id` `audit_ml0008…`, and `audit_ml0008…` stayed
+    `manual_review` (L04 hit). No fallback was used.
+- Pair and row diagnostics:
+  - Prefix rows: short flag-persistence blocked 5; mini quality-gate
+    blocked 2.
+  - Audit pairs, short 6: nested 2 duplicate + 2 distinct; overlap 2
+    distinct.
+  - Audit pairs, mini 59: nested 21 duplicate / 23 distinct; overlap 3
+    duplicate (near-identical) / 10 distinct; containment 2 duplicate
+    (near-identical). All 5 near-identical pairs were decided as
+    duplicates.
+  - Advisory-only rows: short 4 `manual_review`; mini 3 `manual_review`,
+    4 `blocked`, 7 `rejected`.
+  - Unflagged `manual_review` rows: short 36, mini 16 (warm-28: 41/19).
+  - Twin gated disagreement: 0 of 21.
+- Renders: 14 clips into `<run>/renders/`, rc 0 in 266 s, all automatic
+  checks pass. Human visual/audio review is PENDING with the user, as is
+  the L07 gap listening.
+- Comparison: cold-27 PASS 95.0; warm-26 PASS 97.5; warm-28 FAIL 95.0
+  (N07 ×2); warm-29 failed closed; warm-29b PASS 95.0.
+- Next: Stage 13e reviewer follow-ups (section below), independent
+  verification, then cold-30 (fresh cold run at the final code) as the
+  acceptance run, only with the user's go-ahead.
+
+## Stage 13d failure observability and duplicate-status alignment (2026-11-01) — ACCEPTED at bc150c5; warm-29b strict PASS 95.0 (diagnostic)
+
+- **Status: ACCEPTED** (2026-11-01) at
+  `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9`. Not pushed or merged.
+  - Tester: **PASS** at `bc150c5`: lint rc 0; backend 3000 passed in
+    1663.46 s; vitest 14 files / 80 tests; e2e 4; targeted 327; no sleep
+    between 19:50 and 20:22 on 2026-11-01.
+  - Reviewer: **ACCEPT** at `bc150c5`, no P0/P1. Only the Global Audit
+    hashes changed (short `686a9fba…`, mini `bdb7ff05…`); mutation testing
+    killed 11 of 12 mutants; the simulations reproduced; the strict
+    evaluator on cold-27 and warm-28 is byte-identical. Decision 3 judged
+    legitimate: a blocked duplicate can count as R01/R02 routing, exactly
+    like any blocked candidate. The reviewer's P2 and P3 findings are
+    Stage 13e.
+  - The first real run on this code, warm-29b, is a strict PASS 95.0
+    (warm, diagnostic; section above).
+- History: first recorded as **implemented, pending independent tester and
+  reviewer; real run pending** on local branch
+  `claude/liveclip-stage8-routing`, in two code
   commits after the docs commit `56690c0` that accepted Stage 13c and
   recorded warm-29:
   - `6e1152c` (Commit Q): failure observability and validator messages;
