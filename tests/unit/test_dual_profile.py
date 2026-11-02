@@ -22,6 +22,8 @@ from liveclip.pipeline.dual_profile import (
     DUPLICATE_ALLOWED_STATUSES,
     FLAG_PERSISTENCE_REASON_PREFIX,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
+    PADDING_GATED_FLAGS,
+    PERSISTED_STRUCTURAL_GATED_FLAGS,
     PROFILE_DURATION_CONTRACTS,
     AuditCandidatePair,
     AuditPairFallback,
@@ -1676,7 +1678,7 @@ def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
 
 
 def test_routing_policy_marker_accepts_every_published_version() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v4"
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v5"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker_v3",
@@ -1699,6 +1701,7 @@ def test_routing_policy_marker_accepts_every_published_version() -> None:
         "quality-gate-risk-routing-v2",
         "quality-gate-risk-routing-v3",
         "quality-gate-risk-routing-v4",
+        "quality-gate-risk-routing-v5",
     ):
         loaded = DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": marker})
@@ -1826,7 +1829,8 @@ def test_dual_profile_uses_its_own_preflight_contract() -> None:
     )
 
 
-# Stage 13 Fix 1: Discovery gated-flag persistence (routing policy v4).
+# Stage 13 Fix 1: Discovery gated-flag persistence (routing policy v4; v5
+# restricts it to structural flags, which the tests below use).
 
 _GATED = DualQualityFlag.TOPIC_SWITCH_INSIDE
 
@@ -1993,6 +1997,7 @@ def test_persisted_flags_helper_reports_only_new_gated_flags() -> None:
                 DualQualityFlag.MATERIAL_INTERRUPTION,
                 DualQualityFlag.CONTEXT_DEPENDENT_OPENING,
                 DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+                DualQualityFlag.TOPIC_NOT_CLOSED,
             )
         }
     )
@@ -2014,14 +2019,131 @@ def test_persisted_flags_helper_reports_only_new_gated_flags() -> None:
     assert not boundary_shrank_interval(raw, boundary(9, 21))
     assert boundary_shrank_interval(raw, boundary(11, 21))
     assert boundary_shrank_interval(raw, boundary(9, 19))
+    # Routing v5: only structural gated flags persist, in enum order; the
+    # padding flag (device_or_waiting_padding) follows Boundary Review.
     assert discovery_persisted_flags(raw, boundary(10, 20)) == (
+        DualQualityFlag.TOPIC_NOT_CLOSED,
         DualQualityFlag.MATERIAL_INTERRUPTION,
-        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
     )
     assert discovery_persisted_flags(
         raw, boundary(10, 20), (DualQualityFlag.MATERIAL_INTERRUPTION,)
-    ) == (DualQualityFlag.DEVICE_OR_WAITING_PADDING,)
+    ) == (DualQualityFlag.TOPIC_NOT_CLOSED,)
     assert discovery_persisted_flags(raw, boundary(11, 20)) == ()
+
+
+def test_gated_flags_split_into_structural_and_padding_classes() -> None:
+    assert {
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.TOPIC_SWITCH_INSIDE,
+        DualQualityFlag.TOPIC_NOT_CLOSED,
+        DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+    } == PERSISTED_STRUCTURAL_GATED_FLAGS
+    assert {
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+        DualQualityFlag.SALES_OR_CTA_PADDING,
+        DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+    } == PADDING_GATED_FLAGS
+    assert PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS)
+    assert PERSISTED_STRUCTURAL_GATED_FLAGS | PADDING_GATED_FLAGS == (
+        MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+    )
+
+
+# Stage 14 (routing policy v5): padding flags follow Boundary Review.
+
+
+@pytest.mark.parametrize("flag", sorted(PADDING_GATED_FLAGS), ids=str)
+def test_l01_discovery_padding_flag_cleared_by_boundary_review_is_not_persisted(
+    flag: DualQualityFlag,
+) -> None:
+    # L01 shape: one Discovery pass flagged an equipment remark before a live
+    # demonstration as padding; Boundary Review kept the interval untrimmed and
+    # cleared the flag; Global Review kept the candidate manual_review.
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "precision_breathy_mix", raw=(941, 958), final=(941, 958), discovery_flags=(flag,)
+            ),
+        ),
+    )
+    (kept,) = result.manual_review
+    assert result.blocked == ()
+    assert kept.quality_flags == ()
+    assert kept.review_reason == "全局审查证据。"
+
+
+@pytest.mark.parametrize("flag", sorted(PADDING_GATED_FLAGS), ids=str)
+def test_padding_flag_kept_by_boundary_review_still_gates(flag: DualQualityFlag) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                **_persistence_spec(
+                    "padded", raw=(941, 958), final=(941, 958), discovery_flags=(flag,)
+                ),
+                "boundary_flags": (flag,),
+            },
+        ),
+    )
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (flag,)
+    assert blocked.review_reason.startswith("Deterministic quality gate: ")
+
+
+@pytest.mark.parametrize("flag", sorted(PERSISTED_STRUCTURAL_GATED_FLAGS), ids=str)
+def test_n07_discovery_structural_flag_cleared_without_trim_is_persisted(
+    flag: DualQualityFlag,
+) -> None:
+    # N07 shape: a Discovery pass raised a structural flag (topic_switch_inside
+    # in the real run); Boundary Review cleared it without trimming an edge.
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "audit_throat_tight", raw=(941, 958), final=(941, 958), discovery_flags=(flag,)
+            ),
+        ),
+    )
+    assert result.manual_review == ()
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (flag,)
+    assert blocked.review_reason == f"{FLAG_PERSISTENCE_REASON_PREFIX}全局审查证据。"
+
+
+@pytest.mark.parametrize("flag", sorted(PERSISTED_STRUCTURAL_GATED_FLAGS), ids=str)
+def test_boundary_review_trim_still_clears_structural_discovery_flags(
+    flag: DualQualityFlag,
+) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec("trimmed", raw=(940, 958), final=(941, 958), discovery_flags=(flag,)),
+        ),
+    )
+    (kept,) = result.manual_review
+    assert kept.quality_flags == ()
+    assert result.blocked == ()
+
+
+def test_mixed_discovery_flags_persist_only_the_structural_ones() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "mixed",
+                raw=(941, 958),
+                final=(941, 958),
+                discovery_flags=(
+                    DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+                    DualQualityFlag.MATERIAL_INTERRUPTION,
+                ),
+            ),
+        ),
+    )
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (DualQualityFlag.MATERIAL_INTERRUPTION,)
+    assert blocked.review_reason.startswith(FLAG_PERSISTENCE_REASON_PREFIX)
 
 
 # Stage 13 Fix 2: overlap adjudication in the Global Audit.

@@ -70,6 +70,13 @@ When you agree that it applies, route the candidate by the rules above (a missin
 and self-contained, use `manual_review` and state the disagreement in `review_reason`; do not block it
 merely because the flag exists.
 
+Python also persists a Discovery gated flag that Boundary Review did not resolve by trimming an edge,
+but only a structural one (`material_interruption`, `topic_switch_inside`, `topic_not_closed`,
+`asr_uncertain_blocks_meaning`). Discovery padding flags (`padded_with_irrelevant_content`,
+`sales_or_cta_padding`, `device_or_waiting_padding`) are not persisted: they follow Boundary Review, the
+edge authority. When Boundary Review cleared a Discovery padding flag, judge the candidate on its merits
+and the merged flags; do not block it merely because Discovery raised that padding flag.
+
 For a choice or expression lesson, the opening enumeration of available techniques and the explanation
 that their difference is small are required premises for a later “choose by intended sound” conclusion.
 Do not retain a shorter duplicate that begins only at the conclusion and drops those premises. For a

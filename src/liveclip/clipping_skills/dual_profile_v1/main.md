@@ -19,6 +19,15 @@ Use only these quality flags when evidenced: `context_dependent_opening`,
 `material_interruption`, `asr_uncertain_blocks_meaning`, `source_title_mismatch`,
 `topic_switch_inside`, `sales_or_cta_padding`, `device_or_waiting_padding`.
 
+Padding flags (`device_or_waiting_padding`, `sales_or_cta_padding`, `padded_with_irrelevant_content`)
+describe EDGE material only: removable content at the start or end of the interval. Unrelated content
+inside the interval, between on-topic cues, is `material_interruption`, or `topic_switch_inside` when
+another topic starts inside the interval; when the Profile minimum is met only by off-topic material,
+`padded_with_irrelevant_content` may be added to that interior flag, never used instead of it. Brief
+microphone, distance, placement or equipment words that directly enable an immediate live vocal
+demonstration, including why moving closer helps listeners hear, are part of that demonstration: they
+are neither padding nor an interruption.
+
 Use only these risk tags when evidenced: `medical_claim`, `medical_diagnosis_high`, `health_advice`,
 `absolute_claim`, `sensitivity_review`, `music_rights_review`, `participant_audio`, `minor_privacy`,
 `asr_uncertain`, `commercial_claim`.

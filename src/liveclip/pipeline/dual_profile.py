@@ -78,6 +78,38 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
         DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
     }
 )
+# Routing policy v5 splits the gated flags into two disjoint classes; together
+# they are exactly ``MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`` (no gated flag is in
+# neither class; a module-level check below enforces this, so a new gated
+# flag must be classified explicitly).
+# Structural flags describe the media inside the interval (an interior
+# interruption or topic switch, an ending that does not close, ASR that blocks
+# the meaning).  Boundary Review can resolve them only by removing media, so a
+# Discovery-raised structural flag persists unless Boundary Review shrank an edge.
+PERSISTED_STRUCTURAL_GATED_FLAGS: Final = frozenset(
+    {
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.TOPIC_SWITCH_INSIDE,
+        DualQualityFlag.TOPIC_NOT_CLOSED,
+        DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+    }
+)
+# Padding flags describe removable EDGE material only (unrelated interior
+# content is material_interruption or topic_switch_inside).  Boundary Review is
+# the edge authority and sees the surrounding context, so a Discovery padding
+# flag is not persisted: it follows Boundary Review's output (and any flag
+# Global Review or the Global Audit legitimately sets), still gated as before.
+PADDING_GATED_FLAGS: Final = frozenset(
+    {
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+        DualQualityFlag.SALES_OR_CTA_PADDING,
+        DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+    }
+)
+if not PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS) or (
+    PERSISTED_STRUCTURAL_GATED_FLAGS | PADDING_GATED_FLAGS != MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+):
+    raise RuntimeError("every gated quality flag must be exactly structural or padding")
 # Audit marker for the deterministic final routing policy.
 #   v1: manual_review rows with a gated quality flag are downgraded to blocked.
 #   v2: v1 plus records of the dedicated risk-discovery pass are never rejected;
@@ -90,8 +122,11 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
 #       raised on a candidate survives into the final flags unless Boundary
 #       Review shrank that candidate's interval on at least one edge; a
 #       selected or manual_review row that keeps one becomes blocked.
+#   v5: v4 restricted to structural gated flags
+#       (``PERSISTED_STRUCTURAL_GATED_FLAGS``); Discovery padding flags
+#       (``PADDING_GATED_FLAGS``) are not persisted and follow Boundary Review.
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v4"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v5"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -505,6 +540,7 @@ class DualProfileFinalResult(BaseModel):
             "quality-gate-risk-routing-v2",
             "quality-gate-risk-routing-v3",
             "quality-gate-risk-routing-v4",
+            "quality-gate-risk-routing-v5",
         ]
         | None
     ) = None
@@ -1670,11 +1706,12 @@ def assemble_final_profile_result(
     risk record is retained as ``blocked`` so risk material stays auditable.
     Routing only ever downgrades or retains; it never produces an output.
 
-    Deterministic routing order (v4), each step only downgrading:
+    Deterministic routing order (v5), each step only downgrading:
 
     1. validation of the review stages (unchanged: it sees only the merged
        Boundary/Global flags, so cached review outputs validate exactly as
-       before), then Discovery gated-flag persistence per candidate;
+       before), then Discovery structural gated-flag persistence per candidate
+       (padding flags follow Boundary Review and are not persisted);
     2. same-interval twin union of gated flags (it includes persisted flags);
     3. Profile-local Top-N over the rows still ``selected`` (rows blocked by
        steps 1--2 never take a slot);
@@ -1924,20 +1961,29 @@ def discovery_persisted_flags(
     boundary: BoundaryReviewItem,
     merged_quality: Collection[DualQualityFlag] = (),
 ) -> tuple[DualQualityFlag, ...]:
-    """Discovery gated flags that survive Boundary Review (routing policy v4).
+    """Discovery structural gated flags that survive Boundary Review (policy v5).
 
-    A gated flag (``MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS``) that Discovery raised on
-    the candidate describes media inside its Discovery interval.  Boundary Review
-    can only resolve it by removing media: when it shrank the interval on at least
-    one edge, the Boundary/Global flags are authoritative.  An unchanged or only
-    extended interval still contains the flagged media, so clearing the flag in a
-    review stage does not clear it here.  Advisory flags are never persisted.
-    Returns the persisted flags not already in ``merged_quality``, in enum order.
+    This is the single source of persisted flags: final assembly, the Global
+    Audit payload (``persisted_discovery_gated_flags``), the persisted-flag
+    representative rule and the near-identical pair fallback keep order all
+    call it, so they cannot drift.
+
+    A structural gated flag (``PERSISTED_STRUCTURAL_GATED_FLAGS``) that Discovery
+    raised on the candidate describes media inside its Discovery interval.
+    Boundary Review can only resolve it by removing media: when it shrank the
+    interval on at least one edge, the Boundary/Global flags are authoritative.
+    An unchanged or only extended interval still contains the flagged media, so
+    clearing the flag in a review stage does not clear it here.  Padding flags
+    (``PADDING_GATED_FLAGS``) describe edge material that Boundary Review, the
+    edge authority, judges with the surrounding context, so they are never
+    persisted from Discovery (they still gate when a review stage keeps them).
+    Advisory flags are never persisted.  Returns the persisted flags not already
+    in ``merged_quality``, in enum order.
     """
 
     if boundary_shrank_interval(raw, boundary):
         return ()
-    gated = set(raw.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+    gated = set(raw.quality_flags) & PERSISTED_STRUCTURAL_GATED_FLAGS
     return tuple(flag for flag in DualQualityFlag if flag in gated and flag not in merged_quality)
 
 
@@ -2044,6 +2090,8 @@ __all__ = [
     "DUPLICATE_ALLOWED_STATUSES",
     "FLAG_PERSISTENCE_REASON_PREFIX",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
+    "PADDING_GATED_FLAGS",
+    "PERSISTED_STRUCTURAL_GATED_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
     "QUALITY_GATE_REASON_PREFIX",
     "RISK_ROUTING_REASON_PREFIX",

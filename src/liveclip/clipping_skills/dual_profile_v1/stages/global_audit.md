@@ -111,9 +111,14 @@ inner candidate of a `containment` pair lasts at least 90% of the outer one) is 
 and keep one representative, unless you reject or block a member on its own merits. When an `overlap`
 or `containment` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
 
-Each candidate's `persisted_discovery_gated_flags` lists gated flags that Python will keep in final
-routing, so a `selected` or `manual_review` candidate with any of them will be blocked: never choose it
-as a duplicate representative or keep it as the retained member of a pair.
+Each candidate's `persisted_discovery_gated_flags` lists the structural Discovery gated flags
+(`material_interruption`, `topic_switch_inside`, `topic_not_closed`, `asr_uncertain_blocks_meaning`)
+that Python will keep in final routing, so a `selected` or `manual_review` candidate with any of them
+will be blocked: never choose it as a duplicate representative or keep it as the retained member of a
+pair. Discovery padding flags (`padded_with_irrelevant_content`, `sales_or_cta_padding`,
+`device_or_waiting_padding`) are never persisted: they follow Boundary Review, the edge authority. Do not
+block a candidate, or change its status "to match routing", because Discovery raised a padding flag that
+Boundary Review cleared; judge it on its merits and the merged flags.
 
 A candidate with `duplicate_of_candidate_id` must end `rejected` or `blocked`, never `selected` or
 `manual_review`; both are non-output. Python routing only downgrades: it blocks `selected` and

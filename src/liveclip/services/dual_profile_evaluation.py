@@ -111,6 +111,7 @@ class _ResolvedCall:
 
 
 _SUMMARY_LIMIT = 480
+_SUMMARY_NOTE_LIMIT = 160
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,9 +171,15 @@ class DualProfileValidationExhaustedError(ValueError):
         """Bounded one-line summary for the CLI (the full error may be long)."""
 
         evidence = f"; evidence: {self.evidence_file}" if self.evidence_file else ""
+        # Notes (for example "failure evidence could not be written: ...") are
+        # part of the head so the bounded summary never drops them.
+        notes = " ".join("; ".join(getattr(self, "__notes__", ())).split())
+        if len(notes) > _SUMMARY_NOTE_LIMIT:
+            notes = f"{notes[: _SUMMARY_NOTE_LIMIT - 3]}..."
         head = (
             "dual Profile validation exhausted after one repair and one regeneration "
             f"in {self.profile} {self.stage} ({self.subject_id}){evidence}"
+            f"{f'; {notes}' if notes else ''}"
         )
         # The CLI prints at most 500 characters; keep the excerpt inside that.
         budget = min(240, _SUMMARY_LIMIT - len(head) - len("; last error: "))
@@ -1080,7 +1087,8 @@ def _run_dual_profile_evaluation(
         initial_review_map = {value.candidate_id: value for value in global_review.reviews}
         audit_pairs = audit_candidate_pairs(global_review, transcript)
         # Stage 13b: the Discovery gated flags that WILL persist into final routing
-        # (no Boundary Review shrink), computed by the same function the routing
+        # (no Boundary Review shrink; routing v5: structural flags only, padding
+        # flags follow Boundary Review), computed by the same function the routing
         # uses, so the audit's view and the final routing cannot drift.
         boundary_by_id = {value.candidate_id: value for value in boundary.reviews}
         persisted_by_id = {

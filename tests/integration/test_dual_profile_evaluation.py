@@ -1898,14 +1898,21 @@ def test_untrusted_superseding_entry_raises_and_is_never_recorded_as_reused(
 class DiscoveryFlagProvider(ScriptedDualProvider):
     """Base Discovery flags a gated issue; Boundary Review silently clears it.
 
-    ``trim`` makes Boundary Review move the mini candidate's start one cue later.
+    ``trim`` makes Boundary Review move the mini candidate's start one cue later;
+    ``flags`` are the Discovery quality flags (a structural flag by default).
     """
 
     def __init__(
-        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, trim: bool
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        trim: bool,
+        flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
     ) -> None:
         super().__init__(prompt, counter)
         self.trim = trim
+        self.flags = flags
 
     def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
         output = super()._output(payload, response_model)
@@ -1916,9 +1923,7 @@ class DiscoveryFlagProvider(ScriptedDualProvider):
                 discovery.model_copy(
                     update={
                         "candidates": tuple(
-                            value.model_copy(
-                                update={"quality_flags": (DualQualityFlag.TOPIC_SWITCH_INSIDE,)}
-                            )
+                            value.model_copy(update={"quality_flags": self.flags})
                             for value in discovery.candidates
                         )
                     }
@@ -1964,7 +1969,7 @@ def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v4"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v5"
     short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
     mini = final.profiles[ClipProfile.MINI_LESSON]
     # Short: unchanged interval, so the Discovery flag cleared by review still gates.
@@ -1979,6 +1984,47 @@ def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
     else:
         assert mini.selected == ()
         assert [value.candidate_id for value in mini.blocked] == ["mini_lesson_lesson"]
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+        DualQualityFlag.SALES_OR_CTA_PADDING,
+        DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+    ],
+    ids=str,
+)
+def test_service_lets_discovery_padding_flags_follow_boundary_review(
+    tmp_path: Path, flag: DualQualityFlag
+) -> None:
+    """Stage 14 (routing v5), L01 shape: an untrimmed interval whose Discovery
+    padding flag Boundary Review cleared is not blocked by persistence."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return DiscoveryFlagProvider(prompt, {}, trim=False, flags=(flag,))
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert final.routing_policy_version == "quality-gate-risk-routing-v5"
+    for result in final.profiles.values():
+        assert result.blocked == ()
+        for value in (*result.selected, *result.manual_review, *result.rejected):
+            assert flag not in value.quality_flags
+            assert not value.review_reason.startswith("Deterministic flag persistence: ")
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
 
 
 class OverlapPairProvider(ScriptedDualProvider):
@@ -2001,9 +2047,11 @@ class OverlapPairProvider(ScriptedDualProvider):
         repair_audit: str,
         prompt_sha256: str | None = None,
         flag_lesson: bool = False,
+        lesson_flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
     ) -> None:
         super().__init__(prompt, counter)
         self.flag_lesson = flag_lesson
+        self.lesson_flags = lesson_flags
         self.overlap_start = overlap_start
         self.first_audit = first_audit
         self.repair_audit = repair_audit
@@ -2119,9 +2167,7 @@ class OverlapPairProvider(ScriptedDualProvider):
                     discovery = discovery.model_copy(
                         update={
                             "candidates": tuple(
-                                value.model_copy(
-                                    update={"quality_flags": (DualQualityFlag.TOPIC_SWITCH_INSIDE,)}
-                                )
+                                value.model_copy(update={"quality_flags": self.lesson_flags})
                                 for value in discovery.candidates
                             )
                         }
@@ -2178,6 +2224,7 @@ def _overlap_run(
     audit_prompt_overrides: dict[str, str] | None = None,
     counter: dict[str, int] | None = None,
     flag_lesson: bool = False,
+    lesson_flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
     refresh_stale_cache: bool = False,
     no_calls: bool = False,
 ) -> tuple[list[OverlapPairProvider], DualProfileFinalResult]:
@@ -2198,6 +2245,7 @@ def _overlap_run(
             repair_audit=repair_audit,
             prompt_sha256=override,
             flag_lesson=flag_lesson,
+            lesson_flags=lesson_flags,
         )
         providers.append(provider)
         if no_calls:
@@ -2387,6 +2435,59 @@ def test_audit_payload_lists_persisted_discovery_flags_only_for_the_audit(
         for entry in cast(list[dict[str, object]], payload["candidates"])
     }
     assert flags == {"mini_lesson_lesson": ["topic_switch_inside"], "mini_overlap": []}
+
+
+@pytest.mark.parametrize(
+    ("lesson_flags", "expected"),
+    [
+        (
+            (DualQualityFlag.DEVICE_OR_WAITING_PADDING, DualQualityFlag.TOPIC_SWITCH_INSIDE),
+            ["topic_switch_inside"],
+        ),
+        (
+            (
+                DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+                DualQualityFlag.SALES_OR_CTA_PADDING,
+                DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+            ),
+            [],
+        ),
+        (
+            (
+                DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+                DualQualityFlag.MATERIAL_INTERRUPTION,
+                DualQualityFlag.TOPIC_NOT_CLOSED,
+                DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+            ),
+            ["topic_not_closed", "material_interruption", "asr_uncertain_blocks_meaning"],
+        ),
+    ],
+    ids=["padding_and_structural", "padding_only", "all_structural_plus_padding"],
+)
+def test_audit_payload_persisted_flags_contain_only_structural_flags(
+    tmp_path: Path,
+    lesson_flags: tuple[DualQualityFlag, ...],
+    expected: list[str],
+) -> None:
+    """Stage 14 (routing v5): the audit sees exactly the flags final routing persists."""
+
+    providers, _ = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="duplicate",
+        repair_audit="duplicate",
+        flag_lesson=True,
+        lesson_flags=lesson_flags,
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    flags = {
+        cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+            "persisted_discovery_gated_flags"
+        ]
+        for entry in cast(list[dict[str, object]], payload["candidates"])
+    }
+    assert flags == {"mini_lesson_lesson": expected, "mini_overlap": []}
 
 
 def test_audit_may_not_keep_a_representative_that_persisted_flags_will_block(
@@ -2760,27 +2861,30 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 
 # Discovery-family prompt identities are frozen: a change would invalidate every
 # cached Discovery call.  Review-stage prompts may evolve independently.
+# Stage 14 (user decision 2026-11-01) deliberately re-pinned them: the shared
+# main.md gained the microphone/demonstration rule and the padding-is-edge
+# definition, so every Discovery pass sees them (cold Discovery cache).
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
-        "560083a53e4a04c9d8917c7efeed32849269141ece13df60a522e83ba0d3ef07"
+        "c3b728702f3c25228c3cb74eac3385e62c98c3902a72138460e695ead301d00e"
     ),
     ("short_highlight", "coverage_audit"): (
-        "5cf38c6d0cff076721437ecb88e64c3b37b7e942af9d7c7756d8c71220b2727d"
+        "e98ed2f7be2b19a00bf780307f826428949bcf8992986dfd8ec3e2aa71590d11"
     ),
     ("mini_lesson", "discovery"): (
-        "bd807b720db282447efc180dfec11f1aa2d94a173d8e4de2bb78b82cbc83b885"
+        "7500e47a912db6855186843d799c62c7c2935920c1b1b84c8f2e7382c54fc75b"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "057f0a5bb3a3bdeb24c08dc44cd3f78e6c148742390475c226da4f3fcff091f3"
+        "edf10867041fe3b4e7bcf4eb1c9deb19056107048cbdfb4e3dbe7df3c6b4ea3a"
     ),
     ("mini_lesson", "precision_audit"): (
-        "ef399dc6090a7f108a07cee47f858ab28d61b7f00e2d048583ca6cf05d8ec443"
+        "0377c54e8cc0e74fe0645d7192cd402d85129fdaa6e5e9fc29e9583e24f8b0aa"
     ),
     ("mini_lesson", "precision_confirmation"): (
-        "3ccb77bc963fa0e906207c33a55297dc1245021e8c6e47ad26e1ee4e1a82c5aa"
+        "17eccbac257c129aa42979c008ec8ff83cc536ae2bfb0e38fa43b27b0a370024"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "f136669d1b7560711c74e31b3ed3326cfab6c5df9e0c462d8acca5c12b03f3f9"
+        "bb219de4638dc917d986106327ff9ac2c845539a7ed15b798b3bc50b5d68a21e"
     ),
 }
 

@@ -16,6 +16,8 @@ from liveclip.domain.clip_profile import ClipProfile
 from liveclip.pipeline.dual_profile import (
     AUTO_BLOCKING_QUALITY_FLAGS,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
+    PADDING_GATED_FLAGS,
+    PERSISTED_STRUCTURAL_GATED_FLAGS,
     DualQualityFlag,
 )
 from liveclip.services.dual_profile_evaluation import (
@@ -55,6 +57,72 @@ def test_review_prompts_list_exactly_the_gated_and_advisory_flags(
     assert "enforces every unresolved flag" not in text
     assert "Boundary Review quality flags are cumulative" in text
     assert "state the disagreement in `review_reason`" in text
+
+
+# Stage 14: every Discovery pass and Boundary Review load the shared main.md,
+# which carries the microphone/demonstration rule and the padding-is-edge rule.
+DISCOVERY_AND_BOUNDARY_STAGES = (
+    "discovery",
+    "coverage_audit",
+    "precision_audit",
+    "precision_confirmation",
+    "risk_discovery",
+    "boundary_review",
+)
+PADDING_EDGE_LABEL = "Padding flags ("
+MIC_DEMO_RULE = (
+    "Brief microphone, distance, placement or equipment words that directly enable an immediate "
+    "live vocal demonstration, including why moving closer helps listeners hear, are part of that "
+    "demonstration: they are neither padding nor an interruption."
+)
+
+
+@pytest.mark.parametrize("stage", DISCOVERY_AND_BOUNDARY_STAGES)
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_every_discovery_pass_and_boundary_review_share_the_padding_and_demo_rules(
+    stage: str, profile: ClipProfile
+) -> None:
+    prompt = load_dual_profile_prompt(stage, profile)
+    assert "dual_profile_v1/main.md" in prompt.loaded_files
+    text = _text(stage, profile)
+    assert MIC_DEMO_RULE in text
+    assert text.count(PADDING_EDGE_LABEL) == 1
+    rule = text.split(PADDING_EDGE_LABEL, 1)[1]
+    listed = set(re.findall(r"`([a-z_]+)`", rule.split(")", 1)[0]))
+    assert listed == {flag.value for flag in PADDING_GATED_FLAGS}
+    assert "describe EDGE material only" in rule
+    assert (
+        "Unrelated content inside the interval, between on-topic cues, is `material_interruption`, "
+        "or `topic_switch_inside` when another topic starts inside the interval" in rule
+    )
+
+
+@pytest.mark.parametrize("stage", ["global_review", "global_audit"])
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_review_prompts_state_that_only_structural_discovery_flags_persist(
+    stage: str, profile: ClipProfile
+) -> None:
+    text = _text(stage, profile)
+    marker = (
+        "but only a structural one ("
+        if stage == "global_review"
+        else "lists the structural Discovery gated flags ("
+    )
+    assert text.count(marker) == 1
+    structural = set(re.findall(r"`([a-z_]+)`", text.split(marker, 1)[1].split(")", 1)[0]))
+    assert structural == {flag.value for flag in PERSISTED_STRUCTURAL_GATED_FLAGS}
+    padding_marker = "Discovery padding flags ("
+    assert text.count(padding_marker) == 1
+    padding = set(re.findall(r"`([a-z_]+)`", text.split(padding_marker, 1)[1].split(")", 1)[0]))
+    assert padding == {flag.value for flag in PADDING_GATED_FLAGS}
+    assert "they follow Boundary Review, the edge authority" in text
+    if stage == "global_audit":
+        assert (
+            'Do not block a candidate, or change its status "to match routing", because '
+            "Discovery raised a padding flag that Boundary Review cleared" in text
+        )
+    else:
+        assert "do not block it merely because Discovery raised that padding flag" in text
 
 
 def test_advisory_set_is_the_documented_context_and_title_flags() -> None:
@@ -158,3 +226,53 @@ def test_dual_profile_eval_cli_exits_nonzero_with_a_bounded_failure_summary(
     assert "failed-short_highlight-global_audit.json; last error: duplicate cand_0" in (
         result.output
     )
+
+
+def test_dual_profile_eval_cli_summary_keeps_the_evidence_writer_failure_note(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 14 P3: when the evidence writer itself failed, the CLI says so."""
+
+    long_error = "; ".join(f"duplicate cand_{index} (status blocked)" for index in range(40))
+    error = DualProfileValidationExhaustedError(
+        stage="global_audit",
+        profile="mini_lesson",
+        subject_id="mini_lesson.global_audit",
+        cache_key="b" * 64,
+        attempts=(DualProfileValidationAttempt(phase="initial", output={}, error=long_error),),
+        records=(),
+        final_error=ValueError(long_error),
+    )
+    # The service adds this note (and leaves evidence_file unset) when
+    # _write_validation_failure raises.
+    error.add_note("failure evidence could not be written: OSError: disk full")
+
+    def fake_run(**_kwargs: object) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(cli_module, "get_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        cli_module, "configured_dual_profile_provider_factory", lambda _settings: None
+    )
+    monkeypatch.setattr(cli_module, "run_dual_profile_evaluation", fake_run)
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "dual-profile-eval",
+            "--transcript",
+            str(tmp_path / "transcript.srt"),
+            "--output",
+            str(tmp_path / "output"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "evidence: " not in result.output
+    assert (
+        "(mini_lesson.global_audit); failure evidence could not be written: OSError: disk full; "
+        "last error: duplicate cand_0"
+    ) in result.output
+    # A very long note is truncated so the summary stays bounded.
+    error.add_note("x" * 1_000)
+    summary = error.summary()
+    assert len(summary) <= 500
+    assert "failure evidence could not be written: OSError: disk full" in summary
