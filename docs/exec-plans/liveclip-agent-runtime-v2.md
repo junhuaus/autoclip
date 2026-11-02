@@ -1,5 +1,31 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 14c Stage 14b reviewer REJECT follow-ups (2026-11-02)
+
+- [x] 2026-11-02 Stage 14b reviewer **REJECT** on docs commit
+  `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the
+  `STATUS.md` Stage 14b hash table listed intermediate-draft global_review
+  and global_audit hashes (both Profiles). Code at `9664efe` unaffected.
+- [x] 2026-11-02 Stage 14c implemented (prompt, test and docs commit after
+  `66265e2`), **pending independent tester and reviewer**. Routing policy
+  stays `quality-gate-risk-routing-v5`; no Python routing, evaluator,
+  threshold, benchmark, algorithm version or cache-key schema change; gate
+  semantics unchanged.
+  - `boundary_review.md` (reviewer P3, generic wording): the
+    `material_interruption` definition cross-references interior
+    audibility/lag/playback trouble as `material_interruption`; interior
+    chat kept for duration flags `padded_with_irrelevant_content` alongside
+    `material_interruption` (or `topic_switch_inside`), never instead.
+    boundary_review hashes change for both Profiles; all others unchanged.
+  - New test `test_review_stage_prompt_identities_match_pins` pins the full
+    service-recorded hashes of boundary_review, global_review and
+    global_audit (both Profiles) and the variant link.
+  - `STATUS.md` Stage 14b hash table corrected to the service-recorded values
+    (history noted in place); full Stage 14c hash table in `STATUS.md`.
+  - Self-check: lint rc 0; targeted pytest 277 passed.
+- [ ] Next: independent tester and reviewer on the Stage 14c SHA, then the
+  fresh cold run cold-31 only with the user's go-ahead.
+
 ## Stage 14b Stage 14 reviewer P3 follow-ups (2026-11-02)
 
 - [x] 2026-11-02 Stage 14b implemented in
@@ -24,8 +50,9 @@
     candidate under the representative rule, a blocked duplicate and the
     pair fallback keep order.
   - Self-check: lint rc 0; targeted pytest 276 passed.
-- [ ] Next: independent tester and reviewer on the Stage 14b SHA, then the
-  fresh cold run cold-31 only with the user's go-ahead.
+- [x] (Historical next step; Stage 14b REJECTED on docs hashes, fixed in
+  Stage 14c above.) Independent tester and reviewer on the Stage 14b SHA,
+  then the fresh cold run cold-31 only with the user's go-ahead.
 
 ## Stage 14 padding flags follow Boundary Review; cold-30 strict FAIL 92.5 (2026-11-01)
 

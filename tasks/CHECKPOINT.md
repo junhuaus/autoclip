@@ -751,5 +751,27 @@ precision_confirmation, variant link. New integration test for a
 padding-only Discovery-flagged candidate (empty persisted set, validates
 like an unflagged candidate). Details in `STATUS.md`.
 
-Next: independent tester and reviewer on the Stage 14b SHA, then cold-31
+Next (historical; Stage 14b REJECTED below): independent tester and
+reviewer on the Stage 14b SHA, then cold-31 (fresh cold run) only with the
+user's go-ahead. Not pushed.
+
+## Stage 14b rejected (docs hashes); Stage 14c implemented, pending verification (2026-11-02)
+
+Reviewer REJECT on docs commit `66265e2e79d36a08e98e46c857ae71a490da2049`
+(P2, docs only): the `STATUS.md` Stage 14b hash table listed
+intermediate-draft global_review/global_audit hashes for both Profiles.
+Code at `9664efe` was unaffected.
+
+Stage 14c (local only, prompt, test and docs): `boundary_review.md`
+cross-references interior audibility/lag/playback trouble as
+`material_interruption` and says interior chat kept for duration flags
+`padded_with_irrelevant_content` alongside the interior flag, never instead
+(boundary_review hashes change for both Profiles; all others unchanged). New
+test `test_review_stage_prompt_identities_match_pins` pins the full
+service-recorded review-stage and variant-link hashes. The Stage 14b hash
+table is corrected and a full Stage 14c table is in `STATUS.md`. Routing
+policy stays `quality-gate-risk-routing-v5`; gate semantics unchanged.
+Self-check: lint rc 0, targeted pytest 277 passed.
+
+Next: independent tester and reviewer on the Stage 14c SHA, then cold-31
 (fresh cold run) only with the user's go-ahead. Not pushed.

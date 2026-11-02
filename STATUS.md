@@ -18,9 +18,83 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 14b: Stage 14 reviewer P3 follow-ups (2026-11-02) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 14c: Stage 14b reviewer REJECT follow-ups (2026-11-02) — IMPLEMENTED, PENDING VERIFICATION
 
-- **Status: implemented, pending independent tester and reviewer** in
+- **Stage 14b reviewer verdict: REJECT** on the docs commit
+  `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the Stage 14b
+  hash table below listed intermediate-draft values for global_review and
+  global_audit (both Profiles). The code at `9664efe` was not at fault;
+  `66265e2` changed no code. Reviewer P3 nits on `boundary_review.md` are
+  folded into this stage so cold-31 tests the final wording.
+- **Status: implemented, pending independent tester and reviewer** in the
+  Stage 14c commit on local branch `claude/liveclip-stage8-routing` (after
+  `66265e2`). Not pushed or merged. Routing policy stays
+  `quality-gate-risk-routing-v5`; no Python routing, evaluator, threshold,
+  benchmark, algorithm version (`dual-profile-direct-v1`) or cache-key schema
+  change; gate semantics unchanged.
+- `boundary_review.md` (generic wording, no cue numbers, times or anchor
+  IDs):
+  - the `material_interruption` definition now cross-references that
+    interior audibility checks, connection lag and playback trouble are such
+    unrelated content and count as `material_interruption`;
+  - interior chat, calls to action, greetings or device talk kept only for
+    duration: flag `padded_with_irrelevant_content` alongside
+    `material_interruption` (or `topic_switch_inside`), never instead of it
+    (consistent with `main.md` "may accompany, never replace").
+- New test `test_review_stage_prompt_identities_match_pins`
+  (`tests/integration/test_dual_profile_evaluation.py`) pins the full
+  service-recorded identity hash (`load_dual_profile_prompt(...).sha256`, as
+  recorded in `prompt_hashes`) of boundary_review, global_review and
+  global_audit for both Profiles, plus the variant link
+  (`load_dual_profile_variant_link_prompt().sha256`); the Discovery-family
+  pins stay in `FROZEN_DISCOVERY_PROMPT_HASHES`. Verified by a temporary
+  revert of `boundary_review.md` (test fails), then restored.
+- Prompt identity hashes at Stage 14c (full values, recomputed with
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt`):
+
+  | Profile | Stage | sha256 |
+  | --- | --- | --- |
+  | short_highlight | discovery | `c3b728702f3c25228c3cb74eac3385e62c98c3902a72138460e695ead301d00e` |
+  | short_highlight | coverage_audit | `09fcecd9dfbdbf7e99178a7be2c0a791cce9c98ec6c0de674c94407165fbfda5` |
+  | short_highlight | precision_audit (not run) | `1c65af1b172ce5211f4e26e8c3718e11dfea112a436e2687224c9e8de81af967` |
+  | short_highlight | precision_confirmation (not run) | `8bdbe2f65704db36efa6d3fead5c49fec1618431391047ac1c70e13aca716bd4` |
+  | short_highlight | risk_discovery (not run) | `12244a54202e4a167804cbf890b38c852f2988add221bffe24158bccb2bb5e2d` |
+  | short_highlight | boundary_review (changed in 14c) | `2ac809c282ca5fd8e4b18030e09d8798084e3854ccaf93710d73a5277c009a8e` |
+  | short_highlight | global_review | `d2bf9404377dc32f882e4b8a57cff9d3c98520f135fd0f78525b26b7f094da53` |
+  | short_highlight | global_audit | `51885f0f5a34d45d3d506869a3a492b9fa1be00c0357d20af834f6d1b30441c3` |
+  | mini_lesson | discovery | `7500e47a912db6855186843d799c62c7c2935920c1b1b84c8f2e7382c54fc75b` |
+  | mini_lesson | coverage_audit | `407c2c9d68f0f722e9efd8974d2cd4aa5418f89fb9b151b80ba641903e50c994` |
+  | mini_lesson | precision_audit | `0377c54e8cc0e74fe0645d7192cd402d85129fdaa6e5e9fc29e9583e24f8b0aa` |
+  | mini_lesson | precision_confirmation | `17eccbac257c129aa42979c008ec8ff83cc536ae2bfb0e38fa43b27b0a370024` |
+  | mini_lesson | risk_discovery | `7e9af46465b7b4319b00988ef7709e4e89aa68dec12263dcf536e9b9d25bab46` |
+  | mini_lesson | boundary_review (changed in 14c) | `b1c10a166b90821f2695bf225319bf504a02e91a208a9e8b1f304d58bb0f798f` |
+  | mini_lesson | global_review | `42f5a0bf8163ed72926f71a452d164e50821d3694f5ff92b5e2d47500d32682a` |
+  | mini_lesson | global_audit | `7740969edf51653bf251a59c26a4997f55f8fed0d33593ea122dc4837fa88cde` |
+  | cross_profile | variant_link | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` |
+
+  "Not run": the service loads precision_audit, precision_confirmation and
+  risk_discovery only for Mini Lesson, so those Short Highlight values are
+  never recorded in a run's `prompt_hashes`. Only boundary_review changed
+  versus Stage 14b (Short `b4c4e88a…` -> `2ac809c2…`, Mini `c9cad7b3…` ->
+  `b1c10a16…`); cold-31 is cold for every stage regardless (Stage 14).
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  277 passed.
+- Next: independent tester and reviewer on the Stage 14c SHA (covering
+  Stage 14b `9664efe` too), then the fresh cold run cold-31 only with the
+  user's go-ahead; human review of the cold-30 and earlier renders stays
+  pending.
+
+## Stage 14b: Stage 14 reviewer P3 follow-ups (2026-11-02) — REJECTED (P2 docs hashes); fixed in Stage 14c
+
+- **Reviewer REJECT** on docs commit `66265e2` (P2): the hash table below
+  listed wrong global_review/global_audit values; corrected in place by
+  Stage 14c (see above). The bullets below are the historical
+  implementation record.
+
+- **Status (historical): implemented, pending independent tester and reviewer** in
   `9664efe5b14c410984e452e339b7c245db480e14` (prompts and tests) on local
   branch `claude/liveclip-stage8-routing`, after the Stage 14 docs commit
   `2c088fe`; this docs commit follows. Not pushed or merged. Routing policy
@@ -48,13 +122,16 @@
     may accompany, never replace, the interior flag (replaces "attach the
     corresponding quality flags").
   - Wording stays generic (no cue numbers, times or anchor IDs).
-- Prompt hashes (full values pinned in tests where frozen):
+- Prompt hashes at `9664efe` (full values pinned in tests; corrected by
+  Stage 14c: the `66265e2` draft of this list gave global_review
+  `879ae319…`/`0b2c6031…` and global_audit `3011be92…`/`dcb20886…`, which are
+  not the service-recorded values):
   - Changed, Short Highlight: coverage_audit `09fcecd9…`, risk_discovery
-    `12244a54…`, boundary_review `b4c4e88a…`, global_review `879ae319…`,
-    global_audit `3011be92…`.
+    `12244a54…` (not run for this Profile), boundary_review `b4c4e88a…`,
+    global_review `d2bf9404…`, global_audit `51885f0f…`.
   - Changed, Mini Lesson: coverage_audit `407c2c9d…`, risk_discovery
-    `7e9af464…`, boundary_review `c9cad7b3…`, global_review `0b2c6031…`,
-    global_audit `dcb20886…`.
+    `7e9af464…`, boundary_review `c9cad7b3…`, global_review `42f5a0bf…`,
+    global_audit `7740969e…`.
   - Unchanged versus Stage 14: discovery (short `c3b72870…`, mini
     `7500e47a…`), precision_audit (short `1c65af1b…`, mini `0377c54e…`),
     precision_confirmation (short `8bdbe2f6…`, mini `17eccbac…`) and the
@@ -74,9 +151,10 @@
   `test_dual_profile_flag_contract.py`,
   `tests/integration/test_dual_profile_evaluation.py`, prompt contract
   tests) 276 passed.
-- Next: independent tester and reviewer on the Stage 14b SHA, then the fresh
-  cold run cold-31 only with the user's go-ahead; human review of the
-  cold-30 and earlier renders stays pending.
+- Next (historical; superseded by Stage 14c above): independent tester and
+  reviewer on the Stage 14b SHA, then the fresh cold run cold-31 only with
+  the user's go-ahead; human review of the cold-30 and earlier renders stays
+  pending.
 
 ## Stage 14: padding flags follow Boundary Review (2026-11-01) — ACCEPTED at 2c088fe
 

@@ -63,6 +63,8 @@ when the evaluated sample, diagnosis, correction and observed outcome remain und
 `material_interruption` requires unrelated semantic content that actually breaks the teaching logic;
 silence, an ASR gap, a vocal demonstration, a self-correction or the speaker's brief equipment or
 listening explanation attached to an immediate live example is not by itself an interruption.
+Interior audibility checks, connection lag and playback trouble, as described below, are such unrelated
+content and count as `material_interruption`.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
 asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
 lag, switching networks and trouble playing back a recording are `device_or_waiting_padding` at an edge
@@ -93,7 +95,9 @@ opening is complete, do not keep that flag.
 
 The Profile minimum must be met by on-topic content. If removing interior audience chat or comment
 reading, calls to action, greetings or device talk, or edge setup kept only for duration, would leave a
-clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. A
+clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For
+such interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
+`topic_switch_inside`), never instead of it. A
 closing acknowledgement or address to the audience is neither padding nor subtracted from the duration
 in this test.
 

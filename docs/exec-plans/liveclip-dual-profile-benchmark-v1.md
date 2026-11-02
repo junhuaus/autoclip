@@ -98,7 +98,10 @@ imported by production modules.
 - [x] (Historical next step; Stage 14 accepted below.) Next: independent tester and reviewer for Stage 14, then a fresh cold run only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
 - [x] 2026-11-02 Stage 14 ACCEPTED at `2c088fe1af349cb4a93502fe10a5ba8769ef9183` (code `fc31907`, docs `2c088fe`; tester PASS: lint rc 0, `make test` backend 3042 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits, no P0–P2; replay cold-27 PASS 95.0, warm-28 FAIL 95.0 unchanged, warm-29b PASS 95.0, cold-30 PASS 97.5). The P3 nits become Stage 14b.
 - [x] 2026-11-02 Stage 14b implemented in `9664efe5b14c410984e452e339b7c245db480e14`, pending independent tester and reviewer (prompts and tests only; routing policy stays `quality-gate-risk-routing-v5`, gate semantics unchanged): Boundary Review, Global Review and Global Audit say interior audibility/lag/network/playback trouble is `material_interruption` (a padding flag may be added alongside, never instead), padding stays edge material as in `main.md`; Risk Discovery and Coverage Audit name `material_interruption` (or `topic_switch_inside`) for interior interruptions of a risk chain. Changed hashes (both Profiles): coverage_audit, risk_discovery, boundary_review, global_review, global_audit; unchanged: discovery, precision_audit, precision_confirmation, variant link. New integration test: a padding-only Discovery-flagged candidate (Boundary Review cleared, no trim) validates like an unflagged candidate under the representative rule, a blocked duplicate and the pair fallback keep order. Evidence in `STATUS.md`.
-- [ ] Next: independent tester and reviewer for Stage 14b, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
+- [x] (Historical next step; Stage 14b REJECTED below.) Next: independent tester and reviewer for Stage 14b, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
+- [x] 2026-11-02 Stage 14b reviewer REJECT on docs commit `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the `STATUS.md` Stage 14b hash table listed intermediate-draft global_review/global_audit hashes for both Profiles; code at `9664efe` unaffected.
+- [x] 2026-11-02 Stage 14c implemented, pending independent tester and reviewer (prompt, test and docs; routing policy stays `quality-gate-risk-routing-v5`, gate semantics unchanged): `boundary_review.md` cross-references interior audibility/lag/playback trouble as `material_interruption` and says interior chat kept for duration flags `padded_with_irrelevant_content` alongside the interior flag, never instead (boundary_review hashes change for both Profiles; all others unchanged); new test pins the full service-recorded boundary_review, global_review and global_audit hashes for both Profiles and the variant link; `STATUS.md` Stage 14b hash table corrected, full Stage 14c table added. Self-check: lint rc 0, targeted pytest 277 passed.
+- [ ] Next: independent tester and reviewer for Stage 14c, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -426,6 +429,13 @@ two deterministic report files.
   only stops a review stage from naming interior trouble with an edge-only
   padding flag that Boundary Review could later clear. The Discovery-family
   pins for coverage_audit and risk_discovery are re-pinned deliberately.
+- 2026-11-02 (Stage 14c): review-stage prompt identities (boundary_review,
+  global_review, global_audit, both Profiles) and the variant link are now
+  pinned by full hash in a test, alongside the frozen Discovery-family pins,
+  so a documented hash table cannot drift from the shipped prompts
+  unnoticed. Review prompts may still evolve; each change re-pins the test
+  and the `STATUS.md` table together. Hashes are always recomputed with
+  `load_dual_profile_prompt` (the value the service records).
 
 ## Risks and mitigations
 
@@ -908,6 +918,19 @@ verification):
 - Recovery: Stage 14 already changed every stage hash, so cold-31 is cold
   for every stage either way; earlier caches stay valid for their own
   prompt hashes and must not be modified.
+
+2026-11-02 (Stage 14b REJECTED on docs hashes; Stage 14c implemented,
+pending verification):
+
+- Reviewer REJECT on `66265e2` (P2, docs only): the Stage 14b hash table in
+  `STATUS.md` gave wrong global_review/global_audit values. Stage 14c
+  corrects it in place (history noted) and adds a full-hash table recomputed
+  with `load_dual_profile_prompt`.
+- Stage 14c also applies the reviewer's `boundary_review.md` P3 wording
+  nits (boundary_review hashes change for both Profiles) and adds the
+  review-stage hash pin test.
+- Recovery: cold-31 remains cold for every stage; nothing in Stage 14c
+  touches caches, routing or evaluator code.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

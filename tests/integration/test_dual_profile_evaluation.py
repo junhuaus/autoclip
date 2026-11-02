@@ -2982,6 +2982,50 @@ def test_discovery_prompt_identities_are_unchanged() -> None:
         assert load_dual_profile_prompt(stage, ClipProfile(profile)).sha256 == expected
 
 
+# Review-stage prompt identities as the service records them (prompt_hashes from
+# load_dual_profile_prompt / load_dual_profile_variant_link_prompt).  Review prompts
+# may evolve, but every change must re-pin here and in the STATUS/ExecPlan hash
+# tables, so documented hashes cannot drift from the shipped prompts.
+# Stage 14c (2026-11-02): boundary_review re-pinned (interior chat kept for duration
+# flags `padded_with_irrelevant_content` alongside the interior flag; interior
+# audibility/lag/playback trouble cross-referenced as `material_interruption`).
+PINNED_REVIEW_PROMPT_HASHES = {
+    ("short_highlight", "boundary_review"): (
+        "2ac809c282ca5fd8e4b18030e09d8798084e3854ccaf93710d73a5277c009a8e"
+    ),
+    ("short_highlight", "global_review"): (
+        "d2bf9404377dc32f882e4b8a57cff9d3c98520f135fd0f78525b26b7f094da53"
+    ),
+    ("short_highlight", "global_audit"): (
+        "51885f0f5a34d45d3d506869a3a492b9fa1be00c0357d20af834f6d1b30441c3"
+    ),
+    ("mini_lesson", "boundary_review"): (
+        "b1c10a166b90821f2695bf225319bf504a02e91a208a9e8b1f304d58bb0f798f"
+    ),
+    ("mini_lesson", "global_review"): (
+        "42f5a0bf8163ed72926f71a452d164e50821d3694f5ff92b5e2d47500d32682a"
+    ),
+    ("mini_lesson", "global_audit"): (
+        "7740969edf51653bf251a59c26a4997f55f8fed0d33593ea122dc4837fa88cde"
+    ),
+}
+PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"
+
+
+def test_review_stage_prompt_identities_match_pins() -> None:
+    assert {stage for _, stage in PINNED_REVIEW_PROMPT_HASHES} == {
+        "boundary_review",
+        "global_review",
+        "global_audit",
+    }
+    assert {profile for profile, _ in PINNED_REVIEW_PROMPT_HASHES} == {
+        profile.value for profile in ClipProfile
+    }
+    for (profile, stage), expected in PINNED_REVIEW_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt(stage, ClipProfile(profile)).sha256 == expected
+    assert load_dual_profile_variant_link_prompt().sha256 == PINNED_VARIANT_LINK_PROMPT_HASH
+
+
 def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> None:
     def text(stage: Any, profile: ClipProfile) -> str:
         return " ".join(load_dual_profile_prompt(stage, profile).instructions.split())
