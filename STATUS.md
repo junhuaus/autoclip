@@ -18,7 +18,75 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 14: padding flags follow Boundary Review (2026-11-01) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 14b: Stage 14 reviewer P3 follow-ups (2026-11-02) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** in
+  `9664efe5b14c410984e452e339b7c245db480e14` (prompts and tests) on local
+  branch `claude/liveclip-stage8-routing`, after the Stage 14 docs commit
+  `2c088fe`; this docs commit follows. Not pushed or merged. Routing policy
+  stays `quality-gate-risk-routing-v5`; no Python routing, evaluator,
+  threshold, benchmark, algorithm version (`dual-profile-direct-v1`) or
+  cache-key schema change. Gate semantics are unchanged: every flag the
+  new wording names is gated.
+- Prompt alignment with `main.md` ("padding flags describe EDGE material
+  only"):
+  - `boundary_review.md`, `global_review.md`, `global_audit.md`: audibility
+    checks, connection lag and network or playback trouble are padding at an
+    edge of the interval; inside the interval, between on-topic cues, they
+    are `material_interruption`, and a padding flag may be added alongside
+    that interior flag, never used instead of it (replaces "padding (and an
+    interruption when they split a demonstration)"). The speaker's brief
+    equipment/listening explanation attached to an immediate live example
+    stays part of the demonstration, neither padding nor an interruption.
+    This matches Boundary Review's existing interior-chat rule
+    (`padded_with_irrelevant_content` when only off-topic material meets the
+    Profile minimum).
+  - `risk_discovery.md`, `coverage_audit.md`: interior sales, greeting,
+    device or topic interruptions of a risk chain are flagged
+    `material_interruption` (or `topic_switch_inside` when another topic
+    starts inside the chain); padding flags describe edge material only and
+    may accompany, never replace, the interior flag (replaces "attach the
+    corresponding quality flags").
+  - Wording stays generic (no cue numbers, times or anchor IDs).
+- Prompt hashes (full values pinned in tests where frozen):
+  - Changed, Short Highlight: coverage_audit `09fcecd9…`, risk_discovery
+    `12244a54…`, boundary_review `b4c4e88a…`, global_review `879ae319…`,
+    global_audit `3011be92…`.
+  - Changed, Mini Lesson: coverage_audit `407c2c9d…`, risk_discovery
+    `7e9af464…`, boundary_review `c9cad7b3…`, global_review `0b2c6031…`,
+    global_audit `dcb20886…`.
+  - Unchanged versus Stage 14: discovery (short `c3b72870…`, mini
+    `7500e47a…`), precision_audit (short `1c65af1b…`, mini `0377c54e…`),
+    precision_confirmation (short `8bdbe2f6…`, mini `17eccbac…`) and the
+    variant link (`def25b05…`). Stage 14 already changed every stage hash,
+    so cold-31 is cold for all stages regardless.
+- Tests: `test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges`
+  (five stages x two Profiles); integration
+  `test_padding_only_discovery_flags_validate_like_an_unflagged_candidate`
+  (representative rule, blocked duplicate, near-identical pair fallback
+  keep order): a candidate whose only Discovery gated flags are padding
+  (Boundary Review cleared, no trim) has an empty persisted set and an
+  identical audit-repair, fallback, diagnostic and final mini result to an
+  unflagged candidate, while a structural flag changes the result. It fails
+  when `discovery_persisted_flags` persists every gated flag (v4 shape;
+  verified by a temporary mutation, then restored).
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`, prompt contract
+  tests) 276 passed.
+- Next: independent tester and reviewer on the Stage 14b SHA, then the fresh
+  cold run cold-31 only with the user's go-ahead; human review of the
+  cold-30 and earlier renders stays pending.
+
+## Stage 14: padding flags follow Boundary Review (2026-11-01) — ACCEPTED at 2c088fe
+
+- **Accepted** at `2c088fe1af349cb4a93502fe10a5ba8769ef9183` (code
+  `fc31907`, docs `2c088fe`). Tester PASS: lint rc 0; `make test` backend
+  3042 passed; vitest 80; e2e 4/4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits (no P0–P2); the reviewer's replay reproduced
+  cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (routing evidence only). The P3 nits become Stage 14b.
+  The status bullet below is the historical implementation record.
 
 - cold-30 (fresh cold run, real Claude CLI at `194ba65`, pinned 2.1.308,
   attempt start epoch 1793597156; acceptance attempt): eval rc 0;
@@ -60,8 +128,8 @@
   cold-30 PASS 97.5 (L01 hit, mini 6/6).
 - User decision (2026-11-01): option "Padding follows BR + prompt" →
   Stage 14.
-- **Status: implemented, pending independent tester and reviewer**. Code,
-  prompts and tests in `fc31907266ee07485567580f5b125ced76775cfe`; this docs commit follows. Not pushed or
+- (Historical; accepted above.) **Status: implemented, pending independent
+  tester and reviewer**. Code, prompts and tests in `fc31907266ee07485567580f5b125ced76775cfe`; this docs commit follows. Not pushed or
   merged. No evaluator, threshold, benchmark, algorithm version
   (`dual-profile-direct-v1`) or cache-key schema change.
 - Routing policy `quality-gate-risk-routing-v5`: Discovery flag persistence
@@ -89,7 +157,9 @@
   Boundary Review wording stays. `global_review.md` and `global_audit.md`
   say that only structural Discovery flags persist and that a candidate is
   not blocked "to match routing" for a padding flag Boundary Review cleared.
-  Every stage prompt hash changed (cold cache for all stages):
+  Every stage prompt hash changed (cold cache for all stages; Stage 14b,
+  above, later changed coverage_audit, risk_discovery, boundary_review,
+  global_review and global_audit again):
   - Short Highlight: discovery `c3b72870…`, coverage_audit `e98ed2f7…`,
     precision_audit `1c65af1b…`, precision_confirmation `8bdbe2f6…`,
     risk_discovery `eba1cd91…`, boundary_review `db074ead…`, global_review
@@ -111,15 +181,20 @@
   are reverted to the initial review; a real run re-decides the L07 pair
   group and the prompts changed, so this is routing evidence only, not a
   benchmark pass).
-- Next: independent tester and reviewer on the Stage 14 SHA, then a fresh
-  cold run (cold-31) only with the user's go-ahead; human review of the
+- (Historical next step; the tester and reviewer accepted Stage 14 at
+  `2c088fe`, above.) Next: independent tester and reviewer on the Stage 14
+  SHA, then a fresh cold run (cold-31) only with the user's go-ahead; human review of the
   cold-30 renders and earlier renders stays pending.
 
-## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01) — ACCEPTED at 194ba65
 
-- **Status: implemented, pending independent tester and reviewer** on local
-  branch `claude/liveclip-stage8-routing`, one code commit after the docs
-  commit `7bf1bb7` that accepted Stage 13d and recorded warm-29b. Not pushed
+- **Accepted** at `194ba653b0abd9712bc750eaf2d6aada594a61c3`. Tester PASS:
+  backend 3003 passed; vitest 80; e2e 4; concurrency test 5/5. Reviewer
+  ACCEPT with an offline cold simulation, no blocker. The status bullet
+  below is the historical implementation record.
+- (Historical; accepted above.) **Status: implemented, pending independent
+  tester and reviewer** on local branch `claude/liveclip-stage8-routing`, one
+  code commit (`194ba65`) after the docs commit `7bf1bb7` that accepted Stage 13d and recorded warm-29b. Not pushed
   or merged. Python and tests only (plus wording in `PRODUCT_SPEC.md`): no
   prompt, cache-key, algorithm, evaluator, threshold or benchmark change.
 - P2 (reviewer probe as a regression test):
@@ -171,7 +246,9 @@
     and both Discovery files byte-identical to the warm-29b run; the run
     manifest differs only in the call, token, latency and repair counters;
     the cache copy and the source cache are unchanged (309 sha256 sums).
-- Next: independent tester and reviewer on the Stage 13e SHA, then cold-30
+- (Historical next step; Stage 13e was accepted at `194ba65` and cold-30
+  ran, above.) Next: independent tester and reviewer on the Stage 13e SHA,
+  then cold-30
   (fresh cold run at the final code) as the acceptance run, only with the
   user's go-ahead.
 

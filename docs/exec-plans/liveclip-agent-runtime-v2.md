@@ -1,5 +1,32 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 14b Stage 14 reviewer P3 follow-ups (2026-11-02)
+
+- [x] 2026-11-02 Stage 14b implemented in
+  `9664efe5b14c410984e452e339b7c245db480e14` (prompts and tests), **pending
+  independent tester and reviewer**. Routing policy stays
+  `quality-gate-risk-routing-v5`; no Python routing, evaluator, threshold,
+  benchmark, algorithm version or cache-key schema change; gate semantics
+  unchanged.
+  - Boundary Review, Global Review and Global Audit: audibility, lag and
+    network or playback trouble are padding at an edge; inside the interval
+    they are `material_interruption` (a padding flag may be added alongside,
+    never instead), consistent with `main.md`.
+  - Risk Discovery and Coverage Audit: interior interruptions of a risk
+    chain are `material_interruption` (or `topic_switch_inside`); padding
+    flags are edge-only and may accompany, never replace, them.
+  - Changed hashes (both Profiles): coverage_audit, risk_discovery,
+    boundary_review, global_review, global_audit. Unchanged: discovery,
+    precision_audit, precision_confirmation, variant link. List in
+    `STATUS.md`.
+  - New integration test: a padding-only Discovery-flagged candidate
+    (Boundary Review cleared, no trim) validates exactly like an unflagged
+    candidate under the representative rule, a blocked duplicate and the
+    pair fallback keep order.
+  - Self-check: lint rc 0; targeted pytest 276 passed.
+- [ ] Next: independent tester and reviewer on the Stage 14b SHA, then the
+  fresh cold run cold-31 only with the user's go-ahead.
+
 ## Stage 14 padding flags follow Boundary Review; cold-30 strict FAIL 92.5 (2026-11-01)
 
 - [x] 2026-11-01 cold-30 at `194ba65` (fresh cold, `cache_hits` 0, 231
@@ -17,8 +44,15 @@
   `STATUS.md`). CLI exhaustion summary keeps the evidence-writer note.
   Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged),
   warm-29b PASS 95.0, cold-30 PASS 97.5 (routing evidence only).
-- [ ] Next: independent tester and reviewer on the Stage 14 SHA, then a
-  fresh cold run only with the user's go-ahead.
+- [x] 2026-11-02 Stage 14 **ACCEPTED** at
+  `2c088fe1af349cb4a93502fe10a5ba8769ef9183`. Tester PASS: lint rc 0;
+  `make test` backend 3042 passed; vitest 80; e2e 4/4; concurrency test
+  5/5; no sleep. Reviewer ACCEPT with nits (no P0–P2); replay cold-27 PASS
+  95.0, warm-28 FAIL 95.0 (unchanged), warm-29b PASS 95.0, cold-30 PASS
+  97.5. The P3 nits become Stage 14b.
+- [x] (Historical next step; Stage 14 accepted above.) Independent tester
+  and reviewer on the Stage 14 SHA, then a fresh cold run only with the
+  user's go-ahead.
 
 ## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01)
 
@@ -38,7 +72,12 @@
     is merged into `blocked_dup`.
   - Offline: sentinel replay on a scratchpad copy of the warm-29b cache: 233
     hits, 0 calls, outputs byte-identical to warm-29b.
-- [ ] Next: independent tester and reviewer on the Stage 13e SHA, then
+- [x] 2026-11-01 Stage 13e **ACCEPTED** at
+  `194ba653b0abd9712bc750eaf2d6aada594a61c3`. Tester PASS: backend 3003
+  passed; vitest 80; e2e 4; concurrency test 5/5. Reviewer ACCEPT with an
+  offline cold simulation, no blocker.
+- [x] (Historical next step; Stage 13e accepted above and cold-30 ran at
+  `194ba65`.) Independent tester and reviewer on the Stage 13e SHA, then
   cold-30 as the acceptance run, only with the user's go-ahead.
 
 ## Stage 13d accepted at bc150c5; warm-29b strict PASS 95.0 (2026-11-01)

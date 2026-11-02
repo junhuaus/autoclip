@@ -694,6 +694,7 @@ calls, outputs byte-identical. Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 13e SHA, then cold-30 as
 the acceptance run, only with the user's go-ahead. Not pushed.
+(Historical; Stage 13e was ACCEPTED at `194ba65`, recorded below.)
 
 ## cold-30 strict FAIL 92.5; Stage 14 implemented, pending verification (2026-11-01)
 
@@ -725,3 +726,30 @@ Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 14 SHA, then a fresh cold
 run only with the user's go-ahead. Not pushed.
+(Historical; Stage 14 was ACCEPTED at `2c088fe`, recorded below.)
+
+## Stage 13e and Stage 14 accepted; Stage 14b implemented, pending verification (2026-11-02)
+
+Stage 13e was ACCEPTED at `194ba653b0abd9712bc750eaf2d6aada594a61c3`
+(tester: backend 3003 passed, vitest 80, e2e 4, concurrency test 5/5;
+reviewer ACCEPT with an offline cold simulation, no blocker). Stage 14 is
+ACCEPTED at `2c088fe1af349cb4a93502fe10a5ba8769ef9183` (tester: lint rc 0,
+backend 3042 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep;
+reviewer ACCEPT with nits, no P0–P2; replay cold-27 PASS 95.0, warm-28 FAIL
+95.0 unchanged, warm-29b PASS 95.0, cold-30 PASS 97.5).
+
+Stage 14b (`9664efe5b14c410984e452e339b7c245db480e14`, local only, prompts
+and tests): Boundary Review, Global Review and Global Audit call interior
+audibility/lag/network/playback trouble `material_interruption` (padding
+flags may be added alongside, never instead); Risk Discovery and Coverage
+Audit name `material_interruption` (or `topic_switch_inside`) for interior
+interruptions of a risk chain. Routing policy stays
+`quality-gate-risk-routing-v5`; gate semantics unchanged. Changed hashes
+(both Profiles): coverage_audit, risk_discovery, boundary_review,
+global_review, global_audit; unchanged: discovery, precision_audit,
+precision_confirmation, variant link. New integration test for a
+padding-only Discovery-flagged candidate (empty persisted set, validates
+like an unflagged candidate). Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 14b SHA, then cold-31
+(fresh cold run) only with the user's go-ahead. Not pushed.
