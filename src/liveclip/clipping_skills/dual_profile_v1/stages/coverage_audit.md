@@ -27,9 +27,11 @@ it with greetings, CTA, sales, waiting, device setup or another topic.
 
 Risk recall is an exception to publication-worthiness, not to cue or duration truth. When a continuous
 legal-duration claim chain contains medical/health/absolute/sensitivity risk, emit it even if unavoidable
-internal sales, greeting, device or topic interruptions mean it will later be `blocked`. Attach the
-corresponding quality flags and risk evidence; never omit the chain merely because it is unsuitable for
-automatic publication. Do not add unrelated material just to make a shorter risk statement reach the
+internal sales, greeting, device or topic interruptions mean it will later be `blocked`. Flag each
+interior interruption as `material_interruption` (or `topic_switch_inside` when another topic starts
+inside the chain) and attach the risk evidence; padding flags describe edge material only and may
+accompany, but never replace, the interior flag. Never omit the chain merely because it is unsuitable
+for automatic publication. Do not add unrelated material just to make a shorter risk statement reach the
 Profile minimum.
 
 Every new `candidate_id` must start with `audit_` and be unique from every ID listed in

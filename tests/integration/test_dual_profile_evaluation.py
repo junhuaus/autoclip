@@ -2490,6 +2490,92 @@ def test_audit_payload_persisted_flags_contain_only_structural_flags(
     assert flags == {"mini_lesson_lesson": expected, "mini_overlap": []}
 
 
+PADDING_ONLY_FLAGS = (
+    DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+    DualQualityFlag.SALES_OR_CTA_PADDING,
+    DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+)
+
+
+@pytest.mark.parametrize(
+    ("first_audit", "repair_audit"),
+    [
+        # Representative rule: the padding-flagged lesson represents its duplicate.
+        ("keep_lesson", "duplicate"),
+        # A blocked duplicate whose representative is the padding-flagged lesson.
+        ("blocked_dup", "duplicate"),
+        # Pair fallback keep order: both near-identical members stay retained.
+        ("distinct", "distinct"),
+    ],
+    ids=["representative", "blocked_duplicate", "pair_fallback"],
+)
+def test_padding_only_discovery_flags_validate_like_an_unflagged_candidate(
+    tmp_path: Path, first_audit: str, repair_audit: str
+) -> None:
+    """Stage 14b: a candidate whose only Discovery gated flags are padding
+    (Boundary Review cleared them without trimming) is not a persisted-flag
+    candidate: its persisted set is empty, so the duplicate-representative rule
+    and the near-identical pair fallback keep order treat it exactly like an
+    unflagged candidate. A structural flag on the same candidate changes the
+    outcome, so the comparison is discriminating."""
+
+    def observed(name: str, *, flag_lesson: bool, lesson_flags: tuple[DualQualityFlag, ...]):
+        providers, final = _overlap_run(
+            tmp_path,
+            name,
+            overlap_start=2,
+            first_audit=first_audit,
+            repair_audit=repair_audit,
+            flag_lesson=flag_lesson,
+            lesson_flags=lesson_flags,
+        )
+        payloads = [value for provider in providers for value in provider.audit_payloads]
+        persisted = {
+            cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+                "persisted_discovery_gated_flags"
+            ]
+            for entry in cast(list[dict[str, object]], payloads[0]["candidates"])
+        }
+        manifest = _manifest(tmp_path, name)
+        return {
+            "persisted": persisted,
+            "repairs": [value for provider in providers for value in provider.audit_repairs],
+            "fallbacks": manifest.audit_pair_fallbacks,
+            "representative_duplicates": manifest.persisted_flag_representative_duplicates,
+            "mini": final.profiles[ClipProfile.MINI_LESSON].model_dump(mode="json"),
+        }
+
+    padding = observed("padding", flag_lesson=True, lesson_flags=PADDING_ONLY_FLAGS)
+    unflagged = observed("unflagged", flag_lesson=False, lesson_flags=())
+    assert padding["persisted"] == {"mini_lesson_lesson": [], "mini_overlap": []}
+    assert padding["representative_duplicates"] == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 0,
+    }
+    assert padding == unflagged
+    mini = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "padding" / "final-validated.json").read_text(encoding="utf-8")
+    ).profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    for value in (*mini.selected, *mini.manual_review, *mini.blocked, *mini.rejected):
+        assert not set(PADDING_ONLY_FLAGS) & set(value.quality_flags)
+        assert not value.review_reason.startswith("Deterministic flag persistence: ")
+    if first_audit == "distinct":
+        # Unflagged keep order: equal spans, so the earlier start is kept.
+        (record,) = padding["fallbacks"]
+        assert (record.rule, record.blocked_candidate_id) == ("near_identical_pair", "mini_overlap")
+    else:
+        assert padding["repairs"] == [] and padding["fallbacks"] == ()
+
+    structural = observed(
+        "structural",
+        flag_lesson=True,
+        lesson_flags=(*PADDING_ONLY_FLAGS, DualQualityFlag.TOPIC_SWITCH_INSIDE),
+    )
+    assert structural["persisted"]["mini_lesson_lesson"] == ["topic_switch_inside"]
+    assert structural["mini"] != unflagged["mini"]
+
+
 def test_audit_may_not_keep_a_representative_that_persisted_flags_will_block(
     tmp_path: Path,
 ) -> None:
@@ -2864,18 +2950,20 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 # Stage 14 (user decision 2026-11-01) deliberately re-pinned them: the shared
 # main.md gained the microphone/demonstration rule and the padding-is-edge
 # definition, so every Discovery pass sees them (cold Discovery cache).
+# Stage 14b re-pinned coverage_audit (both Profiles) and risk_discovery: interior
+# interruptions are named `material_interruption`; padding flags stay edge-only.
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
         "c3b728702f3c25228c3cb74eac3385e62c98c3902a72138460e695ead301d00e"
     ),
     ("short_highlight", "coverage_audit"): (
-        "e98ed2f7be2b19a00bf780307f826428949bcf8992986dfd8ec3e2aa71590d11"
+        "09fcecd9dfbdbf7e99178a7be2c0a791cce9c98ec6c0de674c94407165fbfda5"
     ),
     ("mini_lesson", "discovery"): (
         "7500e47a912db6855186843d799c62c7c2935920c1b1b84c8f2e7382c54fc75b"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "edf10867041fe3b4e7bcf4eb1c9deb19056107048cbdfb4e3dbe7df3c6b4ea3a"
+        "407c2c9d68f0f722e9efd8974d2cd4aa5418f89fb9b151b80ba641903e50c994"
     ),
     ("mini_lesson", "precision_audit"): (
         "0377c54e8cc0e74fe0645d7192cd402d85129fdaa6e5e9fc29e9583e24f8b0aa"
@@ -2884,7 +2972,7 @@ FROZEN_DISCOVERY_PROMPT_HASHES = {
         "17eccbac257c129aa42979c008ec8ff83cc536ae2bfb0e38fa43b27b0a370024"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "bb219de4638dc917d986106327ff9ac2c845539a7ed15b798b3bc50b5d68a21e"
+        "7e9af46465b7b4319b00988ef7709e4e89aa68dec12263dcf536e9b9d25bab46"
     ),
 }
 
@@ -2990,7 +3078,12 @@ def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
             assert "asking or answering whether someone can hear" in value
             assert "brief explanation of their own equipment" in value
         assert "trouble playing back a recording are `device_or_waiting_padding`" in boundary
-        assert "and also `material_interruption` when they split a demonstration" in boundary
+        assert "`material_interruption` when they split a demonstration" not in boundary
+        assert (
+            "Inside the interval, between on-topic cues, the same content is "
+            "`material_interruption`; `device_or_waiting_padding` may be added alongside that "
+            "interior flag, never used instead of it" in boundary
+        )
         assert (
             "A reference to another video or post is setup when the kept interval defines and "
             "demonstrates its own method" in boundary

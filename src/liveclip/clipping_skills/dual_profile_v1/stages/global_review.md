@@ -54,11 +54,13 @@ recoverable even if it was coined earlier, including when it appears only in the
 it or extend the interval to its coinage. Flag a dependency only when the opening or the conclusion's
 instruction depends on a definition, sample, step or comparison half that the interval never presents.
 Audibility checks (asking or answering whether someone can hear), connection lag and network or playback
-trouble are padding (and an interruption when they split a demonstration), but a speaker's brief
-explanation of their own equipment or of how listeners hear better, attached to an immediate live
-example, is part of the demonstration. Trimming an edge never resolves a dependency the trimmed cue
-disclosed: a clip holding only the second half of a before/after comparison is context-dependent. The
-Profile minimum must be met by on-topic content, not by chat, calls to action, greetings or device talk.
+trouble are padding at an edge of the interval. Inside the interval, between on-topic cues, they are
+`material_interruption`; a padding flag may be added alongside that interior flag, never used instead
+of it. A speaker's brief explanation of their own equipment or of how listeners hear better, attached
+to an immediate live example, is part of the demonstration: neither padding nor an interruption.
+Trimming an edge never resolves a dependency the trimmed cue disclosed: a clip holding only the second
+half of a before/after comparison is context-dependent. The Profile minimum must be met by on-topic
+content, not by chat, calls to action, greetings or device talk.
 
 Python enforces the merged quality flags in two classes. Gated flags (Python forces `blocked`):
 `padded_with_irrelevant_content`, `sales_or_cta_padding`, `device_or_waiting_padding`,

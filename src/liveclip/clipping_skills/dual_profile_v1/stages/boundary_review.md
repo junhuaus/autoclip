@@ -65,10 +65,11 @@ silence, an ASR gap, a vocal demonstration, a self-correction or the speaker's b
 listening explanation attached to an immediate live example is not by itself an interruption.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
 asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
-lag, switching networks and trouble playing back a recording are `device_or_waiting_padding`, and also
-`material_interruption` when they split a demonstration. A speaker explaining how listeners can hear
-better is not an audibility check, and a voice that sticks, cracks or lags, described as part of the
-teaching, is not connection lag.
+lag, switching networks and trouble playing back a recording are `device_or_waiting_padding` at an edge
+of the interval. Inside the interval, between on-topic cues, the same content is `material_interruption`;
+`device_or_waiting_padding` may be added alongside that interior flag, never used instead of it. A
+speaker explaining how listeners can hear better is not an audibility check, and a voice that sticks,
+cracks or lags, described as part of the teaching, is not connection lag.
 
 Edge audit. Inspect the first and last cues of the interval separately. A topic announcement, a
 reference to another video, post or session, and a remark that the speaker is resuming, continuing “as I

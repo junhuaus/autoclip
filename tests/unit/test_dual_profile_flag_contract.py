@@ -97,6 +97,53 @@ def test_every_discovery_pass_and_boundary_review_share_the_padding_and_demo_rul
     )
 
 
+INTERIOR_PADDING_RULE = {
+    "boundary_review": (
+        "are `device_or_waiting_padding` at an edge of the interval. Inside the interval, between "
+        "on-topic cues, the same content is `material_interruption`; `device_or_waiting_padding` "
+        "may be added alongside that interior flag, never used instead of it."
+    ),
+    "global_review": (
+        "are padding at an edge of the interval. Inside the interval, between on-topic cues, they "
+        "are `material_interruption`; a padding flag may be added alongside that interior flag, "
+        "never used instead of it."
+    ),
+    "global_audit": (
+        "at an edge they are padding; inside the interval, between on-topic cues, they are "
+        "`material_interruption`, and a padding flag may be added alongside that interior flag, "
+        "never used instead of it;"
+    ),
+    "risk_discovery": (
+        "flag each interior interruption as `material_interruption` (or `topic_switch_inside` "
+        "when another topic starts inside the chain)"
+    ),
+    "coverage_audit": (
+        "Flag each interior interruption as `material_interruption` (or `topic_switch_inside` "
+        "when another topic starts inside the chain)"
+    ),
+}
+
+
+@pytest.mark.parametrize("stage", sorted(INTERIOR_PADDING_RULE))
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges(
+    stage: str, profile: ClipProfile
+) -> None:
+    """Stage 14b: aligned with main.md, interior audibility/device trouble and
+    interior sales/device interruptions are `material_interruption`; padding
+    flags describe edge material only and may accompany, never replace it."""
+
+    text = _text(stage, profile)
+    assert INTERIOR_PADDING_RULE[stage] in text
+    # The superseded wording made interior trouble padding first.
+    assert "are padding (and an interruption when they split" not in text
+    assert "`material_interruption` when they split a demonstration" not in text
+    assert "attach the corresponding quality flags" not in text.lower()
+    if stage in {"risk_discovery", "coverage_audit"}:
+        assert "padding flags describe edge material only" in text.lower()
+        assert "never replace" in text
+
+
 @pytest.mark.parametrize("stage", ["global_review", "global_audit"])
 @pytest.mark.parametrize("profile", list(ClipProfile))
 def test_review_prompts_state_that_only_structural_discovery_flags_persist(

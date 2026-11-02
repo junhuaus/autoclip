@@ -10,8 +10,10 @@ Start at the question, premise or enumeration that defines the risky claim. Incl
 speaker analyzes and the final diagnosis, treatment, correction, guarantee, percentage or causal
 conclusion. A later single diagnosis is incomplete when the speaker introduced multiple conditions. If
 unavoidable greetings, sales, device handling or topic interruptions occur inside the continuous chain,
-preserve the candidate and attach the corresponding quality flags so Global Review can route it to
-`blocked`; risk must not disappear merely because the interval cannot auto-publish.
+preserve the candidate and flag each interior interruption as `material_interruption` (or
+`topic_switch_inside` when another topic starts inside the chain) so Global Review can route it to
+`blocked`. Padding flags describe edge material only: they may accompany an interior flag but never
+replace it. Risk must not disappear merely because the interval cannot auto-publish.
 
 The earliest rhetorical question can define the parent claim even when a brief greeting or audience
 acknowledgement appears between that question and the category count. Preserve that question as the

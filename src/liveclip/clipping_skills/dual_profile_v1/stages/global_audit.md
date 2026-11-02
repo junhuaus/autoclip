@@ -56,11 +56,12 @@ Pay special attention to:
   conclusion's instruction depends on a definition, sample, step or comparison half that the interval
   never presents;
 - audibility checks (asking or answering whether someone can hear), connection lag, or network or
-  playback trouble left inside a kept interval: they are padding (and an interruption when they split a
-  demonstration), while a speaker's brief explanation of their own equipment or of how listeners hear
-  better, attached to an immediate live example, is part of the demonstration; trimming an edge never
-  resolves a dependency the trimmed cue disclosed; a clip holding only the second half of a
-  before/after comparison is context-dependent;
+  playback trouble left in a kept interval: at an edge they are padding; inside the interval, between
+  on-topic cues, they are `material_interruption`, and a padding flag may be added alongside that
+  interior flag, never used instead of it; a speaker's brief explanation of their own equipment or of
+  how listeners hear better, attached to an immediate live example, is part of the demonstration,
+  neither padding nor an interruption; trimming an edge never resolves a dependency the trimmed cue
+  disclosed; a clip holding only the second half of a before/after comparison is context-dependent;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
 - risk chains whose opening question/category count or final qualification was trimmed;
 - coherent lessons overblocked because a lyric, song name or isolated term is mistranscribed even though
