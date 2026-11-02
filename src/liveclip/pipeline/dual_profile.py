@@ -1275,7 +1275,7 @@ class AuditPairRuleError(ValueError):
     def __init__(self, violations: tuple[AuditPairViolation, ...]) -> None:
         self.violations = violations
         messages = []
-        for value in violations[:20]:
+        for value in violations:
             pair = f"{value.outer_candidate_id}/{value.inner_candidate_id}"
             if value.rule == AuditPairRule.NEAR_IDENTICAL_PAIR:
                 messages.append(
@@ -1284,16 +1284,17 @@ class AuditPairRuleError(ValueError):
                 )
             elif value.rule == AuditPairRule.OVERLAP_REPRESENTATIVE:
                 messages.append(
-                    f"Global Audit overlap duplicate {pair} must keep a selected or "
-                    "manual_review representative"
+                    f"Global Audit overlap duplicate {pair}: duplicate "
+                    f"{value.duplicate_candidate_id} must keep a selected or manual_review "
+                    "representative"
                 )
             else:
                 messages.append(
-                    f"Global Audit duplicate {pair} resolves to a representative with "
-                    "persisted Discovery gated flags, which Python will block; choose a "
-                    "representative without persisted flags"
+                    f"Global Audit duplicate {pair}: duplicate {value.duplicate_candidate_id} "
+                    "resolves to a representative with persisted Discovery gated flags, "
+                    "which Python will block; choose a representative without persisted flags"
                 )
-        super().__init__("; ".join(messages))
+        super().__init__(_join_errors(messages))
 
     @property
     def near_identical(self) -> tuple[AuditPairViolation, ...]:
@@ -1522,19 +1523,23 @@ def validate_nested_pair_decisions(
     seen: set[frozenset[str]] = set()
     review_map = {value.candidate_id: value for value in merged_review.reviews}
     non_retained = {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
+    errors: list[str] = []
 
     def representative(candidate_id: str) -> str | None:
         return _duplicate_representative(candidate_id, review_map)
 
     for decision in decisions:
         key = frozenset((decision.outer_candidate_id, decision.inner_candidate_id))
+        pair_text = f"{decision.outer_candidate_id}/{decision.inner_candidate_id}"
         if key not in expected:
-            raise ValueError(
+            errors.append(
                 "Global Audit nested_pair_decisions references a pair that was not listed: "
-                f"{decision.outer_candidate_id}/{decision.inner_candidate_id}"
+                f"{pair_text}"
             )
+            continue
         if key in seen:
-            raise ValueError("Global Audit decided a nested pair more than once")
+            errors.append(f"Global Audit decided pair {pair_text} more than once")
+            continue
         seen.add(key)
         first, second = (
             review_map[decision.outer_candidate_id],
@@ -1560,22 +1565,88 @@ def validate_nested_pair_decisions(
             if not shares_representative and not any(
                 value.review_status in non_retained for value in references
             ):
-                raise ValueError(
-                    "Global Audit nested duplicate must leave one candidate rejected or "
-                    "blocked with duplicate_of_candidate_id referencing the other, or both "
-                    "rejected or blocked as duplicates of the same representative"
+                errors.append(
+                    f"Global Audit pair {pair_text} is decided duplicate, but "
+                    f"{_review_state(first)} and {_review_state(second)}; a duplicate "
+                    "decision needs one member rejected or blocked with "
+                    "duplicate_of_candidate_id naming the other, or both rejected or blocked "
+                    "as duplicates of the same representative"
+                    f"{_DUPLICATE_STATUS_NOTE}"
                 )
         elif references:
-            raise ValueError(
-                "Global Audit marked a nested pair distinct_objective but one candidate "
-                "still references the other as its duplicate"
+            errors.extend(
+                f"Global Audit marked pair {pair_text} distinct_objective, but "
+                f"{_review_state(value)}; a distinct_objective pair may not reference each "
+                "other as duplicates"
+                for value in references
             )
     missing = sorted("/".join(expected[key]) for key in set(expected) - seen)
     if missing:
-        raise ValueError(
+        errors.append(
             "Global Audit nested_pair_decisions must cover every listed nested pair: "
             + ", ".join(missing[:20])
         )
+    if errors:
+        raise ValueError(_join_errors(errors))
+
+
+# Stage 13d: the pair validator accepts rejected or blocked duplicates; this note
+# keeps its message exact about what final assembly accepts.
+_DUPLICATE_STATUS_NOTE: Final = " (final assembly accepts blocked only for risk_discovery records)"
+_MAX_REPORTED_ERRORS: Final = 20
+
+
+def _review_state(item: GlobalReviewItem) -> str:
+    reference = (
+        f"duplicate_of {item.duplicate_of_candidate_id}"
+        if item.duplicate_of_candidate_id is not None
+        else "no duplicate_of"
+    )
+    return f"{item.candidate_id} is {item.review_status.value} with {reference}"
+
+
+def _join_errors(errors: Sequence[str]) -> str:
+    """One message with every violation (bounded), so a repair can fix them all."""
+
+    shown = list(errors[:_MAX_REPORTED_ERRORS])
+    if len(errors) > _MAX_REPORTED_ERRORS:
+        shown.append(f"and {len(errors) - _MAX_REPORTED_ERRORS} more violations")
+    return "; ".join(shown)
+
+
+def duplicate_status_violation(
+    candidate_id: str,
+    status: CandidateDisposition,
+    duplicate_of: str,
+    *,
+    risk_record: bool,
+) -> str | None:
+    """Final-assembly rule for a row with ``duplicate_of_candidate_id``.
+
+    A duplicate is never an output. Returns ``None`` when ``status`` is allowed,
+    otherwise a message naming the candidate, its status, the duplicate target
+    and the allowed statuses.
+    """
+
+    allowed = (
+        (CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED)
+        if risk_record
+        else (CandidateDisposition.REJECTED,)
+    )
+    if status in allowed:
+        return None
+    state = f"duplicate {candidate_id} (status {status.value}, duplicate_of {duplicate_of})"
+    allowed_text = " or ".join(value.value for value in allowed)
+    if status in {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}:
+        return (
+            f"{state} is still an output: a candidate with duplicate_of_candidate_id must "
+            f"be {allowed_text}, never selected or manual_review (make it non-output, or "
+            "remove the reference if it is not a duplicate)"
+        )
+    return (
+        f"{state} must be {allowed_text}: blocked duplicates are accepted only for "
+        "risk_discovery records"
+    )
 
 
 def assemble_final_profile_result(
@@ -1623,32 +1694,41 @@ def assemble_final_profile_result(
         raise ValueError("review stage repeats a candidate")
     cue_map = {value.cue_id: value for value in transcript_cues(transcript)}
     final_values: list[FinalProfileCandidate] = []
+    # Stage 13d: row-level rule violations are collected and reported together,
+    # each naming its candidate, so one repair can fix every row.
+    row_errors: list[str] = []
     for candidate_id, raw in raw_map.items():
         boundary = boundary_map[candidate_id]
         review = review_map[candidate_id]
         if boundary.profile != profile or review.profile != profile:
-            raise ValueError("review candidate crossed Profile boundaries")
+            raise ValueError(f"review candidate {candidate_id} crossed Profile boundaries")
         if (review.start_cue_id, review.end_cue_id) != (
             boundary.start_cue_id,
             boundary.end_cue_id,
         ):
-            raise ValueError("Global Review changed the final Boundary interval")
+            raise ValueError(f"Global Review changed the final Boundary interval of {candidate_id}")
         try:
             start_ms = cue_map[review.start_cue_id].start_ms
             end_ms = cue_map[review.end_cue_id].end_ms
         except KeyError as exc:
-            raise ValueError("review references an unknown cue") from exc
+            raise ValueError(f"review of {candidate_id} references an unknown cue") from exc
+        errors_before = len(row_errors)
         if review.duplicate_of_candidate_id is not None:
             representative = raw_map.get(review.duplicate_of_candidate_id)
             if representative is None or representative.profile != profile:
-                raise ValueError("semantic duplicate must reference the same Profile")
-            allowed_duplicate_statuses = (
-                {CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED}
-                if candidate_id in risk_records
-                else {CandidateDisposition.REJECTED}
+                row_errors.append(
+                    f"duplicate {candidate_id} references {review.duplicate_of_candidate_id}, "
+                    f"which is not a {profile.value} candidate of this review; a semantic "
+                    "duplicate must reference the same Profile"
+                )
+            status_error = duplicate_status_violation(
+                candidate_id,
+                review.review_status,
+                review.duplicate_of_candidate_id,
+                risk_record=candidate_id in risk_records,
             )
-            if review.review_status not in allowed_duplicate_statuses:
-                raise ValueError("duplicate candidate must be retained as a rejected audit row")
+            if status_error is not None:
+                row_errors.append(status_error)
         merged_quality = tuple(dict.fromkeys((*boundary.quality_flags, *review.quality_flags)))
         merged_risks = tuple(
             dict.fromkeys((*raw.risk_tags, *boundary.risk_tags, *review.risk_tags))
@@ -1656,18 +1736,35 @@ def assemble_final_profile_result(
         status = review.review_status
         if status == CandidateDisposition.SELECTED:
             if review.score <= score_threshold_exclusive:
-                raise ValueError("selected candidate does not exceed the score threshold")
-            if set(merged_quality) & AUTO_BLOCKING_QUALITY_FLAGS:
-                raise ValueError("selected candidate has a blocking quality flag")
-            if set(merged_risks) & AUTO_BLOCKING_RISK_TAGS:
-                raise ValueError("selected candidate has a manual/blocking risk")
+                row_errors.append(
+                    f"selected candidate {candidate_id} does not exceed the score threshold "
+                    f"({review.score:g} <= {score_threshold_exclusive:g})"
+                )
+            blocking_flags = [
+                flag.value for flag in merged_quality if flag in AUTO_BLOCKING_QUALITY_FLAGS
+            ]
+            if blocking_flags:
+                row_errors.append(
+                    f"selected candidate {candidate_id} has a blocking quality flag "
+                    f"({', '.join(blocking_flags)})"
+                )
+            blocking_risks = [tag.value for tag in merged_risks if tag in AUTO_BLOCKING_RISK_TAGS]
+            if blocking_risks:
+                row_errors.append(
+                    f"selected candidate {candidate_id} has a manual/blocking risk "
+                    f"({', '.join(blocking_risks)})"
+                )
             if not (
                 boundary.opening_complete
                 and boundary.ending_complete
                 and boundary.central_objective_complete
                 and boundary.shortest_complete_boundary
             ):
-                raise ValueError("selected candidate failed deterministic boundary facts")
+                row_errors.append(
+                    f"selected candidate {candidate_id} failed deterministic boundary facts"
+                )
+        if len(row_errors) != errors_before:
+            continue
         persisted = discovery_persisted_flags(raw, boundary, merged_quality)
         review_reason = review.review_reason
         if persisted and status in {
@@ -1714,6 +1811,8 @@ def assemble_final_profile_result(
                 review_reason=review_reason,
             )
         )
+    if row_errors:
+        raise ValueError(_join_errors(row_errors))
     # Same interval -> same gated flags.  Candidates with an identical final
     # interval describe the same continuous media, so a gated quality flag found
     # on any of them applies to all of them, whatever their status.  This
@@ -1989,6 +2088,7 @@ __all__ = [
     "boundary_shrank_interval",
     "candidate_spans_ms",
     "discovery_persisted_flags",
+    "duplicate_status_violation",
     "nested_candidate_pairs",
     "plan_audit_pair_fallback",
     "plan_profile_discovery_windows",

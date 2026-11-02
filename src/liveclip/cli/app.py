@@ -90,6 +90,7 @@ from liveclip.services.dual_profile_delivery import (
     export_dual_profile_review_package,
 )
 from liveclip.services.dual_profile_evaluation import (
+    DualProfileValidationExhaustedError,
     configured_dual_profile_provider_factory,
     render_dual_profile_candidates,
     run_dual_profile_evaluation,
@@ -1320,6 +1321,11 @@ def dual_profile_eval(
             discovery_concurrency=discovery_concurrency,
             refresh_stale_cache=refresh_stale_cache,
         )
+    except DualProfileValidationExhaustedError as exc:
+        # The full message can exceed the generic 500-character limit; print a
+        # bounded summary that names the failing unit and its evidence file.
+        typer.echo(_safe_cli_error(ValueError(exc.summary())), err=True)
+        raise typer.Exit(code=1) from exc
     except (ValidationError, ValueError, RuntimeError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
         raise typer.Exit(code=1) from exc

@@ -18,6 +18,10 @@ from liveclip.pipeline.dual_profile import (
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     DualQualityFlag,
 )
+from liveclip.services.dual_profile_evaluation import (
+    DualProfileValidationAttempt,
+    DualProfileValidationExhaustedError,
+)
 
 GATED_LABEL = "Gated flags (Python forces `blocked`):"
 ADVISORY_LABEL = "Advisory flags (Python only forbids `selected`):"
@@ -108,3 +112,49 @@ def test_dual_profile_eval_cli_stale_cache_refresh_is_opt_in(
     )
     assert result.exit_code == 0, result.output
     assert captured["refresh_stale_cache"] is expected
+
+
+def test_dual_profile_eval_cli_exits_nonzero_with_a_bounded_failure_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 13d: an exhausted validation names its unit and evidence file."""
+
+    long_error = "; ".join(f"duplicate cand_{index} (status blocked)" for index in range(40))
+    error = DualProfileValidationExhaustedError(
+        stage="global_audit",
+        profile="short_highlight",
+        subject_id="short_highlight.global_audit",
+        cache_key="a" * 64,
+        attempts=(DualProfileValidationAttempt(phase="initial", output={}, error=long_error),),
+        records=(),
+        final_error=ValueError(long_error),
+    )
+    error.evidence_file = str(tmp_path / "output" / error.failure_file_name)
+
+    def fake_run(**_kwargs: object) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(cli_module, "get_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        cli_module, "configured_dual_profile_provider_factory", lambda _settings: None
+    )
+    monkeypatch.setattr(cli_module, "run_dual_profile_evaluation", fake_run)
+    result = CliRunner().invoke(
+        cli_module.app,
+        [
+            "dual-profile-eval",
+            "--transcript",
+            str(tmp_path / "transcript.srt"),
+            "--output",
+            str(tmp_path / "output"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert len(str(error)) > 500
+    assert (
+        "dual Profile validation exhausted after one repair and one regeneration in "
+        "short_highlight global_audit (short_highlight.global_audit); evidence: "
+    ) in result.output
+    assert "failed-short_highlight-global_audit.json; last error: duplicate cand_0" in (
+        result.output
+    )

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
+from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event, Lock
@@ -109,10 +111,96 @@ class _ResolvedCall:
     repair_count: int
 
 
+_SUMMARY_LIMIT = 480
+
+
+@dataclass(frozen=True, slots=True)
+class DualProfileValidationAttempt:
+    """One structured output that failed deterministic validation.
+
+    ``phase`` is ``initial`` (the first generation), ``stale_cache`` (a cached
+    output re-validated under ``--refresh-stale-cache``), ``repair`` or
+    ``regeneration``. ``output`` is the provider's parsed structured output; the
+    provider already drops any output that contains the account identity.
+    """
+
+    phase: str
+    output: Mapping[str, object]
+    error: str
+
+
+class DualProfileValidationExhaustedError(ValueError):
+    """Deterministic validation still failed after one repair and one regeneration.
+
+    Carries every failed attempt and the provider call records of the failing
+    unit, so the run can write failure evidence to its run directory (never to the
+    cache) before the error propagates.
+    """
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        profile: str,
+        subject_id: str,
+        cache_key: str,
+        attempts: Sequence[DualProfileValidationAttempt],
+        records: Sequence[ProviderCallRecord],
+        final_error: ValueError,
+    ) -> None:
+        self.stage = stage
+        self.profile = profile
+        self.subject_id = subject_id
+        self.cache_key = cache_key
+        self.attempts = tuple(attempts)
+        self.records = tuple(records)
+        self.final_error = final_error
+        self.evidence_file: str | None = None
+        super().__init__(
+            "deterministic validation still failed after one repair and one "
+            f"regeneration: {final_error}"
+        )
+
+    @property
+    def failure_file_name(self) -> str:
+        return f"failed-{self.profile}-{self.stage}.json"
+
+    def summary(self) -> str:
+        """Bounded one-line summary for the CLI (the full error may be long)."""
+
+        evidence = f"; evidence: {self.evidence_file}" if self.evidence_file else ""
+        head = (
+            "dual Profile validation exhausted after one repair and one regeneration "
+            f"in {self.profile} {self.stage} ({self.subject_id}){evidence}"
+        )
+        # The CLI prints at most 500 characters; keep the excerpt inside that.
+        budget = min(240, _SUMMARY_LIMIT - len(head) - len("; last error: "))
+        if budget < 40:
+            return head
+        last = " ".join(str(self.final_error).split())
+        if len(last) > budget:
+            last = f"{last[: budget - 3]}..."
+        return f"{head}; last error: {last}"
+
+
 def configured_dual_profile_provider_factory(
     settings: Settings,
 ) -> DualProfileProviderFactory:
     return configured_structured_editorial_provider_factory(settings)
+
+
+@dataclass
+class _RunProgress:
+    """What a run has done so far, shared with the wrapper that writes failure evidence."""
+
+    resolution_audit: _ResolutionAudit
+    requested_profiles: tuple[ClipProfile, ...] = ()
+    output_dir_created: bool = False
+    source_hash: str = ""
+    provider_name: str = ""
+    model_name: str = ""
+    prompt_files: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    prompt_hashes: dict[str, str] = field(default_factory=dict)
 
 
 def run_dual_profile_evaluation(
@@ -131,24 +219,77 @@ def run_dual_profile_evaluation(
     ``refresh_stale_cache`` is off by default: a cached output that fails current
     validation then fails the run closed. When explicitly enabled, such an entry is
     repaired under a superseding key and recorded in the run manifest.
+
+    When a unit's validation is exhausted after one repair and one regeneration
+    (Stage 13d), the failed attempts, a partial ``provider-calls.json`` and a
+    ``failure-manifest.json`` are written to ``output_dir`` (never to the cache) and
+    the ``DualProfileValidationExhaustedError`` is re-raised.
     """
 
+    started = time.monotonic()
+    progress = _RunProgress(
+        resolution_audit=_ResolutionAudit(refresh_stale_cache=refresh_stale_cache)
+    )
+    try:
+        return _run_dual_profile_evaluation(
+            transcript_path=transcript_path,
+            output_dir=output_dir,
+            provider_factory=provider_factory,
+            config=config,
+            cache_dir=cache_dir,
+            discovery_concurrency=discovery_concurrency,
+            cancel_requested=cancel_requested,
+            refresh_stale_cache=refresh_stale_cache,
+            progress=progress,
+            started=started,
+        )
+    except DualProfileValidationExhaustedError as error:
+        if progress.output_dir_created:
+            try:
+                _write_validation_failure(
+                    output_dir,
+                    error,
+                    progress,
+                    refresh_stale_cache=refresh_stale_cache,
+                    elapsed_ms=round((time.monotonic() - started) * 1_000),
+                )
+            except (OSError, ValueError) as write_error:
+                # Never mask the validation failure with an evidence-writing failure.
+                error.add_note(f"failure evidence could not be written: {write_error}")
+        raise
+
+
+def _run_dual_profile_evaluation(
+    *,
+    transcript_path: Path,
+    output_dir: Path,
+    provider_factory: DualProfileProviderFactory,
+    config: DualProfileRunConfig | None,
+    cache_dir: Path | None,
+    discovery_concurrency: int,
+    cancel_requested: Callable[[], bool],
+    refresh_stale_cache: bool,
+    progress: _RunProgress,
+    started: float,
+) -> dict[str, object]:
     if not 1 <= discovery_concurrency <= 8:
         raise ValueError("Discovery concurrency must be between one and eight")
-    started = time.monotonic()
     resolved = config or DualProfileRunConfig()
+    progress.requested_profiles = resolved.requested_profiles
     transcript = load_srt_transcript(transcript_path)
     source_hash, _ = hash_regular_file_no_follow(transcript_path)
     create_directory_exclusive_no_follow(output_dir)
+    progress.output_dir_created = True
+    progress.source_hash = source_hash
     if cache_dir is not None:
         ensure_directory_no_follow(cache_dir)
     calls: list[ProviderCallRecord] = []
     cache_hits = 0
     retry_count = 0
     repair_count = 0
-    resolution_audit = _ResolutionAudit(refresh_stale_cache=refresh_stale_cache)
-    prompt_files: dict[str, tuple[str, ...]] = {}
-    prompt_hashes: dict[str, str] = {}
+    resolution_audit = progress.resolution_audit
+    prompt_files = progress.prompt_files
+    prompt_hashes = progress.prompt_hashes
     stage_counts = {
         "discovery": 0,
         "boundary_review": 0,
@@ -170,6 +311,8 @@ def run_dual_profile_evaluation(
         discovery_provider = provider_factory(discovery_prompt, "medium")
         provider_name = discovery_provider.provider_name
         model_name = discovery_provider.model_name
+        progress.provider_name = provider_name
+        progress.model_name = model_name
         prompt_files[f"{profile.value}.discovery"] = discovery_prompt.loaded_files
         prompt_hashes[f"{profile.value}.discovery"] = discovery_prompt.sha256
         windows = plan_profile_discovery_windows(transcript, profile)
@@ -1428,6 +1571,29 @@ class _ResolutionAudit:
         self._stale: list[StaleCacheResolution] = []
         self._fallbacks: list[BoundaryOpeningFallback] = []
         self._audit_fallbacks: list[AuditPairFallback] = []
+        # Stage 13d: every resolved unit, so a failed run can write partial
+        # provider-call evidence (completed units only; the failing unit's records
+        # travel on its DualProfileValidationExhaustedError).
+        self._records: list[ProviderCallRecord] = []
+        self._resolved: Counter[tuple[str, str]] = Counter()
+
+    def record_resolved(self, stage: str, resolved: _ResolvedCall) -> None:
+        with self._lock:
+            self._records.extend(resolved.records)
+            self._resolved[(stage, "cache_hit" if resolved.cache_hit else "new")] += 1
+            self._resolved[(stage, "retry")] += resolved.retry_count
+            self._resolved[(stage, "repair")] += resolved.repair_count
+
+    def completed_records(self) -> tuple[ProviderCallRecord, ...]:
+        with self._lock:
+            return tuple(self._records)
+
+    def resolved_counts(self) -> dict[str, dict[str, int]]:
+        with self._lock:
+            counts: dict[str, dict[str, int]] = {}
+            for (stage, kind), value in sorted(self._resolved.items()):
+                counts.setdefault(stage, {})[kind] = value
+            return counts
 
     def record_stale(
         self,
@@ -1823,13 +1989,15 @@ def _resolve_call(
                 raw[_FALLBACK_MARKER_FIELD], stage, output, validate, conservative_fallback
             )
             resolution_audit.record_fallbacks(hit_records)
-            return _ResolvedCall(
+            marked_hit = _ResolvedCall(
                 output=fixed_hit,
                 records=(),
                 cache_hit=True,
                 retry_count=0,
                 repair_count=0,
             )
+            resolution_audit.record_resolved(stage, marked_hit)
+            return marked_hit
         try:
             validate(output)
         except ValueError as stale_error:
@@ -1851,13 +2019,15 @@ def _resolve_call(
             key, cache_path = cache_location(cache_settings)
             pending_link = (stale_key, key, str(stale_error))
             continue
-        return _ResolvedCall(
+        plain_hit = _ResolvedCall(
             output=output,
             records=(),
             cache_hit=True,
             retry_count=0,
             repair_count=0,
         )
+        resolution_audit.record_resolved(stage, plain_hit)
+        return plain_hit
     else:
         raise ValueError("dual Profile cache has too many superseded entries")
     semantic_retry_count = 0
@@ -1869,8 +2039,10 @@ def _resolve_call(
     fallback_marker: dict[str, object] | None = None
     first_output: OutputModel
     first_error: ValueError | None
+    first_phase = "initial"
     if stale is not None:
         first_output, first_error = stale
+        first_phase = "stale_cache"
     else:
         result = _generate_with_semantic_retry(
             provider=provider,
@@ -1939,9 +2111,22 @@ def _resolve_call(
                     final_error,
                 )
                 if rescued is None:
-                    raise ValueError(
-                        "deterministic validation still failed after one repair and one "
-                        f"regeneration: {final_error}"
+                    # Stage 13d: keep every failed attempt for the run directory; the
+                    # cache is never written for a failed unit.
+                    raise DualProfileValidationExhaustedError(
+                        stage=stage,
+                        profile=profile_value,
+                        subject_id=subject_id,
+                        cache_key=key,
+                        attempts=(
+                            _failed_attempt(first_phase, first_output, first_error),
+                            _failed_attempt("repair", repaired_result.output, repaired_error),
+                            _failed_attempt(
+                                "regeneration", validation_retry_result.output, final_error
+                            ),
+                        ),
+                        records=records,
+                        final_error=final_error,
                     ) from final_error
                 output, fallback_ids, fallback_records = rescued
                 cached_output = validation_retry_result.output
@@ -1982,12 +2167,22 @@ def _resolve_call(
                 raise ValueError(
                     "dual Profile cache publication raced with different bytes"
                 ) from exc
-    return _ResolvedCall(
+    resolved = _ResolvedCall(
         output=output,
         records=tuple(records),
         cache_hit=False,
         retry_count=semantic_retry_count,
         repair_count=resolved_repair_count,
+    )
+    resolution_audit.record_resolved(stage, resolved)
+    return resolved
+
+
+def _failed_attempt(
+    phase: str, output: BaseModel, error: ValueError
+) -> DualProfileValidationAttempt:
+    return DualProfileValidationAttempt(
+        phase=phase, output=output.model_dump(mode="json"), error=str(error)
     )
 
 
@@ -2132,6 +2327,102 @@ def _call_metadata(value: ProviderCallRecord) -> dict[str, object]:
     }
 
 
+_FAILURE_NAME_PART = re.compile(r"^[a-z_]+$")
+
+
+def _write_validation_failure(
+    output_dir: Path,
+    error: DualProfileValidationExhaustedError,
+    progress: _RunProgress,
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> None:
+    """Write Stage 13d failure evidence to the run directory only.
+
+    Order: the failed unit's attempts, the partial provider-call records (completed
+    units plus the failing unit), then the failure manifest last. Nothing is written
+    to the cache and no credential or account identity is included: outputs are the
+    provider's parsed structured outputs (which already drop any output carrying the
+    account identity) and call records use the same durable metadata as
+    ``provider-calls.json`` on success.
+    """
+
+    if not (
+        _FAILURE_NAME_PART.fullmatch(error.profile) and _FAILURE_NAME_PART.fullmatch(error.stage)
+    ):
+        raise ValueError("dual Profile failure evidence name is invalid")
+    audit = progress.resolution_audit
+    failing_calls = [_call_metadata(value) for value in error.records]
+    _write_json(
+        output_dir / error.failure_file_name,
+        {
+            "schema_version": "1",
+            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+            "status": "validation_exhausted",
+            "stage": error.stage,
+            "profile": error.profile,
+            "subject_id": error.subject_id,
+            "cache_key": error.cache_key,
+            "cache_written": False,
+            "attempts": [
+                {"phase": value.phase, "error": value.error, "output": dict(value.output)}
+                for value in error.attempts
+            ],
+            "final_error": str(error.final_error),
+            "provider_calls": failing_calls,
+        },
+    )
+    completed = audit.completed_records()
+    all_calls = (*completed, *error.records)
+    _write_json(
+        output_dir / "provider-calls.json",
+        {
+            "schema_version": "1",
+            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+            "partial": True,
+            "calls": [_call_metadata(value) for value in all_calls],
+        },
+    )
+    _write_json(
+        output_dir / "failure-manifest.json",
+        {
+            "schema_version": "1",
+            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+            "status": "failed",
+            "failure_kind": "validation_exhausted",
+            "failure_file": error.failure_file_name,
+            "failed_stage": error.stage,
+            "failed_profile": error.profile,
+            "failed_subject_id": error.subject_id,
+            "source_hash": progress.source_hash,
+            "requested_profiles": [value.value for value in progress.requested_profiles],
+            "provider": progress.provider_name,
+            "model": progress.model_name,
+            "prompt_files": {key: list(value) for key, value in progress.prompt_files.items()},
+            "prompt_hashes": dict(progress.prompt_hashes),
+            "resolved_units": audit.resolved_counts(),
+            "provider_call_count": len(all_calls),
+            "input_tokens": _usage_total(all_calls, "input_tokens"),
+            "output_tokens": _usage_total(all_calls, "output_tokens"),
+            "latency_ms": sum(value.latency_ms for value in all_calls),
+            "elapsed_ms": elapsed_ms,
+            "stale_cache_refresh_enabled": refresh_stale_cache,
+            "stale_cache_resolutions": [
+                value.model_dump(mode="json") for value in audit.stale_resolutions()
+            ],
+            "boundary_opening_fallbacks": [
+                value.model_dump(mode="json") for value in audit.opening_fallbacks()
+            ],
+            "audit_pair_fallbacks": [
+                value.model_dump(mode="json") for value in audit.audit_fallbacks()
+            ],
+            "error": str(error)[:4_000],
+        },
+    )
+    error.evidence_file = str(output_dir / error.failure_file_name)
+
+
 def _write_json(path: Path, value: Mapping[str, object]) -> None:
     write_text_immutable_no_follow(
         path,
@@ -2142,6 +2433,8 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 __all__ = [
     "DualProfileProviderFactory",
+    "DualProfileValidationAttempt",
+    "DualProfileValidationExhaustedError",
     "configured_dual_profile_provider_factory",
     "render_dual_profile_candidates",
     "run_dual_profile_evaluation",

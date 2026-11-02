@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
@@ -37,7 +40,11 @@ from liveclip.pipeline.dual_profile import (
 from liveclip.providers.llm import claude_cli as claude_cli_module
 from liveclip.providers.llm.claude_cli import ClaudeCliStructuredLLMProvider
 from liveclip.providers.llm.structured import StructuredCallResult, StructuredProviderError
-from liveclip.services.dual_profile_evaluation import run_dual_profile_evaluation
+from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
+from liveclip.services.dual_profile_evaluation import (
+    DualProfileValidationExhaustedError,
+    run_dual_profile_evaluation,
+)
 
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
 
@@ -1382,6 +1389,126 @@ def test_opening_fallback_never_masks_another_validation_failure(tmp_path: Path)
             provider_factory=factory,
             discovery_concurrency=1,
         )
+
+
+class RecordingStubbornProvider(StubbornOpeningFlagProvider):
+    """Stubborn Boundary Review outputs plus one call record per request."""
+
+    def _with_record(
+        self, result: StructuredCallResult[OutputModel], subject_id: str, operation: str
+    ) -> StructuredCallResult[OutputModel]:
+        record = ProviderCallRecord(
+            call_id=uuid.uuid4().hex,
+            operation_key=hashlib.sha256(f"{operation}:{subject_id}".encode()).hexdigest(),
+            subject_id=subject_id,
+            provider="mock",
+            operation=operation,
+            model="mock-dual-v1",
+            request_count=1,
+            retry_count=0,
+            latency_ms=7,
+            usage_json={"input_tokens": 3, "output_tokens": 2},
+            status=ProviderCallStatus.SUCCEEDED,
+            called_at=datetime.now(UTC),
+        )
+        return StructuredCallResult(
+            output=result.output, call_records=(record,), repaired=result.repaired
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        return self._with_record(
+            super().generate(subject_id=subject_id, **kwargs), subject_id, "generate"
+        )
+
+    def repair(self, *, subject_id: str, **kwargs: Any) -> Any:
+        return self._with_record(
+            super().repair(subject_id=subject_id, **kwargs), subject_id, "repair"
+        )
+
+
+def test_exhausted_validation_writes_failure_evidence_to_the_run_dir_only(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d: the failed attempts, partial calls and a failure manifest survive."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingStubbornProvider(prompt, {}, also_break_evidence=True)
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    error = caught.value
+    assert isinstance(error, ValueError)
+    assert str(error).startswith(
+        "deterministic validation still failed after one repair and one regeneration: "
+    )
+    assert (error.profile, error.stage) == ("short_highlight", "boundary_review")
+    assert error.subject_id == "short_highlight.boundary.001"
+    assert [value.phase for value in error.attempts] == ["initial", "repair", "regeneration"]
+    assert error.evidence_file == str(output_dir / "failed-short_highlight-boundary_review.json")
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-boundary_review.json").read_text("utf-8")
+    )
+    assert failed["status"] == "validation_exhausted"
+    assert failed["cache_written"] is False
+    assert failed["subject_id"] == "short_highlight.boundary.001"
+    assert [value["phase"] for value in failed["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    for attempt in failed["attempts"]:
+        assert "evidence lies outside its final interval" in attempt["error"]
+        assert attempt["output"]["profile"] == "short_highlight"
+        assert attempt["output"]["reviews"]
+    assert [value["subject_id"] for value in failed["provider_calls"]] == [
+        "short_highlight.boundary.001",
+        "short_highlight.boundary.001",
+        "short_highlight.boundary.001.deterministic_retry_1",
+    ]
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Completed units first (every short Discovery-family call), then the failing unit.
+    assert subjects[-3:] == [value["subject_id"] for value in failed["provider_calls"]]
+    assert len(subjects) > 3
+    assert not any(".boundary." in subject for subject in subjects[:-3])
+
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_file"] == "failed-short_highlight-boundary_review.json"
+    assert (manifest["failed_profile"], manifest["failed_stage"]) == (
+        "short_highlight",
+        "boundary_review",
+    )
+    assert manifest["provider_call_count"] == len(subjects)
+    assert manifest["input_tokens"] == 3 * len(subjects)
+    assert "short_highlight.boundary_review" in manifest["prompt_hashes"]
+    assert manifest["resolved_units"]["discovery"]["new"] >= 1
+    assert "boundary_review" not in manifest["resolved_units"]
+    assert not (output_dir / "run-manifest.json").exists()
+    assert not (output_dir / "final-validated.json").exists()
+
+    # The cache holds only completed units: nothing for the failed stage and no
+    # failure evidence.
+    assert not list(cache.glob("short_highlight/boundary_review/*.json"))
+    for entry in cache.rglob("*.json"):
+        text = entry.read_text("utf-8")
+        assert "validation_exhausted" not in text
+        assert "deterministic_retry" not in text
 
 
 class NoCallProvider(ScriptedDualProvider):

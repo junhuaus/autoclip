@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
@@ -1155,15 +1156,63 @@ def test_blocked_duplicate_is_accepted_only_for_risk_pass_records() -> None:
     blocked = {value.candidate_id: value for value in result.blocked}
     assert blocked["pass_record_duplicate"].duplicate_of_candidate_id == "parent_lesson"
     assert blocked["pass_record_duplicate"].review_reason == "与父候选重复。"
-    with pytest.raises(ValueError, match="rejected audit row"):
+    # Stage 13d: the message names the candidate, its status, its target and the
+    # allowed statuses, and separates a wrong non-output status from an output.
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "duplicate pass_record_duplicate (status blocked, duplicate_of parent_lesson) "
+            "must be rejected: blocked duplicates are accepted only for risk_discovery records"
+        ),
+    ):
         _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=specs)
     for status in (CandidateDisposition.MANUAL_REVIEW, CandidateDisposition.SELECTED):
-        with pytest.raises(ValueError, match="rejected audit row"):
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                f"duplicate pass_record_duplicate (status {status.value}, duplicate_of "
+                "parent_lesson) is still an output: a candidate with "
+                "duplicate_of_candidate_id must be rejected or blocked, never selected or "
+                "manual_review"
+            ),
+        ):
             _assemble_pool(
                 profile=ClipProfile.MINI_LESSON,
                 specs=(_RISK_POOL[0], {**_RISK_POOL[1], "status": status, "score": 90}),
                 risk_record_ids=frozenset({"pass_record_duplicate"}),
             )
+
+
+def test_assembly_reports_every_row_violation_in_one_message() -> None:
+    """Stage 13d: one message names every violating row, so one repair fixes all."""
+
+    specs = (
+        _RISK_POOL[0],
+        {**_RISK_POOL[2], "status": CandidateDisposition.MANUAL_REVIEW},
+        {
+            "candidate_id": "low_selected",
+            "start_cue_id": 943,
+            "end_cue_id": 991,
+            "status": CandidateDisposition.SELECTED,
+            "score": 60,
+        },
+        {**_RISK_POOL[1], "status": CandidateDisposition.BLOCKED},
+    )
+    with pytest.raises(ValueError) as caught:
+        _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=specs)
+    message = str(caught.value)
+    assert (
+        "duplicate base_duplicate (status manual_review, duplicate_of parent_lesson) is "
+        "still an output" in message
+    )
+    assert "selected candidate low_selected does not exceed the score threshold (60 <= 75)" in (
+        message
+    )
+    assert (
+        "duplicate pass_record_duplicate (status blocked, duplicate_of parent_lesson) must "
+        "be rejected" in message
+    )
+    assert message.count("; ") == 2
 
 
 def test_risk_routing_never_upgrades_to_an_output() -> None:
@@ -1294,6 +1343,48 @@ def test_nested_pair_decisions_must_cover_each_pair_once_and_agree_with_status()
     )
     with pytest.raises(ValueError, match="distinct_objective"):
         validate_nested_pair_decisions(pairs, (distinct,), merged)
+
+
+def test_nested_pair_errors_name_members_and_are_reported_together() -> None:
+    """Stage 13d: every pair violation in one message, naming IDs and statuses."""
+
+    manual = CandidateDisposition.MANUAL_REVIEW
+    merged = _nested_pool(
+        _review_item("a_outer", 100, 160, manual),
+        _review_item("a_inner", 100, 140, manual),
+        _review_item("b_outer", 200, 260, CandidateDisposition.REJECTED, duplicate_of="b_inner"),
+        _review_item("b_inner", 200, 240, manual),
+        _review_item("c_outer", 300, 360, manual),
+        _review_item("c_inner", 300, 340, manual),
+    )
+    pairs = (("a_outer", "a_inner"), ("b_outer", "b_inner"), ("c_outer", "c_inner"))
+
+    def decision(pair: tuple[str, str], kind: NestedPairDecisionKind) -> NestedPairDecision:
+        return NestedPairDecision(
+            outer_candidate_id=pair[0], inner_candidate_id=pair[1], decision=kind, reason="理由。"
+        )
+
+    with pytest.raises(ValueError) as caught:
+        validate_nested_pair_decisions(
+            pairs,
+            (
+                decision(pairs[0], NestedPairDecisionKind.DUPLICATE),
+                decision(pairs[1], NestedPairDecisionKind.DISTINCT_OBJECTIVE),
+            ),
+            merged,
+        )
+    message = str(caught.value)
+    assert (
+        "Global Audit pair a_outer/a_inner is decided duplicate, but a_outer is manual_review "
+        "with no duplicate_of and a_inner is manual_review with no duplicate_of" in message
+    )
+    assert (
+        "Global Audit marked pair b_outer/b_inner distinct_objective, but b_outer is "
+        "rejected with duplicate_of b_inner" in message
+    )
+    assert "must cover every listed nested pair: c_outer/c_inner" in message
+    # The pair validator's text states exactly what final assembly accepts.
+    assert "final assembly accepts blocked only for risk_discovery records" in message
 
 
 def test_nested_duplicate_accepts_members_of_a_three_way_cluster_with_one_representative() -> None:
