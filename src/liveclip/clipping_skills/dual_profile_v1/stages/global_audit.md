@@ -105,15 +105,25 @@ containment, a shared edge or overlap alone never establishes duplication. Pytho
 applying your replacements, so also decide every pair your replacements create (for example by
 promoting a candidate).
 
-A pair whose precomputed `near_identical` field is true (Python sets it when the two end, or for a
-`containment` pair start, within the boundary tolerance, or share at least 90% of the shorter
-candidate) is nearly the same media: do not keep both `selected`/`manual_review`. Decide `duplicate`
+A pair whose precomputed `near_identical` field is true (Python sets it when the two end within the
+boundary tolerance, when an `overlap` pair shares at least 90% of the shorter candidate, or when the
+inner candidate of a `containment` pair lasts at least 90% of the outer one) is nearly the same media: do not keep both `selected`/`manual_review`. Decide `duplicate`
 and keep one representative, unless you reject or block a member on its own merits. When an `overlap`
 or `containment` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
 
 Each candidate's `persisted_discovery_gated_flags` lists gated flags that Python will keep in final
-routing, so a candidate with any of them will be blocked: never choose it as a duplicate
-representative or keep it as the retained member of a pair.
+routing, so a `selected` or `manual_review` candidate with any of them will be blocked: never choose it
+as a duplicate representative or keep it as the retained member of a pair.
+
+A candidate with `duplicate_of_candidate_id` must end `rejected` or `blocked`, never `selected` or
+`manual_review`; both are non-output. Python routing only downgrades: it blocks `selected` and
+`manual_review` candidates that carry gated or persisted flags and never changes a `rejected` row
+(except that a rejected `risk_discovery` candidate is kept as `blocked`), so flags never require a
+duplicate to be `blocked`. When both members of a listed pair carry
+`persisted_discovery_gated_flags`, neither can be the representative: decide `distinct_objective`
+without a duplicate reference, and Python blocks both (for a `near_identical` pair, set both to
+`blocked` yourself); or, when another candidate without persisted flags serves the same objective,
+mark both as duplicates of that representative.
 
 When overlapping or nested versions serve the same objective, keep the shortest independently complete
 version. Material that only one version adds beyond the shared objective (chat, waiting, equipment or
@@ -121,8 +131,7 @@ playback trouble, another topic) is a reason to reject that version as the dupli
 
 - `duplicate`: both serve the same central objective. Prefer the shortest independently complete
   candidate as the representative, and include replacement items so that the other one is `rejected`
-  (a `risk_discovery` candidate may instead be `blocked`) with `duplicate_of_candidate_id` naming the
-  representative.
+  or `blocked` with `duplicate_of_candidate_id` naming the representative.
   When both candidates of a listed pair are duplicates of the same third representative (for example
   in a cluster of three versions of one lesson), the pair is also `duplicate`: each may reference that
   shared representative instead of the other.

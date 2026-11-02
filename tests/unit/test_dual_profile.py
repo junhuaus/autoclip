@@ -19,10 +19,12 @@ from liveclip.pipeline.dual_profile import (
     DETERMINISTIC_REASON_PREFIXES,
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    DUPLICATE_ALLOWED_STATUSES,
     FLAG_PERSISTENCE_REASON_PREFIX,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     PROFILE_DURATION_CONTRACTS,
     AuditCandidatePair,
+    AuditPairFallback,
     AuditPairKind,
     AuditPairRule,
     AuditPairRuleError,
@@ -56,6 +58,7 @@ from liveclip.pipeline.dual_profile import (
     audit_candidate_pairs,
     boundary_shrank_interval,
     discovery_persisted_flags,
+    duplicate_status_violation,
     nested_candidate_pairs,
     plan_audit_pair_fallback,
     plan_profile_discovery_windows,
@@ -1143,44 +1146,48 @@ def test_risk_routing_is_inert_without_structural_risk_record_ids() -> None:
     }
 
 
-def test_blocked_duplicate_is_accepted_only_for_risk_pass_records() -> None:
+def test_blocked_duplicate_is_accepted_for_any_candidate_and_never_coerced() -> None:
+    """Stage 13d: a duplicate is rejected or blocked for any candidate (both are
+    non-output), matching the pair validator; a retained duplicate stays an error."""
+
     specs = (
         _RISK_POOL[0],
         {**_RISK_POOL[1], "status": CandidateDisposition.BLOCKED},
+        {**_RISK_POOL[2], "status": CandidateDisposition.BLOCKED},
     )
-    result = _assemble_pool(
-        profile=ClipProfile.MINI_LESSON,
-        specs=specs,
-        risk_record_ids=frozenset({"pass_record_duplicate"}),
+    for risk_ids in (frozenset({"pass_record_duplicate"}), frozenset()):
+        result = _assemble_pool(
+            profile=ClipProfile.MINI_LESSON, specs=specs, risk_record_ids=risk_ids
+        )
+        blocked = {value.candidate_id: value for value in result.blocked}
+        for candidate_id in ("pass_record_duplicate", "base_duplicate"):
+            # Kept exactly as the model wrote it: blocked, with its reference and
+            # its own reason (no Python prefix, nothing promoted).
+            assert blocked[candidate_id].duplicate_of_candidate_id == "parent_lesson"
+            assert blocked[candidate_id].review_reason == "与父候选重复。"
+        assert result.selected == () and result.manual_review == () and result.rejected == ()
+    for risk_ids in (frozenset({"pass_record_duplicate"}), frozenset()):
+        for status in (CandidateDisposition.MANUAL_REVIEW, CandidateDisposition.SELECTED):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"duplicate pass_record_duplicate (status {status.value}, duplicate_of "
+                    "parent_lesson) is still an output: a candidate with "
+                    "duplicate_of_candidate_id must be rejected or blocked (both are "
+                    "non-output), never selected or manual_review"
+                ),
+            ):
+                _assemble_pool(
+                    profile=ClipProfile.MINI_LESSON,
+                    specs=(_RISK_POOL[0], {**_RISK_POOL[1], "status": status, "score": 90}),
+                    risk_record_ids=risk_ids,
+                )
+    assert duplicate_status_violation("a", CandidateDisposition.BLOCKED, "b") is None
+    assert duplicate_status_violation("a", CandidateDisposition.REJECTED, "b") is None
+    assert DUPLICATE_ALLOWED_STATUSES == (
+        CandidateDisposition.REJECTED,
+        CandidateDisposition.BLOCKED,
     )
-    blocked = {value.candidate_id: value for value in result.blocked}
-    assert blocked["pass_record_duplicate"].duplicate_of_candidate_id == "parent_lesson"
-    assert blocked["pass_record_duplicate"].review_reason == "与父候选重复。"
-    # Stage 13d: the message names the candidate, its status, its target and the
-    # allowed statuses, and separates a wrong non-output status from an output.
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "duplicate pass_record_duplicate (status blocked, duplicate_of parent_lesson) "
-            "must be rejected: blocked duplicates are accepted only for risk_discovery records"
-        ),
-    ):
-        _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=specs)
-    for status in (CandidateDisposition.MANUAL_REVIEW, CandidateDisposition.SELECTED):
-        with pytest.raises(
-            ValueError,
-            match=re.escape(
-                f"duplicate pass_record_duplicate (status {status.value}, duplicate_of "
-                "parent_lesson) is still an output: a candidate with "
-                "duplicate_of_candidate_id must be rejected or blocked, never selected or "
-                "manual_review"
-            ),
-        ):
-            _assemble_pool(
-                profile=ClipProfile.MINI_LESSON,
-                specs=(_RISK_POOL[0], {**_RISK_POOL[1], "status": status, "score": 90}),
-                risk_record_ids=frozenset({"pass_record_duplicate"}),
-            )
 
 
 def test_assembly_reports_every_row_violation_in_one_message() -> None:
@@ -1208,11 +1215,9 @@ def test_assembly_reports_every_row_violation_in_one_message() -> None:
     assert "selected candidate low_selected does not exceed the score threshold (60 <= 75)" in (
         message
     )
-    assert (
-        "duplicate pass_record_duplicate (status blocked, duplicate_of parent_lesson) must "
-        "be rejected" in message
-    )
-    assert message.count("; ") == 2
+    # A blocked non-risk duplicate is legal (Stage 13d) and adds no error.
+    assert "pass_record_duplicate" not in message
+    assert message.count("; ") == 1
 
 
 def test_risk_routing_never_upgrades_to_an_output() -> None:
@@ -1383,8 +1388,10 @@ def test_nested_pair_errors_name_members_and_are_reported_together() -> None:
         "rejected with duplicate_of b_inner" in message
     )
     assert "must cover every listed nested pair: c_outer/c_inner" in message
-    # The pair validator's text states exactly what final assembly accepts.
-    assert "final assembly accepts blocked only for risk_discovery records" in message
+    # The pair validator's text states exactly the final rule (Stage 13d: rejected or
+    # blocked for any candidate), with no risk-only caveat.
+    assert "needs one member rejected or blocked with duplicate_of_candidate_id" in message
+    assert "risk_discovery" not in message
 
 
 def test_nested_duplicate_accepts_members_of_a_three_way_cluster_with_one_representative() -> None:
@@ -2495,7 +2502,8 @@ def test_run_manifest_cross_checks_audit_pair_fallbacks() -> None:
         bad.validate_against(final)
 
 
-# Stage 13c: representatives are kept first; orphans are recorded.
+# Stage 13c: the shorter member is kept first (representative count only breaks
+# equal-duration ties); orphans are recorded.
 
 
 def test_audit_fallback_keeps_the_shorter_member_over_a_representative(
@@ -2787,3 +2795,203 @@ def test_orphan_records_must_name_a_fallback_blocked_representative() -> None:
                 }
             ],
         )
+
+
+# Stage 13d: Stage 13c reviewer P3 test gaps.
+
+
+def test_reserved_reason_prefixes_are_exactly_the_five_python_only_prefixes() -> None:
+    assert DETERMINISTIC_REASON_PREFIXES == (
+        "Deterministic audit fallback: ",
+        "Deterministic flag persistence: ",
+        "Deterministic quality gate: ",
+        "Deterministic risk routing: ",
+        "Profile-local Top-N exclusion: ",
+    )
+
+
+def test_a_full_reserved_prefix_mid_text_is_allowed() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    for prefix in DETERMINISTIC_REASON_PREFIXES:
+        reject_reserved_reason_prefixes(
+            (
+                _review_item("a", 100, 200, manual).model_copy(
+                    update={"review_reason": f"Model note quoting {prefix}an earlier row."}
+                ),
+            )
+        )
+        # A leading space is not the prefix either; only an exact start is reserved.
+        reject_reserved_reason_prefixes(
+            (
+                _review_item("a", 100, 200, manual).model_copy(
+                    update={"review_reason": f" {prefix}text"}
+                ),
+            )
+        )
+
+
+def test_audit_prefix_exemption_is_limited_to_fallback_blocked_ids() -> None:
+    blocked = CandidateDisposition.BLOCKED
+
+    def row(candidate_id: str, prefix: str) -> GlobalReviewItem:
+        return _review_item(candidate_id, 100, 200, blocked).model_copy(
+            update={"review_reason": f"{prefix}text"}
+        )
+
+    # The row the fallback blocked may carry the audit-fallback prefix ...
+    reject_reserved_reason_prefixes(
+        (row("fallback", AUDIT_FALLBACK_REASON_PREFIX),), fallback_blocked={"fallback"}
+    )
+    # ... but no other row, and no other prefix, is exempt.
+    with pytest.raises(ValueError, match="review_reason of other starts with a prefix reserved"):
+        reject_reserved_reason_prefixes(
+            (
+                row("fallback", AUDIT_FALLBACK_REASON_PREFIX),
+                row("other", AUDIT_FALLBACK_REASON_PREFIX),
+            ),
+            fallback_blocked={"fallback"},
+        )
+    for prefix in DETERMINISTIC_REASON_PREFIXES[1:]:
+        with pytest.raises(ValueError, match="reserved for deterministic Python routing"):
+            reject_reserved_reason_prefixes(
+                (row("fallback", prefix),), fallback_blocked={"fallback"}
+            )
+    with pytest.raises(ValueError, match="reserved for deterministic Python routing"):
+        reject_reserved_reason_prefixes((row("fallback", AUDIT_FALLBACK_REASON_PREFIX),))
+
+
+def test_audit_fallback_plans_on_the_merged_review_not_the_initial_one(tmp_path: Path) -> None:
+    from liveclip.services.dual_profile_evaluation import _audit_pair_fallback, _merge_audit
+
+    transcript = _second_transcript(tmp_path)
+    manual = CandidateDisposition.MANUAL_REVIEW
+    initial = _pool(
+        ClipProfile.MINI_LESSON,
+        ("early", 1, 100, manual),  # [0, 100)
+        ("rep", 3, 102, manual),  # [2, 102): same 100 s, later start
+        ("dup", 150, 250, manual),  # becomes a duplicate of rep only in the audit
+    )
+    pairs = audit_candidate_pairs(initial, transcript)
+    assert [pair.members for pair in pairs] == [frozenset(("early", "rep"))]
+    audit = ProfileGlobalAuditOutput(
+        profile=ClipProfile.MINI_LESSON,
+        replacements=(
+            _review_item("dup", 150, 250, CandidateDisposition.REJECTED, duplicate_of="rep"),
+        ),
+        nested_pair_decisions=(
+            _decision("early", "rep", NestedPairDecisionKind.DISTINCT_OBJECTIVE),
+        ),
+        audit_reason="审计。",
+    )
+    error = _near_error(("early", "rep"))
+    # Planned on the initial review, the earlier start would be kept ...
+    assert plan_audit_pair_fallback(error, initial, transcript) == (("rep", ("early", "rep")),)
+
+    def validate(
+        value: ProfileGlobalAuditOutput, blocked: frozenset[str] = frozenset()
+    ) -> ProfileGlobalAuditOutput:
+        del blocked
+        validate_audit_pair_decisions(
+            pairs, value.nested_pair_decisions, _merge_audit(value, initial)
+        )
+        return value
+
+    with pytest.raises(AuditPairRuleError) as caught:
+        validate(audit)
+    result = _audit_pair_fallback(
+        audit, caught.value, ClipProfile.MINI_LESSON, initial, validate, transcript, frozenset()
+    )
+    assert result is not None
+    _fixed, affected, records = result
+    # ... but the fallback plans on the merged review, where rep represents dup, so
+    # rep is kept and nothing is orphaned.
+    assert affected == ("early",)
+    assert [(r.rule, r.blocked_candidate_id) for r in records] == [
+        (AuditPairRule.NEAR_IDENTICAL_PAIR, "early")
+    ]
+
+
+def test_orphan_record_shape() -> None:
+    base = {
+        "profile": ClipProfile.SHORT_HIGHLIGHT,
+        "rule": AuditPairRule.ORPHANED_DUPLICATE,
+        "outer_candidate_id": "rep",
+        "inner_candidate_id": "dup",
+        "blocked_candidate_id": "rep",
+        "duplicate_candidate_id": "dup",
+    }
+    for kind in (None, *AuditPairKind):
+        record = AuditPairFallback(**{**base, "pair_kind": kind})
+        assert (record.blocked_candidate_id, record.duplicate_candidate_id) == ("rep", "dup")
+    # Orientation of the pair does not matter; the two roles must be its members.
+    AuditPairFallback(**{**base, "outer_candidate_id": "dup", "inner_candidate_id": "rep"})
+    for broken in (
+        {"blocked_candidate_id": "other"},
+        {"duplicate_candidate_id": None},
+        {"blocked_candidate_id": None},
+        {"duplicate_candidate_id": "rep"},
+    ):
+        with pytest.raises(ValueError, match="must name the blocked representative and its"):
+            AuditPairFallback(**{**base, **broken})
+    with pytest.raises(ValueError, match="must block one pair member"):
+        AuditPairFallback(
+            **{
+                **base,
+                "rule": AuditPairRule.NEAR_IDENTICAL_PAIR,
+                "duplicate_candidate_id": None,
+                "pair_kind": AuditPairKind.NESTED,
+            }
+        )
+
+
+def test_orphaned_duplicate_must_keep_its_duplicate_reference() -> None:
+    def result(duplicate_of: str | None) -> FinalProfileResult:
+        return _assemble_pool(
+            profile=ClipProfile.SHORT_HIGHLIGHT,
+            specs=(
+                {
+                    "candidate_id": "kept",
+                    "start_cue_id": 941,
+                    "end_cue_id": 958,
+                    "status": CandidateDisposition.MANUAL_REVIEW,
+                },
+                {
+                    "candidate_id": "rep",
+                    "start_cue_id": 941,
+                    "end_cue_id": 959,
+                    "status": CandidateDisposition.BLOCKED,
+                    "reason": f"{AUDIT_FALLBACK_REASON_PREFIX}审计。",
+                },
+                {
+                    "candidate_id": "dup",
+                    "start_cue_id": 941,
+                    "end_cue_id": 960,
+                    "status": CandidateDisposition.REJECTED,
+                    "duplicate_of": duplicate_of,
+                },
+            ),
+        )
+
+    actions = [
+        {
+            "profile": "short_highlight",
+            "rule": "near_identical_pair",
+            "outer_candidate_id": "kept",
+            "inner_candidate_id": "rep",
+            "blocked_candidate_id": "rep",
+        },
+        {
+            "profile": "short_highlight",
+            "rule": "orphaned_duplicate",
+            "outer_candidate_id": "rep",
+            "inner_candidate_id": "dup",
+            "blocked_candidate_id": "rep",
+            "duplicate_candidate_id": "dup",
+            "pair_kind": None,
+        },
+    ]
+    manifest, final = _audit_fallback_manifest(result("rep"), actions)
+    manifest.validate_against(final)
+    manifest, final = _audit_fallback_manifest(result(None), actions)
+    with pytest.raises(ValueError, match="orphaned duplicate lost its duplicate reference"):
+        manifest.validate_against(final)

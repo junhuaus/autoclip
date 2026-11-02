@@ -41,7 +41,6 @@ from liveclip.media.secure_files import (
     write_text_immutable_no_follow,
 )
 from liveclip.pipeline.dual_profile import (
-    AUDIT_FALLBACK_REASON_PREFIX,
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     AuditCandidatePair,
@@ -1100,45 +1099,56 @@ def _run_dual_profile_evaluation(
                 raise ValueError("Global Audit used the wrong Profile")
             # Python-only prefixes; only rows the audit fallback itself blocked may
             # carry the audit fallback prefix.
-            reject_reserved_reason_prefixes(
-                item
-                for item in value.replacements
-                if not (
-                    item.candidate_id in fallback_blocked
-                    and item.review_reason.startswith(AUDIT_FALLBACK_REASON_PREFIX)
-                )
-            )
+            reject_reserved_reason_prefixes(value.replacements, fallback_blocked=fallback_blocked)
             replacement_map = {item.candidate_id: item for item in value.replacements}
             if len(replacement_map) != len(value.replacements):
                 raise ValueError("Global Audit replacement candidate IDs are not unique")
             if not set(replacement_map) <= current_initial_ids:
                 raise ValueError("Global Audit references an unknown candidate")
             merged = _merge_audit(value, current_global)
-            validate_global(merged)
-            # Pairs that the audit's own replacements create (for example by
-            # promoting a candidate) must be decided as well. Cache hits are
-            # re-validated with this same rule: every cached audit under the
-            # current audit prompt hash was written and validated under it, and
-            # audits cached before the rule carry an older prompt hash, so they
-            # can never be cache hits.
-            # Nested and overlap pairs alike (Stage 13).
-            listed = {pair.members for pair in current_pairs}
-            required_pairs = (
-                *current_pairs,
-                *(
-                    pair
-                    for pair in audit_candidate_pairs(merged, transcript)
-                    if pair.members not in listed
-                ),
-            )
-            # The deterministic pair rules raise AuditPairRuleError, and only after
-            # every other check passed, so the audit fallback can tell them apart.
-            validate_audit_pair_decisions(
-                required_pairs,
-                value.nested_pair_decisions,
-                merged,
-                persisted_flag_ids=current_persisted,
-            )
+            # Stage 13d: final-assembly and pair errors are reported together, so
+            # one repair sees every failure and cannot oscillate between them.
+            assembly_error: ValueError | None = None
+            try:
+                validate_global(merged)
+            except ValueError as error:
+                assembly_error = error
+            try:
+                # Pairs that the audit's own replacements create (for example by
+                # promoting a candidate) must be decided as well. Cache hits are
+                # re-validated with this same rule: every cached audit under the
+                # current audit prompt hash was written and validated under it, and
+                # audits cached before the rule carry an older prompt hash, so they
+                # can never be cache hits.
+                # Nested and overlap pairs alike (Stage 13).
+                listed = {pair.members for pair in current_pairs}
+                required_pairs = (
+                    *current_pairs,
+                    *(
+                        pair
+                        for pair in audit_candidate_pairs(merged, transcript)
+                        if pair.members not in listed
+                    ),
+                )
+                # The deterministic pair rules raise AuditPairRuleError, and only
+                # after every other pair check passed.
+                validate_audit_pair_decisions(
+                    required_pairs,
+                    value.nested_pair_decisions,
+                    merged,
+                    persisted_flag_ids=current_persisted,
+                )
+            except ValueError as pair_error:
+                if assembly_error is None:
+                    # Only here can an AuditPairRuleError reach the audit fallback:
+                    # the pair rules are then the sole remaining failures.
+                    raise
+                # A plain ValueError: the fallback cannot fix an assembly error.
+                raise ValueError(
+                    f"{assembly_error}; Global Audit pairs: {pair_error}"
+                ) from assembly_error
+            if assembly_error is not None:
+                raise assembly_error
             return value
 
         def audit_pair_fallback(

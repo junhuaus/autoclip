@@ -1,5 +1,28 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13d failure observability and duplicate-status alignment (2026-11-01)
+
+- [x] 2026-11-01 Stage 13d implemented on `claude/liveclip-stage8-routing`
+  (Controller decisions after warm-29), **pending independent tester and
+  reviewer; real run pending**. Code `6e1152c` (Python only) and the
+  following commit.
+  - Validation exhaustion raises `DualProfileValidationExhaustedError` and
+    writes `failed-<profile>-<stage>.json`, a partial `provider-calls.json`
+    and `failure-manifest.json` to the run directory only; CLI exit 1.
+  - Validator messages name candidates, statuses, targets and allowed
+    statuses and report every violation at once.
+  - A duplicate may be `rejected` or `blocked` for any candidate (aligned
+    with the pair validator); a retained duplicate stays a hard error.
+  - Merged-audit assembly and pair errors are reported together; only a
+    pair-rule-only failure reaches the fallback.
+  - Only `global_audit.md` changed (short `686a9fbafa60…`, mini
+    `bdb7ff0545a9…`); Stage 13c reviewer P3s done.
+  - Offline (warm-29 cache copies): sentinel 230 hits / exactly 3 calls;
+    analyst what-ifs 10 accepted, 1 retained duplicate fails closed with
+    run-directory evidence and an untouched cache.
+- [ ] Next: independent tester and reviewer on the Stage 13d SHA; a real
+  run only with the user's go-ahead.
+
 ## warm-29 real run failed closed; Stage 13d decided (2026-10-30)
 
 - [x] 2026-10-30 warm-29 (real Claude CLI at `6089884`, pinned 2.1.308,
@@ -18,7 +41,8 @@
     (`sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core`). The
     audit fallback only sees `AuditPairRuleError`; this was a plain
     `ValueError` raised before the pair rules.
-- [ ] Next: Stage 13d (Controller decisions in `STATUS.md`): failure
+- [x] (Historical next step; implemented 2026-11-01, see the Stage 13d
+  section above.) Stage 13d (Controller decisions in `STATUS.md`): failure
   observability and validator messages (Python only); duplicate-status
   contract alignment (`rejected` or `blocked` for any duplicate; a
   retained duplicate stays a hard error) and an edit of `global_audit.md`

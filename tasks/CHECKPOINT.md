@@ -598,7 +598,7 @@ the real run. Real run still pending.
 Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
 that accepted Stage 13b. Python only (audit prompt hash and cache keys
 unchanged; 3-call estimate holds); must land before the real run. The audit
-fallback keeps representatives first and records unavoidable orphans and
+fallback keeps representatives first (superseded, see below) and records unavoidable orphans and
 every resolved pair; containment near-copy listing follows the user
 decision exactly (inner ≥ 9/10 or ends within tolerance; the starts
 criterion is removed as a Controller correction); Python-only reason
@@ -635,4 +635,22 @@ both carry persisted flags; the audit fallback never saw the plain
 `ValueError`. Controller decisions (Stage 13d) in `STATUS.md`.
 
 Next: Stage 13d, then independent tester and reviewer; a real run only
+with the user's go-ahead. Not pushed.
+
+## Stage 13d implemented, pending verification; real run pending (2026-11-01)
+
+Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
+`56690c0`. Code `6e1152c` (failure observability and validator messages,
+Python only) and the following commit (duplicate-status alignment, audit
+prompt, fallback order, Stage 13c reviewer P3s). A validation exhaustion now
+writes `failed-<profile>-<stage>.json`, a partial `provider-calls.json` and
+`failure-manifest.json` to the run directory only (never the cache); a
+duplicate may be `rejected` or `blocked` for any candidate, a retained
+duplicate stays a hard error; only `global_audit.md` changed (short
+`686a9fbafa60…`, mini `bdb7ff0545a9…`). Offline on warm-29 cache copies:
+sentinel 230 hits and exactly 3 calls; the analyst's warm-29 what-ifs 10
+accepted, 1 retained duplicate fails closed with run-directory evidence.
+Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 13d SHA; a real run only
 with the user's go-ahead. Not pushed.

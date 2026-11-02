@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import uuid
 from datetime import UTC, datetime
@@ -1877,6 +1878,27 @@ class OverlapPairProvider(ScriptedDualProvider):
                     update={"review_reason": "Deterministic audit fallback: model-written."}
                 ),
             )
+        elif mode == "blocked_dup":
+            # Stage 13d: a non-risk duplicate may be blocked instead of rejected.
+            replacements = (
+                duplicate("mini_overlap", "mini_lesson_lesson").model_copy(
+                    update={"review_status": CandidateDisposition.BLOCKED}
+                ),
+            )
+        elif mode == "keep_lesson_blocked":
+            replacements = (
+                duplicate("mini_overlap", "mini_lesson_lesson").model_copy(
+                    update={"review_status": CandidateDisposition.BLOCKED}
+                ),
+            )
+        elif mode == "low_selected":
+            # A final-assembly error (score at the threshold) while both members of a
+            # near-identical pair stay retained (a pair-rule error).
+            replacements = (
+                by_id["mini_lesson_lesson"].model_copy(
+                    update={"review_status": CandidateDisposition.SELECTED, "score": 60.0}
+                ),
+            )
         elif mode == "dup_blocked_rep":
             replacements = (
                 duplicate("mini_lesson_lesson", "mini_overlap"),
@@ -1897,7 +1919,14 @@ class OverlapPairProvider(ScriptedDualProvider):
                     inner_candidate_id=str(pair["inner_candidate_id"]),
                     decision=(
                         NestedPairDecisionKind.DUPLICATE
-                        if mode in {"duplicate", "keep_lesson", "dup_blocked_rep"}
+                        if mode
+                        in {
+                            "duplicate",
+                            "keep_lesson",
+                            "dup_blocked_rep",
+                            "blocked_dup",
+                            "keep_lesson_blocked",
+                        }
                         else NestedPairDecisionKind.DISTINCT_OBJECTIVE
                     ),
                     reason="Decided on content.",
@@ -2320,6 +2349,150 @@ def test_persisted_representative_violation_is_accepted_and_counted(tmp_path: Pa
     assert [value.candidate_id for value in mini.rejected] == ["mini_overlap"]
 
 
+def test_warm29_blocked_duplicate_of_a_persisted_representative_reaches_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d regression for the warm-29 shape: the model blocks a non-risk
+    duplicate whose representative carries persisted flags. Before, final assembly
+    refused the blocked duplicate with a plain ValueError and the run failed closed;
+    now only the persisted-flag representative rule remains, and the downgrade-only
+    fallback accepts the model's duplicate unchanged."""
+
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=3,
+        first_audit="keep_lesson_blocked",
+        repair_audit="keep_lesson_blocked",
+        flag_lesson=True,
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "duplicate mini_overlap resolves to a representative with persisted" in errors[0]
+    assert "rejected audit row" not in errors[0]
+    (record,) = _manifest(tmp_path, "run").audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id) == (
+        "persisted_flag_representative",
+        "mini_overlap",
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == () and mini.rejected == ()
+    blocked = {value.candidate_id: value for value in mini.blocked}
+    assert blocked["mini_overlap"].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert blocked["mini_lesson_lesson"].review_reason.startswith(
+        "Deterministic flag persistence: "
+    )
+
+
+def test_blocked_non_risk_duplicate_is_accepted_without_repair(tmp_path: Path) -> None:
+    """Stage 13d: final assembly accepts a blocked duplicate for any candidate, as the
+    pair validator does, so the warm-29 contradiction cannot recur."""
+
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=2, first_audit="blocked_dup", repair_audit="omit"
+    )
+    assert [value for provider in providers for value in provider.audit_repairs] == []
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    (blocked,) = [value for value in mini.blocked if value.candidate_id == "mini_overlap"]
+    assert blocked.duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert blocked.review_reason == "Same objective; keep one representative."
+    assert [value.candidate_id for value in mini.selected + mini.manual_review] == [
+        "mini_lesson_lesson"
+    ]
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
+
+
+def test_assembly_and_pair_errors_are_reported_together_and_skip_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d: one message carries both error kinds; the downgrade-only fallback
+    runs only when the pair rules are the sole failures, so it is not applied."""
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        _overlap_run(
+            tmp_path,
+            "run",
+            overlap_start=2,
+            first_audit="low_selected",
+            repair_audit="low_selected",
+        )
+    error = caught.value
+    assert (error.profile, error.stage) == ("mini_lesson", "global_audit")
+    for attempt in error.attempts:
+        assert "selected candidate mini_lesson_lesson does not exceed the score threshold" in (
+            attempt.error
+        )
+        assert "; Global Audit pairs: " in attempt.error
+        assert "cannot keep both candidates selected or manual_review" in attempt.error
+    failed = json.loads((tmp_path / "run" / "failed-mini_lesson-global_audit.json").read_text())
+    assert [value["phase"] for value in failed["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    manifest = json.loads((tmp_path / "run" / "failure-manifest.json").read_text())
+    assert manifest["audit_pair_fallbacks"] == []
+
+
+class PrefixedGlobalReviewProvider(ScriptedDualProvider):
+    """The first Global Review chunk output starts a reason with a reserved prefix."""
+
+    def __init__(
+        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], repairs: list[Any]
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.repairs = repairs
+
+    def generate(self, *, subject_id: str, response_model: Any, **kwargs: Any) -> Any:
+        result = super().generate(subject_id=subject_id, response_model=response_model, **kwargs)
+        if response_model is not ProfileGlobalReviewOutput:
+            return result
+        output = cast(ProfileGlobalReviewOutput, result.output)
+        first, *rest = output.reviews
+        prefixed = first.model_copy(
+            update={"review_reason": f"Deterministic quality gate: {first.review_reason}"}
+        )
+        return StructuredCallResult(
+            output=output.model_copy(update={"reviews": (prefixed, *rest)}),
+            call_records=(),
+            repaired=False,
+        )
+
+    def repair(self, *, subject_id: str, validation_errors: Any, **kwargs: Any) -> Any:
+        self.repairs.append((subject_id, validation_errors))
+        return super().repair(subject_id=subject_id, validation_errors=validation_errors, **kwargs)
+
+
+def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(tmp_path: Path) -> None:
+    """Stage 13d (Stage 13c reviewer P3): the Global Review chunk check is covered."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    repairs: list[Any] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return PrefixedGlobalReviewProvider(prompt, {}, repairs)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    assert sorted(subject for subject, _errors in repairs) == [
+        "mini_lesson.global.001",
+        "short_highlight.global.001",
+    ]
+    for _subject, errors in repairs:
+        assert "starts with a prefix reserved for deterministic Python routing" in errors[0]
+    review = json.loads((tmp_path / "run" / "global-review.json").read_text("utf-8"))
+    assert not any(
+        item["review_reason"].startswith("Deterministic quality gate: ")
+        for profile in review["profiles"].values()
+        for item in profile["reviews"]
+    )
+
+
 def test_model_written_fallback_prefix_is_repaired(tmp_path: Path) -> None:
     providers, final = _overlap_run(
         tmp_path, "run", overlap_start=3, first_audit="prefixed", repair_audit="distinct"
@@ -2473,6 +2646,28 @@ def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> Non
         assert "the two end at the same point" not in audit
         assert "`persisted_discovery_gated_flags`" in audit
         assert "never choose it as a duplicate representative" in audit
+        # Stage 13d: duplicates end rejected or blocked (matching final assembly),
+        # flags never require a blocked duplicate, guidance for pairs whose members
+        # both carry persisted flags, and containment starts are not a criterion.
+        assert (
+            "A candidate with `duplicate_of_candidate_id` must end `rejected` or `blocked`, "
+            "never `selected` or `manual_review`; both are non-output." in audit
+        )
+        assert "never changes a `rejected` row" in audit
+        assert "so flags never require a duplicate to be `blocked`" in audit
+        assert "When both members of a listed pair carry `persisted_discovery_gated_flags`" in (
+            audit
+        )
+        assert "decide `distinct_objective` without a duplicate reference" in audit
+        assert "mark both as duplicates of that representative" in audit
+        assert "so that the other one is `rejected` or `blocked` with" in audit
+        assert "may instead be `blocked`" not in audit
+        assert "start, within the boundary tolerance" not in audit
+        assert "inner candidate of a `containment` pair lasts at least 90% of the outer" in audit
+        # General wording only: no candidate IDs, cue IDs or timestamps.
+        raw_audit = load_dual_profile_prompt("global_audit", profile).instructions
+        stage_text = raw_audit[raw_audit.index("Listed pairs.") :]
+        assert re.search(r"\b(?:sh|ml)_?\d{2,}|\b\d{3,}\b|\d+:\d{2}", stage_text) is None
 
 
 def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:

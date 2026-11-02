@@ -18,6 +18,153 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 13d failure observability and duplicate-status alignment (2026-11-01) — IMPLEMENTED, PENDING VERIFICATION; REAL RUN PENDING
+
+- **Status: implemented, pending independent tester and reviewer; real run
+  pending** on local branch `claude/liveclip-stage8-routing`, in two code
+  commits after the docs commit `56690c0` that accepted Stage 13c and
+  recorded warm-29:
+  - `6e1152c` (Commit Q): failure observability and validator messages;
+    Python only, no prompt or cache-key change;
+  - Commit R (the commit that adds this section): duplicate-status contract
+    alignment, the Global Audit prompt, the fallback-order check and the
+    Stage 13c reviewer P3s.
+  Not pushed or merged.
+- Observability (`DualProfileValidationExhaustedError`, a `ValueError`):
+  - raised by `_resolve_call` when validation is still failing after the
+    one repair and the one regeneration, in any stage; it carries each
+    failed attempt's structured output and error (`initial`, or
+    `stale_cache` under `--refresh-stale-cache`; `repair`; `regeneration`)
+    and the unit's provider call records;
+  - `run_dual_profile_evaluation` then writes, to the run directory only,
+    `failed-<profile>-<stage>.json`, a partial `provider-calls.json`
+    (`partial: true`; completed units plus the failing unit) and
+    `failure-manifest.json` (written last), and re-raises; an evidence write
+    error is attached as a note and never masks the validation error;
+  - the cache is written only for resolved units, as before; outputs are
+    the provider's parsed outputs (Claude CLI already drops any output that
+    contains the account identity); no credential is written;
+  - the CLI still exits 1 and prints a bounded summary (unit, evidence
+    file, the start of the last error) under the 500-character limit.
+  - Not covered (unchanged): a `StructuredProviderError` raised by the
+    repair or regeneration call itself (a provider/schema failure, not a
+    validation exhaustion) still propagates without the earlier attempts.
+- Validator messages:
+  - final assembly names each violating candidate, its status, its
+    duplicate target and the allowed statuses, and reports every row
+    violation (duplicate reference/status, selected score/flag/risk/boundary
+    facts) in one message (at most 20, then a count);
+  - `validate_nested_pair_decisions` reports every pair violation with the
+    members' IDs, statuses and references, and its text states exactly the
+    final rule;
+  - audit pair-rule messages name the duplicate.
+- Contract alignment (Controller decision 3):
+  - `DUPLICATE_ALLOWED_STATUSES = (rejected, blocked)`, for any candidate,
+    in final assembly (and therefore in the Global Review chunk check and
+    the merged-audit check), matching the pair validator. A `selected` or
+    `manual_review` duplicate stays a hard error; nothing is coerced and
+    nothing is promoted.
+  - Relaxing only makes more outputs valid, so every cached review/audit
+    output that validated before still validates; no cache key changes.
+  - Downstream-consumer audit (read only), no consumer assumes
+    duplicate ⇒ rejected:
+    - delivery (`dual_profile_delivery.py`), review package
+      (`delivery/dual_profile_review.py`), rendering, script export and the
+      variant link payload use only `selected`/`manual_review` rows;
+    - Top-N touches only `selected`; the quality gate only
+      `manual_review`; flag persistence and the twin union downgrade only
+      retained rows, so a blocked duplicate passes through unchanged with
+      its reference and the model's reason;
+    - risk routing turns only `rejected` risk records into `blocked`; a
+      blocked risk duplicate stays legal and keeps its reference;
+    - `resolved_duplicates`, the representative rules, the Stage 13c orphan
+      logic and the manifest cross-checks treat `rejected` and `blocked`
+      alike (non-retained), and an orphan must still keep its reference;
+    - the reverse prefix check concerns only Python-prefixed rows;
+    - the strict evaluator (`scripts/evaluate_benchmark.py`,
+      `scripts/benchmark_gates.py`, unchanged) never reads
+      `duplicate_of_candidate_id`; it scores `selected`/`manual_review` as
+      outputs and accepts `manual_review`/`blocked` as risk routing, so a
+      blocked duplicate is a non-output exactly like a rejected one.
+- Fallback order (decision 5): the merged-audit check now runs final
+  assembly and the listed-pair rules together. When both fail, one plain
+  `ValueError` reports both (`<assembly>; Global Audit pairs: <pairs>`), so
+  a repair sees everything and the fallback correctly does not run (it
+  cannot fix an assembly error). When only the pair rules fail, the
+  `AuditPairRuleError` reaches the fallback as before. No coercion of
+  `selected`/`manual_review` to `rejected` was added.
+- Prompt (decision 4): only `global_audit.md` changed. It says a duplicate
+  ends `rejected` or `blocked`, never `selected`/`manual_review`; that
+  Python only blocks retained rows with gated or persisted flags and never
+  changes a rejected row (a rejected `risk_discovery` candidate is kept as
+  `blocked`); and that when both members of a listed pair carry persisted
+  flags the audit decides `distinct_objective` (Python blocks both) or marks
+  both as duplicates of a non-persisted representative. The `near_identical`
+  parenthetical no longer mentions containment starts. General wording only.
+  - Deviation: for a `near_identical` pair whose members both carry
+    persisted flags, the prompt asks the audit to set both `blocked` itself,
+    because the near-identical rule is checked before routing and would
+    otherwise refuse `distinct_objective` with both members retained.
+  - Global Audit hashes: short `bb9d2e6ad638…` →
+    `686a9fbafa60e00900f0bc6ad7f0cb211ba1a8de0ba9b3de19ee1e01acfaaa64`;
+    mini `4c8313b0d62b…` →
+    `bdb7ff0545a935c421cf9f06d8033e3e0ca2d2f497c91a64e5517a7039dd8a86`.
+    Every other stage hash is unchanged (Discovery family, Boundary Review,
+    Global Review, variant link `def25b05bd98…`). Both audits already missed
+    at `6089884`, so the next run still costs 3 calls plus repairs.
+- Stage 13c reviewer P3s: stale "representatives first" wording corrected
+  (dual-profile ExecPlan, the Stage 13c test list below, the test comment);
+  new tests for the Global Review chunk prefix check, a full prefix
+  mid-text, the audit exemption limited to fallback-blocked IDs (now a
+  `fallback_blocked` argument of `reject_reserved_reason_prefixes`), the
+  exact five prefixes, merged vs initial fallback planning, the orphan
+  record shape and the orphan keeping its duplicate reference.
+- Offline evidence (fresh scratchpad `cp -Rp` copies of
+  `data/evaluations/dual-profile-cache-20261030-claude-warm-29`, 306 files;
+  nothing written under `data/`; the source cache's 306 sha256 sums are
+  unchanged afterwards):
+  - Sentinel replay (placeholder audits that satisfy the rules): 230 hits,
+    exactly 3 calls (2 audits + variant link), 0 repairs, no fail-closed; 3
+    new cache entries carrying the new audit hashes, 0 pre-existing entries
+    changed. Pair counts unchanged: short nested 4, overlap 2,
+    near-identical 0, 32/89 persisted; mini nested 44, overlap 13,
+    containment 2, near-identical 5, 55/116 persisted.
+  - Forced-fallback replay (placeholder audit keeps every pair): 5
+    near-identical records and 2 `orphaned_duplicate` records (the
+    Global Review-level duplicates of `ml0007…core`), as at Stage 13c; the
+    warm rerun made 0 calls with 233 hits; `final-validated.json`,
+    `global-review.json` and `boundary-review.json` byte-identical, the
+    manifest identical apart from the call counters.
+  - The analyst's 11 warm-29 what-if scenarios (crafted short audit outputs
+    for initial, repair and regeneration on the reconstructed payload):
+    new code 10 accepted, 1 failed closed as intended (`manual_with_dup`, a
+    `manual_review` duplicate, now with the candidate-naming message); at
+    `6089884` 7 failed with the warm-29 stderr and 4 were accepted.
+    - Accepted at the first attempt: `both_blocked_distinct`,
+      `both_blocked_third`, `both_rejected_third`, `waist_blocked`
+      (`both_blocked_third` and `waist_blocked` failed at `6089884`).
+    - Accepted by the downgrade-only fallback after repair and regeneration
+      (persisted-flag representative rule, the model's duplicate accepted
+      unchanged): `blocked_dup` (the warm-29 shape), `rejected_dup`,
+      `blocked_dup_core_blocked`, `blocked_dup,rejected_dup,blocked_dup`,
+      `both_blocked_nodup_duplicate,blocked_dup,blocked_dup` and
+      `both_blocked_nodup_duplicate,blocked_dup,rejected_dup`. At
+      `6089884` only `rejected_dup` and the last one were accepted; the
+      other four failed with the warm-29 stderr.
+  - Forced-failure observability on the real payload (`manual_with_dup`):
+    the run directory holds `failed-short_highlight-global_audit.json`
+    (3 attempts with outputs and errors, `cache_written: false`), a partial
+    `provider-calls.json` and `failure-manifest.json`; the cache copy is
+    unchanged (306 files, 0 new, 0 changed); 0 email matches.
+- Tests (mock/fixture only): assembly reports every row violation;
+  pair-validator messages; blocked duplicate accepted for any candidate
+  and a retained duplicate never coerced (mutation reverting the allowed
+  statuses is killed by 3 tests); the warm-29 shape reaches the fallback;
+  a blocked non-risk duplicate needs no repair; assembly and pair errors
+  reported together without the fallback; forced-failure evidence in the
+  run directory only with the cache untouched; CLI exit 1 with a bounded
+  summary; Global Audit prompt contract; the P3 gaps above.
+
 ## warm-29 real run (2026-10-30) — FAILED CLOSED in the short Global Audit; Stage 13d decided
 
 - **Result: failed closed, not a quality result.** Real Claude CLI at
@@ -261,7 +408,10 @@
   - Unit:
     - containment boundaries updated: starts 5 s and 1 s now unlisted;
       short end tolerance 3/4 s;
-    - representative kept first;
+    - shorter member kept first, then the representative of more duplicates
+      among equally long members (wording corrected by Stage 13d; it
+      previously read "representative kept first", the superseded `4543d0a`
+      order);
     - unavoidable nested orphan recorded with its kind;
     - every resolved pair recorded;
     - representative rule on containment pairs (M21);

@@ -611,10 +611,21 @@ DETERMINISTIC_REASON_PREFIXES: Final = (
 )
 
 
-def reject_reserved_reason_prefixes(items: Iterable[GlobalReviewItem]) -> None:
-    """Model review reasons may not start with a Python-only routing prefix."""
+def reject_reserved_reason_prefixes(
+    items: Iterable[GlobalReviewItem], *, fallback_blocked: Collection[str] = frozenset()
+) -> None:
+    """Model review reasons may not start with a Python-only routing prefix.
 
+    The only exemption: a row in ``fallback_blocked`` (blocked by the Global Audit
+    fallback itself) may carry the audit-fallback prefix, and no other prefix.
+    """
+
+    exempt = frozenset(fallback_blocked)
     for item in items:
+        if item.candidate_id in exempt and item.review_reason.startswith(
+            AUDIT_FALLBACK_REASON_PREFIX
+        ):
+            continue
         if item.review_reason.startswith(DETERMINISTIC_REASON_PREFIXES):
             raise ValueError(
                 f"review_reason of {item.candidate_id} starts with a prefix reserved for "
@@ -1571,7 +1582,6 @@ def validate_nested_pair_decisions(
                     "decision needs one member rejected or blocked with "
                     "duplicate_of_candidate_id naming the other, or both rejected or blocked "
                     "as duplicates of the same representative"
-                    f"{_DUPLICATE_STATUS_NOTE}"
                 )
         elif references:
             errors.extend(
@@ -1590,9 +1600,6 @@ def validate_nested_pair_decisions(
         raise ValueError(_join_errors(errors))
 
 
-# Stage 13d: the pair validator accepts rejected or blocked duplicates; this note
-# keeps its message exact about what final assembly accepts.
-_DUPLICATE_STATUS_NOTE: Final = " (final assembly accepts blocked only for risk_discovery records)"
 _MAX_REPORTED_ERRORS: Final = 20
 
 
@@ -1614,38 +1621,34 @@ def _join_errors(errors: Sequence[str]) -> str:
     return "; ".join(shown)
 
 
+# A duplicate is never an output. Stage 13d (Controller decision): final assembly
+# accepts either non-output status for any candidate, exactly as
+# ``validate_nested_pair_decisions`` does (before, ``blocked`` was accepted only
+# for risk-discovery records, so the two validators contradicted each other).
+DUPLICATE_ALLOWED_STATUSES: Final = (CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED)
+
+
 def duplicate_status_violation(
     candidate_id: str,
     status: CandidateDisposition,
     duplicate_of: str,
-    *,
-    risk_record: bool,
 ) -> str | None:
     """Final-assembly rule for a row with ``duplicate_of_candidate_id``.
 
-    A duplicate is never an output. Returns ``None`` when ``status`` is allowed,
-    otherwise a message naming the candidate, its status, the duplicate target
-    and the allowed statuses.
+    Returns ``None`` when ``status`` is ``rejected`` or ``blocked``. A
+    ``selected`` or ``manual_review`` duplicate is a hard validation error that
+    names the candidate, its status, the duplicate target and the allowed
+    statuses; Python never coerces it.
     """
 
-    allowed = (
-        (CandidateDisposition.REJECTED, CandidateDisposition.BLOCKED)
-        if risk_record
-        else (CandidateDisposition.REJECTED,)
-    )
-    if status in allowed:
+    if status in DUPLICATE_ALLOWED_STATUSES:
         return None
-    state = f"duplicate {candidate_id} (status {status.value}, duplicate_of {duplicate_of})"
-    allowed_text = " or ".join(value.value for value in allowed)
-    if status in {CandidateDisposition.SELECTED, CandidateDisposition.MANUAL_REVIEW}:
-        return (
-            f"{state} is still an output: a candidate with duplicate_of_candidate_id must "
-            f"be {allowed_text}, never selected or manual_review (make it non-output, or "
-            "remove the reference if it is not a duplicate)"
-        )
+    allowed_text = " or ".join(value.value for value in DUPLICATE_ALLOWED_STATUSES)
     return (
-        f"{state} must be {allowed_text}: blocked duplicates are accepted only for "
-        "risk_discovery records"
+        f"duplicate {candidate_id} (status {status.value}, duplicate_of {duplicate_of}) is "
+        "still an output: a candidate with duplicate_of_candidate_id must be "
+        f"{allowed_text} (both are non-output), never selected or manual_review (make it "
+        "non-output, or remove the reference if it is not a duplicate)"
     )
 
 
@@ -1722,10 +1725,7 @@ def assemble_final_profile_result(
                     "duplicate must reference the same Profile"
                 )
             status_error = duplicate_status_violation(
-                candidate_id,
-                review.review_status,
-                review.duplicate_of_candidate_id,
-                risk_record=candidate_id in risk_records,
+                candidate_id, review.review_status, review.duplicate_of_candidate_id
             )
             if status_error is not None:
                 row_errors.append(status_error)
@@ -2041,6 +2041,7 @@ __all__ = [
     "DETERMINISTIC_REASON_PREFIXES",
     "DUAL_PROFILE_ALGORITHM_VERSION",
     "DUAL_PROFILE_ROUTING_POLICY_VERSION",
+    "DUPLICATE_ALLOWED_STATUSES",
     "FLAG_PERSISTENCE_REASON_PREFIX",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PROFILE_DURATION_CONTRACTS",
