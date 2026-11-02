@@ -18,6 +18,66 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 13e Stage 13d reviewer follow-ups (2026-11-01) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** on local
+  branch `claude/liveclip-stage8-routing`, one code commit after the docs
+  commit `7bf1bb7` that accepted Stage 13d and recorded warm-29b. Not pushed
+  or merged. Python and tests only (plus wording in `PRODUCT_SPEC.md`): no
+  prompt, cache-key, algorithm, evaluator, threshold or benchmark change.
+- P2 (reviewer probe as a regression test):
+  `test_assembly_only_audit_error_is_repaired_without_the_pair_label`. A
+  merged Global Audit whose only failure is final assembly (an ordinary
+  overlap pair decided distinct; a selected score at the threshold) must
+  raise the assembly error alone and be repaired. Deleting
+  `if assembly_error is not None: raise assembly_error` in the merged-audit
+  check makes it fail (verified by a temporary deletion, then restored).
+- P3 (evidence writer): `run_dual_profile_evaluation` now catches any
+  `Exception` from the failure-evidence writer (previously only
+  `OSError`/`ValueError`) and attaches it as a note
+  (`failure evidence could not be written: <type>: <message>`); the
+  validation error always propagates. Test:
+  `test_a_failure_evidence_writer_bug_never_replaces_the_validation_error`
+  (narrowing the catch again fails it).
+- P3 (concurrent exhaustion), fixed: `_resolve_call` records every
+  `DualProfileValidationExhaustedError` on the run's resolution audit before
+  raising. The executor waits for in-flight units, so when a second unit of
+  the same stage exhausts while the first error propagates, the failure
+  evidence keeps both: the failure file lists it under
+  `concurrent_exhausted_units` (attempts, errors, call records), the partial
+  `provider-calls.json` lists completed units, the failing unit, then the
+  other exhausted units, and `failure-manifest.json` adds
+  `concurrent_failed_subject_ids` (counts and tokens include them).
+  Remaining limitation (documented in the docstring and `PRODUCT_SPEC.md`):
+  a unit that ends with any other error (cancelled after the first failure,
+  or a provider failure) is neither resolved nor exhausted, and its calls
+  are not listed. Test:
+  `test_concurrently_exhausted_units_both_reach_the_failure_evidence` (two
+  Discovery windows meet at a barrier before their regeneration returns;
+  removing the record call fails it).
+- P3 (wording): the attempt and writer docstrings and the Stage 13d
+  `PRODUCT_SPEC.md` amendment now say that only the Claude CLI provider
+  drops (and fails) an output containing its subscription account identity;
+  other providers have no such filter. A Stage 13e amendment records the
+  concurrent-evidence and writer rules.
+- P3 (tests): the identical `keep_lesson_blocked` overlap-audit mode is
+  merged into `blocked_dup`; the warm-29 regression test uses `blocked_dup`.
+- Offline evidence (nothing written under `data/`):
+  - all 17 prompt hashes (16 stage prompts plus the variant link) are
+    identical to `bc150c5` (Global Audit short `686a9fba…`, mini
+    `bdb7ff05…`);
+  - sentinel replay (any model call raises) on a fresh scratchpad `cp -Rp`
+    copy of `data/evaluations/dual-profile-cache-20261101-claude-warm-29b`
+    (309 files): **233 hits, 0 calls**, 0 repairs, no fallback, stale 0,
+    `persisted_flag_representative_duplicates` mini 6 / short 0;
+    `final-validated.json`, `global-review.json`, `boundary-review.json`
+    and both Discovery files byte-identical to the warm-29b run; the run
+    manifest differs only in the call, token, latency and repair counters;
+    the cache copy and the source cache are unchanged (309 sha256 sums).
+- Next: independent tester and reviewer on the Stage 13e SHA, then cold-30
+  (fresh cold run at the final code) as the acceptance run, only with the
+  user's go-ahead.
+
 ## warm-29b real run (2026-11-01) — strict PASS 95.0 (warm diagnostic, NOT acceptance evidence)
 
 Evidence categories stay distinct: this run is real-model inference evidence
@@ -81,7 +141,7 @@ as cold-30, after the Stage 13e cleanup is verified).
   the L07 gap listening.
 - Comparison: cold-27 PASS 95.0; warm-26 PASS 97.5; warm-28 FAIL 95.0
   (N07 ×2); warm-29 failed closed; warm-29b PASS 95.0.
-- Next: Stage 13e reviewer follow-ups (section below), independent
+- Next: Stage 13e reviewer follow-ups (section above), independent
   verification, then cold-30 (fresh cold run at the final code) as the
   acceptance run, only with the user's go-ahead.
 

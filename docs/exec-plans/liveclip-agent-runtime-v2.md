@@ -1,5 +1,26 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 13e Stage 13d reviewer follow-ups (2026-11-01)
+
+- [x] 2026-11-01 Stage 13e implemented on `claude/liveclip-stage8-routing`,
+  **pending independent tester and reviewer**. Python and tests only; every
+  prompt hash and cache key unchanged versus `bc150c5`.
+  - P2: the reviewer's assembly-only audit probe is a regression test; it
+    fails when the merged-audit `raise assembly_error` is deleted.
+  - P3: the failure-evidence writer catches any `Exception` and attaches
+    it as a note; the validation error always propagates.
+  - P3: concurrently exhausted units of one stage are all kept
+    (`concurrent_exhausted_units`, every exhausted unit's records in the
+    partial `provider-calls.json`, `concurrent_failed_subject_ids`); units
+    ending with another error stay unlisted (documented).
+  - P3: "drops output containing the account identity" is stated for the
+    Claude CLI provider only; the duplicate test mode `keep_lesson_blocked`
+    is merged into `blocked_dup`.
+  - Offline: sentinel replay on a scratchpad copy of the warm-29b cache: 233
+    hits, 0 calls, outputs byte-identical to warm-29b.
+- [ ] Next: independent tester and reviewer on the Stage 13e SHA, then
+  cold-30 as the acceptance run, only with the user's go-ahead.
+
 ## Stage 13d accepted at bc150c5; warm-29b strict PASS 95.0 (2026-11-01)
 
 - [x] 2026-11-01 Stage 13d **ACCEPTED** at
@@ -23,10 +44,12 @@
   persistence blocks `audit_sh0009…`; the audit made `ml0007…core` a
   rejected duplicate of the L04 match `audit_ml0008…`). 14 renders rc 0,
   automatic checks pass; human review pending. Details in `STATUS.md`.
-- [ ] Next: Stage 13e reviewer follow-ups (Python and tests only; no prompt,
-  cache-key or algorithm change), independent verification, then cold-30
-  (fresh cold run at the final code) as the acceptance run, only with the
-  user's go-ahead; human review of the renders and the L07 gap.
+- [x] (Historical next step; Stage 13e implemented 2026-11-01, pending
+  verification, see above.) Stage 13e reviewer follow-ups (Python and tests
+  only; no prompt, cache-key or algorithm change), independent
+  verification, then cold-30 (fresh cold run at the final code) as the
+  acceptance run, only with the user's go-ahead; human review of the
+  renders and the L07 gap.
 
 ## Stage 13d failure observability and duplicate-status alignment (2026-11-01)
 

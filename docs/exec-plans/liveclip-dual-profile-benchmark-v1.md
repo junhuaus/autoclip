@@ -89,7 +89,9 @@ imported by production modules.
 - [x] (Historical next step; done 2026-11-01 at `bc150c5`, then warm-29b below.) Independent tester and reviewer for Stage 13d, then a real run with the user's go-ahead.
 - [x] 2026-11-01 Stage 13d ACCEPTED at `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9` (code `6e1152c` and `bc150c5`; tester PASS: lint rc 0, backend 3000 passed in 1663.46 s, vitest 14/80, e2e 4, targeted 327, no sleep 19:50–20:22; reviewer ACCEPT, no P0/P1: only the Global Audit hashes changed (short `686a9fba…`, mini `bdb7ff05…`), 11 of 12 mutants killed, sims reproduced, strict evaluator on cold-27/warm-28 byte-identical, Decision 3 legitimate (a blocked duplicate can count as R01/R02 routing like any blocked candidate); P2/P3 findings for Stage 13e).
 - [x] 2026-11-01 warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308, warm from a `cp -Rp` copy of the warm-29 cache, 306 files, attempt start epoch 1793593441; **diagnostic only, not acceptance evidence**): eval rc 0 in 666 s; 230 hits, exactly 3 new calls plus 1 repair (4 records), 0 retries, tokens in 1,773,780 / out 81,778; cache 306 → 309 with 0 pre-existing files changed; no stale resolution, no boundary or audit fallback. Strict **PASS 95.0** (short 8/8 with S06; mini 5/6, L07 still missed; R01 blocked, R02 manual_review; no hard failures, no PASS blockers). Both warm-28 N07 failures cleared. 14 renders rc 0 in 266 s, automatic checks pass; human review pending. Details in the Recovery Notes and `STATUS.md`.
-- [ ] Next: Stage 13e reviewer follow-ups (Python and tests only), independent verification, then cold-30 (fresh cold run at the final code) as the acceptance run, only with the user's go-ahead; human review of the cold-27, warm-28 and warm-29b renders and of the L07 gap.
+- [x] (Historical next step; implemented 2026-11-01, pending verification, see below.) Stage 13e reviewer follow-ups.
+- [x] 2026-11-01 Stage 13e implemented, pending independent tester and reviewer (Python and tests only; every prompt hash and cache key unchanged versus `bc150c5`): the reviewer's assembly-only audit probe is a regression test (fails when the merged-audit `raise assembly_error` is deleted); the failure-evidence writer catches any `Exception` and notes it; concurrently exhausted units of one stage all reach the failure evidence (`concurrent_exhausted_units`, their records in the partial `provider-calls.json`, `concurrent_failed_subject_ids`); the account-identity wording names the Claude CLI provider only; the duplicate test mode `keep_lesson_blocked` is merged into `blocked_dup`. Sentinel replay on a scratchpad copy of the warm-29b cache: 233 hits, 0 calls, outputs byte-identical to warm-29b. Evidence in `STATUS.md`.
+- [ ] Next: independent tester and reviewer for Stage 13e, then cold-30 (fresh cold run at the final code) as the acceptance run, only with the user's go-ahead; human review of the cold-27, warm-28 and warm-29b renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -372,6 +374,14 @@ two deterministic report files.
   The prefix exemption for fallback-blocked rows moved into
   `reject_reserved_reason_prefixes(..., fallback_blocked=...)` unchanged in
   behavior, so it can be tested directly.
+- 2026-11-01 (Stage 13e implementation choices): concurrently exhausted
+  units are collected on the run's resolution audit, not by draining the
+  executor's futures, so every stage pool is covered without changing its
+  control flow; they share the first unit's failure file (same profile and
+  stage) under `concurrent_exhausted_units`, because the evidence files are
+  write-once. Units that end with any other error stay unlisted. The
+  evidence writer catches `Exception` (never `BaseException`), so a
+  cancellation still propagates.
 - 2026-11-01 (Stage 13d acceptance and warm-29b): the reviewer judged
   Decision 3 legitimate: a blocked duplicate can count as R01/R02 routing,
   exactly like any blocked candidate. warm-29b is warm and diagnostic only;

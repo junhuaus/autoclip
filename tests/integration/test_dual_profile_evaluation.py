@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import subprocess
+import threading
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,11 +38,14 @@ from liveclip.pipeline.dual_profile import (
     ProfileGlobalReviewOutput,
     RawProfileCandidate,
     VariantLinkItem,
+    plan_profile_discovery_windows,
 )
+from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm import claude_cli as claude_cli_module
 from liveclip.providers.llm.claude_cli import ClaudeCliStructuredLLMProvider
 from liveclip.providers.llm.structured import StructuredCallResult, StructuredProviderError
 from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
+from liveclip.services import dual_profile_evaluation as dual_profile_evaluation_module
 from liveclip.services.dual_profile_evaluation import (
     DualProfileValidationExhaustedError,
     run_dual_profile_evaluation,
@@ -1491,6 +1495,8 @@ def test_exhausted_validation_writes_failure_evidence_to_the_run_dir_only(
     manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
     assert manifest["status"] == "failed"
     assert manifest["failure_file"] == "failed-short_highlight-boundary_review.json"
+    assert manifest["concurrent_failed_subject_ids"] == []
+    assert failed["concurrent_exhausted_units"] == []
     assert (manifest["failed_profile"], manifest["failed_stage"]) == (
         "short_highlight",
         "boundary_review",
@@ -1510,6 +1516,166 @@ def test_exhausted_validation_writes_failure_evidence_to_the_run_dir_only(
         text = entry.read_text("utf-8")
         assert "validation_exhausted" not in text
         assert "deterministic_retry" not in text
+
+
+def test_a_failure_evidence_writer_bug_never_replaces_the_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 13e (reviewer P3): any exception from the evidence writer, not only an
+    OSError or ValueError, is attached as a note; the validation error propagates."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def broken_writer(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        raise KeyError("writer bug")
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "_write_validation_failure", broken_writer)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingStubbornProvider(prompt, {}, also_break_evidence=True)
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=1,
+        )
+    assert caught.value.stage == "boundary_review"
+    assert caught.value.evidence_file is None
+    assert caught.value.__notes__ == [
+        "failure evidence could not be written: KeyError: 'writer bug'"
+    ]
+
+
+class ConcurrentlyExhaustedDiscoveryProvider(RecordingStubbornProvider):
+    """Two short Discovery windows always answer with a wrong window identity.
+
+    Both units wait for each other before their regeneration result returns, so
+    both exhaust validation while the first error propagates.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        failing_windows: frozenset[str],
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.failing_windows = failing_windows
+        self.barrier = barrier
+
+    def _failing(self, payload: dict[str, object]) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") in self.failing_windows
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        result = super().generate(subject_id=subject_id, **kwargs)
+        if subject_id.endswith(".deterministic_retry_1") and self._failing(kwargs["payload"]):
+            self.barrier.wait()
+        return result
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._failing(payload):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_concurrently_exhausted_units_both_reach_the_failure_evidence(tmp_path: Path) -> None:
+    """Stage 13e (reviewer P3): when two units of one stage exhaust concurrently, the
+    partial provider calls hold both units' records and the failure file keeps the
+    second unit's attempts; neither unit writes the cache."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    windows = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )
+    assert len(windows) >= 2
+    failing = frozenset(value.window_id for value in windows[:2])
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ConcurrentlyExhaustedDiscoveryProvider(
+            prompt, {}, failing_windows=failing, barrier=barrier
+        )
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    assert (error.profile, error.stage) == ("short_highlight", "discovery")
+    assert error.subject_id in failing
+    (other,) = failing - {error.subject_id}
+
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    assert failed["subject_id"] == error.subject_id
+    (concurrent,) = failed["concurrent_exhausted_units"]
+    assert (concurrent["profile"], concurrent["stage"], concurrent["subject_id"]) == (
+        "short_highlight",
+        "discovery",
+        other,
+    )
+    assert [value["phase"] for value in concurrent["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    for attempt in concurrent["attempts"]:
+        assert "Discovery output identity differs from its request" in attempt["error"]
+    assert [value["subject_id"] for value in concurrent["provider_calls"]] == [
+        other,
+        other,
+        f"{other}.deterministic_retry_1",
+    ]
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Completed units first (a worker freed by the first failure may still resolve
+    # a later window), then the failing unit, then the concurrently exhausted one.
+    assert subjects[-6:] == [
+        error.subject_id,
+        error.subject_id,
+        f"{error.subject_id}.deterministic_retry_1",
+        other,
+        other,
+        f"{other}.deterministic_retry_1",
+    ]
+    assert not any(subject.split(".")[0] in failing for subject in subjects[:-6])
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failed_subject_id"] == error.subject_id
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert manifest["provider_call_count"] == len(subjects)
+    # Only completed units are cached; neither exhausted unit is.
+    cached = [
+        json.loads(entry.read_text("utf-8"))["output"]["window_id"]
+        for entry in cache.glob("short_highlight/discovery/*.json")
+    ]
+    assert len(cached) == len(subjects) - 6
+    assert not failing & set(cached)
 
 
 class NoCallProvider(ScriptedDualProvider):
@@ -1879,13 +2045,9 @@ class OverlapPairProvider(ScriptedDualProvider):
                 ),
             )
         elif mode == "blocked_dup":
-            # Stage 13d: a non-risk duplicate may be blocked instead of rejected.
-            replacements = (
-                duplicate("mini_overlap", "mini_lesson_lesson").model_copy(
-                    update={"review_status": CandidateDisposition.BLOCKED}
-                ),
-            )
-        elif mode == "keep_lesson_blocked":
+            # Stage 13d: a non-risk duplicate may be blocked instead of rejected
+            # (``keep_lesson`` with a blocked duplicate; Stage 13e merged the
+            # identical ``keep_lesson_blocked`` mode into this one).
             replacements = (
                 duplicate("mini_overlap", "mini_lesson_lesson").model_copy(
                     update={"review_status": CandidateDisposition.BLOCKED}
@@ -1925,7 +2087,6 @@ class OverlapPairProvider(ScriptedDualProvider):
                             "keep_lesson",
                             "dup_blocked_rep",
                             "blocked_dup",
-                            "keep_lesson_blocked",
                         }
                         else NestedPairDecisionKind.DISTINCT_OBJECTIVE
                     ),
@@ -2362,8 +2523,8 @@ def test_warm29_blocked_duplicate_of_a_persisted_representative_reaches_the_fall
         tmp_path,
         "run",
         overlap_start=3,
-        first_audit="keep_lesson_blocked",
-        repair_audit="keep_lesson_blocked",
+        first_audit="blocked_dup",
+        repair_audit="blocked_dup",
         flag_lesson=True,
     )
     (errors,) = [value for provider in providers for value in provider.audit_repairs]
@@ -2431,6 +2592,23 @@ def test_assembly_and_pair_errors_are_reported_together_and_skip_the_fallback(
     ]
     manifest = json.loads((tmp_path / "run" / "failure-manifest.json").read_text())
     assert manifest["audit_pair_fallbacks"] == []
+
+
+def test_assembly_only_audit_error_is_repaired_without_the_pair_label(tmp_path: Path) -> None:
+    """Stage 13e (reviewer P2): a merged audit whose only failure is final assembly
+    (an ordinary overlap pair decided distinct, a selected score at the threshold)
+    raises the assembly error alone, so it is repaired; it must never be accepted."""
+
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="low_selected", repair_audit="distinct"
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    message = errors[0]
+    assert "selected candidate mini_lesson_lesson does not exceed the score threshold" in message
+    assert "Global Audit pairs" not in message
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert all(value.score > 60.0 for value in mini.selected)
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
 
 
 class PrefixedGlobalReviewProvider(ScriptedDualProvider):

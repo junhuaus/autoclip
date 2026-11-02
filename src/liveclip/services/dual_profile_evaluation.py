@@ -119,8 +119,10 @@ class DualProfileValidationAttempt:
 
     ``phase`` is ``initial`` (the first generation), ``stale_cache`` (a cached
     output re-validated under ``--refresh-stale-cache``), ``repair`` or
-    ``regeneration``. ``output`` is the provider's parsed structured output; the
-    provider already drops any output that contains the account identity.
+    ``regeneration``. ``output`` is the provider's parsed structured output, kept
+    as the provider returned it. Only the Claude CLI provider drops (and fails) an
+    output that contains its subscription account identity; other providers have
+    no such filter, and nothing here adds one.
     """
 
     phase: str
@@ -252,9 +254,13 @@ def run_dual_profile_evaluation(
                     refresh_stale_cache=refresh_stale_cache,
                     elapsed_ms=round((time.monotonic() - started) * 1_000),
                 )
-            except (OSError, ValueError) as write_error:
-                # Never mask the validation failure with an evidence-writing failure.
-                error.add_note(f"failure evidence could not be written: {write_error}")
+            except Exception as write_error:
+                # Never mask the validation failure with an evidence-writing failure,
+                # whatever its cause (I/O, an invalid name, or a writer bug).
+                error.add_note(
+                    "failure evidence could not be written: "
+                    f"{type(write_error).__name__}: {write_error}"
+                )
         raise
 
 
@@ -1586,6 +1592,11 @@ class _ResolutionAudit:
         # travel on its DualProfileValidationExhaustedError).
         self._records: list[ProviderCallRecord] = []
         self._resolved: Counter[tuple[str, str]] = Counter()
+        # Stage 13e: every unit whose validation was exhausted, in order. Units of
+        # one stage run concurrently, so a second unit can exhaust while the first
+        # error propagates; the executor waits for it, and its records and attempts
+        # are kept here for the failure evidence instead of being lost.
+        self._exhausted: list[DualProfileValidationExhaustedError] = []
 
     def record_resolved(self, stage: str, resolved: _ResolvedCall) -> None:
         with self._lock:
@@ -1597,6 +1608,14 @@ class _ResolutionAudit:
     def completed_records(self) -> tuple[ProviderCallRecord, ...]:
         with self._lock:
             return tuple(self._records)
+
+    def record_exhausted(self, error: DualProfileValidationExhaustedError) -> None:
+        with self._lock:
+            self._exhausted.append(error)
+
+    def exhausted_errors(self) -> tuple[DualProfileValidationExhaustedError, ...]:
+        with self._lock:
+            return tuple(self._exhausted)
 
     def resolved_counts(self) -> dict[str, dict[str, int]]:
         with self._lock:
@@ -2123,7 +2142,7 @@ def _resolve_call(
                 if rescued is None:
                     # Stage 13d: keep every failed attempt for the run directory; the
                     # cache is never written for a failed unit.
-                    raise DualProfileValidationExhaustedError(
+                    exhausted = DualProfileValidationExhaustedError(
                         stage=stage,
                         profile=profile_value,
                         subject_id=subject_id,
@@ -2137,7 +2156,10 @@ def _resolve_call(
                         ),
                         records=records,
                         final_error=final_error,
-                    ) from final_error
+                    )
+                    # Stage 13e: a concurrently exhausted unit is kept as well.
+                    resolution_audit.record_exhausted(exhausted)
+                    raise exhausted from final_error
                 output, fallback_ids, fallback_records = rescued
                 cached_output = validation_retry_result.output
                 fallback_marker = {"stage": stage, "candidate_ids": list(fallback_ids)}
@@ -2351,11 +2373,16 @@ def _write_validation_failure(
     """Write Stage 13d failure evidence to the run directory only.
 
     Order: the failed unit's attempts, the partial provider-call records (completed
-    units plus the failing unit), then the failure manifest last. Nothing is written
-    to the cache and no credential or account identity is included: outputs are the
-    provider's parsed structured outputs (which already drop any output carrying the
-    account identity) and call records use the same durable metadata as
-    ``provider-calls.json`` on success.
+    units, the failing unit, then every other unit of the run that exhausted
+    concurrently), then the failure manifest last. A concurrently exhausted unit's
+    attempts go into ``concurrent_exhausted_units`` of the same failure file. A unit
+    that ends with any other error (for example one cancelled after the first
+    failure, or a provider failure) is neither resolved nor exhausted, so its calls
+    are not listed. Nothing is written to the cache and no credential is written:
+    call records use the same durable metadata as ``provider-calls.json`` on
+    success, and outputs are the provider's parsed structured outputs as returned
+    (only the Claude CLI provider drops an output that contains its subscription
+    account identity).
     """
 
     if not (
@@ -2364,6 +2391,7 @@ def _write_validation_failure(
         raise ValueError("dual Profile failure evidence name is invalid")
     audit = progress.resolution_audit
     failing_calls = [_call_metadata(value) for value in error.records]
+    concurrent = [value for value in audit.exhausted_errors() if value is not error]
     _write_json(
         output_dir / error.failure_file_name,
         {
@@ -2381,10 +2409,29 @@ def _write_validation_failure(
             ],
             "final_error": str(error.final_error),
             "provider_calls": failing_calls,
+            "concurrent_exhausted_units": [
+                {
+                    "stage": value.stage,
+                    "profile": value.profile,
+                    "subject_id": value.subject_id,
+                    "cache_key": value.cache_key,
+                    "attempts": [
+                        {"phase": item.phase, "error": item.error, "output": dict(item.output)}
+                        for item in value.attempts
+                    ],
+                    "final_error": str(value.final_error),
+                    "provider_calls": [_call_metadata(item) for item in value.records],
+                }
+                for value in concurrent
+            ],
         },
     )
     completed = audit.completed_records()
-    all_calls = (*completed, *error.records)
+    all_calls = (
+        *completed,
+        *error.records,
+        *(record for value in concurrent for record in value.records),
+    )
     _write_json(
         output_dir / "provider-calls.json",
         {
@@ -2405,6 +2452,7 @@ def _write_validation_failure(
             "failed_stage": error.stage,
             "failed_profile": error.profile,
             "failed_subject_id": error.subject_id,
+            "concurrent_failed_subject_ids": [value.subject_id for value in concurrent],
             "source_hash": progress.source_hash,
             "requested_profiles": [value.value for value in progress.requested_profiles],
             "provider": progress.provider_name,

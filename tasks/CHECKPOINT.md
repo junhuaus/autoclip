@@ -677,3 +677,20 @@ automatic checks pass; human review and the L07 listening pending. Roots
 Next: Stage 13e reviewer follow-ups (Python and tests only), independent
 verification, then cold-30 (fresh cold run at the final code) as the
 acceptance run, only with the user's go-ahead. Not pushed.
+
+## Stage 13e implemented, pending verification (2026-11-01)
+
+Branch `claude/liveclip-stage8-routing`, local only, after the docs commit
+`7bf1bb7` (Stage 13d accepted, warm-29b recorded). Python and tests only;
+every prompt hash and cache key unchanged versus `bc150c5`. Reviewer P2: the
+assembly-only audit probe is a regression test. P3s: the failure-evidence
+writer catches any `Exception`; concurrently exhausted units all reach the
+failure evidence (`concurrent_exhausted_units`,
+`concurrent_failed_subject_ids`, every exhausted unit's records in the
+partial `provider-calls.json`); account-identity wording limited to the
+Claude CLI provider; `keep_lesson_blocked` merged into `blocked_dup`.
+Sentinel replay on a scratchpad copy of the warm-29b cache: 233 hits, 0
+calls, outputs byte-identical. Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 13e SHA, then cold-30 as
+the acceptance run, only with the user's go-ahead. Not pushed.
