@@ -91,7 +91,10 @@ imported by production modules.
 - [x] 2026-11-01 warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308, warm from a `cp -Rp` copy of the warm-29 cache, 306 files, attempt start epoch 1793593441; **diagnostic only, not acceptance evidence**): eval rc 0 in 666 s; 230 hits, exactly 3 new calls plus 1 repair (4 records), 0 retries, tokens in 1,773,780 / out 81,778; cache 306 → 309 with 0 pre-existing files changed; no stale resolution, no boundary or audit fallback. Strict **PASS 95.0** (short 8/8 with S06; mini 5/6, L07 still missed; R01 blocked, R02 manual_review; no hard failures, no PASS blockers). Both warm-28 N07 failures cleared. 14 renders rc 0 in 266 s, automatic checks pass; human review pending. Details in the Recovery Notes and `STATUS.md`.
 - [x] (Historical next step; implemented 2026-11-01, pending verification, see below.) Stage 13e reviewer follow-ups.
 - [x] 2026-11-01 Stage 13e implemented, pending independent tester and reviewer (Python and tests only; every prompt hash and cache key unchanged versus `bc150c5`): the reviewer's assembly-only audit probe is a regression test (fails when the merged-audit `raise assembly_error` is deleted); the failure-evidence writer catches any `Exception` and notes it; concurrently exhausted units of one stage all reach the failure evidence (`concurrent_exhausted_units`, their records in the partial `provider-calls.json`, `concurrent_failed_subject_ids`); the account-identity wording names the Claude CLI provider only; the duplicate test mode `keep_lesson_blocked` is merged into `blocked_dup`. Sentinel replay on a scratchpad copy of the warm-29b cache: 233 hits, 0 calls, outputs byte-identical to warm-29b. Evidence in `STATUS.md`.
-- [ ] Next: independent tester and reviewer for Stage 13e, then cold-30 (fresh cold run at the final code) as the acceptance run, only with the user's go-ahead; human review of the cold-27, warm-28 and warm-29b renders and of the L07 gap.
+- [x] (Historical next step; cold-30 ran at `194ba65`, below; the Stage 13e reviewer P3 nits are fixed in Stage 14.) Independent tester and reviewer for Stage 13e, then cold-30 (fresh cold run at the final code) as the acceptance run.
+- [x] 2026-11-01 cold-30 (fresh cold acceptance attempt, real Claude CLI at `194ba65`, pinned 2.1.308, attempt start epoch 1793597156): eval rc 0; `cache_hits` 0; 231 calls plus 3 Boundary Review repairs; 0 content-identical cache files versus 24 earlier roots. Strict **FAIL 92.5** (`missing_any_p0_mini_lesson`): short 7/8 (S03 +12440 ms); mini 5/6 (L01 missed only by Discovery padding-flag persistence on the exact candidate; L07 hit for the first time); R01/R02 blocked; all 8 N07-overlapping candidates blocked or rejected. 12 renders rc 0, automatic checks pass, human review pending. Evidence in `data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`; details in the Recovery Notes and `STATUS.md`.
+- [x] 2026-11-01 Stage 14 implemented in `fc31907266ee07485567580f5b125ced76775cfe`, pending independent tester and reviewer (user decision "Padding follows BR + prompt"): routing policy `quality-gate-risk-routing-v5` persists only structural Discovery gated flags; padding flags follow Boundary Review; shared `main.md` gains the microphone/demonstration rule and the padding-is-edge definition; Global Review/Audit wording updated; every stage prompt hash changed; CLI exhaustion summary keeps the evidence-writer note. Offline replay of the four runs: cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged), warm-29b PASS 95.0, cold-30 PASS 97.5 (routing evidence only). Evidence in `STATUS.md`.
+- [ ] Next: independent tester and reviewer for Stage 14, then a fresh cold run only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -387,6 +390,29 @@ two deterministic report files.
   exactly like any blocked candidate. warm-29b is warm and diagnostic only;
   acceptance requires a fresh cold run at the final code (cold-30), after
   the Stage 13e reviewer follow-ups are verified.
+- 2026-11-01 (user decision after cold-30, Stage 14): option "Padding
+  follows BR + prompt". Discovery gated-flag persistence (Stage 13 Fix 1)
+  is restricted to structural flags (`material_interruption`,
+  `topic_switch_inside`, `topic_not_closed`, `asr_uncertain_blocks_meaning`);
+  padding flags (`device_or_waiting_padding`, `sales_or_cta_padding`,
+  `padded_with_irrelevant_content`) describe edge material, which Boundary
+  Review judges with the surrounding context, so they follow Boundary
+  Review. Routing policy `quality-gate-risk-routing-v5`. The microphone /
+  demonstration rule moves to the shared `main.md` so every Discovery pass
+  sees it. Rationale: the reviewer's replay of four runs found 0 true
+  positives and 9 gold-overlapping sole blocks from padding persistence,
+  while structural persistence caught the only real N07 problem. Accepted
+  risk: a run in which Discovery correctly flags edge padding and both
+  Boundary Review and Global Review miss it would output it (observed 0
+  times in four runs).
+- 2026-11-01 (Stage 14 implementation choices): every gated flag is
+  classified (no third class); a module-level check keeps the two classes an
+  exact partition of `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`. The shared
+  padding definition keeps the Boundary Review Profile-minimum test:
+  `padded_with_irrelevant_content` may be added to an interior
+  `material_interruption`/`topic_switch_inside` when only off-topic
+  material meets the minimum, never used instead of it. The Discovery-family
+  frozen prompt hashes are re-pinned deliberately (cold Discovery cache).
 
 ## Risks and mitigations
 
@@ -753,6 +779,104 @@ at `bc150c5`:
     prompt hash and cache key unchanged, so a warm-29b cache-copy replay
     must hit all 233 entries with 0 calls), then cold-30 as the acceptance
     run with the user's go-ahead.
+
+2026-11-01 (cold-30 strict FAIL 92.5; Stage 14 implemented, pending
+verification):
+
+- cold-30 (fresh cold run, real Claude CLI at `194ba65`, pinned 2.1.308,
+  attempt start epoch 1793597156; acceptance attempt): eval rc 0;
+  `cache_hits` 0; 231 calls (Discovery family 158, Boundary Review 52,
+  Global Review/Audit 20, variant link 1) plus 3 Boundary Review repairs,
+  0 retries, no rate-limit marker; tokens in 10,899,690 / out 1,085,708;
+  0 content-identical cache files versus 24 earlier cache roots. Strict
+  **FAIL 92.5** (`missing_any_p0_mini_lesson`): short 7/8 (S03 start
+  +12440 ms outside tolerance); mini 5/6: L01 missed only because Discovery
+  padding-flag persistence blocked the exact candidate
+  `precision_ml_0005_breathy_mix_vs_leak_vs_breathy_voice` (cues 690–746),
+  and L07 hit for the first time
+  (`confirm_high_note_nasal_loop_through_rhinitis_qualification`); R01 and
+  R02 blocked; all 8 N07-overlapping candidates blocked or rejected. 12
+  renders rc 0, automatic checks pass; human review pending. Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261101-claude-cold-30`;
+  evidence in
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`.
+- L01 chain in cold-30: the precision_audit Discovery pass raised
+  `device_or_waiting_padding` for cues 694–698 (a brief remark about having
+  no sound card and moving closer right before a live vocal demonstration);
+  Boundary Review cleared it explicitly without trimming; the initial
+  Global Review kept it `manual_review` (80); the Global Audit, seeing
+  `persisted_discovery_gated_flags=[device_or_waiting_padding]`, replaced
+  the row with `blocked` "to match routing"; v4 persistence would have
+  blocked it anyway. The microphone/demonstration exception lived only in
+  `stages/discovery.md` and `stages/boundary_review.md`; the
+  precision_audit, risk_discovery and coverage_audit passes never loaded it.
+- Reviewer replay analysis (read-only, real assembler and strict evaluator
+  on stored stage outputs of cold-27, warm-28, warm-29b, cold-30): padding
+  flags were the sole blocker on 9 persisted rows, all overlapping gold
+  (S04/L01, R01, L07), none overlapping a negative anchor; every true
+  padding case was also gated by Boundary or Global Review itself.
+  Structural persistence produced the only true positives (the N07
+  `topic_switch_inside` short row in warm-28/warm-29b). Policy "structural
+  flags persist, padding flags follow Boundary Review" predicted cold-27
+  PASS 95.0, warm-28 FAIL 95.0 (unchanged; its mini N07 padding row is
+  covered by the Stage 13 pair audit, not persistence), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (L01 hit, mini 6/6).
+- User decision (2026-11-01): option "Padding follows BR + prompt" →
+  Stage 14.
+- **Status: implemented, pending independent tester and reviewer**. Code,
+  prompts and tests in `fc31907266ee07485567580f5b125ced76775cfe`; this docs commit follows. Not pushed or
+  merged. No evaluator, threshold, benchmark, algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change.
+- Routing policy `quality-gate-risk-routing-v5`: Discovery flag persistence
+  applies only to `PERSISTED_STRUCTURAL_GATED_FLAGS`
+  (`material_interruption`, `topic_switch_inside`, `topic_not_closed`,
+  `asr_uncertain_blocks_meaning`), still unless Boundary Review shrank an
+  edge, still with the reason prefix "Deterministic flag persistence: ".
+  `PADDING_GATED_FLAGS` (`device_or_waiting_padding`,
+  `sales_or_cta_padding`, `padded_with_irrelevant_content`) are not
+  persisted; they follow Boundary Review and any flag Global Review or the
+  audit sets, and still gate when kept. The two classes partition
+  `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS` exactly (checked at import; no
+  gated flag is in neither class). `discovery_persisted_flags` remains the
+  single function behind final assembly, the audit payload
+  `persisted_discovery_gated_flags`, the persisted-flag representative rule,
+  the pair fallback keep order and the manifest diagnostic. v1–v4 and
+  unmarked artifacts still load.
+- Prompts: the shared `main.md` (loaded by every Discovery pass and by
+  Boundary Review) now states the microphone/demonstration rule and that
+  padding flags describe edge material only (unrelated interior content is
+  `material_interruption` or `topic_switch_inside`;
+  `padded_with_irrelevant_content` may be added when only off-topic material
+  meets the Profile minimum, never instead of the interior flag). The
+  duplicate sentence in `stages/discovery.md` is removed; the richer
+  Boundary Review wording stays. `global_review.md` and `global_audit.md`
+  say that only structural Discovery flags persist and that a candidate is
+  not blocked "to match routing" for a padding flag Boundary Review cleared.
+  Every stage prompt hash changed (cold cache for all stages):
+  - Short Highlight: discovery `c3b72870…`, coverage_audit `e98ed2f7…`,
+    precision_audit `1c65af1b…`, precision_confirmation `8bdbe2f6…`,
+    risk_discovery `eba1cd91…`, boundary_review `db074ead…`, global_review
+    `b84f4e82…`, global_audit `f60fcde6…`.
+  - Mini Lesson: discovery `7500e47a…`, coverage_audit `edf10867…`,
+    precision_audit `0377c54e…`, precision_confirmation `17eccbac…`,
+    risk_discovery `bb219de4…`, boundary_review `c40eadb0…`, global_review
+    `cf624569…`, global_audit `bb1a3e32…`.
+  - Variant link unchanged (`def25b05…`).
+- CLI P3: the bounded exhaustion summary now includes the exception notes
+  (for example "failure evidence could not be written: …", truncated to 160
+  characters) when the evidence writer itself failed.
+- Offline replay (the reviewer's simulator against the Stage 14 code, no
+  tracked file touched, no model call): identical to the predicted policy:
+  cold-27 PASS 95.0, warm-28 FAIL 95.0 (`irrelevant_padding`,
+  `ml0007_strong_mix_vs_yanyin_core`, unchanged), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (L01 hit, mini 6/6). Counterfactual caveats from the
+  analysis apply (Global Review/Audit rows written because of persistence
+  are reverted to the initial review; a real run re-decides the L07 pair
+  group and the prompts changed, so this is routing evidence only, not a
+  benchmark pass).
+- Recovery: Stage 14 changes every stage prompt hash, so the next real run
+  is cold for every stage (about 231 calls). Earlier caches stay valid for
+  their own prompt hashes and must not be modified.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

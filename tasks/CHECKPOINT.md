@@ -694,3 +694,34 @@ calls, outputs byte-identical. Details in `STATUS.md`.
 
 Next: independent tester and reviewer on the Stage 13e SHA, then cold-30 as
 the acceptance run, only with the user's go-ahead. Not pushed.
+
+## cold-30 strict FAIL 92.5; Stage 14 implemented, pending verification (2026-11-01)
+
+cold-30 (fresh cold acceptance attempt, real Claude CLI at `194ba65`,
+pinned 2.1.308, attempt start epoch 1793597156): eval rc 0, `cache_hits` 0,
+231 calls plus 3 Boundary Review repairs, 0 content-identical cache files
+versus 24 earlier roots. Strict FAIL 92.5: short 7/8 (S03 +12440 ms); mini
+5/6 with L07 hit for the first time and L01 missed only because Discovery
+padding-flag persistence blocked the exact candidate (a `device_or_waiting_padding`
+flag from the precision_audit pass on a microphone remark before a live
+demo, cleared by Boundary Review without a trim); R01/R02 blocked; all 8
+N07-overlapping candidates blocked or rejected. 12 renders rc 0, human
+review pending. Evidence
+`data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`.
+
+The reviewer's replay showed padding persistence produced 0 true positives
+and 9 gold-overlapping sole blocks, while structural persistence caught the
+real N07 problem. User decision: "Padding follows BR + prompt".
+
+Stage 14 (`fc31907266ee07485567580f5b125ced76775cfe`, local only): routing policy
+`quality-gate-risk-routing-v5` persists only structural Discovery gated
+flags; padding flags follow Boundary Review. Shared `main.md` carries the
+microphone/demonstration rule and padding = edge material; Global
+Review/Audit wording updated; every stage prompt hash changed (cold cache);
+CLI exhaustion summary keeps the evidence-writer note; doubled "Stage"
+heading fixed. Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0
+(unchanged), warm-29b PASS 95.0, cold-30 PASS 97.5 (routing evidence only).
+Details in `STATUS.md`.
+
+Next: independent tester and reviewer on the Stage 14 SHA, then a fresh cold
+run only with the user's go-ahead. Not pushed.

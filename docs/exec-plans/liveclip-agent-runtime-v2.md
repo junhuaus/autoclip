@@ -1,6 +1,26 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
-## Stage 13e Stage 13d reviewer follow-ups (2026-11-01)
+## Stage 14 padding flags follow Boundary Review; cold-30 strict FAIL 92.5 (2026-11-01)
+
+- [x] 2026-11-01 cold-30 at `194ba65` (fresh cold, `cache_hits` 0, 231
+  calls): strict FAIL 92.5; L01 missed only through Discovery padding-flag
+  persistence; L07 hit for the first time; N07 clean. Evidence in
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`
+  and `STATUS.md`.
+- [x] 2026-11-01 Stage 14 implemented in `fc31907266ee07485567580f5b125ced76775cfe`, **pending independent
+  tester and reviewer** (user decision "Padding follows BR + prompt"):
+  routing policy `quality-gate-risk-routing-v5` persists only structural
+  Discovery gated flags (`PERSISTED_STRUCTURAL_GATED_FLAGS`); padding flags
+  (`PADDING_GATED_FLAGS`) follow Boundary Review. Shared `main.md` carries
+  the microphone/demonstration rule and padding = edge material; Global
+  Review/Audit wording updated; every stage prompt hash changed (list in
+  `STATUS.md`). CLI exhaustion summary keeps the evidence-writer note.
+  Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged),
+  warm-29b PASS 95.0, cold-30 PASS 97.5 (routing evidence only).
+- [ ] Next: independent tester and reviewer on the Stage 14 SHA, then a
+  fresh cold run only with the user's go-ahead.
+
+## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01)
 
 - [x] 2026-11-01 Stage 13e implemented on `claude/liveclip-stage8-routing`,
   **pending independent tester and reviewer**. Python and tests only; every
