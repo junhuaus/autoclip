@@ -73,10 +73,12 @@ from liveclip.pipeline.dual_profile import (
     assert_no_cross_profile_dedup,
     audit_candidate_pairs,
     discovery_persisted_flags,
+    final_profile_rows,
     plan_audit_pair_fallback,
     plan_profile_discovery_windows,
     reject_reserved_reason_prefixes,
     resolved_duplicates,
+    risk_twin_review,
     same_interval_twin_flags,
     semantic_cache_key,
     validate_audit_pair_decisions,
@@ -315,6 +317,7 @@ def _run_dual_profile_evaluation(
     results: dict[ClipProfile, FinalProfileResult] = {}
     persisted_representative_duplicates: dict[ClipProfile, int] = {}
     risk_twin_flags_not_propagated: dict[ClipProfile, int] = {}
+    risk_twin_review_downgrades: dict[ClipProfile, int] = {}
     risk_record_ids_by_profile: dict[ClipProfile, frozenset[str]] = {}
     model_name = ""
     provider_name = ""
@@ -1256,20 +1259,16 @@ def _run_dual_profile_evaluation(
         # Stage 15 diagnostic (routing v6), derived by the same twin rule the
         # assembly used: gated flags that only risk-discovery twins carried and
         # that were therefore not propagated to their same-interval twins.
+        # Stage 15b diagnostic (routing v7), derived by the same risk-twin review
+        # rule: rows downgraded from selected to manual_review.
         risk_record_ids_by_profile[profile] = risk_record_ids
+        final_rows = final_profile_rows(results[profile]).values()
         risk_twin_flags_not_propagated[profile] = same_interval_twin_flags(
-            (
-                value
-                for group in (
-                    results[profile].selected,
-                    results[profile].manual_review,
-                    results[profile].blocked,
-                    results[profile].rejected,
-                )
-                for value in group
-            ),
-            risk_record_ids,
+            final_rows, risk_record_ids
         ).not_propagated_count
+        risk_twin_review_downgrades[profile] = risk_twin_review(
+            final_rows, risk_record_ids
+        ).downgraded_count
 
     assert_no_cross_profile_dedup(results.values())
     variant_prompt = load_dual_profile_variant_link_prompt()
@@ -1366,6 +1365,7 @@ def _run_dual_profile_evaluation(
         audit_pair_fallbacks=resolution_audit.audit_fallbacks(),
         persisted_flag_representative_duplicates=persisted_representative_duplicates,
         risk_twin_flags_not_propagated=risk_twin_flags_not_propagated,
+        risk_twin_review_downgrades=risk_twin_review_downgrades,
     )
     manifest.validate_against(
         final, boundaries=boundaries_by_profile, risk_record_ids=risk_record_ids_by_profile

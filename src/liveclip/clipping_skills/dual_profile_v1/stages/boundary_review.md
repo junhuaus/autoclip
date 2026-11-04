@@ -102,13 +102,15 @@ context-dependent.
 A review item that keeps `context_dependent_opening` must set `opening_complete` to false; if the
 opening is complete, do not keep that flag.
 
-The Profile minimum must be met by on-topic content. If removing interior audience chat or comment
-reading, calls to action, greetings or device talk, or edge setup kept only for duration, would leave a
-clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For
-such interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
-`topic_switch_inside`), never instead of it. A
-closing acknowledgement or address to the audience is neither padding nor subtracted from the duration
-in this test.
+The Profile minimum must be met by on-topic content. If removing interior material that meets the
+`material_interruption` threshold above (audience chat, comment reading, calls to action or device talk
+that breaks the teaching or claim logic), or edge setup kept only for duration, would leave a clip that
+no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For such
+interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
+`topic_switch_inside`), never instead of it. A brief audience thanks, greeting, name call-out or
+acknowledgement that the speaker passes over without leaving the topic is neither flag and is not
+removed in this test, and a closing acknowledgement or address to the audience is neither padding nor
+subtracted from the duration in this test.
 
 Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the
 interval. A category, type or ordinal label that the clip itself contrasts, explains or demonstrates is

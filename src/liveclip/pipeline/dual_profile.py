@@ -130,8 +130,13 @@ if not PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS) or (
 #       own flags and status and still receives the gated flags of its non-risk
 #       twins, while non-risk twins share flags with each other as in v3
 #       (``same_interval_twin_flags`` is the single rule).
+#   v7: v6 plus risk-twin review: a non-risk row still ``selected`` after the
+#       twin union whose identical interval has a risk-discovery twin carrying an
+#       automatic-blocking risk tag (``AUTO_BLOCKING_RISK_TAGS``) is downgraded
+#       to ``manual_review`` before Top-N; risk tags are not copied
+#       (``risk_twin_review`` is the single rule).
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v6"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v7"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -547,6 +552,7 @@ class DualProfileFinalResult(BaseModel):
             "quality-gate-risk-routing-v4",
             "quality-gate-risk-routing-v5",
             "quality-gate-risk-routing-v6",
+            "quality-gate-risk-routing-v7",
         ]
         | None
     ) = None
@@ -642,6 +648,8 @@ FLAG_PERSISTENCE_REASON_PREFIX: Final = "Deterministic flag persistence: "
 QUALITY_GATE_REASON_PREFIX: Final = "Deterministic quality gate: "
 RISK_ROUTING_REASON_PREFIX: Final = "Deterministic risk routing: "
 TOP_N_REASON_PREFIX: Final = "Profile-local Top-N exclusion: "
+# Stage 15b (routing v7): the only Python-only prefix on a ``manual_review`` row.
+RISK_TWIN_REVIEW_REASON_PREFIX: Final = "Deterministic risk-twin review: "
 # Reason prefixes that only Python may write (Stage 13c). Model review reasons
 # may not start with one, so every prefixed final row is a Python decision.
 DETERMINISTIC_REASON_PREFIXES: Final = (
@@ -650,6 +658,7 @@ DETERMINISTIC_REASON_PREFIXES: Final = (
     QUALITY_GATE_REASON_PREFIX,
     RISK_ROUTING_REASON_PREFIX,
     TOP_N_REASON_PREFIX,
+    RISK_TWIN_REVIEW_REASON_PREFIX,
 )
 
 
@@ -764,6 +773,10 @@ class DualProfileRunManifest(BaseModel):
     # flag (``same_interval_twin_flags``). Manifests written before it load with
     # the default.
     risk_twin_flags_not_propagated: dict[ClipProfile, int] = Field(default_factory=dict)
+    # Stage 15b run diagnostic (routing v7): per Profile, the number of final rows
+    # that risk-twin review downgraded from ``selected`` to ``manual_review``
+    # (``risk_twin_review``). Manifests written before it load with the default.
+    risk_twin_review_downgrades: dict[ClipProfile, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_stale_cache_audit(self) -> DualProfileRunManifest:
@@ -842,9 +855,11 @@ class DualProfileRunManifest(BaseModel):
 
         When the structural risk-discovery membership of the run is supplied
         (``risk_record_ids``), the final arrays must satisfy the v6 twin rule
-        (no flag left to inherit from a non-risk same-interval twin) and the
-        ``risk_twin_flags_not_propagated`` diagnostic must equal the count the
-        same shared rule derives.
+        (no flag left to inherit from a non-risk same-interval twin) and the v7
+        risk-twin review rule (no ``selected`` row left to downgrade; every
+        risk-twin review prefix backed by an automatic-blocking risk twin), and
+        the ``risk_twin_flags_not_propagated`` and ``risk_twin_review_downgrades``
+        diagnostics must equal the counts the same shared rules derive.
         """
 
         if (
@@ -862,16 +877,30 @@ class DualProfileRunManifest(BaseModel):
         self._check_audit_records()
         if risk_record_ids is not None:
             not_propagated: dict[ClipProfile, int] = {}
+            downgrades: dict[ClipProfile, int] = {}
             for profile, final_profile in result.profiles.items():
-                twins = same_interval_twin_flags(
-                    _final_rows(final_profile).values(), risk_record_ids.get(profile, ())
-                )
+                final_rows = final_profile_rows(final_profile).values()
+                profile_risk_ids = risk_record_ids.get(profile, ())
+                twins = same_interval_twin_flags(final_rows, profile_risk_ids)
                 if any(twins.inherited.values()):
                     raise ValueError("final result violates the same-interval twin flag rule")
                 not_propagated[profile] = twins.not_propagated_count
+                review = risk_twin_review(final_rows, profile_risk_ids)
+                if review.pending:
+                    raise ValueError("final result violates the risk-twin review rule")
+                if any(candidate_id not in review.sources for candidate_id in review.downgraded):
+                    raise ValueError(
+                        "final row carries the risk-twin review prefix without an "
+                        "automatic-blocking risk twin"
+                    )
+                downgrades[profile] = review.downgraded_count
             if self.risk_twin_flags_not_propagated != not_propagated:
                 raise ValueError(
                     "run manifest risk-twin flag diagnostic differs from the final result"
+                )
+            if self.risk_twin_review_downgrades != downgrades:
+                raise ValueError(
+                    "run manifest risk-twin review diagnostic differs from the final result"
                 )
         for fallback in self.boundary_opening_fallbacks:
             profile_result = result.profiles.get(fallback.profile)
@@ -922,7 +951,7 @@ class DualProfileRunManifest(BaseModel):
             profile_result = result.profiles.get(action.profile)
             if profile_result is None:
                 raise ValueError("audit pair fallback names an unexecuted Profile")
-            status_by_id = _final_rows(profile_result)
+            status_by_id = final_profile_rows(profile_result)
             if not {action.outer_candidate_id, action.inner_candidate_id} <= set(status_by_id):
                 raise ValueError("audit pair fallback names a candidate outside the run")
             if action.blocked_candidate_id is not None:
@@ -947,7 +976,7 @@ class DualProfileRunManifest(BaseModel):
         # is backed by its deterministic decision, so a model-written prefix is
         # refused here as well as at review validation.
         for profile, profile_result in result.profiles.items():
-            for value in _final_rows(profile_result).values():
+            for value in final_profile_rows(profile_result).values():
                 reason = value.review_reason
                 if reason.startswith(AUDIT_FALLBACK_REASON_PREFIX) and (
                     (profile, value.candidate_id) not in fallback_blocked
@@ -957,6 +986,8 @@ class DualProfileRunManifest(BaseModel):
                     )
                 if reason.startswith(TOP_N_REASON_PREFIX):
                     required_status = CandidateDisposition.REJECTED
+                elif reason.startswith(RISK_TWIN_REVIEW_REASON_PREFIX):
+                    required_status = CandidateDisposition.MANUAL_REVIEW
                 elif reason.startswith(DETERMINISTIC_REASON_PREFIXES):
                     required_status = CandidateDisposition.BLOCKED
                 else:
@@ -968,7 +999,9 @@ class DualProfileRunManifest(BaseModel):
                     )
 
 
-def _final_rows(result: FinalProfileResult) -> dict[str, FinalProfileCandidate]:
+def final_profile_rows(result: FinalProfileResult) -> dict[str, FinalProfileCandidate]:
+    """Every final row of one Profile by candidate ID, in terminal-array order."""
+
     return {
         value.candidate_id: value
         for group in (result.selected, result.manual_review, result.blocked, result.rejected)
@@ -1739,7 +1772,7 @@ def assemble_final_profile_result(
     risk record is retained as ``blocked`` so risk material stays auditable.
     Routing only ever downgrades or retains; it never produces an output.
 
-    Deterministic routing order (v6), each step only downgrading:
+    Deterministic routing order (v7), each step only downgrading:
 
     1. validation of the review stages (unchanged: it sees only the merged
        Boundary/Global flags, so cached review outputs validate exactly as
@@ -1747,9 +1780,12 @@ def assemble_final_profile_result(
        (padding flags follow Boundary Review and are not persisted);
     2. same-interval twin union of gated flags (it includes persisted flags);
        risk records are not flag sources (``same_interval_twin_flags``);
-    3. Profile-local Top-N over the rows still ``selected`` (rows blocked by
-       steps 1--2 never take a slot);
-    4. risk-record routing and the manual_review quality gate.
+    3. risk-twin review (``route_risk_twin_review``): a non-risk row still
+       ``selected`` whose identical interval has a risk-discovery twin with an
+       automatic-blocking risk tag becomes ``manual_review``;
+    4. Profile-local Top-N over the rows still ``selected`` (rows downgraded by
+       steps 1--3 never take a slot, so a replacement already obeys step 3);
+    5. risk-record routing and the manual_review quality gate.
     """
     risk_records = frozenset(risk_record_ids)
     raw_candidates = tuple(value for output in discoveries for value in output.candidates)
@@ -1913,13 +1949,21 @@ def assemble_final_profile_result(
             update["review_status"] = CandidateDisposition.BLOCKED
             update["review_reason"] = f"{QUALITY_GATE_REASON_PREFIX}{value.review_reason}"
         shared.append(value.model_copy(update=update))
+    # Risk-twin review (v7).  It runs after the twin union, so only rows still
+    # selected are considered (a blocked row stays blocked), and before Top-N, so
+    # Top-N ranks only rows that already obey it and can never pick a
+    # replacement that would then be downgraded.  Its inputs (intervals and the
+    # risk twins' risk tags) are not changed by any later step, and a row it
+    # downgrades carries no quality flag (a selected row carries none), so step 5
+    # leaves it manual_review.
+    reviewed = route_risk_twin_review(shared, risk_records)
     selected = sorted(
-        (value for value in shared if value.review_status == CandidateDisposition.SELECTED),
+        (value for value in reviewed if value.review_status == CandidateDisposition.SELECTED),
         key=lambda value: (-value.score, value.start_ms, value.candidate_id),
     )
     keep_ids = {value.candidate_id for value in selected[:top_n]}
     normalized: list[FinalProfileCandidate] = []
-    for value in shared:
+    for value in reviewed:
         if (
             value.review_status == CandidateDisposition.SELECTED
             and value.candidate_id not in keep_ids
@@ -2066,18 +2110,119 @@ def same_interval_twin_flags(
         own = set(value.quality_flags)
         shared = sources[interval]
         inherited[value.candidate_id] = tuple(sorted(shared - own, key=lambda flag: flag.value))
-        from_risk_twins = {
-            flag
-            for candidate_id, flags in risk_flags.get(interval, ())
-            if candidate_id != value.candidate_id
-            for flag in flags
-        }
+        # A risk record's own flags are in ``own`` and are subtracted below.
+        from_risk_twins = {flag for _, flags in risk_flags.get(interval, ()) for flag in flags}
         not_propagated[value.candidate_id] = tuple(
             sorted(from_risk_twins - shared - own, key=lambda flag: flag.value)
         )
     return SameIntervalTwinFlags(
         inherited=MappingProxyType(inherited), not_propagated=MappingProxyType(not_propagated)
     )
+
+
+class RiskTwinReview(NamedTuple):
+    """Result of the risk-twin review rule (routing v7).
+
+    ``sources`` maps every non-risk candidate ID whose identical final interval
+    has at least one risk-discovery twin with an automatic-blocking risk tag to
+    those twins, as ``(risk candidate ID, its automatic-blocking tags)`` sorted by
+    candidate ID (tags in enum order).  ``pending`` lists the rows of ``sources``
+    that are still ``selected`` (the rule downgrades them); ``downgraded`` lists
+    the rows whose reason already carries ``RISK_TWIN_REVIEW_REASON_PREFIX``.
+    """
+
+    sources: Mapping[str, tuple[tuple[str, tuple[DualRiskTag, ...]], ...]]
+    pending: tuple[str, ...]
+    downgraded: tuple[str, ...]
+
+    @property
+    def downgraded_count(self) -> int:
+        return len(self.downgraded)
+
+
+def risk_twin_review(
+    values: Iterable[FinalProfileCandidate],
+    risk_record_ids: Collection[str],
+) -> RiskTwinReview:
+    """The single risk-twin review rule (policy v7).
+
+    Final assembly (``route_risk_twin_review``), the run-manifest diagnostic and
+    its validator all call it.  Since v6 a risk-discovery record is not a flag
+    source for its same-interval twins, and risk tags were never shared, so a
+    risk twin's automatic-blocking risk tag could no longer stop its non-risk
+    twin from being published automatically.  The rule restores a human check
+    without copying tags: only records in ``risk_record_ids`` (derived
+    structurally from the risk-discovery pass) act as sources, whatever their
+    own status, and only non-risk rows receive.
+    """
+
+    risk_records = frozenset(risk_record_ids)
+    rows = tuple(values)
+    tagged: dict[tuple[int, int], list[tuple[str, tuple[DualRiskTag, ...]]]] = {}
+    for value in rows:
+        if value.candidate_id not in risk_records:
+            continue
+        tags = tuple(
+            tag for tag in DualRiskTag if tag in value.risk_tags and tag in AUTO_BLOCKING_RISK_TAGS
+        )
+        if tags:
+            tagged.setdefault((value.start_cue_id, value.end_cue_id), []).append(
+                (value.candidate_id, tags)
+            )
+    sources: dict[str, tuple[tuple[str, tuple[DualRiskTag, ...]], ...]] = {}
+    for value in rows:
+        twins = tagged.get((value.start_cue_id, value.end_cue_id))
+        if twins and value.candidate_id not in risk_records:
+            sources[value.candidate_id] = tuple(sorted(twins))
+    return RiskTwinReview(
+        sources=MappingProxyType(sources),
+        pending=tuple(
+            value.candidate_id
+            for value in rows
+            if value.candidate_id in sources
+            and value.review_status == CandidateDisposition.SELECTED
+        ),
+        downgraded=tuple(
+            value.candidate_id
+            for value in rows
+            if value.review_reason.startswith(RISK_TWIN_REVIEW_REASON_PREFIX)
+        ),
+    )
+
+
+def route_risk_twin_review(
+    values: Iterable[FinalProfileCandidate],
+    risk_record_ids: Collection[str],
+) -> tuple[FinalProfileCandidate, ...]:
+    """Apply ``risk_twin_review``: every pending row becomes ``manual_review``.
+
+    Downgrade only (never ``blocked``; rows already ``manual_review``,
+    ``blocked`` or ``rejected`` are unchanged), risk tags are not copied, and
+    the reason records the source risk twins and their tags.  Idempotent: on
+    its own output nothing is pending.
+    """
+
+    rows = tuple(values)
+    review = risk_twin_review(rows, risk_record_ids)
+    pending = frozenset(review.pending)
+    routed: list[FinalProfileCandidate] = []
+    for value in rows:
+        if value.candidate_id in pending:
+            detail = "; ".join(
+                f"same-interval risk-discovery twin {candidate_id} carries "
+                + ", ".join(tag.value for tag in tags)
+                for candidate_id, tags in review.sources[value.candidate_id]
+            )
+            value = value.model_copy(
+                update={
+                    "review_status": CandidateDisposition.MANUAL_REVIEW,
+                    "review_reason": (
+                        f"{RISK_TWIN_REVIEW_REASON_PREFIX}{detail}. {value.review_reason}"
+                    ),
+                }
+            )
+        routed.append(value)
+    return tuple(routed)
 
 
 def profile_statistics(
@@ -2188,6 +2333,7 @@ __all__ = [
     "PROFILE_DURATION_CONTRACTS",
     "QUALITY_GATE_REASON_PREFIX",
     "RISK_ROUTING_REASON_PREFIX",
+    "RISK_TWIN_REVIEW_REASON_PREFIX",
     "TOP_N_REASON_PREFIX",
     "AuditCandidatePair",
     "AuditPairFallback",
@@ -2219,6 +2365,7 @@ __all__ = [
     "ProfileManifestStats",
     "ProfileStatistics",
     "RawProfileCandidate",
+    "RiskTwinReview",
     "SameIntervalTwinFlags",
     "StaleCacheResolution",
     "VariantLinkItem",
@@ -2232,12 +2379,15 @@ __all__ = [
     "candidate_spans_ms",
     "discovery_persisted_flags",
     "duplicate_status_violation",
+    "final_profile_rows",
     "nested_candidate_pairs",
     "plan_audit_pair_fallback",
     "plan_profile_discovery_windows",
     "profile_statistics",
     "reject_reserved_reason_prefixes",
     "resolved_duplicates",
+    "risk_twin_review",
+    "route_risk_twin_review",
     "same_interval_twin_flags",
     "semantic_cache_key",
     "validate_audit_pair_decisions",

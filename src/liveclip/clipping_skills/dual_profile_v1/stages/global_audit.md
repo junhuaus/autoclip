@@ -112,9 +112,10 @@ promoting a candidate).
 
 A pair whose precomputed `near_identical` field is true (Python sets it when the two end within the
 boundary tolerance, when an `overlap` pair shares at least 90% of the shorter candidate, or when the
-inner candidate of a `containment` pair lasts at least 90% of the outer one) is nearly the same media: do not keep both `selected`/`manual_review`. Decide `duplicate`
-and keep one representative, unless you reject or block a member on its own merits. When an `overlap`
-or `containment` pair is `duplicate`, the representative must stay `selected` or `manual_review`.
+inner candidate of a `containment` pair lasts at least 90% of the outer one) is nearly the same media:
+do not keep both `selected`/`manual_review`. Decide `duplicate` and keep one representative, unless
+you reject or block a member on its own merits. When an `overlap` or `containment` pair is `duplicate`,
+the representative must stay `selected` or `manual_review`.
 
 Each candidate's `persisted_discovery_gated_flags` lists the structural Discovery gated flags
 (`material_interruption`, `topic_switch_inside`, `topic_not_closed`, `asr_uncertain_blocks_meaning`)

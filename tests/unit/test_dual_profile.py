@@ -25,6 +25,7 @@ from liveclip.pipeline.dual_profile import (
     PADDING_GATED_FLAGS,
     PERSISTED_STRUCTURAL_GATED_FLAGS,
     PROFILE_DURATION_CONTRACTS,
+    RISK_TWIN_REVIEW_REASON_PREFIX,
     AuditCandidatePair,
     AuditPairFallback,
     AuditPairKind,
@@ -61,11 +62,14 @@ from liveclip.pipeline.dual_profile import (
     boundary_shrank_interval,
     discovery_persisted_flags,
     duplicate_status_violation,
+    final_profile_rows,
     nested_candidate_pairs,
     plan_audit_pair_fallback,
     plan_profile_discovery_windows,
     profile_statistics,
     reject_reserved_reason_prefixes,
+    risk_twin_review,
+    route_risk_twin_review,
     same_interval_twin_flags,
     semantic_cache_key,
     validate_audit_pair_decisions,
@@ -1842,8 +1846,15 @@ def test_run_manifest_cross_checks_the_risk_twin_diagnostic() -> None:
     manifest.validate_against(final)
     with pytest.raises(ValueError, match="risk-twin flag diagnostic"):
         manifest.validate_against(final, risk_record_ids=risk_ids)
+    # Stage 15b: the v7 diagnostic is cross-checked as well (no downgrade here:
+    # the base twin is manual_review).
     recorded = manifest.model_copy(
         update={"risk_twin_flags_not_propagated": {ClipProfile.MINI_LESSON: 1}}
+    )
+    with pytest.raises(ValueError, match="risk-twin review diagnostic"):
+        recorded.validate_against(final, risk_record_ids=risk_ids)
+    recorded = recorded.model_copy(
+        update={"risk_twin_review_downgrades": {ClipProfile.MINI_LESSON: 0}}
     )
     recorded.validate_against(final, risk_record_ids=risk_ids)
     reloaded = DualProfileRunManifest.model_validate_json(recorded.model_dump_json())
@@ -1851,6 +1862,321 @@ def test_run_manifest_cross_checks_the_risk_twin_diagnostic() -> None:
     # Without the risk membership the base row would have to inherit the flag.
     with pytest.raises(ValueError, match="same-interval twin flag rule"):
         recorded.validate_against(final, risk_record_ids={ClipProfile.MINI_LESSON: ()})
+
+
+# Stage 15b (routing v7): risk-twin review.  A non-risk row still selected after
+# the twin union whose identical interval has a risk-discovery twin carrying an
+# automatic-blocking risk tag drops to manual_review (never blocked); risk tags
+# are not copied.
+
+
+def _risk_twin_spec(
+    candidate_id: str,
+    status: CandidateDisposition,
+    *,
+    end: int = 991,
+    start: int = 940,
+    score: float = 90,
+    risk_tags: tuple[DualRiskTag, ...] = (),
+    **extra: object,
+) -> dict[str, object]:
+    return {
+        "candidate_id": candidate_id,
+        "start_cue_id": start,
+        "end_cue_id": end,
+        "status": status,
+        "score": score,
+        "risk_tags": risk_tags,
+        **extra,
+    }
+
+
+def test_selected_twin_of_an_auto_blocking_risk_twin_drops_to_manual_review() -> None:
+    selected = CandidateDisposition.SELECTED
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("base_lesson", selected),
+            _risk_twin_spec(
+                "risk_chain",
+                CandidateDisposition.REJECTED,
+                score=40,
+                # Model order differs from enum order; the reason uses enum order.
+                risk_tags=(DualRiskTag.HEALTH_ADVICE, DualRiskTag.MEDICAL_CLAIM),
+            ),
+        ),
+        risk_record_ids=frozenset({"risk_chain"}),
+    )
+    values = _by_id(result)
+    base = values["base_lesson"]
+    assert result.selected == ()
+    assert base.review_status == CandidateDisposition.MANUAL_REVIEW
+    assert base.review_reason == (
+        "Deterministic risk-twin review: same-interval risk-discovery twin risk_chain carries "
+        "medical_claim, health_advice. 全局审查证据。"
+    )
+    # A status downgrade only: no risk tag or quality flag is copied.
+    assert base.risk_tags == ()
+    assert base.quality_flags == ()
+    assert base.score == 90
+    risk = values["risk_chain"]
+    assert risk.review_status == CandidateDisposition.BLOCKED
+    assert risk.review_reason == "Deterministic risk routing: 全局审查证据。"
+    assert (result.statistics.selected, result.statistics.manual_review) == (0, 1)
+
+
+def test_risk_twin_review_leaves_non_selected_twins_unchanged() -> None:
+    tag = (DualRiskTag.MEDICAL_CLAIM,)
+    for status in (
+        CandidateDisposition.MANUAL_REVIEW,
+        CandidateDisposition.BLOCKED,
+        CandidateDisposition.REJECTED,
+    ):
+        result = _assemble_pool(
+            profile=ClipProfile.MINI_LESSON,
+            specs=(
+                _risk_twin_spec("base_lesson", status, score=70),
+                _risk_twin_spec("risk_chain", CandidateDisposition.BLOCKED, risk_tags=tag),
+            ),
+            risk_record_ids=frozenset({"risk_chain"}),
+        )
+        base = _by_id(result)["base_lesson"]
+        assert base.review_status == status
+        assert base.review_reason == "全局审查证据。"
+
+
+def test_risk_twin_review_needs_an_auto_blocking_tag_on_a_risk_record() -> None:
+    selected = CandidateDisposition.SELECTED
+    manual = CandidateDisposition.MANUAL_REVIEW
+    # A non-auto-blocking risk tag on the risk twin: no downgrade.
+    commercial = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("base_lesson", selected),
+            _risk_twin_spec("risk_chain", manual, risk_tags=(DualRiskTag.COMMERCIAL_CLAIM,)),
+        ),
+        risk_record_ids=frozenset({"risk_chain"}),
+    )
+    assert [value.candidate_id for value in commercial.selected] == ["base_lesson"]
+    # The same auto-blocking tag on a non-risk twin is not a source.
+    non_risk = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("base_lesson", selected),
+            _risk_twin_spec("tagged_base", manual, risk_tags=(DualRiskTag.MEDICAL_CLAIM,)),
+        ),
+    )
+    assert [value.candidate_id for value in non_risk.selected] == ["base_lesson"]
+    # Only non-risk rows receive: a selected risk record is not downgraded by
+    # another risk record.
+    risk_pair = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("risk_selected", selected),
+            _risk_twin_spec("risk_chain", manual, risk_tags=(DualRiskTag.MEDICAL_CLAIM,)),
+        ),
+        risk_record_ids=frozenset({"risk_selected", "risk_chain"}),
+    )
+    assert [value.candidate_id for value in risk_pair.selected] == ["risk_selected"]
+
+
+def test_risk_twin_review_requires_the_identical_interval() -> None:
+    selected = CandidateDisposition.SELECTED
+    tag = (DualRiskTag.MEDICAL_CLAIM,)
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("later_end", selected, end=992),
+            _risk_twin_spec("later_start", selected, start=941),
+            _risk_twin_spec("risk_chain", CandidateDisposition.BLOCKED, risk_tags=tag),
+        ),
+        risk_record_ids=frozenset({"risk_chain"}),
+    )
+    assert {value.candidate_id for value in result.selected} == {"later_end", "later_start"}
+
+
+def test_risk_twin_review_runs_after_the_twin_union() -> None:
+    """A selected row that inherits a non-risk twin's gated flag is blocked by the
+    twin union; risk-twin review sees only rows still selected."""
+
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("base_lesson", CandidateDisposition.SELECTED),
+            _risk_twin_spec(
+                "flagged_base",
+                CandidateDisposition.REJECTED,
+                score=40,
+                review_flags=(DualQualityFlag.TOPIC_NOT_CLOSED,),
+            ),
+            _risk_twin_spec(
+                "risk_chain", CandidateDisposition.BLOCKED, risk_tags=(DualRiskTag.MEDICAL_CLAIM,)
+            ),
+        ),
+        risk_record_ids=frozenset({"risk_chain"}),
+    )
+    base = _by_id(result)["base_lesson"]
+    assert base.review_status == CandidateDisposition.BLOCKED
+    assert base.review_reason == "Deterministic quality gate: 全局审查证据。"
+
+
+def test_risk_twin_review_runs_before_top_n() -> None:
+    """Top-N ranks only rows that already obey the rule, so it can neither spend a
+    slot on a downgraded row nor pick a replacement that would be downgraded."""
+
+    selected = CandidateDisposition.SELECTED
+    blocked = CandidateDisposition.BLOCKED
+    tag = (DualRiskTag.HEALTH_ADVICE,)
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("first", selected, score=95),
+            _risk_twin_spec("risk_first", blocked, score=40, risk_tags=tag),
+            _risk_twin_spec("second", selected, score=92, end=992),
+            _risk_twin_spec("risk_second", blocked, score=40, end=992, risk_tags=tag),
+            _risk_twin_spec("clean_high", selected, score=85, start=941),
+            _risk_twin_spec("clean_low", selected, score=80, start=941, end=992),
+        ),
+        risk_record_ids=frozenset({"risk_first", "risk_second"}),
+        top_n=1,
+    )
+    values = _by_id(result)
+    assert [value.candidate_id for value in result.selected] == ["clean_high"]
+    for candidate_id in ("first", "second"):
+        assert values[candidate_id].review_status == CandidateDisposition.MANUAL_REVIEW
+        assert values[candidate_id].review_reason.startswith(RISK_TWIN_REVIEW_REASON_PREFIX)
+    assert values["clean_low"].review_status == CandidateDisposition.REJECTED
+    assert values["clean_low"].review_reason.startswith("Profile-local Top-N exclusion: ")
+
+
+def test_risk_twin_review_helper_is_the_single_idempotent_rule() -> None:
+    selected = CandidateDisposition.SELECTED
+    manual = CandidateDisposition.MANUAL_REVIEW
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            _risk_twin_spec("base_lesson", selected),
+            _risk_twin_spec("base_manual", manual, score=70),
+            _risk_twin_spec("risk_b", manual, risk_tags=(DualRiskTag.ASR_UNCERTAIN,)),
+            _risk_twin_spec(
+                "risk_a",
+                manual,
+                risk_tags=(DualRiskTag.COMMERCIAL_CLAIM, DualRiskTag.MINOR_PRIVACY),
+            ),
+            _risk_twin_spec("risk_plain", manual, risk_tags=(DualRiskTag.COMMERCIAL_CLAIM,)),
+            _risk_twin_spec("elsewhere", selected, end=992),
+        ),
+        risk_record_ids=frozenset({"risk_a", "risk_b", "risk_plain"}),
+    )
+    rows = tuple(final_profile_rows(result).values())
+    risk_ids = {"risk_a", "risk_b", "risk_plain"}
+    review = risk_twin_review(rows, risk_ids)
+    twins = (
+        ("risk_a", (DualRiskTag.MINOR_PRIVACY,)),
+        ("risk_b", (DualRiskTag.ASR_UNCERTAIN,)),
+    )
+    # Only non-risk rows of the interval; only auto-blocking tags, twins sorted.
+    assert review.sources == {"base_lesson": twins, "base_manual": twins}
+    assert review.pending == ()
+    assert review.downgraded == ("base_lesson",)
+    assert review.downgraded_count == 1
+    base = _by_id(result)["base_lesson"]
+    assert base.review_reason == (
+        "Deterministic risk-twin review: same-interval risk-discovery twin risk_a carries "
+        "minor_privacy; same-interval risk-discovery twin risk_b carries asr_uncertain. "
+        "全局审查证据。"
+    )
+    # Idempotent: applying the rule to its own output changes nothing.
+    assert route_risk_twin_review(rows, risk_ids) == rows
+    # Before routing, the selected row is pending and nothing is downgraded.
+    undone = tuple(
+        value.model_copy(update={"review_status": selected, "review_reason": "全局审查证据。"})
+        if value.candidate_id == "base_lesson"
+        else value
+        for value in rows
+    )
+    before = risk_twin_review(undone, risk_ids)
+    assert (before.pending, before.downgraded) == (("base_lesson",), ())
+    assert route_risk_twin_review(undone, risk_ids) == rows
+
+
+def test_run_manifest_cross_checks_the_risk_twin_review_diagnostic() -> None:
+    specs = (
+        _risk_twin_spec("base_lesson", CandidateDisposition.SELECTED),
+        _risk_twin_spec(
+            "risk_chain", CandidateDisposition.BLOCKED, risk_tags=(DualRiskTag.MEDICAL_CLAIM,)
+        ),
+    )
+    risk_ids = {ClipProfile.MINI_LESSON: frozenset({"risk_chain"})}
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=specs,
+        risk_record_ids=risk_ids[ClipProfile.MINI_LESSON],
+    )
+    manifest, final = _fallback_manifest(result)
+    # Older manifests omit the field and load with the default.
+    assert manifest.risk_twin_review_downgrades == {}
+    # Delivery's check (no risk membership) only requires the prefixed row to
+    # be manual_review.
+    manifest.validate_against(final)
+    flags_only = manifest.model_copy(
+        update={"risk_twin_flags_not_propagated": {ClipProfile.MINI_LESSON: 0}}
+    )
+    with pytest.raises(ValueError, match="risk-twin review diagnostic"):
+        flags_only.validate_against(final, risk_record_ids=risk_ids)
+    recorded = flags_only.model_copy(
+        update={"risk_twin_review_downgrades": {ClipProfile.MINI_LESSON: 1}}
+    )
+    recorded.validate_against(final, risk_record_ids=risk_ids)
+    reloaded = DualProfileRunManifest.model_validate_json(recorded.model_dump_json())
+    assert reloaded.risk_twin_review_downgrades == {ClipProfile.MINI_LESSON: 1}
+    wrong = recorded.model_copy(
+        update={"risk_twin_review_downgrades": {ClipProfile.MINI_LESSON: 0}}
+    )
+    with pytest.raises(ValueError, match="risk-twin review diagnostic"):
+        wrong.validate_against(final, risk_record_ids=risk_ids)
+    # Without the risk membership the prefix is not backed by a risk twin.
+    with pytest.raises(ValueError, match="without an automatic-blocking risk twin"):
+        recorded.validate_against(final, risk_record_ids={ClipProfile.MINI_LESSON: ()})
+    # A final result assembled without the rule (no risk membership) leaves the
+    # selected twin pending under the run's real membership.
+    unrouted = _assemble_pool(profile=ClipProfile.MINI_LESSON, specs=specs)
+    assert [value.candidate_id for value in unrouted.selected] == ["base_lesson"]
+    manifest, final = _fallback_manifest(unrouted)
+    manifest = manifest.model_copy(
+        update={
+            "risk_twin_flags_not_propagated": {ClipProfile.MINI_LESSON: 0},
+            "risk_twin_review_downgrades": {ClipProfile.MINI_LESSON: 0},
+        }
+    )
+    with pytest.raises(ValueError, match="violates the risk-twin review rule"):
+        manifest.validate_against(final, risk_record_ids=risk_ids)
+
+
+def test_risk_twin_review_prefix_is_python_only_and_manual_review_only() -> None:
+    manual = CandidateDisposition.MANUAL_REVIEW
+    item = _review_item("a", 100, 200, manual).model_copy(
+        update={"review_reason": f"{RISK_TWIN_REVIEW_REASON_PREFIX}model text"}
+    )
+    with pytest.raises(ValueError, match="reserved for deterministic Python routing"):
+        reject_reserved_reason_prefixes((item,))
+    for status in (CandidateDisposition.BLOCKED, CandidateDisposition.REJECTED):
+        manifest, final = _fallback_manifest(
+            _assemble_pool(
+                profile=ClipProfile.SHORT_HIGHLIGHT,
+                specs=(
+                    {
+                        "candidate_id": "row",
+                        "start_cue_id": 941,
+                        "end_cue_id": 958,
+                        "status": status,
+                        "reason": f"{RISK_TWIN_REVIEW_REASON_PREFIX}x",
+                    },
+                ),
+            )
+        )
+        with pytest.raises(ValueError, match="inconsistent with its status"):
+            manifest.validate_against(final)
 
 
 def test_risk_record_excluded_by_top_n_is_retained_blocked() -> None:
@@ -1917,7 +2243,7 @@ def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
 
 
 def test_routing_policy_marker_accepts_every_published_version() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v6"
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v7"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker_v3",
@@ -1942,6 +2268,7 @@ def test_routing_policy_marker_accepts_every_published_version() -> None:
         "quality-gate-risk-routing-v4",
         "quality-gate-risk-routing-v5",
         "quality-gate-risk-routing-v6",
+        "quality-gate-risk-routing-v7",
     ):
         loaded = DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": marker})
@@ -3162,13 +3489,16 @@ def test_orphan_records_must_name_a_fallback_blocked_representative() -> None:
 # Stage 13d: Stage 13c reviewer P3 test gaps.
 
 
-def test_reserved_reason_prefixes_are_exactly_the_five_python_only_prefixes() -> None:
+def test_reserved_reason_prefixes_are_exactly_the_six_python_only_prefixes() -> None:
+    """Stage 15b added the risk-twin review prefix (routing v7)."""
+
     assert DETERMINISTIC_REASON_PREFIXES == (
         "Deterministic audit fallback: ",
         "Deterministic flag persistence: ",
         "Deterministic quality gate: ",
         "Deterministic risk routing: ",
         "Profile-local Top-N exclusion: ",
+        "Deterministic risk-twin review: ",
     )
 
 

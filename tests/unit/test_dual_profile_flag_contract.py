@@ -208,6 +208,35 @@ def test_boundary_review_threshold_matches_the_shared_definition(profile: ClipPr
     )
 
 
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_boundary_review_duration_test_obeys_the_interruption_threshold(
+    profile: ClipProfile,
+) -> None:
+    """Stage 15b (reviewer P3-b): the on-topic duration test subtracts only interior
+    material that meets the `material_interruption` threshold; a brief passed-over
+    greeting or thanks is neither flag and is not removed."""
+
+    text = _stage_text("boundary_review", profile)
+    assert (
+        "If removing interior material that meets the `material_interruption` threshold above "
+        "(audience chat, comment reading, calls to action or device talk that breaks the "
+        "teaching or claim logic), or edge setup kept only for duration, would leave a clip "
+        "that no longer satisfies the Profile duration minimum, flag "
+        "`padded_with_irrelevant_content`."
+    ) in text
+    assert (
+        "flag `padded_with_irrelevant_content` alongside `material_interruption` (or "
+        "`topic_switch_inside`), never instead of it."
+    ) in text
+    assert (
+        "A brief audience thanks, greeting, name call-out or acknowledgement that the speaker "
+        "passes over without leaving the topic is neither flag and is not removed in this test"
+    ) in text
+    # The superseded wording subtracted every greeting and then required both flags.
+    assert "calls to action, greetings or device talk" not in text
+    assert re.search(r"\d", text[text.index("The Profile minimum must be met") :][:900]) is None
+
+
 SELF_PROMOTION_OBJECTIVE = (
     "whose central objective is the speaker's own credentials, qualifications, pricing, course "
     "sales or schedule"

@@ -26,9 +26,10 @@ another topic starts inside the interval; when the Profile minimum is met only b
 `padded_with_irrelevant_content` may be added to that interior flag, never used instead of it.
 Interior content counts as `material_interruption` only when it actually breaks the teaching or claim
 logic; a brief audience thanks, greeting, name call-out or acknowledgement that the speaker passes over
-without leaving the topic is neither an interruption nor padding. Brief microphone, distance, placement or equipment words that directly enable an immediate live vocal
-demonstration, including why moving closer helps listeners hear, are part of that demonstration: they
-are neither padding nor an interruption.
+without leaving the topic is neither an interruption nor padding. Brief microphone, distance, placement
+or equipment words that directly enable an immediate live vocal demonstration, including why moving
+closer helps listeners hear, are part of that demonstration: they are neither padding nor an
+interruption.
 
 Use only these risk tags when evidenced: `medical_claim`, `medical_diagnosis_high`, `health_advice`,
 `absolute_claim`, `sensitivity_review`, `music_rights_review`, `participant_audio`, `minor_privacy`,

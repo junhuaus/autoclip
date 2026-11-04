@@ -1969,7 +1969,7 @@ def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
     short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
     mini = final.profiles[ClipProfile.MINI_LESSON]
     # Short: unchanged interval, so the Discovery flag cleared by review still gates.
@@ -2017,7 +2017,7 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
     for result in final.profiles.values():
         assert result.blocked == ()
         for value in (*result.selected, *result.manual_review, *result.rejected):
@@ -2029,14 +2029,20 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
 
 class RiskTwinProvider(ScriptedDualProvider):
     """Adds a same-interval twin of the mini lesson that carries
-    `material_interruption`, emitted either by the dedicated risk-discovery pass
-    or by the base pass under a look-alike `risk_` ID."""
+    `material_interruption` and ``risk_tag``, emitted either by the dedicated
+    risk-discovery pass or by the base pass under a look-alike `risk_` ID."""
 
     def __init__(
-        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, from_risk_pass: bool
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        from_risk_pass: bool,
+        risk_tag: DualRiskTag = DualRiskTag.HEALTH_ADVICE,
     ) -> None:
         super().__init__(prompt, counter)
         self._twin_pass = "risk_discovery" if from_risk_pass else None
+        self._risk_tag = risk_tag
 
     def _output(
         self,
@@ -2062,7 +2068,7 @@ class RiskTwinProvider(ScriptedDualProvider):
                     summary="包含健康主张的完整链条。",
                     boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
                     quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
-                    risk_tags=(DualRiskTag.HEALTH_ADVICE,),
+                    risk_tags=(self._risk_tag,),
                 )
                 return cast(
                     OutputModel,
@@ -2084,7 +2090,7 @@ class RiskTwinProvider(ScriptedDualProvider):
                             if item.candidate_id != "risk_twin"
                             else item.model_copy(
                                 update={
-                                    "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                                    "risk_tags": (self._risk_tag,),
                                     "quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
                                 }
                             )
@@ -2106,7 +2112,7 @@ class RiskTwinProvider(ScriptedDualProvider):
                                 update={
                                     "score": 50.0,
                                     "review_status": CandidateDisposition.BLOCKED,
-                                    "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                                    "risk_tags": (self._risk_tag,),
                                     "review_reason": "Interior interruption in the risk chain.",
                                 }
                             )
@@ -2118,20 +2124,15 @@ class RiskTwinProvider(ScriptedDualProvider):
         return output
 
 
-@pytest.mark.parametrize("from_risk_pass", [True, False])
-def test_service_twin_union_ignores_risk_pass_sources_structurally(
-    tmp_path: Path, from_risk_pass: bool
-) -> None:
-    """Stage 15 (routing v6): a same-interval twin from the dedicated
-    risk-discovery pass does not pass its gated flag to the clean lesson; the
-    same twin from the base pass (look-alike `risk_` ID) still does."""
-
+def _risk_twin_run(
+    tmp_path: Path, *, from_risk_pass: bool, risk_tag: DualRiskTag
+) -> tuple[DualProfileFinalResult, DualProfileRunManifest]:
     transcript = tmp_path / "transcript.srt"
     _write_srt(transcript)
 
     def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
         del reasoning_effort
-        return RiskTwinProvider(prompt, {}, from_risk_pass=from_risk_pass)
+        return RiskTwinProvider(prompt, {}, from_risk_pass=from_risk_pass, risk_tag=risk_tag)
 
     output_dir = tmp_path / "run"
     run_dual_profile_evaluation(
@@ -2147,10 +2148,31 @@ def test_service_twin_union_ignores_risk_pass_sources_structurally(
         (output_dir / "run-manifest.json").read_text(encoding="utf-8")
     )
     manifest.validate_against(final)
-    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
+    return final, manifest
+
+
+@pytest.mark.parametrize("from_risk_pass", [True, False])
+def test_service_twin_union_ignores_risk_pass_sources_structurally(
+    tmp_path: Path, from_risk_pass: bool
+) -> None:
+    """Stage 15 (routing v6): a same-interval twin from the dedicated
+    risk-discovery pass does not pass its gated flag to the clean lesson; the
+    same twin from the base pass (look-alike `risk_` ID) still does.  Stage 15b
+    changed the twin's risk tag to the non-automatic-blocking `commercial_claim`
+    so the v6 property is isolated from the v7 risk-twin review (covered below
+    with `health_advice`)."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=from_risk_pass, risk_tag=DualRiskTag.COMMERCIAL_CLAIM
+    )
     mini = final.profiles[ClipProfile.MINI_LESSON]
     twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
     assert DualQualityFlag.MATERIAL_INTERRUPTION in twin.quality_flags
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 0,
+    }
     if from_risk_pass:
         assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
         assert mini.selected[0].quality_flags == ()
@@ -2167,6 +2189,49 @@ def test_service_twin_union_ignores_risk_pass_sources_structurally(
             ClipProfile.SHORT_HIGHLIGHT: 0,
             ClipProfile.MINI_LESSON: 0,
         }
+
+
+@pytest.mark.parametrize("from_risk_pass", [True, False])
+def test_service_risk_twin_review_drops_the_selected_twin_to_manual_review(
+    tmp_path: Path, from_risk_pass: bool
+) -> None:
+    """Stage 15b (routing v7, user decision 2026-11-04 "drop to manual review"):
+    a risk-discovery twin with an automatic-blocking risk tag (`health_advice`)
+    drops the selected same-interval lesson to manual_review (not blocked, tags
+    not copied) and the run manifest records the downgrade; risk-pass membership
+    is structural, so the base-pass look-alike `risk_` twin instead blocks the
+    lesson through the twin union and triggers no risk-twin review."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=from_risk_pass, risk_tag=DualRiskTag.HEALTH_ADVICE
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert twin.risk_tags == (DualRiskTag.HEALTH_ADVICE,)
+    assert mini.selected == ()
+    if from_risk_pass:
+        (lesson,) = mini.manual_review
+        assert lesson.candidate_id == "mini_lesson_lesson"
+        assert lesson.review_reason.startswith(
+            "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+            "carries health_advice. "
+        )
+        assert lesson.risk_tags == ()
+        assert lesson.quality_flags == ()
+        assert manifest.risk_twin_review_downgrades == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 1,
+        }
+        assert manifest.risk_twin_flags_not_propagated[ClipProfile.MINI_LESSON] == 1
+    else:
+        lesson = next(value for value in mini.blocked if value.candidate_id == "mini_lesson_lesson")
+        assert lesson.review_reason.startswith("Deterministic quality gate: ")
+        assert manifest.risk_twin_review_downgrades == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 0,
+        }
+    # The short Profile is untouched by the mini-only twin.
+    assert final.profiles[ClipProfile.SHORT_HIGHLIGHT].selected != ()
 
 
 class OverlapPairProvider(ScriptedDualProvider):
@@ -2944,10 +3009,15 @@ class PrefixedGlobalReviewProvider(ScriptedDualProvider):
     """The first Global Review chunk output starts a reason with a reserved prefix."""
 
     def __init__(
-        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], repairs: list[Any]
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        repairs: list[Any],
+        prefix: str = "Deterministic quality gate: ",
     ) -> None:
         super().__init__(prompt, counter)
         self.repairs = repairs
+        self.prefix = prefix
 
     def generate(self, *, subject_id: str, response_model: Any, **kwargs: Any) -> Any:
         result = super().generate(subject_id=subject_id, response_model=response_model, **kwargs)
@@ -2955,9 +3025,7 @@ class PrefixedGlobalReviewProvider(ScriptedDualProvider):
             return result
         output = cast(ProfileGlobalReviewOutput, result.output)
         first, *rest = output.reviews
-        prefixed = first.model_copy(
-            update={"review_reason": f"Deterministic quality gate: {first.review_reason}"}
-        )
+        prefixed = first.model_copy(update={"review_reason": f"{self.prefix}{first.review_reason}"})
         return StructuredCallResult(
             output=output.model_copy(update={"reviews": (prefixed, *rest)}),
             call_records=(),
@@ -2969,8 +3037,14 @@ class PrefixedGlobalReviewProvider(ScriptedDualProvider):
         return super().repair(subject_id=subject_id, validation_errors=validation_errors, **kwargs)
 
 
-def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(tmp_path: Path) -> None:
-    """Stage 13d (Stage 13c reviewer P3): the Global Review chunk check is covered."""
+@pytest.mark.parametrize(
+    "prefix", ["Deterministic quality gate: ", "Deterministic risk-twin review: "]
+)
+def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(
+    tmp_path: Path, prefix: str
+) -> None:
+    """Stage 13d (Stage 13c reviewer P3): the Global Review chunk check is covered.
+    Stage 15b: the risk-twin review prefix (routing v7) is refused the same way."""
 
     transcript = tmp_path / "transcript.srt"
     _write_srt(transcript)
@@ -2978,7 +3052,7 @@ def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(tmp_path: 
 
     def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
         del reasoning_effort
-        return PrefixedGlobalReviewProvider(prompt, {}, repairs)
+        return PrefixedGlobalReviewProvider(prompt, {}, repairs, prefix)
 
     run_dual_profile_evaluation(
         transcript_path=transcript,
@@ -2994,7 +3068,7 @@ def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(tmp_path: 
         assert "starts with a prefix reserved for deterministic Python routing" in errors[0]
     review = json.loads((tmp_path / "run" / "global-review.json").read_text("utf-8"))
     assert not any(
-        item["review_reason"].startswith("Deterministic quality gate: ")
+        item["review_reason"].startswith(prefix)
         for profile in review["profiles"].values()
         for item in profile["reviews"]
     )
@@ -3100,27 +3174,31 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 # acknowledgement is neither an interruption nor padding), mirrored in
 # risk_discovery and coverage_audit; precision_audit's greeting sentence now
 # defers to that threshold (cold Discovery cache again).
+# Stage 15b (2026-11-04, reviewer P3-d) re-pinned every Discovery pass again: the
+# shared main.md microphone/demonstration sentence was re-wrapped (a 167-character
+# line split at the usual width; the words are unchanged), which changes the bytes
+# every stage loads (cold Discovery cache again).
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
-        "b1d4d8785d1a1076f7faf287322bbfd4a0e8b60cc7d54a952e39df81200e2fb0"
+        "42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1"
     ),
     ("short_highlight", "coverage_audit"): (
-        "152554adb34d813306c9bb367121e11ea3eb6bf5dbe59f26c78a8b6bba930f88"
+        "d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4"
     ),
     ("mini_lesson", "discovery"): (
-        "00c58be1b0fae7dffdb7c5f6b63e1839dacd3f5d53d5a6efbf979cf282708a80"
+        "cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "460e83b9b9bdac197cb4ec4c1b91fd5fe4c279ccbf1f9bc8028660bb247375e8"
+        "42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a"
     ),
     ("mini_lesson", "precision_audit"): (
-        "56a4154c06e390d80ddd6aca97b7fe9512102abd93a8dfe368cfb1e1fa7873d5"
+        "d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8"
     ),
     ("mini_lesson", "precision_confirmation"): (
-        "00440c52138d423abaaa565e8981037b2cf6e1577b689b62ed274fe9e37b3db2"
+        "fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "4066e60cd6f6028e0245a207e5dbb41797dafef12e73e56a89778907467de3f7"
+        "6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952"
     ),
 }
 
@@ -3144,24 +3222,30 @@ def test_discovery_prompt_identities_are_unchanged() -> None:
 # (a candidate centred on the speaker's own credentials, pricing, course sales or
 # schedule is rejected, not merely flagged). The variant link (no main.md) is
 # unchanged.
+# Stage 15b (2026-11-04): every review stage re-pinned. main.md was re-wrapped
+# (words unchanged); boundary_review's on-topic duration test now subtracts only
+# interior material that meets the `material_interruption` threshold, and a brief
+# passed-over greeting or thanks is neither flag nor removed (reviewer P3-b);
+# global_audit's near-identical paragraph was re-wrapped (words unchanged). The
+# variant link (no main.md) is unchanged.
 PINNED_REVIEW_PROMPT_HASHES = {
     ("short_highlight", "boundary_review"): (
-        "a8a541a17cc46a96c00bf31133604ce146a2a7db3fd202283b0b506f75822cae"
+        "89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f"
     ),
     ("short_highlight", "global_review"): (
-        "a516005061a596684ba18b91fe11be44ae75534fa47488106acb902b6f283700"
+        "14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4"
     ),
     ("short_highlight", "global_audit"): (
-        "c5a26dadf1d5cf54e81c4fae1f279aefe8a356fe4ccb3377aab08e2b766dcaea"
+        "d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3"
     ),
     ("mini_lesson", "boundary_review"): (
-        "678c8d7ece250ea28f0bfbea8298020c779eb8e749e4c5155516173035cf51c2"
+        "50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9"
     ),
     ("mini_lesson", "global_review"): (
-        "e7d615f5f9b61f6b55bfb6222d0895c50f17486fb1595c3ae08f222b485f6ccb"
+        "99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1"
     ),
     ("mini_lesson", "global_audit"): (
-        "c3ff60041f124dd337585541006bf78cf3f05cd5b462f2e33ab5812a74f95e76"
+        "509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619"
     ),
 }
 PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"
