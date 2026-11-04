@@ -114,12 +114,12 @@ INTERIOR_PADDING_RULE = {
         "never used instead of it;"
     ),
     "risk_discovery": (
-        "flag each interior interruption as `material_interruption` (or `topic_switch_inside` "
-        "when another topic starts inside the chain)"
+        "flag each interior interruption that breaks the claim logic as `material_interruption` "
+        "(or `topic_switch_inside` when another topic starts inside the chain)"
     ),
     "coverage_audit": (
-        "Flag each interior interruption as `material_interruption` (or `topic_switch_inside` "
-        "when another topic starts inside the chain)"
+        "Flag each interior interruption that breaks the claim logic as `material_interruption` "
+        "(or `topic_switch_inside` when another topic starts inside the chain)"
     ),
 }
 
@@ -142,6 +142,100 @@ def test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges
     if stage in {"risk_discovery", "coverage_audit"}:
         assert "padding flags describe edge material only" in text.lower()
         assert "never replace" in text
+
+
+# Stage 15: the `material_interruption` threshold (fix of a Stage 14/14b
+# over-broadening).  main.md is shared by every stage; the two risk-chain
+# Discovery passes mirror it in their own stage text.
+ALL_STAGES = (*DISCOVERY_AND_BOUNDARY_STAGES, "global_review", "global_audit")
+MI_THRESHOLD = (
+    "Interior content counts as `material_interruption` only when it actually breaks the "
+    "teaching or claim logic; a brief audience thanks, greeting, name call-out or "
+    "acknowledgement that the speaker passes over without leaving the topic is neither an "
+    "interruption nor padding."
+)
+
+
+def _stage_text(stage: str, profile: ClipProfile) -> str:
+    """Only the stage file's own text (after main.md and the Profile file)."""
+
+    text = load_dual_profile_prompt(stage, profile).instructions
+    return " ".join(text[text.index("# Stage:") :].split())
+
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_every_stage_carries_the_material_interruption_threshold(
+    stage: str, profile: ClipProfile
+) -> None:
+    text = _text(stage, profile)
+    assert MI_THRESHOLD in text
+    # The Stage 14 rules stay: padding is edge-only, interior unrelated content is
+    # the interior flag, and the live-demo equipment remark is part of the demo.
+    assert "describe EDGE material only" in text
+    assert MIC_DEMO_RULE in text
+    assert re.search(r"\d", MI_THRESHOLD) is None
+    if stage in {"risk_discovery", "coverage_audit"}:
+        own = _stage_text(stage, profile)
+        assert MI_THRESHOLD in own
+        assert "interior interruption that breaks the claim logic as `material_interruption`" in (
+            own
+        )
+    if stage == "risk_discovery":
+        own = _stage_text(stage, profile)
+        assert "Mark the interruption, but keep" not in own
+        assert "Mark an interruption only when it breaks the claim logic" in own
+    if stage == "precision_audit":
+        own = _stage_text(stage, profile)
+        assert "Greetings inside that chain are quality evidence" not in own
+        assert "flag it only under the main contract's `material_interruption` threshold" in own
+
+
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_boundary_review_threshold_matches_the_shared_definition(profile: ClipProfile) -> None:
+    text = _stage_text("boundary_review", profile)
+    assert (
+        "`material_interruption` requires unrelated semantic content that actually breaks the "
+        "teaching or claim logic; silence, an ASR gap, a vocal demonstration, a self-correction, "
+        "a brief audience thanks, greeting, name call-out or acknowledgement that the speaker "
+        "passes over without leaving the topic, or the speaker's brief equipment or listening "
+        "explanation attached to an immediate live example is not by itself an interruption."
+    ) in text
+    # Stage 14c cross-reference kept.
+    assert (
+        "Interior audibility checks, connection lag and playback trouble, as described below, are "
+        "such unrelated content and count as `material_interruption`." in text
+    )
+
+
+SELF_PROMOTION_OBJECTIVE = (
+    "whose central objective is the speaker's own credentials, qualifications, pricing, course "
+    "sales or schedule"
+)
+
+
+@pytest.mark.parametrize("stage", ["boundary_review", "global_review", "global_audit"])
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_review_prompts_reject_self_promotion_as_the_central_objective(
+    stage: str, profile: ClipProfile
+) -> None:
+    text = _stage_text(stage, profile)
+    assert text.count(SELF_PROMOTION_OBJECTIVE) == 1
+    # The rule runs to its closing "... does not make that lesson self-promotion".
+    rule = text.split(SELF_PROMOTION_OBJECTIVE, 1)[1].split("lesson self-promotion", 1)[0]
+    assert "not a teaching or highlight unit" in rule
+    assert "even when no explicit purchase prompt appears" in rule
+    assert "a brief credential or course mention inside a real lesson does not make" in (
+        rule.lower()
+    )
+    if stage == "boundary_review":
+        assert "set `central_objective_complete` to false" in rule
+        assert "so Global Review rejects it" in rule
+        assert "do not treat clearing a padding flag as resolving it" in rule
+    else:
+        assert "`rejected`" in rule
+        assert "not merely flagged" in rule
+    assert re.search(r"\d", rule) is None
 
 
 @pytest.mark.parametrize("stage", ["global_review", "global_audit"])

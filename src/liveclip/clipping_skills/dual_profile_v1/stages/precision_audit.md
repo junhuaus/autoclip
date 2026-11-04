@@ -21,8 +21,8 @@ Audit each of these general forms cue by cue:
    required even if the speaker does not explicitly label them as a test.
 4. A risky claim chain. Start at the earliest question, problem definition, category count or named next
    diagnosis that the subsequent reasoning answers; include every promised condition and the final
-   qualification or recommendation. Greetings inside that chain are quality evidence, not permission to
-   drop the defining opening.
+   qualification or recommendation. A greeting inside that chain never permits dropping the defining
+   opening; flag it only under the main contract's `material_interruption` threshold.
 
 A broad lesson and a focused contained lesson can both be valid when their objectives differ. Conversely,
 never manufacture a new interval merely by shaving silence or copying an existing candidate. Use only

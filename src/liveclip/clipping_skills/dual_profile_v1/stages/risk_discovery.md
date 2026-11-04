@@ -10,16 +10,19 @@ Start at the question, premise or enumeration that defines the risky claim. Incl
 speaker analyzes and the final diagnosis, treatment, correction, guarantee, percentage or causal
 conclusion. A later single diagnosis is incomplete when the speaker introduced multiple conditions. If
 unavoidable greetings, sales, device handling or topic interruptions occur inside the continuous chain,
-preserve the candidate and flag each interior interruption as `material_interruption` (or
-`topic_switch_inside` when another topic starts inside the chain) so Global Review can route it to
-`blocked`. Padding flags describe edge material only: they may accompany an interior flag but never
+preserve the candidate and flag each interior interruption that breaks the claim logic as
+`material_interruption` (or `topic_switch_inside` when another topic starts inside the chain) so Global
+Review can route it to `blocked`. Interior content counts as `material_interruption` only when it
+actually breaks the teaching or claim logic; a brief audience thanks, greeting, name call-out or
+acknowledgement that the speaker passes over without leaving the topic is neither an interruption nor
+padding. Padding flags describe edge material only: they may accompany an interior flag but never
 replace it. Risk must not disappear merely because the interval cannot auto-publish.
 
 The earliest rhetorical question can define the parent claim even when a brief greeting or audience
 acknowledgement appears between that question and the category count. Preserve that question as the
 left boundary; do not restart at “two problems”, “first”, or another enumeration answer merely to omit
-the intervening greeting. Mark the interruption, but keep the complete question-to-enumeration-to-
-diagnosis chain.
+the intervening greeting. Mark an interruption only when it breaks the claim logic as described above, and
+in either case keep the complete question-to-enumeration-to-diagnosis chain.
 
 When an overview enumerates multiple risky conditions and immediately proceeds to detailed diagnosis or
 treatment of the first condition, emit a continuous parent candidate spanning the enumeration premise

@@ -1969,7 +1969,7 @@ def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v5"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
     short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
     mini = final.profiles[ClipProfile.MINI_LESSON]
     # Short: unchanged interval, so the Discovery flag cleared by review still gates.
@@ -2017,7 +2017,7 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v5"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
     for result in final.profiles.values():
         assert result.blocked == ()
         for value in (*result.selected, *result.manual_review, *result.rejected):
@@ -2025,6 +2025,148 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
             assert not value.review_reason.startswith("Deterministic flag persistence: ")
     mini = final.profiles[ClipProfile.MINI_LESSON]
     assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+
+
+class RiskTwinProvider(ScriptedDualProvider):
+    """Adds a same-interval twin of the mini lesson that carries
+    `material_interruption`, emitted either by the dedicated risk-discovery pass
+    or by the base pass under a look-alike `risk_` ID."""
+
+    def __init__(
+        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, from_risk_pass: bool
+    ) -> None:
+        super().__init__(prompt, counter)
+        self._twin_pass = "risk_discovery" if from_risk_pass else None
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        profile = ClipProfile.MINI_LESSON
+        if response_model is ProfileDiscoveryOutput and mini:
+            window_id = str(payload["window_id"])
+            ownership = cast(dict[str, object], payload["ownership_interval"])
+            discovery_pass = payload.get("discovery_pass")
+            if int(ownership["start_ms"]) == 0 and discovery_pass == self._twin_pass:
+                base = cast(ProfileDiscoveryOutput, super()._output(payload, response_model))
+                twin = RawProfileCandidate(
+                    candidate_id="risk_twin",
+                    profile=profile,
+                    source_window_id=window_id,
+                    start_cue_id=1,
+                    end_cue_id=11,
+                    evidence_cue_ids=(1, 11),
+                    title="风险链",
+                    summary="包含健康主张的完整链条。",
+                    boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
+                    quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+                    risk_tags=(DualRiskTag.HEALTH_ADVICE,),
+                )
+                return cast(
+                    OutputModel,
+                    ProfileDiscoveryOutput(
+                        profile=profile,
+                        window_id=window_id,
+                        candidates=(*base.candidates, twin),
+                    ),
+                )
+        output = super()._output(payload, response_model)
+        if response_model is ProfileBoundaryReviewOutput and mini:
+            boundary = cast(ProfileBoundaryReviewOutput, output)
+            return cast(
+                OutputModel,
+                boundary.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item
+                            if item.candidate_id != "risk_twin"
+                            else item.model_copy(
+                                update={
+                                    "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                                    "quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+                                }
+                            )
+                            for item in boundary.reviews
+                        )
+                    }
+                ),
+            )
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item
+                            if item.candidate_id != "risk_twin"
+                            else item.model_copy(
+                                update={
+                                    "score": 50.0,
+                                    "review_status": CandidateDisposition.BLOCKED,
+                                    "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                                    "review_reason": "Interior interruption in the risk chain.",
+                                }
+                            )
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
+@pytest.mark.parametrize("from_risk_pass", [True, False])
+def test_service_twin_union_ignores_risk_pass_sources_structurally(
+    tmp_path: Path, from_risk_pass: bool
+) -> None:
+    """Stage 15 (routing v6): a same-interval twin from the dedicated
+    risk-discovery pass does not pass its gated flag to the clean lesson; the
+    same twin from the base pass (look-alike `risk_` ID) still does."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RiskTwinProvider(prompt, {}, from_risk_pass=from_risk_pass)
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    manifest = DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    manifest.validate_against(final)
+    assert final.routing_policy_version == "quality-gate-risk-routing-v6"
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert DualQualityFlag.MATERIAL_INTERRUPTION in twin.quality_flags
+    if from_risk_pass:
+        assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+        assert mini.selected[0].quality_flags == ()
+        assert manifest.risk_twin_flags_not_propagated == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 1,
+        }
+    else:
+        assert mini.selected == ()
+        lesson = next(value for value in mini.blocked if value.candidate_id == "mini_lesson_lesson")
+        assert DualQualityFlag.MATERIAL_INTERRUPTION in lesson.quality_flags
+        assert lesson.review_reason.startswith("Deterministic quality gate: ")
+        assert manifest.risk_twin_flags_not_propagated == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 0,
+        }
 
 
 class OverlapPairProvider(ScriptedDualProvider):
@@ -2952,27 +3094,33 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 # definition, so every Discovery pass sees them (cold Discovery cache).
 # Stage 14b re-pinned coverage_audit (both Profiles) and risk_discovery: interior
 # interruptions are named `material_interruption`; padding flags stay edge-only.
+# Stage 15 (user decision 2026-11-04) re-pinned every Discovery pass: the shared
+# main.md gained the `material_interruption` threshold (interior content counts
+# only when it breaks the teaching or claim logic; a brief passed-over audience
+# acknowledgement is neither an interruption nor padding), mirrored in
+# risk_discovery and coverage_audit; precision_audit's greeting sentence now
+# defers to that threshold (cold Discovery cache again).
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
-        "c3b728702f3c25228c3cb74eac3385e62c98c3902a72138460e695ead301d00e"
+        "b1d4d8785d1a1076f7faf287322bbfd4a0e8b60cc7d54a952e39df81200e2fb0"
     ),
     ("short_highlight", "coverage_audit"): (
-        "09fcecd9dfbdbf7e99178a7be2c0a791cce9c98ec6c0de674c94407165fbfda5"
+        "152554adb34d813306c9bb367121e11ea3eb6bf5dbe59f26c78a8b6bba930f88"
     ),
     ("mini_lesson", "discovery"): (
-        "7500e47a912db6855186843d799c62c7c2935920c1b1b84c8f2e7382c54fc75b"
+        "00c58be1b0fae7dffdb7c5f6b63e1839dacd3f5d53d5a6efbf979cf282708a80"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "407c2c9d68f0f722e9efd8974d2cd4aa5418f89fb9b151b80ba641903e50c994"
+        "460e83b9b9bdac197cb4ec4c1b91fd5fe4c279ccbf1f9bc8028660bb247375e8"
     ),
     ("mini_lesson", "precision_audit"): (
-        "0377c54e8cc0e74fe0645d7192cd402d85129fdaa6e5e9fc29e9583e24f8b0aa"
+        "56a4154c06e390d80ddd6aca97b7fe9512102abd93a8dfe368cfb1e1fa7873d5"
     ),
     ("mini_lesson", "precision_confirmation"): (
-        "17eccbac257c129aa42979c008ec8ff83cc536ae2bfb0e38fa43b27b0a370024"
+        "00440c52138d423abaaa565e8981037b2cf6e1577b689b62ed274fe9e37b3db2"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "7e9af46465b7b4319b00988ef7709e4e89aa68dec12263dcf536e9b9d25bab46"
+        "4066e60cd6f6028e0245a207e5dbb41797dafef12e73e56a89778907467de3f7"
     ),
 }
 
@@ -2989,24 +3137,31 @@ def test_discovery_prompt_identities_are_unchanged() -> None:
 # Stage 14c (2026-11-02): boundary_review re-pinned (interior chat kept for duration
 # flags `padded_with_irrelevant_content` alongside the interior flag; interior
 # audibility/lag/playback trouble cross-referenced as `material_interruption`).
+# Stage 15 (2026-11-04): every review stage re-pinned. main.md (shared) carries the
+# `material_interruption` threshold; boundary_review lists the brief passed-over
+# acknowledgement among non-interruptions ("teaching or claim logic") and
+# boundary_review, global_review and global_audit gained the self-promotion rule
+# (a candidate centred on the speaker's own credentials, pricing, course sales or
+# schedule is rejected, not merely flagged). The variant link (no main.md) is
+# unchanged.
 PINNED_REVIEW_PROMPT_HASHES = {
     ("short_highlight", "boundary_review"): (
-        "2ac809c282ca5fd8e4b18030e09d8798084e3854ccaf93710d73a5277c009a8e"
+        "a8a541a17cc46a96c00bf31133604ce146a2a7db3fd202283b0b506f75822cae"
     ),
     ("short_highlight", "global_review"): (
-        "d2bf9404377dc32f882e4b8a57cff9d3c98520f135fd0f78525b26b7f094da53"
+        "a516005061a596684ba18b91fe11be44ae75534fa47488106acb902b6f283700"
     ),
     ("short_highlight", "global_audit"): (
-        "51885f0f5a34d45d3d506869a3a492b9fa1be00c0357d20af834f6d1b30441c3"
+        "c5a26dadf1d5cf54e81c4fae1f279aefe8a356fe4ccb3377aab08e2b766dcaea"
     ),
     ("mini_lesson", "boundary_review"): (
-        "b1c10a166b90821f2695bf225319bf504a02e91a208a9e8b1f304d58bb0f798f"
+        "678c8d7ece250ea28f0bfbea8298020c779eb8e749e4c5155516173035cf51c2"
     ),
     ("mini_lesson", "global_review"): (
-        "42f5a0bf8163ed72926f71a452d164e50821d3694f5ff92b5e2d47500d32682a"
+        "e7d615f5f9b61f6b55bfb6222d0895c50f17486fb1595c3ae08f222b485f6ccb"
     ),
     ("mini_lesson", "global_audit"): (
-        "7740969edf51653bf251a59c26a4997f55f8fed0d33593ea122dc4837fa88cde"
+        "c3ff60041f124dd337585541006bf78cf3f05cd5b462f2e33ab5812a74f95e76"
     ),
 }
 PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"

@@ -23,8 +23,10 @@ Padding flags (`device_or_waiting_padding`, `sales_or_cta_padding`, `padded_with
 describe EDGE material only: removable content at the start or end of the interval. Unrelated content
 inside the interval, between on-topic cues, is `material_interruption`, or `topic_switch_inside` when
 another topic starts inside the interval; when the Profile minimum is met only by off-topic material,
-`padded_with_irrelevant_content` may be added to that interior flag, never used instead of it. Brief
-microphone, distance, placement or equipment words that directly enable an immediate live vocal
+`padded_with_irrelevant_content` may be added to that interior flag, never used instead of it.
+Interior content counts as `material_interruption` only when it actually breaks the teaching or claim
+logic; a brief audience thanks, greeting, name call-out or acknowledgement that the speaker passes over
+without leaving the topic is neither an interruption nor padding. Brief microphone, distance, placement or equipment words that directly enable an immediate live vocal
 demonstration, including why moving closer helps listeners hear, are part of that demonstration: they
 are neither padding nor an interruption.
 

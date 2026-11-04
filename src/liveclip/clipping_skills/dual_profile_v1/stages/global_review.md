@@ -29,6 +29,12 @@ ASR, missing required premises, an unclosed topic, padding or material interrupt
 `rejected`. Do not create candidates or change the final Boundary interval. Titles, hooks and summaries
 must preserve the speaker's actual stance.
 
+A candidate whose central objective is the speaker's own credentials, qualifications, pricing, course
+sales or schedule is not a teaching or highlight unit: mark it `rejected` (Python retains a
+`risk_discovery` record as `blocked`), not merely flagged or sent to `manual_review`, even when no
+explicit purchase prompt appears and no padding flag remains. A brief credential or course mention
+inside a real lesson does not make that lesson self-promotion.
+
 Do not infer missing prerequisites from a numbered ordinal alone: a later chapter is independently
 complete when it defines its own included techniques and reaches its own conclusion. Treat garbled names
 or individual vocal terms as non-blocking `asr_uncertain` when the surrounding explanation still makes

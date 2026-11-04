@@ -60,9 +60,11 @@ For a live diagnosis, do not stop after the first recommendation if the same uni
 continues with a retry, before/after evidence, causal distinction, or final confirmation that closes the
 correction. An imperfectly transcribed lyric, song name or isolated vocal term does not block meaning
 when the evaluated sample, diagnosis, correction and observed outcome remain understandable as a chain.
-`material_interruption` requires unrelated semantic content that actually breaks the teaching logic;
-silence, an ASR gap, a vocal demonstration, a self-correction or the speaker's brief equipment or
-listening explanation attached to an immediate live example is not by itself an interruption.
+`material_interruption` requires unrelated semantic content that actually breaks the teaching or claim
+logic; silence, an ASR gap, a vocal demonstration, a self-correction, a brief audience thanks, greeting,
+name call-out or acknowledgement that the speaker passes over without leaving the topic, or the
+speaker's brief equipment or listening explanation attached to an immediate live example is not by
+itself an interruption.
 Interior audibility checks, connection lag and playback trouble, as described below, are such unrelated
 content and count as `material_interruption`.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
@@ -85,6 +87,13 @@ still within the Profile duration and independently complete. Otherwise keep the
 problem with `sales_or_cta_padding`, `device_or_waiting_padding` or `padded_with_irrelevant_content`;
 unresolved padding flags are enforced deterministically. This edge audit never removes a
 compared-technique introduction, definition or step label that the comparison or conclusion depends on.
+
+A candidate whose central objective is the speaker's own credentials, qualifications, pricing, course
+sales or schedule is not a teaching or highlight unit, even when no explicit purchase prompt appears. Do
+not trim or repair it into one, and do not treat clearing a padding flag as resolving it: set
+`central_objective_complete` to false, keep any evidenced `commercial_claim`, and state in
+`review_reason` that its objective is self-promotion so Global Review rejects it. A brief credential or
+course mention inside a real lesson does not make that lesson self-promotion.
 
 Trimming an edge cue never resolves a dependency that the cue disclosed. If the kept interval still
 relies on a sample, step or comparison half outside it, keep `context_dependent_opening` or

@@ -8,7 +8,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from enum import StrEnum
 from fractions import Fraction
 from types import MappingProxyType
-from typing import Final, Literal
+from typing import Final, Literal, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -125,8 +125,13 @@ if not PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS) or (
 #   v5: v4 restricted to structural gated flags
 #       (``PERSISTED_STRUCTURAL_GATED_FLAGS``); Discovery padding flags
 #       (``PADDING_GATED_FLAGS``) are not persisted and follow Boundary Review.
+#   v6: v5 plus the same-interval twin union no longer uses records of the
+#       dedicated risk-discovery pass as flag SOURCES: a risk record keeps its
+#       own flags and status and still receives the gated flags of its non-risk
+#       twins, while non-risk twins share flags with each other as in v3
+#       (``same_interval_twin_flags`` is the single rule).
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v5"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v6"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -541,6 +546,7 @@ class DualProfileFinalResult(BaseModel):
             "quality-gate-risk-routing-v3",
             "quality-gate-risk-routing-v4",
             "quality-gate-risk-routing-v5",
+            "quality-gate-risk-routing-v6",
         ]
         | None
     ) = None
@@ -752,6 +758,12 @@ class DualProfileRunManifest(BaseModel):
     # duplicates are lost with it). The audit validator enforces this only for
     # listed pairs; Global Review-level duplicates rely on the prompt alone.
     persisted_flag_representative_duplicates: dict[ClipProfile, int] = Field(default_factory=dict)
+    # Stage 15 run diagnostic (routing v6): per Profile, the number of
+    # (candidate, gated flag) pairs that the same-interval twin union did NOT
+    # propagate because only risk-discovery records of that interval carried the
+    # flag (``same_interval_twin_flags``). Manifests written before it load with
+    # the default.
+    risk_twin_flags_not_propagated: dict[ClipProfile, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_stale_cache_audit(self) -> DualProfileRunManifest:
@@ -823,9 +835,17 @@ class DualProfileRunManifest(BaseModel):
         result: DualProfileFinalResult,
         *,
         boundaries: Mapping[ClipProfile, ProfileBoundaryReviewOutput] | None = None,
+        risk_record_ids: Mapping[ClipProfile, Collection[str]] | None = None,
     ) -> None:
         """Cross-check the manifest with the final result (and, when the run's
-        Boundary Review output is available, with that output too)."""
+        Boundary Review output is available, with that output too).
+
+        When the structural risk-discovery membership of the run is supplied
+        (``risk_record_ids``), the final arrays must satisfy the v6 twin rule
+        (no flag left to inherit from a non-risk same-interval twin) and the
+        ``risk_twin_flags_not_propagated`` diagnostic must equal the count the
+        same shared rule derives.
+        """
 
         if (
             self.source_hash != result.source_hash
@@ -840,6 +860,19 @@ class DualProfileRunManifest(BaseModel):
         if self.profiles != expected:
             raise ValueError("run manifest Profile counts differ from final arrays")
         self._check_audit_records()
+        if risk_record_ids is not None:
+            not_propagated: dict[ClipProfile, int] = {}
+            for profile, final_profile in result.profiles.items():
+                twins = same_interval_twin_flags(
+                    _final_rows(final_profile).values(), risk_record_ids.get(profile, ())
+                )
+                if any(twins.inherited.values()):
+                    raise ValueError("final result violates the same-interval twin flag rule")
+                not_propagated[profile] = twins.not_propagated_count
+            if self.risk_twin_flags_not_propagated != not_propagated:
+                raise ValueError(
+                    "run manifest risk-twin flag diagnostic differs from the final result"
+                )
         for fallback in self.boundary_opening_fallbacks:
             profile_result = result.profiles.get(fallback.profile)
             if profile_result is None:
@@ -1706,13 +1739,14 @@ def assemble_final_profile_result(
     risk record is retained as ``blocked`` so risk material stays auditable.
     Routing only ever downgrades or retains; it never produces an output.
 
-    Deterministic routing order (v5), each step only downgrading:
+    Deterministic routing order (v6), each step only downgrading:
 
     1. validation of the review stages (unchanged: it sees only the merged
        Boundary/Global flags, so cached review outputs validate exactly as
        before), then Discovery structural gated-flag persistence per candidate
        (padding flags follow Boundary Review and are not persisted);
     2. same-interval twin union of gated flags (it includes persisted flags);
+       risk records are not flag sources (``same_interval_twin_flags``);
     3. Profile-local Top-N over the rows still ``selected`` (rows blocked by
        steps 1--2 never take a slot);
     4. risk-record routing and the manual_review quality gate.
@@ -1850,34 +1884,27 @@ def assemble_final_profile_result(
         )
     if row_errors:
         raise ValueError(_join_errors(row_errors))
-    # Same interval -> same gated flags.  Candidates with an identical final
-    # interval describe the same continuous media, so a gated quality flag found
-    # on any of them applies to all of them, whatever their status.  This
-    # includes topic_switch_inside and topic_not_closed: both describe the
-    # media between the same two cues (an internal switch, or an ending that
-    # does not close), not the title or framing a reviewer gave one twin, so a
-    # differently titled twin cannot cure them.  Advisory flags (context/prior
-    # steps) and source_title_mismatch depend on a twin's own framing and are
-    # not shared.
-    gated_by_interval: dict[tuple[int, int], set[DualQualityFlag]] = {}
-    for value in final_values:
-        gated_by_interval.setdefault((value.start_cue_id, value.end_cue_id), set()).update(
-            set(value.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
-        )
+    # Same interval -> same gated flags (``same_interval_twin_flags``, v6).
+    # Candidates with an identical final interval describe the same continuous
+    # media, so a gated quality flag found on a non-risk twin applies to all of
+    # them, whatever their status.  This includes topic_switch_inside and
+    # topic_not_closed: both describe the media between the same two cues, not
+    # the title or framing a reviewer gave one twin, so a differently titled
+    # twin cannot cure them.  Advisory flags (context/prior steps) and
+    # source_title_mismatch depend on a twin's own framing and are not shared.
+    # Records of the dedicated risk-discovery pass
+    # keep their own flags and still receive their non-risk twins' flags, but are
+    # not flag sources: that pass is instructed to preserve and flag interior
+    # interruptions of a risk chain so the record is routed to blocked, which is
+    # not a finding a non-risk twin's own reviews must inherit.
+    twins = same_interval_twin_flags(final_values, risk_records)
     shared: list[FinalProfileCandidate] = []
     for value in final_values:
-        inherited = gated_by_interval[(value.start_cue_id, value.end_cue_id)] - set(
-            value.quality_flags
-        )
+        inherited = twins.inherited[value.candidate_id]
         if not inherited:
             shared.append(value)
             continue
-        update: dict[str, object] = {
-            "quality_flags": (
-                *value.quality_flags,
-                *sorted(inherited, key=lambda flag: flag.value),
-            )
-        }
+        update: dict[str, object] = {"quality_flags": (*value.quality_flags, *inherited)}
         if value.review_status in {
             CandidateDisposition.SELECTED,
             CandidateDisposition.MANUAL_REVIEW,
@@ -1985,6 +2012,72 @@ def discovery_persisted_flags(
         return ()
     gated = set(raw.quality_flags) & PERSISTED_STRUCTURAL_GATED_FLAGS
     return tuple(flag for flag in DualQualityFlag if flag in gated and flag not in merged_quality)
+
+
+class SameIntervalTwinFlags(NamedTuple):
+    """Result of the same-interval twin flag rule (routing v6).
+
+    ``inherited`` maps every candidate ID to the gated flags it receives from
+    its non-risk twins (sorted by flag value).  ``not_propagated`` maps every
+    candidate ID to the gated flags that only risk-discovery twins of the same
+    interval carry, which v6 does not propagate to it.
+    """
+
+    inherited: Mapping[str, tuple[DualQualityFlag, ...]]
+    not_propagated: Mapping[str, tuple[DualQualityFlag, ...]]
+
+    @property
+    def not_propagated_count(self) -> int:
+        return sum(len(flags) for flags in self.not_propagated.values())
+
+
+def same_interval_twin_flags(
+    values: Iterable[FinalProfileCandidate],
+    risk_record_ids: Collection[str],
+) -> SameIntervalTwinFlags:
+    """The single same-interval twin flag rule (policy v6).
+
+    Final assembly, the run-manifest diagnostic and its validator all call it.
+    Candidates with an identical final interval share their gated quality
+    flags (``MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS``; advisory flags depend on a
+    twin's own framing and are never shared).  Only candidates outside
+    ``risk_record_ids`` (records of the dedicated risk-discovery pass, derived
+    structurally) act as sources; every twin, risk record or not, receives the
+    sources' flags.  Applying the rule to its own output is a no-op: the
+    ``inherited`` sets become empty and ``not_propagated`` is unchanged.
+    """
+
+    risk_records = frozenset(risk_record_ids)
+    rows = tuple(values)
+    sources: dict[tuple[int, int], set[DualQualityFlag]] = {}
+    risk_flags: dict[tuple[int, int], list[tuple[str, frozenset[DualQualityFlag]]]] = {}
+    for value in rows:
+        interval = (value.start_cue_id, value.end_cue_id)
+        gated = frozenset(value.quality_flags) & MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS
+        if value.candidate_id in risk_records:
+            sources.setdefault(interval, set())
+            risk_flags.setdefault(interval, []).append((value.candidate_id, gated))
+        else:
+            sources.setdefault(interval, set()).update(gated)
+    inherited: dict[str, tuple[DualQualityFlag, ...]] = {}
+    not_propagated: dict[str, tuple[DualQualityFlag, ...]] = {}
+    for value in rows:
+        interval = (value.start_cue_id, value.end_cue_id)
+        own = set(value.quality_flags)
+        shared = sources[interval]
+        inherited[value.candidate_id] = tuple(sorted(shared - own, key=lambda flag: flag.value))
+        from_risk_twins = {
+            flag
+            for candidate_id, flags in risk_flags.get(interval, ())
+            if candidate_id != value.candidate_id
+            for flag in flags
+        }
+        not_propagated[value.candidate_id] = tuple(
+            sorted(from_risk_twins - shared - own, key=lambda flag: flag.value)
+        )
+    return SameIntervalTwinFlags(
+        inherited=MappingProxyType(inherited), not_propagated=MappingProxyType(not_propagated)
+    )
 
 
 def profile_statistics(
@@ -2126,6 +2219,7 @@ __all__ = [
     "ProfileManifestStats",
     "ProfileStatistics",
     "RawProfileCandidate",
+    "SameIntervalTwinFlags",
     "StaleCacheResolution",
     "VariantLinkItem",
     "apply_audit_pair_blocks",
@@ -2144,6 +2238,7 @@ __all__ = [
     "profile_statistics",
     "reject_reserved_reason_prefixes",
     "resolved_duplicates",
+    "same_interval_twin_flags",
     "semantic_cache_key",
     "validate_audit_pair_decisions",
     "validate_boundary_review_output",

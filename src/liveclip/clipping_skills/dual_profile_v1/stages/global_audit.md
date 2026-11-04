@@ -63,6 +63,10 @@ Pay special attention to:
   neither padding nor an interruption; trimming an edge never resolves a dependency the trimmed cue
   disclosed; a clip holding only the second half of a before/after comparison is context-dependent;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
+- kept candidates whose central objective is the speaker's own credentials, qualifications, pricing,
+  course sales or schedule: such a candidate is not a teaching or highlight unit, so replace it as
+  `rejected` (not merely flagged or `manual_review`) even when no explicit purchase prompt appears; a
+  brief credential or course mention inside a real lesson does not make that lesson self-promotion;
 - risk chains whose opening question/category count or final qualification was trimmed;
 - coherent lessons overblocked because a lyric, song name or isolated term is mistranscribed even though
   the central method and outcome remain understandable.

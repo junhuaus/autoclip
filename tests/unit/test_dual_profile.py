@@ -66,6 +66,7 @@ from liveclip.pipeline.dual_profile import (
     plan_profile_discovery_windows,
     profile_statistics,
     reject_reserved_reason_prefixes,
+    same_interval_twin_flags,
     semantic_cache_key,
     validate_audit_pair_decisions,
     validate_boundary_review_output,
@@ -1585,7 +1586,11 @@ def test_advisory_and_source_title_flags_are_not_shared_between_twins() -> None:
     assert values["clean_manual"].quality_flags == ()
 
 
-def test_risk_record_twin_shares_flags_and_stays_blocked() -> None:
+def test_risk_record_twin_keeps_its_flags_but_is_not_a_flag_source() -> None:
+    """Stage 15 (v6) changed this Stage 9 assertion: a risk-discovery twin's own
+    gated flag no longer reaches its non-risk same-interval twin; the risk record
+    itself stays blocked by risk routing."""
+
     result = _assemble_pool(
         profile=ClipProfile.MINI_LESSON,
         specs=(
@@ -1609,9 +1614,243 @@ def test_risk_record_twin_shares_flags_and_stays_blocked() -> None:
     values = _by_id(result)
     assert values["risk_pass_twin"].review_status == CandidateDisposition.BLOCKED
     assert values["risk_pass_twin"].review_reason.startswith("Deterministic risk routing: ")
-    assert values["base_twin"].review_status == CandidateDisposition.BLOCKED
-    assert DualQualityFlag.TOPIC_SWITCH_INSIDE in values["base_twin"].quality_flags
-    assert values["base_twin"].review_reason.startswith("Deterministic quality gate: ")
+    assert DualQualityFlag.TOPIC_SWITCH_INSIDE in values["risk_pass_twin"].quality_flags
+    assert values["base_twin"].review_status == CandidateDisposition.MANUAL_REVIEW
+    assert values["base_twin"].quality_flags == ()
+    assert values["base_twin"].review_reason == "全局审查证据。"
+
+
+def test_clean_base_is_not_blocked_by_a_persisted_risk_twin_flag() -> None:
+    """L02 shape: a clean base candidate and a risk-discovery record whose Discovery
+    interval ends one cue earlier, raised `material_interruption`, and was
+    extended by Boundary Review to the identical interval (so the flag also
+    persists).  The base stays manual_review; the risk twin stays blocked."""
+
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "base_curriculum",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                "score": 78,
+            },
+            {
+                "candidate_id": "risk_curriculum",
+                "raw_start_cue_id": 940,
+                "raw_end_cue_id": 990,
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.BLOCKED,
+                "score": 52,
+                "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                "discovery_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+                "boundary_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+                "review_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+            },
+        ),
+        risk_record_ids=frozenset({"risk_curriculum"}),
+    )
+    values = _by_id(result)
+    assert [value.candidate_id for value in result.manual_review] == ["base_curriculum"]
+    assert values["base_curriculum"].quality_flags == ()
+    assert values["base_curriculum"].review_reason == "全局审查证据。"
+    assert values["risk_curriculum"].review_status == CandidateDisposition.BLOCKED
+    assert DualQualityFlag.MATERIAL_INTERRUPTION in values["risk_curriculum"].quality_flags
+    twins = same_interval_twin_flags(_by_id(result).values(), {"risk_curriculum"})
+    assert twins.not_propagated["base_curriculum"] == (DualQualityFlag.MATERIAL_INTERRUPTION,)
+    assert twins.not_propagated["risk_curriculum"] == ()
+    assert twins.not_propagated_count == 1
+    assert not any(twins.inherited.values())
+
+
+def test_non_risk_twin_flag_still_propagates_next_to_a_risk_twin() -> None:
+    """Stage 9 behaviour preserved: a non-risk source blocks its non-risk twin,
+    and the risk twin also receives that flag (conservative)."""
+
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "clean_manual",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "flagged_rejected",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.REJECTED,
+                "review_flags": (DualQualityFlag.TOPIC_NOT_CLOSED,),
+            },
+            {
+                "candidate_id": "risk_manual",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                "boundary_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+            },
+        ),
+        risk_record_ids=frozenset({"risk_manual"}),
+    )
+    values = _by_id(result)
+    clean = values["clean_manual"]
+    assert clean.review_status == CandidateDisposition.BLOCKED
+    assert clean.quality_flags == (DualQualityFlag.TOPIC_NOT_CLOSED,)
+    assert clean.review_reason == "Deterministic quality gate: 全局审查证据。"
+    risk = values["risk_manual"]
+    assert risk.review_status == CandidateDisposition.BLOCKED
+    assert risk.quality_flags == (
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.TOPIC_NOT_CLOSED,
+    )
+    assert risk.review_reason.startswith("Deterministic quality gate: ")
+    assert values["flagged_rejected"].review_status == CandidateDisposition.REJECTED
+    assert values["flagged_rejected"].quality_flags == (DualQualityFlag.TOPIC_NOT_CLOSED,)
+
+
+def test_risk_twin_receives_a_non_risk_twin_flag() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "risk_clean",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+            },
+            {
+                "candidate_id": "base_flagged",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.BLOCKED,
+                "boundary_flags": (DualQualityFlag.SALES_OR_CTA_PADDING,),
+            },
+        ),
+        risk_record_ids=frozenset({"risk_clean"}),
+    )
+    values = _by_id(result)
+    assert values["risk_clean"].review_status == CandidateDisposition.BLOCKED
+    assert values["risk_clean"].quality_flags == (DualQualityFlag.SALES_OR_CTA_PADDING,)
+    assert values["risk_clean"].review_reason == "Deterministic quality gate: 全局审查证据。"
+    assert values["base_flagged"].review_status == CandidateDisposition.BLOCKED
+
+
+def _twin_row(candidate_id: str, *flags: DualQualityFlag, end: int = 958) -> FinalProfileCandidate:
+    start_ms = TRANSCRIPT.segments[940].start_ms
+    end_ms = TRANSCRIPT.segments[end - 1].end_ms
+    return FinalProfileCandidate(
+        candidate_id=candidate_id,
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        source_candidate_ids=(candidate_id,),
+        source_window_ids=("w",),
+        start_cue_id=941,
+        end_cue_id=end,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        duration_ms=end_ms - start_ms,
+        title="测试",
+        hook="测试",
+        summary="测试。",
+        score=60,
+        review_status=CandidateDisposition.BLOCKED,
+        quality_flags=flags,
+        evidence_cue_ids=(941,),
+        review_reason="测试。",
+    )
+
+
+def test_same_interval_twin_flag_rule_counts_only_risk_sourced_flags() -> None:
+    mi = DualQualityFlag.MATERIAL_INTERRUPTION
+    tsi = DualQualityFlag.TOPIC_SWITCH_INSIDE
+    ctx = DualQualityFlag.CONTEXT_DEPENDENT_OPENING
+    rows = (
+        _twin_row("base_a"),
+        _twin_row("base_b", tsi, ctx),
+        _twin_row("risk_a", mi),
+        _twin_row("risk_b", mi, tsi),
+        _twin_row("other_interval", end=959),
+        _twin_row("risk_alone", mi, end=960),
+    )
+    twins = same_interval_twin_flags(rows, {"risk_a", "risk_b", "risk_alone"})
+    # Only non-risk flags are inherited; advisory flags are never shared.
+    assert twins.inherited == {
+        "base_a": (tsi,),
+        "base_b": (),
+        "risk_a": (tsi,),
+        "risk_b": (),
+        "other_interval": (),
+        "risk_alone": (),
+    }
+    # material_interruption only risk twins carry: base_a, base_b, and neither
+    # risk record from the other (each already has it).
+    assert twins.not_propagated == {
+        "base_a": (mi,),
+        "base_b": (mi,),
+        "risk_a": (),
+        "risk_b": (),
+        "other_interval": (),
+        "risk_alone": (),
+    }
+    assert twins.not_propagated_count == 2
+    # Idempotent: applying the inherited flags leaves nothing to inherit and the
+    # same not-propagated diagnostic.
+    applied = tuple(
+        value.model_copy(
+            update={"quality_flags": (*value.quality_flags, *twins.inherited[value.candidate_id])}
+        )
+        for value in rows
+    )
+    again = same_interval_twin_flags(applied, {"risk_a", "risk_b", "risk_alone"})
+    assert not any(again.inherited.values())
+    assert again.not_propagated == twins.not_propagated
+    # Without risk records every twin is a source (the v3--v5 rule).
+    symmetric = same_interval_twin_flags(rows, ())
+    assert symmetric.inherited["base_a"] == (mi, tsi)
+    assert symmetric.not_propagated_count == 0
+
+
+def test_run_manifest_cross_checks_the_risk_twin_diagnostic() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "base_curriculum",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+            },
+            {
+                "candidate_id": "risk_curriculum",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.BLOCKED,
+                "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+                "boundary_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+            },
+        ),
+        risk_record_ids=frozenset({"risk_curriculum"}),
+    )
+    manifest, final = _fallback_manifest(result)
+    risk_ids = {ClipProfile.MINI_LESSON: frozenset({"risk_curriculum"})}
+    # Older manifests omit the field and load with the default.
+    assert manifest.risk_twin_flags_not_propagated == {}
+    manifest.validate_against(final)
+    with pytest.raises(ValueError, match="risk-twin flag diagnostic"):
+        manifest.validate_against(final, risk_record_ids=risk_ids)
+    recorded = manifest.model_copy(
+        update={"risk_twin_flags_not_propagated": {ClipProfile.MINI_LESSON: 1}}
+    )
+    recorded.validate_against(final, risk_record_ids=risk_ids)
+    reloaded = DualProfileRunManifest.model_validate_json(recorded.model_dump_json())
+    assert reloaded.risk_twin_flags_not_propagated == {ClipProfile.MINI_LESSON: 1}
+    # Without the risk membership the base row would have to inherit the flag.
+    with pytest.raises(ValueError, match="same-interval twin flag rule"):
+        recorded.validate_against(final, risk_record_ids={ClipProfile.MINI_LESSON: ()})
 
 
 def test_risk_record_excluded_by_top_n_is_retained_blocked() -> None:
@@ -1678,7 +1917,7 @@ def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
 
 
 def test_routing_policy_marker_accepts_every_published_version() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v5"
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v6"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker_v3",
@@ -1702,6 +1941,7 @@ def test_routing_policy_marker_accepts_every_published_version() -> None:
         "quality-gate-risk-routing-v3",
         "quality-gate-risk-routing-v4",
         "quality-gate-risk-routing-v5",
+        "quality-gate-risk-routing-v6",
     ):
         loaded = DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": marker})

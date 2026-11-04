@@ -77,6 +77,7 @@ from liveclip.pipeline.dual_profile import (
     plan_profile_discovery_windows,
     reject_reserved_reason_prefixes,
     resolved_duplicates,
+    same_interval_twin_flags,
     semantic_cache_key,
     validate_audit_pair_decisions,
     validate_boundary_review_output,
@@ -313,6 +314,8 @@ def _run_dual_profile_evaluation(
     global_by_profile: dict[ClipProfile, ProfileGlobalReviewOutput] = {}
     results: dict[ClipProfile, FinalProfileResult] = {}
     persisted_representative_duplicates: dict[ClipProfile, int] = {}
+    risk_twin_flags_not_propagated: dict[ClipProfile, int] = {}
+    risk_record_ids_by_profile: dict[ClipProfile, frozenset[str]] = {}
     model_name = ""
     provider_name = ""
 
@@ -1250,6 +1253,23 @@ def _run_dual_profile_evaluation(
             score_threshold_exclusive=resolved.score_threshold_exclusive,
             risk_record_ids=risk_record_ids,
         )
+        # Stage 15 diagnostic (routing v6), derived by the same twin rule the
+        # assembly used: gated flags that only risk-discovery twins carried and
+        # that were therefore not propagated to their same-interval twins.
+        risk_record_ids_by_profile[profile] = risk_record_ids
+        risk_twin_flags_not_propagated[profile] = same_interval_twin_flags(
+            (
+                value
+                for group in (
+                    results[profile].selected,
+                    results[profile].manual_review,
+                    results[profile].blocked,
+                    results[profile].rejected,
+                )
+                for value in group
+            ),
+            risk_record_ids,
+        ).not_propagated_count
 
     assert_no_cross_profile_dedup(results.values())
     variant_prompt = load_dual_profile_variant_link_prompt()
@@ -1345,8 +1365,11 @@ def _run_dual_profile_evaluation(
         boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
         audit_pair_fallbacks=resolution_audit.audit_fallbacks(),
         persisted_flag_representative_duplicates=persisted_representative_duplicates,
+        risk_twin_flags_not_propagated=risk_twin_flags_not_propagated,
     )
-    manifest.validate_against(final, boundaries=boundaries_by_profile)
+    manifest.validate_against(
+        final, boundaries=boundaries_by_profile, risk_record_ids=risk_record_ids_by_profile
+    )
     _write_json(
         output_dir / "boundary-review.json",
         {
