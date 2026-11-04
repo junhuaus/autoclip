@@ -105,7 +105,10 @@ imported by production modules.
 - [x] 2026-11-02 Stage 14c ACCEPTED at `867d1cf669ffb9d8eccce40ba97d84fd44e016ef` (tester PASS: lint rc 0, backend 3056 passed, vitest 80, e2e 4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits).
 - [x] 2026-11-02 cold-31 (fresh cold acceptance attempt, real Claude CLI at `867d1cf`, pinned 2.1.308, attempt start epoch 1793609949): eval rc 0; 242 provider records, `cache_hits` 0, 0 content-identical cache files versus 25 earlier roots, every recorded prompt hash equals Stage 14c. Strict **FAIL 87.5** (`missing_any_p0_mini_lesson`: L02): short 7/8 (S03 +12440 ms); mini 4/6 (L01/L03/L04/L05 hit; L02's exact base candidate blocked only by the Stage 9 twin union copying `material_interruption` from its risk-discovery twin; L07 missed by representative-choice variance); R01/R02 blocked; all N07-overlapping rows blocked; N08 `manual_review` informational. 11 renders rc 0, human review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`; analysis in `STATUS.md`.
 - [x] 2026-11-04 Stage 15 implemented in `289530eba3b59f89325ede5c268f9064f8cb5257`, pending independent tester and reviewer (user decisions "Ignore risk-twin tags", `material_interruption` threshold, self-promotion rule): routing policy `quality-gate-risk-routing-v6` — the same-interval twin union no longer uses risk-discovery records as flag sources (they keep their own flags and still receive non-risk twins' flags) through the shared helper `same_interval_twin_flags`, which also drives the new manifest diagnostic `risk_twin_flags_not_propagated` and its `validate_against` cross-check; `main.md`, `risk_discovery.md`, `coverage_audit.md` state the threshold (only content that breaks the teaching or claim logic; a brief passed-over audience acknowledgement is neither an interruption nor padding), `boundary_review.md` aligned, `precision_audit.md` defers to it; Boundary Review, Global Review and Global Audit reject a candidate whose central objective is the speaker's own credentials, pricing, course sales or schedule. Every stage hash except the variant link changed (table in `STATUS.md`). Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5 (all unchanged versus v5), cold-31 PASS 92.5 (L02 restored; routing evidence only). Self-check: lint rc 0, targeted pytest 308 passed.
-- [ ] Next: independent tester and reviewer for Stage 15, then a fresh cold run (cold-32) only with the user's go-ahead; human review of the cold-27 through cold-31 renders and of the L07 gap.
+- [x] (Historical next step; Stage 15 accepted and Stage 15b followed, below.) Next: independent tester and reviewer for Stage 15, then a fresh cold run (cold-32) only with the user's go-ahead; human review of the cold-27 through cold-31 renders and of the L07 gap.
+- [x] 2026-11-04 Stage 15 ACCEPTED at `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code `289530e`; tester PASS: lint rc 0, backend 3087 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 mutation checks with 7 caught and 1 equivalent, replay byte-identical, hashes match).
+- [x] 2026-11-04 Stage 15b implemented in `11df4c61a829dc80f24929013019d6aff88f2d45`, pending independent tester and reviewer (user decision "Add: drop to manual review"): routing policy `quality-gate-risk-routing-v7` — after the twin union and before Top-N, a non-risk row still `selected` whose identical interval has a risk-discovery twin carrying an `AUTO_BLOCKING_RISK_TAGS` tag becomes `manual_review` with the Python-only prefix "Deterministic risk-twin review: " (source twins and tags recorded in the reason, no tag copied); shared helper `risk_twin_review` also drives the new manifest diagnostic `risk_twin_review_downgrades` and its `validate_against` cross-check. Reviewer P3s: v6 trade-off stated precisely, Boundary Review duration test reconciled with the `material_interruption` threshold, `main.md`/`global_audit.md` long lines re-wrapped, no-op filter removed, `final_profile_rows` reused, cold-30 replay note reconciled. Every `main.md`-loading stage hash changed (table in `STATUS.md`). Offline replay identical to v6 (cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrade diagnostic 0/0 in every run). Self-check: lint rc 0, targeted pytest 322 passed, 12/12 mutations caught.
+- [ ] Next: independent tester and reviewer for Stage 15b, then a fresh cold run (cold-32) only with the user's go-ahead; human review of the cold-27 through cold-31 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -465,6 +468,27 @@ two deterministic report files.
   computes the twin rule, the manifest diagnostic counts (candidate, flag)
   pairs not propagated, and `validate_against` re-derives both when the
   risk membership is supplied (the service supplies it; delivery does not).
+- 2026-11-04 (Stage 15 reviewer P3-a, precise statement of the v6
+  trade-off; user decision "Add: drop to manual review", Stage 15b): risk
+  tags were never shared between same-interval twins in any routing
+  version. In v3–v5, a risk-discovery twin's gated flag blocked a selected
+  non-risk twin only as a side effect of the flag union, and that side
+  effect was what kept such a twin from automatic publication when its own
+  reviews found no risk; v6 removed it. Stage 15b (routing policy
+  `quality-gate-risk-routing-v7`) closes the automatic-publication part: a
+  non-risk row still `selected` after the twin union whose identical
+  interval has a risk-discovery twin with an automatic-blocking risk tag
+  becomes `manual_review` (never `blocked`; tags not copied; prefix
+  "Deterministic risk-twin review: "). Position: after the twin union (a row
+  blocked by a non-risk twin's flag stays blocked) and before Top-N (Top-N
+  ranks only rows that already obey the rule, so no slot is spent on a
+  downgraded row and no replacement can violate it). Accepted remainder: a
+  base twin whose own reviews miss an interior interruption that only the
+  risk pass caught is still not blocked by the union; it reaches a human as
+  `manual_review` when the risk twin carries an automatic-blocking tag.
+  Implementation choice: the single helper `risk_twin_review` drives
+  assembly, the manifest diagnostic `risk_twin_review_downgrades` and its
+  `validate_against` cross-check.
 
 ## Risks and mitigations
 
@@ -978,6 +1002,20 @@ Stage 15 implemented, pending verification):
   (whose payload still depends on the run), so cold-32 is cold; earlier
   caches stay valid for their own prompt hashes and must not be modified.
   v1–v5 artifacts still load; reverting to v5 is a revert of `289530e`.
+
+2026-11-04 (Stage 15 accepted at `8af759a`; Stage 15b implemented, pending
+verification):
+
+- Stage 15 ACCEPTED at `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (tester:
+  lint rc 0, backend 3087 passed, vitest 80, e2e 4/4, concurrency test 5/5,
+  no sleep; reviewer ACCEPT with nits).
+- Stage 15b (`11df4c61a829dc80f24929013019d6aff88f2d45`): routing v7
+  risk-twin review, reviewer P3 prompt/code/doc fixes, tests; offline replay
+  and mutation scripts in the session scratchpad (`stage15b-sim/`).
+- Recovery: Stage 15b changes every stage hash that loads `main.md` (the
+  variant link is unchanged), so cold-32 is cold; earlier caches stay valid
+  for their own prompt hashes and must not be modified. v1–v6 artifacts
+  still load; reverting to v6 is a revert of `11df4c6`.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

@@ -816,3 +816,33 @@ only). Self-check: lint rc 0, targeted pytest 308 passed.
 
 Next: independent tester and reviewer on the Stage 15 SHAs, then cold-32
 (fresh cold run) only with the user's go-ahead. Not pushed.
+(Historical; Stage 15 was ACCEPTED at `8af759a`, recorded below.)
+
+## Stage 15 accepted; Stage 15b implemented, pending verification (2026-11-04)
+
+Stage 15 was ACCEPTED at `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code
+`289530e`; tester: lint rc 0, backend 3087 passed, vitest 80, e2e 4/4,
+concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8
+mutation checks with 7 caught and 1 equivalent, replay byte-identical,
+hashes match).
+
+User decision: "Add: drop to manual review".
+
+Stage 15b (`11df4c61a829dc80f24929013019d6aff88f2d45`, local only): routing
+policy `quality-gate-risk-routing-v7` (after the twin union and before Top-N,
+a non-risk row still `selected` whose identical interval has a
+risk-discovery twin with an automatic-blocking risk tag becomes
+`manual_review` with the Python-only prefix "Deterministic risk-twin review:
+"; no tag copied; shared helper `risk_twin_review`; manifest diagnostic
+`risk_twin_review_downgrades` cross-checked by `validate_against`). Reviewer
+P3s: v6 trade-off stated precisely, Boundary Review duration test reconciled
+with the `material_interruption` threshold, long prompt lines re-wrapped,
+no-op filter removed, `final_profile_rows` reused, cold-30 replay note
+reconciled. Every `main.md`-loading stage hash changed (table in
+`STATUS.md`). Offline replay identical to v6 (cold-27 PASS 95.0, warm-28 FAIL
+95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrade
+diagnostic 0/0 in every run). Self-check: lint rc 0, targeted pytest 322
+passed, 12/12 mutations caught.
+
+Next: independent tester and reviewer on the Stage 15b SHAs, then cold-32
+(fresh cold run) only with the user's go-ahead. Not pushed.

@@ -1,5 +1,41 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 15b risk-twin review (routing v7) and Stage 15 reviewer P3s (2026-11-04)
+
+- [x] 2026-11-04 Stage 15 **ACCEPTED** at
+  `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code `289530e`). Tester PASS:
+  lint rc 0; backend 3087 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep. Reviewer ACCEPT with nits (no P0–P2; 8 mutation checks, 7
+  caught and 1 equivalent; replay byte-identical; hashes match).
+- [x] 2026-11-04 Stage 15b implemented in
+  `11df4c61a829dc80f24929013019d6aff88f2d45`, **pending independent tester
+  and reviewer** (user decision "Add: drop to manual review"):
+  - Routing policy `quality-gate-risk-routing-v7`: after the twin union and
+    before Top-N, a non-risk row still `selected` whose identical interval
+    has a risk-discovery twin with an `AUTO_BLOCKING_RISK_TAGS` tag becomes
+    `manual_review` with the Python-only prefix
+    "Deterministic risk-twin review: " (source twins and tags in the reason;
+    no tag copied). Shared helper `risk_twin_review` drives assembly, the new
+    manifest diagnostic `risk_twin_review_downgrades` and its
+    `validate_against` cross-check; the reverse prefix check requires
+    `manual_review`. v1–v6 still load; algorithm version and cache-key schema
+    unchanged.
+  - Reviewer P3s: v6 trade-off stated precisely (risk tags were never
+    shared; before v6 a risk twin's gated flag blocked a selected twin only
+    as a side effect); Boundary Review duration test reconciled with the
+    `material_interruption` threshold; `main.md`/`global_audit.md` long
+    lines re-wrapped; no-op filter removed; `final_profile_rows` reused by
+    the service; cold-30 replay note reconciled. Every `main.md`-loading
+    stage hash changed (table in `STATUS.md`); variant link unchanged.
+  - Offline replay (`stage15b-sim/replay.py`): identical to v6 for cold-27
+    PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5,
+    cold-31 PASS 92.5; `risk_twin_review_downgrades` 0/0 in every run (no
+    selected row shares an interval with a tagged risk twin).
+  - Self-check: lint rc 0; targeted pytest 322 passed; 12/12 mutations
+    caught.
+- [ ] Next: independent tester and reviewer on the Stage 15b SHAs, then a
+  fresh cold run (cold-32) only with the user's go-ahead.
+
 ## Stage 15 risk-twin flags not propagated (routing v6), interruption threshold, self-promotion; cold-31 strict FAIL 87.5 (2026-11-02/04)
 
 - [x] 2026-11-02 Stage 14c **ACCEPTED** at
@@ -38,8 +74,9 @@
     95.0, cold-30 FAIL 92.5 (unchanged versus v5), cold-31 PASS 92.5
     (routing evidence only).
   - Self-check: lint rc 0; targeted pytest 308 passed.
-- [ ] Next: independent tester and reviewer on the Stage 15 SHAs, then a
-  fresh cold run (cold-32) only with the user's go-ahead.
+- [x] (Historical next step; Stage 15 accepted at `8af759a`, and Stage 15b,
+  above, followed.) Independent tester and reviewer on the Stage 15 SHAs,
+  then a fresh cold run (cold-32) only with the user's go-ahead.
 
 ## Stage 14c Stage 14b reviewer REJECT follow-ups (2026-11-02)
 

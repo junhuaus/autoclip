@@ -18,9 +18,197 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 15: risk-twin flags not propagated (routing v6), `material_interruption` threshold, self-promotion rule (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 15b: risk-twin review drops selected twins to manual review (routing v7), Stage 15 reviewer P3s (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer.** Code,
+  prompts and tests in `11df4c61a829dc80f24929013019d6aff88f2d45` on local
+  branch `claude/liveclip-stage8-routing` (after `8af759a`); this docs commit
+  follows. Not pushed or merged. No evaluator, threshold, benchmark,
+  algorithm version (`dual-profile-direct-v1`) or cache-key schema change.
+- Stage 15 was **accepted** at `8af759ad2ac9866d9ef08b82fae49136f9cc068f`
+  (below). Reviewer P3-a..d are folded into this stage.
+- User decision (2026-11-04, after the Stage 15 review): "Add: drop to
+  manual review".
+- The v6 trade-off, stated precisely (P3-a): risk tags were never shared
+  between same-interval twins in any routing version; only gated quality
+  flags were. In v3–v5, when a risk-discovery twin carried a gated flag (for
+  example the `material_interruption` the risk pass is told to keep), the
+  flag union blocked a selected non-risk twin as a side effect; that side
+  effect, not any risk rule, was what kept such a twin from automatic
+  publication when its own reviews found no risk (a risk twin without a gated
+  flag never stopped it). v6 removed the side effect, so a non-risk twin
+  whose own reviews raised no risk and no gated flag could be `selected`
+  next to a risk twin carrying an automatic-blocking risk tag. Stage 15b
+  closes the automatic-publication part of that gap, whether or not the risk
+  twin carries a gated flag (so it is stricter than v3–v5 there). The other part
+  stays an accepted trade-off: a base twin whose own reviews miss a real
+  interior interruption that only the risk pass caught is not blocked by the
+  union (it becomes `manual_review` when the risk twin carries an
+  automatic-blocking risk tag, as risk-pass records usually do; a human sees
+  it before release).
+- Routing policy **`quality-gate-risk-routing-v7`** (constant and `Literal`;
+  v1–v6 and unmarked artifacts still load). New step 3 of final assembly,
+  risk-twin review: a non-risk row (outside the structural `risk_record_ids`)
+  that is still `selected` after the twin union, whose identical final
+  interval has at least one risk-discovery record carrying an
+  `AUTO_BLOCKING_RISK_TAGS` tag (whatever that record's status), becomes
+  `manual_review` with the new Python-only prefix
+  `"Deterministic risk-twin review: "`, followed by
+  `same-interval risk-discovery twin <id> carries <tags>` for each source
+  twin (sorted by ID, tags in enum order) and the review's own reason. Risk
+  tags and quality flags are not copied (a status downgrade only). Rows
+  already `manual_review`, `blocked` or `rejected`, risk records themselves,
+  non-identical intervals and non-automatic-blocking tags (for example
+  `commercial_claim`) are unaffected. The prefix is in
+  `DETERMINISTIC_REASON_PREFIXES` (so `reject_reserved_reason_prefixes`
+  refuses it in Global Review and Global Audit output), and the
+  `validate_against` reverse check requires a row with this prefix to be
+  `manual_review` (every other Python-only prefix except Top-N still requires
+  `blocked`).
+- Position (decision): after the twin union (step 2) and before Top-N
+  (step 4), risk-record routing and the quality gate (step 5). After the
+  twin union, so a row that inherits a non-risk twin's gated flag stays
+  `blocked` with the quality-gate prefix and only rows still `selected` are
+  considered. Before Top-N, so Top-N ranks only rows that already obey the
+  rule: it never spends a slot on a downgraded row and never picks a
+  replacement that would then be downgraded (the rule's inputs, intervals and
+  the risk twins' tags, are not changed by any later step). Step 5 cannot
+  touch a downgraded row: risk routing acts on rejected risk records, and the
+  quality gate acts on `manual_review` rows with a gated flag, which a
+  formerly selected row never carries (`AUTO_BLOCKING_QUALITY_FLAGS` is every
+  flag). Downgrade-only and idempotent: on its own output nothing is pending.
+- Single helper `risk_twin_review(values, risk_record_ids)` (sources,
+  pending, downgraded) with `route_risk_twin_review` applying it; the service
+  computes the new run-manifest diagnostic `risk_twin_review_downgrades` (per
+  Profile, the number of final rows carrying the prefix) from the final rows
+  with the same helper, and `DualProfileRunManifest.validate_against(...,
+  risk_record_ids=...)` re-derives it: no `selected` row may still be
+  pending, every prefixed row must have an automatic-blocking risk twin, and
+  the diagnostic must equal the recomputed count. Manifests written before
+  the field load with `{}`; delivery's `validate_against(final)` call (no
+  risk membership) still runs the reverse prefix check.
+- Code P3-c: the no-op `candidate_id != value.candidate_id` filter in
+  `same_interval_twin_flags` is removed (a risk record's own flags are in
+  `own` and subtracted anyway; the reviewer's equivalent mutation M5); the
+  private `_final_rows` is now the public `final_profile_rows`, reused by the
+  service instead of its inline rebuild (same rows, same order).
+- Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript):
+  - `boundary_review.md` (P3-b): the on-topic duration test now subtracts
+    only "interior material that meets the `material_interruption` threshold
+    above (audience chat, comment reading, calls to action or device talk
+    that breaks the teaching or claim logic)"; "A brief audience thanks,
+    greeting, name call-out or acknowledgement that the speaker passes over
+    without leaving the topic is neither flag and is not removed in this
+    test". The old list subtracted every greeting and then required
+    `padded_with_irrelevant_content` alongside `material_interruption`,
+    contradicting the Stage 15 threshold.
+  - `main.md` (P3-d): the 167-character microphone/demonstration line is
+    re-wrapped (words unchanged); `global_audit.md`'s 166-character
+    near-identical line is re-wrapped the same way (its hash changes anyway
+    through `main.md`).
+- Prompt identity hashes at Stage 15b (full values, printed by
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt` in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/hashes.py`, pinned in `FROZEN_DISCOVERY_PROMPT_HASHES`
+  and `PINNED_REVIEW_PROMPT_HASHES`); every stage that loads `main.md`
+  changed (bytes only for all but boundary_review), so cold-32 would be cold
+  for every stage except the variant link:
+
+  | Profile | Stage | sha256 |
+  | --- | --- | --- |
+  | short_highlight | discovery | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` |
+  | short_highlight | coverage_audit | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` |
+  | short_highlight | precision_audit (not run) | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` |
+  | short_highlight | precision_confirmation (not run) | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` |
+  | short_highlight | risk_discovery (not run) | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` |
+  | short_highlight | boundary_review | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` |
+  | short_highlight | global_review | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` |
+  | short_highlight | global_audit | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` |
+  | mini_lesson | discovery | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` |
+  | mini_lesson | coverage_audit | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` |
+  | mini_lesson | precision_audit | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` |
+  | mini_lesson | precision_confirmation | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` |
+  | mini_lesson | risk_discovery | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` |
+  | mini_lesson | boundary_review | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` |
+  | mini_lesson | global_review | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` |
+  | mini_lesson | global_audit | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` |
+  | cross_profile | variant_link (unchanged) | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` |
+
+- Tests (changed existing assertions explained):
+  - `tests/unit/test_dual_profile.py`: new — selected non-risk twin plus a
+    risk twin with automatic-blocking tags → `manual_review`, exact prefixed
+    reason (enum tag order), no tag or flag copied, risk twin still blocked by
+    risk routing; `manual_review`/`blocked`/`rejected` twins unchanged;
+    `commercial_claim` risk twin, an automatic-blocking tag on a non-risk
+    twin, and a selected risk record next to a tagged risk record → no
+    downgrade; non-identical start or end → no downgrade; twin union first
+    (blocked with the quality-gate prefix); Top-N interaction (`top_n=1`: two
+    downgraded rows, the clean replacement selected, the next clean row
+    Top-N-rejected); helper sources/pending/downgraded, multi-twin reason and
+    idempotence; manifest diagnostic default, mismatch, round trip, unbacked
+    prefix and pending-row violations; the prefix is refused in model output
+    and must be `manual_review`. Changed: the Stage 15 manifest test now also
+    sets `risk_twin_review_downgrades` (0); the routing-marker test expects
+    v7 and loads v1–v7; the reserved-prefix test lists six prefixes.
+  - `tests/integration/test_dual_profile_evaluation.py`: the three marker
+    assertions expect v7; `RiskTwinProvider` takes the risk tag. The Stage 15
+    service test now uses `commercial_claim` so it isolates the v6 property
+    (with `health_advice` the lesson is now `manual_review`, the intended v7
+    change); new
+    `test_service_risk_twin_review_drops_the_selected_twin_to_manual_review`
+    (risk pass: lesson `manual_review` with the prefix, no tags,
+    diagnostic `{short 0, mini 1}`; base-pass look-alike: blocked by the
+    union, diagnostic 0); the Global Review reserved-prefix repair test is
+    parametrized with the new prefix; hash pins updated with justification.
+  - `tests/unit/test_dual_profile_flag_contract.py`: new test for the
+    reconciled Boundary Review duration test (both Profiles).
+  - Mutation self-check (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/mutate.py`, scratch copies of
+    `src` only): 12 of 12 behavioural mutations caught (rule after Top-N,
+    before the union, any risk tag, any source, risk receivers, block instead
+    of manual_review, validator skips pending, validator skips backing,
+    service diagnostic zero, no reverse status check, tags copied, prefix not
+    reserved); the P3-c revert passes every test (equivalent, as intended).
+- Offline replay (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/replay.py`, adapted from the Stage 15
+  replay: the real v7 assembler and the strict evaluator on stored stage
+  outputs; the v6 baseline is the same code with the risk-twin review step
+  replaced by the identity; no tracked edit, no model call; the v7 manifest
+  cross-check, including both diagnostics, ran on every run):
+
+  | Run | v6 replay | v7 replay | v6→v7 status changes | `risk_twin_flags_not_propagated` (short/mini) | `risk_twin_review_downgrades` (short/mini) |
+  | --- | --- | --- | --- | --- | --- |
+  | cold-27 | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | warm-28 | FAIL 95.0 (`irrelevant_padding`) | FAIL 95.0 (`irrelevant_padding`), short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | warm-29b | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | cold-30 | FAIL 92.5 (`missing_any_p0_mini_lesson`) | FAIL 92.5, short 7/8, mini 5/6 (L02–L05, L07) | none | 0 / 3 | 0 / 0 |
+  | cold-31 | PASS 92.5 | PASS 92.5, short 7/8 (S03 miss), mini 5/6 (L01–L05), N08 informational | none | 0 / 4 | 0 / 0 |
+
+  Every evaluator field (status, score, hits, hard failures, risk and
+  negative-anchor findings, human-review list) is identical between the v6
+  and v7 replays. In every run, 15–25 mini non-risk rows share an interval
+  with a risk-discovery twin carrying an automatic-blocking tag, but none is
+  `selected` (all are `manual_review`, `blocked` or `rejected` already), and
+  no short row has such a twin, so the rule downgrades nothing in these
+  stored outputs. Routing evidence only, not a benchmark pass.
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  322 passed; `pytest -k "dual_profile or delivery or benchmark"` 557
+  passed.
+- Next: independent tester and reviewer on the Stage 15b SHAs, then a fresh
+  cold run (cold-32) only with the user's go-ahead; human review of the
+  cold-31 and earlier renders stays pending.
+
+## Stage 15: risk-twin flags not propagated (routing v6), `material_interruption` threshold, self-promotion rule (2026-11-04) — ACCEPTED at 8af759a
+
+- **Accepted** at `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code
+  `289530e`, docs `8af759a`). Tester PASS: lint rc 0; `make test` backend
+  3087 passed; vitest 80; e2e 4/4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits (no P0–P2; 8 mutation checks, 7 caught and 1
+  equivalent; replay byte-identical; every documented hash matches). The P3
+  nits become Stage 15b (above). The bullets below are the historical
+  implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code,
   prompts and tests in `289530eba3b59f89325ede5c268f9064f8cb5257` on local
   branch `claude/liveclip-stage8-routing` (after `867d1cf`); this docs commit
   follows. Not pushed or merged. No evaluator, threshold, benchmark,
@@ -172,15 +360,20 @@
   finding because the replay reuses cold-31's stored review outputs (the
   self-promotion prompt can act only in a new run). Routing evidence only,
   not a benchmark pass: the prompts changed and a real run re-decides every
-  stage.
+  stage. (Stage 15b reconciliation, reviewer P3-d: cold-30 stays FAIL 92.5
+  here although the Stage 14 counterfactual gave PASS 97.5 because this
+  replay keeps the stored Global Audit replacement that blocked the L01 row
+  "to match routing", and Python only ever downgrades, whereas the Stage 14
+  counterfactual reverted such rows to the initial Global Review.)
 - Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
   `test_dual_profile_flag_contract.py`,
   `tests/integration/test_dual_profile_evaluation.py`,
   `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
   308 passed.
-- Next: independent tester and reviewer on the Stage 15 SHAs, then a fresh
-  cold run (cold-32) only with the user's go-ahead; human review of the
-  cold-31 and earlier renders stays pending.
+- (Historical next step; Stage 15 accepted at `8af759a`, and Stage 15b,
+  above, followed.) Next: independent tester and reviewer on the Stage 15
+  SHAs, then a fresh cold run (cold-32) only with the user's go-ahead; human
+  review of the cold-31 and earlier renders stays pending.
 
 ## cold-31 real run at 867d1cf (2026-11-02) — strict FAIL 87.5 (fresh cold acceptance attempt)
 
