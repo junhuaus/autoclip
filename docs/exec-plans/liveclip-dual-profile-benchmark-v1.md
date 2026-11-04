@@ -101,7 +101,11 @@ imported by production modules.
 - [x] (Historical next step; Stage 14b REJECTED below.) Next: independent tester and reviewer for Stage 14b, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
 - [x] 2026-11-02 Stage 14b reviewer REJECT on docs commit `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the `STATUS.md` Stage 14b hash table listed intermediate-draft global_review/global_audit hashes for both Profiles; code at `9664efe` unaffected.
 - [x] 2026-11-02 Stage 14c implemented, pending independent tester and reviewer (prompt, test and docs; routing policy stays `quality-gate-risk-routing-v5`, gate semantics unchanged): `boundary_review.md` cross-references interior audibility/lag/playback trouble as `material_interruption` and says interior chat kept for duration flags `padded_with_irrelevant_content` alongside the interior flag, never instead (boundary_review hashes change for both Profiles; all others unchanged); new test pins the full service-recorded boundary_review, global_review and global_audit hashes for both Profiles and the variant link; `STATUS.md` Stage 14b hash table corrected, full Stage 14c table added. Self-check: lint rc 0, targeted pytest 277 passed.
-- [ ] Next: independent tester and reviewer for Stage 14c, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
+- [x] (Historical next step; Stage 14c accepted and cold-31 ran, below.) Next: independent tester and reviewer for Stage 14c, then the fresh cold run cold-31 only with the user's go-ahead; human review of the cold-27, warm-28, warm-29b and cold-30 renders and of the L07 gap.
+- [x] 2026-11-02 Stage 14c ACCEPTED at `867d1cf669ffb9d8eccce40ba97d84fd44e016ef` (tester PASS: lint rc 0, backend 3056 passed, vitest 80, e2e 4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits).
+- [x] 2026-11-02 cold-31 (fresh cold acceptance attempt, real Claude CLI at `867d1cf`, pinned 2.1.308, attempt start epoch 1793609949): eval rc 0; 242 provider records, `cache_hits` 0, 0 content-identical cache files versus 25 earlier roots, every recorded prompt hash equals Stage 14c. Strict **FAIL 87.5** (`missing_any_p0_mini_lesson`: L02): short 7/8 (S03 +12440 ms); mini 4/6 (L01/L03/L04/L05 hit; L02's exact base candidate blocked only by the Stage 9 twin union copying `material_interruption` from its risk-discovery twin; L07 missed by representative-choice variance); R01/R02 blocked; all N07-overlapping rows blocked; N08 `manual_review` informational. 11 renders rc 0, human review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`; analysis in `STATUS.md`.
+- [x] 2026-11-04 Stage 15 implemented in `289530eba3b59f89325ede5c268f9064f8cb5257`, pending independent tester and reviewer (user decisions "Ignore risk-twin tags", `material_interruption` threshold, self-promotion rule): routing policy `quality-gate-risk-routing-v6` — the same-interval twin union no longer uses risk-discovery records as flag sources (they keep their own flags and still receive non-risk twins' flags) through the shared helper `same_interval_twin_flags`, which also drives the new manifest diagnostic `risk_twin_flags_not_propagated` and its `validate_against` cross-check; `main.md`, `risk_discovery.md`, `coverage_audit.md` state the threshold (only content that breaks the teaching or claim logic; a brief passed-over audience acknowledgement is neither an interruption nor padding), `boundary_review.md` aligned, `precision_audit.md` defers to it; Boundary Review, Global Review and Global Audit reject a candidate whose central objective is the speaker's own credentials, pricing, course sales or schedule. Every stage hash except the variant link changed (table in `STATUS.md`). Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5 (all unchanged versus v5), cold-31 PASS 92.5 (L02 restored; routing evidence only). Self-check: lint rc 0, targeted pytest 308 passed.
+- [ ] Next: independent tester and reviewer for Stage 15, then a fresh cold run (cold-32) only with the user's go-ahead; human review of the cold-27 through cold-31 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -436,6 +440,31 @@ two deterministic report files.
   unnoticed. Review prompts may still evolve; each change re-pins the test
   and the `STATUS.md` table together. Hashes are always recomputed with
   `load_dual_profile_prompt` (the value the service records).
+- 2026-11-04 (user decisions after cold-31, Stage 15): (1) routing option
+  "Ignore risk-twin tags": in the same-interval twin union, records of the
+  dedicated risk-discovery pass (structural provenance) are no longer flag
+  sources; they keep their own flags and status and still receive their
+  non-risk twins' flags; non-risk twins share flags as before. Routing
+  policy `quality-gate-risk-routing-v6`. Rationale: the risk pass is told
+  to preserve and flag interior interruptions of a risk chain so the
+  record is routed to `blocked`; in cold-31 that flag (over a one-cue
+  viewer thank-you) blocked the clean, gold-exact base twin whose own
+  reviews judged the cue harmless. Replays: cold-31 PASS 92.5, the four
+  earlier runs unchanged. Accepted trade-off: the Stage 9 invariant "same
+  media -> same gated flags" is weakened only in the risk-record ->
+  non-risk direction, so a base twin whose own reviews miss a real interior
+  interruption that only the risk pass caught is no longer blocked by the
+  union (the base twin's own Discovery flags still persist). (2) The
+  `material_interruption` threshold ("actually breaks the teaching or claim
+  logic"; a brief passed-over audience acknowledgement is neither an
+  interruption nor padding) is restored in `main.md` and mirrored in the
+  risk and coverage passes, fixing a Stage 14/14b over-broadening. (3) A
+  candidate whose central objective is the speaker's own credentials,
+  qualifications, pricing, course sales or schedule is rejected in the
+  review stages, not merely flagged. Implementation choice: a single helper
+  computes the twin rule, the manifest diagnostic counts (candidate, flag)
+  pairs not propagated, and `validate_against` re-derives both when the
+  risk membership is supplied (the service supplies it; delivery does not).
 
 ## Risks and mitigations
 
@@ -931,6 +960,24 @@ pending verification):
   review-stage hash pin test.
 - Recovery: cold-31 remains cold for every stage; nothing in Stage 14c
   touches caches, routing or evaluator code.
+
+2026-11-04 (Stage 14c accepted at `867d1cf`; cold-31 strict FAIL 87.5;
+Stage 15 implemented, pending verification):
+
+- Stage 14c ACCEPTED at `867d1cf669ffb9d8eccce40ba97d84fd44e016ef` (tester:
+  lint rc 0, backend 3056 passed, vitest 80, e2e 4, concurrency test 5/5,
+  no sleep; reviewer ACCEPT with nits).
+- cold-31 (fresh cold at `867d1cf`): strict FAIL 87.5, L02 lost to the twin
+  union (details and the reviewer's analysis in `STATUS.md`). Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261102-claude-cold-31`
+  (ignored, local only).
+- Stage 15 (`289530eba3b59f89325ede5c268f9064f8cb5257`): routing v6,
+  threshold and self-promotion prompts, tests; offline replay script in the
+  session scratchpad (`stage15-sim/replay.py`).
+- Recovery: Stage 15 changes every stage hash except the variant link
+  (whose payload still depends on the run), so cold-32 is cold; earlier
+  caches stay valid for their own prompt hashes and must not be modified.
+  v1–v5 artifacts still load; reverting to v5 is a revert of `289530e`.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

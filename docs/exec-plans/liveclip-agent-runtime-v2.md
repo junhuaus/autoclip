@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 15 risk-twin flags not propagated (routing v6), interruption threshold, self-promotion; cold-31 strict FAIL 87.5 (2026-11-02/04)
+
+- [x] 2026-11-02 Stage 14c **ACCEPTED** at
+  `867d1cf669ffb9d8eccce40ba97d84fd44e016ef`. Tester PASS: lint rc 0;
+  backend 3056 passed; vitest 80; e2e 4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits.
+- [x] 2026-11-02 cold-31 at `867d1cf` (fresh cold, 242 provider records,
+  `cache_hits` 0, 0 content-identical cache files versus 25 earlier roots,
+  every prompt hash = Stage 14c): strict **FAIL 87.5**
+  (`missing_any_p0_mini_lesson`: L02). Short 7/8 (S03 miss); mini 4/6
+  (L01/L03/L04/L05 hit; L02's exact clean base candidate blocked only by
+  the Stage 9 same-interval twin union copying `material_interruption`
+  from its risk-discovery twin; L07 missed by representative-choice
+  variance); R01/R02 blocked; all N07-overlapping rows blocked; N08
+  `manual_review` informational; 11 renders rc 0, human review pending.
+  Evidence in
+  `data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`
+  and `STATUS.md`.
+- [x] 2026-11-04 Stage 15 implemented in
+  `289530eba3b59f89325ede5c268f9064f8cb5257`, **pending independent tester
+  and reviewer** (user decisions "Ignore risk-twin tags", restore the
+  `material_interruption` threshold, reject self-promotion):
+  - Routing policy `quality-gate-risk-routing-v6`: risk-discovery records
+    are not flag sources in the twin union (they keep their own flags and
+    still receive non-risk twins' flags); shared helper
+    `same_interval_twin_flags` drives final assembly, the new manifest
+    diagnostic `risk_twin_flags_not_propagated` and its `validate_against`
+    cross-check. v1–v5 still load; algorithm version and cache-key schema
+    unchanged.
+  - Prompts: threshold sentence in `main.md`, mirrored in `risk_discovery.md`
+    and `coverage_audit.md`; `boundary_review.md` aligned;
+    `precision_audit.md` defers to it; self-promotion rule in
+    `boundary_review.md`, `global_review.md`, `global_audit.md`. Every stage
+    hash except the variant link changed (table in `STATUS.md`).
+  - Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS
+    95.0, cold-30 FAIL 92.5 (unchanged versus v5), cold-31 PASS 92.5
+    (routing evidence only).
+  - Self-check: lint rc 0; targeted pytest 308 passed.
+- [ ] Next: independent tester and reviewer on the Stage 15 SHAs, then a
+  fresh cold run (cold-32) only with the user's go-ahead.
+
 ## Stage 14c Stage 14b reviewer REJECT follow-ups (2026-11-02)
 
 - [x] 2026-11-02 Stage 14b reviewer **REJECT** on docs commit
@@ -23,8 +64,9 @@
   - `STATUS.md` Stage 14b hash table corrected to the service-recorded values
     (history noted in place); full Stage 14c hash table in `STATUS.md`.
   - Self-check: lint rc 0; targeted pytest 277 passed.
-- [ ] Next: independent tester and reviewer on the Stage 14c SHA, then the
-  fresh cold run cold-31 only with the user's go-ahead.
+- [x] (Historical next step; Stage 14c accepted and cold-31 ran, above.)
+  Independent tester and reviewer on the Stage 14c SHA, then the fresh cold
+  run cold-31 only with the user's go-ahead.
 
 ## Stage 14b Stage 14 reviewer P3 follow-ups (2026-11-02)
 

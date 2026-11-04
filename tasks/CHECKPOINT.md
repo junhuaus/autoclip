@@ -775,3 +775,44 @@ Self-check: lint rc 0, targeted pytest 277 passed.
 
 Next: independent tester and reviewer on the Stage 14c SHA, then cold-31
 (fresh cold run) only with the user's go-ahead. Not pushed.
+(Historical; Stage 14c was ACCEPTED at `867d1cf`, recorded below.)
+
+## Stage 14c accepted; cold-31 strict FAIL 87.5; Stage 15 implemented, pending verification (2026-11-02/04)
+
+Stage 14c was ACCEPTED at `867d1cf669ffb9d8eccce40ba97d84fd44e016ef`
+(tester: lint rc 0, backend 3056 passed, vitest 80, e2e 4, concurrency test
+5/5, no sleep; reviewer ACCEPT with nits).
+
+cold-31 (fresh cold at `867d1cf`, pinned 2.1.308, attempt start epoch
+1793609949): eval rc 0, 242 provider records, `cache_hits` 0, 0
+content-identical cache files versus 25 earlier roots, every prompt hash =
+Stage 14c. Strict FAIL 87.5 (`missing_any_p0_mini_lesson`: L02): short 7/8
+(S03 miss); mini 4/6 (L01/L03/L04/L05 hit; L02's exact clean base candidate
+blocked only by the Stage 9 twin union copying `material_interruption` from
+its risk-discovery twin, a flag over a one-cue viewer thank-you; L07 missed
+by representative-choice variance); R01/R02 blocked; all N07-overlapping
+rows blocked; N08 `manual_review` informational. 11 renders rc 0, human
+review pending. Evidence
+`data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`.
+Reviewer replays: v5/v4/no-persistence all FAIL 87.5; union ignoring
+risk-record sources PASS 92.5 with the four earlier runs unchanged. Stage
+14/14b wording raised Discovery `material_interruption` counts (mini 55–60
+→ 76, short 15–20 → 32).
+
+User decisions: "Ignore risk-twin tags", restore the `material_interruption`
+threshold, reject self-promotion as a central objective.
+
+Stage 15 (`289530eba3b59f89325ede5c268f9064f8cb5257`, local only): routing
+policy `quality-gate-risk-routing-v6` (risk-discovery records are not flag
+sources in the twin union; shared helper `same_interval_twin_flags`; manifest
+diagnostic `risk_twin_flags_not_propagated` cross-checked by
+`validate_against`); threshold sentence in `main.md`, `risk_discovery.md`,
+`coverage_audit.md`, Boundary Review aligned, precision_audit defers to it;
+self-promotion rule in Boundary Review, Global Review and Global Audit.
+Every stage hash except the variant link changed (table in `STATUS.md`).
+Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0,
+cold-30 FAIL 92.5 (unchanged versus v5), cold-31 PASS 92.5 (routing evidence
+only). Self-check: lint rc 0, targeted pytest 308 passed.
+
+Next: independent tester and reviewer on the Stage 15 SHAs, then cold-32
+(fresh cold run) only with the user's go-ahead. Not pushed.
