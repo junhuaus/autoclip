@@ -38,7 +38,9 @@ from liveclip.pipeline.dual_profile import (
     ProfileGlobalReviewOutput,
     RawProfileCandidate,
     VariantLinkItem,
+    final_profile_rows,
     plan_profile_discovery_windows,
+    risk_twin_review,
 )
 from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm import claude_cli as claude_cli_module
@@ -1969,7 +1971,7 @@ def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v8"
     short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
     mini = final.profiles[ClipProfile.MINI_LESSON]
     # Short: unchanged interval, so the Discovery flag cleared by review still gates.
@@ -2017,7 +2019,7 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
     final = DualProfileFinalResult.model_validate_json(
         (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
     )
-    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v8"
     for result in final.profiles.values():
         assert result.blocked == ()
         for value in (*result.selected, *result.manual_review, *result.rejected):
@@ -2030,7 +2032,14 @@ def test_service_lets_discovery_padding_flags_follow_boundary_review(
 class RiskTwinProvider(ScriptedDualProvider):
     """Adds a same-interval twin of the mini lesson that carries
     `material_interruption` and ``risk_tag``, emitted either by the dedicated
-    risk-discovery pass or by the base pass under a look-alike `risk_` ID."""
+    risk-discovery pass or by the base pass under a look-alike `risk_` ID.
+
+    Stage 15c options: ``manual_twin`` adds a base-pass same-interval twin that
+    Global Review keeps ``manual_review`` (a tagged-twin row the rule does not
+    downgrade, so the downgrade count differs from the number of rows with a
+    tagged risk twin); ``risk_commercial_twin`` adds a risk-discovery record
+    with only the non-automatic-blocking `commercial_claim` tag on the same
+    interval, which Global Review selects."""
 
     def __init__(
         self,
@@ -2039,10 +2048,36 @@ class RiskTwinProvider(ScriptedDualProvider):
         *,
         from_risk_pass: bool,
         risk_tag: DualRiskTag = DualRiskTag.HEALTH_ADVICE,
+        manual_twin: bool = False,
+        risk_commercial_twin: bool = False,
     ) -> None:
         super().__init__(prompt, counter)
         self._twin_pass = "risk_discovery" if from_risk_pass else None
         self._risk_tag = risk_tag
+        self._manual_twin = manual_twin
+        self._risk_commercial_twin = risk_commercial_twin
+
+    @staticmethod
+    def _same_interval(
+        candidate_id: str,
+        window_id: str,
+        *,
+        quality_flags: tuple[DualQualityFlag, ...] = (),
+        risk_tags: tuple[DualRiskTag, ...] = (),
+    ) -> RawProfileCandidate:
+        return RawProfileCandidate(
+            candidate_id=candidate_id,
+            profile=ClipProfile.MINI_LESSON,
+            source_window_id=window_id,
+            start_cue_id=1,
+            end_cue_id=11,
+            evidence_cue_ids=(1, 11),
+            title="风险链",
+            summary="包含健康主张的完整链条。",
+            boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
+            quality_flags=quality_flags,
+            risk_tags=risk_tags,
+        )
 
     def _output(
         self,
@@ -2051,31 +2086,60 @@ class RiskTwinProvider(ScriptedDualProvider):
     ) -> OutputModel:
         mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
         profile = ClipProfile.MINI_LESSON
+        if response_model is ProfileGlobalAuditOutput and mini:
+            # The Stage 15c twins are retained beside the lesson on its interval,
+            # so Python lists the pairs; keep both as distinct objectives.
+            pairs = cast(list[dict[str, object]], payload["audit_pairs"])
+            return cast(
+                OutputModel,
+                ProfileGlobalAuditOutput(
+                    profile=profile,
+                    replacements=(),
+                    nested_pair_decisions=tuple(
+                        NestedPairDecision(
+                            outer_candidate_id=str(pair["outer_candidate_id"]),
+                            inner_candidate_id=str(pair["inner_candidate_id"]),
+                            decision=NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+                            reason="Mock audit keeps both twins.",
+                        )
+                        for pair in pairs
+                    ),
+                    audit_reason="Mock audit decided the listed twin pairs.",
+                ),
+            )
         if response_model is ProfileDiscoveryOutput and mini:
             window_id = str(payload["window_id"])
             ownership = cast(dict[str, object], payload["ownership_interval"])
             discovery_pass = payload.get("discovery_pass")
-            if int(ownership["start_ms"]) == 0 and discovery_pass == self._twin_pass:
+            extra: list[RawProfileCandidate] = []
+            if int(ownership["start_ms"]) == 0:
+                if discovery_pass == self._twin_pass:
+                    extra.append(
+                        self._same_interval(
+                            "risk_twin",
+                            window_id,
+                            quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+                            risk_tags=(self._risk_tag,),
+                        )
+                    )
+                if discovery_pass == "risk_discovery" and self._risk_commercial_twin:
+                    extra.append(
+                        self._same_interval(
+                            "risk_commercial",
+                            window_id,
+                            risk_tags=(DualRiskTag.COMMERCIAL_CLAIM,),
+                        )
+                    )
+                if discovery_pass is None and self._manual_twin:
+                    extra.append(self._same_interval("mini_lesson_manual", window_id))
+            if extra:
                 base = cast(ProfileDiscoveryOutput, super()._output(payload, response_model))
-                twin = RawProfileCandidate(
-                    candidate_id="risk_twin",
-                    profile=profile,
-                    source_window_id=window_id,
-                    start_cue_id=1,
-                    end_cue_id=11,
-                    evidence_cue_ids=(1, 11),
-                    title="风险链",
-                    summary="包含健康主张的完整链条。",
-                    boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
-                    quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
-                    risk_tags=(self._risk_tag,),
-                )
                 return cast(
                     OutputModel,
                     ProfileDiscoveryOutput(
                         profile=profile,
                         window_id=window_id,
-                        candidates=(*base.candidates, twin),
+                        candidates=(*base.candidates, *extra),
                     ),
                 )
         output = super()._output(payload, response_model)
@@ -2086,14 +2150,18 @@ class RiskTwinProvider(ScriptedDualProvider):
                 boundary.model_copy(
                     update={
                         "reviews": tuple(
-                            item
-                            if item.candidate_id != "risk_twin"
-                            else item.model_copy(
+                            item.model_copy(
                                 update={
                                     "risk_tags": (self._risk_tag,),
                                     "quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
                                 }
                             )
+                            if item.candidate_id == "risk_twin"
+                            else item.model_copy(
+                                update={"risk_tags": (DualRiskTag.COMMERCIAL_CLAIM,)}
+                            )
+                            if item.candidate_id == "risk_commercial"
+                            else item
                             for item in boundary.reviews
                         )
                     }
@@ -2106,9 +2174,7 @@ class RiskTwinProvider(ScriptedDualProvider):
                 review.model_copy(
                     update={
                         "reviews": tuple(
-                            item
-                            if item.candidate_id != "risk_twin"
-                            else item.model_copy(
+                            item.model_copy(
                                 update={
                                     "score": 50.0,
                                     "review_status": CandidateDisposition.BLOCKED,
@@ -2116,6 +2182,16 @@ class RiskTwinProvider(ScriptedDualProvider):
                                     "review_reason": "Interior interruption in the risk chain.",
                                 }
                             )
+                            if item.candidate_id == "risk_twin"
+                            else item.model_copy(
+                                update={
+                                    "score": 70.0,
+                                    "review_status": CandidateDisposition.MANUAL_REVIEW,
+                                    "review_reason": "Mock global review asks for a human check.",
+                                }
+                            )
+                            if item.candidate_id == "mini_lesson_manual"
+                            else item
                             for item in review.reviews
                         )
                     }
@@ -2125,14 +2201,26 @@ class RiskTwinProvider(ScriptedDualProvider):
 
 
 def _risk_twin_run(
-    tmp_path: Path, *, from_risk_pass: bool, risk_tag: DualRiskTag
+    tmp_path: Path,
+    *,
+    from_risk_pass: bool,
+    risk_tag: DualRiskTag,
+    manual_twin: bool = False,
+    risk_commercial_twin: bool = False,
 ) -> tuple[DualProfileFinalResult, DualProfileRunManifest]:
     transcript = tmp_path / "transcript.srt"
     _write_srt(transcript)
 
     def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
         del reasoning_effort
-        return RiskTwinProvider(prompt, {}, from_risk_pass=from_risk_pass, risk_tag=risk_tag)
+        return RiskTwinProvider(
+            prompt,
+            {},
+            from_risk_pass=from_risk_pass,
+            risk_tag=risk_tag,
+            manual_twin=manual_twin,
+            risk_commercial_twin=risk_commercial_twin,
+        )
 
     output_dir = tmp_path / "run"
     run_dual_profile_evaluation(
@@ -2148,7 +2236,7 @@ def _risk_twin_run(
         (output_dir / "run-manifest.json").read_text(encoding="utf-8")
     )
     manifest.validate_against(final)
-    assert final.routing_policy_version == "quality-gate-risk-routing-v7"
+    assert final.routing_policy_version == "quality-gate-risk-routing-v8"
     return final, manifest
 
 
@@ -2232,6 +2320,82 @@ def test_service_risk_twin_review_drops_the_selected_twin_to_manual_review(
         }
     # The short Profile is untouched by the mini-only twin.
     assert final.profiles[ClipProfile.SHORT_HIGHLIGHT].selected != ()
+
+
+def test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins(
+    tmp_path: Path,
+) -> None:
+    """Stage 15c (reviewer nit 2): a base-pass twin that Global Review already
+    keeps manual_review also has the tagged risk twin, but it is not downgraded,
+    so the manifest records one downgrade although two rows have a tagged risk
+    twin (a count of rows with a tagged twin would record two)."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=True, risk_tag=DualRiskTag.HEALTH_ADVICE, manual_twin=True
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == ()
+    manual = {value.candidate_id: value for value in mini.manual_review}
+    assert set(manual) == {"mini_lesson_lesson", "mini_lesson_manual"}
+    assert manual["mini_lesson_lesson"].review_reason.startswith(
+        "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+        "carries health_advice. "
+    )
+    assert manual["mini_lesson_manual"].review_reason == (
+        "Mock global review asks for a human check."
+    )
+    review = risk_twin_review(final_profile_rows(mini).values(), {"risk_twin"})
+    assert set(review.sources) == {"mini_lesson_lesson", "mini_lesson_manual"}
+    assert review.downgraded == ("mini_lesson_lesson",)
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 1,
+    }
+    manifest.validate_against(
+        final,
+        risk_record_ids={
+            ClipProfile.SHORT_HIGHLIGHT: frozenset(),
+            ClipProfile.MINI_LESSON: frozenset({"risk_twin"}),
+        },
+    )
+
+
+def test_service_risk_twin_review_drops_a_selected_risk_record_to_manual_review(
+    tmp_path: Path,
+) -> None:
+    """Stage 15c (routing v8, user decision 2026-11-04 "when a risk twin has a
+    high-risk tag, its twin can't be auto-published"): a risk-discovery record
+    with only a non-automatic-blocking tag that Global Review selects on the
+    interval of a different risk-discovery record carrying `health_advice` drops
+    to manual_review like the non-risk lesson (v7 left it selected); the tagged
+    record is not its own source."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=True, risk_tag=DualRiskTag.HEALTH_ADVICE, risk_commercial_twin=True
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == ()
+    manual = {value.candidate_id: value for value in mini.manual_review}
+    assert set(manual) == {"mini_lesson_lesson", "risk_commercial"}
+    for value in manual.values():
+        assert value.review_reason.startswith(
+            "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+            "carries health_advice. "
+        )
+        assert DualRiskTag.HEALTH_ADVICE not in value.risk_tags
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert not twin.review_reason.startswith("Deterministic risk-twin review: ")
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 2,
+    }
+    manifest.validate_against(
+        final,
+        risk_record_ids={
+            ClipProfile.SHORT_HIGHLIGHT: frozenset(),
+            ClipProfile.MINI_LESSON: frozenset({"risk_twin", "risk_commercial"}),
+        },
+    )
 
 
 class OverlapPairProvider(ScriptedDualProvider):

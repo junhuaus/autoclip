@@ -1259,8 +1259,10 @@ def _run_dual_profile_evaluation(
         # Stage 15 diagnostic (routing v6), derived by the same twin rule the
         # assembly used: gated flags that only risk-discovery twins carried and
         # that were therefore not propagated to their same-interval twins.
-        # Stage 15b diagnostic (routing v7), derived by the same risk-twin review
-        # rule: rows downgraded from selected to manual_review.
+        # Stage 15b diagnostic (routing v7; every receiver since v8), derived by
+        # the same risk-twin review rule: rows downgraded from selected to
+        # manual_review (the downgraded count, not the number of rows with a
+        # tagged risk twin).
         risk_record_ids_by_profile[profile] = risk_record_ids
         final_rows = final_profile_rows(results[profile]).values()
         risk_twin_flags_not_propagated[profile] = same_interval_twin_flags(

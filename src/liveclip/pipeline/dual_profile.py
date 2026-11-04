@@ -135,8 +135,12 @@ if not PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS) or (
 #       automatic-blocking risk tag (``AUTO_BLOCKING_RISK_TAGS``) is downgraded
 #       to ``manual_review`` before Top-N; risk tags are not copied
 #       (``risk_twin_review`` is the single rule).
+#   v8: v7 extended to every receiver: ANY row still ``selected`` after the twin
+#       union (a risk-discovery record included) whose identical interval has a
+#       DIFFERENT risk-discovery record carrying an automatic-blocking risk tag
+#       is downgraded to ``manual_review``; a row is never its own source.
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v7"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v8"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -553,6 +557,7 @@ class DualProfileFinalResult(BaseModel):
             "quality-gate-risk-routing-v5",
             "quality-gate-risk-routing-v6",
             "quality-gate-risk-routing-v7",
+            "quality-gate-risk-routing-v8",
         ]
         | None
     ) = None
@@ -773,9 +778,10 @@ class DualProfileRunManifest(BaseModel):
     # flag (``same_interval_twin_flags``). Manifests written before it load with
     # the default.
     risk_twin_flags_not_propagated: dict[ClipProfile, int] = Field(default_factory=dict)
-    # Stage 15b run diagnostic (routing v7): per Profile, the number of final rows
-    # that risk-twin review downgraded from ``selected`` to ``manual_review``
-    # (``risk_twin_review``). Manifests written before it load with the default.
+    # Stage 15b run diagnostic (routing v7; every receiver since v8): per Profile,
+    # the number of final rows that risk-twin review downgraded from ``selected``
+    # to ``manual_review`` (``risk_twin_review``). Manifests written before it
+    # load with the default.
     risk_twin_review_downgrades: dict[ClipProfile, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -855,7 +861,7 @@ class DualProfileRunManifest(BaseModel):
 
         When the structural risk-discovery membership of the run is supplied
         (``risk_record_ids``), the final arrays must satisfy the v6 twin rule
-        (no flag left to inherit from a non-risk same-interval twin) and the v7
+        (no flag left to inherit from a non-risk same-interval twin) and the v8
         risk-twin review rule (no ``selected`` row left to downgrade; every
         risk-twin review prefix backed by an automatic-blocking risk twin), and
         the ``risk_twin_flags_not_propagated`` and ``risk_twin_review_downgrades``
@@ -1772,7 +1778,7 @@ def assemble_final_profile_result(
     risk record is retained as ``blocked`` so risk material stays auditable.
     Routing only ever downgrades or retains; it never produces an output.
 
-    Deterministic routing order (v7), each step only downgrading:
+    Deterministic routing order (v8), each step only downgrading:
 
     1. validation of the review stages (unchanged: it sees only the merged
        Boundary/Global flags, so cached review outputs validate exactly as
@@ -1780,9 +1786,10 @@ def assemble_final_profile_result(
        (padding flags follow Boundary Review and are not persisted);
     2. same-interval twin union of gated flags (it includes persisted flags);
        risk records are not flag sources (``same_interval_twin_flags``);
-    3. risk-twin review (``route_risk_twin_review``): a non-risk row still
-       ``selected`` whose identical interval has a risk-discovery twin with an
-       automatic-blocking risk tag becomes ``manual_review``;
+    3. risk-twin review (``route_risk_twin_review``): any row still
+       ``selected`` (a risk record included) whose identical interval has a
+       different risk-discovery record with an automatic-blocking risk tag
+       becomes ``manual_review``;
     4. Profile-local Top-N over the rows still ``selected`` (rows downgraded by
        steps 1--3 never take a slot, so a replacement already obeys step 3);
     5. risk-record routing and the manual_review quality gate.
@@ -1949,10 +1956,12 @@ def assemble_final_profile_result(
             update["review_status"] = CandidateDisposition.BLOCKED
             update["review_reason"] = f"{QUALITY_GATE_REASON_PREFIX}{value.review_reason}"
         shared.append(value.model_copy(update=update))
-    # Risk-twin review (v7).  It runs after the twin union, so only rows still
-    # selected are considered (a blocked row stays blocked), and before Top-N, so
-    # Top-N ranks only rows that already obey it and can never pick a
-    # replacement that would then be downgraded.  Its inputs (intervals and the
+    # Risk-twin review (v7; every receiver, risk records included, since v8).
+    # It runs after the twin union, so only rows still selected are considered
+    # (a blocked row stays blocked), and before Top-N, so Top-N ranks only rows
+    # that already obey it and can never pick a replacement that would then be
+    # downgraded.  A downgraded risk record stays manual_review: step 5 only
+    # retains rejected risk records as blocked.  Its inputs (intervals and the
     # risk twins' risk tags) are not changed by any later step, and a row it
     # downgrades carries no quality flag (a selected row carries none), so step 5
     # leaves it manual_review.
@@ -2121,12 +2130,13 @@ def same_interval_twin_flags(
 
 
 class RiskTwinReview(NamedTuple):
-    """Result of the risk-twin review rule (routing v7).
+    """Result of the risk-twin review rule (routing v8).
 
-    ``sources`` maps every non-risk candidate ID whose identical final interval
-    has at least one risk-discovery twin with an automatic-blocking risk tag to
-    those twins, as ``(risk candidate ID, its automatic-blocking tags)`` sorted by
-    candidate ID (tags in enum order).  ``pending`` lists the rows of ``sources``
+    ``sources`` maps every candidate ID (risk record or not) whose identical
+    final interval has at least one OTHER risk-discovery record with an
+    automatic-blocking risk tag to those twins, as ``(risk candidate ID, its
+    automatic-blocking tags)`` sorted by candidate ID (tags in enum order); a
+    record is never its own source.  ``pending`` lists the rows of ``sources``
     that are still ``selected`` (the rule downgrades them); ``downgraded`` lists
     the rows whose reason already carries ``RISK_TWIN_REVIEW_REASON_PREFIX``.
     """
@@ -2144,16 +2154,17 @@ def risk_twin_review(
     values: Iterable[FinalProfileCandidate],
     risk_record_ids: Collection[str],
 ) -> RiskTwinReview:
-    """The single risk-twin review rule (policy v7).
+    """The single risk-twin review rule (policy v8).
 
     Final assembly (``route_risk_twin_review``), the run-manifest diagnostic and
     its validator all call it.  Since v6 a risk-discovery record is not a flag
     source for its same-interval twins, and risk tags were never shared, so a
-    risk twin's automatic-blocking risk tag could no longer stop its non-risk
-    twin from being published automatically.  The rule restores a human check
-    without copying tags: only records in ``risk_record_ids`` (derived
-    structurally from the risk-discovery pass) act as sources, whatever their
-    own status, and only non-risk rows receive.
+    risk twin's automatic-blocking risk tag could no longer stop its twin from
+    being published automatically.  The rule restores a human check without
+    copying tags: only records in ``risk_record_ids`` (derived structurally
+    from the risk-discovery pass) act as sources, whatever their own status,
+    and every row of the interval receives (v7 limited receivers to non-risk
+    rows; v8 adds risk records) except the source itself.
     """
 
     risk_records = frozenset(risk_record_ids)
@@ -2171,8 +2182,12 @@ def risk_twin_review(
             )
     sources: dict[str, tuple[tuple[str, tuple[DualRiskTag, ...]], ...]] = {}
     for value in rows:
-        twins = tagged.get((value.start_cue_id, value.end_cue_id))
-        if twins and value.candidate_id not in risk_records:
+        twins = [
+            twin
+            for twin in tagged.get((value.start_cue_id, value.end_cue_id), ())
+            if twin[0] != value.candidate_id
+        ]
+        if twins:
             sources[value.candidate_id] = tuple(sorted(twins))
     return RiskTwinReview(
         sources=MappingProxyType(sources),
