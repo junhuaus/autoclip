@@ -18,9 +18,130 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 15b: risk-twin review drops selected twins to manual review (routing v7), Stage 15 reviewer P3s (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 15c: risk-twin review covers risk-record receivers (routing v8), Stage 15b reviewer nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 
-- **Status: implemented, pending independent tester and reviewer.** Code,
+- **Status: implemented, pending independent tester and reviewer.** Code and
+  tests in `b026c64b42fb92e66841150d69d8167655b99c61` on local branch `claude/liveclip-stage15c` (from
+  `e960414`); this docs commit follows. Not pushed or merged. No prompt
+  file, prompt hash, evaluator, threshold, benchmark, algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change.
+- Stage 15b was **accepted** at `e960414b381d6086151f8fe0572feb5d2b8784f9`
+  (tester PASS: lint rc 0, backend 3101 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 of 9 independent mutations caught (R5b, a service diagnostic computed as `len(sources)`, survived), replay byte-identical, every documented hash matches). Reviewer notes in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-review/`
+  (`risksel.py`, `mutation_results.txt`).
+- cold-32 (fresh cold run, real Claude CLI) was **started at `e960414`**
+  (Stage 15b, routing v7) in the main checkout; its result is pending and is
+  not evidence for Stage 15c. Stage 15c changes no prompt hash, so its
+  cached stage outputs stay valid; only final routing differs, and only
+  where a selected risk record shares an interval with a different tagged
+  risk record.
+- User decision (2026-11-04): "when a risk twin has a high-risk tag, its
+  twin can't be auto-published". v7 applied it only to non-risk receivers.
+- Nit 1 (routing): routing policy **`quality-gate-risk-routing-v8`**
+  (constant and `Literal`; v1–v7 and unmarked artifacts still load). Step 3
+  of final assembly, risk-twin review, now downgrades ANY row still
+  `selected` after the twin union, a risk-discovery record included, whose
+  identical final interval has a DIFFERENT risk-discovery record carrying an
+  `AUTO_BLOCKING_RISK_TAGS` tag (whatever that record's status). A record is
+  never its own source. Everything else is unchanged: `manual_review` only
+  (never `blocked`), tags and flags not copied, the same prefix and reason
+  text, the same position (after the twin union, before Top-N), idempotent,
+  and the single helper `risk_twin_review` still drives assembly, the
+  `risk_twin_review_downgrades` diagnostic and the `validate_against`
+  cross-check (no `selected` row may be pending; every prefixed row must be
+  backed by a tagged risk twin; the count must match). A downgraded risk
+  record stays `manual_review`: step 5 only retains REJECTED risk records as
+  `blocked`, and a formerly selected row carries no gated flag. A selected
+  risk record cannot itself carry an automatic-blocking tag (the
+  `FinalProfileCandidate` validator), so only untagged or
+  non-automatic-blocking risk records are new receivers.
+- Nit 2 (test gap): `RiskTwinProvider` gains a base-pass same-interval twin
+  that Global Review keeps `manual_review` (`manual_twin`) and a
+  risk-discovery record with only `commercial_claim` that Global Review
+  selects (`risk_commercial_twin`); its Global Audit mock decides the listed
+  twin pairs `distinct_objective`. The new service test
+  `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins`
+  has two rows with a tagged risk twin and one downgrade, so it fails when the
+  service diagnostic counts `len(sources)` (mutation R5b, verified
+  scratch-only).
+- Nit 3 (accepted residual, outside the user decision): a selected row next
+  to a NON-risk twin that carries an automatic-blocking risk tag is not
+  downgraded. Risk tags have never been shared between non-risk twins in any
+  routing version; that twin's own review already routes it (it can never be
+  `selected` itself), and the decision is about risk twins only. Pinned by the
+  existing `tagged_base` case of
+  `test_risk_twin_review_needs_an_auto_blocking_tag_on_a_risk_record`.
+- Tests (changed existing assertions explained):
+  - `tests/unit/test_dual_profile.py`: the `risk_pair` case that pinned the
+    v7 behaviour ("a selected risk record is not downgraded by another risk
+    record") is flipped and moved into the new
+    `test_risk_twin_review_downgrades_a_selected_risk_record_too`
+    (justification: the user decision covers every twin of a tagged risk
+    twin): the selected risk record becomes `manual_review` with the exact
+    prefixed reason and no tag; the tagged source keeps its status and
+    reason; `sources` excludes the source itself; the manifest cross-check
+    accepts the result with diagnostic 1 and rejects an unrouted result
+    ("violates the risk-twin review rule"); a lone tagged risk record has no
+    sources. The helper test's `sources` now also lists the three
+    risk-record receivers (each tagged record sees only the other). The
+    routing-marker test expects v8 and loads v1–v8.
+  - `tests/integration/test_dual_profile_evaluation.py`: the three marker
+    assertions expect v8; new service tests for nit 2 (above) and
+    `test_service_risk_twin_review_drops_a_selected_risk_record_to_manual_review`
+    (the selected `commercial_claim` risk record and the lesson both
+    `manual_review` with the prefix, `health_advice` not copied, the tagged
+    record unprefixed, diagnostic `{short 0, mini 2}`, cross-check with the
+    risk membership).
+- Mutation self-check (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate.py`, scratch copies of the
+  worktree `src` only; results in `mutation_results.txt`): 13 of 13 caught —
+  v7 receivers (non-risk only), no self-exclusion, risk-only receivers,
+  R5a validator counts sources, **R5b service counts sources (now caught by
+  the nit-2 test)**, R5c both, and the Stage 15b reviewer's R1 (Top-N before
+  review), R2 (pending includes manual), R3 (start-only key), R4 (no reverse
+  status check), R6 (first twin only), R7 (downgraded = any manual twin).
+- Offline replay (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay.py`, adapted from Stage 15b:
+  the worktree's v8 assembler and strict evaluator on the stored stage
+  outputs read-only from the main checkout's `data/evaluations`; the v7
+  baseline is the same code with receivers restricted to non-risk rows; the
+  v8 manifest cross-check, including both diagnostics, ran on every run; no
+  tracked edit, no model call):
+
+  | Run | v7 replay | v8 replay | v7→v8 changes | final JSON identical (excl. marker) | `risk_twin_review_downgrades` (short/mini) | risk-record receivers (status) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | cold-27 | PASS 95.0 | PASS 95.0 | none | yes | 0 / 0 | 4 (all `blocked`) |
+  | warm-28 | FAIL 95.0 (`irrelevant_padding`) | FAIL 95.0 (`irrelevant_padding`) | none | yes | 0 / 0 | 0 |
+  | warm-29b | PASS 95.0 | PASS 95.0 | none | yes | 0 / 0 | 0 |
+  | cold-30 | FAIL 92.5 (`missing_any_p0_mini_lesson`) | FAIL 92.5 | none | yes | 0 / 0 | 0 |
+  | cold-31 | PASS 92.5 | PASS 92.5 (N08 informational) | none | yes | 0 / 0 | 0 |
+
+  Every evaluator field is identical between v7 and v8, and the v7 replay
+  equals the Stage 15b replay results. No stored run has a selected risk
+  record on a tagged risk twin's interval, so v8 changes nothing here.
+  Routing evidence only, not a benchmark pass.
+- Prompt hashes: all 17 identity hashes (printed by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/hashes.py` from the worktree) equal the Stage 15b table
+  below; no prompt file changed.
+- Self-check: `ruff check` and `ruff format --check` clean on the changed
+  files; `mypy` clean on the changed `src` files (the two test files report
+  the same pre-existing errors as at `e960414`, one fewer in
+  `test_dual_profile.py`); targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  325 passed; full backend `pytest tests` 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed).
+- Recovery: v1–v7 artifacts still load; reverting to v7 is a revert of
+  `b026c64`. Cached stage outputs are unaffected.
+- Next: independent tester and reviewer on the Stage 15c SHAs; the cold-32
+  result (started at `e960414`) to be recorded when it finishes; human
+  review of the cold-31 and earlier renders stays pending.
+
+## Stage 15b: risk-twin review drops selected twins to manual review (routing v7), Stage 15 reviewer P3s (2026-11-04) — ACCEPTED at e960414
+
+- **Accepted** at `e960414b381d6086151f8fe0572feb5d2b8784f9` (code
+  `11df4c6`, docs `e960414`): tester PASS: lint rc 0, backend 3101 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 of 9 independent mutations caught (R5b, a service diagnostic computed as `len(sources)`, survived), replay byte-identical, every documented hash matches. Reviewer nits 1–2 become
+  Stage 15c (above); nit 3 is an accepted residual. The bullets below are
+  the historical implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code,
   prompts and tests in `11df4c61a829dc80f24929013019d6aff88f2d45` on local
   branch `claude/liveclip-stage8-routing` (after `8af759a`); this docs commit
   follows. Not pushed or merged. No evaluator, threshold, benchmark,
@@ -195,9 +316,10 @@
   `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
   322 passed; `pytest -k "dual_profile or delivery or benchmark"` 557
   passed.
-- Next: independent tester and reviewer on the Stage 15b SHAs, then a fresh
-  cold run (cold-32) only with the user's go-ahead; human review of the
-  cold-31 and earlier renders stays pending.
+- (Historical next step; Stage 15b accepted at `e960414`, cold-32 started
+  there, and Stage 15c, above, followed.) Independent tester and reviewer on
+  the Stage 15b SHAs, then a fresh cold run (cold-32) only with the user's
+  go-ahead; human review of the cold-31 and earlier renders stays pending.
 
 ## Stage 15: risk-twin flags not propagated (routing v6), `material_interruption` threshold, self-promotion rule (2026-11-04) — ACCEPTED at 8af759a
 

@@ -846,3 +846,31 @@ passed, 12/12 mutations caught.
 
 Next: independent tester and reviewer on the Stage 15b SHAs, then cold-32
 (fresh cold run) only with the user's go-ahead. Not pushed.
+(Historical; Stage 15b was ACCEPTED at `e960414`, recorded below.)
+
+## Stage 15b accepted; cold-32 started; Stage 15c implemented, pending verification (2026-11-04)
+
+Stage 15b was ACCEPTED at `e960414b381d6086151f8fe0572feb5d2b8784f9` (code
+`11df4c6`; tester: lint rc 0, backend 3101 passed, vitest 80, e2e 4/4,
+concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 of
+9 independent mutations caught with R5b surviving, replay byte-identical,
+hashes match). cold-32 (fresh cold run) was started at `e960414`; its
+result is pending.
+
+User decision: "when a risk twin has a high-risk tag, its twin can't be
+auto-published".
+
+Stage 15c (`b026c64b42fb92e66841150d69d8167655b99c61`, branch `claude/liveclip-stage15c`, local
+only): routing policy `quality-gate-risk-routing-v8` (risk-twin review
+downgrades ANY selected row, risk records included, on the identical
+interval of a DIFFERENT risk-discovery record with an automatic-blocking
+tag; never its own source; same helper, prefix, position, diagnostic and
+cross-check). Reviewer nit 2: a service test now catches mutation R5b.
+Nit 3 (non-risk tagged twin) is an accepted residual. No prompt, hash,
+algorithm version or cache-key change. Offline replay identical to v7 for
+cold-27, warm-28, warm-29b, cold-30 and cold-31. Self-check: ruff/mypy
+clean, targeted pytest 325 passed, full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed), 13/13
+mutations caught.
+
+Next: independent tester and reviewer on the Stage 15c SHAs; record the
+cold-32 result. Not pushed.

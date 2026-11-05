@@ -1,5 +1,42 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 15c risk-twin review covers risk-record receivers (routing v8) and Stage 15b reviewer nits (2026-11-04)
+
+- [x] 2026-11-04 Stage 15b **ACCEPTED** at
+  `e960414b381d6086151f8fe0572feb5d2b8784f9` (code `11df4c6`). Tester PASS:
+  lint rc 0; backend 3101 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep. Reviewer ACCEPT with nits (no P0–P2; 8 of 9 independent
+  mutations caught, R5b survived; replay byte-identical; hashes match).
+- [x] 2026-11-04 cold-32 (fresh cold run) started at `e960414` (routing v7);
+  result pending, not evidence for Stage 15c.
+- [x] 2026-11-04 Stage 15c implemented in `b026c64b42fb92e66841150d69d8167655b99c61`, **pending independent
+  tester and reviewer** (user decision "when a risk twin has a high-risk tag,
+  its twin can't be auto-published"):
+  - Nit 1: routing policy `quality-gate-risk-routing-v8` — risk-twin review
+    downgrades ANY row still `selected` after the twin union (risk records
+    included) whose identical interval has a DIFFERENT risk-discovery record
+    with an `AUTO_BLOCKING_RISK_TAGS` tag; a record is never its own source.
+    Position, prefix, `manual_review`-only, idempotence, manifest diagnostic
+    and `validate_against` unchanged through the single helper
+    `risk_twin_review`. v1–v7 load; prompts, hashes, algorithm version and
+    cache-key schema unchanged. The v7-pinning unit case is flipped with
+    justification.
+  - Nit 2: `RiskTwinProvider` gains a `manual_review` base twin and a
+    selected `commercial_claim` risk-pass twin; a service test now fails
+    under mutation R5b (`len(sources)`), verified scratch-only.
+  - Nit 3 (accepted residual, outside the decision): a selected row next to
+    a non-risk twin with an automatic-blocking tag is not downgraded; risk
+    tags have never been shared between non-risk twins.
+  - Offline replay (`stage15c-sim/replay.py`): identical to v7 (final JSON
+    identical except the marker) for cold-27 PASS 95.0, warm-28 FAIL 95.0,
+    warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrades
+    0/0 in every run.
+  - Self-check: ruff check/format clean; mypy clean on changed `src`;
+    targeted pytest 325 passed; full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed); 13/13
+    mutations caught; all 17 prompt hashes equal the Stage 15b table.
+- [ ] Next: independent tester and reviewer on the Stage 15c SHAs; record
+  the cold-32 result when it finishes.
+
 ## Stage 15b risk-twin review (routing v7) and Stage 15 reviewer P3s (2026-11-04)
 
 - [x] 2026-11-04 Stage 15 **ACCEPTED** at
@@ -33,8 +70,10 @@
     selected row shares an interval with a tagged risk twin).
   - Self-check: lint rc 0; targeted pytest 322 passed; 12/12 mutations
     caught.
-- [ ] Next: independent tester and reviewer on the Stage 15b SHAs, then a
-  fresh cold run (cold-32) only with the user's go-ahead.
+- [x] (Historical next step; Stage 15b accepted at `e960414`, cold-32
+  started there, and Stage 15c, above, followed.) Independent tester and
+  reviewer on the Stage 15b SHAs, then a fresh cold run (cold-32) only with
+  the user's go-ahead.
 
 ## Stage 15 risk-twin flags not propagated (routing v6), interruption threshold, self-promotion; cold-31 strict FAIL 87.5 (2026-11-02/04)
 
