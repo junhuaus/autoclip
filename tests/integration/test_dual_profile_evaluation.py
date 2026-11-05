@@ -4259,7 +4259,10 @@ def test_an_unexpected_mid_run_error_still_writes_a_failure_manifest(
     assert manifest["status"] == "failed"
     assert manifest["failure_kind"] == "unexpected_error"
     assert manifest["exception_type"] == "ValueError"
-    assert manifest["error"] == "synthetic mid-run defect"
+    # Stage 16b: the exception text is never stored in durable evidence.
+    assert manifest["exception_message_recorded"] is False
+    assert "error" not in manifest
+    assert "synthetic mid-run defect" not in manifest_path.read_text("utf-8")
     assert manifest["failure_file"] is None
     assert manifest["recorded_unit_failures"] == []
     assert manifest["provider_calls"]
@@ -4276,6 +4279,155 @@ def test_an_unexpected_mid_run_error_still_writes_a_failure_manifest(
     assert list(cache.rglob("*.json"))
     for entry in cache.rglob("*.json"):
         assert "unexpected_error" not in entry.read_text("utf-8")
+
+
+def test_the_backstop_manifest_never_stores_the_exception_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16b: an arbitrary exception may quote an account, a token or a local
+    path; the durable manifest keeps only its class name. The text still reaches
+    the caller through the re-raised exception."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    output_dir = tmp_path / "output"
+    # Synthetic values only; the address is assembled so no literal appears here.
+    address = "someone" + "@" + "example.invalid"
+    secret_text = (
+        f"defect for {address} token sk-synthetic0123456789abcdef at "
+        "/Users/someone/private/notes.txt"
+    )
+
+    class SyntheticDefectError(RuntimeError):
+        pass
+
+    def broken_risk_twin_review(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise SyntheticDefectError(secret_text)
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "risk_twin_review", broken_risk_twin_review)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(SyntheticDefectError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            discovery_concurrency=2,
+        )
+    assert str(caught.value) == secret_text
+    text = (output_dir / "failure-manifest.json").read_text("utf-8")
+    manifest = json.loads(text)
+    assert manifest["failure_kind"] == "unexpected_error"
+    assert manifest["exception_type"] == "SyntheticDefectError"
+    assert manifest["exception_message_recorded"] is False
+    for fragment in (address, "sk-synthetic", "/Users/someone", "defect for"):
+        assert fragment not in text
+
+
+class RegenerationProviderFailureDiscoveryProvider(RecordingDualProvider):
+    """One short Discovery window fails validation on its initial and repaired
+    outputs; its regeneration request then fails at the provider."""
+
+    def __init__(
+        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, window: str
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.window = window
+
+    def _target(self, payload: dict[str, object]) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") == self.window
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if subject_id.endswith(".deterministic_retry_1") and self._target(kwargs["payload"]):
+            raise StructuredProviderError(
+                "PROVIDER_TIMEOUT",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_TIMEOUT",
+                    ),
+                ),
+                timeout_seconds=1800,
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._target(payload):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_a_regeneration_provider_failure_is_recorded_as_the_regeneration_phase(
+    tmp_path: Path,
+) -> None:
+    """Stage 16b (reviewer mutation R7): the failure file and the failure manifest
+    name ``regeneration`` and keep the initial and repair attempts."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    window = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )[0].window_id
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RegenerationProviderFailureDiscoveryProvider(prompt, {}, window=window)
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    error = caught.value
+    assert (error.stage, error.profile, error.phase) == (
+        "discovery",
+        "short_highlight",
+        "regeneration",
+    )
+    assert error.failure_code == "PROVIDER_TIMEOUT"
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    assert failed["status"] == "provider_failed"
+    assert failed["failed_phase"] == "regeneration"
+    assert failed["message"] == "structured provider request timed out after 1800 s"
+    assert [value["phase"] for value in failed["attempts"]] == ["initial", "repair"]
+    assert [value["status"] for value in failed["provider_calls"]] == [
+        "succeeded",
+        "succeeded",
+        "failed",
+    ]
+    assert failed["provider_calls"][-1]["subject_id"].endswith(".deterministic_retry_1")
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["failed_phase"] == "regeneration"
+    assert manifest["failure_code"] == "PROVIDER_TIMEOUT"
+    assert manifest["failed_stage"] == "discovery"
+    assert "during regeneration" in manifest["error"]
+    # The failing unit is never cached: no cached output carries its invalid window.
+    for path in cache.rglob("*.json"):
+        text = path.read_text("utf-8")
+        assert f"{window}_wrong" not in text
+        assert "provider_failed" not in text
 
 
 def test_an_error_before_the_run_directory_exists_writes_nothing(tmp_path: Path) -> None:

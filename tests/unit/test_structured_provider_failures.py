@@ -74,6 +74,16 @@ def _sleep_error(argv: list[str], timeout: float) -> ProcessInterruptedBySleep:
             "structured provider response attempted a forbidden tool call",
         ),
         (
+            "STRUCTURED_INPUT_BUDGET_EXCEEDED",
+            "structured provider request exceeds its context budget; no model call ran",
+        ),
+        (
+            "STRUCTURED_REPAIR_BUDGET_EXCEEDED",
+            "structured repair request exceeds its context budget; no repair call ran",
+        ),
+        ("SEMANTIC_UNIT_INTERNAL_ERROR", "semantic unit failed with a local internal error"),
+        ("PROVIDER_CANCELLED", "structured provider request was cancelled"),
+        (
             "STRUCTURED_RESPONSE_REFUSED",
             "structured provider request failed (STRUCTURED_RESPONSE_REFUSED)",
         ),
@@ -96,6 +106,24 @@ def test_only_an_invalid_output_is_reported_as_a_validation_failure() -> None:
     }
     flagged = {code for code in codes if _VALIDATION_TEXT in _structured_error_message(code, ())}
     assert flagged == {"STRUCTURED_OUTPUT_INVALID"}
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "STRUCTURED_INPUT_BUDGET_EXCEEDED",
+        "STRUCTURED_REPAIR_BUDGET_EXCEEDED",
+        "SEMANTIC_UNIT_INTERNAL_ERROR",
+    ],
+)
+def test_budget_and_internal_codes_never_read_as_a_failed_request(code: str) -> None:
+    """Stage 16b: no provider request ran (budget) or the defect was local (internal
+    unit error), so neither may say "request failed" or "could not be validated"."""
+
+    message = _structured_error_message(code, ())
+    assert "request failed" not in message
+    assert _VALIDATION_TEXT not in message
+    assert code not in message
 
 
 def test_timeout_message_names_the_configured_timeout() -> None:
@@ -424,6 +452,67 @@ def test_a_repair_provider_failure_keeps_the_initial_attempt_and_records() -> No
     ]
 
 
+class _RegenerationFailingProvider(_FailingProvider):
+    """Initial and repair outputs fail validation; the regeneration call fails."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__([])
+        self.regeneration_code = code
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> StructuredCallResult[Answer]:
+        if subject_id.endswith(".deterministic_retry_1"):
+            self.subjects.append(subject_id)
+            raise StructuredProviderError(
+                self.regeneration_code,
+                (_record(subject_id, ProviderCallStatus.FAILED, "STRUCTURED_PROVIDER_TIMEOUT"),),
+                timeout_seconds=1800,
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+    def repair(self, *, subject_id: str, **_kwargs: Any) -> StructuredCallResult[Answer]:
+        self.subjects.append(f"{subject_id}.repair")
+        return StructuredCallResult(
+            output=Answer(value="still bad"),
+            call_records=(_record(subject_id, ProviderCallStatus.SUCCEEDED, None),),
+            repaired=True,
+        )
+
+
+def test_a_regeneration_provider_failure_names_the_regeneration_phase() -> None:
+    """Stage 16b (reviewer mutation R7): a provider failure of the regeneration call
+    is labelled ``regeneration`` and keeps both earlier failed attempts."""
+
+    provider = _RegenerationFailingProvider("PROVIDER_TIMEOUT")
+    audit = dual_profile_module._ResolutionAudit(refresh_stale_cache=False)
+
+    def validate(value: Answer) -> Answer:
+        raise ValueError(f"deterministic rule rejects {value.value}")
+
+    with pytest.raises(dual_profile_module.DualProfileProviderFailureError) as caught:
+        _resolve(provider, validate, audit=audit)
+
+    error = caught.value
+    assert provider.subjects == [
+        "short_highlight.global.001",
+        "short_highlight.global.001.repair",
+        "short_highlight.global.001.deterministic_retry_1",
+    ]
+    assert (error.phase, error.failure_code) == ("regeneration", "PROVIDER_TIMEOUT")
+    assert str(error).endswith("during regeneration")
+    assert [value.phase for value in error.attempts] == ["initial", "repair"]
+    assert [value.error for value in error.attempts] == [
+        "deterministic rule rejects bad",
+        "deterministic rule rejects still bad",
+    ]
+    assert [record.status for record in error.records] == [
+        ProviderCallStatus.SUCCEEDED,
+        ProviderCallStatus.SUCCEEDED,
+        ProviderCallStatus.FAILED,
+    ]
+    assert audit.unit_failures() == (error,)
+    assert "during regeneration;" in error.summary()
+
+
 def test_provider_failure_summary_is_bounded_and_names_code_unit_and_evidence() -> None:
     error = dual_profile_module.DualProfileProviderFailureError(
         stage="global_review",
@@ -458,3 +547,134 @@ def test_job_pipelines_keep_classifying_a_sleep_interruption_as_transient() -> N
         "PROVIDER_INTERRUPTED_BY_SLEEP",
         "STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP",
     } <= semantic_executor._TRANSIENT_FAILURES
+
+
+def _summary_error(evidence: str) -> Any:
+    error = dual_profile_module.DualProfileProviderFailureError(
+        stage="global_review",
+        profile="mini_lesson",
+        subject_id="mini_lesson.global.002",
+        cache_key="d" * 64,
+        phase="repair",
+        provider_error=StructuredProviderError("PROVIDER_TIMEOUT", (), timeout_seconds=1800),
+        attempts=(),
+        records=(),
+    )
+    error.evidence_file = evidence
+    return error
+
+
+_LONG_RUN_DIR = "/" + "/".join(["very-long-run-directory-name"] * 40)
+
+
+@pytest.mark.parametrize("with_note", [False, True])
+def test_a_long_evidence_path_is_trimmed_never_the_code_or_unit(with_note: bool) -> None:
+    """Stage 16b: a summary over the CLI bound would be replaced wholesale by a
+    generic message, so the evidence path is trimmed from its start instead."""
+
+    evidence = f"{_LONG_RUN_DIR}/failed-mini_lesson-global_review.json"
+    error = _summary_error(evidence)
+    if with_note:
+        error.add_note("failure evidence could not be written: OSError: " + "z" * 400)
+    summary = error.summary()
+    assert len(summary) <= 480
+    assert summary.startswith(
+        "dual Profile provider failure PROVIDER_TIMEOUT in mini_lesson global_review "
+        "(mini_lesson.global.002) during repair; evidence: ..."
+    )
+    assert "very-long-run-directory-name/failed-mini_lesson-global_review.json" in summary
+    assert evidence not in summary
+    if with_note:
+        assert "failure evidence could not be written: OSError" in summary
+
+    exhausted = dual_profile_module.DualProfileValidationExhaustedError(
+        stage="discovery",
+        profile="short_highlight",
+        subject_id="short_highlight.discovery.w01",
+        cache_key="e" * 64,
+        attempts=(),
+        records=(),
+        final_error=ValueError("rule " * 200),
+    )
+    exhausted.evidence_file = f"{_LONG_RUN_DIR}/failed-short_highlight-discovery.json"
+    bounded = exhausted.summary()
+    assert len(bounded) <= 480
+    assert bounded.startswith(
+        "dual Profile validation exhausted after one repair and one regeneration in "
+        "short_highlight discovery (short_highlight.discovery.w01); evidence: ..."
+    )
+    path = bounded.split("; evidence: ", 1)[1].split("; last error: ", 1)[0]
+    assert path.endswith("/failed-short_highlight-discovery.json")
+
+
+def test_a_short_evidence_path_is_printed_whole() -> None:
+    summary = _summary_error("/runs/x/failed-mini_lesson-global_review.json").summary()
+    assert "; evidence: /runs/x/failed-mini_lesson-global_review.json; cause: " in summary
+
+
+# --- v1 aggregate rewraps keep the timing numbers ---------------------------------
+
+
+def test_the_v1_aggregate_keeps_the_selected_failures_timing() -> None:
+    """Stage 16b: a stage aggregate of a timeout still names the timeout."""
+
+    from liveclip.pipeline import stage_handlers
+
+    timeout = StructuredProviderError(
+        "PROVIDER_TIMEOUT",
+        (_record("a", ProviderCallStatus.FAILED, "STRUCTURED_PROVIDER_TIMEOUT"),),
+        timeout_seconds=1800,
+    )
+    slept = StructuredProviderError(
+        "PROVIDER_INTERRUPTED_BY_SLEEP",
+        (_record("b", ProviderCallStatus.FAILED, "STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP"),),
+        timeout_seconds=900,
+        suspended_seconds=4_000.0,
+    )
+    aggregate = stage_handlers._aggregate_semantic_failures(
+        [timeout, slept], (*timeout.call_records, *slept.call_records)
+    )
+    assert (aggregate.code, aggregate.timeout_seconds) == ("PROVIDER_TIMEOUT", 1800)
+    assert str(aggregate) == "structured provider request timed out after 1800 s"
+
+    aggregate = stage_handlers._aggregate_semantic_failures([slept, timeout], ())
+    assert (aggregate.timeout_seconds, aggregate.suspended_seconds) == (900, 4_000.0)
+    assert "host suspended for about 4000 s" in str(aggregate)
+
+    # A budget failure wins the aggregate and carries no timing of its own.
+    budget = StructuredProviderError("STRUCTURED_INPUT_BUDGET_EXCEEDED", ())
+    aggregate = stage_handlers._aggregate_semantic_failures([timeout, budget], ())
+    assert aggregate.code == "STRUCTURED_INPUT_BUDGET_EXCEEDED"
+    assert aggregate.timeout_seconds is None
+
+
+def test_every_structured_error_rewrap_passes_the_timing_through() -> None:
+    """Stage 16b: any ``StructuredProviderError(<error>.code, ...)`` built from an
+    earlier error forwards ``timeout_seconds`` and ``suspended_seconds``. The
+    durable v4 unit outcome stores only its failure code, so its rewrap (whose
+    code is not an ``.code`` attribute) has no timing to forward."""
+
+    import ast
+
+    root = Path(structured_module.__file__).resolve().parents[2]
+    rewraps: list[str] = []
+    missing: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text("utf-8"))
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "StructuredProviderError"
+                and node.args
+                and isinstance(node.args[0], ast.Attribute)
+                and node.args[0].attr == "code"
+            ):
+                continue
+            where = f"{path.relative_to(root)}:{node.lineno}"
+            rewraps.append(where)
+            keywords = {value.arg for value in node.keywords}
+            if not {"timeout_seconds", "suspended_seconds"} <= keywords:
+                missing.append(where)
+    assert len(rewraps) >= 10
+    assert missing == []

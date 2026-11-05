@@ -115,6 +115,62 @@ class _ResolvedCall:
 
 _SUMMARY_LIMIT = 480
 _SUMMARY_NOTE_LIMIT = 160
+# Stage 16b: the evidence path never pushes the summary head past the CLI bound
+# (which would replace the whole line, code and unit included, with a generic
+# message); a longer path keeps its tail, so the file name always survives.
+_SUMMARY_EVIDENCE_LIMIT = 200
+_SUMMARY_EVIDENCE_MINIMUM = 40
+
+
+def _bounded_evidence_path(path: str, limit: int = _SUMMARY_EVIDENCE_LIMIT) -> str:
+    """One-line evidence path of at most ``limit`` characters (tail kept)."""
+
+    value = " ".join(path.split())
+    if len(value) <= limit:
+        return value
+    return f"...{value[len(value) - (limit - 3) :]}"
+
+
+def _failure_summary(
+    prefix: str,
+    *,
+    evidence_file: str | None,
+    notes: Sequence[str],
+    detail_label: str,
+    detail: str,
+) -> str:
+    """Bounded one-line CLI summary: ``prefix`` (code and unit) always comes first.
+
+    Notes (for example "failure evidence could not be written: ...") are bounded
+    and kept; the evidence path is trimmed from its start to the room left; the
+    trailing detail is the part dropped first. The result never exceeds
+    ``_SUMMARY_LIMIT`` (the CLI prints at most 500 characters).
+    """
+
+    note_text = " ".join("; ".join(notes).split())
+    if len(note_text) > _SUMMARY_NOTE_LIMIT:
+        note_text = f"{note_text[: _SUMMARY_NOTE_LIMIT - 3]}..."
+    notes_part = f"; {note_text}" if note_text else ""
+    evidence_part = ""
+    if evidence_file:
+        room = min(
+            _SUMMARY_EVIDENCE_LIMIT,
+            _SUMMARY_LIMIT - len(prefix) - len(notes_part) - len("; evidence: "),
+        )
+        evidence_part = (
+            "; evidence: "
+            f"{_bounded_evidence_path(evidence_file, max(room, _SUMMARY_EVIDENCE_MINIMUM))}"
+        )
+    head = f"{prefix}{evidence_part}{notes_part}"
+    if len(head) > _SUMMARY_LIMIT:
+        return f"{head[: _SUMMARY_LIMIT - 3]}..."
+    budget = min(240, _SUMMARY_LIMIT - len(head) - len(f"; {detail_label}: "))
+    if budget < 40:
+        return head
+    text = " ".join(detail.split())
+    if len(text) > budget:
+        text = f"{text[: budget - 3]}..."
+    return f"{head}; {detail_label}: {text}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,25 +229,14 @@ class DualProfileValidationExhaustedError(ValueError):
     def summary(self) -> str:
         """Bounded one-line summary for the CLI (the full error may be long)."""
 
-        evidence = f"; evidence: {self.evidence_file}" if self.evidence_file else ""
-        # Notes (for example "failure evidence could not be written: ...") are
-        # part of the head so the bounded summary never drops them.
-        notes = " ".join("; ".join(getattr(self, "__notes__", ())).split())
-        if len(notes) > _SUMMARY_NOTE_LIMIT:
-            notes = f"{notes[: _SUMMARY_NOTE_LIMIT - 3]}..."
-        head = (
+        return _failure_summary(
             "dual Profile validation exhausted after one repair and one regeneration "
-            f"in {self.profile} {self.stage} ({self.subject_id}){evidence}"
-            f"{f'; {notes}' if notes else ''}"
+            f"in {self.profile} {self.stage} ({self.subject_id})",
+            evidence_file=self.evidence_file,
+            notes=getattr(self, "__notes__", ()),
+            detail_label="last error",
+            detail=str(self.final_error),
         )
-        # The CLI prints at most 500 characters; keep the excerpt inside that.
-        budget = min(240, _SUMMARY_LIMIT - len(head) - len("; last error: "))
-        if budget < 40:
-            return head
-        last = " ".join(str(self.final_error).split())
-        if len(last) > budget:
-            last = f"{last[: budget - 3]}..."
-        return f"{head}; last error: {last}"
 
 
 class DualProfileProviderFailureError(RuntimeError):
@@ -239,23 +284,15 @@ class DualProfileProviderFailureError(RuntimeError):
     def summary(self) -> str:
         """Bounded one-line summary for the CLI: code, unit and evidence path."""
 
-        evidence = f"; evidence: {self.evidence_file}" if self.evidence_file else ""
-        notes = " ".join("; ".join(getattr(self, "__notes__", ())).split())
-        if len(notes) > _SUMMARY_NOTE_LIMIT:
-            notes = f"{notes[: _SUMMARY_NOTE_LIMIT - 3]}..."
-        head = (
-            f"dual Profile provider failure {self.failure_code} in {self.profile} "
-            f"{self.stage} ({self.subject_id}) during {self.phase}{evidence}"
-            f"{f'; {notes}' if notes else ''}"
-        )
         # The cause is fixed provider text; it is the part trimmed to stay bounded.
-        budget = min(240, _SUMMARY_LIMIT - len(head) - len("; cause: "))
-        if budget < 40:
-            return head
-        cause = " ".join(self.provider_message.split())
-        if len(cause) > budget:
-            cause = f"{cause[: budget - 3]}..."
-        return f"{head}; cause: {cause}"
+        return _failure_summary(
+            f"dual Profile provider failure {self.failure_code} in {self.profile} "
+            f"{self.stage} ({self.subject_id}) during {self.phase}",
+            evidence_file=self.evidence_file,
+            notes=getattr(self, "__notes__", ()),
+            detail_label="cause",
+            detail=self.provider_message,
+        )
 
 
 _UnitFailure = DualProfileValidationExhaustedError | DualProfileProviderFailureError
@@ -361,7 +398,10 @@ def run_dual_profile_evaluation(
                     f"{type(write_error).__name__}: {write_error}"
                 )
             else:
-                error.add_note(f"failure evidence: {output_dir / 'failure-manifest.json'}")
+                error.add_note(
+                    "failure evidence: "
+                    + _bounded_evidence_path(str(output_dir / "failure-manifest.json"))
+                )
         raise
 
 
@@ -2741,9 +2781,6 @@ def _write_validation_failure(
     error.evidence_file = str(output_dir / error.failure_file_name)
 
 
-_UNEXPECTED_MESSAGE_LIMIT = 2_000
-
-
 def _write_unexpected_failure(
     output_dir: Path,
     error: Exception,
@@ -2755,9 +2792,12 @@ def _write_unexpected_failure(
     """Stage 16 backstop: a run that fails any other way still leaves a manifest.
 
     Only ``failure-manifest.json`` is written (``unexpected_error``), never the
-    cache: the exception type, a bounded one-line message, and every completed call
-    record plus the records of any unit that already failed. The message is the
-    exception text only; provider failures above carry fixed text and codes.
+    cache: the exception type and every completed call record plus the records of
+    any unit that already failed. Stage 16b: the exception text is never stored.
+    An arbitrary exception may quote a local path, an account identity or a token,
+    and this file is durable evidence, so only the class name (a code identifier)
+    is kept; the text still reaches the operator once, on stderr, through the
+    re-raised exception. Provider failures above carry fixed text and codes.
     """
 
     audit = progress.resolution_audit
@@ -2766,9 +2806,6 @@ def _write_unexpected_failure(
         *audit.completed_records(),
         *(record for value in unit_failures for record in value.records),
     )
-    message = " ".join(str(error).split())
-    if len(message) > _UNEXPECTED_MESSAGE_LIMIT:
-        message = f"{message[: _UNEXPECTED_MESSAGE_LIMIT - 3]}..."
     _write_json(
         output_dir / "failure-manifest.json",
         {
@@ -2779,13 +2816,23 @@ def _write_unexpected_failure(
                 elapsed_ms=elapsed_ms,
             ),
             "failure_kind": "unexpected_error",
-            "exception_type": type(error).__name__,
-            "error": message,
+            "exception_type": _exception_type_name(error),
+            "exception_message_recorded": False,
             "failure_file": None,
             "recorded_unit_failures": _unit_failure_summaries(unit_failures),
             "provider_calls": [_call_metadata(value) for value in all_calls],
         },
     )
+
+
+_EXCEPTION_TYPE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
+
+
+def _exception_type_name(error: BaseException) -> str:
+    # A class name is a code identifier; anything else (a dynamically built type)
+    # is not trusted as one.
+    name = type(error).__name__
+    return name if _EXCEPTION_TYPE_NAME.fullmatch(name) else "Exception"
 
 
 def _write_json(path: Path, value: Mapping[str, object]) -> None:

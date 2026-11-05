@@ -228,6 +228,16 @@ _PROVIDER_FAILURE_MESSAGES = {
     "PROVIDER_ERROR": "structured provider request failed",
     "PROVIDER_CONFIGURATION": "structured provider configuration failed",
     "STRUCTURED_TOOL_EVENT": "structured provider response attempted a forbidden tool call",
+    # Stage 16b: a context-budget rejection is raised before any provider call, and
+    # an internal unit error is a local defect; neither is a request failure.
+    "STRUCTURED_INPUT_BUDGET_EXCEEDED": (
+        "structured provider request exceeds its context budget; no model call ran"
+    ),
+    "STRUCTURED_REPAIR_BUDGET_EXCEEDED": (
+        "structured repair request exceeds its context budget; no repair call ran"
+    ),
+    "SEMANTIC_UNIT_INTERNAL_ERROR": "semantic unit failed with a local internal error",
+    "PROVIDER_CANCELLED": "structured provider request was cancelled",
 }
 _STRUCTURED_FAILURE_CODE = re.compile(r"^[A-Z0-9_]{1,80}$")
 _ATTEMPT_COUNTED_FAILURES = frozenset(

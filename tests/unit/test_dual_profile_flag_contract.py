@@ -505,6 +505,37 @@ def test_dual_profile_eval_cli_names_a_provider_failure_code_stage_and_evidence(
     assert "could not be validated" not in output
 
 
+def test_dual_profile_eval_cli_keeps_the_code_when_the_evidence_path_is_long(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16b: a long evidence path is trimmed from its start, so the line stays
+    under the CLI bound and is never replaced by the generic message."""
+
+    error = DualProfileProviderFailureError(
+        stage="global_review",
+        profile="mini_lesson",
+        subject_id="mini_lesson.global.002",
+        cache_key="c" * 64,
+        phase="regeneration",
+        provider_error=StructuredProviderError("PROVIDER_TIMEOUT", (), timeout_seconds=1800),
+        attempts=(),
+        records=(),
+    )
+    long_dir = tmp_path.joinpath(*(["very-long-run-directory-name"] * 30))
+    error.evidence_file = str(long_dir / error.failure_file_name)
+
+    result = _invoke_dual_profile_eval(tmp_path, monkeypatch, error)
+
+    assert result.exit_code == 1  # type: ignore[attr-defined]
+    output = result.output  # type: ignore[attr-defined]
+    assert (
+        "dual Profile provider failure PROVIDER_TIMEOUT in mini_lesson global_review "
+        "(mini_lesson.global.002) during regeneration; evidence: ..."
+    ) in output
+    assert "/failed-mini_lesson-global_review.json; cause: " in output
+    assert "inspect local diagnostics" not in output
+
+
 def test_dual_profile_eval_cli_prints_the_backstop_manifest_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

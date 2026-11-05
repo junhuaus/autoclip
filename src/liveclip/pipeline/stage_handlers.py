@@ -952,6 +952,8 @@ class PipelineStageHandlers:
                             "validation_events": discovery_validation_events,
                         },
                     ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 )
 
             def normalize_discovery(
@@ -3717,6 +3719,8 @@ class PipelineStageHandlers:
                             "validation_events": validation_events,
                         },
                     ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 ) from repair_exc
             raise
         self._state.record_provider_calls(
@@ -4329,6 +4333,8 @@ class PipelineStageHandlers:
                     tuple(call_records),
                     repair_attempts=first_error.repair_attempts,
                     diagnostic_relative_path=diagnostic,
+                    timeout_seconds=first_error.timeout_seconds,
+                    suspended_seconds=first_error.suspended_seconds,
                 ) from first_error
             raise first_error
         if set(resolved) != {value[0] for value in requests}:
@@ -4430,6 +4436,8 @@ class PipelineStageHandlers:
                     aggregate.call_records,
                     repair_attempts=aggregate.repair_attempts,
                     diagnostic_relative_path=diagnostic,
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 ),
                 deterministic=any(
                     outcome.disposition in {"exhausted", "cancelled"}
@@ -4932,6 +4940,8 @@ class PipelineStageHandlers:
                             "validation_events": validation_events,
                         },
                     ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 )
             raise failures[0]
         ordered_indices = [
@@ -5877,10 +5887,14 @@ def _aggregate_semantic_failures(
         if previous is not None and previous != record:
             raise ValueError("conflicting semantic provider call records")
         unique_calls[record.call_id] = record
+    # Stage 16b: the selected failure's fixed timing numbers (configured timeout,
+    # host suspension) survive the aggregate, so its message keeps naming them.
     return StructuredProviderError(
         selected.code,
         tuple(unique_calls.values()),
         repair_attempts=tuple(attempts),
+        timeout_seconds=selected.timeout_seconds,
+        suspended_seconds=selected.suspended_seconds,
     )
 
 
