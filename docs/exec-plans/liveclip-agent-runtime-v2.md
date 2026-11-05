@@ -1,5 +1,89 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 17 routing v9 ending-edge release and narrowed interruption exemption (2026-11-05)
+
+- [x] 2026-11-05 cold-32b analysed by an independent read-only reviewer
+  (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/cold32b-analysis/ANALYSIS.txt`). L02 is a
+  deterministic rule contradiction: a Discovery `topic_not_closed` (a scope
+  claim) persisted after Boundary Review cleared it without a shrink while
+  attesting all four facts; the audit rule then steered representation to
+  the identical-interval risk twin, and the v6 union gave that twin the same
+  flag. The forbidden composite came from Boundary/Global Review applying the
+  Stage 15 exemption to interior calls to action, platform prompts, chat
+  reading and presentation troubleshooting (n = 1; earlier runs flagged the
+  same spans). Failure-mode table and fragility estimate (Discovery gated
+  flag on 9.2 % of 119 gold-exact rows; about 35–45 % chance per run of
+  losing at least one P0 through a single vote; observed 3 of 6) are in
+  `STATUS.md`.
+- [x] 2026-11-05 User decisions: **"Both" fixes** (routing P-a plus the prompt
+  narrowing; P-b' not approved, twin union unchanged) and acceptance
+  **"Freeze, 2 cold PASS in a row"**.
+- [x] 2026-11-05 Stage 17 implemented in `2932b7c15af600a900a8838deed4cfcf08a9c95b`,
+  **pending independent tester and reviewer** (together with Stage 16b):
+  - Routing `quality-gate-risk-routing-v9` inside `discovery_persisted_flags`:
+    on an unshrunk candidate a Discovery `topic_not_closed`
+    (`ENDING_EDGE_STRUCTURAL_FLAGS`) is released when Boundary Review's own
+    item clears it and `boundary_attests_complete_unit` holds (opening,
+    ending, central objective, shortest all true); interior structural flags
+    keep v5 persistence. Final assembly, audit payload, representative
+    validator, pair fallback keep order and manifest diagnostic share the
+    helper. v1–v8 still load; algorithm version and cache-key schema
+    unchanged.
+  - Prompts: `main.md` exemption narrowed to a single-cue passed-over
+    thanks, greeting or name call-out; interior calls to action and platform
+    prompts, chat reading and presentation troubleshooting are
+    `material_interruption` even when brief and are subtracted in the
+    duration test; writing the taught term on the board stays in the lesson.
+    Mirrored in `coverage_audit`, `risk_discovery`, `boundary_review`,
+    `global_review`, `global_audit`; `global_review` states the v9 release.
+  - Hash table (16 of 17 change):
+
+  | prompt identity | before (03ec7ef, Stage 16b) | after (Stage 17) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | yes |
+  | `short_highlight.coverage_audit` | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | yes |
+  | `short_highlight.precision_audit` | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | yes |
+  | `short_highlight.precision_confirmation` | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | yes |
+  | `short_highlight.risk_discovery` | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | yes |
+  | `short_highlight.boundary_review` | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | yes |
+  | `short_highlight.global_review` | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | yes |
+  | `short_highlight.global_audit` | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | yes |
+  | `mini_lesson.discovery` | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | yes |
+  | `mini_lesson.coverage_audit` | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | yes |
+  | `mini_lesson.precision_audit` | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | yes |
+  | `mini_lesson.precision_confirmation` | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | yes |
+  | `mini_lesson.risk_discovery` | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | yes |
+  | `mini_lesson.boundary_review` | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | yes |
+  | `mini_lesson.global_review` | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | yes |
+  | `mini_lesson.global_audit` | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  - Tests +51 (unit 141 → 160, flag contract 68 → 86, integration 99 → 113);
+    8/8 scratch-only mutations caught; `make lint` rc 0; targeted pytest
+    494 passed; full backend pytest 3208 passed. Deterministic validation
+    only; no real model call.
+  - Replay (stored outputs, six runs; v8 column equals the reviewer's v8
+    replay, v9 equals the reviewer's P-a replay):
+
+  | run | v8 rule (this tree) | v9 shipped | mini hits v9 | hard failures v9 | negatives v9 | rows changed v8->v9 | v8 == reviewer v8 / v9 == reviewer P-a | validate |
+  |---|---|---|---|---|---|---|---|---|
+  | cold-27 | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | warm-28 | FAIL 95.0 | FAIL 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | ['irrelevant_padding'] | - | - | True / True | ok |
+  | warm-29b | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | cold-30 | FAIL 92.5 | FAIL 92.5 | 5 ['L02', 'L03', 'L04', 'L05', 'L07'] | ['missing_any_p0_mini_lesson'] | - | - | True / True | ok |
+  | cold-31 | PASS 92.5 | PASS 92.5 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | ['N08'] | - | True / True | ok |
+  | cold-32b | FAIL 92.5 | FAIL 97.5 | 6 ['L01', 'L02', 'L03', 'L04', 'L05', 'L07'] | ['forbidden_composite_interval'] | - | [('mini', 'risk_curriculum_steps_1_to_4_claim_chain', 'blocked', 'manual_review')] | True / True | ok |
+
+- [x] 2026-11-05 **Acceptance policy** (user decision): after Stage 17 is
+  accepted, code and prompts are frozen; benchmark acceptance requires two
+  consecutive fresh cold runs with strict PASS on the frozen SHA; a failed
+  run is analysed before any change (no immediate patching), and any change
+  starts a new frozen SHA and count; a usage-limit continuation segment
+  (cold-Nb) counts as one run.
+- [ ] Next: independent tester and reviewer on the Stage 16b (`b5d8def`) and
+  Stage 17 SHAs; then freeze and two fresh cold runs; human review of the
+  cold-27 through cold-32b renders.
+
 ## Stage 16b Stage 16 reviewer nits; cold-32b result (2026-11-04)
 
 - [x] 2026-11-04 Stage 16 (`b1f11ec` code, `58186f5` docs) fast-forwarded
@@ -24,7 +108,9 @@
     algorithm-version, cache-key or persisted-schema change.
   - Self-check: `make lint` rc 0; targeted pytest (29 files) 999 passed;
     19 new test items; 12/12 scratch-only mutations caught (R7 included).
-- [ ] Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+- [x] (Historical next step; cold-32b analysed and Stage 17 followed, above;
+  Stage 16b verification is deferred to the joint Stage 16b + 17 review.)
+  Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
   analysis; human review of the cold-31, cold-32b and earlier renders.
 
 ## Stage 16 provider-failure observability (Stage 15c reviewer Part B) (2026-11-04)

@@ -18,6 +18,243 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — IMPLEMENTED, PENDING VERIFICATION
+
+- **Status: implemented, pending independent tester and reviewer** (to be
+  verified together with Stage 16b). Code, prompts and tests in
+  `2932b7c15af600a900a8838deed4cfcf08a9c95b` on `claude/liveclip-stage8-routing`; this docs commit
+  follows. Not pushed or merged to `main`. Routing policy
+  `quality-gate-risk-routing-v9` (v1–v8 and unmarked artifacts still load).
+  Unchanged: algorithm version `dual-profile-direct-v1`, cache-key schema,
+  persisted semantic-outcome schema, evaluator, thresholds, benchmark JSON/MD
+  and `tools/loop_engineering`. Every Discovery and review prompt hash
+  changes (16 of 17; table below), so the next real run has a cold cache for
+  every stage except the variant link.
+- User decisions (2026-11-05): (1) **"Both" fixes**: routing policy P-a
+  (Discovery `topic_not_closed` persistence released by an attesting
+  Boundary Review) and the prompt narrowing of the Stage 15 exemption.
+  Optional P-b' (a rejected duplicate is not a source of flags it carries
+  only through persistence) was **not approved**; the twin union is
+  unchanged. (2) Acceptance **"Freeze, 2 cold PASS in a row"** (policy
+  below).
+
+### cold-32b analysis (independent read-only reviewer, 2026-11-05)
+
+Evidence and scripts:
+`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/cold32b-analysis/ANALYSIS.txt`
+(replays use `git archive b758f71`, the real `assemble_final_profile_result`
+and the real evaluator; the v8 replay of cold-32b reproduces its stored final
+result exactly; no model call, nothing written under `data/`).
+
+- **L02 = a deterministic rule contradiction.** The base candidate's
+  Discovery raised `topic_not_closed` with a scope claim (the curriculum
+  continues with later steps), not a claim that the interval's own ending
+  fails to close. Boundary Review kept the interval unchanged, attested
+  opening, ending, central objective and shortest boundary all true and
+  cleared the flag. Routing v5–v8 persists a structural Discovery flag unless
+  Boundary Review shrinks an edge, so the flag survived. The Global Audit,
+  told never to choose a persisted-flag row as representative, rejected the
+  base as a duplicate of its clean same-interval risk-discovery twin; the v6
+  twin union (non-risk rows are sources whatever their status) then gave that
+  twin the very flag the audit avoided, and the quality gate blocked it. For
+  identical intervals the audit rule could never succeed. Boundary Review
+  judged that interval closed in every earlier run; Discovery had never
+  flagged the base before. `missing_required_prior_steps` is advisory, never
+  persisted or gated.
+- **Forbidden composite = the Stage 15 exemption read too broadly (n = 1,
+  "made more likely", not proven).** Three base mini rows inside the
+  forbidden composite range (all flags empty at Boundary and Global Review,
+  all four facts true, final `manual_review`) contained interior calls to
+  action and platform prompts, chat reading and presentation
+  troubleshooting. Their Boundary Review reasons invoked the Stage 15 text
+  ("a brief audience thanks, greeting, name call-out or acknowledgement that
+  the speaker passes over ... is neither an interruption nor padding"). In the
+  five earlier runs the same intervals were blocked by the reviews' own
+  padding/interruption flags (routing never had to act); inside cold-32b two
+  sibling rows kept `material_interruption` for the same material. A
+  "strings of short demonstrations are composites" rule was rejected because
+  two of the three P0 mini golds are such chains; the generic signal is the
+  interior non-teaching material.
+- Failure-mode table (stored as-run):
+
+  | run | hard failure | model event | deterministic amplifier | class |
+  |---|---|---|---|---|
+  | warm-28 | negative anchor N07 | Boundary + Global Review missed a topic switch on a short row (Discovery right) | v3 had no persistence | policy gap (fixed v4) |
+  | warm-28 | irrelevant padding (N07) | Boundary Review trimmed a mini core insufficiently | none | model variance |
+  | cold-30 | P0 L01 | Discovery device-padding false positive on the only exact row | v4 padding persistence + audit "match" policy | policy (fixed v5) |
+  | cold-31 | P0 L02 | risk Discovery `material_interruption` on a one-cue thanks | union from the risk record | policy (fixed v6) + prompt |
+  | cold-32b | P0 L02 | base Discovery `topic_not_closed` false positive (scope claim) | v5 persistence + audit representative rule + union | policy (P-a, Stage 17) |
+  | cold-32b | forbidden composite | Boundary/Global Review exempted CTA and troubleshooting (3 rows) | none | model / prompt regression (Stage 17 prompt) |
+
+  Other misses (not hard failures): S03 3/6 and L07 3/6 runs, representative
+  choice (model variance).
+- Fragility estimate: on 119 gold-exact rows Discovery raised a gated flag on
+  11 (9.2 %), Boundary Review on 1, Global Review on 2. With about 1.5–2 exact
+  rows per P0, a single structural Discovery vote decides an interval often
+  enough for about 13–17 % loss per P0 per run and about 35–45 % for "at
+  least one of three P0 lost"; observed 3 of 6 runs. Each single-cause fix
+  closed the last path and the next run found a new one (v4 → v5 → v6 →
+  Stage 15 prompt → composite): the structure is "any one of K judgments
+  vetoes". Hence the freeze-and-repeat acceptance policy below rather than
+  another patch per failed run. Reviewer longer-term options (targeted second
+  opinion, cue-localised flags) are recorded, not approved.
+
+### Stage 17 implementation
+
+- (1) **Routing v9 (P-a)**, inside the single helper
+  `discovery_persisted_flags` (`src/liveclip/pipeline/dual_profile.py`):
+  when Boundary Review did not shrink the interval, a Discovery
+  `topic_not_closed` (new constant `ENDING_EDGE_STRUCTURAL_FLAGS`) is not
+  persisted if Boundary Review's own item does not carry it and
+  `boundary_attests_complete_unit` holds (`opening_complete`,
+  `ending_complete`, `central_objective_complete` and
+  `shortest_complete_boundary` all true). `material_interruption`,
+  `topic_switch_inside` and `asr_uncertain_blocks_meaning` keep v5
+  persistence (released only by a shrink). Because final assembly, the
+  Global Audit payload (`persisted_discovery_gated_flags`), the
+  persisted-flag representative validator, the near-identical pair fallback
+  keep order and the `persisted_flag_representative_duplicates` manifest
+  diagnostic all call this helper, they stay consistent. The twin union
+  (`same_interval_twin_flags`) is unchanged. A Global Review that re-adds
+  `topic_not_closed` still gates through the merged flags.
+- (2) **Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript).** `main.md`: the only exemption is a single-cue audience
+  thanks, greeting or name call-out that the speaker passes over without
+  leaving the topic; inside the interval, calls to action and platform
+  prompts (fan badges, follows, likes, homepage plugs, gifts, requests for
+  viewers to join on microphone), chat reading and presentation
+  troubleshooting (waiting for a pen or colour, glare, asking whether viewers
+  can see) are `material_interruption` even when brief, like audibility
+  checks, and are subtracted when testing the Profile duration minimum;
+  writing the taught term on the board is part of the lesson; the Stage 14
+  live-demo microphone sentence is unchanged. Mirrored verbatim in
+  `coverage_audit.md` and `risk_discovery.md`; `boundary_review.md` mirrors it
+  in its `material_interruption` definition, its interior cross-reference
+  ("the single-cue exemption above never covers them") and its on-topic
+  duration test (calls to action, platform prompts, chat reading and
+  presentation troubleshooting are removed in it even when brief; the closing
+  acknowledgement edge rule is unchanged); `global_review.md` and
+  `global_audit.md` restate it beside the interior audibility rule.
+  `global_review.md` also states the v9 release (Boundary Review resolves a
+  Discovery `topic_not_closed` without trimming when its own item clears the
+  flag and attests a complete opening, ending, central objective and
+  shortest boundary), so its persistence description stays true.
+  `precision_audit.md` already defers to the main-contract threshold and is
+  unchanged (its hash changes through `main.md`). Stage 14 padding-edge rules
+  and the Stage 15 self-promotion rule are unchanged (their contract tests
+  still pass).
+- (3) Hash table (all 17 identities; printed by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/hash_table.py`
+  from `prompt_hashes.py` run on `git archive 03ec7ef` and on the Stage 17
+  tree; the "before" column equals the Stage 16b table):
+
+  | prompt identity | before (03ec7ef, Stage 16b) | after (Stage 17) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | yes |
+  | `short_highlight.coverage_audit` | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | yes |
+  | `short_highlight.precision_audit` | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | yes |
+  | `short_highlight.precision_confirmation` | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | yes |
+  | `short_highlight.risk_discovery` | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | yes |
+  | `short_highlight.boundary_review` | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | yes |
+  | `short_highlight.global_review` | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | yes |
+  | `short_highlight.global_audit` | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | yes |
+  | `mini_lesson.discovery` | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | yes |
+  | `mini_lesson.coverage_audit` | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | yes |
+  | `mini_lesson.precision_audit` | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | yes |
+  | `mini_lesson.precision_confirmation` | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | yes |
+  | `mini_lesson.risk_discovery` | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | yes |
+  | `mini_lesson.boundary_review` | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | yes |
+  | `mini_lesson.global_review` | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | yes |
+  | `mini_lesson.global_audit` | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change; the variant link is unchanged.
+
+  Pins re-pinned with a Stage 17 justification in
+  `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`); the
+  variant link pin is unchanged.
+- (4) Tests (+51 items: `test_dual_profile.py` 141 → 160,
+  `test_dual_profile_flag_contract.py` 68 → 86,
+  `test_dual_profile_evaluation.py` 99 → 113): ending-edge constant; all four
+  facts required (each false keeps the flag); release on an unchanged and on
+  an extended interval; Boundary Review keeping the flag still gates (and the
+  audit-payload view keeps it); only the ending-edge flag is released next to
+  each interior flag; the N07 persistence test now covers the three interior
+  flags; L02-shape chain (released base is not a persisted-flag row, so the
+  same-interval risk twin stays `manual_review`; with any fact false the twin
+  is still blocked); service level: release for `topic_not_closed` alone and
+  interior flags still persisting beside it; audit payload, representative
+  rule, pair fallback keep order, manifest diagnostic and final routing treat
+  an attested `topic_not_closed` exactly like an unflagged candidate; the
+  representative rule fires for each false fact and for a Boundary Review that
+  keeps the flag; v9 marker accepted with v1–v8; prompt contracts for the
+  narrowed exemption across all 8 stages × 2 Profiles (superseded Stage 15
+  wording absent everywhere, no digits or CJK in the rule), the Boundary
+  Review definition/cross-reference/duration test, the Global Review/Audit
+  restatements and the Global Review v9 sentence.
+- (5) Mutation self-check (scratch copy of `src`/`tests` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/mutate.py`,
+  results `mutation_results.txt`): 8 of 8 caught — M1 no v9 release (21
+  failures), M2 attest `ending_complete` only (12), M3 ignore the
+  Boundary-cleared condition (2), M4 release every structural flag (27), M5
+  audit payload computed with a different rule (6), M6 `main.md` keeps the
+  Stage 15 exemption (18), M7 Boundary Review duration test drops the
+  subtraction (3), M8 Global Review drops the mirror (3).
+- (6) Offline replay (stored stage outputs of six runs; `git archive` of the
+  Stage 17 code commit;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/replay_v9.py`,
+  output `replay_v9.txt` / `replay_v9.json`; the v8 column is the v5–v8
+  persistence rule in the same tree and equals the reviewer's v8 replay; the
+  v9 column equals the reviewer's P-a replay):
+
+  | run | v8 rule (this tree) | v9 shipped | mini hits v9 | hard failures v9 | negatives v9 | rows changed v8->v9 | v8 == reviewer v8 / v9 == reviewer P-a | validate |
+  |---|---|---|---|---|---|---|---|---|
+  | cold-27 | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | warm-28 | FAIL 95.0 | FAIL 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | ['irrelevant_padding'] | - | - | True / True | ok |
+  | warm-29b | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | cold-30 | FAIL 92.5 | FAIL 92.5 | 5 ['L02', 'L03', 'L04', 'L05', 'L07'] | ['missing_any_p0_mini_lesson'] | - | - | True / True | ok |
+  | cold-31 | PASS 92.5 | PASS 92.5 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | ['N08'] | - | True / True | ok |
+  | cold-32b | FAIL 92.5 | FAIL 97.5 | 6 ['L01', 'L02', 'L03', 'L04', 'L05', 'L07'] | ['forbidden_composite_interval'] | - | [('mini', 'risk_curriculum_steps_1_to_4_claim_chain', 'blocked', 'manual_review')] | True / True | ok |
+
+  Exactly one row changes in six runs: cold-32b
+  `risk_curriculum_steps_1_to_4_claim_chain` blocked → `manual_review` (L02
+  back). cold-32b stays FAIL 97.5 on `forbidden_composite_interval` only
+  (short 7, mini 6/6). Negative-anchor findings unchanged in every run (only
+  cold-31 N08 informational `manual_review`). v9 releases persistence on 0–5
+  rows per run; every other release changes no status. Fidelity: final
+  routing is replayed exactly; the Global Audit is not re-run (its payload
+  changes under v9, so a real run's audit may keep the base as representative,
+  as in runs 27–31), and the prompt change needs a real cold run.
+- Self-check: `make lint` rc 0 (ruff check, ruff format, mypy, schema check,
+  web typecheck); targeted pytest (dual-profile unit, flag contract,
+  delivery, render, integration, lineage prompts, benchmark evaluators)
+  8 files, 494 passed; full backend pytest 3208 passed (3138 at Stage 16, plus 19 Stage 16b and 51 Stage 17 items). Deterministic validation only; no
+  real model call.
+- Recovery: revert `2932b7c15af600a900a8838deed4cfcf08a9c95b` (and this docs commit). Reverting restores v8
+  routing and the Stage 16b prompt hashes; artifacts written with the v9
+  marker would then fail to load until re-run, and Stage 17 cache entries are
+  simply not hit by the reverted prompts.
+
+### Acceptance policy from Stage 17 (user decision 2026-11-05, "Freeze, 2 cold PASS in a row")
+
+- After Stage 17 is accepted (independent tester and reviewer), code and
+  prompts are **frozen** at that SHA.
+- Benchmark acceptance requires **two consecutive fresh cold runs with strict
+  PASS on the frozen SHA**.
+- A failed run is **analysed before any change**; no immediate patching. Any
+  later change starts a new frozen SHA and a new two-run count.
+- A usage-limit continuation segment (cold-Nb on the preserved cache of
+  cold-N) still counts as **one** run.
+
+### Stage 16b status
+
+- Stage 16b (`b5d8def`) remains implemented, **pending independent
+  verification**; it will be verified together with Stage 17.
+- Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
+  then freeze and the two fresh cold runs; human review of the cold-31,
+  cold-32b and earlier renders stays pending.
+
 ## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer.** Code and
@@ -111,10 +348,13 @@
 - Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
   analysis (below); human review of the cold-31, cold-32b and earlier
   renders stays pending.
+- (2026-11-05) Verification deferred by the Controller: Stage 16b will be
+  independently verified together with Stage 17 (above). The cold-32b
+  analysis is recorded in the Stage 17 section.
 
 ## cold-32b real run at b758f71 (2026-11-04) — strict FAIL 92.5 (continuation of cold-32)
 
-- continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending.
+- continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending. (Later, 2026-11-05: analysed by an independent read-only reviewer; summary, user decisions and Stage 17 in the section above.)
 - Evidence category: real-model inference at `b758f71` (authorized Claude
   CLI subscription run); it is not evidence for Stage 16 or Stage 16b, which
   change only failure paths. Renders passing automatic checks are not human

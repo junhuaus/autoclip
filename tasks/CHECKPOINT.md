@@ -946,6 +946,42 @@ algorithm-version or cache-key change. Self-check: `make lint` rc 0,
 targeted pytest 999 passed (29 files), 12/12 scratch-only mutations caught.
 Deterministic validation only.
 
-Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+(Historical next step; cold-32b was analysed and Stage 17 follows below;
+Stage 16b is verified together with Stage 17.) Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
 analysis; human review of the renders. Push and merge still need explicit
+consent.
+
+## cold-32b analysed; Stage 17 implemented, pending verification (2026-11-05)
+
+cold-32b analysis (independent read-only reviewer): L02 is a deterministic
+rule contradiction (a persisted Discovery `topic_not_closed` that Boundary
+Review cleared without a shrink while attesting all four facts; the audit
+representative rule plus the v6 union then blocked the identical-interval
+risk twin). The forbidden composite came from the Stage 15 exemption being
+applied to interior calls to action, platform prompts, chat reading and
+presentation troubleshooting (n = 1). Failure-mode table and fragility
+estimate in `STATUS.md`.
+
+User decisions (2026-11-05): "Both" fixes (P-a plus prompt narrowing; P-b'
+not approved) and "Freeze, 2 cold PASS in a row".
+
+Stage 17 (`2932b7c15af600a900a8838deed4cfcf08a9c95b`): routing `quality-gate-risk-routing-v9` releases an
+attested, Boundary-cleared Discovery `topic_not_closed` on an unshrunk
+candidate (interior structural flags unchanged); `main.md` narrows the
+exemption to a single-cue passed-over thanks, greeting or name call-out,
+mirrored in coverage audit, risk discovery, Boundary Review, Global Review
+and Global Audit. 16 of 17 prompt hashes change (table in `STATUS.md`).
++51 tests, 8/8 scratch-only mutations caught, `make lint` rc 0, targeted
+494 passed, full backend 3208 passed. Replay: only cold-32b changes (FAIL
+97.5, composite only, mini 6/6); no negative-anchor change. Deterministic
+validation only; no real model call.
+
+Acceptance policy from Stage 17: after acceptance, code and prompts are
+frozen; two consecutive fresh cold strict PASS runs on the frozen SHA are
+required; a failed run is analysed before any change; a continuation
+segment (cold-Nb) counts as one run. Stage 16b (`b5d8def`) stays pending
+verification, together with Stage 17.
+
+Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
+freeze; two fresh cold runs. Not pushed. Push and merge still need explicit
 consent.
