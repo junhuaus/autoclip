@@ -136,7 +136,9 @@ imported by production modules.
 - [x] 2026-11-05 Reviewer P2 (provenance, docs only): a fresh run has run-manifest `cache_hits == 0`, its cache root is new or empty at start, and every cache file's mtime is at or after the run's attempt start; a continuation segment (cold-Nb) has `cache_hits` equal to the number of entries copied from the immediately previous segment of the same run, every carried file byte-identical to that segment and every new file's mtime at or after the segment start; content identity versus other roots is reported for information only (identical model outputs under identical frozen prompts legitimately produce identical cache files).
 - [x] 2026-11-05 Reviewer P3 (environment pinning): the two counted runs need equal run-manifest `provider`, `model`, `prompt_hashes`, final-validated routing policy and algorithm version; the same pinned Claude CLI binary (sha256 `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`, version 2.1.308); the same effective Settings (no `.env`/`.env.local` override of `LIVECLIP_CLAUDE_*` model, timeout or attempt settings; record `ls -la .env .env.local` presence and only the `LIVECLIP_` key names of a present file, never values; at this commit `.env` is absent and `.env.local` has no `LIVECLIP_CLAUDE_*` or `LIVECLIP_STRUCTURED_PROVIDER` key). `.gitignore` is added to the freeze path list.
 - [x] 2026-11-05 Accepted residuals (reviewer P3, unchanged by decision; any prompt edit would start a new freeze): the `main.md` line 8 and `global_review.md` duration-minimum sentences do not restate the single-cue exemption; the `global_audit.md` exemption lacks "without leaving the topic". Recorded for a future prompt revision.
-- [ ] Next: cold-33, the first counted fresh cold run, at the frozen tree; human review of the cold-27 through cold-32b renders and of the L07 gap.
+- [x] (Historical next step; cold-33 done, below.) Next: cold-33, the first counted fresh cold run, at the frozen tree; human review of the cold-27 through cold-32b renders and of the L07 gap.
+- [x] 2026-11-05 **cold-33** (counted fresh cold run 1 of 2, real Claude CLI, single segment) on frozen `50232af0cb0b0194fb663528b569998a8a2fd79b`: HEAD `feef1e5`, freeze-diff (incl. `.gitignore`) rc 0 with empty porcelain before and after; eval rc 0, wall 7479 s (05:08:29–07:13:08 local), 0 sleep/wake events, AC power throughout. Strict **PASS 92.5** (both_profiles 15, short 17.5, mini 25, boundary 15, risk 10, audit 10); no hard failure, PASS blocker, forbidden-composite, padding or negative-anchor finding; `source_hash_matches` true. Short 7/8 (S03 missed); mini 5/6 (L01, L02, L03, L04, L07 hit; L05 (P1) missed); R01 blocked, R02 `manual_review`; N07, N08 and composites 562000–847000 / 1099200–1351000 have no selected or `manual_review` mini output (the cold-32b composite is clean). Provenance meets the fresh-cold definition: `cache_hits` 0, roots new at attempt start, 272 cache files all with mtime after the start, 0 content-identical files in 28 other roots (informational), every `prompt_hash` equals the Stage 17b table, stale refresh off. 272 provider records all first-attempt; 0 repairs, retries or usage-limit markers; tokens in 10,677,798 / out 2,011,664. Fingerprint cold-34 must match: CLI 2.1.308 sha256 `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`, model `claude-opus-5-5`, algorithm `dual-profile-direct-v1`, routing `quality-gate-risk-routing-v9`, Settings fingerprint sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`, run fingerprint sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`, no `LIVECLIP_CLAUDE_*` override in `.env`/`.env.local`. Misses (observations only, no patch): S03 in-tolerance audit row rejected by Global Review and Global Audit as a duplicate of `sh_0005_yawn_compare_with_choice` (start +12440 ms), as in cold-30, cold-31 and cold-32b; L05 all three in-tolerance rows blocked for `material_interruption` over the suspected pen-failure remark at cues 2337–2340 (hit in cold-32b; new fragility). 12 renders rc 0, automatic checks pass; human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261105-claude-cold-33/evidence/`. Consecutive cold strict PASS count: **1/2**.
+- [ ] Next: cold-34 (consecutive run 2 of 2) on the same frozen tree with the same fingerprint (a cold-Nb continuation counts as one run); human review of the cold-27 through cold-33 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -1130,6 +1132,23 @@ pending verification; freeze candidate):
   and scripts in the session scratchpad (`stage17b/`).
 - Recovery: revert `50232af0cb0b0194fb663528b569998a8a2fd79b`; restores the Stage 17 prompt hashes; no
   routing, cache-key or schema impact.
+
+2026-11-05 (freeze accepted at `50232af`; cold-33 strict PASS 92.5,
+consecutive cold strict PASS 1/2):
+
+- Freeze acceptance, the corrected fresh-cold provenance criterion and the
+  run-environment pinning: see `STATUS.md` (FREEZE ACCEPTED section).
+- cold-33: fresh cold, single segment, on the frozen tree (HEAD
+  `feef1e5`); strict PASS 92.5; roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-33`;
+  evidence under the strict-eval root's `evidence/`. Fingerprint that
+  cold-34 must match, miss diagnostics (S03, L05; observations only) and
+  provenance: see `STATUS.md` (cold-33 section).
+- Recovery: docs-only; no code, prompt, routing, cache-key or schema
+  change. cold-34 starts from a new empty cache root on the same frozen
+  tree; an aborted cold-34 without a strict evaluation counts neither way
+  (re-run as a new fresh run or continue as cold-34b); a cold-34 strict
+  FAIL resets the count to 0/2 and is analysed before any change.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

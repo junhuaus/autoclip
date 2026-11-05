@@ -1,5 +1,28 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## cold-33 strict PASS 92.5 on frozen 50232af (consecutive 1/2) (2026-11-05)
+
+- [x] 2026-11-05 **cold-33**, the first counted fresh cold run (real Claude
+  CLI, single segment), on frozen `50232af0cb0b0194fb663528b569998a8a2fd79b` at HEAD `feef1e5`;
+  freeze-diff (incl. `.gitignore`) rc 0 with empty porcelain before and
+  after; eval rc 0, wall 7479 s, 0 sleep/wake events, AC power. Strict
+  **PASS 92.5** (both_profiles 15, short 17.5, mini 25, boundary 15, risk
+  10, audit 10); no hard failure, PASS blocker, forbidden-composite,
+  padding or negative-anchor finding. Short 7/8 (S03 missed); mini 5/6
+  (L05 missed); R01 blocked, R02 `manual_review`. Provenance meets the
+  fresh-cold definition (`cache_hits` 0, roots new, 272 cache files all
+  newer than the attempt start, prompt hashes = Stage 17b table). 272
+  provider records first-attempt, 0 repairs/retries/usage-limit markers.
+  Fingerprint cold-34 must match (CLI sha256, model, algorithm, routing v9,
+  Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`, run fingerprint
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`) and the S03/L05 miss diagnostics
+  (observations only, no patch): see `STATUS.md`. 12 renders rc 0; human
+  editorial/audio review pending (separate evidence category).
+  Consecutive cold strict PASS count: **1/2**.
+- [ ] Next: cold-34 (consecutive run 2 of 2) on the same frozen tree with
+  the same fingerprint; a cold-Nb continuation counts as one run. Human
+  review of the cold-27 through cold-33 renders stays pending.
+
 ## Freeze accepted at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05)
 
 - [x] 2026-11-05 **FREEZE ACCEPTED** at

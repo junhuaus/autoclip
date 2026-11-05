@@ -1070,5 +1070,51 @@ and `global_review.md` duration-minimum sentences do not restate the
 single-cue exemption; the `global_audit.md` exemption lacks "without leaving
 the topic". Recorded for a future prompt revision.
 
-Next: cold-33, the first counted fresh cold run, at the frozen tree. Not
+(Historical next step; done, below.) Next: cold-33, the first counted fresh cold run, at the frozen tree. Not
 pushed. Push and merge still need explicit consent.
+
+## cold-33 strict PASS 92.5 on frozen 50232af (2026-11-05) — consecutive cold strict PASS 1/2
+
+Counted fresh cold run 1 of 2 (real Claude CLI, single segment) at HEAD
+`feef1e5`; freeze-diff to `50232af0cb0b0194fb663528b569998a8a2fd79b` (incl. `.gitignore`) rc 0 with
+empty porcelain before and after. Eval rc 0, wall 7479 s (05:08:29 to
+07:13:08 local), 0 sleep/wake events, AC power throughout. Roots
+`data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-33`
+(the strict-eval root holds `benchmark-result.json`, `benchmark-report.md`
+and `evidence/`).
+
+Strict PASS 92.5: both_profiles 15, short 17.5, mini 25, boundary 15, risk
+10, audit 10; no hard failure, PASS blocker, forbidden-composite, padding or
+negative-anchor finding; `source_hash_matches` true. Short 7/8 (S03
+missed); mini 5/6 (L01, L02, L03, L04, L07 hit; L05 (P1) missed); R01
+blocked, R02 `manual_review`; N07, N08 and composites 562000–847000 and
+1099200–1351000 have no selected or `manual_review` mini output (the
+cold-32b composite is clean).
+
+Provenance (fresh-cold definition met): `cache_hits` 0; roots new at
+attempt start; 272 cache files, all mtimes after the start; 0
+content-identical files in 28 other roots (informational); every
+`prompt_hash` equals the Stage 17b table; stale refresh off. 272 provider
+records, all first attempt; 0 repairs, retries or usage-limit markers;
+tokens in 10,677,798 / out 2,011,664.
+
+Fingerprint cold-34 must match: CLI 2.1.308 sha256
+`ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
+`dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`; Settings
+fingerprint sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run
+fingerprint sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`; no
+`LIVECLIP_CLAUDE_*` override in `.env` or `.env.local`.
+
+Misses (observations only; no patch per the acceptance policy): S03, the
+in-tolerance audit row was rejected by Global Review and Global Audit as a
+duplicate of `sh_0005_yawn_compare_with_choice` (start +12440 ms), as in
+cold-30, cold-31 and cold-32b; L05, all three in-tolerance rows blocked for
+`material_interruption` over the suspected pen-failure remark at cues
+2337–2340 (cold-32b hit L05; new fragility).
+
+12 renders rc 0, automatic checks pass; human editorial/audio review
+pending (separate evidence category).
+
+Next: cold-34 (consecutive run 2 of 2) on the same frozen tree with the
+same fingerprint; a cold-Nb continuation counts as one run. Not pushed.
+Push and merge still need explicit consent.

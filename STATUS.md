@@ -18,6 +18,63 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## cold-33 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 1/2)
+
+- **Counted run 1 of 2** under the "Acceptance policy from Stage 17" (as
+  corrected at freeze acceptance). Fresh cold, real Claude CLI, single
+  segment. HEAD at run time `feef1e5` (docs-only on top of the freeze SHA);
+  freeze-diff to `50232af0cb0b0194fb663528b569998a8a2fd79b` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7479 s (2026-11-05
+  05:08:29 to 07:13:08 local; attempt start 05:08:25); 0 sleep/wake events
+  in the window; AC power throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-33`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10. No hard failure, PASS blocker, forbidden-composite,
+  padding or negative-anchor finding; `source_hash_matches` true. Short 7/8
+  (S03 missed). Mini 5/6 (L01, L02, L03, L04, L07 hit; L05 (P1) missed).
+  R01 blocked and R02 `manual_review`, both routed correctly. N07, N08 and
+  the composites 562000–847000 and 1099200–1351000 have no selected or
+  `manual_review` mini output; the composite that failed cold-32b is clean.
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 272 cache files,
+  every mtime after the attempt start; 0 content-identical files in 28
+  other cache roots (informational only). Every cached `prompt_hash` equals
+  the Stage 17b table (0 mismatches); stale-cache refresh off.
+- Provider: 272 provider records (run-manifest calls: Discovery 161,
+  Boundary Review 80, Global Review/Audit 30, variant link 1), all
+  succeeded on the first attempt; 0
+  repairs, 0 retries, no usage-limit marker. Tokens in 10,677,798 / out
+  2,011,664.
+- **Run fingerprint (cold-34 must match):** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
+  `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run fingerprint
+  (provider, model, prompt hashes, routing, algorithm) sha256
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`. No `LIVECLIP_CLAUDE_*` override in
+  `.env` (absent) or `.env.local` (key names only recorded).
+- Miss diagnostics (observations only; per the acceptance policy no patch
+  follows a PASS run): (1) **S03**: the in-tolerance audit row was rejected
+  by Global Review and Global Audit as a duplicate of
+  `sh_0005_yawn_compare_with_choice`, whose start is +12440 ms (outside
+  tolerance); the same miss as cold-30, cold-31 and cold-32b. (2) **L05**:
+  all three in-tolerance rows were blocked for `material_interruption` over
+  the suspected pen-failure remark at cues 2337–2340; cold-32b hit L05, so
+  this is new run-to-run fragility.
+- Renders: 12 clips, rc 0, automatic checks pass. Human editorial/audio
+  review pending (separate evidence category, not part of strict PASS).
+- **Consecutive cold strict PASS count: 1/2.**
+- Recovery: docs-only; reverting this commit removes only this record. No
+  code, prompt, routing, algorithm or benchmark change; the freeze is
+  unaffected.
+- **Next: cold-34** (consecutive run 2 of 2) on the same frozen tree with
+  the same fingerprint as above; a cold-Nb continuation counts as one run.
+  Pre-run checks as for cold-33. Human review of the cold-27 through
+  cold-33 renders stays pending. Push and merge still need explicit consent.
+
 ## FREEZE ACCEPTED at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05) — consecutive cold strict PASS 0/2
 
 - **Freeze SHA `50232af0cb0b0194fb663528b569998a8a2fd79b`** (Stage 17b code commit; it
@@ -86,7 +143,8 @@
 - Recovery: docs-only; reverting this commit restores the Stage 17b wording.
   No code, prompt, routing, algorithm or benchmark change; the freeze is
   unaffected.
-- **Next: cold-33**, the first counted fresh cold run, at the frozen tree.
+- (Historical next step; done: cold-33 strict PASS 92.5, count 1/2, see
+  the cold-33 section above.) **Next: cold-33**, the first counted fresh cold run, at the frozen tree.
   Pre-run: freeze-diff (including `.gitignore`) rc 0 with empty porcelain;
   new empty cache root; CLI sha256 and version; `.env`/`.env.local`
   presence and `LIVECLIP_` key names. Human review of the cold-27 through
