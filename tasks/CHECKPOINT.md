@@ -924,5 +924,28 @@ evidence path. No prompt, hash, routing, algorithm-version or cache-key
 change. Self-check: ruff/mypy clean, targeted pytest 581 passed, full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new),
 12/12 scratch-only mutations caught, 17/17 prompt hashes equal the Stage 15c table.
 
-Next: independent tester and reviewer on the Stage 16 SHAs; record the
+(Historical next step; the reviewer accepted Stage 16 with nits, Stage 16b
+and the cold-32b result follow below.) Next: independent tester and reviewer on the Stage 16 SHAs; record the
 cold-32b result. Not pushed.
+
+## Stage 16 reviewer ACCEPT with nits; cold-32b FAIL 92.5; Stage 16b implemented, pending verification (2026-11-04)
+
+Stage 16 (`b1f11ec` code, `58186f5` docs) was fast-forwarded into
+`claude/liveclip-stage8-routing` (its worktree is left for the Controller).
+Reviewer ACCEPT with nits: no P0–P2; 7 of 8 independent mutations caught
+(R7, a regeneration-phase provider failure labelled `repair`, survived).
+
+cold-32b: continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending.
+
+Stage 16b (`b5d8def745d468863917ae04d1c2d1dd314004c2`) fixes the six P3 nits: regeneration-phase tests (R7
+now caught), timing pass-through in the v1 aggregate and stage rewraps,
+fixed budget/internal/cancelled messages, a backstop manifest without
+exception text, the Darwin `CLOCK_MONOTONIC_RAW` sleep gap, and a bounded
+CLI evidence path. No prompt (17/17 hashes equal), routing,
+algorithm-version or cache-key change. Self-check: `make lint` rc 0,
+targeted pytest 999 passed (29 files), 12/12 scratch-only mutations caught.
+Deterministic validation only.
+
+Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+analysis; human review of the renders. Push and merge still need explicit
+consent.

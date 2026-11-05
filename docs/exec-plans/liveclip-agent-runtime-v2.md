@@ -1,5 +1,32 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 16b Stage 16 reviewer nits; cold-32b result (2026-11-04)
+
+- [x] 2026-11-04 Stage 16 (`b1f11ec` code, `58186f5` docs) fast-forwarded
+  into `claude/liveclip-stage8-routing`. Reviewer **ACCEPT with nits** (no
+  P0–P2; 7 of 8 independent mutations caught, R7 — a regeneration-phase
+  provider failure labelled `repair` — survived).
+- [x] 2026-11-04 cold-32b: continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending.
+  Real-model inference at `b758f71`; not evidence for Stage 16/16b.
+- [x] 2026-11-04 Stage 16b implemented in
+  `b5d8def745d468863917ae04d1c2d1dd314004c2`, **pending independent tester and reviewer** (details in
+  `STATUS.md`): (1) regeneration-phase provider-failure tests (error,
+  failure file and manifest `failed_phase`); (2) the v1 aggregate and every
+  stage rewrap forward `timeout_seconds` / `suspended_seconds` (AST-checked;
+  the persisted v4 unit outcome stores only its code, schema unchanged);
+  (3) fixed messages for the two budget codes, `SEMANTIC_UNIT_INTERNAL_ERROR`
+  and `PROVIDER_CANCELLED`; (4) the backstop manifest keeps only
+  `exception_type` plus `exception_message_recorded: false`, never the text;
+  (5) sleep gap on `CLOCK_MONOTONIC_RAW` on Darwin (wall clock elsewhere),
+  also counted toward the deadline; (6) CLI summaries trim a long evidence
+  path from its start, staying under the CLI bound.
+  - No prompt (17/17 hashes equal the Stage 16 table), routing,
+    algorithm-version, cache-key or persisted-schema change.
+  - Self-check: `make lint` rc 0; targeted pytest (29 files) 999 passed;
+    19 new test items; 12/12 scratch-only mutations caught (R7 included).
+- [ ] Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+  analysis; human review of the cold-31, cold-32b and earlier renders.
+
 ## Stage 16 provider-failure observability (Stage 15c reviewer Part B) (2026-11-04)
 
 - [x] 2026-11-04 Stage 15c **ACCEPTED** at
@@ -38,8 +65,9 @@
     algorithm-version or cache-key change; success path unchanged.
   - Self-check: ruff check/format clean; `mypy src/liveclip` clean;
     targeted pytest 581 passed; full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new); 12/12 scratch-only mutations caught.
-- [ ] Next: independent tester and reviewer on the Stage 16 SHAs; record
-  the cold-32b result.
+- [x] (Historical next step; reviewer ACCEPT with nits, Stage 16b and the
+  cold-32b result followed, above.) Next: independent tester and reviewer on
+  the Stage 16 SHAs; record the cold-32b result.
 
 ## Stage 15c risk-twin review covers risk-record receivers (routing v8) and Stage 15b reviewer nits (2026-11-04)
 

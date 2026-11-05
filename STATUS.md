@@ -18,9 +18,118 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 16: provider-failure observability (Stage 15c reviewer Part B) (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer.** Code and
+  tests in `b5d8def745d468863917ae04d1c2d1dd314004c2` on `claude/liveclip-stage8-routing` (main checkout,
+  after the Stage 16 fast-forward to `58186f5`); this docs commit follows.
+  Not pushed or merged to `main`. No prompt file, prompt hash, evaluator,
+  threshold, benchmark, routing policy (`quality-gate-risk-routing-v8`),
+  algorithm version (`dual-profile-direct-v1`), cache-key schema or
+  persisted semantic-outcome schema change; the success path is unchanged.
+- Stage 16 reviewer verdict: **ACCEPT with nits** (no P0–P2; 7 of 8
+  independent mutations caught; R7, the regeneration-phase provider failure
+  labelled `repair`, survived). Reviewer notes in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-review/` (`mut.py`, `mut_results.txt`). Stage 16
+  (`b1f11ec` code, `58186f5` docs) was fast-forwarded into
+  `claude/liveclip-stage8-routing`; its isolated worktree is left for the
+  Controller to remove.
+- (1) R7: `test_a_regeneration_provider_failure_names_the_regeneration_phase`
+  (unit: phase, attempts `initial`/`repair`, records, audit, summary) and
+  `test_a_regeneration_provider_failure_is_recorded_as_the_regeneration_phase`
+  (integration: `failed_phase` `regeneration` in
+  `failed-short_highlight-discovery.json` and in `failure-manifest.json`,
+  fixed timeout message, three call records, nothing cached).
+- (2) Timing pass-through: `_aggregate_semantic_failures` forwards the
+  selected failure's `timeout_seconds` / `suspended_seconds`, and every
+  stage rewrap of an earlier error (v1 Discovery, Global Review repair,
+  Boundary Review, the v4 local-request rewrap and the v4 batch aggregate)
+  forwards them, so an aggregated timeout still says "timed out after N s".
+  An AST test checks every `StructuredProviderError(<error>.code, ...)` in
+  `src/liveclip` (at least ten) passes both keywords. Exception: the durable
+  v4 unit outcome (`SemanticUnitOutcome`, persisted) stores only its failure
+  code, so the rewrap built from it carries no timing; that schema is not
+  changed. This corrects the Stage 16 wording "carried through every
+  rewrap" below, which held only for the provider-level rewraps.
+- (3) Fixed messages: `STRUCTURED_INPUT_BUDGET_EXCEEDED` "structured provider
+  request exceeds its context budget; no model call ran",
+  `STRUCTURED_REPAIR_BUDGET_EXCEEDED` "structured repair request exceeds its
+  context budget; no repair call ran", `SEMANTIC_UNIT_INTERNAL_ERROR`
+  "semantic unit failed with a local internal error", `PROVIDER_CANCELLED`
+  "structured provider request was cancelled". None reads "request failed"
+  or "could not be validated".
+- (4) Backstop: the safer option. `failure-manifest.json`
+  (`unexpected_error`) keeps only `exception_type` (the class name, checked
+  as an identifier, else `Exception`) and `exception_message_recorded:
+  false`; the bounded `error` text is gone. An arbitrary exception may quote
+  a local path, an account identity or a token and this file is durable; the
+  text still reaches the operator once on stderr through the re-raised
+  exception. Test: an exception quoting a synthetic address, token and home
+  path leaves none of them in the manifest.
+- (5) Sleep clock: the gap is measured on a sleep-counting clock,
+  `time.clock_gettime(CLOCK_MONOTONIC_RAW)` on Darwin (keeps counting during
+  sleep, never stepped by NTP or by hand; `time.monotonic` there is
+  `mach_absolute_time`, which stops) and `time.time()` elsewhere. It also
+  counts toward the deadline (`max(monotonic, wall, sleep clock)`), so a
+  sleep is enforced even if the wall clock was stepped back. On Darwin a
+  wall-clock step forward without sleep stays a plain `TimeoutExpired`.
+  `ProcessInterruptedBySleep.wall_elapsed_seconds` is the elapsed time on
+  that clock. Tests with patched clocks: sleep classified, sub-gap lead,
+  spent monotonic budget, wall step without sleep (plain timeout), sleep with
+  the wall clock stepped back (detected), and clock selection (raw on Darwin,
+  wall elsewhere); the suite also passes with the fallback forced.
+- (6) CLI summary: `_failure_summary` (shared by the exhausted-validation and
+  provider-failure summaries) puts code, profile, stage, subject and phase
+  first, keeps bounded notes, trims a long evidence path from its start to
+  the room left (the file name survives), then the trimmed detail; the
+  result never exceeds 480 characters, so `_safe_cli_error` never replaces
+  it with the generic message. The backstop's `failure evidence:` note is
+  bounded the same way. Tests: unit (both summaries, with and without a long
+  note) and CLI (rc 1, code and file name printed, no generic message).
+- Tests: 19 new test items (structured-provider failures 23 → 36, flag
+  contract 67 → 68, media process 13 → 16, dual-profile integration
+  97 → 99); one existing backstop test now asserts the text is absent.
+- Mutation self-check (scratch copies of the main checkout `src` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16b-mut/mut.py`, results in `results.txt`): 12 of 12 caught —
+  R7 regeneration mislabelled `repair`, B1 aggregate drops the timeout, B2 a
+  stage rewrap drops the timeout, B3 budget message removed, B4 internal
+  message removed, B5 backstop stores the message, B6 raw clock never used,
+  B7 gap measured on the wall clock, B8 deadline ignores the sleep clock, B9
+  evidence path unbounded, B10 path keeps its head, B11 raw clock reads the
+  wall clock.
+- Prompt hashes: all 17 identity hashes printed from the main checkout by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16b-hashes.py` equal the Stage 16 table
+  (`stage16-hashes-after.txt`); no prompt file changed.
+- Self-check: `make lint` rc 0 (ruff check, ruff format, mypy, schema check,
+  web typecheck); targeted pytest (29 files: dual-profile suites, structured
+  provider, Claude CLI, Codex, OpenAI, media process, stage handlers,
+  semantic executor/unit recovery/transport/global, transport budget, edit
+  text guard, lineage runtime and CLI tests) 999 passed. Deterministic
+  validation only; no real model call.
+- Recovery: revert `b5d8def`. No cache, prompt or algorithm impact; a
+  backstop manifest written before Stage 16b may contain an `error` text.
+- Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+  analysis (below); human review of the cold-31, cold-32b and earlier
+  renders stays pending.
+
+## cold-32b real run at b758f71 (2026-11-04) — strict FAIL 92.5 (continuation of cold-32)
+
+- continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending.
+- Evidence category: real-model inference at `b758f71` (authorized Claude
+  CLI subscription run); it is not evidence for Stage 16 or Stage 16b, which
+  change only failure paths. Renders passing automatic checks are not human
+  review.
+
+## Stage 16: provider-failure observability (Stage 15c reviewer Part B) (2026-11-04) — REVIEWER ACCEPT WITH NITS at 58186f5; nits → Stage 16b
+
+- **Reviewer ACCEPT with nits** at `58186f54c3ebc7bf3255ef5046aa25a9c25f04c3`
+  (code `b1f11ec`): no P0–P2; 7 of 8 independent mutations caught (R7, a
+  regeneration-phase provider failure labelled `repair`, survived). The P3
+  nits became Stage 16b (above). Fast-forwarded into
+  `claude/liveclip-stage8-routing`. The bullets below are the historical
+  implementation record; Stage 16b corrects the backstop `error` field, the
+  "every rewrap" wording and the wall-clock gap.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code and
   tests in `b1f11ecbea257488815fce3f8636bc853078ba2f` on local branch
   `claude/liveclip-stage16` (from `b758f71`, in an isolated worktree); this
   docs commit follows. Not pushed or merged. No prompt file, prompt hash,
@@ -46,7 +155,8 @@
   prompt hash, cache-key recomputation and output model all match). A
   continuation run **cold-32b** on the preserved cache was started at
   `b758f71`; its result is pending and is not evidence for Stage 16 (it runs
-  `b758f71` code).
+  `b758f71` code). (Later: cold-32b finished, strict FAIL 92.5; see its
+  section above.)
 - P1 provider failures keep their evidence: `_resolve_call` wraps a
   `StructuredProviderError` from the initial generation (after its one
   semantic retry), the repair or the regeneration into
@@ -134,8 +244,9 @@
   full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new). Deterministic validation only; no real model call.
 - Recovery: revert `b1f11ec`. No cache, prompt or algorithm impact; the new
   evidence files appear only in failed run directories.
-- Next: independent tester and reviewer on the Stage 16 SHAs; record the
-  cold-32b result when it finishes; human review of the cold-31 and earlier
+- (Historical next step; the reviewer accepted Stage 16 with nits, Stage 16b
+  followed and cold-32b finished, above.) Next: independent tester and
+  reviewer on the Stage 16 SHAs; record the cold-32b result when it finishes; human review of the cold-31 and earlier
   renders stays pending.
 
 ## Stage 15c: risk-twin review covers risk-record receivers (routing v8), Stage 15b reviewer nits (2026-11-04) — ACCEPTED at b758f71
