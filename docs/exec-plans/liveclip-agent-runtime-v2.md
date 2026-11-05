@@ -32,10 +32,13 @@
     warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrades
     0/0 in every run.
   - Self-check: ruff check/format clean; mypy clean on changed `src`;
-    targeted pytest 325 passed; full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed); 13/13
-    mutations caught; all 17 prompt hashes equal the Stage 15b table.
-- [ ] Next: independent tester and reviewer on the Stage 15c SHAs; record
-  the cold-32 result when it finishes.
+    targeted pytest 325 passed; full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed); 12/12
+    mutations caught (originally recorded as 13/13; the script runs twelve); all 17 prompt hashes equal the Stage 15b table.
+- [x] 2026-11-04 cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned.
+- [x] 2026-11-04 Stage 15c fast-forwarded into `claude/liveclip-stage8-routing`
+  (isolated worktree and `claude/liveclip-stage15c` removed). Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
+- [ ] Next: independent tester and reviewer on the Stage 15c SHAs; cold-32b
+  (continuation on the preserved cold-32 cache).
 
 ## Stage 15b risk-twin review (routing v7) and Stage 15 reviewer P3s (2026-11-04)
 
