@@ -149,13 +149,30 @@ def test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges
 # Stage 15: the `material_interruption` threshold (fix of a Stage 14/14b
 # over-broadening).  main.md is shared by every stage; the two risk-chain
 # Discovery passes mirror it in their own stage text.
+# Stage 17 (user decision 2026-11-05): the exemption is narrowed to a single-cue
+# passed-over thanks, greeting or name call-out; interior calls to action,
+# platform prompts, chat reading and presentation troubleshooting are
+# `material_interruption` and are subtracted in the duration-minimum test.
 ALL_STAGES = (*DISCOVERY_AND_BOUNDARY_STAGES, "global_review", "global_audit")
 MI_THRESHOLD = (
     "Interior content counts as `material_interruption` only when it actually breaks the "
-    "teaching or claim logic; a brief audience thanks, greeting, name call-out or "
-    "acknowledgement that the speaker passes over without leaving the topic is neither an "
-    "interruption nor padding."
+    "teaching or claim logic. The only exemption is a single-cue audience thanks, greeting or "
+    "name call-out that the speaker passes over without leaving the topic: it is neither an "
+    "interruption nor padding. Inside the interval, calls to action and platform prompts (fan "
+    "badges, follows, likes, homepage plugs, gifts, requests for viewers to join on microphone), "
+    "chat reading and presentation troubleshooting (waiting for a pen or colour, glare, asking "
+    "whether viewers can see) are `material_interruption` even when brief, like audibility "
+    "checks, and they are subtracted when testing the Profile duration minimum. Writing the "
+    "taught term on the board is part of the lesson."
 )
+# The Stage 15 wording that reviewers stretched to calls to action and
+# presentation troubleshooting; no stage may carry it any more.
+SUPERSEDED_EXEMPTIONS = (
+    "a brief audience thanks, greeting, name call-out or acknowledgement",
+    "A brief audience thanks, greeting, name call-out or acknowledgement",
+    "name call-out or acknowledgement that the speaker passes over",
+)
+SINGLE_CUE_EXEMPTION = "single-cue audience thanks, greeting or name call-out"
 
 
 def _stage_text(stage: str, profile: ClipProfile) -> str:
@@ -172,11 +189,14 @@ def test_every_stage_carries_the_material_interruption_threshold(
 ) -> None:
     text = _text(stage, profile)
     assert MI_THRESHOLD in text
+    for superseded in SUPERSEDED_EXEMPTIONS:
+        assert superseded not in text
     # The Stage 14 rules stay: padding is edge-only, interior unrelated content is
     # the interior flag, and the live-demo equipment remark is part of the demo.
     assert "describe EDGE material only" in text
     assert MIC_DEMO_RULE in text
     assert re.search(r"\d", MI_THRESHOLD) is None
+    assert re.search(r"[\u3000-\u9fff\uff00-\uffef]", MI_THRESHOLD) is None
     if stage in {"risk_discovery", "coverage_audit"}:
         own = _stage_text(stage, profile)
         assert MI_THRESHOLD in own
@@ -199,14 +219,20 @@ def test_boundary_review_threshold_matches_the_shared_definition(profile: ClipPr
     assert (
         "`material_interruption` requires unrelated semantic content that actually breaks the "
         "teaching or claim logic; silence, an ASR gap, a vocal demonstration, a self-correction, "
-        "a brief audience thanks, greeting, name call-out or acknowledgement that the speaker "
-        "passes over without leaving the topic, or the speaker's brief equipment or listening "
-        "explanation attached to an immediate live example is not by itself an interruption."
+        "writing the taught term on the board, a single-cue audience thanks, greeting or name "
+        "call-out that the speaker passes over without leaving the topic, or the speaker's brief "
+        "equipment or listening explanation attached to an immediate live example is not by "
+        "itself an interruption."
     ) in text
-    # Stage 14c cross-reference kept.
+    # Stage 14c cross-reference kept; Stage 17 extends it to calls to action,
+    # platform prompts, chat reading and presentation troubleshooting.
     assert (
         "Interior audibility checks, connection lag and playback trouble, as described below, are "
-        "such unrelated content and count as `material_interruption`." in text
+        "such unrelated content and count as `material_interruption`. So are interior calls to "
+        "action and platform prompts (fan badges, follows, likes, homepage plugs, gifts, requests "
+        "for viewers to join on microphone), chat reading and presentation troubleshooting "
+        "(waiting for a pen or colour, glare, asking whether viewers can see), even when brief; "
+        "the single-cue exemption above never covers them." in text
     )
 
 
@@ -221,22 +247,86 @@ def test_boundary_review_duration_test_obeys_the_interruption_threshold(
     text = _stage_text("boundary_review", profile)
     assert (
         "If removing interior material that meets the `material_interruption` threshold above "
-        "(audience chat, comment reading, calls to action or device talk that breaks the "
-        "teaching or claim logic), or edge setup kept only for duration, would leave a clip "
-        "that no longer satisfies the Profile duration minimum, flag "
+        "(audience chat, comment reading, calls to action, platform prompts, presentation "
+        "troubleshooting or device talk), or edge setup kept only for duration, would leave a "
+        "clip that no longer satisfies the Profile duration minimum, flag "
         "`padded_with_irrelevant_content`."
     ) in text
     assert (
         "flag `padded_with_irrelevant_content` alongside `material_interruption` (or "
         "`topic_switch_inside`), never instead of it."
     ) in text
+    # Stage 17: only the single-cue passed-over exemption is kept in the test.
     assert (
-        "A brief audience thanks, greeting, name call-out or acknowledgement that the speaker "
-        "passes over without leaving the topic is neither flag and is not removed in this test"
+        "Only a single-cue audience thanks, greeting or name call-out that the speaker passes "
+        "over without leaving the topic is neither flag and is not removed in this test; calls "
+        "to action, platform prompts, chat reading and presentation troubleshooting are removed "
+        "in it even when brief."
+    ) in text
+    # The Stage 15b closing-acknowledgement edge rule is unchanged.
+    assert (
+        "A closing acknowledgement or address to the audience is neither padding nor subtracted "
+        "from the duration in this test."
     ) in text
     # The superseded wording subtracted every greeting and then required both flags.
     assert "calls to action, greetings or device talk" not in text
     assert re.search(r"\d", text[text.index("The Profile minimum must be met") :][:900]) is None
+
+
+# Stage 17: the narrowed exemption reaches every review stage's own text.
+REVIEW_STAGE_NARROW_EXEMPTION = {
+    "global_review": (
+        "Inside the interval, calls to action and platform prompts (fan badges, follows, likes, "
+        "homepage plugs, gifts, requests for viewers to join on microphone), chat reading and "
+        "presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers "
+        "can see) are `material_interruption` too, even when brief, and are subtracted when "
+        "testing the Profile duration minimum; only a single-cue audience thanks, greeting or "
+        "name call-out that the speaker passes over without leaving the topic is exempt, and "
+        "writing the taught term on the board is part of the lesson."
+    ),
+    "global_audit": (
+        "inside the interval, calls to action and platform prompts, chat reading and "
+        "presentation troubleshooting are `material_interruption` too, even when brief, and only "
+        "a single-cue audience thanks, greeting or name call-out that the speaker passes over is "
+        "exempt; writing the taught term on the board is part of the lesson;"
+    ),
+}
+
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_every_stage_narrows_the_exemption_to_a_single_cue_courtesy(
+    stage: str, profile: ClipProfile
+) -> None:
+    own = _stage_text(stage, profile)
+    for superseded in SUPERSEDED_EXEMPTIONS:
+        assert superseded not in own
+    if stage in {"risk_discovery", "coverage_audit"}:
+        assert MI_THRESHOLD in own
+    if stage == "boundary_review":
+        assert own.count(SINGLE_CUE_EXEMPTION) == 2
+        assert "the single-cue exemption above never covers them" in own
+    if stage in REVIEW_STAGE_NARROW_EXEMPTION:
+        rule = REVIEW_STAGE_NARROW_EXEMPTION[stage]
+        assert rule in own
+        assert re.search(r"\d", rule) is None
+        assert re.search(r"[\u3000-\u9fff\uff00-\uffef]", rule) is None
+    if stage in {"boundary_review", "global_review", "global_audit"}:
+        # Every review stage keeps the live-demo equipment remark and the taught-term
+        # writing inside the lesson, and names presentation troubleshooting.
+        assert "writing the taught term on the board" in own.lower()
+        assert "presentation troubleshooting" in own
+        assert "even when brief" in own
+
+
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_global_review_states_the_v9_ending_edge_release(profile: ClipProfile) -> None:
+    own = _stage_text("global_review", profile)
+    assert (
+        "Boundary Review also resolves a Discovery `topic_not_closed` without trimming when its "
+        "own item clears that flag and attests a complete opening, ending, central objective and "
+        "shortest boundary." in own
+    )
 
 
 SELF_PROMOTION_OBJECTIVE = (

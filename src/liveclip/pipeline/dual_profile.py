@@ -85,7 +85,9 @@ MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS = frozenset(
 # Structural flags describe the media inside the interval (an interior
 # interruption or topic switch, an ending that does not close, ASR that blocks
 # the meaning).  Boundary Review can resolve them only by removing media, so a
-# Discovery-raised structural flag persists unless Boundary Review shrank an edge.
+# Discovery-raised structural flag persists unless Boundary Review shrank an edge
+# (routing v9 exception for the ending-edge flag: see
+# ``ENDING_EDGE_STRUCTURAL_FLAGS``).
 PERSISTED_STRUCTURAL_GATED_FLAGS: Final = frozenset(
     {
         DualQualityFlag.MATERIAL_INTERRUPTION,
@@ -94,6 +96,15 @@ PERSISTED_STRUCTURAL_GATED_FLAGS: Final = frozenset(
         DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
     }
 )
+# Routing policy v9: the structural flags that describe the ENDING edge rather
+# than interior media.  Boundary Review is the edge authority and can resolve
+# such a flag without shrinking the interval (by judging the ending closed), so
+# its persistence is released when Boundary Review cleared the flag itself and
+# attested every boundary fact (``boundary_attests_complete_unit``).  Interior
+# structural flags keep v5 persistence (released only by a shrink).
+ENDING_EDGE_STRUCTURAL_FLAGS: Final = frozenset({DualQualityFlag.TOPIC_NOT_CLOSED})
+if not ENDING_EDGE_STRUCTURAL_FLAGS <= PERSISTED_STRUCTURAL_GATED_FLAGS:
+    raise RuntimeError("ending-edge flags must be persisted structural flags")
 # Padding flags describe removable EDGE material only (unrelated interior
 # content is material_interruption or topic_switch_inside).  Boundary Review is
 # the edge authority and sees the surrounding context, so a Discovery padding
@@ -139,8 +150,16 @@ if not PERSISTED_STRUCTURAL_GATED_FLAGS.isdisjoint(PADDING_GATED_FLAGS) or (
 #       union (a risk-discovery record included) whose identical interval has a
 #       DIFFERENT risk-discovery record carrying an automatic-blocking risk tag
 #       is downgraded to ``manual_review``; a row is never its own source.
+#   v9: v8 plus ending-edge release: a Discovery ``topic_not_closed``
+#       (``ENDING_EDGE_STRUCTURAL_FLAGS``) on an unshrunk candidate is not
+#       persisted when Boundary Review itself cleared it and attested
+#       ``opening_complete``, ``ending_complete``, ``central_objective_complete``
+#       and ``shortest_complete_boundary``; interior structural flags
+#       (``material_interruption``, ``topic_switch_inside``,
+#       ``asr_uncertain_blocks_meaning``) still persist unless Boundary Review
+#       shrank an edge (``discovery_persisted_flags`` is the single rule).
 # Artifacts written before any policy omit the marker and load as ``None``.
-DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v8"
+DUAL_PROFILE_ROUTING_POLICY_VERSION: Final = "quality-gate-risk-routing-v9"
 AUTO_BLOCKING_RISK_TAGS = frozenset(
     {
         "medical_claim",
@@ -558,6 +577,7 @@ class DualProfileFinalResult(BaseModel):
             "quality-gate-risk-routing-v6",
             "quality-gate-risk-routing-v7",
             "quality-gate-risk-routing-v8",
+            "quality-gate-risk-routing-v9",
         ]
         | None
     ) = None
@@ -2041,30 +2061,56 @@ def discovery_persisted_flags(
     boundary: BoundaryReviewItem,
     merged_quality: Collection[DualQualityFlag] = (),
 ) -> tuple[DualQualityFlag, ...]:
-    """Discovery structural gated flags that survive Boundary Review (policy v5).
+    """Discovery structural gated flags that survive Boundary Review (policy v9).
 
     This is the single source of persisted flags: final assembly, the Global
     Audit payload (``persisted_discovery_gated_flags``), the persisted-flag
-    representative rule and the near-identical pair fallback keep order all
-    call it, so they cannot drift.
+    representative rule, the near-identical pair fallback keep order and the
+    run-manifest persisted-representative diagnostic all call it, so they
+    cannot drift.
 
     A structural gated flag (``PERSISTED_STRUCTURAL_GATED_FLAGS``) that Discovery
     raised on the candidate describes media inside its Discovery interval.
-    Boundary Review can only resolve it by removing media: when it shrank the
-    interval on at least one edge, the Boundary/Global flags are authoritative.
-    An unchanged or only extended interval still contains the flagged media, so
-    clearing the flag in a review stage does not clear it here.  Padding flags
-    (``PADDING_GATED_FLAGS``) describe edge material that Boundary Review, the
-    edge authority, judges with the surrounding context, so they are never
-    persisted from Discovery (they still gate when a review stage keeps them).
-    Advisory flags are never persisted.  Returns the persisted flags not already
-    in ``merged_quality``, in enum order.
+    Boundary Review can resolve an interior one only by removing media: when it
+    shrank the interval on at least one edge, the Boundary/Global flags are
+    authoritative.  An unchanged or only extended interval still contains the
+    flagged media, so clearing the flag in a review stage does not clear it
+    here.  An ending-edge flag (``ENDING_EDGE_STRUCTURAL_FLAGS``:
+    ``topic_not_closed``) describes the ending, which Boundary Review, the edge
+    authority, can also resolve by judging it closed: without a shrink it is
+    released only when Boundary Review cleared it itself and attested every
+    boundary fact (``boundary_attests_complete_unit``).  Padding flags
+    (``PADDING_GATED_FLAGS``) describe edge material that Boundary Review judges
+    with the surrounding context, so they are never persisted from Discovery
+    (they still gate when a review stage keeps them).  Advisory flags are never
+    persisted.  Returns the persisted flags not already in ``merged_quality``,
+    in enum order.
     """
 
     if boundary_shrank_interval(raw, boundary):
         return ()
     gated = set(raw.quality_flags) & PERSISTED_STRUCTURAL_GATED_FLAGS
+    if boundary_attests_complete_unit(boundary):
+        gated -= ENDING_EDGE_STRUCTURAL_FLAGS - set(boundary.quality_flags)
     return tuple(flag for flag in DualQualityFlag if flag in gated and flag not in merged_quality)
+
+
+def boundary_attests_complete_unit(boundary: BoundaryReviewItem) -> bool:
+    """True when Boundary Review attested all four boundary facts (routing v9).
+
+    ``opening_complete``, ``ending_complete``, ``central_objective_complete``
+    and ``shortest_complete_boundary`` must all be true.  It is one of the two
+    conditions under which ``discovery_persisted_flags`` releases an
+    ending-edge flag; the other is that Boundary Review's own item does not
+    carry that flag.
+    """
+
+    return (
+        boundary.opening_complete
+        and boundary.ending_complete
+        and boundary.central_objective_complete
+        and boundary.shortest_complete_boundary
+    )
 
 
 class SameIntervalTwinFlags(NamedTuple):
@@ -2341,6 +2387,7 @@ __all__ = [
     "DUAL_PROFILE_ALGORITHM_VERSION",
     "DUAL_PROFILE_ROUTING_POLICY_VERSION",
     "DUPLICATE_ALLOWED_STATUSES",
+    "ENDING_EDGE_STRUCTURAL_FLAGS",
     "FLAG_PERSISTENCE_REASON_PREFIX",
     "MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS",
     "PADDING_GATED_FLAGS",
@@ -2390,6 +2437,7 @@ __all__ = [
     "assemble_final_profile_result",
     "assert_no_cross_profile_dedup",
     "audit_candidate_pairs",
+    "boundary_attests_complete_unit",
     "boundary_shrank_interval",
     "candidate_spans_ms",
     "discovery_persisted_flags",

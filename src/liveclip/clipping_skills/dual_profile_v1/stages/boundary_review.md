@@ -61,12 +61,15 @@ continues with a retry, before/after evidence, causal distinction, or final conf
 correction. An imperfectly transcribed lyric, song name or isolated vocal term does not block meaning
 when the evaluated sample, diagnosis, correction and observed outcome remain understandable as a chain.
 `material_interruption` requires unrelated semantic content that actually breaks the teaching or claim
-logic; silence, an ASR gap, a vocal demonstration, a self-correction, a brief audience thanks, greeting,
-name call-out or acknowledgement that the speaker passes over without leaving the topic, or the
-speaker's brief equipment or listening explanation attached to an immediate live example is not by
-itself an interruption.
+logic; silence, an ASR gap, a vocal demonstration, a self-correction, writing the taught term on the
+board, a single-cue audience thanks, greeting or name call-out that the speaker passes over without
+leaving the topic, or the speaker's brief equipment or listening explanation attached to an immediate
+live example is not by itself an interruption.
 Interior audibility checks, connection lag and playback trouble, as described below, are such unrelated
-content and count as `material_interruption`.
+content and count as `material_interruption`. So are interior calls to action and platform prompts (fan
+badges, follows, likes, homepage plugs, gifts, requests for viewers to join on microphone), chat reading
+and presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see),
+even when brief; the single-cue exemption above never covers them.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
 asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
 lag, switching networks and trouble playing back a recording are `device_or_waiting_padding` at an edge
@@ -103,13 +106,14 @@ A review item that keeps `context_dependent_opening` must set `opening_complete`
 opening is complete, do not keep that flag.
 
 The Profile minimum must be met by on-topic content. If removing interior material that meets the
-`material_interruption` threshold above (audience chat, comment reading, calls to action or device talk
-that breaks the teaching or claim logic), or edge setup kept only for duration, would leave a clip that
-no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For such
-interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
-`topic_switch_inside`), never instead of it. A brief audience thanks, greeting, name call-out or
-acknowledgement that the speaker passes over without leaving the topic is neither flag and is not
-removed in this test, and a closing acknowledgement or address to the audience is neither padding nor
+`material_interruption` threshold above (audience chat, comment reading, calls to action, platform
+prompts, presentation troubleshooting or device talk), or edge setup kept only for duration, would leave
+a clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For
+such interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
+`topic_switch_inside`), never instead of it. Only a single-cue audience thanks, greeting or name
+call-out that the speaker passes over without leaving the topic is neither flag and is not removed in
+this test; calls to action, platform prompts, chat reading and presentation troubleshooting are removed
+in it even when brief. A closing acknowledgement or address to the audience is neither padding nor
 subtracted from the duration in this test.
 
 Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the

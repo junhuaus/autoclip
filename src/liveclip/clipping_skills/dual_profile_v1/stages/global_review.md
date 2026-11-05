@@ -62,7 +62,13 @@ instruction depends on a definition, sample, step or comparison half that the in
 Audibility checks (asking or answering whether someone can hear), connection lag and network or playback
 trouble are padding at an edge of the interval. Inside the interval, between on-topic cues, they are
 `material_interruption`; a padding flag may be added alongside that interior flag, never used instead
-of it. A speaker's brief explanation of their own equipment or of how listeners hear better, attached
+of it. Inside the interval, calls to action and platform prompts (fan badges, follows, likes, homepage
+plugs, gifts, requests for viewers to join on microphone), chat reading and presentation
+troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see) are
+`material_interruption` too, even when brief, and are subtracted when testing the Profile duration
+minimum; only a single-cue audience thanks, greeting or name call-out that the speaker passes over
+without leaving the topic is exempt, and writing the taught term on the board is part of the lesson.
+A speaker's brief explanation of their own equipment or of how listeners hear better, attached
 to an immediate live example, is part of the demonstration: neither padding nor an interruption.
 Trimming an edge never resolves a dependency the trimmed cue disclosed: a clip holding only the second
 half of a before/after comparison is context-dependent. The Profile minimum must be met by on-topic
@@ -80,7 +86,9 @@ merely because the flag exists.
 
 Python also persists a Discovery gated flag that Boundary Review did not resolve by trimming an edge,
 but only a structural one (`material_interruption`, `topic_switch_inside`, `topic_not_closed`,
-`asr_uncertain_blocks_meaning`). Discovery padding flags (`padded_with_irrelevant_content`,
+`asr_uncertain_blocks_meaning`). Boundary Review also resolves a Discovery `topic_not_closed` without
+trimming when its own item clears that flag and attests a complete opening, ending, central objective
+and shortest boundary. Discovery padding flags (`padded_with_irrelevant_content`,
 `sales_or_cta_padding`, `device_or_waiting_padding`) are not persisted: they follow Boundary Review, the
 edge authority. When Boundary Review cleared a Discovery padding flag, judge the candidate on its merits
 and the merged flags; do not block it merely because Discovery raised that padding flag.

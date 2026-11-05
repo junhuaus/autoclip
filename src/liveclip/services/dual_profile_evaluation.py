@@ -1225,8 +1225,10 @@ def _run_dual_profile_evaluation(
         audit_pairs = audit_candidate_pairs(global_review, transcript)
         # Stage 13b: the Discovery gated flags that WILL persist into final routing
         # (no Boundary Review shrink; routing v5: structural flags only, padding
-        # flags follow Boundary Review), computed by the same function the routing
-        # uses, so the audit's view and the final routing cannot drift.
+        # flags follow Boundary Review; routing v9: a Discovery `topic_not_closed`
+        # that Boundary Review cleared while attesting every boundary fact is
+        # released), computed by the same function the routing uses, so the
+        # audit's view and the final routing cannot drift.
         boundary_by_id = {value.candidate_id: value for value in boundary.reviews}
         persisted_by_id = {
             candidate.candidate_id: discovery_persisted_flags(

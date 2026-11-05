@@ -58,9 +58,12 @@ Pay special attention to:
 - audibility checks (asking or answering whether someone can hear), connection lag, or network or
   playback trouble left in a kept interval: at an edge they are padding; inside the interval, between
   on-topic cues, they are `material_interruption`, and a padding flag may be added alongside that
-  interior flag, never used instead of it; a speaker's brief explanation of their own equipment or of
-  how listeners hear better, attached to an immediate live example, is part of the demonstration,
-  neither padding nor an interruption; trimming an edge never resolves a dependency the trimmed cue
+  interior flag, never used instead of it; inside the interval, calls to action and platform prompts,
+  chat reading and presentation troubleshooting are `material_interruption` too, even when brief, and
+  only a single-cue audience thanks, greeting or name call-out that the speaker passes over is exempt;
+  writing the taught term on the board is part of the lesson; a speaker's brief explanation of their
+  own equipment or of how listeners hear better, attached to an immediate live example, is part of the
+  demonstration, neither padding nor an interruption; trimming an edge never resolves a dependency the trimmed cue
   disclosed; a clip holding only the second half of a before/after comparison is context-dependent;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
 - kept candidates whose central objective is the speaker's own credentials, qualifications, pricing,

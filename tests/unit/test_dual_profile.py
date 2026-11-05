@@ -20,6 +20,7 @@ from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
     DUAL_PROFILE_ROUTING_POLICY_VERSION,
     DUPLICATE_ALLOWED_STATUSES,
+    ENDING_EDGE_STRUCTURAL_FLAGS,
     FLAG_PERSISTENCE_REASON_PREFIX,
     MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS,
     PADDING_GATED_FLAGS,
@@ -59,6 +60,7 @@ from liveclip.pipeline.dual_profile import (
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
     audit_candidate_pairs,
+    boundary_attests_complete_unit,
     boundary_shrank_interval,
     discovery_persisted_flags,
     duplicate_status_violation,
@@ -1014,6 +1016,7 @@ def _assemble_pool(
         boundary_flags = cast(tuple[DualQualityFlag, ...], spec.get("boundary_flags", ()))
         review_flags = cast(tuple[DualQualityFlag, ...], spec.get("review_flags", ()))
         discovery_flags = cast(tuple[DualQualityFlag, ...], spec.get("discovery_flags", ()))
+        boundary_facts = cast(dict[str, bool], spec.get("boundary_facts", {}))
         raw_start = int(cast(int, spec.get("raw_start_cue_id", start_cue_id)))
         raw_end = int(cast(int, spec.get("raw_end_cue_id", end_cue_id)))
         start_ms = TRANSCRIPT.segments[raw_start - 1].start_ms
@@ -1038,10 +1041,10 @@ def _assemble_pool(
                 profile=profile,
                 start_cue_id=start_cue_id,
                 end_cue_id=end_cue_id,
-                opening_complete=True,
-                ending_complete=True,
-                central_objective_complete=True,
-                shortest_complete_boundary=True,
+                opening_complete=boundary_facts.get("opening_complete", True),
+                ending_complete=boundary_facts.get("ending_complete", True),
+                central_objective_complete=boundary_facts.get("central_objective_complete", True),
+                shortest_complete_boundary=boundary_facts.get("shortest_complete_boundary", True),
                 quality_flags=boundary_flags,
                 risk_tags=risk_tags,
                 evidence_cue_ids=(start_cue_id, end_cue_id),
@@ -2311,7 +2314,7 @@ def test_final_evidence_cues_are_limited_to_the_final_interval() -> None:
 
 
 def test_routing_policy_marker_accepts_every_published_version() -> None:
-    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v8"
+    assert DUAL_PROFILE_ROUTING_POLICY_VERSION == "quality-gate-risk-routing-v9"
     result = _assemble(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         candidate_id="marker_v3",
@@ -2338,6 +2341,7 @@ def test_routing_policy_marker_accepts_every_published_version() -> None:
         "quality-gate-risk-routing-v6",
         "quality-gate-risk-routing-v7",
         "quality-gate-risk-routing-v8",
+        "quality-gate-risk-routing-v9",
     ):
         loaded = DualProfileFinalResult.model_validate_json(
             json.dumps({**payload, "routing_policy_version": marker})
@@ -2638,14 +2642,14 @@ def test_persisted_flags_helper_reports_only_new_gated_flags() -> None:
         }
     )
 
-    def boundary(start: int, end: int) -> BoundaryReviewItem:
+    def boundary(start: int, end: int, *, ending_complete: bool = True) -> BoundaryReviewItem:
         return BoundaryReviewItem(
             candidate_id="c",
             profile=ClipProfile.SHORT_HIGHLIGHT,
             start_cue_id=start,
             end_cue_id=end,
             opening_complete=True,
-            ending_complete=True,
+            ending_complete=ending_complete,
             central_objective_complete=True,
             shortest_complete_boundary=True,
             evidence_cue_ids=(start,),
@@ -2657,14 +2661,19 @@ def test_persisted_flags_helper_reports_only_new_gated_flags() -> None:
     assert boundary_shrank_interval(raw, boundary(9, 19))
     # Routing v5: only structural gated flags persist, in enum order; the
     # padding flag (device_or_waiting_padding) follows Boundary Review.
+    # Routing v9: the attested, cleared ending-edge flag is released.
     assert discovery_persisted_flags(raw, boundary(10, 20)) == (
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+    )
+    assert discovery_persisted_flags(raw, boundary(10, 20, ending_complete=False)) == (
         DualQualityFlag.TOPIC_NOT_CLOSED,
         DualQualityFlag.MATERIAL_INTERRUPTION,
     )
     assert discovery_persisted_flags(
-        raw, boundary(10, 20), (DualQualityFlag.MATERIAL_INTERRUPTION,)
+        raw, boundary(10, 20, ending_complete=False), (DualQualityFlag.MATERIAL_INTERRUPTION,)
     ) == (DualQualityFlag.TOPIC_NOT_CLOSED,)
     assert discovery_persisted_flags(raw, boundary(11, 20)) == ()
+    assert discovery_persisted_flags(raw, boundary(11, 20, ending_complete=False)) == ()
 
 
 def test_gated_flags_split_into_structural_and_padding_classes() -> None:
@@ -2727,12 +2736,17 @@ def test_padding_flag_kept_by_boundary_review_still_gates(flag: DualQualityFlag)
     assert blocked.review_reason.startswith("Deterministic quality gate: ")
 
 
-@pytest.mark.parametrize("flag", sorted(PERSISTED_STRUCTURAL_GATED_FLAGS), ids=str)
+INTERIOR_STRUCTURAL_FLAGS = PERSISTED_STRUCTURAL_GATED_FLAGS - ENDING_EDGE_STRUCTURAL_FLAGS
+
+
+@pytest.mark.parametrize("flag", sorted(INTERIOR_STRUCTURAL_FLAGS), ids=str)
 def test_n07_discovery_structural_flag_cleared_without_trim_is_persisted(
     flag: DualQualityFlag,
 ) -> None:
-    # N07 shape: a Discovery pass raised a structural flag (topic_switch_inside
-    # in the real run); Boundary Review cleared it without trimming an edge.
+    # N07 shape: a Discovery pass raised an interior structural flag
+    # (topic_switch_inside in the real run); Boundary Review cleared it without
+    # trimming an edge and attested every boundary fact (routing v9 releases
+    # only the ending-edge flag in that case).
     result = _assemble_pool(
         profile=ClipProfile.SHORT_HIGHLIGHT,
         specs=(
@@ -2780,6 +2794,212 @@ def test_mixed_discovery_flags_persist_only_the_structural_ones() -> None:
     (blocked,) = result.blocked
     assert blocked.quality_flags == (DualQualityFlag.MATERIAL_INTERRUPTION,)
     assert blocked.review_reason.startswith(FLAG_PERSISTENCE_REASON_PREFIX)
+
+
+# Stage 17 (routing policy v9): the ending-edge flag `topic_not_closed` is
+# released when Boundary Review, without shrinking, cleared it itself and
+# attested all four boundary facts.  Interior structural flags are unchanged.
+
+_TNC = DualQualityFlag.TOPIC_NOT_CLOSED
+BOUNDARY_FACTS = (
+    "opening_complete",
+    "ending_complete",
+    "central_objective_complete",
+    "shortest_complete_boundary",
+)
+
+
+def test_ending_edge_flags_are_exactly_topic_not_closed() -> None:
+    assert frozenset({_TNC}) == ENDING_EDGE_STRUCTURAL_FLAGS
+    assert ENDING_EDGE_STRUCTURAL_FLAGS <= PERSISTED_STRUCTURAL_GATED_FLAGS
+    assert {
+        DualQualityFlag.MATERIAL_INTERRUPTION,
+        DualQualityFlag.TOPIC_SWITCH_INSIDE,
+        DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+    } == INTERIOR_STRUCTURAL_FLAGS
+
+
+def _tnc_boundary(**facts: bool) -> BoundaryReviewItem:
+    return BoundaryReviewItem(
+        candidate_id="c",
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        start_cue_id=10,
+        end_cue_id=20,
+        opening_complete=facts.get("opening_complete", True),
+        ending_complete=facts.get("ending_complete", True),
+        central_objective_complete=facts.get("central_objective_complete", True),
+        shortest_complete_boundary=facts.get("shortest_complete_boundary", True),
+        evidence_cue_ids=(10,),
+        review_reason="r",
+    )
+
+
+@pytest.mark.parametrize("fact", BOUNDARY_FACTS)
+def test_boundary_attestation_requires_all_four_facts(fact: str) -> None:
+    assert boundary_attests_complete_unit(_tnc_boundary())
+    assert not boundary_attests_complete_unit(_tnc_boundary(**{fact: False}))
+    raw = _raw(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        window_id="w",
+        candidate_id="c",
+        start_cue_id=10,
+        end_cue_id=20,
+    ).model_copy(update={"quality_flags": (_TNC,)})
+    assert discovery_persisted_flags(raw, _tnc_boundary()) == ()
+    assert discovery_persisted_flags(raw, _tnc_boundary(**{fact: False})) == (_TNC,)
+
+
+def test_attested_topic_not_closed_cleared_by_boundary_review_is_released() -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec("closed", raw=(941, 958), final=(941, 958), discovery_flags=(_TNC,)),
+        ),
+    )
+    (kept,) = result.manual_review
+    assert result.blocked == ()
+    assert kept.quality_flags == ()
+    assert kept.review_reason == "全局审查证据。"
+
+
+def test_attested_topic_not_closed_is_released_on_an_extended_interval() -> None:
+    # Boundary Review extended the end (no shrink) and judged the ending closed.
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "extended", raw=(941, 957), final=(941, 958), discovery_flags=(_TNC,)
+            ),
+        ),
+    )
+    (kept,) = result.manual_review
+    assert kept.quality_flags == ()
+
+
+@pytest.mark.parametrize("fact", BOUNDARY_FACTS)
+def test_topic_not_closed_persists_when_any_boundary_fact_is_false(fact: str) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                **_persistence_spec(
+                    "unattested", raw=(941, 958), final=(941, 958), discovery_flags=(_TNC,)
+                ),
+                "boundary_facts": {fact: False},
+            },
+        ),
+    )
+    assert result.manual_review == ()
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (_TNC,)
+    assert blocked.review_reason == f"{FLAG_PERSISTENCE_REASON_PREFIX}全局审查证据。"
+
+
+def test_topic_not_closed_kept_by_boundary_review_still_gates() -> None:
+    raw = _raw(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        window_id="w",
+        candidate_id="c",
+        start_cue_id=10,
+        end_cue_id=20,
+    ).model_copy(update={"quality_flags": (_TNC,)})
+    keeps = _tnc_boundary().model_copy(update={"quality_flags": (_TNC,)})
+    # The audit payload view (no merged flags): Boundary Review did not clear it.
+    assert discovery_persisted_flags(raw, keeps) == (_TNC,)
+    assert discovery_persisted_flags(raw, keeps, (_TNC,)) == ()
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            {
+                **_persistence_spec(
+                    "kept", raw=(941, 958), final=(941, 958), discovery_flags=(_TNC,)
+                ),
+                "boundary_flags": (_TNC,),
+            },
+        ),
+    )
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (_TNC,)
+    assert blocked.review_reason.startswith("Deterministic quality gate: ")
+
+
+@pytest.mark.parametrize("flag", sorted(INTERIOR_STRUCTURAL_FLAGS), ids=str)
+def test_attestation_releases_only_the_ending_edge_flag(flag: DualQualityFlag) -> None:
+    result = _assemble_pool(
+        profile=ClipProfile.SHORT_HIGHLIGHT,
+        specs=(
+            _persistence_spec(
+                "mixed_structural",
+                raw=(941, 958),
+                final=(941, 958),
+                discovery_flags=(_TNC, flag),
+            ),
+        ),
+    )
+    (blocked,) = result.blocked
+    assert blocked.quality_flags == (flag,)
+    assert blocked.review_reason.startswith(FLAG_PERSISTENCE_REASON_PREFIX)
+
+
+def _l02_chain(base_facts: dict[str, bool]) -> FinalProfileResult:
+    """cold-32b L02 shape: a base candidate whose Discovery raised
+    `topic_not_closed`; Boundary Review kept the interval unchanged and cleared
+    the flag; the audit rejected the base as a duplicate of a clean
+    risk-discovery twin that Boundary Review extended to the identical interval."""
+
+    return _assemble_pool(
+        profile=ClipProfile.MINI_LESSON,
+        specs=(
+            {
+                "candidate_id": "base_steps",
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.REJECTED,
+                "score": 88,
+                "duplicate_of": "risk_steps",
+                "discovery_flags": (_TNC,),
+                "boundary_facts": base_facts,
+                "reason": "与风险候选重复。",
+            },
+            {
+                "candidate_id": "risk_steps",
+                "raw_start_cue_id": 940,
+                "raw_end_cue_id": 990,
+                "start_cue_id": 940,
+                "end_cue_id": 991,
+                "status": CandidateDisposition.MANUAL_REVIEW,
+                "score": 86,
+                "risk_tags": (DualRiskTag.HEALTH_ADVICE,),
+            },
+        ),
+        risk_record_ids=frozenset({"risk_steps"}),
+    )
+
+
+def test_l02_chain_released_base_flag_does_not_block_the_risk_twin() -> None:
+    result = _l02_chain({})
+    values = _by_id(result)
+    # The base is no longer a persisted-flag row, so it is not a flag source.
+    assert values["base_steps"].review_status == CandidateDisposition.REJECTED
+    assert values["base_steps"].quality_flags == ()
+    assert [value.candidate_id for value in result.manual_review] == ["risk_steps"]
+    assert values["risk_steps"].quality_flags == ()
+    assert values["risk_steps"].review_reason == "全局审查证据。"
+    twins = same_interval_twin_flags(values.values(), {"risk_steps"})
+    assert not any(twins.inherited.values())
+
+
+@pytest.mark.parametrize("fact", BOUNDARY_FACTS)
+def test_l02_chain_unattested_base_flag_still_blocks_the_risk_twin(fact: str) -> None:
+    # Fail-closed preserved: without full attestation the base keeps the
+    # persisted flag and the v6 twin union still propagates it.
+    result = _l02_chain({fact: False})
+    values = _by_id(result)
+    assert values["base_steps"].quality_flags == (_TNC,)
+    assert result.manual_review == ()
+    assert values["risk_steps"].review_status == CandidateDisposition.BLOCKED
+    assert _TNC in values["risk_steps"].quality_flags
+    assert values["risk_steps"].review_reason.startswith("Deterministic quality gate: ")
 
 
 # Stage 13 Fix 2: overlap adjudication in the Global Audit.

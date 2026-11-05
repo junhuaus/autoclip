@@ -25,11 +25,15 @@ inside the interval, between on-topic cues, is `material_interruption`, or `topi
 another topic starts inside the interval; when the Profile minimum is met only by off-topic material,
 `padded_with_irrelevant_content` may be added to that interior flag, never used instead of it.
 Interior content counts as `material_interruption` only when it actually breaks the teaching or claim
-logic; a brief audience thanks, greeting, name call-out or acknowledgement that the speaker passes over
-without leaving the topic is neither an interruption nor padding. Brief microphone, distance, placement
-or equipment words that directly enable an immediate live vocal demonstration, including why moving
-closer helps listeners hear, are part of that demonstration: they are neither padding nor an
-interruption.
+logic. The only exemption is a single-cue audience thanks, greeting or name call-out that the speaker
+passes over without leaving the topic: it is neither an interruption nor padding. Inside the interval,
+calls to action and platform prompts (fan badges, follows, likes, homepage plugs, gifts, requests for
+viewers to join on microphone), chat reading and presentation troubleshooting (waiting for a pen or
+colour, glare, asking whether viewers can see) are `material_interruption` even when brief, like
+audibility checks, and they are subtracted when testing the Profile duration minimum. Writing the taught
+term on the board is part of the lesson. Brief microphone, distance, placement or equipment words that
+directly enable an immediate live vocal demonstration, including why moving closer helps listeners
+hear, are part of that demonstration: they are neither padding nor an interruption.
 
 Use only these risk tags when evidenced: `medical_claim`, `medical_diagnosis_high`, `health_advice`,
 `absolute_claim`, `sensitivity_review`, `music_rights_review`, `participant_audio`, `minor_privacy`,

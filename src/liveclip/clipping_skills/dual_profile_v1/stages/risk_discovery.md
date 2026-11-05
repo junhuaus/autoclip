@@ -13,9 +13,14 @@ unavoidable greetings, sales, device handling or topic interruptions occur insid
 preserve the candidate and flag each interior interruption that breaks the claim logic as
 `material_interruption` (or `topic_switch_inside` when another topic starts inside the chain) so Global
 Review can route it to `blocked`. Interior content counts as `material_interruption` only when it
-actually breaks the teaching or claim logic; a brief audience thanks, greeting, name call-out or
-acknowledgement that the speaker passes over without leaving the topic is neither an interruption nor
-padding. Padding flags describe edge material only: they may accompany an interior flag but never
+actually breaks the teaching or claim logic. The only exemption is a single-cue audience thanks,
+greeting or name call-out that the speaker passes over without leaving the topic: it is neither an
+interruption nor padding. Inside the interval, calls to action and platform prompts (fan badges,
+follows, likes, homepage plugs, gifts, requests for viewers to join on microphone), chat reading and
+presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see) are
+`material_interruption` even when brief, like audibility checks, and they are subtracted when testing
+the Profile duration minimum. Writing the taught term on the board is part of the lesson. Padding
+flags describe edge material only: they may accompany an interior flag but never
 replace it. Risk must not disappear merely because the interval cannot auto-publish.
 
 The earliest rhetorical question can define the parent claim even when a brief greeting or audience
