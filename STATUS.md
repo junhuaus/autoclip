@@ -55,9 +55,13 @@
   `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
   Settings fingerprint sha256
   `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run fingerprint
-  sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`; the 17 prompt
-  identities equal Stage 17b. No `LIVECLIP_CLAUDE_*` override in `.env`
-  (absent) or `.env.local` (key names only recorded).
+  sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`. The run manifest, and therefore the
+  run fingerprint, carries the 14 executed-stage prompt hashes
+  (short_highlight `precision_audit`, `precision_confirmation` and
+  `risk_discovery` are not executed); all 14 equal Stage 17b. Separately,
+  all 17 prompt identities recomputed from the tree equal the Stage 17b
+  table (`evidence/step0-tree-prompt-hashes.txt`). No `LIVECLIP_CLAUDE_*`
+  override in `.env` (absent) or `.env.local` (key names only recorded).
 - Miss observations (no patch, per the acceptance policy; recorded as
   known residual fragility for future work, not as a defect requiring
   action now): (1) **S03**: Discovery never proposed the full 470–506 cue
@@ -75,9 +79,23 @@
   dual-profile benchmark v1 acceptance policy (2 consecutive fresh-cold
   strict PASSes on the frozen tree `50232af`) is satisfied; **strict
   benchmark acceptance is complete.**
+- Evaluator imports (informational): `scripts/evaluate_benchmark.py` and
+  the benchmark JSON/MD are unchanged since `2c4de9a` and byte-identical at
+  `194ba65..HEAD`; the evaluator imports schema classes from
+  `src/liveclip/pipeline/dual_profile.py`, which changed between `194ba65`
+  and `50232af` only additively (routing literals v5–v9, diagnostic fields,
+  stricter manifest cross-checks; no threshold changed), and the reviewer's
+  re-evaluation of cold-33 and cold-34 is byte-identical to the stored
+  results.
 - Still pending, each a separate evidence category that strict PASS does
   not claim: (1) human editorial/audio review of the renders of
-  cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34; (2) the L07 listening check
+  cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34; it also covers the
+  evaluator's `human_required` check
+  `title_hook_summary_must_be_source_faithful`, which lists 68 candidate
+  IDs for cold-33 and 64 for cold-34 (exactly the `manual_review` rows of
+  both profiles). Both runs auto-select 0 candidates in both profiles, so
+  every short and mini match is `manual_review` (R01 is `blocked`);
+  (2) the L07 listening check
   of `input/8-30.ts` 1:40:07–1:40:35. Nothing is pushed or merged to
   `main`; that requires explicit user consent.
 - Recovery: docs-only; reverting this commit removes only this record (the

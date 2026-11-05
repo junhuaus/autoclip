@@ -29,6 +29,12 @@
   acceptance activity, pending); the L07 listening check of
   `input/8-30.ts` 1:40:07–1:40:35 (pending); push/merge to `main` only with
   explicit user consent.
+- [x] 2026-11-05 Historical-checkbox note (reviewer P2, docs only; earlier
+  lines left unchanged because this plan is append-only): the open
+  "Next: cold-34" item in the cold-33 section and the open "Next: cold-33"
+  item in the freeze-accepted section below are historical and done
+  (cold-33 strict PASS recorded in `a8ab7cd`; cold-34 strict PASS recorded
+  in `55558e8`).
 
 ## cold-33 strict PASS 92.5 on frozen 50232af (consecutive 1/2) (2026-11-05)
 

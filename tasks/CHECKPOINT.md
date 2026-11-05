@@ -1150,9 +1150,13 @@ Fingerprint identical to cold-33: CLI 2.1.308 sha256
 `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
 `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`; Settings
 fingerprint sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run
-fingerprint sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`; the 17
-prompt identities equal Stage 17b; no `LIVECLIP_CLAUDE_*` override in
-`.env` or `.env.local`.
+fingerprint sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`. The run manifest, and therefore
+the run fingerprint, carries the 14 executed-stage prompt hashes
+(short_highlight `precision_audit`, `precision_confirmation` and
+`risk_discovery` are not executed); all 14 equal Stage 17b. Separately, all
+17 prompt identities recomputed from the tree equal the Stage 17b table
+(`evidence/step0-tree-prompt-hashes.txt`). No `LIVECLIP_CLAUDE_*` override
+in `.env` or `.env.local`.
 
 Misses (observations only; no patch per the acceptance policy; known
 residual fragility for future work, not a defect requiring action now):
@@ -1172,7 +1176,12 @@ benchmark v1 acceptance policy (2 consecutive fresh-cold strict PASSes on
 the frozen tree) is satisfied, so strict benchmark acceptance is complete.
 Still pending as separate acceptance activities: human editorial/audio
 review of the renders of cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34, and
-the L07 listening check of `input/8-30.ts` 1:40:07–1:40:35.
+the L07 listening check of `input/8-30.ts` 1:40:07–1:40:35. The pending
+human review also covers the evaluator's `human_required` check
+`title_hook_summary_must_be_source_faithful`, which lists 68 candidate IDs
+for cold-33 and 64 for cold-34 (exactly the `manual_review` rows of both
+profiles); both runs auto-select 0 candidates in both profiles, so every
+short and mini match is `manual_review` (R01 is `blocked`).
 
 Next: that human review and listening check (user). Not pushed or merged
 to `main`. Push and merge still need explicit user consent.
