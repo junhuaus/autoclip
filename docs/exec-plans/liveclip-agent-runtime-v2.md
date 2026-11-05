@@ -1,5 +1,78 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 17b Stage 17 reviewer nits; freeze definitions (2026-11-05)
+
+- [x] 2026-11-05 Stage 17 reviewer **ACCEPT with nits** on the Stage 16b +
+  Stage 17 candidate at `66b7555` (code `b5d8def`, `2932b7c`): no P0/P1; 13
+  of 13 recorded reviewer mutations caught (Stage 16b A1–A7, including the
+  former R7 survivor; Stage 17 B1–B5 plus a B4 variant); the reviewer's
+  six-run replay equals the Stage 17 table. Nits: P2 "gifts" listed as a
+  platform prompt (conflicts with the single-cue thanks exemption); P3
+  `risk_discovery` "a brief greeting or audience acknowledgement"; P3 Boundary
+  Review's duration test silent on board-writing and the live-demo remark;
+  P3 imprecise freeze and fresh-cold definitions.
+- [x] 2026-11-05 Stage 17b implemented in `50232af0cb0b0194fb663528b569998a8a2fd79b`, **pending
+  independent tester and reviewer** (details in `STATUS.md`):
+  - Prompts (generic): platform-prompt list in `main.md`, `coverage_audit`,
+    `risk_discovery`, `boundary_review`, `global_review` reads "requests for
+    fan badges, follows, likes or gifts, homepage plugs, requests for viewers
+    to join on microphone"; every exemption statement (those five plus
+    `global_audit`) includes "a single-cue thanks for a gift or follow";
+    Boundary Review's cross-reference says the exemption covers that thanks
+    but never these requests, chat reading or troubleshooting;
+    `risk_discovery`'s rhetorical-question paragraph uses the single-cue
+    wording; Boundary Review's duration test keeps board-writing and the
+    live-demo equipment remark inside the lesson (not removed).
+  - Hash table (16 of 17 change; variant link unchanged):
+
+  | prompt identity | before (66b7555, Stage 17) | after (Stage 17b) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | yes |
+  | `short_highlight.coverage_audit` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | yes |
+  | `short_highlight.precision_audit` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | yes |
+  | `short_highlight.precision_confirmation` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | yes |
+  | `short_highlight.risk_discovery` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | yes |
+  | `short_highlight.boundary_review` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | yes |
+  | `short_highlight.global_review` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | yes |
+  | `short_highlight.global_audit` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | yes |
+  | `mini_lesson.discovery` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | yes |
+  | `mini_lesson.coverage_audit` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | yes |
+  | `mini_lesson.precision_audit` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | yes |
+  | `mini_lesson.precision_confirmation` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | yes |
+  | `mini_lesson.risk_discovery` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | yes |
+  | `mini_lesson.boundary_review` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | yes |
+  | `mini_lesson.global_review` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | yes |
+  | `mini_lesson.global_audit` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  - Tests: flag contract 86 → 102 (new all-stage × Profile gift test,
+    superseded patterns, re-pinned Stage 17 wording); hash pins re-pinned
+    with justification. `make lint` rc 0; targeted pytest 677 passed; full
+    backend 3224 passed (3208 at Stage 17 plus 16 Stage 17b items). Six-run replay against the Stage 17b tree identical
+    to Stage 17 (routing unchanged). No routing, algorithm-version,
+    cache-key, schema or Python-behaviour change. Deterministic validation
+    only; no real model call.
+- [x] 2026-11-05 **Acceptance policy definitions** (refine the Stage 17
+  policy; the user decision is unchanged): FROZEN means the code/prompt tree:
+  `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
+  rc 0 with no untracked file under those paths, the recorded 17 prompt
+  hashes, routing `quality-gate-risk-routing-v9` and algorithm
+  `dual-profile-direct-v1`; docs-only commits recording run results do not
+  reset the count. Fresh cold means a new empty cache root plus a provenance
+  check (every cache file new; 0 content-identical files vs every earlier
+  root; a continuation segment copies only from the immediately previous
+  segment of the same run). A run aborted by a provider or environment
+  failure without a strict evaluation counts neither way (re-run as a new
+  run or continue as cold-Nb); a strict FAIL resets the count. Human
+  editorial/audio review stays a separate evidence category, not part of
+  strict PASS. The freeze SHA is `50232af0cb0b0194fb663528b569998a8a2fd79b` once its tester and reviewer
+  accept.
+- [ ] Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
+  consecutive fresh cold strict PASS runs; human review of the cold-27
+  through cold-32b renders.
+
 ## Stage 17 routing v9 ending-edge release and narrowed interruption exemption (2026-11-05)
 
 - [x] 2026-11-05 cold-32b analysed by an independent read-only reviewer
@@ -80,7 +153,8 @@
   run is analysed before any change (no immediate patching), and any change
   starts a new frozen SHA and count; a usage-limit continuation segment
   (cold-Nb) counts as one run.
-- [ ] Next: independent tester and reviewer on the Stage 16b (`b5d8def`) and
+- [x] (Historical next step; the reviewer accepted with nits, which became
+  Stage 17b, above.) Next: independent tester and reviewer on the Stage 16b (`b5d8def`) and
   Stage 17 SHAs; then freeze and two fresh cold runs; human review of the
   cold-27 through cold-32b renders.
 

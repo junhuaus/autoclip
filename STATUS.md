@@ -18,9 +18,113 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 17b: Stage 17 reviewer nits (gift wording, freeze definitions) (2026-11-05) — IMPLEMENTED, PENDING VERIFICATION (freeze candidate)
 
-- **Status: implemented, pending independent tester and reviewer** (to be
+- **Status: implemented, pending independent tester and reviewer.** Prompts
+  and tests in `50232af0cb0b0194fb663528b569998a8a2fd79b` on `claude/liveclip-stage8-routing`; this docs
+  commit follows. Not pushed or merged to `main`. Routing policy
+  `quality-gate-risk-routing-v9`, algorithm version `dual-profile-direct-v1`,
+  cache-key schema, persisted schemas, Python behaviour, evaluator,
+  thresholds, benchmark JSON/MD and `tools/loop_engineering` are unchanged.
+  Once the tester and reviewer accept, `50232af0cb0b0194fb663528b569998a8a2fd79b` is the **freeze SHA**
+  (definitions in "Acceptance policy from Stage 17" below).
+- **Stage 17 reviewer verdict: ACCEPT with nits** on the Stage 16b + Stage 17
+  candidate at `66b7555` (code `b5d8def`, `2932b7c`): no P0/P1. Reviewer
+  mutations (scratch copies only; results in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-review/mut_results.txt`):
+  every recorded mutation caught, 13 of 13: Stage 16b A1 regeneration-phase
+  mislabel (the R7 survivor of the Stage 16 review, now caught), A2 timing
+  pass-through dropped, A3 backstop stores the message, A4 Darwin wall
+  clock, A5 unbounded evidence path, A6 cancelled message dropped, A7
+  aggregate drops timing; Stage 17 B1 one attested fact dropped, B2 release
+  only on an unchanged interval, B3 release ignoring the raw flag on the
+  shrink path, B4 audit payload on raw flags and B4' audit payload on the v8
+  rule, B5 rejected duplicates not twin sources (P-b'). The reviewer's
+  independent six-run replay (`stage17-review/replay_v9.json`) equals the
+  Stage 17 replay table. Nits: P2 "gifts" listed as a platform prompt that
+  is `material_interruption` even when brief, conflicting with the
+  single-cue thanks exemption for a one-cue thanks for a gift; P3
+  `risk_discovery`'s "a brief greeting or audience acknowledgement"; P3
+  Boundary Review's duration test did not say that board-writing and the
+  live-demo microphone remark are part of the lesson; P3 the freeze and
+  "fresh cold" definitions were imprecise. All fixed here.
+- (1) **Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript).** In all five places that list platform prompts (`main.md`,
+  `coverage_audit.md`, `risk_discovery.md`, `boundary_review.md`,
+  `global_review.md`) the list now reads "(requests for fan badges, follows,
+  likes or gifts, homepage plugs, requests for viewers to join on
+  microphone)": a gift or follow is a prompt only when the speaker asks for
+  it. Every exemption statement adds "including a single-cue thanks for a
+  gift or follow" (`main.md`, mirrored verbatim in `coverage_audit.md` and
+  `risk_discovery.md`; `boundary_review.md` definition and duration test;
+  `global_review.md`; `global_audit.md`). Boundary Review's cross-reference
+  now reads "the single-cue exemption above covers a single-cue thanks for a
+  gift or follow but never these requests, chat reading or
+  troubleshooting" (was "never covers them"). `risk_discovery.md`'s
+  rhetorical-question paragraph uses the single-cue wording ("a single-cue
+  audience thanks, greeting or name call-out that the speaker passes over";
+  "the intervening cue"). Boundary Review's duration test adds "Writing the
+  taught term on the board and the speaker's brief equipment or listening
+  explanation attached to an immediate live example are part of the lesson
+  and are not removed in this test." Lines re-wrapped at the usual width.
+- (2) Hash table (all 17 identities; `prompt_hashes.py` on `git archive
+  66b7555` and on the Stage 17b tree; the "before" column equals the Stage
+  17 table; script and JSON in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17b/`):
+
+  | prompt identity | before (66b7555, Stage 17) | after (Stage 17b) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | yes |
+  | `short_highlight.coverage_audit` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | yes |
+  | `short_highlight.precision_audit` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | yes |
+  | `short_highlight.precision_confirmation` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | yes |
+  | `short_highlight.risk_discovery` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | yes |
+  | `short_highlight.boundary_review` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | yes |
+  | `short_highlight.global_review` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | yes |
+  | `short_highlight.global_audit` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | yes |
+  | `mini_lesson.discovery` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | yes |
+  | `mini_lesson.coverage_audit` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | yes |
+  | `mini_lesson.precision_audit` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | yes |
+  | `mini_lesson.precision_confirmation` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | yes |
+  | `mini_lesson.risk_discovery` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | yes |
+  | `mini_lesson.boundary_review` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | yes |
+  | `mini_lesson.global_review` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | yes |
+  | `mini_lesson.global_audit` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change (`main.md` is loaded by every stage except the
+  variant link); the variant link is unchanged. Pins re-pinned with a Stage
+  17b justification in `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`). The next
+  real run has a cold cache for every stage except the variant link.
+- (3) Tests (`test_dual_profile_flag_contract.py` 86 → 102, +16): the Stage
+  17 pins (`MI_THRESHOLD`, Boundary Review definition, cross-reference and
+  duration test, Global Review/Audit restatements) carry the new wording;
+  new `test_gifts_are_prompts_only_when_requested_and_a_gift_thanks_stays_exempt`
+  across all 8 stages × 2 Profiles: the superseded Stage 17 patterns
+  (`STAGE17B_SUPERSEDED`: the bare "gifts" list, "never covers them", "a
+  brief greeting or audience acknowledgement", "the intervening greeting"
+  and the exemption sentences without the gift thanks) are absent; the
+  requests list and the gift-thanks exemption are present; every "gift(s)"
+  in the prompt lies inside one of those two phrases; per-stage counts of
+  both phrases in the stage's own text; no digits or CJK in either phrase.
+- Self-check: `make lint` rc 0; targeted pytest (11 dual-profile, prompt
+  and structured-provider files) 677 passed; full backend pytest
+  3224 passed (3208 at Stage 17 plus 16 Stage 17b items). Six-run offline replay re-run against the Stage 17b tree
+  (`stage17-sim/replay_v9.py`, output
+  `stage17b/replay_v9.txt` / `replay_v9.json`): byte-identical table and
+  JSON to Stage 17 (routing unchanged; stored outputs do not depend on
+  prompt text). Deterministic validation only; no real model call.
+- Recovery: revert `50232af0cb0b0194fb663528b569998a8a2fd79b` (and this docs commit); restores the
+  Stage 17 prompt hashes. No routing, cache-key or schema impact.
+
+## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — REVIEWER ACCEPT WITH NITS at 66b7555; nits → Stage 17b
+
+- **Reviewer ACCEPT with nits** at `66b7555` (no P0/P1; details and nits in
+  Stage 17b above). The bullets below are the historical implementation
+  record; Stage 17b supersedes the platform-prompt list (gifts only as
+  requests) and adds the single-cue gift or follow thanks to the exemption.
+- **Status (historical): implemented, pending independent tester and reviewer** (to be
   verified together with Stage 16b). Code, prompts and tests in
   `2932b7c15af600a900a8838deed4cfcf08a9c95b` on `claude/liveclip-stage8-routing`; this docs commit
   follows. Not pushed or merged to `main`. Routing policy
@@ -236,7 +340,7 @@ result exactly; no model call, nothing written under `data/`).
   marker would then fail to load until re-run, and Stage 17 cache entries are
   simply not hit by the reverted prompts.
 
-### Acceptance policy from Stage 17 (user decision 2026-11-05, "Freeze, 2 cold PASS in a row")
+### Acceptance policy from Stage 17 (user decision 2026-11-05, "Freeze, 2 cold PASS in a row"; definitions made precise in Stage 17b)
 
 - After Stage 17 is accepted (independent tester and reviewer), code and
   prompts are **frozen** at that SHA.
@@ -246,14 +350,63 @@ result exactly; no model call, nothing written under `data/`).
   later change starts a new frozen SHA and a new two-run count.
 - A usage-limit continuation segment (cold-Nb on the preserved cache of
   cold-N) still counts as **one** run.
+- **FROZEN (precise; Stage 17b).** The freeze covers the code/prompt tree,
+  not the documentation. A run is on the frozen SHA when, at its start:
+  (a) `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
+  exits 0 and `git status --porcelain --untracked-files=all -- <the same
+  paths>` is empty (no committed, uncommitted or untracked change). Every
+  listed path exists in the tree. `apps` holds the API and worker entry
+  points and the review console (`apps/web`); the console is not on the
+  benchmark path, but it is code, so it is frozen too. The two root
+  benchmark files are the evaluator's inputs. (b) The 17 prompt identities
+  computed from that tree equal the recorded Stage 17b hash table. (c) The
+  routing policy is `quality-gate-risk-routing-v9` and the algorithm version
+  is `dual-profile-direct-v1` (cache-key schema unchanged), and the run's
+  final results record exactly these. Docs-only commits (`STATUS.md`,
+  `docs/`, `tasks/`, `.agent/`, `AGENTS.md`, `CLAUDE.md`, `README.md`) touch
+  none of these paths, so HEAD may move by commits that record run results
+  without resetting the count.
+- **Fresh cold (precise; Stage 17b).** A new cache root that did not exist,
+  or was empty, at run start, plus a provenance check after the run: every
+  cache file in the root was created by this run, and 0 cache files are
+  content-identical to a file in any earlier cache root. A continuation
+  segment (cold-Nb) may copy only the cache of the immediately previous
+  segment of the same run (cold-N for cold-Nb, cold-Nb for cold-Nc); its
+  provenance check excludes only that segment and still requires 0
+  content-identical files against every other root. A warm run, or a run
+  seeded from any other root, is a diagnostic, never acceptance evidence.
+- **What counts (Stage 17b).** A run aborted by a provider or environment
+  failure (usage limit, CLI or transport failure, host interruption) before
+  a strict evaluation exists counts neither way: re-run it as a new fresh
+  cold run, or continue it as cold-Nb under the rule above. A run with a
+  strict evaluation counts: strict PASS adds one to the consecutive count;
+  strict FAIL resets the count to zero and is analysed before any change.
+  Any change to a frozen path, a prompt identity, the routing policy or the
+  algorithm version starts a new freeze SHA and a count of zero.
+- **Evidence categories.** Strict PASS is deterministic evaluator evidence
+  about real-model output. Rendering plus human editorial/audio review
+  remains a separate evidence category: it is not part of strict PASS and is
+  not implied by it.
+- **Freeze SHA.** The freeze candidate is the Stage 17b code commit
+  `50232af0cb0b0194fb663528b569998a8a2fd79b`; it becomes the freeze SHA once the independent tester and
+  reviewer accept it. The Stage 17 tree (`2932b7c`) is no longer the
+  candidate, because Stage 17b changes 16 of the 17 prompt identities.
 
 ### Stage 16b status
 
 - Stage 16b (`b5d8def`) remains implemented, **pending independent
   verification**; it will be verified together with Stage 17.
-- Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
+- (Historical next step; the Stage 17 reviewer accepted with nits, which
+  became Stage 17b.) Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
   then freeze and the two fresh cold runs; human review of the cold-31,
   cold-32b and earlier renders stays pending.
+- Next (Stage 17b): independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; on
+  acceptance it is the freeze SHA; then two consecutive fresh cold strict
+  PASS runs on it under the definitions above. Human review of the cold-27
+  through cold-32b renders stays pending (separate evidence category).
+  Push and merge still need explicit consent.
 
 ## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 

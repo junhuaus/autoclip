@@ -982,6 +982,48 @@ required; a failed run is analysed before any change; a continuation
 segment (cold-Nb) counts as one run. Stage 16b (`b5d8def`) stays pending
 verification, together with Stage 17.
 
-Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
+(Historical next step; the Stage 17 reviewer accepted with nits, which
+became Stage 17b below.) Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
 freeze; two fresh cold runs. Not pushed. Push and merge still need explicit
 consent.
+
+## Stage 17 reviewer ACCEPT with nits; Stage 17b implemented, pending verification (2026-11-05)
+
+Stage 17 reviewer (Stage 16b + Stage 17 candidate at `66b7555`): ACCEPT
+with nits, no P0/P1; 13 of 13 recorded reviewer mutations caught (Stage 16b
+A1–A7, including the former R7 survivor; Stage 17 B1–B5 plus a B4 variant);
+the reviewer's six-run replay equals the Stage 17 table. P2: "gifts" was
+listed as a platform prompt, conflicting with the single-cue thanks
+exemption. P3: `risk_discovery` brief-greeting wording; Boundary Review
+duration test silent on board-writing and the live-demo remark; imprecise
+freeze and fresh-cold definitions.
+
+Stage 17b (`50232af0cb0b0194fb663528b569998a8a2fd79b`): the platform-prompt list reads "requests for
+fan badges, follows, likes or gifts, homepage plugs, requests for viewers to
+join on microphone" in `main.md`, coverage audit, risk discovery, Boundary
+Review and Global Review; every exemption statement (also Global Audit)
+includes "a single-cue thanks for a gift or follow"; risk discovery uses the
+single-cue wording; Boundary Review's duration test keeps board-writing and
+the live-demo equipment remark inside the lesson. 16 of 17 prompt hashes
+change (table in `STATUS.md`). Flag contract tests 86 → 102; `make lint` rc
+0; targeted 677 passed; full backend 3224 passed (3208 at Stage 17 plus 16 Stage 17b items); six-run replay identical
+to Stage 17. Routing v9, algorithm version, cache-key schema and Python
+behaviour unchanged. Deterministic validation only; no real model call.
+
+Acceptance policy definitions (user decision unchanged): FROZEN = the
+code/prompt tree (empty `git diff <freeze-sha> -- src tests scripts config
+tools apps migrations pyproject.toml uv.lock alembic.ini Makefile
+liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`,
+no untracked file there) plus the recorded 17 prompt hashes, routing v9 and
+algorithm `dual-profile-direct-v1`; docs-only commits do not reset the
+count. Fresh cold = new empty cache root plus provenance check (all cache
+files new, 0 content-identical vs earlier roots; a continuation copies only
+from the immediately previous segment of the same run). A run aborted by a
+provider/environment failure without a strict evaluation counts neither
+way; a strict FAIL resets the count. Human editorial/audio review is a
+separate evidence category, not part of strict PASS. The freeze SHA is
+`50232af0cb0b0194fb663528b569998a8a2fd79b` once its tester and reviewer accept.
+
+Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
+consecutive fresh cold strict PASS runs. Not pushed. Push and merge still
+need explicit consent.
