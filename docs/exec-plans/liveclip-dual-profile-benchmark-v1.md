@@ -114,7 +114,11 @@ imported by production modules.
 - [x] 2026-11-04 Stage 15c implemented in `b026c64b42fb92e66841150d69d8167655b99c61`, pending independent tester and reviewer (user decision "when a risk twin has a high-risk tag, its twin can't be auto-published"): routing policy `quality-gate-risk-routing-v8` — risk-twin review downgrades ANY row still `selected` after the twin union, a risk-discovery record included, whose identical interval has a DIFFERENT risk-discovery record carrying an `AUTO_BLOCKING_RISK_TAGS` tag (never its own source); position, prefix, diagnostic and `validate_against` unchanged through `risk_twin_review`. Reviewer nit 2: a service test now catches mutation R5b. Nit 3 (a selected row next to a non-risk twin with an automatic-blocking tag is not downgraded; risk tags have never been shared between non-risk twins) is an accepted residual. No prompt, hash, algorithm version or cache-key change. Offline replay identical to v7 (cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrades 0/0). Self-check: ruff/mypy clean, targeted pytest 325 passed, full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed), 12/12 mutations caught (originally recorded as 13/13; the script runs twelve).
 - [x] 2026-11-04 cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned.
 - [x] 2026-11-04 Stage 15c fast-forwarded into `claude/liveclip-stage8-routing` (isolated worktree and branch removed). Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
-- [ ] Next: independent tester and reviewer for Stage 15c; cold-32b (continuation on the preserved cold-32 cache); human review of the cold-27 through cold-31 renders and of the L07 gap.
+- [x] (Historical next step; Stage 15c accepted, cold-32b started, and Stage 16 followed, below.) Next: independent tester and reviewer for Stage 15c; cold-32b (continuation on the preserved cold-32 cache); human review of the cold-27 through cold-31 renders and of the L07 gap.
+- [x] 2026-11-04 Stage 15c ACCEPTED at `b758f7172f6cecebadb4afc82de502788d26de9e` (code `b026c64`; tester PASS: lint rc 0, backend 3104 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep in the test window; reviewer ACCEPT: 7 of 7 independent mutations caught, replay identical).
+- [x] 2026-11-04 cold-32 root cause (reviewer Part B): two consecutive wall-clock `PROVIDER_TIMEOUT`s in `short_highlight` Global Review during the machine sleep, misreported as "structured model output could not be validated" with no failure evidence (reviewer P3 nit). The cold-32 cache was verified valid by a read-only check (99 files). cold-32b (continuation on that cache) started at `b758f71`; result pending, not evidence for Stage 16.
+- [x] 2026-11-04 Stage 16 implemented in `b1f11ecbea257488815fce3f8636bc853078ba2f` (branch `claude/liveclip-stage16`), pending independent tester and reviewer: provider failures write `failed-<profile>-<stage>.json` (`provider_failed`), partial `provider-calls.json` and `failure-manifest.json` (`provider_failure`) to the run directory only; an `unexpected_error` backstop manifest; fixed provider messages ("could not be validated" only for `STRUCTURED_OUTPUT_INVALID`); sleep detection (`PROVIDER_INTERRUPTED_BY_SLEEP`, never semantically retried); CLI summary with code, stage, profile, subject and evidence path. No prompt, hash (17/17 equal), routing, algorithm-version or cache-key change. Self-check: ruff/mypy clean, targeted pytest 581 passed, full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new), 12/12 scratch-only mutations caught.
+- [ ] Next: independent tester and reviewer for Stage 16; record the cold-32b result; human review of the cold-27 through cold-31 renders and of the L07 gap.
 - [x] Follow-up (reviewer P2-b): pin the Agent report staging directory identity (`expected_identity`) and make cleanup fd-based. (2026-10-21: addressed by Stage 6 on `claude/liveclip-stage6-followups`, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [x] Follow-up (reviewer P2-c): add an end-to-end rollback test after a real no-replace rename. (2026-10-21: addressed by Stage 6, pending acceptance. 2026-10-22: Stage 6 ACCEPTED at the integrated tip `996962b`.)
 - [ ] Follow-up (earlier P2-5): Agent risk discovery counts only final candidates, which is stricter than necessary; consider raw/superseded candidates as discovery evidence. (2026-10-21: examined by Stage 6 and not changed. MD sections 3.8, 6 and 10 FAIL a risk candidate that disappears, and Agent v2 has no `manual_review`/`blocked` routing, so a Global-Review-dropped raw candidate is that disappearance; counting it needs an operator decision. Documented in `scripts/evaluate_agent_benchmark.py`.)
@@ -1049,6 +1053,32 @@ Stage 15c implemented, pending verification):
   of `b026c64`.
 - cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned. Recovery: cold-32b reuses the preserved cache (same
   prompt hashes); the cold-32 directories stay local-only and unmodified.
+
+2026-11-04 (Stage 15c accepted at `b758f71`; cold-32b started there;
+Stage 16 implemented, pending verification):
+
+- Stage 15c ACCEPTED at `b758f7172f6cecebadb4afc82de502788d26de9e`
+  (tester: lint rc 0, backend 3104 passed, vitest 80, e2e 4/4,
+  concurrency test 5/5, no sleep in the test window; reviewer ACCEPT,
+  7/7 independent mutations caught, replay identical).
+- cold-32 root cause: two consecutive wall-clock `PROVIDER_TIMEOUT`s in
+  `short_highlight` Global Review during the machine sleep, misreported as
+  "could not be validated" and without failure evidence (reviewer P3 nit).
+  The cold-32 cache was verified valid by a read-only check (99 files).
+  cold-32b (continuation on that cache) was started at `b758f71`; result
+  pending.
+- Stage 16 (`b1f11ecbea257488815fce3f8636bc853078ba2f`, branch
+  `claude/liveclip-stage16`): provider-failure evidence
+  (`failed-<profile>-<stage>.json` with `provider_failed`, partial
+  `provider-calls.json`, `failure-manifest.json` with `provider_failure`;
+  `unexpected_error` backstop), fixed provider messages, sleep detection
+  (`PROVIDER_INTERRUPTED_BY_SLEEP`, never semantically retried), CLI
+  summary. Mutation and hash scripts in the session scratchpad
+  (`stage16-mut/`, `stage16-hashes.py`).
+- Recovery: revert `b1f11ec`. No prompt hash, algorithm version or
+  cache-key change, so every cache (cold-32/cold-32b included) stays valid;
+  evidence files are written only into failed run directories, never into
+  a cache.
 
 Deterministic validation, rendering plus human editorial/audio review, and
 real-model inference remain separate kinds of evidence; the cold-27 strict

@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 16 provider-failure observability (Stage 15c reviewer Part B) (2026-11-04)
+
+- [x] 2026-11-04 Stage 15c **ACCEPTED** at
+  `b758f7172f6cecebadb4afc82de502788d26de9e` (code `b026c64`). Tester PASS:
+  lint rc 0; backend 3104 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep in the test window. Reviewer ACCEPT: 7 of 7 independent
+  mutations caught; offline replay identical.
+- [x] 2026-11-04 cold-32 root cause (reviewer Part B): two consecutive
+  wall-clock `PROVIDER_TIMEOUT`s in `short_highlight` Global Review during
+  the machine sleep, misreported as "structured model output could not be
+  validated" because every unlisted provider code mapped to that text; only
+  exhausted validation wrote evidence, so the completed call records were
+  lost (reviewer P3 nit). The cold-32 cache was verified valid by a
+  read-only check (99 files).
+- [x] 2026-11-04 cold-32b (continuation on the preserved cold-32 cache)
+  started at `b758f71`; result pending, not evidence for Stage 16.
+- [x] 2026-11-04 Stage 16 implemented in
+  `b1f11ecbea257488815fce3f8636bc853078ba2f` on `claude/liveclip-stage16`,
+  **pending independent tester and reviewer** (details in `STATUS.md`):
+  - P1: `DualProfileProviderFailureError` wraps a provider failure from the
+    initial generation, repair or regeneration, is recorded beside exhausted
+    units, and the run writes `failed-<profile>-<stage>.json`
+    (`provider_failed`), partial `provider-calls.json` and
+    `failure-manifest.json` (`provider_failure`) to the run directory only;
+    an `unexpected_error` backstop manifest for any other exception after
+    the run directory exists; always re-raised.
+  - P2: fixed messages per provider code (timeout with the configured
+    seconds); "could not be validated" only for `STRUCTURED_OUTPUT_INVALID`.
+  - P2: `ProcessInterruptedBySleep` (a `TimeoutExpired` subclass) when only
+    the wall-clock deadline fired and the wall clock ran more than 60 s
+    ahead of the monotonic clock; `PROVIDER_INTERRUPTED_BY_SLEEP` is never
+    semantically retried; job pipelines still treat it as transient.
+  - P3: the CLI prints code, stage, profile, subject, phase and evidence
+    path.
+  - No prompt, hash (17/17 equal the Stage 15c table), routing,
+    algorithm-version or cache-key change; success path unchanged.
+  - Self-check: ruff check/format clean; `mypy src/liveclip` clean;
+    targeted pytest 581 passed; full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new); 12/12 scratch-only mutations caught.
+- [ ] Next: independent tester and reviewer on the Stage 16 SHAs; record
+  the cold-32b result.
+
 ## Stage 15c risk-twin review covers risk-record receivers (routing v8) and Stage 15b reviewer nits (2026-11-04)
 
 - [x] 2026-11-04 Stage 15b **ACCEPTED** at
@@ -37,7 +78,9 @@
 - [x] 2026-11-04 cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned.
 - [x] 2026-11-04 Stage 15c fast-forwarded into `claude/liveclip-stage8-routing`
   (isolated worktree and `claude/liveclip-stage15c` removed). Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
-- [ ] Next: independent tester and reviewer on the Stage 15c SHAs; cold-32b
+- [x] (Historical next step; Stage 15c was accepted at `b758f71`, cold-32b
+  was started there, and Stage 16 followed, above.) Next: independent tester
+  and reviewer on the Stage 15c SHAs; cold-32b
   (continuation on the preserved cold-32 cache).
 
 ## Stage 15b risk-twin review (routing v7) and Stage 15 reviewer P3s (2026-11-04)

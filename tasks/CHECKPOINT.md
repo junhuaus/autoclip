@@ -887,3 +887,42 @@ Stage 15c (`b026c64`, docs `c99d198`) was fast-forwarded into
 
 Next: independent tester and reviewer on the Stage 15c SHAs; cold-32b
 (continuation on the preserved cache). Not pushed.
+
+(Historical; Stage 15c was ACCEPTED at `b758f71` and Stage 16 followed, recorded below.)
+
+## Stage 15c accepted; cold-32 root cause; cold-32b started; Stage 16 implemented, pending verification (2026-11-04)
+
+Stage 15c was ACCEPTED at `b758f7172f6cecebadb4afc82de502788d26de9e` (code
+`b026c64`; tester: lint rc 0, backend 3104 passed, vitest 80, e2e 4/4,
+concurrency test 5/5, no sleep in the test window; reviewer ACCEPT: 7 of 7
+independent mutations caught, offline replay identical).
+
+cold-32 root cause (reviewer Part B): `short_highlight` Global Review hit two
+consecutive wall-clock `PROVIDER_TIMEOUT`s during the machine sleep. The
+provider message map reported every unlisted code as "structured model
+output could not be validated", and only an exhausted validation wrote
+evidence, so no `failed-*.json`, `provider-calls.json` or
+`failure-manifest.json` existed and every completed call record was lost
+(reviewer P3 nit). The cold-32 cache was verified valid by a read-only check
+(99 files). cold-32b (continuation on that cache) was started at `b758f71`;
+its result is pending and is not evidence for Stage 16.
+
+Stage 16 (`b1f11ecbea257488815fce3f8636bc853078ba2f`, local branch
+`claude/liveclip-stage16`, isolated worktree): provider failures in a unit
+become `DualProfileProviderFailureError` and write
+`failed-<profile>-<stage>.json` (`provider_failed`), a partial
+`provider-calls.json` and `failure-manifest.json` (`provider_failure`) to the
+run directory only, concurrent failures of either kind kept together; any
+other exception after the run directory exists writes an `unexpected_error`
+manifest; always re-raised. Fixed provider messages ("could not be
+validated" only for `STRUCTURED_OUTPUT_INVALID`; timeouts name the
+configured seconds). `ProcessInterruptedBySleep` /
+`PROVIDER_INTERRUPTED_BY_SLEEP` when the wall clock ran more than 60 s ahead
+of the monotonic clock and only the wall-clock deadline fired; never
+semantically retried. The CLI prints code, stage, profile, subject and
+evidence path. No prompt, hash, routing, algorithm-version or cache-key
+change. Self-check: ruff/mypy clean, targeted pytest 581 passed, full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new),
+12/12 scratch-only mutations caught, 17/17 prompt hashes equal the Stage 15c table.
+
+Next: independent tester and reviewer on the Stage 16 SHAs; record the
+cold-32b result. Not pushed.

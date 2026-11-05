@@ -18,9 +18,136 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 15c: risk-twin review covers risk-record receivers (routing v8), Stage 15b reviewer nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 16: provider-failure observability (Stage 15c reviewer Part B) (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
 
 - **Status: implemented, pending independent tester and reviewer.** Code and
+  tests in `b1f11ecbea257488815fce3f8636bc853078ba2f` on local branch
+  `claude/liveclip-stage16` (from `b758f71`, in an isolated worktree); this
+  docs commit follows. Not pushed or merged. No prompt file, prompt hash,
+  evaluator, threshold, benchmark, routing policy
+  (`quality-gate-risk-routing-v8`), algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change. The success path
+  (routing, outputs, cache bytes, `provider-calls.json`) is unchanged.
+- Stage 15c was **accepted** at `b758f7172f6cecebadb4afc82de502788d26de9e`
+  (tester PASS: lint rc 0, backend 3104 passed, vitest 80, e2e 4/4,
+  concurrency test 5/5, no sleep in the test window; reviewer ACCEPT: 7 of 7
+  independent mutations caught, offline replay identical).
+- cold-32 root cause (reviewer Part B): `short_highlight` Global Review hit
+  two consecutive wall-clock `PROVIDER_TIMEOUT`s (the initial request and its
+  one semantic retry) while the machine slept. Every unlisted
+  `StructuredProviderError` code was mapped to "structured model output could
+  not be validated" (`_structured_error_message`), so the timeout was
+  misreported; `_resolve_call` wrapped only deterministic `ValueError`
+  failures and the run wrapper caught only
+  `DualProfileValidationExhaustedError`, so no `failed-*.json`,
+  `provider-calls.json` or `failure-manifest.json` was written and every
+  completed call record was lost (reviewer P3 nit). The cold-32 stage cache
+  was verified valid by a read-only integrity check (99 files; identity,
+  prompt hash, cache-key recomputation and output model all match). A
+  continuation run **cold-32b** on the preserved cache was started at
+  `b758f71`; its result is pending and is not evidence for Stage 16 (it runs
+  `b758f71` code).
+- P1 provider failures keep their evidence: `_resolve_call` wraps a
+  `StructuredProviderError` from the initial generation (after its one
+  semantic retry), the repair or the regeneration into
+  `DualProfileProviderFailureError(RuntimeError)` carrying stage, profile,
+  subject, cache key, phase, failure code, the validation attempts made so
+  far, and the unit's accumulated plus failing call records. It is recorded
+  in `_ResolutionAudit` in the same ordered list as exhausted units, so
+  concurrent chunk failures are all kept. The run wrapper writes, to the run
+  directory only (never the cache): `failed-<profile>-<stage>.json`
+  (`status: provider_failed`, `failure_code`, `failed_phase`, fixed
+  `message`, `provider_calls`, `provider_attempts`, `attempts`,
+  `concurrent_exhausted_units`, `concurrent_provider_failed_units`), a
+  partial `provider-calls.json` (completed units, the failing unit, then
+  every other failed unit in failure order) and `failure-manifest.json`
+  (`failure_kind: provider_failure`, `failure_code`, `failed_phase`,
+  `concurrent_failed_subject_ids`, `concurrent_failures`). An exhausted
+  validation keeps its Stage 13d/13e format and now also lists a concurrent
+  provider failure. Backstop: any other exception after the run directory
+  exists writes only `failure-manifest.json` (`failure_kind:
+  unexpected_error`, `exception_type`, a bounded one-line `error`, every
+  completed call record plus those of already failed units) and adds a
+  `failure evidence: <path>` note. Every error is re-raised; an
+  evidence-writer failure is attached as a note and never masks it.
+- P2 fixed messages (shared by the Claude CLI, Codex and OpenAI providers):
+  `PROVIDER_TIMEOUT` "structured provider request timed out after N s" (N
+  is the configured timeout; bare text when unknown),
+  `PROVIDER_INTERRUPTED_BY_SLEEP`, `PROVIDER_ERROR`,
+  `PROVIDER_CONFIGURATION`, `STRUCTURED_TOOL_EVENT`, and
+  `STRUCTURED_OUTPUT_MISSING` ("was missing"); an unlisted code says
+  "structured provider request failed (CODE)". "could not be validated" is
+  kept only for `STRUCTURED_OUTPUT_INVALID`. `StructuredProviderError`
+  gains optional `timeout_seconds` / `suspended_seconds` (fixed numbers,
+  never provider content), carried through every rewrap.
+- P2 sleep detection: `run_cancellable_process` raises
+  `ProcessInterruptedBySleep` (a `subprocess.TimeoutExpired` subclass, so
+  every other caller keeps its timeout semantics) when the deadline fired,
+  the monotonic clock had not used the budget, and the wall clock ran more
+  than `SLEEP_DETECTION_GAP_SECONDS` (60 s) ahead of it. The Claude CLI and
+  Codex providers map it to `PROVIDER_INTERRUPTED_BY_SLEEP` (record code
+  `STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP`); `_generate_with_semantic_retry`
+  never retries it (fail fast with evidence). The durable job pipelines keep
+  classifying it as transient (`semantic_executor`), exactly as the timeout
+  it was before.
+- P3 CLI: `dual-profile-eval` prints "dual Profile provider failure CODE in
+  PROFILE STAGE (SUBJECT) during PHASE; evidence: PATH; cause: MESSAGE"
+  (bounded, only the cause is trimmed) and rc 1; for the backstop it prints
+  the error and then the manifest path on a second stderr line.
+- Decisions: (1) the sleep class subclasses `TimeoutExpired` rather than
+  changing timeout behaviour; (2) a large wall-clock lead after the
+  monotonic budget was already spent stays an ordinary timeout; (3) only the
+  sleep code is exempt from the dual-profile semantic retry (timeouts are
+  still retried once, as before); (4) a concurrently cancelled unit
+  (`ProviderCancelled`) is still neither resolved nor failed and its calls
+  are not listed (unchanged); (5) a provider failure file includes the
+  provider's own repair attempts (parsed model output, the same policy as
+  exhausted evidence; the Claude CLI provider already drops any output that
+  contains its account identity).
+- Tests: integration — two `PROVIDER_TIMEOUT`s in short Global Review
+  (failure file, partial calls with completed plus both failing calls,
+  manifest, no cache entry for the unit, every earlier entry byte-identical
+  and reused as a cache hit by a rerun, re-raised); two concurrent Global
+  Review chunk provider failures both recorded; an exhausted unit and a
+  provider-failed unit overlapping in Discovery; an unexpected `ValueError`
+  mid-run writes the backstop manifest; an error before the run directory
+  exists writes nothing. Unit — message per code, timeout/sleep text, only
+  `STRUCTURED_OUTPUT_INVALID` says "could not be validated"; Claude CLI,
+  Codex and OpenAI mappings; `run_cancellable_process` with patched clocks
+  (sleep, sub-gap lead, spent monotonic budget, real timeout, pickling); no
+  semantic retry on sleep, one retry on timeout, repair-phase failure keeps
+  the initial attempt; bounded summary; job-pipeline classification; CLI rc
+  1 with code, stage and evidence path. One existing test
+  (`test_resolve_call_regeneration_exhaustion_names_the_real_cause`) now
+  expects the wrapped error and checks the provider message on its cause.
+- Mutation self-check (scratch copies of the worktree `src` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-mut/mutate.py`,
+  results in `mutation_results.txt`): 12 of 12 caught — M1 initial provider failure not wrapped (6 tests fail), M2 failure not recorded in the audit (3), M3 sleep semantically retried (1), M4 no sleep classification (1), M5 sleep ignores a spent monotonic budget (1), M6 old "could not be validated" default and no timeout text (11), M7 no unexpected-error backstop (1), M8 CLI prints the generic message (1), M9 provider failure file labelled `validation_exhausted` (1), M10 Claude CLI maps sleep to `PROVIDER_TIMEOUT` (1), M11 concurrent units' records dropped from `provider-calls.json` (3, the Stage 13e exhausted test included), M12 repair-phase provider failure unwrapped (1).
+- Prompt hashes: all 17 identity hashes, printed from the worktree by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-hashes.py`,
+  equal the Stage 15c table (`stage15c-review/hashes.txt`); no prompt file
+  changed.
+- Self-check: `ruff check` (src, tests, scripts, tools) and `ruff format
+  --check` clean; `mypy src/liveclip` clean (202 files); targeted pytest
+  (dual-profile suites, Claude CLI, Codex, OpenAI, structured-provider,
+  semantic executor, media process and CLI tests; 18 files) 581 passed;
+  full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new). Deterministic validation only; no real model call.
+- Recovery: revert `b1f11ec`. No cache, prompt or algorithm impact; the new
+  evidence files appear only in failed run directories.
+- Next: independent tester and reviewer on the Stage 16 SHAs; record the
+  cold-32b result when it finishes; human review of the cold-31 and earlier
+  renders stays pending.
+
+## Stage 15c: risk-twin review covers risk-record receivers (routing v8), Stage 15b reviewer nits (2026-11-04) — ACCEPTED at b758f71
+
+- **Accepted** at `b758f7172f6cecebadb4afc82de502788d26de9e` (code
+  `b026c64`, docs `c99d198` and `b758f71`): tester PASS: lint rc 0, backend
+  3104 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep in the
+  test window; reviewer ACCEPT: 7 of 7 independent mutations caught, offline
+  replay identical. Reviewer Part B (the cold-32 failure was misreported and
+  left no evidence) becomes Stage 16 (above). The bullets below are the
+  historical implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code and
   tests in `b026c64b42fb92e66841150d69d8167655b99c61` on local branch `claude/liveclip-stage15c` (from
   `e960414`); this docs commit follows. Both commits were fast-forwarded into
   `claude/liveclip-stage8-routing`; the isolated worktree and the
@@ -137,7 +264,9 @@
 - Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
 - Recovery: v1–v7 artifacts still load; reverting to v7 is a revert of
   `b026c64`. Cached stage outputs are unaffected.
-- Next: independent tester and reviewer on the Stage 15c SHAs; the
+- (Historical next step; Stage 15c was accepted at `b758f71`, cold-32b was
+  started there, and Stage 16 followed, above.) Next: independent tester and
+  reviewer on the Stage 15c SHAs; the
   continuation run cold-32b on the preserved cold-32 cache (the cold-32
   attempt itself is environment-invalid); human review of the cold-31 and
   earlier renders stays pending.
