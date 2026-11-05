@@ -14,20 +14,22 @@ preserve the candidate and flag each interior interruption that breaks the claim
 `material_interruption` (or `topic_switch_inside` when another topic starts inside the chain) so Global
 Review can route it to `blocked`. Interior content counts as `material_interruption` only when it
 actually breaks the teaching or claim logic. The only exemption is a single-cue audience thanks,
-greeting or name call-out that the speaker passes over without leaving the topic: it is neither an
-interruption nor padding. Inside the interval, calls to action and platform prompts (fan badges,
-follows, likes, homepage plugs, gifts, requests for viewers to join on microphone), chat reading and
-presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see) are
-`material_interruption` even when brief, like audibility checks, and they are subtracted when testing
-the Profile duration minimum. Writing the taught term on the board is part of the lesson. Padding
-flags describe edge material only: they may accompany an interior flag but never
-replace it. Risk must not disappear merely because the interval cannot auto-publish.
+greeting or name call-out that the speaker passes over without leaving the topic, including a
+single-cue thanks for a gift or follow: it is neither an interruption nor padding. Inside the interval,
+calls to action and platform prompts (requests for fan badges, follows, likes or gifts, homepage plugs,
+requests for viewers to join on microphone), chat reading and presentation troubleshooting (waiting
+for a pen or colour, glare, asking whether viewers can see) are `material_interruption` even when
+brief, like audibility checks, and they are subtracted when testing the Profile duration minimum.
+Writing the taught term on the board is part of the lesson. Padding flags describe edge material only:
+they may accompany an interior flag but never replace it. Risk must not disappear merely because the
+interval cannot auto-publish.
 
-The earliest rhetorical question can define the parent claim even when a brief greeting or audience
-acknowledgement appears between that question and the category count. Preserve that question as the
-left boundary; do not restart at “two problems”, “first”, or another enumeration answer merely to omit
-the intervening greeting. Mark an interruption only when it breaks the claim logic as described above, and
-in either case keep the complete question-to-enumeration-to-diagnosis chain.
+The earliest rhetorical question can define the parent claim even when a single-cue audience thanks,
+greeting or name call-out that the speaker passes over appears between that question and the category
+count. Preserve that question as the left boundary; do not restart at “two problems”, “first”, or
+another enumeration answer merely to omit the intervening cue. Mark an interruption only when it
+breaks the claim logic as described above, and in either case keep the complete
+question-to-enumeration-to-diagnosis chain.
 
 When an overview enumerates multiple risky conditions and immediately proceeds to detailed diagnosis or
 treatment of the first condition, emit a continuous parent candidate spanning the enumeration premise

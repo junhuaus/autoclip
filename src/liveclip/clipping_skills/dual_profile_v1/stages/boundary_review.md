@@ -63,13 +63,15 @@ when the evaluated sample, diagnosis, correction and observed outcome remain und
 `material_interruption` requires unrelated semantic content that actually breaks the teaching or claim
 logic; silence, an ASR gap, a vocal demonstration, a self-correction, writing the taught term on the
 board, a single-cue audience thanks, greeting or name call-out that the speaker passes over without
-leaving the topic, or the speaker's brief equipment or listening explanation attached to an immediate
-live example is not by itself an interruption.
+leaving the topic (including a single-cue thanks for a gift or follow), or the speaker's brief
+equipment or listening explanation attached to an immediate live example is not by itself an
+interruption.
 Interior audibility checks, connection lag and playback trouble, as described below, are such unrelated
-content and count as `material_interruption`. So are interior calls to action and platform prompts (fan
-badges, follows, likes, homepage plugs, gifts, requests for viewers to join on microphone), chat reading
-and presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see),
-even when brief; the single-cue exemption above never covers them.
+content and count as `material_interruption`. So are interior calls to action and platform prompts
+(requests for fan badges, follows, likes or gifts, homepage plugs, requests for viewers to join on
+microphone), chat reading and presentation troubleshooting (waiting for a pen or colour, glare, asking
+whether viewers can see), even when brief; the single-cue exemption above covers a single-cue thanks
+for a gift or follow but never these requests, chat reading or troubleshooting.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
 asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
 lag, switching networks and trouble playing back a recording are `device_or_waiting_padding` at an edge
@@ -111,10 +113,12 @@ prompts, presentation troubleshooting or device talk), or edge setup kept only f
 a clip that no longer satisfies the Profile duration minimum, flag `padded_with_irrelevant_content`. For
 such interior material, flag `padded_with_irrelevant_content` alongside `material_interruption` (or
 `topic_switch_inside`), never instead of it. Only a single-cue audience thanks, greeting or name
-call-out that the speaker passes over without leaving the topic is neither flag and is not removed in
-this test; calls to action, platform prompts, chat reading and presentation troubleshooting are removed
-in it even when brief. A closing acknowledgement or address to the audience is neither padding nor
-subtracted from the duration in this test.
+call-out that the speaker passes over without leaving the topic, including a single-cue thanks for a
+gift or follow, is neither flag and is not removed in this test; calls to action, platform prompts,
+chat reading and presentation troubleshooting are removed in it even when brief. Writing the taught
+term on the board and the speaker's brief equipment or listening explanation attached to an immediate
+live example are part of the lesson and are not removed in this test. A closing acknowledgement or
+address to the audience is neither padding nor subtracted from the duration in this test.
 
 Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the
 interval. A category, type or ordinal label that the clip itself contrasts, explains or demonstrates is

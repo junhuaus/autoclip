@@ -3560,27 +3560,34 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 # `material_interruption` even when brief and are subtracted in the duration
 # test; writing the taught term on the board stays part of the lesson. Mirrored
 # verbatim in coverage_audit and risk_discovery (cold Discovery cache again).
+# Stage 17b (2026-11-05, reviewer P2/P3) re-pinned every Discovery pass: the shared
+# main.md lists gifts only as something the speaker requests ("requests for fan
+# badges, follows, likes or gifts") and names a single-cue thanks for a gift or
+# follow inside the exemption; mirrored verbatim in coverage_audit and
+# risk_discovery, whose rhetorical-question paragraph now uses the same single-cue
+# wording instead of "a brief greeting or audience acknowledgement" (cold
+# Discovery cache again).
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
-        "ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5"
+        "2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802"
     ),
     ("short_highlight", "coverage_audit"): (
-        "0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29"
+        "834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31"
     ),
     ("mini_lesson", "discovery"): (
-        "03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666"
+        "f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2"
+        "984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1"
     ),
     ("mini_lesson", "precision_audit"): (
-        "286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7"
+        "941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870"
     ),
     ("mini_lesson", "precision_confirmation"): (
-        "1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3"
+        "fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba"
+        "76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4"
     ),
 }
 
@@ -3616,24 +3623,30 @@ def test_discovery_prompt_identities_are_unchanged() -> None:
 # global_audit restate it next to the interior audibility rule; global_review also
 # states the routing v9 release of an attested, cleared `topic_not_closed`. The
 # variant link (no main.md) is unchanged.
+# Stage 17b (2026-11-05, reviewer P2/P3): every review stage re-pinned. main.md
+# (shared) changes as described at FROZEN_DISCOVERY_PROMPT_HASHES; boundary_review,
+# global_review and global_audit name the single-cue gift or follow thanks inside
+# their exemption and list gifts only as requests; boundary_review's duration test
+# keeps board-writing and the live-demo equipment remark inside the lesson (not
+# subtracted). The variant link (no main.md) is unchanged.
 PINNED_REVIEW_PROMPT_HASHES = {
     ("short_highlight", "boundary_review"): (
-        "622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5"
+        "ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2"
     ),
     ("short_highlight", "global_review"): (
-        "f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b"
+        "a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646"
     ),
     ("short_highlight", "global_audit"): (
-        "a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed"
+        "5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc"
     ),
     ("mini_lesson", "boundary_review"): (
-        "63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f"
+        "abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23"
     ),
     ("mini_lesson", "global_review"): (
-        "857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a"
+        "ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3"
     ),
     ("mini_lesson", "global_audit"): (
-        "a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f"
+        "092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f"
     ),
 }
 PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"

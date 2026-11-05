@@ -33,14 +33,14 @@ when another topic starts inside the chain) and attach the risk evidence; paddin
 material only and may accompany, but never replace, the interior flag. Interior content counts as
 `material_interruption` only when it actually breaks the teaching or claim logic. The only exemption is
 a single-cue audience thanks, greeting or name call-out that the speaker passes over without leaving
-the topic: it is neither an interruption nor padding. Inside the interval, calls to action and platform
-prompts (fan badges, follows, likes, homepage plugs, gifts, requests for viewers to join on microphone),
-chat reading and presentation troubleshooting (waiting for a pen or colour, glare, asking whether
-viewers can see) are `material_interruption` even when brief, like audibility checks, and they are
-subtracted when testing the Profile duration minimum. Writing the taught term on the board is part of
-the lesson. Never omit the chain merely because it is unsuitable
-for automatic publication. Do not add unrelated material just to make a shorter risk statement reach the
-Profile minimum.
+the topic, including a single-cue thanks for a gift or follow: it is neither an interruption nor
+padding. Inside the interval, calls to action and platform prompts (requests for fan badges, follows,
+likes or gifts, homepage plugs, requests for viewers to join on microphone), chat reading and
+presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see) are
+`material_interruption` even when brief, like audibility checks, and they are subtracted when testing
+the Profile duration minimum. Writing the taught term on the board is part of the lesson. Never omit
+the chain merely because it is unsuitable for automatic publication. Do not add unrelated material
+just to make a shorter risk statement reach the Profile minimum.
 
 Every new `candidate_id` must start with `audit_` and be unique from every ID listed in
 `existing_candidates`. Keep the exact requested Profile and `source_window_id`.
