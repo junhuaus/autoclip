@@ -906,7 +906,7 @@ def test_resolve_call_regeneration_exhaustion_names_the_real_cause(tmp_path: Pat
     )
     provider = _provider(executable, policy=policy)
 
-    with pytest.raises(StructuredProviderError) as error:
+    with pytest.raises(dual_profile_module.DualProfileProviderFailureError) as error:
         dual_profile_module._resolve_call(
             stage="discovery",
             subject_id="window_1",
@@ -922,9 +922,20 @@ def test_resolve_call_regeneration_exhaustion_names_the_real_cause(tmp_path: Pat
             cancel_requested=lambda: False,
         )
 
-    # One generate plus the single regeneration, two attempts each.
-    assert str(error.value) == "Claude CLI rate limited (429) after 4 attempts"
-    assert [record.request_count for record in error.value.call_records] == [2, 2]
+    # Stage 16: the provider failure is wrapped with its unit; the provider's own
+    # message still names the real cause. One generate plus the single semantic
+    # retry, two attempts each.
+    cause = error.value.__cause__
+    assert isinstance(cause, StructuredProviderError)
+    assert str(cause) == "Claude CLI rate limited (429) after 4 attempts"
+    assert error.value.provider_message == str(cause)
+    assert error.value.failure_code == "CLAUDE_CLI_RATE_LIMITED"
+    assert (error.value.stage, error.value.subject_id, error.value.phase) == (
+        "discovery",
+        "window_1",
+        "initial",
+    )
+    assert [record.request_count for record in error.value.records] == [2, 2]
     assert len(_calls(executable)) == 4
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pickle
 import subprocess
 import sys
 import time
@@ -137,6 +138,105 @@ def test_process_timeout_counts_wall_time_when_monotonic_clock_stalls(monkeypatc
         )
 
     assert real_monotonic() - started < 3
+
+
+def _wall_clock_jump(
+    monkeypatch: pytest.MonkeyPatch, *, wall_jump: float, monotonic_jump: float = 0.0
+) -> Any:
+    """Advance the clocks once the runner has started its deadline bookkeeping.
+
+    The jump is armed by the first cancellation poll, which runs after both start
+    times were read, so it models a host that slept during the request.
+    """
+
+    real_time = time.time
+    real_monotonic = time.monotonic
+    state = {"armed": False}
+    monkeypatch.setattr(
+        process_module.time, "time", lambda: real_time() + (wall_jump if state["armed"] else 0)
+    )
+    monkeypatch.setattr(
+        process_module.time,
+        "monotonic",
+        lambda: real_monotonic() + (monotonic_jump if state["armed"] else 0),
+    )
+
+    def cancel_requested() -> bool:
+        state["armed"] = True
+        return False
+
+    return cancel_requested
+
+
+def test_process_timeout_after_system_sleep_is_classified_as_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stage 16: the wall clock ran 120 s ahead of the monotonic clock, and only the
+    wall-clock deadline fired, so the host slept through the child."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=120.0)
+    started = time.perf_counter()
+    with pytest.raises(process_module.ProcessInterruptedBySleep) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import os,time;os.write(2,b'partial');time.sleep(30)"],
+            timeout_seconds=60,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+
+    error = caught.value
+    # Still a TimeoutExpired, so every existing caller keeps its timeout semantics.
+    assert isinstance(error, subprocess.TimeoutExpired)
+    assert error.timeout == 60
+    assert error.wall_elapsed_seconds >= 120
+    assert error.monotonic_elapsed_seconds < 60
+    assert 60 < error.suspended_seconds <= 125
+    assert "host was suspended" in str(error)
+    assert time.perf_counter() - started < 15
+    restored = pickle.loads(pickle.dumps(error))
+    assert type(restored) is process_module.ProcessInterruptedBySleep
+    assert restored.suspended_seconds == error.suspended_seconds
+
+
+def test_process_wall_clock_timeout_below_the_sleep_gap_stays_a_plain_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=45.0)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=40,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
+
+
+def test_process_timeout_whose_monotonic_budget_is_spent_is_not_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A large wall-clock lead does not hide a genuine timeout: the monotonic clock
+    alone had already used the whole budget."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=1_200.0, monotonic_jump=1_000.0)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=600,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
+
+
+def test_process_real_timeout_is_a_plain_timeout() -> None:
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=0.2,
+            poll_seconds=0.01,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
 
 
 def test_process_runner_terminates_process_group_on_cancellation(tmp_path: Path) -> None:

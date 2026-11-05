@@ -194,6 +194,73 @@ class DualProfileValidationExhaustedError(ValueError):
         return f"{head}; last error: {last}"
 
 
+class DualProfileProviderFailureError(RuntimeError):
+    """A unit's structured provider call failed (Stage 16).
+
+    Raised for a ``StructuredProviderError`` from the initial generation (after
+    its one semantic retry), the repair or the regeneration. Carries the failing
+    unit, the provider failure code, every validation attempt made so far and the
+    accumulated plus failing call records, so the run writes failure evidence to
+    its run directory (never to the cache) before the error propagates.
+    """
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        profile: str,
+        subject_id: str,
+        cache_key: str,
+        phase: str,
+        provider_error: StructuredProviderError,
+        attempts: Sequence[DualProfileValidationAttempt],
+        records: Sequence[ProviderCallRecord],
+    ) -> None:
+        self.stage = stage
+        self.profile = profile
+        self.subject_id = subject_id
+        self.cache_key = cache_key
+        self.phase = phase
+        self.failure_code = provider_error.code
+        self.provider_message = str(provider_error)
+        self.provider_attempts = tuple(provider_error.repair_attempts)
+        self.attempts = tuple(attempts)
+        self.records = tuple(records)
+        self.evidence_file: str | None = None
+        super().__init__(
+            f"{self.provider_message} [{self.failure_code}] in {profile} {stage} "
+            f"({subject_id}) during {phase}"
+        )
+
+    @property
+    def failure_file_name(self) -> str:
+        return f"failed-{self.profile}-{self.stage}.json"
+
+    def summary(self) -> str:
+        """Bounded one-line summary for the CLI: code, unit and evidence path."""
+
+        evidence = f"; evidence: {self.evidence_file}" if self.evidence_file else ""
+        notes = " ".join("; ".join(getattr(self, "__notes__", ())).split())
+        if len(notes) > _SUMMARY_NOTE_LIMIT:
+            notes = f"{notes[: _SUMMARY_NOTE_LIMIT - 3]}..."
+        head = (
+            f"dual Profile provider failure {self.failure_code} in {self.profile} "
+            f"{self.stage} ({self.subject_id}) during {self.phase}{evidence}"
+            f"{f'; {notes}' if notes else ''}"
+        )
+        # The cause is fixed provider text; it is the part trimmed to stay bounded.
+        budget = min(240, _SUMMARY_LIMIT - len(head) - len("; cause: "))
+        if budget < 40:
+            return head
+        cause = " ".join(self.provider_message.split())
+        if len(cause) > budget:
+            cause = f"{cause[: budget - 3]}..."
+        return f"{head}; cause: {cause}"
+
+
+_UnitFailure = DualProfileValidationExhaustedError | DualProfileProviderFailureError
+
+
 def configured_dual_profile_provider_factory(
     settings: Settings,
 ) -> DualProfileProviderFactory:
@@ -234,7 +301,11 @@ def run_dual_profile_evaluation(
     When a unit's validation is exhausted after one repair and one regeneration
     (Stage 13d), the failed attempts, a partial ``provider-calls.json`` and a
     ``failure-manifest.json`` are written to ``output_dir`` (never to the cache) and
-    the ``DualProfileValidationExhaustedError`` is re-raised.
+    the ``DualProfileValidationExhaustedError`` is re-raised. A unit whose provider
+    call fails (Stage 16) writes the same three files with ``provider_failed`` /
+    ``provider_failure`` and re-raises ``DualProfileProviderFailureError``. Any
+    other exception after the output directory exists writes only a
+    ``failure-manifest.json`` (``unexpected_error``) and is re-raised.
     """
 
     started = time.monotonic()
@@ -254,7 +325,7 @@ def run_dual_profile_evaluation(
             progress=progress,
             started=started,
         )
-    except DualProfileValidationExhaustedError as error:
+    except (DualProfileValidationExhaustedError, DualProfileProviderFailureError) as error:
         if progress.output_dir_created:
             try:
                 _write_validation_failure(
@@ -265,12 +336,32 @@ def run_dual_profile_evaluation(
                     elapsed_ms=round((time.monotonic() - started) * 1_000),
                 )
             except Exception as write_error:
-                # Never mask the validation failure with an evidence-writing failure,
+                # Never mask the unit failure with an evidence-writing failure,
                 # whatever its cause (I/O, an invalid name, or a writer bug).
                 error.add_note(
                     "failure evidence could not be written: "
                     f"{type(write_error).__name__}: {write_error}"
                 )
+        raise
+    except Exception as error:
+        # Stage 16 backstop: an unexpected failure still leaves a manifest with the
+        # completed call records behind, and the original exception propagates.
+        if progress.output_dir_created:
+            try:
+                _write_unexpected_failure(
+                    output_dir,
+                    error,
+                    progress,
+                    refresh_stale_cache=refresh_stale_cache,
+                    elapsed_ms=round((time.monotonic() - started) * 1_000),
+                )
+            except Exception as write_error:
+                error.add_note(
+                    "failure evidence could not be written: "
+                    f"{type(write_error).__name__}: {write_error}"
+                )
+            else:
+                error.add_note(f"failure evidence: {output_dir / 'failure-manifest.json'}")
         raise
 
 
@@ -1628,8 +1719,9 @@ class _ResolutionAudit:
         # Stage 13e: every unit whose validation was exhausted, in order. Units of
         # one stage run concurrently, so a second unit can exhaust while the first
         # error propagates; the executor waits for it, and its records and attempts
-        # are kept here for the failure evidence instead of being lost.
-        self._exhausted: list[DualProfileValidationExhaustedError] = []
+        # are kept here for the failure evidence instead of being lost. Stage 16
+        # keeps units whose provider call failed in the same ordered list.
+        self._unit_failures: list[_UnitFailure] = []
 
     def record_resolved(self, stage: str, resolved: _ResolvedCall) -> None:
         with self._lock:
@@ -1644,11 +1736,23 @@ class _ResolutionAudit:
 
     def record_exhausted(self, error: DualProfileValidationExhaustedError) -> None:
         with self._lock:
-            self._exhausted.append(error)
+            self._unit_failures.append(error)
+
+    def record_provider_failure(self, error: DualProfileProviderFailureError) -> None:
+        with self._lock:
+            self._unit_failures.append(error)
 
     def exhausted_errors(self) -> tuple[DualProfileValidationExhaustedError, ...]:
         with self._lock:
-            return tuple(self._exhausted)
+            return tuple(
+                value
+                for value in self._unit_failures
+                if isinstance(value, DualProfileValidationExhaustedError)
+            )
+
+    def unit_failures(self) -> tuple[_UnitFailure, ...]:
+        with self._lock:
+            return tuple(self._unit_failures)
 
     def resolved_counts(self) -> dict[str, dict[str, int]]:
         with self._lock:
@@ -1715,6 +1819,10 @@ class _ResolutionAudit:
             )
 
 
+# Provider failure codes that the dual-profile semantic retry never retries.
+_NO_SEMANTIC_RETRY_CODES = frozenset({"PROVIDER_INTERRUPTED_BY_SLEEP"})
+
+
 @dataclass(frozen=True)
 class _GeneratedCall:
     result: StructuredCallResult[BaseModel]
@@ -1730,7 +1838,11 @@ def _generate_with_semantic_retry(
     response_model: type[BaseModel],
     cancel_requested: Callable[[], bool],
 ) -> _GeneratedCall:
-    """One initial request plus at most one retry after a structured provider failure."""
+    """One initial request plus at most one retry after a structured provider failure.
+
+    A request interrupted by system sleep is not retried (Stage 16): the retry
+    would start into the same suspended host, so the unit fails fast with evidence.
+    """
 
     try:
         result = provider.generate(
@@ -1740,6 +1852,8 @@ def _generate_with_semantic_retry(
             cancel_requested=cancel_requested,
         )
     except StructuredProviderError as first_error:
+        if first_error.code in _NO_SEMANTIC_RETRY_CODES:
+            raise
         try:
             retried = provider.generate(
                 subject_id=f"{subject_id}.semantic_retry_1",
@@ -1755,6 +1869,8 @@ def _generate_with_semantic_retry(
                     *first_error.repair_attempts,
                     *second_error.repair_attempts,
                 ),
+                timeout_seconds=second_error.timeout_seconds,
+                suspended_seconds=second_error.suspended_seconds,
             ) from second_error
         return _GeneratedCall(retried, (*first_error.call_records, *retried.call_records), 1)
     return _GeneratedCall(result, tuple(result.call_records), 0)
@@ -2102,17 +2218,42 @@ def _resolve_call(
     first_output: OutputModel
     first_error: ValueError | None
     first_phase = "initial"
+    # Stage 16: validation attempts made so far, for a later provider failure.
+    failed_attempts: list[DualProfileValidationAttempt] = []
+
+    def provider_failure(
+        phase: str, error: StructuredProviderError
+    ) -> DualProfileProviderFailureError:
+        # The unit's completed calls plus the failing call(s); recorded so a unit
+        # failing concurrently with the propagating error keeps its evidence. The
+        # cache is never written for a failed unit.
+        failure = DualProfileProviderFailureError(
+            stage=stage,
+            profile=profile_value,
+            subject_id=subject_id,
+            cache_key=key,
+            phase=phase,
+            provider_error=error,
+            attempts=failed_attempts,
+            records=(*records, *error.call_records),
+        )
+        resolution_audit.record_provider_failure(failure)
+        return failure
+
     if stale is not None:
         first_output, first_error = stale
         first_phase = "stale_cache"
     else:
-        result = _generate_with_semantic_retry(
-            provider=provider,
-            subject_id=subject_id,
-            payload=payload,
-            response_model=response_model,
-            cancel_requested=cancel_requested,
-        )
+        try:
+            result = _generate_with_semantic_retry(
+                provider=provider,
+                subject_id=subject_id,
+                payload=payload,
+                response_model=response_model,
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as initial_provider_error:
+            raise provider_failure("initial", initial_provider_error) from initial_provider_error
         semantic_retry_count = result.retry_count
         records.extend(result.records)
         first_output = cast(OutputModel, result.result.output)
@@ -2123,17 +2264,21 @@ def _resolve_call(
         except ValueError as exc:
             first_error = exc
     if first_error is not None:
-        repaired_result = provider.repair(
-            subject_id=subject_id,
-            payload={
-                **payload,
-                "invalid_output": first_output.model_dump(mode="json"),
-                "deterministic_validation_errors": [str(first_error)[:2_000]],
-            },
-            response_model=response_model,
-            validation_errors=(str(first_error)[:500],),
-            cancel_requested=cancel_requested,
-        )
+        failed_attempts.append(_failed_attempt(first_phase, first_output, first_error))
+        try:
+            repaired_result = provider.repair(
+                subject_id=subject_id,
+                payload={
+                    **payload,
+                    "invalid_output": first_output.model_dump(mode="json"),
+                    "deterministic_validation_errors": [str(first_error)[:2_000]],
+                },
+                response_model=response_model,
+                validation_errors=(str(first_error)[:500],),
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as repair_provider_error:
+            raise provider_failure("repair", repair_provider_error) from repair_provider_error
         records.extend(repaired_result.call_records)
         resolved_repair_count += max(
             1,
@@ -2144,21 +2289,29 @@ def _resolve_call(
             output = validate(repaired_result.output)
         except ValueError as repaired_error:
             semantic_retry_count += 1
-            validation_retry_result = provider.generate(
-                subject_id=f"{subject_id}.deterministic_retry_1",
-                payload={
-                    **payload,
-                    "invalid_output": repaired_result.output.model_dump(mode="json"),
-                    "deterministic_validation_errors": [str(repaired_error)[:2_000]],
-                    "required_action": (
-                        "Regenerate the whole response once. Omit an optional Discovery "
-                        "candidate if no cue-exact interval satisfies every deterministic "
-                        "constraint; never pad or alter cue timestamps."
-                    ),
-                },
-                response_model=response_model,
-                cancel_requested=cancel_requested,
+            failed_attempts.append(
+                _failed_attempt("repair", repaired_result.output, repaired_error)
             )
+            try:
+                validation_retry_result = provider.generate(
+                    subject_id=f"{subject_id}.deterministic_retry_1",
+                    payload={
+                        **payload,
+                        "invalid_output": repaired_result.output.model_dump(mode="json"),
+                        "deterministic_validation_errors": [str(repaired_error)[:2_000]],
+                        "required_action": (
+                            "Regenerate the whole response once. Omit an optional Discovery "
+                            "candidate if no cue-exact interval satisfies every deterministic "
+                            "constraint; never pad or alter cue timestamps."
+                        ),
+                    },
+                    response_model=response_model,
+                    cancel_requested=cancel_requested,
+                )
+            except StructuredProviderError as regeneration_provider_error:
+                raise provider_failure(
+                    "regeneration", regeneration_provider_error
+                ) from regeneration_provider_error
             records.extend(validation_retry_result.call_records)
             resolved_repair_count += max(
                 int(validation_retry_result.repaired),
@@ -2395,27 +2548,125 @@ def _call_metadata(value: ProviderCallRecord) -> dict[str, object]:
 _FAILURE_NAME_PART = re.compile(r"^[a-z_]+$")
 
 
+def _attempt_rows(
+    attempts: Sequence[DualProfileValidationAttempt],
+) -> list[dict[str, object]]:
+    return [
+        {"phase": value.phase, "error": value.error, "output": dict(value.output)}
+        for value in attempts
+    ]
+
+
+def _json_safe(value: object) -> object:
+    # Provider repair attempts are JSON-shaped dicts; never let an odd value turn
+    # the evidence writer into the failure.
+    return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+
+
+def _unit_failure_kind(value: _UnitFailure) -> str:
+    if isinstance(value, DualProfileValidationExhaustedError):
+        return "validation_exhausted"
+    return "provider_failure"
+
+
+def _unit_failure_row(value: _UnitFailure) -> dict[str, object]:
+    row: dict[str, object] = {
+        "stage": value.stage,
+        "profile": value.profile,
+        "subject_id": value.subject_id,
+        "cache_key": value.cache_key,
+        "attempts": _attempt_rows(value.attempts),
+        "provider_calls": [_call_metadata(item) for item in value.records],
+    }
+    if isinstance(value, DualProfileValidationExhaustedError):
+        row["final_error"] = str(value.final_error)
+    else:
+        row.update(
+            {
+                "failure_code": value.failure_code,
+                "failed_phase": value.phase,
+                "message": value.provider_message,
+                "provider_attempts": _json_safe(list(value.provider_attempts)),
+            }
+        )
+    return row
+
+
+def _failure_manifest_common(
+    progress: _RunProgress,
+    all_calls: Sequence[ProviderCallRecord],
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> dict[str, object]:
+    audit = progress.resolution_audit
+    return {
+        "schema_version": "1",
+        "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+        "status": "failed",
+        "source_hash": progress.source_hash,
+        "requested_profiles": [value.value for value in progress.requested_profiles],
+        "provider": progress.provider_name,
+        "model": progress.model_name,
+        "prompt_files": {key: list(value) for key, value in progress.prompt_files.items()},
+        "prompt_hashes": dict(progress.prompt_hashes),
+        "resolved_units": audit.resolved_counts(),
+        "provider_call_count": len(all_calls),
+        "input_tokens": _usage_total(all_calls, "input_tokens"),
+        "output_tokens": _usage_total(all_calls, "output_tokens"),
+        "latency_ms": sum(value.latency_ms for value in all_calls),
+        "elapsed_ms": elapsed_ms,
+        "stale_cache_refresh_enabled": refresh_stale_cache,
+        "stale_cache_resolutions": [
+            value.model_dump(mode="json") for value in audit.stale_resolutions()
+        ],
+        "boundary_opening_fallbacks": [
+            value.model_dump(mode="json") for value in audit.opening_fallbacks()
+        ],
+        "audit_pair_fallbacks": [
+            value.model_dump(mode="json") for value in audit.audit_fallbacks()
+        ],
+    }
+
+
+def _unit_failure_summaries(values: Sequence[_UnitFailure]) -> list[dict[str, object]]:
+    return [
+        {
+            "stage": value.stage,
+            "profile": value.profile,
+            "subject_id": value.subject_id,
+            "failure_kind": _unit_failure_kind(value),
+            "failure_code": (
+                value.failure_code if isinstance(value, DualProfileProviderFailureError) else None
+            ),
+        }
+        for value in values
+    ]
+
+
 def _write_validation_failure(
     output_dir: Path,
-    error: DualProfileValidationExhaustedError,
+    error: _UnitFailure,
     progress: _RunProgress,
     *,
     refresh_stale_cache: bool,
     elapsed_ms: int,
 ) -> None:
-    """Write Stage 13d failure evidence to the run directory only.
+    """Write Stage 13d / Stage 16 unit-failure evidence to the run directory only.
 
-    Order: the failed unit's attempts, the partial provider-call records (completed
-    units, the failing unit, then every other unit of the run that exhausted
-    concurrently), then the failure manifest last. A concurrently exhausted unit's
-    attempts go into ``concurrent_exhausted_units`` of the same failure file. A unit
-    that ends with any other error (for example one cancelled after the first
-    failure, or a provider failure) is neither resolved nor exhausted, so its calls
-    are not listed. Nothing is written to the cache and no credential is written:
-    call records use the same durable metadata as ``provider-calls.json`` on
-    success, and outputs are the provider's parsed structured outputs as returned
-    (only the Claude CLI provider drops an output that contains its subscription
-    account identity).
+    ``error`` is an exhausted validation (``validation_exhausted``) or a provider
+    failure (``provider_failed`` / ``provider_failure``). Order: the failed unit's
+    file, the partial provider-call records (completed units, the failing unit,
+    then every other unit of the run that exhausted or whose provider failed
+    concurrently, in the order they failed), then the failure manifest last. A
+    concurrently failed unit's details go into ``concurrent_exhausted_units`` or
+    ``concurrent_provider_failed_units`` of the same failure file. A unit that ends
+    with any other error (for example one cancelled after the first failure) is
+    neither resolved nor failed, so its calls are not listed. Nothing is written to
+    the cache and no credential is written: call records use the same durable
+    metadata as ``provider-calls.json`` on success, and outputs are the provider's
+    parsed structured outputs as returned (only the Claude CLI provider drops an
+    output that contains its subscription account identity).
     """
 
     if not (
@@ -2423,39 +2674,25 @@ def _write_validation_failure(
     ):
         raise ValueError("dual Profile failure evidence name is invalid")
     audit = progress.resolution_audit
-    failing_calls = [_call_metadata(value) for value in error.records]
-    concurrent = [value for value in audit.exhausted_errors() if value is not error]
+    exhausted = isinstance(error, DualProfileValidationExhaustedError)
+    concurrent = [value for value in audit.unit_failures() if value is not error]
     _write_json(
         output_dir / error.failure_file_name,
         {
             "schema_version": "1",
             "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
-            "status": "validation_exhausted",
-            "stage": error.stage,
-            "profile": error.profile,
-            "subject_id": error.subject_id,
-            "cache_key": error.cache_key,
+            "status": "validation_exhausted" if exhausted else "provider_failed",
+            **_unit_failure_row(error),
             "cache_written": False,
-            "attempts": [
-                {"phase": value.phase, "error": value.error, "output": dict(value.output)}
-                for value in error.attempts
-            ],
-            "final_error": str(error.final_error),
-            "provider_calls": failing_calls,
             "concurrent_exhausted_units": [
-                {
-                    "stage": value.stage,
-                    "profile": value.profile,
-                    "subject_id": value.subject_id,
-                    "cache_key": value.cache_key,
-                    "attempts": [
-                        {"phase": item.phase, "error": item.error, "output": dict(item.output)}
-                        for item in value.attempts
-                    ],
-                    "final_error": str(value.final_error),
-                    "provider_calls": [_call_metadata(item) for item in value.records],
-                }
+                _unit_failure_row(value)
                 for value in concurrent
+                if isinstance(value, DualProfileValidationExhaustedError)
+            ],
+            "concurrent_provider_failed_units": [
+                _unit_failure_row(value)
+                for value in concurrent
+                if isinstance(value, DualProfileProviderFailureError)
             ],
         },
     )
@@ -2477,41 +2714,78 @@ def _write_validation_failure(
     _write_json(
         output_dir / "failure-manifest.json",
         {
-            "schema_version": "1",
-            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
-            "status": "failed",
-            "failure_kind": "validation_exhausted",
+            **_failure_manifest_common(
+                progress,
+                all_calls,
+                refresh_stale_cache=refresh_stale_cache,
+                elapsed_ms=elapsed_ms,
+            ),
+            "failure_kind": _unit_failure_kind(error),
+            **(
+                {}
+                if exhausted
+                else {
+                    "failure_code": cast(DualProfileProviderFailureError, error).failure_code,
+                    "failed_phase": cast(DualProfileProviderFailureError, error).phase,
+                }
+            ),
             "failure_file": error.failure_file_name,
             "failed_stage": error.stage,
             "failed_profile": error.profile,
             "failed_subject_id": error.subject_id,
             "concurrent_failed_subject_ids": [value.subject_id for value in concurrent],
-            "source_hash": progress.source_hash,
-            "requested_profiles": [value.value for value in progress.requested_profiles],
-            "provider": progress.provider_name,
-            "model": progress.model_name,
-            "prompt_files": {key: list(value) for key, value in progress.prompt_files.items()},
-            "prompt_hashes": dict(progress.prompt_hashes),
-            "resolved_units": audit.resolved_counts(),
-            "provider_call_count": len(all_calls),
-            "input_tokens": _usage_total(all_calls, "input_tokens"),
-            "output_tokens": _usage_total(all_calls, "output_tokens"),
-            "latency_ms": sum(value.latency_ms for value in all_calls),
-            "elapsed_ms": elapsed_ms,
-            "stale_cache_refresh_enabled": refresh_stale_cache,
-            "stale_cache_resolutions": [
-                value.model_dump(mode="json") for value in audit.stale_resolutions()
-            ],
-            "boundary_opening_fallbacks": [
-                value.model_dump(mode="json") for value in audit.opening_fallbacks()
-            ],
-            "audit_pair_fallbacks": [
-                value.model_dump(mode="json") for value in audit.audit_fallbacks()
-            ],
+            "concurrent_failures": _unit_failure_summaries(concurrent),
             "error": str(error)[:4_000],
         },
     )
     error.evidence_file = str(output_dir / error.failure_file_name)
+
+
+_UNEXPECTED_MESSAGE_LIMIT = 2_000
+
+
+def _write_unexpected_failure(
+    output_dir: Path,
+    error: Exception,
+    progress: _RunProgress,
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> None:
+    """Stage 16 backstop: a run that fails any other way still leaves a manifest.
+
+    Only ``failure-manifest.json`` is written (``unexpected_error``), never the
+    cache: the exception type, a bounded one-line message, and every completed call
+    record plus the records of any unit that already failed. The message is the
+    exception text only; provider failures above carry fixed text and codes.
+    """
+
+    audit = progress.resolution_audit
+    unit_failures = audit.unit_failures()
+    all_calls = (
+        *audit.completed_records(),
+        *(record for value in unit_failures for record in value.records),
+    )
+    message = " ".join(str(error).split())
+    if len(message) > _UNEXPECTED_MESSAGE_LIMIT:
+        message = f"{message[: _UNEXPECTED_MESSAGE_LIMIT - 3]}..."
+    _write_json(
+        output_dir / "failure-manifest.json",
+        {
+            **_failure_manifest_common(
+                progress,
+                all_calls,
+                refresh_stale_cache=refresh_stale_cache,
+                elapsed_ms=elapsed_ms,
+            ),
+            "failure_kind": "unexpected_error",
+            "exception_type": type(error).__name__,
+            "error": message,
+            "failure_file": None,
+            "recorded_unit_failures": _unit_failure_summaries(unit_failures),
+            "provider_calls": [_call_metadata(value) for value in all_calls],
+        },
+    )
 
 
 def _write_json(path: Path, value: Mapping[str, object]) -> None:
@@ -2524,6 +2798,7 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 __all__ = [
     "DualProfileProviderFactory",
+    "DualProfileProviderFailureError",
     "DualProfileValidationAttempt",
     "DualProfileValidationExhaustedError",
     "configured_dual_profile_provider_factory",

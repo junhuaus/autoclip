@@ -20,6 +20,46 @@ class ProcessCancelled(RuntimeError):
     """A subprocess was terminated after its owning task requested cancellation."""
 
 
+# A wall-clock lead over the monotonic clock beyond this many seconds at the time
+# a timeout fires means the host was suspended (system sleep) while the child was
+# running, not that the child used its whole budget.
+SLEEP_DETECTION_GAP_SECONDS = 60.0
+
+
+class ProcessInterruptedBySleep(subprocess.TimeoutExpired):
+    """The wall-clock deadline expired while the host was suspended.
+
+    A subclass of ``TimeoutExpired`` so every existing caller keeps its timeout
+    semantics; a caller that can tell the two apart catches this class first.
+    Raised only when the monotonic budget was *not* exhausted and the wall clock
+    ran more than ``SLEEP_DETECTION_GAP_SECONDS`` ahead of the monotonic clock.
+    """
+
+    def __init__(
+        self,
+        cmd: Sequence[str],
+        timeout: float,
+        *,
+        wall_elapsed_seconds: float = 0.0,
+        monotonic_elapsed_seconds: float = 0.0,
+        output: str | None = None,
+        stderr: str | None = None,
+    ) -> None:
+        super().__init__(cmd, timeout, output=output, stderr=stderr)
+        self.wall_elapsed_seconds = wall_elapsed_seconds
+        self.monotonic_elapsed_seconds = monotonic_elapsed_seconds
+
+    @property
+    def suspended_seconds(self) -> float:
+        return max(0.0, self.wall_elapsed_seconds - self.monotonic_elapsed_seconds)
+
+    def __str__(self) -> str:
+        return (
+            f"Command timed out after {self.timeout} seconds of wall-clock time while the "
+            f"host was suspended for about {round(self.suspended_seconds)} seconds"
+        )
+
+
 class _BoundedCapture:
     """Continuously drain one pipe while retaining only a bounded prefix or tail."""
 
@@ -200,11 +240,27 @@ def run_cancellable_process(
             # receive a fresh timeout budget after wake, so enforce the larger
             # of monotonic and wall-clock elapsed time. A backwards wall-clock
             # correction cannot weaken the monotonic deadline.
-            elapsed = max(time.monotonic() - started, time.time() - wall_started)
+            monotonic_elapsed = time.monotonic() - started
+            wall_elapsed = time.time() - wall_started
+            elapsed = max(monotonic_elapsed, wall_elapsed)
             remaining = timeout_seconds - elapsed
             if remaining <= 0:
                 _terminate_process_group(process)
                 _join_readers(readers)
+                # Only the wall-clock deadline fired and the wall clock ran far
+                # ahead of the monotonic clock: the host slept through the call.
+                if (
+                    monotonic_elapsed < timeout_seconds
+                    and wall_elapsed - monotonic_elapsed > SLEEP_DETECTION_GAP_SECONDS
+                ):
+                    raise ProcessInterruptedBySleep(
+                        arguments,
+                        timeout_seconds,
+                        wall_elapsed_seconds=wall_elapsed,
+                        monotonic_elapsed_seconds=monotonic_elapsed,
+                        output=stdout_capture.text(),
+                        stderr=stderr_capture.text(),
+                    )
                 raise subprocess.TimeoutExpired(
                     arguments,
                     timeout_seconds,

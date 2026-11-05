@@ -29,7 +29,11 @@ from liveclip.limits import (
     MAX_LLM_REQUEST_TIMEOUT_SECONDS,
     MIN_LLM_REQUEST_TIMEOUT_SECONDS,
 )
-from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.media.process import (
+    ProcessCancelled,
+    ProcessInterruptedBySleep,
+    run_cancellable_process,
+)
 from liveclip.media.secure_files import (
     SecureFileError,
     hash_regular_file_no_follow,
@@ -717,6 +721,8 @@ class ClaudeCliStructuredLLMProvider:
                     repair_exc.code,
                     (*exc.call_records, *repair_exc.call_records),
                     repair_attempts=(*exc.repair_attempts, *repair_exc.repair_attempts),
+                    timeout_seconds=repair_exc.timeout_seconds,
+                    suspended_seconds=repair_exc.suspended_seconds,
                 ) from repair_exc
             return StructuredCallResult(
                 output=repaired.output,
@@ -884,10 +890,25 @@ class ClaudeCliStructuredLLMProvider:
                         )
                 except ProcessCancelled as exc:
                     raise cancelled() from exc
+                except ProcessInterruptedBySleep as exc:
+                    # Stage 16: the host slept through the request. Name it, so the
+                    # caller fails fast instead of retrying into the same sleep.
+                    raise StructuredProviderError(
+                        "PROVIDER_INTERRUPTED_BY_SLEEP",
+                        (
+                            record(
+                                ProviderCallStatus.FAILED,
+                                "STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP",
+                            ),
+                        ),
+                        timeout_seconds=self._timeout_seconds,
+                        suspended_seconds=exc.suspended_seconds,
+                    ) from exc
                 except subprocess.TimeoutExpired as exc:
                     raise StructuredProviderError(
                         "PROVIDER_TIMEOUT",
                         (record(ProviderCallStatus.FAILED, "STRUCTURED_PROVIDER_TIMEOUT"),),
+                        timeout_seconds=self._timeout_seconds,
                     ) from exc
                 except OSError as exc:
                     if not process_started:

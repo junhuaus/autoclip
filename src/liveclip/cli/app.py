@@ -90,6 +90,7 @@ from liveclip.services.dual_profile_delivery import (
     export_dual_profile_review_package,
 )
 from liveclip.services.dual_profile_evaluation import (
+    DualProfileProviderFailureError,
     DualProfileValidationExhaustedError,
     configured_dual_profile_provider_factory,
     render_dual_profile_candidates,
@@ -1326,8 +1327,16 @@ def dual_profile_eval(
         # bounded summary that names the failing unit and its evidence file.
         typer.echo(_safe_cli_error(ValueError(exc.summary())), err=True)
         raise typer.Exit(code=1) from exc
+    except DualProfileProviderFailureError as exc:
+        # Stage 16: name the provider failure code, unit and evidence file.
+        typer.echo(_safe_cli_error(RuntimeError(exc.summary())), err=True)
+        raise typer.Exit(code=1) from exc
     except (ValidationError, ValueError, RuntimeError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
+        # The run's failure backstop notes where its failure manifest is.
+        for note in getattr(exc, "__notes__", ()):
+            if isinstance(note, str) and note.startswith("failure evidence"):
+                typer.echo(_safe_cli_error(RuntimeError(note)), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
 

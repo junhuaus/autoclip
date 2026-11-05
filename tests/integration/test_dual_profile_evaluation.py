@@ -3740,3 +3740,558 @@ def test_claude_cli_provider_and_model_reach_the_run_manifest(
     assert {"medium", "high"} <= set(efforts)
     # One subscription check per provider construction plus one per call.
     assert len(auth_checks) > len(efforts)
+
+
+# --- Stage 16: provider-failure observability -----------------------------------
+
+
+def _call_record(
+    subject_id: str,
+    operation: str,
+    *,
+    status: ProviderCallStatus = ProviderCallStatus.SUCCEEDED,
+    failure_code: str | None = None,
+) -> ProviderCallRecord:
+    return ProviderCallRecord(
+        call_id=uuid.uuid4().hex,
+        operation_key=hashlib.sha256(
+            f"{operation}:{subject_id}:{uuid.uuid4().hex}".encode()
+        ).hexdigest(),
+        subject_id=subject_id,
+        provider="mock",
+        operation=operation,
+        model="mock-dual-v1",
+        request_count=1,
+        retry_count=0,
+        latency_ms=7,
+        usage_json={"input_tokens": 3, "output_tokens": 2},
+        status=status,
+        failure_code=failure_code,
+        called_at=datetime.now(UTC),
+    )
+
+
+class RecordingDualProvider(ScriptedDualProvider):
+    """Scripted outputs plus one succeeded call record per request."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        requests: list[tuple[object, str]] | None = None,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.requests = requests if requests is not None else []
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        self.requests.append((kwargs["payload"].get("profile"), kwargs["response_model"].__name__))
+        result = super().generate(subject_id=subject_id, **kwargs)
+        return StructuredCallResult(
+            output=result.output,
+            call_records=(_call_record(subject_id, "generate"),),
+            repaired=result.repaired,
+        )
+
+    def repair(self, *, subject_id: str, **kwargs: Any) -> Any:
+        result = super().repair(subject_id=subject_id, **kwargs)
+        return StructuredCallResult(
+            output=result.output,
+            call_records=(_call_record(subject_id, "repair"),),
+            repaired=result.repaired,
+        )
+
+
+def _is_short_global_review(kwargs: dict[str, Any]) -> bool:
+    return (
+        kwargs["response_model"] is ProfileGlobalReviewOutput
+        and kwargs["payload"].get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+    )
+
+
+class GlobalReviewTimeoutProvider(RecordingDualProvider):
+    """Every short Global Review request times out, as cold-32 did during sleep."""
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if _is_short_global_review(kwargs):
+            raise StructuredProviderError(
+                "PROVIDER_TIMEOUT",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_TIMEOUT",
+                    ),
+                ),
+                timeout_seconds=1800,
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+
+def _cache_snapshot(cache: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(cache)): path.read_bytes() for path in sorted(cache.rglob("*.json"))
+    }
+
+
+def test_global_review_provider_timeouts_write_provider_failure_evidence(
+    tmp_path: Path,
+) -> None:
+    """Stage 16 P1 (cold-32): two consecutive PROVIDER_TIMEOUTs in Global Review
+    leave a failure file, partial provider calls and a failure manifest in the run
+    directory, never touch the cache for the failing unit, keep every earlier cache
+    entry reusable, and re-raise."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+
+    def failing_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return GlobalReviewTimeoutProvider(prompt, {})
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=failing_factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    assert isinstance(error, RuntimeError)
+    assert (error.profile, error.stage, error.phase) == (
+        "short_highlight",
+        "global_review",
+        "initial",
+    )
+    assert error.subject_id == "short_highlight.global.001"
+    assert error.failure_code == "PROVIDER_TIMEOUT"
+    assert error.provider_message == "structured provider request timed out after 1800 s"
+    assert "could not be validated" not in str(error)
+    assert error.evidence_file == str(output_dir / "failed-short_highlight-global_review.json")
+    failing_subjects = [
+        "short_highlight.global.001",
+        "short_highlight.global.001.semantic_retry_1",
+    ]
+    assert [record.subject_id for record in error.records] == failing_subjects
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-global_review.json").read_text("utf-8")
+    )
+    assert failed["status"] == "provider_failed"
+    assert failed["failure_code"] == "PROVIDER_TIMEOUT"
+    assert failed["failed_phase"] == "initial"
+    assert failed["message"] == "structured provider request timed out after 1800 s"
+    assert failed["cache_written"] is False
+    assert failed["attempts"] == []
+    assert [value["subject_id"] for value in failed["provider_calls"]] == failing_subjects
+    assert {value["status"] for value in failed["provider_calls"]} == {"failed"}
+    assert {value["failure_code"] for value in failed["provider_calls"]} == {
+        "STRUCTURED_PROVIDER_TIMEOUT"
+    }
+    assert failed["concurrent_exhausted_units"] == []
+    assert failed["concurrent_provider_failed_units"] == []
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Every completed unit's call first, then the two failing calls.
+    assert subjects[-2:] == failing_subjects
+    completed = calls["calls"][:-2]
+    assert completed
+    assert {value["status"] for value in completed} == {"succeeded"}
+    assert any(".boundary." in subject for subject in subjects[:-2])
+
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["failure_code"] == "PROVIDER_TIMEOUT"
+    assert manifest["failed_phase"] == "initial"
+    assert manifest["failure_file"] == "failed-short_highlight-global_review.json"
+    assert (manifest["failed_profile"], manifest["failed_stage"]) == (
+        "short_highlight",
+        "global_review",
+    )
+    assert manifest["failed_subject_id"] == "short_highlight.global.001"
+    assert manifest["concurrent_failed_subject_ids"] == []
+    assert manifest["provider_call_count"] == len(subjects)
+    assert manifest["input_tokens"] == 3 * len(subjects)
+    assert "global_review" not in manifest["resolved_units"]
+    assert manifest["resolved_units"]["boundary_review"]["new"] >= 1
+    assert not (output_dir / "run-manifest.json").exists()
+    assert not (output_dir / "final-validated.json").exists()
+
+    # Nothing cached for the failing unit; no failure evidence in the cache.
+    assert not list(cache.glob("short_highlight/global_review/*.json"))
+    snapshot = _cache_snapshot(cache)
+    assert snapshot
+    for text in snapshot.values():
+        assert b"provider_failed" not in text
+        assert b"semantic_retry" not in text
+
+    # Earlier entries stay intact and are reused byte-for-byte by a later run.
+    requests: list[tuple[object, str]] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {}, requests)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "rerun",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    rerun = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "rerun" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert rerun.cache_hits == len(snapshot)
+    after = _cache_snapshot(cache)
+    assert {key: after[key] for key in snapshot} == snapshot
+    assert ("short_highlight", "ProfileGlobalReviewOutput") in requests
+    assert ("short_highlight", "ProfileBoundaryReviewOutput") not in requests
+
+
+class ConcurrentGlobalChunkFailureProvider(RecordingDualProvider):
+    """Two short candidates, one Global Review chunk each; both chunks fail.
+
+    Each chunk's first request waits for the other before failing, so the two
+    provider failures overlap while the first one propagates.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.barrier = barrier
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if _is_short_global_review(kwargs):
+            if not subject_id.endswith(".semantic_retry_1"):
+                self.barrier.wait()
+            raise StructuredProviderError(
+                "PROVIDER_ERROR",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_ERROR",
+                    ),
+                ),
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        value = super()._output(payload, response_model)
+        if (
+            response_model is ProfileDiscoveryOutput
+            and payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and isinstance(value, ProfileDiscoveryOutput)
+            and value.candidates
+        ):
+            (first,) = value.candidates
+            second = first.model_copy(
+                update={
+                    "candidate_id": "short_highlight_second",
+                    "variant_group_id": "second_lesson",
+                    "start_cue_id": 7,
+                    "end_cue_id": 11,
+                    "evidence_cue_ids": (7, 11),
+                    "title": "第二个短片",
+                }
+            )
+            return cast(OutputModel, value.model_copy(update={"candidates": (first, second)}))
+        return value
+
+
+def test_concurrent_global_chunk_provider_failures_are_all_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    real_chunks = dual_profile_evaluation_module._chunks
+
+    def single_candidate_chunks(values: Any, *, size: int) -> Any:
+        del size
+        return real_chunks(values, size=1)
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "_chunks", single_candidate_chunks)
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ConcurrentGlobalChunkFailureProvider(prompt, {}, barrier=barrier)
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=3,
+        )
+    error = caught.value
+    chunks = {"short_highlight.global.001", "short_highlight.global.002"}
+    assert error.subject_id in chunks
+    (other,) = chunks - {error.subject_id}
+    assert error.failure_code == "PROVIDER_ERROR"
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-global_review.json").read_text("utf-8")
+    )
+    assert failed["subject_id"] == error.subject_id
+    assert failed["concurrent_exhausted_units"] == []
+    (concurrent,) = failed["concurrent_provider_failed_units"]
+    assert (concurrent["stage"], concurrent["subject_id"], concurrent["failure_code"]) == (
+        "global_review",
+        other,
+        "PROVIDER_ERROR",
+    )
+    assert [value["subject_id"] for value in concurrent["provider_calls"]] == [
+        other,
+        f"{other}.semantic_retry_1",
+    ]
+
+    subjects = [
+        value["subject_id"]
+        for value in json.loads((output_dir / "provider-calls.json").read_text("utf-8"))["calls"]
+    ]
+    assert subjects[-4:] == [
+        error.subject_id,
+        f"{error.subject_id}.semantic_retry_1",
+        other,
+        f"{other}.semantic_retry_1",
+    ]
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert manifest["concurrent_failures"] == [
+        {
+            "stage": "global_review",
+            "profile": "short_highlight",
+            "subject_id": other,
+            "failure_kind": "provider_failure",
+            "failure_code": "PROVIDER_ERROR",
+        }
+    ]
+    assert manifest["provider_call_count"] == len(subjects)
+    assert not list(cache.glob("short_highlight/global_review/*.json"))
+
+
+class ExhaustedAndProviderFailedDiscoveryProvider(RecordingDualProvider):
+    """One short Discovery window exhausts validation while another's provider
+    call fails; each waits for the other before failing."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        exhausted_window: str,
+        failed_window: str,
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.exhausted_window = exhausted_window
+        self.failed_window = failed_window
+        self.barrier = barrier
+
+    @staticmethod
+    def _base_discovery(payload: dict[str, object], window: str) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") == window
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        payload = kwargs["payload"]
+        if self._base_discovery(payload, self.failed_window):
+            if not subject_id.endswith(".semantic_retry_1"):
+                self.barrier.wait()
+            raise StructuredProviderError(
+                "PROVIDER_ERROR",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_ERROR",
+                    ),
+                ),
+            )
+        result = super().generate(subject_id=subject_id, **kwargs)
+        if subject_id.endswith(".deterministic_retry_1") and self._base_discovery(
+            payload, self.exhausted_window
+        ):
+            self.barrier.wait()
+        return result
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._base_discovery(
+            payload, self.exhausted_window
+        ):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_exhausted_and_provider_failed_units_share_one_failure_record(tmp_path: Path) -> None:
+    """Stage 16: when an exhausted validation and a provider failure overlap, the
+    propagating error writes the evidence and the other is kept beside it."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    output_dir = tmp_path / "output"
+    windows = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )
+    exhausted_window, failed_window = windows[0].window_id, windows[1].window_id
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ExhaustedAndProviderFailedDiscoveryProvider(
+            prompt,
+            {},
+            exhausted_window=exhausted_window,
+            failed_window=failed_window,
+            barrier=barrier,
+        )
+
+    with pytest.raises(
+        (
+            DualProfileValidationExhaustedError,
+            dual_profile_evaluation_module.DualProfileProviderFailureError,
+        )
+    ) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    exhausted_first = isinstance(error, DualProfileValidationExhaustedError)
+    other = failed_window if exhausted_first else exhausted_window
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert failed["subject_id"] == error.subject_id
+    if exhausted_first:
+        assert failed["status"] == "validation_exhausted"
+        assert manifest["failure_kind"] == "validation_exhausted"
+        assert failed["concurrent_exhausted_units"] == []
+        (concurrent,) = failed["concurrent_provider_failed_units"]
+        assert concurrent["failure_code"] == "PROVIDER_ERROR"
+        other_kind = "provider_failure"
+    else:
+        assert failed["status"] == "provider_failed"
+        assert manifest["failure_kind"] == "provider_failure"
+        assert failed["concurrent_provider_failed_units"] == []
+        (concurrent,) = failed["concurrent_exhausted_units"]
+        assert [value["phase"] for value in concurrent["attempts"]] == [
+            "initial",
+            "repair",
+            "regeneration",
+        ]
+        other_kind = "validation_exhausted"
+    assert concurrent["subject_id"] == other
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert [value["failure_kind"] for value in manifest["concurrent_failures"]] == [other_kind]
+    subjects = [
+        value["subject_id"]
+        for value in json.loads((output_dir / "provider-calls.json").read_text("utf-8"))["calls"]
+    ]
+    for window in (exhausted_window, failed_window):
+        assert window in subjects
+
+
+def test_an_unexpected_mid_run_error_still_writes_a_failure_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16 backstop: any other exception after the run directory exists writes
+    failure-manifest.json with the completed call records and is re-raised."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    defect = ValueError("synthetic mid-run defect")
+
+    def broken_risk_twin_review(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise defect
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "risk_twin_review", broken_risk_twin_review)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(ValueError, match="synthetic mid-run defect") as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    assert caught.value is defect
+    manifest_path = output_dir / "failure-manifest.json"
+    assert caught.value.__notes__ == [f"failure evidence: {manifest_path}"]
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_kind"] == "unexpected_error"
+    assert manifest["exception_type"] == "ValueError"
+    assert manifest["error"] == "synthetic mid-run defect"
+    assert manifest["failure_file"] is None
+    assert manifest["recorded_unit_failures"] == []
+    assert manifest["provider_calls"]
+    assert manifest["provider_call_count"] == len(manifest["provider_calls"])
+    assert {value["status"] for value in manifest["provider_calls"]} == {"succeeded"}
+    assert manifest["resolved_units"]["global_review"]["new"] >= 1
+    # Only the manifest is added: no unit failure file, no partial calls, no final
+    # outputs (intermediate stage outputs written earlier stay as they were).
+    names = {path.name for path in output_dir.iterdir()}
+    assert "failure-manifest.json" in names
+    assert not {name for name in names if name.startswith("failed-")}
+    assert not names & {"provider-calls.json", "run-manifest.json", "final-validated.json"}
+    # The completed units were cached; the failure evidence never is.
+    assert list(cache.rglob("*.json"))
+    for entry in cache.rglob("*.json"):
+        assert "unexpected_error" not in entry.read_text("utf-8")
+
+
+def test_an_error_before_the_run_directory_exists_writes_nothing(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(ValueError, match="Discovery concurrency") as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=0,
+        )
+    assert not hasattr(caught.value, "__notes__")
+    assert not (tmp_path / "output").exists()

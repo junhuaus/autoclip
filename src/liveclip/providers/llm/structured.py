@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 import subprocess
 import tempfile
 import time
@@ -27,7 +29,11 @@ from liveclip.domain.semantic_validation import (
     SemanticExecutionContract,
     SemanticTransportContract,
 )
-from liveclip.media.process import ProcessCancelled, run_cancellable_process
+from liveclip.media.process import (
+    ProcessCancelled,
+    ProcessInterruptedBySleep,
+    run_cancellable_process,
+)
 from liveclip.media.secure_files import (
     SecureFileError,
     read_regular_text_no_follow,
@@ -171,12 +177,25 @@ class StructuredProviderError(RuntimeError):
         *,
         repair_attempts: tuple[dict[str, object], ...] = (),
         diagnostic_relative_path: str | None = None,
+        timeout_seconds: float | None = None,
+        suspended_seconds: float | None = None,
     ) -> None:
-        super().__init__(_structured_error_message(code, call_records))
+        super().__init__(
+            _structured_error_message(
+                code,
+                call_records,
+                timeout_seconds=timeout_seconds,
+                suspended_seconds=suspended_seconds,
+            )
+        )
         self.code = code
         self.call_records = call_records
         self.repair_attempts = repair_attempts
         self.diagnostic_relative_path = diagnostic_relative_path
+        # Configured request timeout and, for a sleep interruption, how long the
+        # host was suspended. Fixed numbers only; never provider content.
+        self.timeout_seconds = timeout_seconds
+        self.suspended_seconds = suspended_seconds
 
 
 # Provider transport failures are not schema failures. Name their real cause so a
@@ -198,7 +217,19 @@ _PROVIDER_FAILURE_MESSAGES = {
     "CLAUDE_CLI_REQUEST_FAILED": "Claude CLI request failed",
     "CODEX_CLI_RATE_LIMITED": "Codex CLI rate limited (429 Too Many Requests)",
     "CODEX_CLI_QUOTA_EXHAUSTED": "Codex CLI quota exhausted",
+    # Stage 16: a timeout, a sleep interruption or a transport failure is never a
+    # schema failure; only STRUCTURED_OUTPUT_INVALID says "could not be validated".
+    "STRUCTURED_OUTPUT_INVALID": "structured model output could not be validated",
+    "STRUCTURED_OUTPUT_MISSING": "structured model output was missing",
+    "PROVIDER_TIMEOUT": "structured provider request timed out",
+    "PROVIDER_INTERRUPTED_BY_SLEEP": (
+        "structured provider request was interrupted by system sleep"
+    ),
+    "PROVIDER_ERROR": "structured provider request failed",
+    "PROVIDER_CONFIGURATION": "structured provider configuration failed",
+    "STRUCTURED_TOOL_EVENT": "structured provider response attempted a forbidden tool call",
 }
+_STRUCTURED_FAILURE_CODE = re.compile(r"^[A-Z0-9_]{1,80}$")
 _ATTEMPT_COUNTED_FAILURES = frozenset(
     {
         "CLAUDE_CLI_RATE_LIMITED",
@@ -210,16 +241,50 @@ _ATTEMPT_COUNTED_FAILURES = frozenset(
 )
 
 
-def _structured_error_message(code: str, call_records: Sequence[ProviderCallRecord]) -> str:
+def _structured_error_message(
+    code: str,
+    call_records: Sequence[ProviderCallRecord],
+    *,
+    timeout_seconds: float | None = None,
+    suspended_seconds: float | None = None,
+) -> str:
     cause = _PROVIDER_FAILURE_MESSAGES.get(code)
     if cause is None:
-        return "structured model output could not be validated"
+        # An unlisted code names itself (codes are fixed identifiers); it is never
+        # reported as a validation failure.
+        if _STRUCTURED_FAILURE_CODE.fullmatch(code):
+            return f"structured provider request failed ({code})"
+        return "structured provider request failed"
+    if code == "PROVIDER_TIMEOUT" and _positive_seconds(timeout_seconds):
+        return f"{cause} after {_seconds_text(cast(float, timeout_seconds))} s"
+    if code == "PROVIDER_INTERRUPTED_BY_SLEEP":
+        details = []
+        if _positive_seconds(suspended_seconds):
+            details.append(f"host suspended for about {round(cast(float, suspended_seconds))} s")
+        if _positive_seconds(timeout_seconds):
+            details.append(
+                f"wall-clock timeout {_seconds_text(cast(float, timeout_seconds))} s reached"
+            )
+        return f"{cause} ({'; '.join(details)})" if details else cause
     if code not in _ATTEMPT_COUNTED_FAILURES:
         return cause
     attempts = sum(record.request_count for record in call_records if record.failure_code == code)
     if not attempts:
         return cause
     return f"{cause} after {attempts} attempt{'' if attempts == 1 else 's'}"
+
+
+def _positive_seconds(value: float | None) -> bool:
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
+def _seconds_text(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -488,6 +553,8 @@ class OpenAIStructuredLLMProvider:
                     repair_exc.code,
                     (*exc.call_records, *repair_exc.call_records),
                     repair_attempts=(*exc.repair_attempts, *repair_exc.repair_attempts),
+                    timeout_seconds=repair_exc.timeout_seconds,
+                    suspended_seconds=repair_exc.suspended_seconds,
                 ) from repair_exc
             return StructuredCallResult(
                 output=repaired.output,
@@ -919,6 +986,8 @@ class CodexStructuredLLMProvider:
                     repair_exc.code,
                     (*exc.call_records, *repair_exc.call_records),
                     repair_attempts=(*exc.repair_attempts, *repair_exc.repair_attempts),
+                    timeout_seconds=repair_exc.timeout_seconds,
+                    suspended_seconds=repair_exc.suspended_seconds,
                 ) from repair_exc
             return StructuredCallResult(
                 output=repaired.output,
@@ -1064,6 +1133,12 @@ class CodexStructuredLLMProvider:
                     raise ProviderCancelled(record) from exc
                 raise ProviderCancelled() from exc
             except subprocess.TimeoutExpired as exc:
+                # Stage 16: a sleep interruption (a TimeoutExpired subclass) gets its
+                # own code so a caller can fail fast instead of retrying.
+                suspended = (
+                    exc.suspended_seconds if isinstance(exc, ProcessInterruptedBySleep) else None
+                )
+                slept = suspended is not None
                 record = _record(
                     provider=self.provider_name,
                     model=self.model_name,
@@ -1075,9 +1150,18 @@ class CodexStructuredLLMProvider:
                     called_at=called_at,
                     status=ProviderCallStatus.FAILED,
                     latency_ms=int((time.monotonic() - started) * 1_000),
-                    failure_code="STRUCTURED_PROVIDER_TIMEOUT",
+                    failure_code=(
+                        "STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP"
+                        if slept
+                        else "STRUCTURED_PROVIDER_TIMEOUT"
+                    ),
                 )
-                raise StructuredProviderError("PROVIDER_TIMEOUT", (record,)) from exc
+                raise StructuredProviderError(
+                    "PROVIDER_INTERRUPTED_BY_SLEEP" if slept else "PROVIDER_TIMEOUT",
+                    (record,),
+                    timeout_seconds=self._delegate._timeout_seconds,
+                    suspended_seconds=suspended,
+                ) from exc
             except OSError as exc:
                 if self._execution_contract is not None and not process_started:
                     raise ProviderConfigurationError("Codex process could not be started") from exc

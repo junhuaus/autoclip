@@ -50,6 +50,8 @@ class SemanticBatchFailure(StructuredProviderError):
             error.call_records,
             repair_attempts=error.repair_attempts,
             diagnostic_relative_path=error.diagnostic_relative_path,
+            timeout_seconds=error.timeout_seconds,
+            suspended_seconds=error.suspended_seconds,
         )
         self.deterministic = deterministic
 

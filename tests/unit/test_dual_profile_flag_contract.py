@@ -20,7 +20,9 @@ from liveclip.pipeline.dual_profile import (
     PERSISTED_STRUCTURAL_GATED_FLAGS,
     DualQualityFlag,
 )
+from liveclip.providers.llm.structured import StructuredProviderError
 from liveclip.services.dual_profile_evaluation import (
+    DualProfileProviderFailureError,
     DualProfileValidationAttempt,
     DualProfileValidationExhaustedError,
 )
@@ -446,3 +448,72 @@ def test_dual_profile_eval_cli_summary_keeps_the_evidence_writer_failure_note(
     summary = error.summary()
     assert len(summary) <= 500
     assert "failure evidence could not be written: OSError: disk full" in summary
+
+
+def _invoke_dual_profile_eval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> object:
+    def fake_run(**_kwargs: object) -> dict[str, object]:
+        raise error
+
+    monkeypatch.setattr(cli_module, "get_settings", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        cli_module, "configured_dual_profile_provider_factory", lambda _settings: None
+    )
+    monkeypatch.setattr(cli_module, "run_dual_profile_evaluation", fake_run)
+    return CliRunner().invoke(
+        cli_module.app,
+        [
+            "dual-profile-eval",
+            "--transcript",
+            str(tmp_path / "transcript.srt"),
+            "--output",
+            str(tmp_path / "output"),
+        ],
+    )
+
+
+def test_dual_profile_eval_cli_names_a_provider_failure_code_stage_and_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16 P3: a provider failure is never printed as a validation failure."""
+
+    error = DualProfileProviderFailureError(
+        stage="global_review",
+        profile="short_highlight",
+        subject_id="short_highlight.global.001",
+        cache_key="c" * 64,
+        phase="initial",
+        provider_error=StructuredProviderError("PROVIDER_TIMEOUT", (), timeout_seconds=1800),
+        attempts=(),
+        records=(),
+    )
+    error.evidence_file = str(tmp_path / "output" / error.failure_file_name)
+
+    result = _invoke_dual_profile_eval(tmp_path, monkeypatch, error)
+
+    assert result.exit_code == 1  # type: ignore[attr-defined]
+    output = result.output  # type: ignore[attr-defined]
+    assert (
+        "dual Profile provider failure PROVIDER_TIMEOUT in short_highlight global_review "
+        "(short_highlight.global.001) during initial; evidence: "
+    ) in output
+    assert (
+        "failed-short_highlight-global_review.json; cause: structured provider request "
+        "timed out after 1800 s"
+    ) in output
+    assert "could not be validated" not in output
+
+
+def test_dual_profile_eval_cli_prints_the_backstop_manifest_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    error = ValueError("synthetic mid-run defect")
+    manifest = tmp_path / "output" / "failure-manifest.json"
+    error.add_note(f"failure evidence: {manifest}")
+
+    result = _invoke_dual_profile_eval(tmp_path, monkeypatch, error)
+
+    assert result.exit_code == 1  # type: ignore[attr-defined]
+    lines = result.output.splitlines()  # type: ignore[attr-defined]
+    assert lines == ["synthetic mid-run defect", f"failure evidence: {manifest}"]

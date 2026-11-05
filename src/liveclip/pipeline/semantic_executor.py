@@ -45,6 +45,10 @@ _TRANSIENT_FAILURES = frozenset(
     {
         "PROVIDER_TIMEOUT",
         "STRUCTURED_PROVIDER_TIMEOUT",
+        # Stage 16: a sleep interruption was a timeout before it had its own code;
+        # the durable job pipelines keep classifying it exactly as before.
+        "PROVIDER_INTERRUPTED_BY_SLEEP",
+        "STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP",
         "OPENAI_TIMEOUT",
         "OPENAI_CONNECTION",
         "OPENAI_RATE_LIMIT",
