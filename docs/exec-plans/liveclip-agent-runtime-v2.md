@@ -1,5 +1,46 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Freeze accepted at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05)
+
+- [x] 2026-11-05 **FREEZE ACCEPTED** at
+  `50232af0cb0b0194fb663528b569998a8a2fd79b`: independent tester at `c5e9f96` (freeze-diff to `50232af` empty): `make
+  lint` rc 0; backend pytest 3224 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; freeze-diff rc 0; `caffeinate` held
+  for the full suite (a 40 s maintenance sleep occurred only during lint,
+  not under `caffeinate`); independent reviewer: Stage 17 ACCEPT with nits (13/13 mutations caught,
+  replay identical); Stage 17b ACCEPT with nits; FREEZE-READY yes (8/8
+  prompt mutations caught; the 17 prompt hashes computed from the tree
+  equal the `STATUS.md` table and the test pins; six-run replay
+  byte-identical). Consecutive cold strict PASS count:
+  **0/2**. Details in `STATUS.md`.
+- [x] 2026-11-05 Reviewer P2 fixed (docs/policy only): a fresh run has
+  run-manifest `cache_hits == 0`, its cache root is new or empty at start,
+  and every cache file's mtime is at or after the run's attempt start; a
+  continuation segment (cold-Nb) has `cache_hits` equal to the number of
+  entries copied from the immediately previous segment of the same run,
+  every carried file byte-identical to that segment and every new file's
+  mtime at or after the segment start; content identity versus other roots
+  is informational only (identical model outputs under identical frozen
+  prompts legitimately produce identical cache files). This replaces the
+  Stage 17b "0 content-identical files" clause.
+- [x] 2026-11-05 Reviewer P3 fixed: the two counted runs need equal
+  run-manifest `provider`, `model`, `prompt_hashes`, final-validated routing
+  policy and algorithm version; the same pinned Claude CLI binary (sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`, version 2.1.308); and the same effective Settings (no
+  `.env`/`.env.local` override of `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings; each run records `ls -la .env .env.local` presence and
+  only the `LIVECLIP_` key names of a present file, never values). At this
+  commit `.env` is absent and `.env.local` is present with no
+  `LIVECLIP_CLAUDE_*` or `LIVECLIP_STRUCTURED_PROVIDER` key. `.gitignore` is
+  added to the freeze path list.
+- [x] 2026-11-05 Accepted residuals (reviewer P3, unchanged by decision; any
+  prompt edit starts a new freeze): the `main.md` line 8 and
+  `global_review.md` duration-minimum sentences do not restate the
+  single-cue exemption; the `global_audit.md` exemption lacks "without
+  leaving the topic". Recorded for a future prompt revision.
+- [ ] Next: cold-33, the first counted fresh cold run, at the frozen tree;
+  human review of the cold-27 through cold-32b renders stays pending.
+
 ## Stage 17b Stage 17 reviewer nits; freeze definitions (2026-11-05)
 
 - [x] 2026-11-05 Stage 17 reviewer **ACCEPT with nits** on the Stage 16b +
@@ -55,21 +96,27 @@
 - [x] 2026-11-05 **Acceptance policy definitions** (refine the Stage 17
   policy; the user decision is unchanged): FROZEN means the code/prompt tree:
   `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
-  migrations pyproject.toml uv.lock alembic.ini Makefile
+  migrations pyproject.toml uv.lock alembic.ini Makefile .gitignore
   liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
   rc 0 with no untracked file under those paths, the recorded 17 prompt
   hashes, routing `quality-gate-risk-routing-v9` and algorithm
   `dual-profile-direct-v1`; docs-only commits recording run results do not
   reset the count. Fresh cold means a new empty cache root plus a provenance
-  check (every cache file new; 0 content-identical files vs every earlier
-  root; a continuation segment copies only from the immediately previous
-  segment of the same run). A run aborted by a provider or environment
+  check (run-manifest `cache_hits == 0`, every cache file's mtime at or
+  after the attempt start; a continuation segment copies only from the
+  immediately previous segment of the same run, with `cache_hits` equal to
+  the copied entries, carried files byte-identical and new files' mtimes
+  at or after the segment start; content identity versus other roots is
+  informational only). (Corrected at freeze acceptance, reviewer P2;
+  `.gitignore` added to the path list, reviewer P3. The Stage 17b text
+  required 0 content-identical files vs every earlier root.) A run aborted by a provider or environment
   failure without a strict evaluation counts neither way (re-run as a new
   run or continue as cold-Nb); a strict FAIL resets the count. Human
   editorial/audio review stays a separate evidence category, not part of
   strict PASS. The freeze SHA is `50232af0cb0b0194fb663528b569998a8a2fd79b` once its tester and reviewer
   accept.
-- [ ] Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
+- [x] (Historical next step; tester and reviewer accepted, freeze recorded
+  above.) Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
   consecutive fresh cold strict PASS runs; human review of the cold-27
   through cold-32b renders.
 

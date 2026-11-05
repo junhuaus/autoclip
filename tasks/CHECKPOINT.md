@@ -1016,14 +1016,59 @@ tools apps migrations pyproject.toml uv.lock alembic.ini Makefile
 liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`,
 no untracked file there) plus the recorded 17 prompt hashes, routing v9 and
 algorithm `dual-profile-direct-v1`; docs-only commits do not reset the
-count. Fresh cold = new empty cache root plus provenance check (all cache
-files new, 0 content-identical vs earlier roots; a continuation copies only
-from the immediately previous segment of the same run). A run aborted by a
+count. Fresh cold = new empty cache root plus provenance check (corrected
+at freeze acceptance, reviewer P2: run-manifest `cache_hits == 0` and every
+cache file's mtime at or after the attempt start; a continuation copies
+only from the immediately previous segment of the same run, with
+`cache_hits` equal to the copied entries, carried files byte-identical and
+new files' mtimes at or after the segment start; content identity versus
+other roots is informational only. The Stage 17b text required 0
+content-identical files vs earlier roots). A run aborted by a
 provider/environment failure without a strict evaluation counts neither
 way; a strict FAIL resets the count. Human editorial/audio review is a
 separate evidence category, not part of strict PASS. The freeze SHA is
 `50232af0cb0b0194fb663528b569998a8a2fd79b` once its tester and reviewer accept.
 
-Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
+(Historical next step; freeze accepted, below.) Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
 consecutive fresh cold strict PASS runs. Not pushed. Push and merge still
 need explicit consent.
+
+## FREEZE ACCEPTED at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05)
+
+Freeze SHA `50232af0cb0b0194fb663528b569998a8a2fd79b`. Tester at `c5e9f96`:
+`make lint` rc 0, backend 3224 passed, vitest 80, e2e 4/4, concurrency 5/5,
+media-process 3/3, freeze-diff rc 0; `caffeinate` held for the full suite (a
+40 s maintenance sleep occurred only during lint, not under `caffeinate`).
+Reviewer: Stage 17 ACCEPT with nits (13/13 mutations, replay identical);
+Stage 17b ACCEPT with nits; FREEZE-READY yes (8/8 prompt mutations caught,
+prompt hashes = `STATUS.md` = test pins, replay byte-identical).
+Consecutive cold strict PASS count: 0/2.
+
+Reviewer P2 (provenance, docs only): a fresh run has run-manifest
+`cache_hits == 0`, its cache root is new or empty at start, and every cache
+file's mtime is at or after the run's attempt start; a continuation segment
+(cold-Nb) has `cache_hits` equal to the number of entries copied from the
+immediately previous segment of the same run, every carried file
+byte-identical to that segment and every new file's mtime at or after the
+segment start; content identity versus other roots is reported for
+information only (identical model outputs under identical frozen prompts
+legitimately produce identical cache files).
+
+Reviewer P3 (environment pinning): the two counted runs need equal
+run-manifest `provider`, `model`, `prompt_hashes`, final-validated routing
+policy and algorithm version; the same pinned Claude CLI binary (sha256
+`ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`, version 2.1.308);
+the same effective Settings (no `.env`/`.env.local` override of
+`LIVECLIP_CLAUDE_*` model, timeout or attempt settings; record
+`ls -la .env .env.local` presence and only the `LIVECLIP_` key names of a
+present file, never values). At this commit `.env` is absent and
+`.env.local` has no `LIVECLIP_CLAUDE_*` or `LIVECLIP_STRUCTURED_PROVIDER`
+key. `.gitignore` is added to the freeze path list.
+
+Accepted residuals (reviewer P3, unchanged by decision): the `main.md` line 8
+and `global_review.md` duration-minimum sentences do not restate the
+single-cue exemption; the `global_audit.md` exemption lacks "without leaving
+the topic". Recorded for a future prompt revision.
+
+Next: cold-33, the first counted fresh cold run, at the frozen tree. Not
+pushed. Push and merge still need explicit consent.

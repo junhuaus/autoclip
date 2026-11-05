@@ -18,7 +18,82 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 17b: Stage 17 reviewer nits (gift wording, freeze definitions) (2026-11-05) — IMPLEMENTED, PENDING VERIFICATION (freeze candidate)
+## FREEZE ACCEPTED at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05) — consecutive cold strict PASS 0/2
+
+- **Freeze SHA `50232af0cb0b0194fb663528b569998a8a2fd79b`** (Stage 17b code commit; it
+  contains Stage 16b `b5d8def` and Stage 17 `2932b7c`). On
+  `claude/liveclip-stage8-routing`; not pushed or merged to `main`. Frozen
+  paths and run conditions: "Acceptance policy from Stage 17" below, as
+  corrected here.
+- **Tester:** independent tester at `c5e9f96` (freeze-diff to `50232af` empty): `make
+  lint` rc 0; backend pytest 3224 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; freeze-diff rc 0; `caffeinate` held
+  for the full suite (a 40 s maintenance sleep occurred only during lint,
+  not under `caffeinate`). Deterministic validation only; no real model call.
+- **Reviewer:** independent reviewer: Stage 17 ACCEPT with nits (13/13 mutations caught,
+  replay identical); Stage 17b ACCEPT with nits; FREEZE-READY yes (8/8
+  prompt mutations caught; the 17 prompt hashes computed from the tree
+  equal the `STATUS.md` table and the test pins; six-run replay
+  byte-identical). Nits: P2 provenance criterion; P3 run-environment
+  pinning and `.gitignore`; two P3 prompt-wording notes left unchanged by
+  decision. All recorded here; no code or prompt change.
+- **Fresh cold (precise; Stage 17b, provenance criterion corrected at
+  freeze acceptance, reviewer P2).** A fresh run's run manifest records
+  `cache_hits == 0`, its cache root did not exist or was empty at run
+  start, and every cache file in that root has an mtime at or after the
+  run's attempt start. A continuation segment (cold-Nb) may copy only the
+  cache of the immediately previous segment of the same run (cold-N for
+  cold-Nb, cold-Nb for cold-Nc); its run manifest records `cache_hits`
+  equal to the number of entries copied from that segment, every carried
+  file is byte-identical to that segment's file, and every new file has an
+  mtime at or after the segment start. Content identity against other
+  cache roots is reported for information only: identical model outputs
+  under identical frozen prompts legitimately produce identical cache
+  files, so it is not a pass/fail criterion. A warm run, or a run seeded
+  from any other root, is a diagnostic, never acceptance evidence.
+  (History: the Stage 17b wording also required 0 cache files
+  content-identical to a file in any earlier cache root; the freeze
+  reviewer's P2 showed that two honest runs on the same frozen prompts may
+  produce identical files, so that clause was replaced before any counted
+  run.)
+- **Run environment (freeze reviewer P3).** The two counted runs must
+  have equal run-manifest `provider`, `model`, `prompt_hashes`, routing
+  policy (as final-validated) and algorithm version; the same pinned
+  Claude CLI binary (`.cache/claude-cli/2.1.308/claude`, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+  `--version` 2.1.308); and the same effective Settings, with no `.env`
+  or `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings. Each run records `ls -la .env .env.local` presence
+  and, for a present file, only the names of its `LIVECLIP_` keys, never
+  values. Check at this docs commit (2026-11-05): `.env` absent;
+  `.env.local` present and ignored (`.gitignore` `.env.*`), with no
+  `LIVECLIP_CLAUDE_*` and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI
+  binary's recomputed sha256 equals the pin and its mode is 0555.
+- **`.gitignore` added to the freeze path list** (it decides which local files
+  are ignored, for example `.env.*` and `.cache/`); it is unchanged between
+  `50232af` and this commit.
+- **Accepted residuals (freeze reviewer P3, unchanged by decision).**
+  (1) The duration-minimum sentences in `main.md` line 8 ("Do not use
+  greetings, thanks, likes/follows, ... to meet a duration minimum") and
+  `global_review.md` ("The Profile minimum must be met by on-topic
+  content, not by chat, calls to action, greetings or device talk") do not
+  restate the single-cue exemption. (2) The `global_audit.md` exemption
+  reads "passes over" without "without leaving the topic", unlike the
+  other five statements. Both are left as they are because any prompt edit
+  changes prompt identities and starts a new freeze; they are recorded for
+  a future prompt revision.
+- **Consecutive cold strict PASS count: 0/2.**
+- Recovery: docs-only; reverting this commit restores the Stage 17b wording.
+  No code, prompt, routing, algorithm or benchmark change; the freeze is
+  unaffected.
+- **Next: cold-33**, the first counted fresh cold run, at the frozen tree.
+  Pre-run: freeze-diff (including `.gitignore`) rc 0 with empty porcelain;
+  new empty cache root; CLI sha256 and version; `.env`/`.env.local`
+  presence and `LIVECLIP_` key names. Human review of the cold-27 through
+  cold-32b renders stays pending (separate evidence category). Push and
+  merge still need explicit consent.
+
+## Stage 17b: Stage 17 reviewer nits (gift wording, freeze definitions) (2026-11-05) — ACCEPTED at 50232af (FREEZE SHA; was implemented, pending verification)
 
 - **Status: implemented, pending independent tester and reviewer.** Prompts
   and tests in `50232af0cb0b0194fb663528b569998a8a2fd79b` on `claude/liveclip-stage8-routing`; this docs
@@ -27,7 +102,9 @@
   cache-key schema, persisted schemas, Python behaviour, evaluator,
   thresholds, benchmark JSON/MD and `tools/loop_engineering` are unchanged.
   Once the tester and reviewer accept, `50232af0cb0b0194fb663528b569998a8a2fd79b` is the **freeze SHA**
-  (definitions in "Acceptance policy from Stage 17" below).
+  (definitions in "Acceptance policy from Stage 17" below). (Later,
+  2026-11-05: tester and reviewer accepted; freeze SHA; see the FREEZE
+  section above.)
 - **Stage 17 reviewer verdict: ACCEPT with nits** on the Stage 16b + Stage 17
   candidate at `66b7555` (code `b5d8def`, `2932b7c`): no P0/P1. Reviewer
   mutations (scratch copies only; results in
@@ -118,7 +195,7 @@
 - Recovery: revert `50232af0cb0b0194fb663528b569998a8a2fd79b` (and this docs commit); restores the
   Stage 17 prompt hashes. No routing, cache-key or schema impact.
 
-## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — REVIEWER ACCEPT WITH NITS at 66b7555; nits → Stage 17b
+## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — REVIEWER ACCEPT WITH NITS at 66b7555; nits → Stage 17b; ACCEPTED with 17b at 50232af (freeze)
 
 - **Reviewer ACCEPT with nits** at `66b7555` (no P0/P1; details and nits in
   Stage 17b above). The bullets below are the historical implementation
@@ -353,7 +430,7 @@ result exactly; no model call, nothing written under `data/`).
 - **FROZEN (precise; Stage 17b).** The freeze covers the code/prompt tree,
   not the documentation. A run is on the frozen SHA when, at its start:
   (a) `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
-  migrations pyproject.toml uv.lock alembic.ini Makefile
+  migrations pyproject.toml uv.lock alembic.ini Makefile .gitignore
   liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
   exits 0 and `git status --porcelain --untracked-files=all -- <the same
   paths>` is empty (no committed, uncommitted or untracked change). Every
@@ -367,16 +444,40 @@ result exactly; no model call, nothing written under `data/`).
   final results record exactly these. Docs-only commits (`STATUS.md`,
   `docs/`, `tasks/`, `.agent/`, `AGENTS.md`, `CLAUDE.md`, `README.md`) touch
   none of these paths, so HEAD may move by commits that record run results
-  without resetting the count.
-- **Fresh cold (precise; Stage 17b).** A new cache root that did not exist,
-  or was empty, at run start, plus a provenance check after the run: every
-  cache file in the root was created by this run, and 0 cache files are
-  content-identical to a file in any earlier cache root. A continuation
-  segment (cold-Nb) may copy only the cache of the immediately previous
-  segment of the same run (cold-N for cold-Nb, cold-Nb for cold-Nc); its
-  provenance check excludes only that segment and still requires 0
-  content-identical files against every other root. A warm run, or a run
-  seeded from any other root, is a diagnostic, never acceptance evidence.
+  without resetting the count. (`.gitignore` was added to this list at
+  freeze acceptance, reviewer P3.)
+- **Fresh cold (precise; Stage 17b, provenance criterion corrected at
+  freeze acceptance, reviewer P2).** A fresh run's run manifest records
+  `cache_hits == 0`, its cache root did not exist or was empty at run
+  start, and every cache file in that root has an mtime at or after the
+  run's attempt start. A continuation segment (cold-Nb) may copy only the
+  cache of the immediately previous segment of the same run (cold-N for
+  cold-Nb, cold-Nb for cold-Nc); its run manifest records `cache_hits`
+  equal to the number of entries copied from that segment, every carried
+  file is byte-identical to that segment's file, and every new file has an
+  mtime at or after the segment start. Content identity against other
+  cache roots is reported for information only: identical model outputs
+  under identical frozen prompts legitimately produce identical cache
+  files, so it is not a pass/fail criterion. A warm run, or a run seeded
+  from any other root, is a diagnostic, never acceptance evidence.
+  (History: the Stage 17b wording also required 0 cache files
+  content-identical to a file in any earlier cache root; the freeze
+  reviewer's P2 showed that two honest runs on the same frozen prompts may
+  produce identical files, so that clause was replaced before any counted
+  run.)
+- **Run environment (freeze reviewer P3).** The two counted runs must
+  have equal run-manifest `provider`, `model`, `prompt_hashes`, routing
+  policy (as final-validated) and algorithm version; the same pinned
+  Claude CLI binary (`.cache/claude-cli/2.1.308/claude`, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+  `--version` 2.1.308); and the same effective Settings, with no `.env`
+  or `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings. Each run records `ls -la .env .env.local` presence
+  and, for a present file, only the names of its `LIVECLIP_` keys, never
+  values. Check at this docs commit (2026-11-05): `.env` absent;
+  `.env.local` present and ignored (`.gitignore` `.env.*`), with no
+  `LIVECLIP_CLAUDE_*` and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI
+  binary's recomputed sha256 equals the pin and its mode is 0555.
 - **What counts (Stage 17b).** A run aborted by a provider or environment
   failure (usage limit, CLI or transport failure, host interruption) before
   a strict evaluation exists counts neither way: re-run it as a new fresh
@@ -393,22 +494,27 @@ result exactly; no model call, nothing written under `data/`).
   `50232af0cb0b0194fb663528b569998a8a2fd79b`; it becomes the freeze SHA once the independent tester and
   reviewer accept it. The Stage 17 tree (`2932b7c`) is no longer the
   candidate, because Stage 17b changes 16 of the 17 prompt identities.
+  (Later, 2026-11-05: accepted; `50232af0cb0b0194fb663528b569998a8a2fd79b` is the
+  freeze SHA.)
 
 ### Stage 16b status
 
 - Stage 16b (`b5d8def`) remains implemented, **pending independent
-  verification**; it will be verified together with Stage 17.
+  verification**; it will be verified together with Stage 17. (Later,
+  2026-11-05: verified and accepted with Stage 17 and 17b at the freeze
+  SHA `50232af`.)
 - (Historical next step; the Stage 17 reviewer accepted with nits, which
   became Stage 17b.) Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
   then freeze and the two fresh cold runs; human review of the cold-31,
   cold-32b and earlier renders stays pending.
-- Next (Stage 17b): independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; on
+- (Historical next step; done: freeze accepted, see the FREEZE section
+  above; next is cold-33.) Next (Stage 17b): independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; on
   acceptance it is the freeze SHA; then two consecutive fresh cold strict
   PASS runs on it under the definitions above. Human review of the cold-27
   through cold-32b renders stays pending (separate evidence category).
   Push and merge still need explicit consent.
 
-## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — IMPLEMENTED, PENDING VERIFICATION
+## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — ACCEPTED with Stage 17/17b at 50232af (freeze; was implemented, pending verification)
 
 - **Status: implemented, pending independent tester and reviewer.** Code and
   tests in `b5d8def745d468863917ae04d1c2d1dd314004c2` on `claude/liveclip-stage8-routing` (main checkout,
