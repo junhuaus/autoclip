@@ -18,6 +18,75 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## cold-34 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2; benchmark v1 strict acceptance satisfied)
+
+- **Counted run 2 of 2** under the "Acceptance policy from Stage 17" (as
+  corrected at freeze acceptance). Fresh cold, real Claude CLI, single
+  segment. HEAD at run time `a8ab7cd` (three docs-only commits `c5e9f96`,
+  `feef1e5`, `a8ab7cd` on top of the freeze SHA); freeze-diff to
+  `50232af0cb0b0194fb663528b569998a8a2fd79b` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7170 s (2026-11-05
+  07:25:56 to 09:25:26 local); 0 sleep/wake events in the window; AC power
+  throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-34`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10. No hard failure, PASS blocker, direct-fail condition,
+  forbidden-composite, padding, negative-anchor, duration or regression
+  finding; `source_hash_matches` true. Short 7/8 (S03 missed). Mini 5/6
+  (L01, L02, L03, L04 exact at 0/0 ms; L07 0/+1980 ms; L05 (P1) missed).
+  R01 blocked and R02 `manual_review`, both routed correctly. N07, N08 and
+  the composites 562000–847000 and 1099200–1351000 have no selected or
+  `manual_review` mini output.
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 268 cache files,
+  every mtime after the attempt start; 0 content-identical files in 29
+  other cache roots (informational only). Every cached `prompt_hash` equals
+  the Stage 17b table (0 mismatches); stale-cache refresh off.
+- Provider: 272 provider records (run-manifest calls: Discovery 161,
+  Boundary Review 78, Global Review/Audit 28, variant link 1, plus 4
+  repair records), all succeeded on the first attempt; 4 successful
+  repairs (2 Discovery, 2 Boundary Review; cold-33 had 0), 0 retries, no
+  usage-limit marker. Tokens in 10,475,368 / out 1,939,183.
+- **Run fingerprint identical to cold-33:** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
+  `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run fingerprint
+  sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`; the 17 prompt
+  identities equal Stage 17b. No `LIVECLIP_CLAUDE_*` override in `.env`
+  (absent) or `.env.local` (key names only recorded).
+- Miss observations (no patch, per the acceptance policy; recorded as
+  known residual fragility for future work, not as a defect requiring
+  action now): (1) **S03**: Discovery never proposed the full 470–506 cue
+  span, and Global Review and Global Audit kept the 476–499 duplicate; this
+  differs from the cold-33 mechanism, where an in-tolerance row existed but
+  was rejected as a duplicate. S03 has missed in every cold run since
+  cold-30. (2) **L05**: all in-tolerance rows were blocked for
+  `material_interruption` over the pen-failure remark at cues 2337–2340,
+  the same as cold-33.
+- Diagnostics: Discovery `material_interruption` flags mini 92 / short 51
+  (cold-33: 102/59).
+- Renders: 12 clips (7 short, 5 mini), rc 0, automatic checks pass. Visual
+  and audio review pending.
+- **Consecutive cold strict PASS count: 2/2 (cold-33, cold-34).** The
+  dual-profile benchmark v1 acceptance policy (2 consecutive fresh-cold
+  strict PASSes on the frozen tree `50232af`) is satisfied; **strict
+  benchmark acceptance is complete.**
+- Still pending, each a separate evidence category that strict PASS does
+  not claim: (1) human editorial/audio review of the renders of
+  cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34; (2) the L07 listening check
+  of `input/8-30.ts` 1:40:07–1:40:35. Nothing is pushed or merged to
+  `main`; that requires explicit user consent.
+- Recovery: docs-only; reverting this commit removes only this record (the
+  documented count returns to 1/2). No code, prompt, routing, algorithm or
+  benchmark change; the freeze is unaffected.
+- **Next:** human editorial/audio review of the renders listed above and
+  the L07 listening check (user); push/merge only with explicit consent.
+  The S03 and L05 residual fragility stays recorded for future work.
+
 ## cold-33 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 1/2)
 
 - **Counted run 1 of 2** under the "Acceptance policy from Stage 17" (as
@@ -70,7 +139,8 @@
 - Recovery: docs-only; reverting this commit removes only this record. No
   code, prompt, routing, algorithm or benchmark change; the freeze is
   unaffected.
-- **Next: cold-34** (consecutive run 2 of 2) on the same frozen tree with
+- (Historical next step; done: cold-34 strict PASS 92.5, count 2/2, see
+  the cold-34 section above.) **Next: cold-34** (consecutive run 2 of 2) on the same frozen tree with
   the same fingerprint as above; a cold-Nb continuation counts as one run.
   Pre-run checks as for cold-33. Human review of the cold-27 through
   cold-33 renders stays pending. Push and merge still need explicit consent.

@@ -1,5 +1,35 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## cold-34 strict PASS 92.5 on frozen 50232af (consecutive 2/2; benchmark v1 strict acceptance satisfied) (2026-11-05)
+
+- [x] 2026-11-05 **cold-34**, counted fresh cold run 2 of 2 (real Claude
+  CLI, single segment), on frozen `50232af0cb0b0194fb663528b569998a8a2fd79b` at HEAD `a8ab7cd`
+  (docs-only commits `c5e9f96`, `feef1e5`, `a8ab7cd` on top of the freeze);
+  freeze-diff (incl. `.gitignore`) rc 0 with empty porcelain before and
+  after; eval rc 0, wall 7170 s, 0 sleep/wake events, AC power. Strict
+  **PASS 92.5** (both_profiles 15, short 17.5, mini 25, boundary 15, risk
+  10, audit 10); no hard failure, PASS blocker, direct-fail condition,
+  forbidden-composite, padding, negative-anchor, duration or regression
+  finding. Short 7/8 (S03 missed); mini 5/6 (L05 missed); R01 blocked, R02
+  `manual_review`. Provenance meets the fresh-cold definition
+  (`cache_hits` 0, roots absent at start, 268 cache files all newer than
+  the attempt start, prompt hashes = Stage 17b table). 272 provider
+  records first-attempt, 0 retries/usage-limit markers, 4 successful
+  repairs. Fingerprint identical to cold-33 (Settings fingerprint
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`, run fingerprint
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`). S03/L05 misses are
+  observations only (known residual fragility, no patch): see `STATUS.md`.
+  12 renders rc 0; visual and audio review pending.
+  Consecutive cold strict PASS count: **2/2** (cold-33, cold-34).
+- [x] 2026-11-05 Dual-profile benchmark v1 acceptance policy (2 consecutive
+  fresh-cold strict PASSes on the frozen tree) satisfied: strict benchmark
+  acceptance is complete. (The "Next: cold-34" item in the cold-33 section
+  below is historical; done here.)
+- [ ] Next: human editorial/audio review of the renders of cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34 (a separate
+  acceptance activity, pending); the L07 listening check of
+  `input/8-30.ts` 1:40:07–1:40:35 (pending); push/merge to `main` only with
+  explicit user consent.
+
 ## cold-33 strict PASS 92.5 on frozen 50232af (consecutive 1/2) (2026-11-05)
 
 - [x] 2026-11-05 **cold-33**, the first counted fresh cold run (real Claude
