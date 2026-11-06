@@ -17,10 +17,13 @@ actually breaks the teaching or claim logic. The only exemption is a single-cue 
 greeting or name call-out that the speaker passes over without leaving the topic, including a
 single-cue thanks for a gift or follow: it is neither an interruption nor padding. Inside the interval,
 calls to action and platform prompts (requests for fan badges, follows, likes or gifts, homepage plugs,
-requests for viewers to join on microphone), chat reading and presentation troubleshooting (waiting
-for a pen or colour, glare, asking whether viewers can see) are `material_interruption` even when
-brief, like audibility checks, and they are subtracted when testing the Profile duration minimum.
-Writing the taught term on the board is part of the lesson. Padding flags describe edge material only:
+requests for viewers to join on microphone), chat reading and presentation troubleshooting (stopping
+to wait for, test, request or change a pen or colour, fixing glare, or asking whether viewers can see)
+are `material_interruption` even when brief, like audibility checks, and they are subtracted when
+testing the Profile duration minimum. A passing remark of a few seconds that a pen or marker has
+failed, when the speaker does not stop to wait for, test or replace it and goes straight on with the
+same point, is not a `material_interruption`; treat it as part of the lesson. Writing the taught term
+on the board is part of the lesson. Padding flags describe edge material only:
 they may accompany an interior flag but never replace it. Risk must not disappear merely because the
 interval cannot auto-publish.
 

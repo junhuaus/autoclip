@@ -3567,27 +3567,33 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
 # risk_discovery, whose rhetorical-question paragraph now uses the same single-cue
 # wording instead of "a brief greeting or audience acknowledgement" (cold
 # Discovery cache again).
+# Stage 18 (user decision 2026-11-06, "L05 only") re-pinned every Discovery pass: the
+# shared main.md narrows presentation troubleshooting to stopping to wait for, test,
+# request or change a pen or colour, fixing glare, or asking whether viewers can see,
+# and adds the carve-out that a passing remark that a pen or marker has failed, when
+# the speaker goes straight on with the same point, is part of the lesson; mirrored
+# verbatim in coverage_audit and risk_discovery (cold Discovery cache again).
 FROZEN_DISCOVERY_PROMPT_HASHES = {
     ("short_highlight", "discovery"): (
-        "2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802"
+        "c2d9dfc5d9602a6691a7dfdf249f4685ff84950968d6603061952570e70ca1e5"
     ),
     ("short_highlight", "coverage_audit"): (
-        "834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31"
+        "b3237e3dcf88c17f85642127bb7711bbe6f376e1012d5e0d6eb5748df69c564a"
     ),
     ("mini_lesson", "discovery"): (
-        "f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba"
+        "b93d1d564b1a675bc675f13859dd6a133288fae4bbba0c76434755cebd1c82f8"
     ),
     ("mini_lesson", "coverage_audit"): (
-        "984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1"
+        "80480fb064d1afe7dcc4ea9ade1b930e9c376d9b5d7f6b1057a9890827d07692"
     ),
     ("mini_lesson", "precision_audit"): (
-        "941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870"
+        "0894b7d32611b30d4f344b1f435f2ec4021f27dd3859b1126036969bcaeaec11"
     ),
     ("mini_lesson", "precision_confirmation"): (
-        "fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b"
+        "e2350c1ec657bc1118e399bdf983c8cbe0e9e53d6e2384597daf5c15df58c642"
     ),
     ("mini_lesson", "risk_discovery"): (
-        "76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4"
+        "dd5c1ef7bc839c613f5b5ccaca367a6eff3b9d4de5b7448fbfbf7f5d0cdf1182"
     ),
 }
 
@@ -3629,24 +3635,30 @@ def test_discovery_prompt_identities_are_unchanged() -> None:
 # their exemption and list gifts only as requests; boundary_review's duration test
 # keeps board-writing and the live-demo equipment remark inside the lesson (not
 # subtracted). The variant link (no main.md) is unchanged.
+# Stage 18 (2026-11-06, user decision "L05 only"): every review stage re-pinned.
+# main.md (shared) changes as described at FROZEN_DISCOVERY_PROMPT_HASHES;
+# boundary_review (definition cross-reference and on-topic duration test),
+# global_review and global_audit carry the same narrowed troubleshooting items and
+# the same passing pen or marker remark carve-out. The variant link (no main.md) is
+# unchanged.
 PINNED_REVIEW_PROMPT_HASHES = {
     ("short_highlight", "boundary_review"): (
-        "ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2"
+        "4c8621c0a77613b6070b3d2aabeaac11519dfbac0bb1e7d0a976eab370c9b939"
     ),
     ("short_highlight", "global_review"): (
-        "a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646"
+        "89cd790f3860e8881fd6ded8c577979fb9698e8fc677c59e343a83b605961543"
     ),
     ("short_highlight", "global_audit"): (
-        "5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc"
+        "070b605413e4caaa9ce1d74bd534eb61d36def4c7db9a453cd991a23c9243a54"
     ),
     ("mini_lesson", "boundary_review"): (
-        "abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23"
+        "5907d96caaf97020891dddf9a017908caed3ec6eb2779f61ae8584bfcbef688c"
     ),
     ("mini_lesson", "global_review"): (
-        "ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3"
+        "af68fc7c175ad07bd879fbc6576f0720c883c66e795229c958ff35f20c1097dd"
     ),
     ("mini_lesson", "global_audit"): (
-        "092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f"
+        "bd7f9654717c8dcafc868f52767d8deebb765268153fd2b2fa7b9f120e522dc9"
     ),
 }
 PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"
