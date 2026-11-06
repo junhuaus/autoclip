@@ -1,5 +1,34 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 18: passing pen-remark carve-out ("L05 only"); freeze broken (2026-11-06)
+
+- [x] 2026-11-06 User decision **"L05 only"**: a brief, passing remark that
+  a pen or marker has failed is not `material_interruption`; genuine
+  presentation troubleshooting (stopping to wait for, test, request or
+  change a pen or colour, fixing glare, asking whether viewers can see)
+  stays `material_interruption` even when brief. This partly re-widens the
+  Stage 17 narrowed exemption by explicit user decision. S03 deferred,
+  measured only.
+- [x] 2026-11-06 Stage 18 implemented in `f525338ed9427b0fcac9925bac6075d60af13e69` on
+  `claude/liveclip-stage18-l05` (from `origin/main` `701f540`), pending
+  independent tester and reviewer: identical item list and carve-out in
+  `main.md`, `coverage_audit`, `risk_discovery`, `boundary_review`
+  (cross-reference and duration test), `global_review`, `global_audit`;
+  prompts and tests only (no routing, evaluator, threshold, short-profile
+  file or Python change). 16 of 17 prompt hashes change (Stage 18b table in
+  `STATUS.md`); 5/5 scratch mutations caught; deterministic evaluator
+  replay of cold-33/cold-34 byte-identical. Deterministic validation only.
+- [x] 2026-11-06 **Freeze broken**: the `50232af` acceptance (cold-33,
+  cold-34) stays the historical baseline; the Stage 18 tree needs a new
+  freeze SHA and 2 new consecutive fresh-cold strict PASSes (count 0/2).
+  Watch items per run: L05 hit; N07-overlapping mini rows (genuine
+  pen-testing pause) status and `material_interruption` reasons; composite
+  rows; L04 representative; S01 and S04 offsets; S03 (measured only).
+- [ ] Next: independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`; freeze; two
+  fresh-cold strict PASS runs; human editorial/audio review and the L07
+  listening check stay pending (separate evidence category); push/merge
+  only with explicit user consent.
+
 ## cold-34 strict PASS 92.5 on frozen 50232af (consecutive 2/2; benchmark v1 strict acceptance satisfied) (2026-11-05)
 
 - [x] 2026-11-05 **cold-34**, counted fresh cold run 2 of 2 (real Claude

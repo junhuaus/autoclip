@@ -1185,3 +1185,36 @@ short and mini match is `manual_review` (R01 is `blocked`).
 
 Next: that human review and listening check (user). Not pushed or merged
 to `main`. Push and merge still need explicit user consent.
+
+## Stage 18 implemented ("L05 only"), pending verification; freeze broken (2026-11-06)
+
+User decision 2026-11-06, "L05 only": a brief, passing remark that a pen or
+marker has failed is not `material_interruption`; genuine presentation
+troubleshooting (stopping to wait for, test, request or change a pen or
+colour, fixing glare, asking whether viewers can see) stays
+`material_interruption` even when brief. This partly re-widens the Stage 17
+narrowed exemption by explicit user decision. S03 is deferred and measured
+only (reviewer root cause: window-ownership edge, shortest-complete
+prompts, Discovery variance).
+
+Branch `claude/liveclip-stage18-l05` from `origin/main` `701f540` (tree equal
+to `ef07143`). Code commit `f525338ed9427b0fcac9925bac6075d60af13e69`: prompts (`main.md`,
+`coverage_audit`, `risk_discovery`, `boundary_review`, `global_review`,
+`global_audit`) and tests only; no routing, evaluator, threshold,
+short-profile file or Python change. 16 of 17 prompt hashes change (Stage
+18b table in `STATUS.md`; variant link unchanged); 13 pins re-pinned. Flag
+contract 102 → 119. `make lint` rc 0; targeted 392 passed; prompt-loading
+files 1077 passed; full backend 3241 passed (3224 + 17). 5/5 scratch mutations caught.
+Evaluator replay of the stored cold-33/cold-34 outputs byte-identical
+(PASS 92.5 each). Deterministic validation only; no real model call.
+
+Freeze broken: the `50232af` acceptance (cold-33/cold-34, 2/2) stays the
+historical baseline. The Stage 18 tree needs a new freeze SHA (candidate
+`f525338ed9427b0fcac9925bac6075d60af13e69` after tester and reviewer accept) and 2 new consecutive
+fresh-cold strict PASSes (count 0/2). Per-run watch items: L05 hit;
+N07-overlapping mini rows (genuine pen-testing pause) status and
+`material_interruption` reasons; composite rows; L04 representative; S01
+and S04 offsets; S03 (measured only).
+
+Next: independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`. Not pushed. Push
+and merge still need explicit user consent.

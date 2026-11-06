@@ -18,6 +18,166 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 18: passing pen-remark carve-out from `material_interruption` ("L05 only") (2026-11-06) — implemented, pending independent tester and reviewer; FREEZE BROKEN
+
+- **Status: implemented, pending independent tester and reviewer.** Prompts
+  and tests in `f525338ed9427b0fcac9925bac6075d60af13e69` on `claude/liveclip-stage18-l05` (branched from
+  `origin/main` `701f540`, the merge of PR #1, whose tree equals `ef07143`);
+  this docs commit follows. Not pushed. Routing policy
+  `quality-gate-risk-routing-v9`, algorithm version `dual-profile-direct-v1`,
+  cache-key schema, persisted schemas, Python behaviour, evaluator,
+  thresholds, benchmark JSON/MD, short-profile file
+  (`profiles/short_highlight.md`) and `tools/loop_engineering` are
+  unchanged: `git diff --stat origin/main -- src ':!src/liveclip/clipping_skills'`
+  is empty.
+- **User decision (2026-11-06): "L05 only".** Narrow the Stage 17 rule so a
+  brief, passing remark that a pen or marker has failed is not a
+  `material_interruption`; genuine presentation troubleshooting stays
+  `material_interruption` even when brief. This **partly re-widens the
+  Stage 17 narrowed exemption** for presentation troubleshooting, by explicit
+  user decision; the single-cue thanks, greeting or name exemption itself is
+  unchanged. S03 is out of scope.
+- **Root cause (independent read-only reviewer).** The Stage 17 clause
+  (`2932b7c`) listed "presentation troubleshooting (waiting for a pen or
+  colour, glare, asking whether viewers can see)" as `material_interruption`
+  "even when brief", which overrode the threshold "only when it actually
+  breaks the teaching or claim logic". In cold-33 and cold-34 every
+  in-tolerance L05 row was blocked for `material_interruption` over a few
+  seconds' pen-failure remark that the speaker passes over (cues 2337–2340).
+  Reviewer analysis and offline replays (stored stage outputs with the flag
+  released deterministically; an estimate, not real-model evidence):
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage18-analysis/` (`replay18*.txt`): releasing only the
+  L05 rows would give cold-33 and cold-34 PASS 96.35 with mini 6/6, while also
+  releasing the N07-overlapping mini rows (which contain a genuine
+  pen-testing pause) would add `irrelevant_padding` and, in cold-34, a
+  negative-anchor finding. Hence the carve-out is limited to a passing remark
+  with no stop to wait for, test or replace the pen.
+- **S03: deferred, measured only.** Reviewer root cause: the window-ownership
+  edge, the shortest-complete prompts and Discovery variance (as recorded:
+  cold-34 Discovery never proposed the full span and Global Review and Global
+  Audit kept the shorter duplicate; cold-33 had an in-tolerance row rejected
+  as a duplicate). No prompt or routing change for S03; each new run records
+  the S03 outcome.
+- (1) **Prompts (generic wording; no cue numbers, times, anchor IDs, digits
+  or quoted transcript).** In every copy of the rule (`main.md`,
+  `coverage_audit.md`, `risk_discovery.md`, `boundary_review.md`
+  definition cross-reference and on-topic duration test, `global_review.md`,
+  `global_audit.md`; `discovery.md`, `precision_audit.md`,
+  `precision_confirmation.md`, `repair.md` and both Profile files carry no
+  copy and are unchanged) the item list reads "presentation troubleshooting
+  (stopping to wait for, test, request or change a pen or colour, fixing
+  glare, or asking whether viewers can see)", followed by the identical
+  carve-out: "A passing remark of a few seconds that a pen or marker has
+  failed, when the speaker does not stop to wait for, test or replace it and
+  goes straight on with the same point, is not a `material_interruption`;
+  treat it as part of the lesson." `global_audit.md` previously named
+  troubleshooting without the item list; it now carries the same list so
+  every mirror is identical. Boundary Review's duration test still removes
+  calls to action, platform prompts, chat reading and (genuine) presentation
+  troubleshooting even when brief, and now keeps "such a passing pen or
+  marker remark" in the lesson beside board-writing and the live-demo
+  equipment remark. Unchanged: calls to action and platform prompts (fan
+  badges, follows, likes, gifts, homepage plugs, microphone-join requests)
+  and chat reading stay `material_interruption`; the single-cue thanks,
+  greeting or name exemption; board-writing is part of the lesson.
+- (2) **Stage 18b prompt-hash table** (all 17 identities from the repo's
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt` via
+  `stage18-coder/prompt_hashes.py` on `origin/main` (= `50232af` prompts) and
+  on the Stage 18 tree; the "before" column equals the Stage 17b table; JSON
+  in `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage18-coder/`):
+
+  | prompt identity | before (50232af, Stage 17b) | after (Stage 18) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | `c2d9dfc5d9602a6691a7dfdf249f4685ff84950968d6603061952570e70ca1e5` | yes |
+  | `short_highlight.coverage_audit` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | `b3237e3dcf88c17f85642127bb7711bbe6f376e1012d5e0d6eb5748df69c564a` | yes |
+  | `short_highlight.precision_audit` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | `f955e61abaf482fd594cb875498524bf6ac4d078f3e13663a5378c2d1f47af78` | yes |
+  | `short_highlight.precision_confirmation` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | `0784d166170419526247b24427207457ce3b1903634f31482784dc6e7d2297fb` | yes |
+  | `short_highlight.risk_discovery` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | `8315d03f096e04eae886cd73cf4d922cd886483e8d84e0d0d5b8450cd9797ccd` | yes |
+  | `short_highlight.boundary_review` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | `4c8621c0a77613b6070b3d2aabeaac11519dfbac0bb1e7d0a976eab370c9b939` | yes |
+  | `short_highlight.global_review` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | `89cd790f3860e8881fd6ded8c577979fb9698e8fc677c59e343a83b605961543` | yes |
+  | `short_highlight.global_audit` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | `070b605413e4caaa9ce1d74bd534eb61d36def4c7db9a453cd991a23c9243a54` | yes |
+  | `mini_lesson.discovery` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | `b93d1d564b1a675bc675f13859dd6a133288fae4bbba0c76434755cebd1c82f8` | yes |
+  | `mini_lesson.coverage_audit` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | `80480fb064d1afe7dcc4ea9ade1b930e9c376d9b5d7f6b1057a9890827d07692` | yes |
+  | `mini_lesson.precision_audit` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | `0894b7d32611b30d4f344b1f435f2ec4021f27dd3859b1126036969bcaeaec11` | yes |
+  | `mini_lesson.precision_confirmation` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | `e2350c1ec657bc1118e399bdf983c8cbe0e9e53d6e2384597daf5c15df58c642` | yes |
+  | `mini_lesson.risk_discovery` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | `dd5c1ef7bc839c613f5b5ccaca367a6eff3b9d4de5b7448fbfbf7f5d0cdf1182` | yes |
+  | `mini_lesson.boundary_review` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | `5907d96caaf97020891dddf9a017908caed3ec6eb2779f61ae8584bfcbef688c` | yes |
+  | `mini_lesson.global_review` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | `af68fc7c175ad07bd879fbc6576f0720c883c66e795229c958ff35f20c1097dd` | yes |
+  | `mini_lesson.global_audit` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | `bd7f9654717c8dcafc868f52767d8deebb765268153fd2b2fa7b9f120e522dc9` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change (`main.md` is loaded by every stage except the
+  variant link); the variant link is unchanged. The 13 pinned identities are
+  re-pinned with a Stage 18 justification in
+  `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`); the
+  three short_highlight `precision_audit`, `precision_confirmation` and
+  `risk_discovery` identities are not pinned (not executed), as before. The
+  next real run has a cold cache for every stage except the variant link.
+- (3) Tests (`test_dual_profile_flag_contract.py` 102 → 119, +17): the
+  Stage 17/17b pins (`MI_THRESHOLD`, Boundary Review cross-reference and
+  duration test, Global Review/Audit restatements) carry the new wording via
+  shared constants `TROUBLESHOOTING_ITEMS` and `PEN_REMARK_CARVE_OUT`; new
+  `test_a_passing_pen_remark_is_part_of_the_lesson_and_genuine_troubleshooting_stays_mi`
+  (8 stages × 2 Profiles: per-stage own and inherited counts of the item list
+  and the carve-out; the superseded "waiting for a pen or colour" wording
+  absent; every "presentation troubleshooting" carries the item list except
+  Boundary Review's one back-reference; genuine items, platform-prompt list,
+  chat reading, single-cue and gift-thanks exemptions and board-writing
+  present; Boundary Review's duration test still subtracts the genuine types;
+  no digits or CJK in the rule text) and
+  `test_every_mirror_of_the_troubleshooting_rule_is_identical` (reads every
+  `*.md` of the `dual_profile_v1` tree, including Discovery, repair and the
+  Profile files: every item list and carve-out is byte-identical after
+  whitespace normalisation, the carrying file set is exactly the six files
+  above, and neither Profile file mentions troubleshooting).
+- (4) Mutation self-check (prompt files mutated in place, restored
+  byte-for-byte, prompt hashes re-verified equal afterwards;
+  `stage18-coder/mutate.py`, `mutation_results.txt`): 5 of 5 caught — M1
+  `global_review` drops the carve-out (6 failures), M2 `coverage_audit`
+  restores the old item list (8), M3 `risk_discovery` carve-out drifts to
+  "several seconds" (8), M4 Boundary Review duration test drops the
+  troubleshooting subtraction (7), M5 `main.md` drops the carve-out (31).
+- (5) Replay sanity (deterministic; evaluator and routing untouched):
+  `scripts/evaluate_benchmark.py` re-run on the stored cold-33 and cold-34
+  `final-validated.json` and `run-manifest.json` into
+  `stage18-coder/replay-cold-{33,34}/`: rc 0, PASS 92.5 each,
+  `benchmark-result.json` and `benchmark-report.md` byte-identical to the
+  stored strict-eval files. Nothing written under `data/`.
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  flag contract, `test_dual_profile_evaluation.py`) 392 passed; every
+  prompt-loading test file (20 files plus `test_dual_profile.py`) 1077
+  passed; full backend pytest 3241 passed (3224 at Stage 17b plus 17 Stage 18 items). Deterministic validation only; no
+  real model call, no render, no human review.
+- **50232af acceptance stays the historical baseline.** cold-33 and cold-34
+  (strict PASS 92.5 each, 2/2 on frozen `50232af`) remain valid evidence for
+  that tree; they are not evidence for the Stage 18 tree.
+- **Freeze broken.** Stage 18 changes prompt identities, so under the
+  "Acceptance policy from Stage 17" the `50232af` freeze no longer covers
+  HEAD and the consecutive count for the new tree is **0/2**. A new freeze SHA
+  (candidate: the Stage 18 code commit `f525338ed9427b0fcac9925bac6075d60af13e69`, once the independent
+  tester and reviewer accept it) and **2 new consecutive fresh-cold strict
+  PASSes** on it are required. The FROZEN definition, fresh-cold provenance,
+  run environment and "what counts" rules are unchanged, except that (b)
+  compares against the Stage 18b table above.
+- **Per-run watch items (each new counted run records them):** (1) the L05
+  hit (status and `material_interruption` reasons of the in-tolerance L05
+  rows); (2) the status and `material_interruption` reasons of the
+  N07-overlapping mini rows, which contain a genuine pen-testing pause and
+  must stay `blocked` or rejected (no `irrelevant_padding` or
+  negative-anchor finding); (3) the composite rows (562000–847000 and
+  1099200–1351000 must have no selected or `manual_review` mini output);
+  (4) the L04 representative; (5) the S01 and S04 start/end offsets; plus the
+  S03 outcome (measured only).
+- Recovery: revert `f525338ed9427b0fcac9925bac6075d60af13e69` (and this docs commit); that restores the
+  Stage 17b prompt hashes and the `50232af` tree, where the cold-33/34
+  acceptance applies. No routing, cache-key or schema impact.
+- **Next:** independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`; on acceptance it
+  becomes the new freeze SHA; then two consecutive fresh-cold strict PASS
+  runs on it with the watch items above. Human editorial/audio review of
+  earlier renders and the L07 listening check stay pending (separate
+  evidence category). Push and merge still need explicit consent.
+
 ## cold-34 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2; benchmark v1 strict acceptance satisfied)
 
 - **Counted run 2 of 2** under the "Acceptance policy from Stage 17" (as
@@ -101,7 +261,9 @@
 - Recovery: docs-only; reverting this commit removes only this record (the
   documented count returns to 1/2). No code, prompt, routing, algorithm or
   benchmark change; the freeze is unaffected.
-- **Next:** human editorial/audio review of the renders listed above and
+- (Historical next step for the `50232af` tree; L05 is addressed by Stage 18
+  above by user decision, S03 stays measured only, and the human review and
+  L07 check stay pending.) **Next:** human editorial/audio review of the renders listed above and
   the L07 listening check (user); push/merge only with explicit consent.
   The S03 and L05 residual fragility stays recorded for future work.
 
