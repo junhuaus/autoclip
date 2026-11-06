@@ -18,6 +18,125 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## cold-36 real run on frozen f525338 (2026-11-06) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied)
+
+- **Counted run 2 of 2** on the Stage 18 freeze
+  `f525338ed9427b0fcac9925bac6075d60af13e69` under the unchanged acceptance policy. Fresh cold, real
+  Claude CLI, single segment. HEAD at run time `f6b7882` (three docs-only
+  commits `2812985`, `15c4ff8`, `f6b7882` on top of the freeze SHA);
+  freeze-diff to `f525338` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7511 s (2026-11-06
+  12:28:05 to 14:33:16 local; attempt start epoch 1793996885, 12:28:05
+  −0800); 0 sleep/wake events in the window; AC power throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261106-claude-cold-36`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10; `qualified_boundary_hits` 12. No hard failure, PASS
+  blocker, direct-fail condition, forbidden-composite, padding,
+  negative-anchor, duration or regression finding (every finding list
+  empty); `source_hash_matches` true. Short 7/8 (S03 missed; S06
+  −2300/+2860 ms; S01, S02, S04, S05, S07, S08 0/0 ms). Mini 5/6 (L01–L04
+  0/0 ms; L05 `audit_ml_0015_live_diagnosis_mix_voice_high_notes`
+  0/−4060 ms, `manual_review`; L07 missed). R01 blocked and R02 blocked
+  (R02 was `manual_review` in cold-33, cold-34 and cold-35), both routed
+  correctly. 0 selected rows in either profile; N07, N08 and both
+  composites clean.
+- L07 miss (representative-choice variance; no quality flag involved):
+  the in-tolerance row 2855–2974
+  (`confirm_nasal_sample_to_rhinitis_qualification`, 0/+1980 ms) was
+  rejected by Global Review as a duplicate of the retained 2854–2974
+  representative `precision_yuge_nasal_correction_rhinitis_closure`
+  (−30540/+1980 ms, `manual_review`), because the evaluated sung sample
+  sits in an untranscribed gap before cue 2855. L07 also missed in cold-31.
+  Recorded as known residual fragility, measured only; no patch under the
+  freeze (`evidence/near-misses.txt`).
+- Stage 18 watch items (`evidence/stage18-watch.txt`): (1) **L05**: 3
+  in-tolerance mini rows, none with `material_interruption`; every
+  Boundary Review reason applies the passing-pen carve-out to the pen
+  remark at cues 2337–2340 (Chinese wording: a passing mention that the pen
+  broke, then straight back to the same point, "不算中断/不算打断"). The
+  out-of-tolerance 2287–2394 row is blocked with `material_interruption`
+  from the farewell and mic invitation at cues 2374–2383, the same
+  mechanism as cold-35. (2) **N07**: all 9 overlapping mini rows are
+  `blocked` or rejected; the six rows that contain the pause carry
+  `material_interruption` for the pen-testing pause at cues 1030–1035; the
+  carve-out is invoked only to deny it; no padding or negative-anchor
+  finding; no 998–1048 or 1028–1172 row this run. (3) **Composites**:
+  562000–847000 has 11 blocked and 2 rejected mini rows, 1099200–1351000
+  has 14 blocked and 2 rejected; none selected or `manual_review`. (4)
+  **L04** representative: cues 1049–1130, exact. (5) **S01/S04**: both
+  0/0 ms, unchanged. (6) **S03** (measured only): missed; 476–506 is
+  `manual_review` at +12440/0 ms and the in-tolerance 472–506 row
+  (+2400/0 ms) was rejected as a duplicate of that shorter row, the same
+  mechanism as cold-33. (7) **Provenance** (below). (8) Discovery
+  `material_interruption` flags mini 91 / short 44 (cold-35 86/39,
+  cold-34 92/51, cold-33 102/59).
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 268 cache files,
+  every mtime after the attempt start; 0 cached `prompt_hash` mismatches;
+  0 content-identical files in 31 other cache roots (informational only;
+  81 same-key file names in the cold-35 root, none content-identical).
+  The run manifest, and therefore the run fingerprint, carries the 14
+  executed-stage prompt hashes (short_highlight `precision_audit`,
+  `precision_confirmation` and `risk_discovery` are not executed); all 14
+  equal the Stage 18b "after" column. Separately, all 17 prompt identities
+  recomputed from the tree (`evidence/step0-tree-prompt-hashes.txt`) equal
+  the Stage 18b table.
+- Provider: 269 provider records (run-manifest calls: Discovery 160,
+  Boundary Review 78, Global Review/Audit 29, variant link 1, plus 1
+  repair record), all succeeded on the first attempt; 1 successful repair
+  (Boundary Review), 0 retries, no usage-limit marker. Tokens in
+  10,737,580 / out 1,980,892.
+- **Run fingerprint identical to cold-35:** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37` (pin unchanged); model `claude-opus-5-5`;
+  algorithm `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` (unchanged); run fingerprint sha256
+  `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0` (fingerprint input dicts identical,
+  `evidence/fp-compare.txt`). No `LIVECLIP_CLAUDE_*` override in `.env`
+  (absent) or `.env.local` (key names only recorded).
+- Evaluator (informational): `scripts/evaluate_benchmark.py` and the two
+  root benchmark files (`liveclip_dual_profile_benchmark_v1.json`/`.md`)
+  are unchanged since `2c4de9a`; `src/liveclip/pipeline/dual_profile.py`,
+  whose schema classes the evaluator imports, is unchanged between
+  `50232af` and `f525338` (Stage 18 changed only prompts and two test
+  files). cold-35 and cold-36 are therefore scored by the same evaluator
+  and benchmark as cold-33 and cold-34.
+- Renders: 12 clips (7 short, 5 mini), rc 0, automatic checks pass. Visual
+  and audio review pending (separate evidence category, not part of
+  strict PASS). The evaluator's `human_required` check
+  `title_hook_summary_must_be_source_faithful` lists 64 candidate IDs
+  (verified read-only against the stored `benchmark-result.json`), exactly
+  the `manual_review` rows (mini 23 + short 41); both cold-35 and cold-36
+  auto-select 0 candidates in both profiles, so every short and mini match
+  is `manual_review` (R01 and R02 are `blocked` in cold-36).
+- **Consecutive cold strict PASS count for `f525338`: 2/2 (cold-35 PASS
+  97.5, cold-36 PASS 92.5).** The acceptance policy (2 consecutive
+  fresh-cold strict PASSes on the frozen tree) is satisfied for the
+  Stage 18 freeze; **Stage 18 strict benchmark acceptance is complete on
+  `f525338`.** The `50232af` acceptance (cold-33/cold-34) remains the
+  historical baseline.
+- Residuals (recorded, no patch under the freeze): S03 (structural,
+  deferred; missed in every cold run since cold-30), L07
+  representative-choice variance (above), and the accepted Stage 18
+  reviewer prompt nits P2-1, P2-3, P2-4 and P2-6.
+- Still pending, each a separate evidence category that strict PASS does
+  not claim: (1) human editorial/audio review of the renders of cold-27
+  r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33, cold-34,
+  cold-35 and cold-36; it also covers the `human_required` source
+  faithfulness check (61 IDs for cold-35, 64 for cold-36); (2) the L07
+  listening check of `input/8-30.ts` 1:40:07–1:40:35. Branch
+  `claude/liveclip-stage18-l05` is not pushed; push, PR and merge need
+  explicit user consent.
+- Recovery: docs-only; reverting this commit removes only this record (the
+  documented count returns to 1/2). No code, prompt, routing, algorithm,
+  evaluator or benchmark change; the freeze is unaffected.
+- **Next:** human editorial/audio review of the renders listed above, the
+  source-faithfulness review and the L07 listening check (user);
+  push/PR/merge only with explicit consent.
+
 ## cold-35 real run on frozen f525338 (2026-11-06) — strict PASS 97.5 (fresh cold; consecutive cold strict PASS 1/2 for f525338)
 
 - **Counted run 1 of 2** on the Stage 18 freeze
@@ -94,7 +213,8 @@
 - Recovery: docs-only; reverting this commit removes only this record (the
   documented count returns to 0/2). No code, prompt, routing, algorithm or
   benchmark change; the freeze is unaffected.
-- **Next: cold-36** (consecutive run 2 of 2) on the same frozen tree
+- (Historical next step; done: cold-36 strict PASS 92.5, count 2/2 for
+  `f525338`, see the cold-36 section above.) **Next: cold-36** (consecutive run 2 of 2) on the same frozen tree
   `f525338` with the same run fingerprint `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; a
   cold-Nb continuation counts as one run. Pre-run checks and the eight
   watch items as for cold-35. Human editorial/audio review of the cold-27

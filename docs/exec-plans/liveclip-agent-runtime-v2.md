@@ -1,5 +1,66 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## cold-36 strict PASS 92.5 on frozen f525338 (consecutive 2/2; Stage 18 strict acceptance satisfied) (2026-11-06)
+
+- [x] 2026-11-06 **cold-36**, counted fresh cold run 2 of 2 on the Stage
+  18 freeze (real Claude CLI, single segment), on frozen
+  `f525338ed9427b0fcac9925bac6075d60af13e69` at HEAD `f6b7882` (docs-only commits `2812985`,
+  `15c4ff8`, `f6b7882` on top of the freeze); freeze-diff (incl.
+  `.gitignore`) rc 0 with empty porcelain before and after; attempt start
+  epoch 1793996885; eval rc 0, wall 7511 s, 0 sleep/wake events, AC
+  power. Strict **PASS 92.5** (both_profiles 15, short 17.5, mini 25,
+  boundary 15, risk 10, audit 10; `qualified_boundary_hits` 12); every
+  finding list empty; `source_hash_matches` true. Short 7/8 (S03 missed,
+  measured only); mini 5/6 (L05
+  `audit_ml_0015_live_diagnosis_mix_voice_high_notes` 0/−4060 ms,
+  `manual_review`; L07 missed: the in-tolerance 2855–2974 row was
+  rejected by Global Review as a duplicate of 2854–2974 because the
+  evaluated sung sample sits in an untranscribed gap before cue 2855;
+  representative-choice variance, no quality flag, also missed in cold-31;
+  residual fragility, measured only, no patch under the freeze); R01 and
+  R02 blocked, both routed correctly; 0 selected rows. Watch items: the 3
+  L05 in-tolerance rows carry no `material_interruption` and every
+  Boundary Review reason applies the passing-pen carve-out (in Chinese
+  wording); the out-of-tolerance 2287–2394 row has `material_interruption`
+  from the farewell and mic invitation at cues 2374–2383, as in cold-35;
+  all 9 N07-overlapping mini rows `blocked` or rejected (six carry
+  `material_interruption` for the pen-testing pause at cues 1030–1035;
+  carve-out invoked only to deny it; no padding or negative-anchor
+  finding); composites clean (11 blocked + 2 rejected, 14 blocked + 2
+  rejected); L04 exact; S01/S04 0/0 ms; S03 in-tolerance 472–506 rejected
+  as a duplicate of 476–506 (`manual_review`, +12440/0 ms), as in
+  cold-33; Discovery `material_interruption` flags mini 91 / short 44.
+  Provenance meets the fresh-cold definition (`cache_hits` 0, roots new,
+  268 cache files all newer than the attempt start, 0 prompt-hash
+  mismatches; the 17 tree identities equal the Stage 18b table and the 14
+  executed-stage manifest hashes equal Stage 18b). 269 provider records
+  first-attempt, 0 retries, 1 repair; tokens in 10,737,580 / out
+  1,980,892. Run fingerprint identical to cold-35
+  (`e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` and CLI pin
+  unchanged): see `STATUS.md`. Evaluator `scripts/evaluate_benchmark.py`
+  and the benchmark JSON/MD unchanged since `2c4de9a`; `dual_profile.py`
+  unchanged between `50232af` and `f525338`. 12 renders (7 short, 5
+  mini) rc 0; human editorial/audio review pending (separate evidence
+  category; `human_required` lists 64 IDs, the `manual_review` rows mini
+  23 + short 41). Consecutive cold strict PASS count for `f525338`:
+  **2/2** (cold-35, cold-36).
+- [x] 2026-11-06 Stage 18 acceptance policy (2 consecutive fresh-cold
+  strict PASSes on the frozen tree `f525338`) satisfied by cold-35 (PASS
+  97.5) and cold-36 (PASS 92.5): Stage 18 strict benchmark acceptance is
+  complete. The `50232af` acceptance (cold-33/cold-34) remains the
+  historical baseline. Residuals: S03 (structural, deferred), L07
+  representative-choice variance, accepted prompt nits P2-1/P2-3/P2-4/P2-6.
+- [x] 2026-11-06 Historical-checkbox note (this plan is append-only, so the
+  earlier line is left unchanged): the open "Next: cold-36" item in the
+  cold-35 section below is historical and done by this run.
+- [ ] Next: human editorial/audio review of the renders of cold-27 r2,
+  warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33, cold-34, cold-35
+  and cold-36, including the `human_required` source-faithfulness check
+  (61 IDs for cold-35, 64 for cold-36), and the L07 listening check of
+  `input/8-30.ts` 1:40:07–1:40:35 (separate acceptance activities,
+  pending). Branch `claude/liveclip-stage18-l05` is not pushed; push, PR
+  and merge only with explicit user consent.
+
 ## cold-35 strict PASS 97.5 on frozen f525338 (consecutive 1/2) (2026-11-06)
 
 - [x] 2026-11-06 **cold-35**, the first counted fresh cold run on the

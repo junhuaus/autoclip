@@ -1327,7 +1327,101 @@ category). The `human_required` check
 `title_hook_summary_must_be_source_faithful` lists 61 candidate IDs,
 exactly the `manual_review` rows (mini 21 + short 40).
 
-Next: cold-36 (consecutive run 2 of 2) on the same frozen tree with the
+(Historical next step; done, below.) Next: cold-36 (consecutive run 2 of 2) on the same frozen tree with the
 same run fingerprint `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; a cold-Nb continuation
 counts as one run. Not pushed. Push and merge still need explicit user
 consent.
+
+## cold-36 strict PASS 92.5 on frozen f525338 (2026-11-06) — consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied
+
+Counted fresh cold run 2 of 2 on the Stage 18 freeze (real Claude CLI,
+single segment) at HEAD `f6b7882` (docs-only commits `2812985`, `15c4ff8`,
+`f6b7882` on top of the freeze); freeze-diff to `f525338ed9427b0fcac9925bac6075d60af13e69` (incl.
+`.gitignore`) rc 0 with empty porcelain before and after. Attempt start
+epoch 1793996885 (2026-11-06 12:28:05 −0800). Eval rc 0, wall 7511 s
+(12:28:05 to 14:33:16 local), 0 sleep/wake events, AC power throughout.
+Roots
+`data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261106-claude-cold-36`
+(the strict-eval root holds `benchmark-result.json`, `benchmark-report.md`
+and `evidence/`).
+
+Strict PASS 92.5: both_profiles 15, short 17.5, mini 25, boundary 15, risk
+10, audit 10; `qualified_boundary_hits` 12; no hard failure, PASS blocker,
+direct-fail condition, forbidden-composite, padding, negative-anchor,
+duration or regression finding (every finding list empty);
+`source_hash_matches` true. Short 7/8 (S03 missed; S06 −2300/+2860 ms; all
+other short hits 0/0 ms); mini 5/6 (L01–L04 0/0 ms; L05
+`audit_ml_0015_live_diagnosis_mix_voice_high_notes` 0/−4060 ms,
+`manual_review`; L07 missed); R01 blocked, R02 blocked (R02 was
+`manual_review` in cold-33/34/35), both routed correctly; 0 selected rows;
+N07, N08 and both composites clean.
+
+L07 miss (representative-choice variance, no quality flag involved): the
+in-tolerance row 2855–2974 (0/+1980 ms) was rejected by Global Review as a
+duplicate of the retained 2854–2974 representative (−30540/+1980 ms,
+`manual_review`), because the evaluated sung sample sits in an
+untranscribed gap before cue 2855. L07 also missed in cold-31. Recorded as
+residual fragility, measured only; no patch under the freeze.
+
+Stage 18 watch items (`evidence/stage18-watch.txt`): (1) L05: 3
+in-tolerance rows, none with `material_interruption`; every Boundary
+Review reason applies the passing-pen carve-out to cues 2337–2340 (Chinese
+wording); the out-of-tolerance 2287–2394 row is blocked with
+`material_interruption` from the farewell and mic invitation at cues
+2374–2383, the same mechanism as cold-35. (2) N07: all 9 overlapping mini
+rows `blocked` or rejected; the six rows containing the pause carry
+`material_interruption` for the pen-testing pause at cues 1030–1035; the
+carve-out is invoked only to deny it; no padding or negative-anchor
+finding. (3) Composites: 562000–847000 11 blocked and 2 rejected,
+1099200–1351000 14 blocked and 2 rejected; none selected or
+`manual_review`. (4) L04 representative cues 1049–1130, exact. (5) S01 and
+S04 0/0 ms, unchanged. (6) S03 (measured only): missed; 476–506 is
+`manual_review` at +12440/0 ms and the in-tolerance 472–506 row
+(+2400/0 ms) was rejected as a duplicate of that shorter row, the same
+mechanism as cold-33. (7) Provenance (fresh-cold definition met):
+`cache_hits` 0; roots new at attempt start; 268 cache files, all mtimes
+after the start; 0 prompt-hash mismatches; 0 content-identical files in 31
+other roots (informational). The run manifest, and therefore the run
+fingerprint, carries the 14 executed-stage prompt hashes (short_highlight
+`precision_audit`, `precision_confirmation` and `risk_discovery` are not
+executed); all 14 equal the Stage 18b "after" column. Separately, all 17
+prompt identities recomputed from the tree equal the Stage 18b table
+(`evidence/step0-tree-prompt-hashes.txt`). (8) Discovery
+`material_interruption` flags mini 91 / short 44 (cold-35 86/39).
+
+269 provider records, all first attempt; 0 retries or usage-limit markers;
+1 successful repair (Boundary Review); tokens in 10,737,580 / out
+1,980,892.
+
+Fingerprint identical to cold-35: CLI 2.1.308 sha256
+`ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37` (pin unchanged); model `claude-opus-5-5`; algorithm
+`dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`; Settings
+fingerprint sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` (unchanged); run
+fingerprint sha256 `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0` (`evidence/fp-compare.txt`); no
+`LIVECLIP_CLAUDE_*` override in `.env` or `.env.local`. Evaluator
+(informational): `scripts/evaluate_benchmark.py` and the benchmark
+JSON/MD are unchanged since `2c4de9a`; `src/liveclip/pipeline/dual_profile.py`
+is unchanged between `50232af` and `f525338`.
+
+12 renders (7 short, 5 mini) rc 0, automatic checks pass; human
+editorial/audio review pending (separate evidence category). The
+`human_required` check `title_hook_summary_must_be_source_faithful` lists
+64 candidate IDs (verified read-only against the stored
+`benchmark-result.json`), exactly the `manual_review` rows (mini 23 +
+short 41).
+
+Consecutive cold strict PASS count for `f525338`: 2/2 (cold-35 PASS 97.5,
+cold-36 PASS 92.5). Stage 18 strict benchmark acceptance is complete on
+`f525338`. The `50232af` acceptance (cold-33/cold-34) remains the
+historical baseline. Residuals (no patch under the freeze): S03
+(structural, deferred), L07 representative-choice variance, and the
+accepted P2-1/P2-3/P2-4/P2-6 prompt nits. Still pending as separate
+acceptance activities: human editorial/audio review of the renders of
+cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33,
+cold-34, cold-35 and cold-36, including the `human_required`
+source-faithfulness check (61 IDs for cold-35, 64 for cold-36), and the
+L07 listening check of `input/8-30.ts` 1:40:07–1:40:35.
+
+Next: that human review and listening check (user). Branch
+`claude/liveclip-stage18-l05` is not pushed. Push, PR and merge still need
+explicit user consent.
