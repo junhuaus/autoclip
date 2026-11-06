@@ -18,9 +18,108 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 18: passing pen-remark carve-out from `material_interruption` ("L05 only") (2026-11-06) — implemented, pending independent tester and reviewer; FREEZE BROKEN
+## FREEZE ACCEPTED at f525338 (Stage 18) (2026-11-06) — consecutive cold strict PASS 0/2
 
-- **Status: implemented, pending independent tester and reviewer.** Prompts
+- **Freeze SHA `f525338ed9427b0fcac9925bac6075d60af13e69`** (Stage 18 code commit, prompts and
+  tests only). On `claude/liveclip-stage18-l05`; not pushed or merged to
+  `main`. It replaces `50232af` as the frozen tree for new counted runs;
+  the `50232af` acceptance (cold-33/cold-34, 2/2) stays the historical
+  baseline for that tree.
+- **Tester:** independent tester at `2812985` (freeze-diff to `f525338` empty):
+  `make lint` rc 0; backend pytest 3241 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; flag contract
+  (`test_dual_profile_flag_contract.py`) 3/3 repeats, 119 passed each;
+  no sleep during the suite. Deterministic validation only; no real model
+  call, no render, no human review.
+- **Reviewer:** independent reviewer at `2812985`: ACCEPT with nits; no P0
+  or P1. Nits P2-1 to P2-6: P2-2 and P2-5 are docs wording and are fixed in
+  this commit; P2-1, P2-3, P2-4 and P2-6 are prompt wording and are accepted
+  residuals (below). No code or prompt change.
+- **FROZEN (definition, as for `50232af`, now against `f525338`).**
+  `git diff --quiet f525338 -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md
+  .gitignore` must exit 0, with empty porcelain, before and after each
+  counted run. In addition: (a) all 17 prompt identities computed from the
+  tree equal the "after (Stage 18)" column of the Stage 18b table in the
+  Stage 18 section below; (b) routing policy `quality-gate-risk-routing-v9`;
+  (c) algorithm version `dual-profile-direct-v1`. Docs-only commits on top
+  of the freeze SHA are allowed.
+- **Run environment (unchanged rules).** The same pinned Claude CLI binary
+  (`.cache/claude-cli/2.1.308/claude`, `--version` 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`); the same Settings fingerprint (sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`); the same no-override rule (no `.env` or
+  `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or attempt
+  settings; each run records `ls -la .env .env.local` presence and, for a
+  present file, only the names of its `LIVECLIP_` keys, never values). The
+  two counted runs need equal run-manifest `provider`, `model`,
+  `prompt_hashes`, final-validated routing policy and algorithm version.
+  Check at this docs commit (2026-11-06): `.env` absent; `.env.local`
+  present and ignored (`.gitignore` `.env.*`), with no `LIVECLIP_CLAUDE_*`
+  and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI binary's recomputed
+  sha256 equals the pin and `--version` prints 2.1.308.
+- **Run fingerprint.** The run fingerprint is expected to differ from the
+  cold-33/cold-34 value `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through
+  `prompt_hashes` (the 14 executed-stage hashes change to the Stage 18
+  values); any other difference disqualifies the run. The second counted
+  run must match the first run's fingerprint, as cold-34 matched cold-33.
+- **Fresh cold and counting (unchanged).** The fresh-cold provenance
+  criterion of the `50232af` FREEZE section applies unchanged (run-manifest
+  `cache_hits == 0`, a new or empty cache root at start, every cache file's
+  mtime at or after the attempt start; a cold-Nb continuation may copy only
+  the immediately previous segment of the same run, with `cache_hits` equal
+  to the copied entries; content identity against other roots is
+  informational only). A cold-Nb continuation counts as one run. A warm or
+  seeded run is a diagnostic, never acceptance evidence.
+- **Per-run watch items (reviewer; each counted run records all eight).**
+  (1) L05: status and `material_interruption` reasons of the in-tolerance
+  L05 rows, and whether any reason still cites the pen remark (cues
+  2337–2340). (2) N07-overlapping mini rows (the 1023–1130 / 1023–1172
+  class, the 998–1048 risk row, the 1028–1172 row): they must stay
+  `blocked` or rejected for the pen-testing pause, with no
+  `irrelevant_padding` or negative-anchor finding; record whether any
+  reason invokes the carve-out. (3) Composites 562000–847000 and
+  1099200–1351000: no selected or `manual_review` mini output. (4) The L04
+  representative. (5) The S01 and S04 start/end offsets. (6) The S03
+  outcome (measured only). (7) Provenance and prompt hashes (fresh-cold
+  criterion; every `prompt_hash` equals the Stage 18b "after" column).
+  (8) Discovery `material_interruption` flag counts compared with cold-34
+  (mini 92 / short 51).
+- **Accepted residuals (reviewer P2, unchanged by decision; any prompt edit
+  breaks this freeze).** (P2-1) The item list says "stopping to wait for,
+  test, request or change a pen or colour" while the carve-out says "does
+  not stop to wait for, test or replace it", so a passing request for
+  another pen is ambiguous between the two. (P2-3) "The only exemption
+  is…" sits next to the carve-out (`main.md:28`,
+  `stages/risk_discovery.md:16`, `stages/coverage_audit.md:34`, under
+  `src/liveclip/clipping_skills/dual_profile_v1/`), which can read as a
+  conflict with "only". (P2-4) `stages/global_audit.md` lines 62–72: the
+  rule is one long semicolon list with uneven punctuation. (P2-6) Pen
+  remarks in an edge position (at a candidate's start or end) are not
+  addressed by separate wording. All four are recorded for a future prompt
+  revision.
+- **Docs nits fixed here (reviewer P2-2, P2-5).** P2-2: the Stage 18
+  amendment in `docs/PRODUCT_SPEC.md` no longer says "general, not tuned to
+  any benchmark anchor"; it now says the wording is general and motivated
+  by the L05 miss. P2-5: the Stage 18 recovery bullet below now says that
+  reverting restores the `50232af` frozen-path and prompt tree (docs
+  differ).
+- **Consecutive cold strict PASS count for `f525338`: 0/2.**
+- Recovery: docs-only; reverting this commit removes only this record and
+  the two wording fixes. No code, prompt, routing, algorithm or benchmark
+  change.
+- **Next: cold-35**, the first counted fresh cold run on `f525338`.
+  Pre-run: freeze-diff (including `.gitignore`) rc 0 with empty porcelain;
+  new empty cache root; CLI sha256 and version; `.env`/`.env.local`
+  presence and `LIVECLIP_` key names; record the eight watch items. Human
+  editorial/audio review of the earlier renders and the L07 listening check
+  stay pending (separate evidence category). Push and merge still need
+  explicit consent.
+
+## Stage 18: passing pen-remark carve-out from `material_interruption` ("L05 only") (2026-11-06) — ACCEPTED at f525338 (FREEZE SHA; was implemented, pending independent tester and reviewer; freeze of 50232af broken)
+
+- **Status: ACCEPTED at `f525338` (new freeze SHA; see the FREEZE section
+  above). Was: implemented, pending independent tester and reviewer.** Prompts
   and tests in `f525338ed9427b0fcac9925bac6075d60af13e69` on `claude/liveclip-stage18-l05` (branched from
   `origin/main` `701f540`, the merge of PR #1, whose tree equals `ef07143`);
   this docs commit follows. Not pushed. Routing policy
@@ -156,11 +255,13 @@
   "Acceptance policy from Stage 17" the `50232af` freeze no longer covers
   HEAD and the consecutive count for the new tree is **0/2**. A new freeze SHA
   (candidate: the Stage 18 code commit `f525338ed9427b0fcac9925bac6075d60af13e69`, once the independent
-  tester and reviewer accept it) and **2 new consecutive fresh-cold strict
+  tester and reviewer accept it; accepted 2026-11-06, see the FREEZE
+  section above) and **2 new consecutive fresh-cold strict
   PASSes** on it are required. The FROZEN definition, fresh-cold provenance,
   run environment and "what counts" rules are unchanged, except that (b)
   compares against the Stage 18b table above.
-- **Per-run watch items (each new counted run records them):** (1) the L05
+- **Per-run watch items (each new counted run records them; extended to
+  the eight reviewer items in the FREEZE section above):** (1) the L05
   hit (status and `material_interruption` reasons of the in-tolerance L05
   rows); (2) the status and `material_interruption` reasons of the
   N07-overlapping mini rows, which contain a genuine pen-testing pause and
@@ -170,9 +271,13 @@
   (4) the L04 representative; (5) the S01 and S04 start/end offsets; plus the
   S03 outcome (measured only).
 - Recovery: revert `f525338ed9427b0fcac9925bac6075d60af13e69` (and this docs commit); that restores the
-  Stage 17b prompt hashes and the `50232af` tree, where the cold-33/34
-  acceptance applies. No routing, cache-key or schema impact.
-- **Next:** independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`; on acceptance it
+  Stage 17b prompt hashes and the `50232af` frozen-path and prompt tree
+  (every path in the freeze list, prompts included, equals `50232af`; docs
+  differ), where the cold-33/34 acceptance applies. No routing, cache-key
+  or schema impact. (Wording made precise at freeze acceptance, reviewer
+  P2-5.)
+- (Historical next step; done: tester and reviewer accepted, freeze SHA
+  `f525338`, see the FREEZE section above.) **Next:** independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`; on acceptance it
   becomes the new freeze SHA; then two consecutive fresh-cold strict PASS
   runs on it with the watch items above. Human editorial/audio review of
   earlier renders and the L07 listening check stay pending (separate

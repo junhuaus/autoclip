@@ -1216,5 +1216,51 @@ N07-overlapping mini rows (genuine pen-testing pause) status and
 `material_interruption` reasons; composite rows; L04 representative; S01
 and S04 offsets; S03 (measured only).
 
-Next: independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`. Not pushed. Push
+(Historical next step; done, below.) Next: independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`. Not pushed. Push
 and merge still need explicit user consent.
+
+## FREEZE ACCEPTED at f525338 (Stage 18) (2026-11-06)
+
+Freeze SHA `f525338ed9427b0fcac9925bac6075d60af13e69`. Tester at `2812985` (freeze-diff to
+`f525338` empty): `make lint` rc 0, backend 3241 passed, vitest 80, e2e 4/4,
+concurrency 5/5, media-process 3/3, flag contract 3/3 repeats (119 passed
+each), no sleep during the suite. Reviewer at `2812985`: ACCEPT with nits,
+no P0/P1. Consecutive cold strict PASS count for `f525338`: 0/2.
+
+FROZEN (same path list as for `50232af`, now against `f525338`):
+`git diff --quiet f525338 -- src tests scripts config tools apps migrations
+pyproject.toml uv.lock alembic.ini Makefile
+liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md
+.gitignore` must be 0. Also: the 17 Stage 18b prompt identities (table in
+`STATUS.md`); routing `quality-gate-risk-routing-v9`; algorithm
+`dual-profile-direct-v1`; the same pinned CLI 2.1.308 (sha256
+`ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`); the same Settings fingerprint
+(sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`); the same no-override
+`.env`/`.env.local` rule; fresh-cold provenance rules as before; a cold-Nb
+continuation counts as one run; the run fingerprint is expected to differ
+from `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through `prompt_hashes`.
+
+Per-run watch items (reviewer): (1) L05 in-tolerance rows: status and
+`material_interruption` reasons, and whether any reason still cites the pen
+remark; (2) N07-overlapping mini rows (1023–1130 / 1023–1172 class, 998–1048
+risk row, 1028–1172 row) stay `blocked` or rejected for the pen-testing
+pause, with no `irrelevant_padding` or negative-anchor finding, noting
+whether any reason invokes the carve-out; (3) composites 562000–847000 and
+1099200–1351000: no selected or `manual_review` mini output; (4) L04
+representative; (5) S01/S04 offsets; (6) S03 outcome (measured only); (7)
+provenance and hashes; (8) Discovery `material_interruption` flag counts
+against cold-34 (mini 92 / short 51).
+
+Accepted residuals (reviewer P2, no prompt edit; any prompt edit breaks the
+freeze): P2-1 the item list says "wait for, test, request or change" but the
+carve-out says "wait for, test or replace" (a passing request for another
+pen is ambiguous); P2-3 "The only exemption is…" next to the carve-out
+(`main.md:28`, `risk_discovery.md:16`, `coverage_audit.md:34`); P2-4
+`global_audit.md` lines 62–72 semicolon-list punctuation; P2-6
+edge-position pen remarks. Docs nits fixed: P2-2 (`docs/PRODUCT_SPEC.md`
+Stage 18 amendment now "general wording, motivated by the L05 miss"); P2-5
+(`STATUS.md` Stage 18 recovery now "the `50232af` frozen-path and prompt
+tree; docs differ").
+
+Next: cold-35, the first counted fresh-cold run on `f525338`. Not pushed.
+Push and merge still need explicit user consent.
