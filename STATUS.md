@@ -1,5 +1,4475 @@
 # LiveClip status
 
+## Operator authorizations (2026-10-21)
+
+- Real pipeline runs are allowed without per-run consent. ASR uses local
+  models. Since the 2026-10-21 operator directive (Stage 7), the
+  understanding engine for dual-profile runs is the local Claude Code CLI
+  (`LIVECLIP_STRUCTURED_PROVIDER=claude-cli`); Codex remains selectable.
+  Claude CLI runs are authorized only through the claude.ai subscription
+  login, never an API key. Subscription runs incur no per-call charge, but
+  if the account's paid "extra usage" is enabled, usage beyond the
+  subscription allowance could incur charges. (History: this bullet
+  originally said the LLM engine is the Codex CLI, so runs incur no paid
+  usage.)
+- Copying local assets from `/Users/junhuaxu/autoclip` into this worktree's
+  ignored paths is allowed. The Controller has already cloned
+  `input/8-30.ts` (its sha256 matches the ExecPlan) and `data/evaluations/`.
+  Those paths stay ignored and local-only.
+- Push and merge still require explicit operator consent.
+
+## cold-34 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2; benchmark v1 strict acceptance satisfied)
+
+- **Counted run 2 of 2** under the "Acceptance policy from Stage 17" (as
+  corrected at freeze acceptance). Fresh cold, real Claude CLI, single
+  segment. HEAD at run time `a8ab7cd` (three docs-only commits `c5e9f96`,
+  `feef1e5`, `a8ab7cd` on top of the freeze SHA); freeze-diff to
+  `50232af0cb0b0194fb663528b569998a8a2fd79b` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7170 s (2026-11-05
+  07:25:56 to 09:25:26 local); 0 sleep/wake events in the window; AC power
+  throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-34`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10. No hard failure, PASS blocker, direct-fail condition,
+  forbidden-composite, padding, negative-anchor, duration or regression
+  finding; `source_hash_matches` true. Short 7/8 (S03 missed). Mini 5/6
+  (L01, L02, L03, L04 exact at 0/0 ms; L07 0/+1980 ms; L05 (P1) missed).
+  R01 blocked and R02 `manual_review`, both routed correctly. N07, N08 and
+  the composites 562000–847000 and 1099200–1351000 have no selected or
+  `manual_review` mini output.
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 268 cache files,
+  every mtime after the attempt start; 0 content-identical files in 29
+  other cache roots (informational only). Every cached `prompt_hash` equals
+  the Stage 17b table (0 mismatches); stale-cache refresh off.
+- Provider: 272 provider records (run-manifest calls: Discovery 161,
+  Boundary Review 78, Global Review/Audit 28, variant link 1, plus 4
+  repair records), all succeeded on the first attempt; 4 successful
+  repairs (2 Discovery, 2 Boundary Review; cold-33 had 0), 0 retries, no
+  usage-limit marker. Tokens in 10,475,368 / out 1,939,183.
+- **Run fingerprint identical to cold-33:** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
+  `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run fingerprint
+  sha256 `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`. The run manifest, and therefore the
+  run fingerprint, carries the 14 executed-stage prompt hashes
+  (short_highlight `precision_audit`, `precision_confirmation` and
+  `risk_discovery` are not executed); all 14 equal Stage 17b. Separately,
+  all 17 prompt identities recomputed from the tree equal the Stage 17b
+  table (`evidence/step0-tree-prompt-hashes.txt`). No `LIVECLIP_CLAUDE_*`
+  override in `.env` (absent) or `.env.local` (key names only recorded).
+- Miss observations (no patch, per the acceptance policy; recorded as
+  known residual fragility for future work, not as a defect requiring
+  action now): (1) **S03**: Discovery never proposed the full 470–506 cue
+  span, and Global Review and Global Audit kept the 476–499 duplicate; this
+  differs from the cold-33 mechanism, where an in-tolerance row existed but
+  was rejected as a duplicate. S03 has missed in every cold run since
+  cold-30. (2) **L05**: all in-tolerance rows were blocked for
+  `material_interruption` over the pen-failure remark at cues 2337–2340,
+  the same as cold-33.
+- Diagnostics: Discovery `material_interruption` flags mini 92 / short 51
+  (cold-33: 102/59).
+- Renders: 12 clips (7 short, 5 mini), rc 0, automatic checks pass. Visual
+  and audio review pending.
+- **Consecutive cold strict PASS count: 2/2 (cold-33, cold-34).** The
+  dual-profile benchmark v1 acceptance policy (2 consecutive fresh-cold
+  strict PASSes on the frozen tree `50232af`) is satisfied; **strict
+  benchmark acceptance is complete.**
+- Evaluator imports (informational): `scripts/evaluate_benchmark.py` and
+  the benchmark JSON/MD are unchanged since `2c4de9a` and byte-identical at
+  `194ba65..HEAD`; the evaluator imports schema classes from
+  `src/liveclip/pipeline/dual_profile.py`, which changed between `194ba65`
+  and `50232af` only additively (routing literals v5–v9, diagnostic fields,
+  stricter manifest cross-checks; no threshold changed), and the reviewer's
+  re-evaluation of cold-33 and cold-34 is byte-identical to the stored
+  results.
+- Still pending, each a separate evidence category that strict PASS does
+  not claim: (1) human editorial/audio review of the renders of
+  cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34; it also covers the
+  evaluator's `human_required` check
+  `title_hook_summary_must_be_source_faithful`, which lists 68 candidate
+  IDs for cold-33 and 64 for cold-34 (exactly the `manual_review` rows of
+  both profiles). Both runs auto-select 0 candidates in both profiles, so
+  every short and mini match is `manual_review` (R01 is `blocked`);
+  (2) the L07 listening check
+  of `input/8-30.ts` 1:40:07–1:40:35. Nothing is pushed or merged to
+  `main`; that requires explicit user consent.
+- Recovery: docs-only; reverting this commit removes only this record (the
+  documented count returns to 1/2). No code, prompt, routing, algorithm or
+  benchmark change; the freeze is unaffected.
+- **Next:** human editorial/audio review of the renders listed above and
+  the L07 listening check (user); push/merge only with explicit consent.
+  The S03 and L05 residual fragility stays recorded for future work.
+
+## cold-33 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 1/2)
+
+- **Counted run 1 of 2** under the "Acceptance policy from Stage 17" (as
+  corrected at freeze acceptance). Fresh cold, real Claude CLI, single
+  segment. HEAD at run time `feef1e5` (docs-only on top of the freeze SHA);
+  freeze-diff to `50232af0cb0b0194fb663528b569998a8a2fd79b` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7479 s (2026-11-05
+  05:08:29 to 07:13:08 local; attempt start 05:08:25); 0 sleep/wake events
+  in the window; AC power throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261105-claude-cold-33`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10. No hard failure, PASS blocker, forbidden-composite,
+  padding or negative-anchor finding; `source_hash_matches` true. Short 7/8
+  (S03 missed). Mini 5/6 (L01, L02, L03, L04, L07 hit; L05 (P1) missed).
+  R01 blocked and R02 `manual_review`, both routed correctly. N07, N08 and
+  the composites 562000–847000 and 1099200–1351000 have no selected or
+  `manual_review` mini output; the composite that failed cold-32b is clean.
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 272 cache files,
+  every mtime after the attempt start; 0 content-identical files in 28
+  other cache roots (informational only). Every cached `prompt_hash` equals
+  the Stage 17b table (0 mismatches); stale-cache refresh off.
+- Provider: 272 provider records (run-manifest calls: Discovery 161,
+  Boundary Review 80, Global Review/Audit 30, variant link 1), all
+  succeeded on the first attempt; 0
+  repairs, 0 retries, no usage-limit marker. Tokens in 10,677,798 / out
+  2,011,664.
+- **Run fingerprint (cold-34 must match):** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`; model `claude-opus-5-5`; algorithm
+  `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; run fingerprint
+  (provider, model, prompt hashes, routing, algorithm) sha256
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`. No `LIVECLIP_CLAUDE_*` override in
+  `.env` (absent) or `.env.local` (key names only recorded).
+- Miss diagnostics (observations only; per the acceptance policy no patch
+  follows a PASS run): (1) **S03**: the in-tolerance audit row was rejected
+  by Global Review and Global Audit as a duplicate of
+  `sh_0005_yawn_compare_with_choice`, whose start is +12440 ms (outside
+  tolerance); the same miss as cold-30, cold-31 and cold-32b. (2) **L05**:
+  all three in-tolerance rows were blocked for `material_interruption` over
+  the suspected pen-failure remark at cues 2337–2340; cold-32b hit L05, so
+  this is new run-to-run fragility.
+- Renders: 12 clips, rc 0, automatic checks pass. Human editorial/audio
+  review pending (separate evidence category, not part of strict PASS).
+- **Consecutive cold strict PASS count: 1/2.**
+- Recovery: docs-only; reverting this commit removes only this record. No
+  code, prompt, routing, algorithm or benchmark change; the freeze is
+  unaffected.
+- (Historical next step; done: cold-34 strict PASS 92.5, count 2/2, see
+  the cold-34 section above.) **Next: cold-34** (consecutive run 2 of 2) on the same frozen tree with
+  the same fingerprint as above; a cold-Nb continuation counts as one run.
+  Pre-run checks as for cold-33. Human review of the cold-27 through
+  cold-33 renders stays pending. Push and merge still need explicit consent.
+
+## FREEZE ACCEPTED at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05) — consecutive cold strict PASS 0/2
+
+- **Freeze SHA `50232af0cb0b0194fb663528b569998a8a2fd79b`** (Stage 17b code commit; it
+  contains Stage 16b `b5d8def` and Stage 17 `2932b7c`). On
+  `claude/liveclip-stage8-routing`; not pushed or merged to `main`. Frozen
+  paths and run conditions: "Acceptance policy from Stage 17" below, as
+  corrected here.
+- **Tester:** independent tester at `c5e9f96` (freeze-diff to `50232af` empty): `make
+  lint` rc 0; backend pytest 3224 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; freeze-diff rc 0; `caffeinate` held
+  for the full suite (a 40 s maintenance sleep occurred only during lint,
+  not under `caffeinate`). Deterministic validation only; no real model call.
+- **Reviewer:** independent reviewer: Stage 17 ACCEPT with nits (13/13 mutations caught,
+  replay identical); Stage 17b ACCEPT with nits; FREEZE-READY yes (8/8
+  prompt mutations caught; the 17 prompt hashes computed from the tree
+  equal the `STATUS.md` table and the test pins; six-run replay
+  byte-identical). Nits: P2 provenance criterion; P3 run-environment
+  pinning and `.gitignore`; two P3 prompt-wording notes left unchanged by
+  decision. All recorded here; no code or prompt change.
+- **Fresh cold (precise; Stage 17b, provenance criterion corrected at
+  freeze acceptance, reviewer P2).** A fresh run's run manifest records
+  `cache_hits == 0`, its cache root did not exist or was empty at run
+  start, and every cache file in that root has an mtime at or after the
+  run's attempt start. A continuation segment (cold-Nb) may copy only the
+  cache of the immediately previous segment of the same run (cold-N for
+  cold-Nb, cold-Nb for cold-Nc); its run manifest records `cache_hits`
+  equal to the number of entries copied from that segment, every carried
+  file is byte-identical to that segment's file, and every new file has an
+  mtime at or after the segment start. Content identity against other
+  cache roots is reported for information only: identical model outputs
+  under identical frozen prompts legitimately produce identical cache
+  files, so it is not a pass/fail criterion. A warm run, or a run seeded
+  from any other root, is a diagnostic, never acceptance evidence.
+  (History: the Stage 17b wording also required 0 cache files
+  content-identical to a file in any earlier cache root; the freeze
+  reviewer's P2 showed that two honest runs on the same frozen prompts may
+  produce identical files, so that clause was replaced before any counted
+  run.)
+- **Run environment (freeze reviewer P3).** The two counted runs must
+  have equal run-manifest `provider`, `model`, `prompt_hashes`, routing
+  policy (as final-validated) and algorithm version; the same pinned
+  Claude CLI binary (`.cache/claude-cli/2.1.308/claude`, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+  `--version` 2.1.308); and the same effective Settings, with no `.env`
+  or `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings. Each run records `ls -la .env .env.local` presence
+  and, for a present file, only the names of its `LIVECLIP_` keys, never
+  values. Check at this docs commit (2026-11-05): `.env` absent;
+  `.env.local` present and ignored (`.gitignore` `.env.*`), with no
+  `LIVECLIP_CLAUDE_*` and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI
+  binary's recomputed sha256 equals the pin and its mode is 0555.
+- **`.gitignore` added to the freeze path list** (it decides which local files
+  are ignored, for example `.env.*` and `.cache/`); it is unchanged between
+  `50232af` and this commit.
+- **Accepted residuals (freeze reviewer P3, unchanged by decision).**
+  (1) The duration-minimum sentences in `main.md` line 8 ("Do not use
+  greetings, thanks, likes/follows, ... to meet a duration minimum") and
+  `global_review.md` ("The Profile minimum must be met by on-topic
+  content, not by chat, calls to action, greetings or device talk") do not
+  restate the single-cue exemption. (2) The `global_audit.md` exemption
+  reads "passes over" without "without leaving the topic", unlike the
+  other five statements. Both are left as they are because any prompt edit
+  changes prompt identities and starts a new freeze; they are recorded for
+  a future prompt revision.
+- **Consecutive cold strict PASS count: 0/2.**
+- Recovery: docs-only; reverting this commit restores the Stage 17b wording.
+  No code, prompt, routing, algorithm or benchmark change; the freeze is
+  unaffected.
+- (Historical next step; done: cold-33 strict PASS 92.5, count 1/2, see
+  the cold-33 section above.) **Next: cold-33**, the first counted fresh cold run, at the frozen tree.
+  Pre-run: freeze-diff (including `.gitignore`) rc 0 with empty porcelain;
+  new empty cache root; CLI sha256 and version; `.env`/`.env.local`
+  presence and `LIVECLIP_` key names. Human review of the cold-27 through
+  cold-32b renders stays pending (separate evidence category). Push and
+  merge still need explicit consent.
+
+## Stage 17b: Stage 17 reviewer nits (gift wording, freeze definitions) (2026-11-05) — ACCEPTED at 50232af (FREEZE SHA; was implemented, pending verification)
+
+- **Status: implemented, pending independent tester and reviewer.** Prompts
+  and tests in `50232af0cb0b0194fb663528b569998a8a2fd79b` on `claude/liveclip-stage8-routing`; this docs
+  commit follows. Not pushed or merged to `main`. Routing policy
+  `quality-gate-risk-routing-v9`, algorithm version `dual-profile-direct-v1`,
+  cache-key schema, persisted schemas, Python behaviour, evaluator,
+  thresholds, benchmark JSON/MD and `tools/loop_engineering` are unchanged.
+  Once the tester and reviewer accept, `50232af0cb0b0194fb663528b569998a8a2fd79b` is the **freeze SHA**
+  (definitions in "Acceptance policy from Stage 17" below). (Later,
+  2026-11-05: tester and reviewer accepted; freeze SHA; see the FREEZE
+  section above.)
+- **Stage 17 reviewer verdict: ACCEPT with nits** on the Stage 16b + Stage 17
+  candidate at `66b7555` (code `b5d8def`, `2932b7c`): no P0/P1. Reviewer
+  mutations (scratch copies only; results in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-review/mut_results.txt`):
+  every recorded mutation caught, 13 of 13: Stage 16b A1 regeneration-phase
+  mislabel (the R7 survivor of the Stage 16 review, now caught), A2 timing
+  pass-through dropped, A3 backstop stores the message, A4 Darwin wall
+  clock, A5 unbounded evidence path, A6 cancelled message dropped, A7
+  aggregate drops timing; Stage 17 B1 one attested fact dropped, B2 release
+  only on an unchanged interval, B3 release ignoring the raw flag on the
+  shrink path, B4 audit payload on raw flags and B4' audit payload on the v8
+  rule, B5 rejected duplicates not twin sources (P-b'). The reviewer's
+  independent six-run replay (`stage17-review/replay_v9.json`) equals the
+  Stage 17 replay table. Nits: P2 "gifts" listed as a platform prompt that
+  is `material_interruption` even when brief, conflicting with the
+  single-cue thanks exemption for a one-cue thanks for a gift; P3
+  `risk_discovery`'s "a brief greeting or audience acknowledgement"; P3
+  Boundary Review's duration test did not say that board-writing and the
+  live-demo microphone remark are part of the lesson; P3 the freeze and
+  "fresh cold" definitions were imprecise. All fixed here.
+- (1) **Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript).** In all five places that list platform prompts (`main.md`,
+  `coverage_audit.md`, `risk_discovery.md`, `boundary_review.md`,
+  `global_review.md`) the list now reads "(requests for fan badges, follows,
+  likes or gifts, homepage plugs, requests for viewers to join on
+  microphone)": a gift or follow is a prompt only when the speaker asks for
+  it. Every exemption statement adds "including a single-cue thanks for a
+  gift or follow" (`main.md`, mirrored verbatim in `coverage_audit.md` and
+  `risk_discovery.md`; `boundary_review.md` definition and duration test;
+  `global_review.md`; `global_audit.md`). Boundary Review's cross-reference
+  now reads "the single-cue exemption above covers a single-cue thanks for a
+  gift or follow but never these requests, chat reading or
+  troubleshooting" (was "never covers them"). `risk_discovery.md`'s
+  rhetorical-question paragraph uses the single-cue wording ("a single-cue
+  audience thanks, greeting or name call-out that the speaker passes over";
+  "the intervening cue"). Boundary Review's duration test adds "Writing the
+  taught term on the board and the speaker's brief equipment or listening
+  explanation attached to an immediate live example are part of the lesson
+  and are not removed in this test." Lines re-wrapped at the usual width.
+- (2) Hash table (all 17 identities; `prompt_hashes.py` on `git archive
+  66b7555` and on the Stage 17b tree; the "before" column equals the Stage
+  17 table; script and JSON in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17b/`):
+
+  | prompt identity | before (66b7555, Stage 17) | after (Stage 17b) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | yes |
+  | `short_highlight.coverage_audit` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | yes |
+  | `short_highlight.precision_audit` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | yes |
+  | `short_highlight.precision_confirmation` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | yes |
+  | `short_highlight.risk_discovery` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | yes |
+  | `short_highlight.boundary_review` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | yes |
+  | `short_highlight.global_review` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | yes |
+  | `short_highlight.global_audit` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | yes |
+  | `mini_lesson.discovery` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | yes |
+  | `mini_lesson.coverage_audit` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | yes |
+  | `mini_lesson.precision_audit` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | yes |
+  | `mini_lesson.precision_confirmation` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | yes |
+  | `mini_lesson.risk_discovery` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | yes |
+  | `mini_lesson.boundary_review` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | yes |
+  | `mini_lesson.global_review` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | yes |
+  | `mini_lesson.global_audit` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change (`main.md` is loaded by every stage except the
+  variant link); the variant link is unchanged. Pins re-pinned with a Stage
+  17b justification in `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`). The next
+  real run has a cold cache for every stage except the variant link.
+- (3) Tests (`test_dual_profile_flag_contract.py` 86 → 102, +16): the Stage
+  17 pins (`MI_THRESHOLD`, Boundary Review definition, cross-reference and
+  duration test, Global Review/Audit restatements) carry the new wording;
+  new `test_gifts_are_prompts_only_when_requested_and_a_gift_thanks_stays_exempt`
+  across all 8 stages × 2 Profiles: the superseded Stage 17 patterns
+  (`STAGE17B_SUPERSEDED`: the bare "gifts" list, "never covers them", "a
+  brief greeting or audience acknowledgement", "the intervening greeting"
+  and the exemption sentences without the gift thanks) are absent; the
+  requests list and the gift-thanks exemption are present; every "gift(s)"
+  in the prompt lies inside one of those two phrases; per-stage counts of
+  both phrases in the stage's own text; no digits or CJK in either phrase.
+- Self-check: `make lint` rc 0; targeted pytest (11 dual-profile, prompt
+  and structured-provider files) 677 passed; full backend pytest
+  3224 passed (3208 at Stage 17 plus 16 Stage 17b items). Six-run offline replay re-run against the Stage 17b tree
+  (`stage17-sim/replay_v9.py`, output
+  `stage17b/replay_v9.txt` / `replay_v9.json`): byte-identical table and
+  JSON to Stage 17 (routing unchanged; stored outputs do not depend on
+  prompt text). Deterministic validation only; no real model call.
+- Recovery: revert `50232af0cb0b0194fb663528b569998a8a2fd79b` (and this docs commit); restores the
+  Stage 17 prompt hashes. No routing, cache-key or schema impact.
+
+## Stage 17: routing v9 ending-edge release and narrowed interruption exemption (2026-11-05) — REVIEWER ACCEPT WITH NITS at 66b7555; nits → Stage 17b; ACCEPTED with 17b at 50232af (freeze)
+
+- **Reviewer ACCEPT with nits** at `66b7555` (no P0/P1; details and nits in
+  Stage 17b above). The bullets below are the historical implementation
+  record; Stage 17b supersedes the platform-prompt list (gifts only as
+  requests) and adds the single-cue gift or follow thanks to the exemption.
+- **Status (historical): implemented, pending independent tester and reviewer** (to be
+  verified together with Stage 16b). Code, prompts and tests in
+  `2932b7c15af600a900a8838deed4cfcf08a9c95b` on `claude/liveclip-stage8-routing`; this docs commit
+  follows. Not pushed or merged to `main`. Routing policy
+  `quality-gate-risk-routing-v9` (v1–v8 and unmarked artifacts still load).
+  Unchanged: algorithm version `dual-profile-direct-v1`, cache-key schema,
+  persisted semantic-outcome schema, evaluator, thresholds, benchmark JSON/MD
+  and `tools/loop_engineering`. Every Discovery and review prompt hash
+  changes (16 of 17; table below), so the next real run has a cold cache for
+  every stage except the variant link.
+- User decisions (2026-11-05): (1) **"Both" fixes**: routing policy P-a
+  (Discovery `topic_not_closed` persistence released by an attesting
+  Boundary Review) and the prompt narrowing of the Stage 15 exemption.
+  Optional P-b' (a rejected duplicate is not a source of flags it carries
+  only through persistence) was **not approved**; the twin union is
+  unchanged. (2) Acceptance **"Freeze, 2 cold PASS in a row"** (policy
+  below).
+
+### cold-32b analysis (independent read-only reviewer, 2026-11-05)
+
+Evidence and scripts:
+`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/cold32b-analysis/ANALYSIS.txt`
+(replays use `git archive b758f71`, the real `assemble_final_profile_result`
+and the real evaluator; the v8 replay of cold-32b reproduces its stored final
+result exactly; no model call, nothing written under `data/`).
+
+- **L02 = a deterministic rule contradiction.** The base candidate's
+  Discovery raised `topic_not_closed` with a scope claim (the curriculum
+  continues with later steps), not a claim that the interval's own ending
+  fails to close. Boundary Review kept the interval unchanged, attested
+  opening, ending, central objective and shortest boundary all true and
+  cleared the flag. Routing v5–v8 persists a structural Discovery flag unless
+  Boundary Review shrinks an edge, so the flag survived. The Global Audit,
+  told never to choose a persisted-flag row as representative, rejected the
+  base as a duplicate of its clean same-interval risk-discovery twin; the v6
+  twin union (non-risk rows are sources whatever their status) then gave that
+  twin the very flag the audit avoided, and the quality gate blocked it. For
+  identical intervals the audit rule could never succeed. Boundary Review
+  judged that interval closed in every earlier run; Discovery had never
+  flagged the base before. `missing_required_prior_steps` is advisory, never
+  persisted or gated.
+- **Forbidden composite = the Stage 15 exemption read too broadly (n = 1,
+  "made more likely", not proven).** Three base mini rows inside the
+  forbidden composite range (all flags empty at Boundary and Global Review,
+  all four facts true, final `manual_review`) contained interior calls to
+  action and platform prompts, chat reading and presentation
+  troubleshooting. Their Boundary Review reasons invoked the Stage 15 text
+  ("a brief audience thanks, greeting, name call-out or acknowledgement that
+  the speaker passes over ... is neither an interruption nor padding"). In the
+  five earlier runs the same intervals were blocked by the reviews' own
+  padding/interruption flags (routing never had to act); inside cold-32b two
+  sibling rows kept `material_interruption` for the same material. A
+  "strings of short demonstrations are composites" rule was rejected because
+  two of the three P0 mini golds are such chains; the generic signal is the
+  interior non-teaching material.
+- Failure-mode table (stored as-run):
+
+  | run | hard failure | model event | deterministic amplifier | class |
+  |---|---|---|---|---|
+  | warm-28 | negative anchor N07 | Boundary + Global Review missed a topic switch on a short row (Discovery right) | v3 had no persistence | policy gap (fixed v4) |
+  | warm-28 | irrelevant padding (N07) | Boundary Review trimmed a mini core insufficiently | none | model variance |
+  | cold-30 | P0 L01 | Discovery device-padding false positive on the only exact row | v4 padding persistence + audit "match" policy | policy (fixed v5) |
+  | cold-31 | P0 L02 | risk Discovery `material_interruption` on a one-cue thanks | union from the risk record | policy (fixed v6) + prompt |
+  | cold-32b | P0 L02 | base Discovery `topic_not_closed` false positive (scope claim) | v5 persistence + audit representative rule + union | policy (P-a, Stage 17) |
+  | cold-32b | forbidden composite | Boundary/Global Review exempted CTA and troubleshooting (3 rows) | none | model / prompt regression (Stage 17 prompt) |
+
+  Other misses (not hard failures): S03 3/6 and L07 3/6 runs, representative
+  choice (model variance).
+- Fragility estimate: on 119 gold-exact rows Discovery raised a gated flag on
+  11 (9.2 %), Boundary Review on 1, Global Review on 2. With about 1.5–2 exact
+  rows per P0, a single structural Discovery vote decides an interval often
+  enough for about 13–17 % loss per P0 per run and about 35–45 % for "at
+  least one of three P0 lost"; observed 3 of 6 runs. Each single-cause fix
+  closed the last path and the next run found a new one (v4 → v5 → v6 →
+  Stage 15 prompt → composite): the structure is "any one of K judgments
+  vetoes". Hence the freeze-and-repeat acceptance policy below rather than
+  another patch per failed run. Reviewer longer-term options (targeted second
+  opinion, cue-localised flags) are recorded, not approved.
+
+### Stage 17 implementation
+
+- (1) **Routing v9 (P-a)**, inside the single helper
+  `discovery_persisted_flags` (`src/liveclip/pipeline/dual_profile.py`):
+  when Boundary Review did not shrink the interval, a Discovery
+  `topic_not_closed` (new constant `ENDING_EDGE_STRUCTURAL_FLAGS`) is not
+  persisted if Boundary Review's own item does not carry it and
+  `boundary_attests_complete_unit` holds (`opening_complete`,
+  `ending_complete`, `central_objective_complete` and
+  `shortest_complete_boundary` all true). `material_interruption`,
+  `topic_switch_inside` and `asr_uncertain_blocks_meaning` keep v5
+  persistence (released only by a shrink). Because final assembly, the
+  Global Audit payload (`persisted_discovery_gated_flags`), the
+  persisted-flag representative validator, the near-identical pair fallback
+  keep order and the `persisted_flag_representative_duplicates` manifest
+  diagnostic all call this helper, they stay consistent. The twin union
+  (`same_interval_twin_flags`) is unchanged. A Global Review that re-adds
+  `topic_not_closed` still gates through the merged flags.
+- (2) **Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript).** `main.md`: the only exemption is a single-cue audience
+  thanks, greeting or name call-out that the speaker passes over without
+  leaving the topic; inside the interval, calls to action and platform
+  prompts (fan badges, follows, likes, homepage plugs, gifts, requests for
+  viewers to join on microphone), chat reading and presentation
+  troubleshooting (waiting for a pen or colour, glare, asking whether viewers
+  can see) are `material_interruption` even when brief, like audibility
+  checks, and are subtracted when testing the Profile duration minimum;
+  writing the taught term on the board is part of the lesson; the Stage 14
+  live-demo microphone sentence is unchanged. Mirrored verbatim in
+  `coverage_audit.md` and `risk_discovery.md`; `boundary_review.md` mirrors it
+  in its `material_interruption` definition, its interior cross-reference
+  ("the single-cue exemption above never covers them") and its on-topic
+  duration test (calls to action, platform prompts, chat reading and
+  presentation troubleshooting are removed in it even when brief; the closing
+  acknowledgement edge rule is unchanged); `global_review.md` and
+  `global_audit.md` restate it beside the interior audibility rule.
+  `global_review.md` also states the v9 release (Boundary Review resolves a
+  Discovery `topic_not_closed` without trimming when its own item clears the
+  flag and attests a complete opening, ending, central objective and
+  shortest boundary), so its persistence description stays true.
+  `precision_audit.md` already defers to the main-contract threshold and is
+  unchanged (its hash changes through `main.md`). Stage 14 padding-edge rules
+  and the Stage 15 self-promotion rule are unchanged (their contract tests
+  still pass).
+- (3) Hash table (all 17 identities; printed by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/hash_table.py`
+  from `prompt_hashes.py` run on `git archive 03ec7ef` and on the Stage 17
+  tree; the "before" column equals the Stage 16b table):
+
+  | prompt identity | before (03ec7ef, Stage 16b) | after (Stage 17) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | yes |
+  | `short_highlight.coverage_audit` | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | yes |
+  | `short_highlight.precision_audit` | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | yes |
+  | `short_highlight.precision_confirmation` | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | yes |
+  | `short_highlight.risk_discovery` | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | yes |
+  | `short_highlight.boundary_review` | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | yes |
+  | `short_highlight.global_review` | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | yes |
+  | `short_highlight.global_audit` | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | yes |
+  | `mini_lesson.discovery` | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | yes |
+  | `mini_lesson.coverage_audit` | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | yes |
+  | `mini_lesson.precision_audit` | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | yes |
+  | `mini_lesson.precision_confirmation` | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | yes |
+  | `mini_lesson.risk_discovery` | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | yes |
+  | `mini_lesson.boundary_review` | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | yes |
+  | `mini_lesson.global_review` | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | yes |
+  | `mini_lesson.global_audit` | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change; the variant link is unchanged.
+
+  Pins re-pinned with a Stage 17 justification in
+  `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`); the
+  variant link pin is unchanged.
+- (4) Tests (+51 items: `test_dual_profile.py` 141 → 160,
+  `test_dual_profile_flag_contract.py` 68 → 86,
+  `test_dual_profile_evaluation.py` 99 → 113): ending-edge constant; all four
+  facts required (each false keeps the flag); release on an unchanged and on
+  an extended interval; Boundary Review keeping the flag still gates (and the
+  audit-payload view keeps it); only the ending-edge flag is released next to
+  each interior flag; the N07 persistence test now covers the three interior
+  flags; L02-shape chain (released base is not a persisted-flag row, so the
+  same-interval risk twin stays `manual_review`; with any fact false the twin
+  is still blocked); service level: release for `topic_not_closed` alone and
+  interior flags still persisting beside it; audit payload, representative
+  rule, pair fallback keep order, manifest diagnostic and final routing treat
+  an attested `topic_not_closed` exactly like an unflagged candidate; the
+  representative rule fires for each false fact and for a Boundary Review that
+  keeps the flag; v9 marker accepted with v1–v8; prompt contracts for the
+  narrowed exemption across all 8 stages × 2 Profiles (superseded Stage 15
+  wording absent everywhere, no digits or CJK in the rule), the Boundary
+  Review definition/cross-reference/duration test, the Global Review/Audit
+  restatements and the Global Review v9 sentence.
+- (5) Mutation self-check (scratch copy of `src`/`tests` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/mutate.py`,
+  results `mutation_results.txt`): 8 of 8 caught — M1 no v9 release (21
+  failures), M2 attest `ending_complete` only (12), M3 ignore the
+  Boundary-cleared condition (2), M4 release every structural flag (27), M5
+  audit payload computed with a different rule (6), M6 `main.md` keeps the
+  Stage 15 exemption (18), M7 Boundary Review duration test drops the
+  subtraction (3), M8 Global Review drops the mirror (3).
+- (6) Offline replay (stored stage outputs of six runs; `git archive` of the
+  Stage 17 code commit;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage17-sim/replay_v9.py`,
+  output `replay_v9.txt` / `replay_v9.json`; the v8 column is the v5–v8
+  persistence rule in the same tree and equals the reviewer's v8 replay; the
+  v9 column equals the reviewer's P-a replay):
+
+  | run | v8 rule (this tree) | v9 shipped | mini hits v9 | hard failures v9 | negatives v9 | rows changed v8->v9 | v8 == reviewer v8 / v9 == reviewer P-a | validate |
+  |---|---|---|---|---|---|---|---|---|
+  | cold-27 | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | warm-28 | FAIL 95.0 | FAIL 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | ['irrelevant_padding'] | - | - | True / True | ok |
+  | warm-29b | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | cold-30 | FAIL 92.5 | FAIL 92.5 | 5 ['L02', 'L03', 'L04', 'L05', 'L07'] | ['missing_any_p0_mini_lesson'] | - | - | True / True | ok |
+  | cold-31 | PASS 92.5 | PASS 92.5 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | ['N08'] | - | True / True | ok |
+  | cold-32b | FAIL 92.5 | FAIL 97.5 | 6 ['L01', 'L02', 'L03', 'L04', 'L05', 'L07'] | ['forbidden_composite_interval'] | - | [('mini', 'risk_curriculum_steps_1_to_4_claim_chain', 'blocked', 'manual_review')] | True / True | ok |
+
+  Exactly one row changes in six runs: cold-32b
+  `risk_curriculum_steps_1_to_4_claim_chain` blocked → `manual_review` (L02
+  back). cold-32b stays FAIL 97.5 on `forbidden_composite_interval` only
+  (short 7, mini 6/6). Negative-anchor findings unchanged in every run (only
+  cold-31 N08 informational `manual_review`). v9 releases persistence on 0–5
+  rows per run; every other release changes no status. Fidelity: final
+  routing is replayed exactly; the Global Audit is not re-run (its payload
+  changes under v9, so a real run's audit may keep the base as representative,
+  as in runs 27–31), and the prompt change needs a real cold run.
+- Self-check: `make lint` rc 0 (ruff check, ruff format, mypy, schema check,
+  web typecheck); targeted pytest (dual-profile unit, flag contract,
+  delivery, render, integration, lineage prompts, benchmark evaluators)
+  8 files, 494 passed; full backend pytest 3208 passed (3138 at Stage 16, plus 19 Stage 16b and 51 Stage 17 items). Deterministic validation only; no
+  real model call.
+- Recovery: revert `2932b7c15af600a900a8838deed4cfcf08a9c95b` (and this docs commit). Reverting restores v8
+  routing and the Stage 16b prompt hashes; artifacts written with the v9
+  marker would then fail to load until re-run, and Stage 17 cache entries are
+  simply not hit by the reverted prompts.
+
+### Acceptance policy from Stage 17 (user decision 2026-11-05, "Freeze, 2 cold PASS in a row"; definitions made precise in Stage 17b)
+
+- After Stage 17 is accepted (independent tester and reviewer), code and
+  prompts are **frozen** at that SHA.
+- Benchmark acceptance requires **two consecutive fresh cold runs with strict
+  PASS on the frozen SHA**.
+- A failed run is **analysed before any change**; no immediate patching. Any
+  later change starts a new frozen SHA and a new two-run count.
+- A usage-limit continuation segment (cold-Nb on the preserved cache of
+  cold-N) still counts as **one** run.
+- **FROZEN (precise; Stage 17b).** The freeze covers the code/prompt tree,
+  not the documentation. A run is on the frozen SHA when, at its start:
+  (a) `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile .gitignore
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
+  exits 0 and `git status --porcelain --untracked-files=all -- <the same
+  paths>` is empty (no committed, uncommitted or untracked change). Every
+  listed path exists in the tree. `apps` holds the API and worker entry
+  points and the review console (`apps/web`); the console is not on the
+  benchmark path, but it is code, so it is frozen too. The two root
+  benchmark files are the evaluator's inputs. (b) The 17 prompt identities
+  computed from that tree equal the recorded Stage 17b hash table. (c) The
+  routing policy is `quality-gate-risk-routing-v9` and the algorithm version
+  is `dual-profile-direct-v1` (cache-key schema unchanged), and the run's
+  final results record exactly these. Docs-only commits (`STATUS.md`,
+  `docs/`, `tasks/`, `.agent/`, `AGENTS.md`, `CLAUDE.md`, `README.md`) touch
+  none of these paths, so HEAD may move by commits that record run results
+  without resetting the count. (`.gitignore` was added to this list at
+  freeze acceptance, reviewer P3.)
+- **Fresh cold (precise; Stage 17b, provenance criterion corrected at
+  freeze acceptance, reviewer P2).** A fresh run's run manifest records
+  `cache_hits == 0`, its cache root did not exist or was empty at run
+  start, and every cache file in that root has an mtime at or after the
+  run's attempt start. A continuation segment (cold-Nb) may copy only the
+  cache of the immediately previous segment of the same run (cold-N for
+  cold-Nb, cold-Nb for cold-Nc); its run manifest records `cache_hits`
+  equal to the number of entries copied from that segment, every carried
+  file is byte-identical to that segment's file, and every new file has an
+  mtime at or after the segment start. Content identity against other
+  cache roots is reported for information only: identical model outputs
+  under identical frozen prompts legitimately produce identical cache
+  files, so it is not a pass/fail criterion. A warm run, or a run seeded
+  from any other root, is a diagnostic, never acceptance evidence.
+  (History: the Stage 17b wording also required 0 cache files
+  content-identical to a file in any earlier cache root; the freeze
+  reviewer's P2 showed that two honest runs on the same frozen prompts may
+  produce identical files, so that clause was replaced before any counted
+  run.)
+- **Run environment (freeze reviewer P3).** The two counted runs must
+  have equal run-manifest `provider`, `model`, `prompt_hashes`, routing
+  policy (as final-validated) and algorithm version; the same pinned
+  Claude CLI binary (`.cache/claude-cli/2.1.308/claude`, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+  `--version` 2.1.308); and the same effective Settings, with no `.env`
+  or `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings. Each run records `ls -la .env .env.local` presence
+  and, for a present file, only the names of its `LIVECLIP_` keys, never
+  values. Check at this docs commit (2026-11-05): `.env` absent;
+  `.env.local` present and ignored (`.gitignore` `.env.*`), with no
+  `LIVECLIP_CLAUDE_*` and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI
+  binary's recomputed sha256 equals the pin and its mode is 0555.
+- **What counts (Stage 17b).** A run aborted by a provider or environment
+  failure (usage limit, CLI or transport failure, host interruption) before
+  a strict evaluation exists counts neither way: re-run it as a new fresh
+  cold run, or continue it as cold-Nb under the rule above. A run with a
+  strict evaluation counts: strict PASS adds one to the consecutive count;
+  strict FAIL resets the count to zero and is analysed before any change.
+  Any change to a frozen path, a prompt identity, the routing policy or the
+  algorithm version starts a new freeze SHA and a count of zero.
+- **Evidence categories.** Strict PASS is deterministic evaluator evidence
+  about real-model output. Rendering plus human editorial/audio review
+  remains a separate evidence category: it is not part of strict PASS and is
+  not implied by it.
+- **Freeze SHA.** The freeze candidate is the Stage 17b code commit
+  `50232af0cb0b0194fb663528b569998a8a2fd79b`; it becomes the freeze SHA once the independent tester and
+  reviewer accept it. The Stage 17 tree (`2932b7c`) is no longer the
+  candidate, because Stage 17b changes 16 of the 17 prompt identities.
+  (Later, 2026-11-05: accepted; `50232af0cb0b0194fb663528b569998a8a2fd79b` is the
+  freeze SHA.)
+
+### Stage 16b status
+
+- Stage 16b (`b5d8def`) remains implemented, **pending independent
+  verification**; it will be verified together with Stage 17. (Later,
+  2026-11-05: verified and accepted with Stage 17 and 17b at the freeze
+  SHA `50232af`.)
+- (Historical next step; the Stage 17 reviewer accepted with nits, which
+  became Stage 17b.) Next: independent tester and reviewer on the Stage 16b and Stage 17 SHAs;
+  then freeze and the two fresh cold runs; human review of the cold-31,
+  cold-32b and earlier renders stays pending.
+- (Historical next step; done: freeze accepted, see the FREEZE section
+  above; next is cold-33.) Next (Stage 17b): independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; on
+  acceptance it is the freeze SHA; then two consecutive fresh cold strict
+  PASS runs on it under the definitions above. Human review of the cold-27
+  through cold-32b renders stays pending (separate evidence category).
+  Push and merge still need explicit consent.
+
+## Stage 16b: Stage 16 reviewer P3 nits (2026-11-04) — ACCEPTED with Stage 17/17b at 50232af (freeze; was implemented, pending verification)
+
+- **Status: implemented, pending independent tester and reviewer.** Code and
+  tests in `b5d8def745d468863917ae04d1c2d1dd314004c2` on `claude/liveclip-stage8-routing` (main checkout,
+  after the Stage 16 fast-forward to `58186f5`); this docs commit follows.
+  Not pushed or merged to `main`. No prompt file, prompt hash, evaluator,
+  threshold, benchmark, routing policy (`quality-gate-risk-routing-v8`),
+  algorithm version (`dual-profile-direct-v1`), cache-key schema or
+  persisted semantic-outcome schema change; the success path is unchanged.
+- Stage 16 reviewer verdict: **ACCEPT with nits** (no P0–P2; 7 of 8
+  independent mutations caught; R7, the regeneration-phase provider failure
+  labelled `repair`, survived). Reviewer notes in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-review/` (`mut.py`, `mut_results.txt`). Stage 16
+  (`b1f11ec` code, `58186f5` docs) was fast-forwarded into
+  `claude/liveclip-stage8-routing`; its isolated worktree is left for the
+  Controller to remove.
+- (1) R7: `test_a_regeneration_provider_failure_names_the_regeneration_phase`
+  (unit: phase, attempts `initial`/`repair`, records, audit, summary) and
+  `test_a_regeneration_provider_failure_is_recorded_as_the_regeneration_phase`
+  (integration: `failed_phase` `regeneration` in
+  `failed-short_highlight-discovery.json` and in `failure-manifest.json`,
+  fixed timeout message, three call records, nothing cached).
+- (2) Timing pass-through: `_aggregate_semantic_failures` forwards the
+  selected failure's `timeout_seconds` / `suspended_seconds`, and every
+  stage rewrap of an earlier error (v1 Discovery, Global Review repair,
+  Boundary Review, the v4 local-request rewrap and the v4 batch aggregate)
+  forwards them, so an aggregated timeout still says "timed out after N s".
+  An AST test checks every `StructuredProviderError(<error>.code, ...)` in
+  `src/liveclip` (at least ten) passes both keywords. Exception: the durable
+  v4 unit outcome (`SemanticUnitOutcome`, persisted) stores only its failure
+  code, so the rewrap built from it carries no timing; that schema is not
+  changed. This corrects the Stage 16 wording "carried through every
+  rewrap" below, which held only for the provider-level rewraps.
+- (3) Fixed messages: `STRUCTURED_INPUT_BUDGET_EXCEEDED` "structured provider
+  request exceeds its context budget; no model call ran",
+  `STRUCTURED_REPAIR_BUDGET_EXCEEDED` "structured repair request exceeds its
+  context budget; no repair call ran", `SEMANTIC_UNIT_INTERNAL_ERROR`
+  "semantic unit failed with a local internal error", `PROVIDER_CANCELLED`
+  "structured provider request was cancelled". None reads "request failed"
+  or "could not be validated".
+- (4) Backstop: the safer option. `failure-manifest.json`
+  (`unexpected_error`) keeps only `exception_type` (the class name, checked
+  as an identifier, else `Exception`) and `exception_message_recorded:
+  false`; the bounded `error` text is gone. An arbitrary exception may quote
+  a local path, an account identity or a token and this file is durable; the
+  text still reaches the operator once on stderr through the re-raised
+  exception. Test: an exception quoting a synthetic address, token and home
+  path leaves none of them in the manifest.
+- (5) Sleep clock: the gap is measured on a sleep-counting clock,
+  `time.clock_gettime(CLOCK_MONOTONIC_RAW)` on Darwin (keeps counting during
+  sleep, never stepped by NTP or by hand; `time.monotonic` there is
+  `mach_absolute_time`, which stops) and `time.time()` elsewhere. It also
+  counts toward the deadline (`max(monotonic, wall, sleep clock)`), so a
+  sleep is enforced even if the wall clock was stepped back. On Darwin a
+  wall-clock step forward without sleep stays a plain `TimeoutExpired`.
+  `ProcessInterruptedBySleep.wall_elapsed_seconds` is the elapsed time on
+  that clock. Tests with patched clocks: sleep classified, sub-gap lead,
+  spent monotonic budget, wall step without sleep (plain timeout), sleep with
+  the wall clock stepped back (detected), and clock selection (raw on Darwin,
+  wall elsewhere); the suite also passes with the fallback forced.
+- (6) CLI summary: `_failure_summary` (shared by the exhausted-validation and
+  provider-failure summaries) puts code, profile, stage, subject and phase
+  first, keeps bounded notes, trims a long evidence path from its start to
+  the room left (the file name survives), then the trimmed detail; the
+  result never exceeds 480 characters, so `_safe_cli_error` never replaces
+  it with the generic message. The backstop's `failure evidence:` note is
+  bounded the same way. Tests: unit (both summaries, with and without a long
+  note) and CLI (rc 1, code and file name printed, no generic message).
+- Tests: 19 new test items (structured-provider failures 23 → 36, flag
+  contract 67 → 68, media process 13 → 16, dual-profile integration
+  97 → 99); one existing backstop test now asserts the text is absent.
+- Mutation self-check (scratch copies of the main checkout `src` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16b-mut/mut.py`, results in `results.txt`): 12 of 12 caught —
+  R7 regeneration mislabelled `repair`, B1 aggregate drops the timeout, B2 a
+  stage rewrap drops the timeout, B3 budget message removed, B4 internal
+  message removed, B5 backstop stores the message, B6 raw clock never used,
+  B7 gap measured on the wall clock, B8 deadline ignores the sleep clock, B9
+  evidence path unbounded, B10 path keeps its head, B11 raw clock reads the
+  wall clock.
+- Prompt hashes: all 17 identity hashes printed from the main checkout by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16b-hashes.py` equal the Stage 16 table
+  (`stage16-hashes-after.txt`); no prompt file changed.
+- Self-check: `make lint` rc 0 (ruff check, ruff format, mypy, schema check,
+  web typecheck); targeted pytest (29 files: dual-profile suites, structured
+  provider, Claude CLI, Codex, OpenAI, media process, stage handlers,
+  semantic executor/unit recovery/transport/global, transport budget, edit
+  text guard, lineage runtime and CLI tests) 999 passed. Deterministic
+  validation only; no real model call.
+- Recovery: revert `b5d8def`. No cache, prompt or algorithm impact; a
+  backstop manifest written before Stage 16b may contain an `error` text.
+- Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+  analysis (below); human review of the cold-31, cold-32b and earlier
+  renders stays pending.
+- (2026-11-05) Verification deferred by the Controller: Stage 16b will be
+  independently verified together with Stage 17 (above). The cold-32b
+  analysis is recorded in the Stage 17 section.
+
+## cold-32b real run at b758f71 (2026-11-04) — strict FAIL 92.5 (continuation of cold-32)
+
+- continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending. (Later, 2026-11-05: analysed by an independent read-only reviewer; summary, user decisions and Stage 17 in the section above.)
+- Evidence category: real-model inference at `b758f71` (authorized Claude
+  CLI subscription run); it is not evidence for Stage 16 or Stage 16b, which
+  change only failure paths. Renders passing automatic checks are not human
+  review.
+
+## Stage 16: provider-failure observability (Stage 15c reviewer Part B) (2026-11-04) — REVIEWER ACCEPT WITH NITS at 58186f5; nits → Stage 16b
+
+- **Reviewer ACCEPT with nits** at `58186f54c3ebc7bf3255ef5046aa25a9c25f04c3`
+  (code `b1f11ec`): no P0–P2; 7 of 8 independent mutations caught (R7, a
+  regeneration-phase provider failure labelled `repair`, survived). The P3
+  nits became Stage 16b (above). Fast-forwarded into
+  `claude/liveclip-stage8-routing`. The bullets below are the historical
+  implementation record; Stage 16b corrects the backstop `error` field, the
+  "every rewrap" wording and the wall-clock gap.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code and
+  tests in `b1f11ecbea257488815fce3f8636bc853078ba2f` on local branch
+  `claude/liveclip-stage16` (from `b758f71`, in an isolated worktree); this
+  docs commit follows. Not pushed or merged. No prompt file, prompt hash,
+  evaluator, threshold, benchmark, routing policy
+  (`quality-gate-risk-routing-v8`), algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change. The success path
+  (routing, outputs, cache bytes, `provider-calls.json`) is unchanged.
+- Stage 15c was **accepted** at `b758f7172f6cecebadb4afc82de502788d26de9e`
+  (tester PASS: lint rc 0, backend 3104 passed, vitest 80, e2e 4/4,
+  concurrency test 5/5, no sleep in the test window; reviewer ACCEPT: 7 of 7
+  independent mutations caught, offline replay identical).
+- cold-32 root cause (reviewer Part B): `short_highlight` Global Review hit
+  two consecutive wall-clock `PROVIDER_TIMEOUT`s (the initial request and its
+  one semantic retry) while the machine slept. Every unlisted
+  `StructuredProviderError` code was mapped to "structured model output could
+  not be validated" (`_structured_error_message`), so the timeout was
+  misreported; `_resolve_call` wrapped only deterministic `ValueError`
+  failures and the run wrapper caught only
+  `DualProfileValidationExhaustedError`, so no `failed-*.json`,
+  `provider-calls.json` or `failure-manifest.json` was written and every
+  completed call record was lost (reviewer P3 nit). The cold-32 stage cache
+  was verified valid by a read-only integrity check (99 files; identity,
+  prompt hash, cache-key recomputation and output model all match). A
+  continuation run **cold-32b** on the preserved cache was started at
+  `b758f71`; its result is pending and is not evidence for Stage 16 (it runs
+  `b758f71` code). (Later: cold-32b finished, strict FAIL 92.5; see its
+  section above.)
+- P1 provider failures keep their evidence: `_resolve_call` wraps a
+  `StructuredProviderError` from the initial generation (after its one
+  semantic retry), the repair or the regeneration into
+  `DualProfileProviderFailureError(RuntimeError)` carrying stage, profile,
+  subject, cache key, phase, failure code, the validation attempts made so
+  far, and the unit's accumulated plus failing call records. It is recorded
+  in `_ResolutionAudit` in the same ordered list as exhausted units, so
+  concurrent chunk failures are all kept. The run wrapper writes, to the run
+  directory only (never the cache): `failed-<profile>-<stage>.json`
+  (`status: provider_failed`, `failure_code`, `failed_phase`, fixed
+  `message`, `provider_calls`, `provider_attempts`, `attempts`,
+  `concurrent_exhausted_units`, `concurrent_provider_failed_units`), a
+  partial `provider-calls.json` (completed units, the failing unit, then
+  every other failed unit in failure order) and `failure-manifest.json`
+  (`failure_kind: provider_failure`, `failure_code`, `failed_phase`,
+  `concurrent_failed_subject_ids`, `concurrent_failures`). An exhausted
+  validation keeps its Stage 13d/13e format and now also lists a concurrent
+  provider failure. Backstop: any other exception after the run directory
+  exists writes only `failure-manifest.json` (`failure_kind:
+  unexpected_error`, `exception_type`, a bounded one-line `error`, every
+  completed call record plus those of already failed units) and adds a
+  `failure evidence: <path>` note. Every error is re-raised; an
+  evidence-writer failure is attached as a note and never masks it.
+- P2 fixed messages (shared by the Claude CLI, Codex and OpenAI providers):
+  `PROVIDER_TIMEOUT` "structured provider request timed out after N s" (N
+  is the configured timeout; bare text when unknown),
+  `PROVIDER_INTERRUPTED_BY_SLEEP`, `PROVIDER_ERROR`,
+  `PROVIDER_CONFIGURATION`, `STRUCTURED_TOOL_EVENT`, and
+  `STRUCTURED_OUTPUT_MISSING` ("was missing"); an unlisted code says
+  "structured provider request failed (CODE)". "could not be validated" is
+  kept only for `STRUCTURED_OUTPUT_INVALID`. `StructuredProviderError`
+  gains optional `timeout_seconds` / `suspended_seconds` (fixed numbers,
+  never provider content), carried through every rewrap.
+- P2 sleep detection: `run_cancellable_process` raises
+  `ProcessInterruptedBySleep` (a `subprocess.TimeoutExpired` subclass, so
+  every other caller keeps its timeout semantics) when the deadline fired,
+  the monotonic clock had not used the budget, and the wall clock ran more
+  than `SLEEP_DETECTION_GAP_SECONDS` (60 s) ahead of it. The Claude CLI and
+  Codex providers map it to `PROVIDER_INTERRUPTED_BY_SLEEP` (record code
+  `STRUCTURED_PROVIDER_INTERRUPTED_BY_SLEEP`); `_generate_with_semantic_retry`
+  never retries it (fail fast with evidence). The durable job pipelines keep
+  classifying it as transient (`semantic_executor`), exactly as the timeout
+  it was before.
+- P3 CLI: `dual-profile-eval` prints "dual Profile provider failure CODE in
+  PROFILE STAGE (SUBJECT) during PHASE; evidence: PATH; cause: MESSAGE"
+  (bounded, only the cause is trimmed) and rc 1; for the backstop it prints
+  the error and then the manifest path on a second stderr line.
+- Decisions: (1) the sleep class subclasses `TimeoutExpired` rather than
+  changing timeout behaviour; (2) a large wall-clock lead after the
+  monotonic budget was already spent stays an ordinary timeout; (3) only the
+  sleep code is exempt from the dual-profile semantic retry (timeouts are
+  still retried once, as before); (4) a concurrently cancelled unit
+  (`ProviderCancelled`) is still neither resolved nor failed and its calls
+  are not listed (unchanged); (5) a provider failure file includes the
+  provider's own repair attempts (parsed model output, the same policy as
+  exhausted evidence; the Claude CLI provider already drops any output that
+  contains its account identity).
+- Tests: integration — two `PROVIDER_TIMEOUT`s in short Global Review
+  (failure file, partial calls with completed plus both failing calls,
+  manifest, no cache entry for the unit, every earlier entry byte-identical
+  and reused as a cache hit by a rerun, re-raised); two concurrent Global
+  Review chunk provider failures both recorded; an exhausted unit and a
+  provider-failed unit overlapping in Discovery; an unexpected `ValueError`
+  mid-run writes the backstop manifest; an error before the run directory
+  exists writes nothing. Unit — message per code, timeout/sleep text, only
+  `STRUCTURED_OUTPUT_INVALID` says "could not be validated"; Claude CLI,
+  Codex and OpenAI mappings; `run_cancellable_process` with patched clocks
+  (sleep, sub-gap lead, spent monotonic budget, real timeout, pickling); no
+  semantic retry on sleep, one retry on timeout, repair-phase failure keeps
+  the initial attempt; bounded summary; job-pipeline classification; CLI rc
+  1 with code, stage and evidence path. One existing test
+  (`test_resolve_call_regeneration_exhaustion_names_the_real_cause`) now
+  expects the wrapped error and checks the provider message on its cause.
+- Mutation self-check (scratch copies of the worktree `src` only;
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-mut/mutate.py`,
+  results in `mutation_results.txt`): 12 of 12 caught — M1 initial provider failure not wrapped (6 tests fail), M2 failure not recorded in the audit (3), M3 sleep semantically retried (1), M4 no sleep classification (1), M5 sleep ignores a spent monotonic budget (1), M6 old "could not be validated" default and no timeout text (11), M7 no unexpected-error backstop (1), M8 CLI prints the generic message (1), M9 provider failure file labelled `validation_exhausted` (1), M10 Claude CLI maps sleep to `PROVIDER_TIMEOUT` (1), M11 concurrent units' records dropped from `provider-calls.json` (3, the Stage 13e exhausted test included), M12 repair-phase provider failure unwrapped (1).
+- Prompt hashes: all 17 identity hashes, printed from the worktree by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage16-hashes.py`,
+  equal the Stage 15c table (`stage15c-review/hashes.txt`); no prompt file
+  changed.
+- Self-check: `ruff check` (src, tests, scripts, tools) and `ruff format
+  --check` clean; `mypy src/liveclip` clean (202 files); targeted pytest
+  (dual-profile suites, Claude CLI, Codex, OpenAI, structured-provider,
+  semantic executor, media process and CLI tests; 18 files) 581 passed;
+  full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new). Deterministic validation only; no real model call.
+- Recovery: revert `b1f11ec`. No cache, prompt or algorithm impact; the new
+  evidence files appear only in failed run directories.
+- (Historical next step; the reviewer accepted Stage 16 with nits, Stage 16b
+  followed and cold-32b finished, above.) Next: independent tester and
+  reviewer on the Stage 16 SHAs; record the cold-32b result when it finishes; human review of the cold-31 and earlier
+  renders stays pending.
+
+## Stage 15c: risk-twin review covers risk-record receivers (routing v8), Stage 15b reviewer nits (2026-11-04) — ACCEPTED at b758f71
+
+- **Accepted** at `b758f7172f6cecebadb4afc82de502788d26de9e` (code
+  `b026c64`, docs `c99d198` and `b758f71`): tester PASS: lint rc 0, backend
+  3104 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep in the
+  test window; reviewer ACCEPT: 7 of 7 independent mutations caught, offline
+  replay identical. Reviewer Part B (the cold-32 failure was misreported and
+  left no evidence) becomes Stage 16 (above). The bullets below are the
+  historical implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code and
+  tests in `b026c64b42fb92e66841150d69d8167655b99c61` on local branch `claude/liveclip-stage15c` (from
+  `e960414`); this docs commit follows. Both commits were fast-forwarded into
+  `claude/liveclip-stage8-routing`; the isolated worktree and the
+  `claude/liveclip-stage15c` branch were then removed. Not pushed or merged
+  to `main`. No prompt
+  file, prompt hash, evaluator, threshold, benchmark, algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change.
+- Stage 15b was **accepted** at `e960414b381d6086151f8fe0572feb5d2b8784f9`
+  (tester PASS: lint rc 0, backend 3101 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 of 9 independent mutations caught (R5b, a service diagnostic computed as `len(sources)`, survived), replay byte-identical, every documented hash matches). Reviewer notes in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-review/`
+  (`risksel.py`, `mutation_results.txt`).
+- cold-32 (fresh cold run, real Claude CLI) was **started at `e960414`**
+  (Stage 15b, routing v7) in the main checkout; its result is pending and is
+  not evidence for Stage 15c. Stage 15c changes no prompt hash, so its
+  cached stage outputs stay valid; only final routing differs, and only
+  where a selected risk record shares an interval with a different tagged
+  risk record.
+- cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned.
+- User decision (2026-11-04): "when a risk twin has a high-risk tag, its
+  twin can't be auto-published". v7 applied it only to non-risk receivers.
+- Nit 1 (routing): routing policy **`quality-gate-risk-routing-v8`**
+  (constant and `Literal`; v1–v7 and unmarked artifacts still load). Step 3
+  of final assembly, risk-twin review, now downgrades ANY row still
+  `selected` after the twin union, a risk-discovery record included, whose
+  identical final interval has a DIFFERENT risk-discovery record carrying an
+  `AUTO_BLOCKING_RISK_TAGS` tag (whatever that record's status). A record is
+  never its own source. Everything else is unchanged: `manual_review` only
+  (never `blocked`), tags and flags not copied, the same prefix and reason
+  text, the same position (after the twin union, before Top-N), idempotent,
+  and the single helper `risk_twin_review` still drives assembly, the
+  `risk_twin_review_downgrades` diagnostic and the `validate_against`
+  cross-check (no `selected` row may be pending; every prefixed row must be
+  backed by a tagged risk twin; the count must match). A downgraded risk
+  record stays `manual_review`: step 5 only retains REJECTED risk records as
+  `blocked`, and a formerly selected row carries no gated flag. A selected
+  risk record cannot itself carry an automatic-blocking tag (the
+  `FinalProfileCandidate` validator), so only untagged or
+  non-automatic-blocking risk records are new receivers.
+- Nit 2 (test gap): `RiskTwinProvider` gains a base-pass same-interval twin
+  that Global Review keeps `manual_review` (`manual_twin`) and a
+  risk-discovery record with only `commercial_claim` that Global Review
+  selects (`risk_commercial_twin`); its Global Audit mock decides the listed
+  twin pairs `distinct_objective`. The new service test
+  `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins`
+  has two rows with a tagged risk twin and one downgrade, so it fails when the
+  service diagnostic counts `len(sources)` (mutation R5b, verified
+  scratch-only).
+- Nit 3 (accepted residual, outside the user decision): a selected row next
+  to a NON-risk twin that carries an automatic-blocking risk tag is not
+  downgraded. Risk tags have never been shared between non-risk twins in any
+  routing version; that twin's own review already routes it (it can never be
+  `selected` itself), and the decision is about risk twins only. Pinned by the
+  existing `tagged_base` case of
+  `test_risk_twin_review_needs_an_auto_blocking_tag_on_a_risk_record`.
+- Tests (changed existing assertions explained):
+  - `tests/unit/test_dual_profile.py`: the `risk_pair` case that pinned the
+    v7 behaviour ("a selected risk record is not downgraded by another risk
+    record") is flipped and moved into the new
+    `test_risk_twin_review_downgrades_a_selected_risk_record_too`
+    (justification: the user decision covers every twin of a tagged risk
+    twin): the selected risk record becomes `manual_review` with the exact
+    prefixed reason and no tag; the tagged source keeps its status and
+    reason; `sources` excludes the source itself; the manifest cross-check
+    accepts the result with diagnostic 1 and rejects an unrouted result
+    ("violates the risk-twin review rule"); a lone tagged risk record has no
+    sources. The helper test's `sources` now also lists the three
+    risk-record receivers (each tagged record sees only the other). The
+    routing-marker test expects v8 and loads v1–v8.
+  - `tests/integration/test_dual_profile_evaluation.py`: the three marker
+    assertions expect v8; new service tests for nit 2 (above) and
+    `test_service_risk_twin_review_drops_a_selected_risk_record_to_manual_review`
+    (the selected `commercial_claim` risk record and the lesson both
+    `manual_review` with the prefix, `health_advice` not copied, the tagged
+    record unprefixed, diagnostic `{short 0, mini 2}`, cross-check with the
+    risk membership).
+- Mutation self-check (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate.py`, scratch copies of the
+  worktree `src` only; results in `mutation_results.txt`): 12 of 12 caught (an earlier draft of
+  this record said 13 of 13; the script runs twelve mutations) —
+  v7 receivers (non-risk only), no self-exclusion, risk-only receivers,
+  R5a validator counts sources, **R5b service counts sources (now caught by
+  the nit-2 test)**, R5c both, and the Stage 15b reviewer's R1 (Top-N before
+  review), R2 (pending includes manual), R3 (start-only key), R4 (no reverse
+  status check), R6 (first twin only), R7 (downgraded = any manual twin).
+- Offline replay (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay.py`, adapted from Stage 15b:
+  the worktree's v8 assembler and strict evaluator on the stored stage
+  outputs read-only from the main checkout's `data/evaluations`; the v7
+  baseline is the same code with receivers restricted to non-risk rows; the
+  v8 manifest cross-check, including both diagnostics, ran on every run; no
+  tracked edit, no model call):
+
+  | Run | v7 replay | v8 replay | v7→v8 changes | final JSON identical (excl. marker) | `risk_twin_review_downgrades` (short/mini) | risk-record receivers (status) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | cold-27 | PASS 95.0 | PASS 95.0 | none | yes | 0 / 0 | 4 (all `blocked`) |
+  | warm-28 | FAIL 95.0 (`irrelevant_padding`) | FAIL 95.0 (`irrelevant_padding`) | none | yes | 0 / 0 | 0 |
+  | warm-29b | PASS 95.0 | PASS 95.0 | none | yes | 0 / 0 | 0 |
+  | cold-30 | FAIL 92.5 (`missing_any_p0_mini_lesson`) | FAIL 92.5 | none | yes | 0 / 0 | 0 |
+  | cold-31 | PASS 92.5 | PASS 92.5 (N08 informational) | none | yes | 0 / 0 | 0 |
+
+  Every evaluator field is identical between v7 and v8, and the v7 replay
+  equals the Stage 15b replay results. No stored run has a selected risk
+  record on a tagged risk twin's interval, so v8 changes nothing here.
+  Routing evidence only, not a benchmark pass.
+- Prompt hashes: all 17 identity hashes (printed by
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/hashes.py` from the worktree) equal the Stage 15b table
+  below; no prompt file changed.
+- Self-check: `ruff check` and `ruff format --check` clean on the changed
+  files; `mypy` clean on the changed `src` files (the two test files report
+  the same pre-existing errors as at `e960414`, one fewer in
+  `test_dual_profile.py`); targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  325 passed; full backend `pytest tests` 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed).
+- Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
+- Recovery: v1–v7 artifacts still load; reverting to v7 is a revert of
+  `b026c64`. Cached stage outputs are unaffected.
+- (Historical next step; Stage 15c was accepted at `b758f71`, cold-32b was
+  started there, and Stage 16 followed, above.) Next: independent tester and
+  reviewer on the Stage 15c SHAs; the
+  continuation run cold-32b on the preserved cold-32 cache (the cold-32
+  attempt itself is environment-invalid); human review of the cold-31 and
+  earlier renders stays pending.
+
+## Stage 15b: risk-twin review drops selected twins to manual review (routing v7), Stage 15 reviewer P3s (2026-11-04) — ACCEPTED at e960414
+
+- **Accepted** at `e960414b381d6086151f8fe0572feb5d2b8784f9` (code
+  `11df4c6`, docs `e960414`): tester PASS: lint rc 0, backend 3101 passed, vitest 80, e2e 4/4, concurrency test 5/5, no sleep; reviewer ACCEPT with nits: no P0–P2, 8 of 9 independent mutations caught (R5b, a service diagnostic computed as `len(sources)`, survived), replay byte-identical, every documented hash matches. Reviewer nits 1–2 become
+  Stage 15c (above); nit 3 is an accepted residual. The bullets below are
+  the historical implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code,
+  prompts and tests in `11df4c61a829dc80f24929013019d6aff88f2d45` on local
+  branch `claude/liveclip-stage8-routing` (after `8af759a`); this docs commit
+  follows. Not pushed or merged. No evaluator, threshold, benchmark,
+  algorithm version (`dual-profile-direct-v1`) or cache-key schema change.
+- Stage 15 was **accepted** at `8af759ad2ac9866d9ef08b82fae49136f9cc068f`
+  (below). Reviewer P3-a..d are folded into this stage.
+- User decision (2026-11-04, after the Stage 15 review): "Add: drop to
+  manual review".
+- The v6 trade-off, stated precisely (P3-a): risk tags were never shared
+  between same-interval twins in any routing version; only gated quality
+  flags were. In v3–v5, when a risk-discovery twin carried a gated flag (for
+  example the `material_interruption` the risk pass is told to keep), the
+  flag union blocked a selected non-risk twin as a side effect; that side
+  effect, not any risk rule, was what kept such a twin from automatic
+  publication when its own reviews found no risk (a risk twin without a gated
+  flag never stopped it). v6 removed the side effect, so a non-risk twin
+  whose own reviews raised no risk and no gated flag could be `selected`
+  next to a risk twin carrying an automatic-blocking risk tag. Stage 15b
+  closes the automatic-publication part of that gap, whether or not the risk
+  twin carries a gated flag (so it is stricter than v3–v5 there). The other part
+  stays an accepted trade-off: a base twin whose own reviews miss a real
+  interior interruption that only the risk pass caught is not blocked by the
+  union (it becomes `manual_review` when the risk twin carries an
+  automatic-blocking risk tag, as risk-pass records usually do; a human sees
+  it before release).
+- Routing policy **`quality-gate-risk-routing-v7`** (constant and `Literal`;
+  v1–v6 and unmarked artifacts still load). New step 3 of final assembly,
+  risk-twin review: a non-risk row (outside the structural `risk_record_ids`)
+  that is still `selected` after the twin union, whose identical final
+  interval has at least one risk-discovery record carrying an
+  `AUTO_BLOCKING_RISK_TAGS` tag (whatever that record's status), becomes
+  `manual_review` with the new Python-only prefix
+  `"Deterministic risk-twin review: "`, followed by
+  `same-interval risk-discovery twin <id> carries <tags>` for each source
+  twin (sorted by ID, tags in enum order) and the review's own reason. Risk
+  tags and quality flags are not copied (a status downgrade only). Rows
+  already `manual_review`, `blocked` or `rejected`, risk records themselves,
+  non-identical intervals and non-automatic-blocking tags (for example
+  `commercial_claim`) are unaffected. The prefix is in
+  `DETERMINISTIC_REASON_PREFIXES` (so `reject_reserved_reason_prefixes`
+  refuses it in Global Review and Global Audit output), and the
+  `validate_against` reverse check requires a row with this prefix to be
+  `manual_review` (every other Python-only prefix except Top-N still requires
+  `blocked`).
+- Position (decision): after the twin union (step 2) and before Top-N
+  (step 4), risk-record routing and the quality gate (step 5). After the
+  twin union, so a row that inherits a non-risk twin's gated flag stays
+  `blocked` with the quality-gate prefix and only rows still `selected` are
+  considered. Before Top-N, so Top-N ranks only rows that already obey the
+  rule: it never spends a slot on a downgraded row and never picks a
+  replacement that would then be downgraded (the rule's inputs, intervals and
+  the risk twins' tags, are not changed by any later step). Step 5 cannot
+  touch a downgraded row: risk routing acts on rejected risk records, and the
+  quality gate acts on `manual_review` rows with a gated flag, which a
+  formerly selected row never carries (`AUTO_BLOCKING_QUALITY_FLAGS` is every
+  flag). Downgrade-only and idempotent: on its own output nothing is pending.
+- Single helper `risk_twin_review(values, risk_record_ids)` (sources,
+  pending, downgraded) with `route_risk_twin_review` applying it; the service
+  computes the new run-manifest diagnostic `risk_twin_review_downgrades` (per
+  Profile, the number of final rows carrying the prefix) from the final rows
+  with the same helper, and `DualProfileRunManifest.validate_against(...,
+  risk_record_ids=...)` re-derives it: no `selected` row may still be
+  pending, every prefixed row must have an automatic-blocking risk twin, and
+  the diagnostic must equal the recomputed count. Manifests written before
+  the field load with `{}`; delivery's `validate_against(final)` call (no
+  risk membership) still runs the reverse prefix check.
+- Code P3-c: the no-op `candidate_id != value.candidate_id` filter in
+  `same_interval_twin_flags` is removed (a risk record's own flags are in
+  `own` and subtracted anyway; the reviewer's equivalent mutation M5); the
+  private `_final_rows` is now the public `final_profile_rows`, reused by the
+  service instead of its inline rebuild (same rows, same order).
+- Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript):
+  - `boundary_review.md` (P3-b): the on-topic duration test now subtracts
+    only "interior material that meets the `material_interruption` threshold
+    above (audience chat, comment reading, calls to action or device talk
+    that breaks the teaching or claim logic)"; "A brief audience thanks,
+    greeting, name call-out or acknowledgement that the speaker passes over
+    without leaving the topic is neither flag and is not removed in this
+    test". The old list subtracted every greeting and then required
+    `padded_with_irrelevant_content` alongside `material_interruption`,
+    contradicting the Stage 15 threshold.
+  - `main.md` (P3-d): the 167-character microphone/demonstration line is
+    re-wrapped (words unchanged); `global_audit.md`'s 166-character
+    near-identical line is re-wrapped the same way (its hash changes anyway
+    through `main.md`).
+- Prompt identity hashes at Stage 15b (full values, printed by
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt` in
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/hashes.py`, pinned in `FROZEN_DISCOVERY_PROMPT_HASHES`
+  and `PINNED_REVIEW_PROMPT_HASHES`); every stage that loads `main.md`
+  changed (bytes only for all but boundary_review), so cold-32 would be cold
+  for every stage except the variant link:
+
+  | Profile | Stage | sha256 |
+  | --- | --- | --- |
+  | short_highlight | discovery | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` |
+  | short_highlight | coverage_audit | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` |
+  | short_highlight | precision_audit (not run) | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` |
+  | short_highlight | precision_confirmation (not run) | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` |
+  | short_highlight | risk_discovery (not run) | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` |
+  | short_highlight | boundary_review | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` |
+  | short_highlight | global_review | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` |
+  | short_highlight | global_audit | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` |
+  | mini_lesson | discovery | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` |
+  | mini_lesson | coverage_audit | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` |
+  | mini_lesson | precision_audit | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` |
+  | mini_lesson | precision_confirmation | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` |
+  | mini_lesson | risk_discovery | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` |
+  | mini_lesson | boundary_review | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` |
+  | mini_lesson | global_review | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` |
+  | mini_lesson | global_audit | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` |
+  | cross_profile | variant_link (unchanged) | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` |
+
+- Tests (changed existing assertions explained):
+  - `tests/unit/test_dual_profile.py`: new — selected non-risk twin plus a
+    risk twin with automatic-blocking tags → `manual_review`, exact prefixed
+    reason (enum tag order), no tag or flag copied, risk twin still blocked by
+    risk routing; `manual_review`/`blocked`/`rejected` twins unchanged;
+    `commercial_claim` risk twin, an automatic-blocking tag on a non-risk
+    twin, and a selected risk record next to a tagged risk record → no
+    downgrade; non-identical start or end → no downgrade; twin union first
+    (blocked with the quality-gate prefix); Top-N interaction (`top_n=1`: two
+    downgraded rows, the clean replacement selected, the next clean row
+    Top-N-rejected); helper sources/pending/downgraded, multi-twin reason and
+    idempotence; manifest diagnostic default, mismatch, round trip, unbacked
+    prefix and pending-row violations; the prefix is refused in model output
+    and must be `manual_review`. Changed: the Stage 15 manifest test now also
+    sets `risk_twin_review_downgrades` (0); the routing-marker test expects
+    v7 and loads v1–v7; the reserved-prefix test lists six prefixes.
+  - `tests/integration/test_dual_profile_evaluation.py`: the three marker
+    assertions expect v7; `RiskTwinProvider` takes the risk tag. The Stage 15
+    service test now uses `commercial_claim` so it isolates the v6 property
+    (with `health_advice` the lesson is now `manual_review`, the intended v7
+    change); new
+    `test_service_risk_twin_review_drops_the_selected_twin_to_manual_review`
+    (risk pass: lesson `manual_review` with the prefix, no tags,
+    diagnostic `{short 0, mini 1}`; base-pass look-alike: blocked by the
+    union, diagnostic 0); the Global Review reserved-prefix repair test is
+    parametrized with the new prefix; hash pins updated with justification.
+  - `tests/unit/test_dual_profile_flag_contract.py`: new test for the
+    reconciled Boundary Review duration test (both Profiles).
+  - Mutation self-check (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/mutate.py`, scratch copies of
+    `src` only): 12 of 12 behavioural mutations caught (rule after Top-N,
+    before the union, any risk tag, any source, risk receivers, block instead
+    of manual_review, validator skips pending, validator skips backing,
+    service diagnostic zero, no reverse status check, tags copied, prefix not
+    reserved); the P3-c revert passes every test (equivalent, as intended).
+- Offline replay (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15b-sim/replay.py`, adapted from the Stage 15
+  replay: the real v7 assembler and the strict evaluator on stored stage
+  outputs; the v6 baseline is the same code with the risk-twin review step
+  replaced by the identity; no tracked edit, no model call; the v7 manifest
+  cross-check, including both diagnostics, ran on every run):
+
+  | Run | v6 replay | v7 replay | v6→v7 status changes | `risk_twin_flags_not_propagated` (short/mini) | `risk_twin_review_downgrades` (short/mini) |
+  | --- | --- | --- | --- | --- | --- |
+  | cold-27 | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | warm-28 | FAIL 95.0 (`irrelevant_padding`) | FAIL 95.0 (`irrelevant_padding`), short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | warm-29b | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | none | 0 / 3 | 0 / 0 |
+  | cold-30 | FAIL 92.5 (`missing_any_p0_mini_lesson`) | FAIL 92.5, short 7/8, mini 5/6 (L02–L05, L07) | none | 0 / 3 | 0 / 0 |
+  | cold-31 | PASS 92.5 | PASS 92.5, short 7/8 (S03 miss), mini 5/6 (L01–L05), N08 informational | none | 0 / 4 | 0 / 0 |
+
+  Every evaluator field (status, score, hits, hard failures, risk and
+  negative-anchor findings, human-review list) is identical between the v6
+  and v7 replays. In every run, 15–25 mini non-risk rows share an interval
+  with a risk-discovery twin carrying an automatic-blocking tag, but none is
+  `selected` (all are `manual_review`, `blocked` or `rejected` already), and
+  no short row has such a twin, so the rule downgrades nothing in these
+  stored outputs. Routing evidence only, not a benchmark pass.
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  322 passed; `pytest -k "dual_profile or delivery or benchmark"` 557
+  passed.
+- (Historical next step; Stage 15b accepted at `e960414`, cold-32 started
+  there, and Stage 15c, above, followed.) Independent tester and reviewer on
+  the Stage 15b SHAs, then a fresh cold run (cold-32) only with the user's
+  go-ahead; human review of the cold-31 and earlier renders stays pending.
+
+## Stage 15: risk-twin flags not propagated (routing v6), `material_interruption` threshold, self-promotion rule (2026-11-04) — ACCEPTED at 8af759a
+
+- **Accepted** at `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code
+  `289530e`, docs `8af759a`). Tester PASS: lint rc 0; `make test` backend
+  3087 passed; vitest 80; e2e 4/4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits (no P0–P2; 8 mutation checks, 7 caught and 1
+  equivalent; replay byte-identical; every documented hash matches). The P3
+  nits become Stage 15b (above). The bullets below are the historical
+  implementation record.
+- **Status (historical): implemented, pending independent tester and reviewer.** Code,
+  prompts and tests in `289530eba3b59f89325ede5c268f9064f8cb5257` on local
+  branch `claude/liveclip-stage8-routing` (after `867d1cf`); this docs commit
+  follows. Not pushed or merged. No evaluator, threshold, benchmark,
+  algorithm version (`dual-profile-direct-v1`) or cache-key schema change.
+- User decisions (2026-11-02/04, after cold-31 below): (1) routing option
+  "Ignore risk-twin tags"; (2) restore the `material_interruption` threshold
+  that Stage 14/14b over-broadened; (3) a candidate whose central objective
+  is self-promotion is rejected.
+- Routing policy **`quality-gate-risk-routing-v6`** (constant and `Literal`;
+  v1–v5 and unmarked artifacts still load). In the same-interval twin flag
+  union (step 2 of final assembly), records of the dedicated risk-discovery
+  pass (structural `risk_record_ids`, taken from the risk-discovery pass
+  outputs, never from ID prefixes) are no longer flag SOURCES. A risk record
+  keeps its own flags and status and still RECEIVES the gated flags of its
+  non-risk twins (conservative); non-risk twins share flags with each other
+  exactly as in v3–v5, with the same "Deterministic quality gate: " prefix.
+  Risk-record routing (rejected or Top-N-excluded risk records retained as
+  `blocked`) and Discovery structural flag persistence are unchanged.
+  Rationale: the risk pass is instructed to preserve interior interruptions
+  of a risk chain and flag them so the record is routed to `blocked`; that
+  routing intent is not a finding the base twin's own Boundary and Global
+  Review must inherit.
+- Single shared helper `same_interval_twin_flags(values, risk_record_ids)`
+  (in `src/liveclip/pipeline/dual_profile.py`) is used by final assembly, by
+  the service to compute the new run-manifest diagnostic
+  `risk_twin_flags_not_propagated` (per Profile: the number of
+  (candidate, gated flag) pairs that only risk-discovery twins carried and
+  that were therefore not propagated), and by
+  `DualProfileRunManifest.validate_against(..., risk_record_ids=...)`, which
+  the service now calls with the structural risk membership: the final
+  arrays must leave nothing to inherit under the v6 rule and the diagnostic
+  must equal the recomputed count. The helper is idempotent on its own
+  output. Manifests written before the field load with `{}`; delivery's
+  `validate_against(final)` call (no risk membership) is unchanged. No
+  other validator, audit payload or diagnostic assumed full twin symmetry.
+- Prompts (generic wording; no cue numbers, times, anchor IDs or quoted
+  transcript):
+  - `main.md` (shared by every stage): "Interior content counts as
+    `material_interruption` only when it actually breaks the teaching or
+    claim logic; a brief audience thanks, greeting, name call-out or
+    acknowledgement that the speaker passes over without leaving the topic
+    is neither an interruption nor padding." The Stage 14 rules stay
+    (padding = edge only; unrelated interior content is the interior flag;
+    the brief live-demo equipment remark is part of the demonstration).
+  - `risk_discovery.md`, `coverage_audit.md`: the same sentence mirrored;
+    "flag each interior interruption that breaks the claim logic as
+    `material_interruption` …"; risk_discovery's greeting-between-question-
+    and-count paragraph now says "Mark an interruption only when it breaks
+    the claim logic … and in either case keep the complete chain" (was "Mark
+    the interruption").
+  - `precision_audit.md`: "Greetings inside that chain are quality evidence"
+    becomes "never permits dropping the defining opening; flag it only under
+    the main contract's `material_interruption` threshold".
+  - `boundary_review.md`: its definition now reads "breaks the teaching or
+    claim logic" and lists the brief passed-over acknowledgement among
+    non-interruptions; the Stage 14c audibility cross-reference is kept.
+    `global_review.md` and `global_audit.md` keep their audibility wording
+    (consistent: audibility trouble breaks the demonstration) and receive the
+    threshold through `main.md`.
+  - Self-promotion: `boundary_review.md` (set `central_objective_complete`
+    to false, keep evidenced `commercial_claim`, say so in `review_reason`;
+    never trim it into a teaching clip; clearing a padding flag does not
+    resolve it), `global_review.md` (mark `rejected`, a risk-discovery
+    record is retained `blocked`; not merely flagged or `manual_review`) and
+    `global_audit.md` (replace such a kept candidate as `rejected`): a
+    candidate whose central objective is the speaker's own credentials,
+    qualifications, pricing, course sales or schedule is not a teaching or
+    highlight unit, even when no explicit purchase prompt appears; a brief
+    credential or course mention inside a real lesson does not make that
+    lesson self-promotion.
+- Prompt identity hashes at Stage 15 (full values, printed by
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt`,
+  pinned in `FROZEN_DISCOVERY_PROMPT_HASHES` and
+  `PINNED_REVIEW_PROMPT_HASHES`); every stage that loads `main.md` changed
+  (only the variant link, which does not load it, is unchanged), so cold-32
+  is a cold run:
+
+  | Profile | Stage | sha256 |
+  | --- | --- | --- |
+  | short_highlight | discovery | `b1d4d8785d1a1076f7faf287322bbfd4a0e8b60cc7d54a952e39df81200e2fb0` |
+  | short_highlight | coverage_audit | `152554adb34d813306c9bb367121e11ea3eb6bf5dbe59f26c78a8b6bba930f88` |
+  | short_highlight | precision_audit (not run) | `4a780e95388c5006fdb15ab4e3453a4a55a178a8cf18dfb6ab9a7cac4e8e6a15` |
+  | short_highlight | precision_confirmation (not run) | `2b9ccdb7452def45a8324d1f531ac20e63293cded9d2a93ba0565a452e0b5bd5` |
+  | short_highlight | risk_discovery (not run) | `d99432948d5f8ebbd92164bc7a33b2998ebef923d4be6e36557fd4eacda8cd38` |
+  | short_highlight | boundary_review | `a8a541a17cc46a96c00bf31133604ce146a2a7db3fd202283b0b506f75822cae` |
+  | short_highlight | global_review | `a516005061a596684ba18b91fe11be44ae75534fa47488106acb902b6f283700` |
+  | short_highlight | global_audit | `c5a26dadf1d5cf54e81c4fae1f279aefe8a356fe4ccb3377aab08e2b766dcaea` |
+  | mini_lesson | discovery | `00c58be1b0fae7dffdb7c5f6b63e1839dacd3f5d53d5a6efbf979cf282708a80` |
+  | mini_lesson | coverage_audit | `460e83b9b9bdac197cb4ec4c1b91fd5fe4c279ccbf1f9bc8028660bb247375e8` |
+  | mini_lesson | precision_audit | `56a4154c06e390d80ddd6aca97b7fe9512102abd93a8dfe368cfb1e1fa7873d5` |
+  | mini_lesson | precision_confirmation | `00440c52138d423abaaa565e8981037b2cf6e1577b689b62ed274fe9e37b3db2` |
+  | mini_lesson | risk_discovery | `4066e60cd6f6028e0245a207e5dbb41797dafef12e73e56a89778907467de3f7` |
+  | mini_lesson | boundary_review | `678c8d7ece250ea28f0bfbea8298020c779eb8e749e4c5155516173035cf51c2` |
+  | mini_lesson | global_review | `e7d615f5f9b61f6b55bfb6222d0895c50f17486fb1595c3ae08f222b485f6ccb` |
+  | mini_lesson | global_audit | `c3ff60041f124dd337585541006bf78cf3f05cd5b462f2e33ab5812a74f95e76` |
+  | cross_profile | variant_link (unchanged) | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` |
+
+- Tests (changed existing assertions explained):
+  - `tests/unit/test_dual_profile.py`: Stage 9's
+    `test_risk_record_twin_shares_flags_and_stays_blocked` is replaced by
+    `test_risk_record_twin_keeps_its_flags_but_is_not_a_flag_source` (the
+    base twin now stays `manual_review` without the risk twin's
+    `topic_switch_inside`; the risk twin still keeps the flag and its
+    "Deterministic risk routing: " block) — the intended v6 behaviour change.
+    New: L02 shape (clean base, risk twin with a Discovery
+    `material_interruption` persisted after a Boundary Review extension to
+    the identical interval: base stays `manual_review`, risk twin blocked);
+    non-risk twin still propagates and blocks next to a risk twin (which also
+    receives the flag); risk twin receives a non-risk twin's flag; helper
+    counts, advisory flags never shared, idempotence, and the v3–v5
+    symmetric rule without risk records; manifest diagnostic default,
+    mismatch, round trip and v6-rule violation. The routing-marker test now
+    expects v6 and loads v1–v6.
+  - `tests/integration/test_dual_profile_evaluation.py`: the two Stage 13/14
+    marker assertions expect v6; new service test
+    `test_service_twin_union_ignores_risk_pass_sources_structurally`
+    (risk-pass twin: lesson stays `selected`, diagnostic `{short 0, mini 1}`;
+    the same twin from the base pass under a `risk_` look-alike ID still
+    blocks the lesson, diagnostic 0); hash pins updated with justification.
+  - `tests/unit/test_dual_profile_flag_contract.py`: the Stage 14b
+    risk_discovery/coverage_audit interior-rule strings now include "that
+    breaks the claim logic"; new tests for the threshold sentence in every
+    stage (and in the risk_discovery/coverage_audit stage text itself), the
+    Boundary Review definition, and the self-promotion rule in
+    boundary_review/global_review/global_audit.
+- Offline replay (new scratch folder
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15-sim/replay.py`,
+  adapted from the cold-31 and L01 analysis simulators: the real v6
+  assembler and the strict evaluator on stored stage outputs; a v5 baseline
+  is the same code with every twin treated as a source; no tracked edit, no
+  model call; the v6 manifest cross-check ran on every run):
+
+  | Run | Stored | v5 replay | v6 replay | v5→v6 status changes | risk-twin diagnostic (short/mini) |
+  | --- | --- | --- | --- | --- | --- |
+  | cold-27 | PASS 95.0 | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | `ml14_nasal_problem_full` blocked→manual_review | 0 / 3 |
+  | warm-28 | FAIL 95.0 | FAIL 95.0 (`irrelevant_padding`) | FAIL 95.0 (`irrelevant_padding`), short 8/8, mini 5/6 | `ml14_nasal_problem_full` blocked→manual_review | 0 / 3 |
+  | warm-29b | PASS 95.0 | PASS 95.0 | PASS 95.0, short 8/8, mini 5/6 | `ml14_nasal_problem_full` blocked→manual_review | 0 / 3 |
+  | cold-30 | FAIL 92.5 | FAIL 92.5 | FAIL 92.5 (`missing_any_p0_mini_lesson`), short 7/8, mini 5/6 (L02–L05, L07) | none | 0 / 3 |
+  | cold-31 | FAIL 87.5 | FAIL 87.5 | **PASS 92.5**, short 7/8 (S03 miss), mini 5/6 (L01–L05) | `ml6_steps1to4_curriculum` and `audit_regional_nasal_hard_to_fix` blocked→manual_review | 0 / 4 |
+
+  Status, score, hits, hard failures and negative-anchor findings of the
+  four earlier runs are unchanged versus the v5 replay; the only evaluator
+  delta there is one more `manual_review` row in the human-review list. In
+  cold-31 the R02 match (`audit_regional_nasal_hard_to_fix`, a
+  coverage-audit record) becomes `manual_review` (allowed; it was
+  `manual_review` in cold-27/warm-28/warm-29b as well); R01 stays blocked;
+  every risk-discovery record keeps its status; N08
+  (`sh_0015_teacher_cert_verify`, manual_review) stays an informational
+  finding because the replay reuses cold-31's stored review outputs (the
+  self-promotion prompt can act only in a new run). Routing evidence only,
+  not a benchmark pass: the prompts changed and a real run re-decides every
+  stage. (Stage 15b reconciliation, reviewer P3-d: cold-30 stays FAIL 92.5
+  here although the Stage 14 counterfactual gave PASS 97.5 because this
+  replay keeps the stored Global Audit replacement that blocked the L01 row
+  "to match routing", and Python only ever downgrades, whereas the Stage 14
+  counterfactual reverted such rows to the initial Global Review.)
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  308 passed.
+- (Historical next step; Stage 15 accepted at `8af759a`, and Stage 15b,
+  above, followed.) Next: independent tester and reviewer on the Stage 15
+  SHAs, then a fresh cold run (cold-32) only with the user's go-ahead; human
+  review of the cold-31 and earlier renders stays pending.
+
+## cold-31 real run at 867d1cf (2026-11-02) — strict FAIL 87.5 (fresh cold acceptance attempt)
+
+- Fresh cold run, real Claude CLI at `867d1cf` (pinned 2.1.308, attempt
+  start epoch 1793609949, single segment): eval rc 0 in 3778 s; 242 provider
+  records (Discovery 160 calls, Boundary Review 56 plus 3 repairs, Global
+  Review/Audit 22, variant link 1), 0 retries, no rate-limit marker;
+  `cache_hits` 0; tokens in 11,130,783 / out 1,116,524; 239 new cache files,
+  0 content-identical to any of 25 earlier cache roots; every recorded prompt
+  hash equals the Stage 14c table below (0 mismatches). Routing
+  `quality-gate-risk-routing-v5`.
+- Strict **FAIL 87.5** (`missing_any_p0_mini_lesson`: L02). Short 7/8 (S03
+  missed: the retained representative starts +12440 ms, outside tolerance,
+  as in cold-30). Mini 4/6: L01, L03, L04, L05 hit; **L02 missed by the
+  Stage 9 twin union** (below); L07 missed (representative choice variance:
+  the Global Audit re-pointed the cluster to a 2832–2927 representative;
+  the gold-exact interval existed after Boundary Review in every run; hit
+  only in cold-30). R01 and R02 blocked; all 9 N07-overlapping candidates
+  blocked; N08 `sh_0015_teacher_cert_verify` (a short clip about the
+  speaker's own teaching credentials) `manual_review` — informational under
+  the evaluator's negative-anchor policy (no hard failure, no score effect).
+  11 renders rc 0, automatic checks pass; human editorial/audio review
+  pending. Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261102-claude-cold-31`;
+  evidence (`twin-gate.txt`, `trails-extra.txt`, `diagnostics.txt`, …) in
+  `data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`.
+- Analysis (read-only reviewer; offline replays, no model calls): the exact
+  L02 base candidate `ml6_steps1to4_curriculum` (cues 825–939) was clean
+  through Discovery, Boundary Review and Global Review (`manual_review` 78)
+  and was blocked only by the same-interval twin union, which copied
+  `material_interruption` from its risk-discovery twin
+  `risk_steps1to4_through_mix_switch` (Discovery flag over a one-cue viewer
+  thank-you, kept by its Boundary Review, which extended the interval to the
+  identical one). The base twin's own reviews judged that cue harmless.
+  Replays: v5, v4 and no-persistence all FAIL 87.5; "v5 with the union
+  ignoring risk-record sources" PASS 92.5 (2 rows change in cold-31; cold-27,
+  warm-28, warm-29b, cold-30 unchanged). Prompt attribution (n=1, "made more
+  likely", not proven): after Stage 14/14b wording, Discovery
+  `material_interruption` counts rose (mini 55–60 → 76, short 15–20 → 32)
+  while padding flags fell, because `main.md` and the risk/coverage passes
+  named every interior interruption without Boundary Review's "actually
+  breaks the teaching logic" threshold. N08: no flag covered a clip whose
+  central objective is self-credentialing, so Boundary Review dropped the
+  padding flag.
+- User decisions → Stage 15 (above).
+
+## Stage 14c: Stage 14b reviewer REJECT follow-ups (2026-11-02) — ACCEPTED at 867d1cf
+
+- **Accepted** at `867d1cf669ffb9d8eccce40ba97d84fd44e016ef`. Tester PASS:
+  lint rc 0; backend 3056 passed; vitest 80; e2e 4; concurrency test 5/5;
+  no sleep. Reviewer ACCEPT with nits. cold-31 (above) ran at this SHA. The
+  bullets below are the historical implementation record.
+
+- **Stage 14b reviewer verdict: REJECT** on the docs commit
+  `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the Stage 14b
+  hash table below listed intermediate-draft values for global_review and
+  global_audit (both Profiles). The code at `9664efe` was not at fault;
+  `66265e2` changed no code. Reviewer P3 nits on `boundary_review.md` are
+  folded into this stage so cold-31 tests the final wording.
+- **Status (historical): implemented, pending independent tester and reviewer** in the
+  Stage 14c commit on local branch `claude/liveclip-stage8-routing` (after
+  `66265e2`). Not pushed or merged. Routing policy stays
+  `quality-gate-risk-routing-v5`; no Python routing, evaluator, threshold,
+  benchmark, algorithm version (`dual-profile-direct-v1`) or cache-key schema
+  change; gate semantics unchanged.
+- `boundary_review.md` (generic wording, no cue numbers, times or anchor
+  IDs):
+  - the `material_interruption` definition now cross-references that
+    interior audibility checks, connection lag and playback trouble are such
+    unrelated content and count as `material_interruption`;
+  - interior chat, calls to action, greetings or device talk kept only for
+    duration: flag `padded_with_irrelevant_content` alongside
+    `material_interruption` (or `topic_switch_inside`), never instead of it
+    (consistent with `main.md` "may accompany, never replace").
+- New test `test_review_stage_prompt_identities_match_pins`
+  (`tests/integration/test_dual_profile_evaluation.py`) pins the full
+  service-recorded identity hash (`load_dual_profile_prompt(...).sha256`, as
+  recorded in `prompt_hashes`) of boundary_review, global_review and
+  global_audit for both Profiles, plus the variant link
+  (`load_dual_profile_variant_link_prompt().sha256`); the Discovery-family
+  pins stay in `FROZEN_DISCOVERY_PROMPT_HASHES`. Verified by a temporary
+  revert of `boundary_review.md` (test fails), then restored.
+- Prompt identity hashes at Stage 14c (full values, recomputed with
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt`):
+
+  | Profile | Stage | sha256 |
+  | --- | --- | --- |
+  | short_highlight | discovery | `c3b728702f3c25228c3cb74eac3385e62c98c3902a72138460e695ead301d00e` |
+  | short_highlight | coverage_audit | `09fcecd9dfbdbf7e99178a7be2c0a791cce9c98ec6c0de674c94407165fbfda5` |
+  | short_highlight | precision_audit (not run) | `1c65af1b172ce5211f4e26e8c3718e11dfea112a436e2687224c9e8de81af967` |
+  | short_highlight | precision_confirmation (not run) | `8bdbe2f65704db36efa6d3fead5c49fec1618431391047ac1c70e13aca716bd4` |
+  | short_highlight | risk_discovery (not run) | `12244a54202e4a167804cbf890b38c852f2988add221bffe24158bccb2bb5e2d` |
+  | short_highlight | boundary_review (changed in 14c) | `2ac809c282ca5fd8e4b18030e09d8798084e3854ccaf93710d73a5277c009a8e` |
+  | short_highlight | global_review | `d2bf9404377dc32f882e4b8a57cff9d3c98520f135fd0f78525b26b7f094da53` |
+  | short_highlight | global_audit | `51885f0f5a34d45d3d506869a3a492b9fa1be00c0357d20af834f6d1b30441c3` |
+  | mini_lesson | discovery | `7500e47a912db6855186843d799c62c7c2935920c1b1b84c8f2e7382c54fc75b` |
+  | mini_lesson | coverage_audit | `407c2c9d68f0f722e9efd8974d2cd4aa5418f89fb9b151b80ba641903e50c994` |
+  | mini_lesson | precision_audit | `0377c54e8cc0e74fe0645d7192cd402d85129fdaa6e5e9fc29e9583e24f8b0aa` |
+  | mini_lesson | precision_confirmation | `17eccbac257c129aa42979c008ec8ff83cc536ae2bfb0e38fa43b27b0a370024` |
+  | mini_lesson | risk_discovery | `7e9af46465b7b4319b00988ef7709e4e89aa68dec12263dcf536e9b9d25bab46` |
+  | mini_lesson | boundary_review (changed in 14c) | `b1c10a166b90821f2695bf225319bf504a02e91a208a9e8b1f304d58bb0f798f` |
+  | mini_lesson | global_review | `42f5a0bf8163ed72926f71a452d164e50821d3694f5ff92b5e2d47500d32682a` |
+  | mini_lesson | global_audit | `7740969edf51653bf251a59c26a4997f55f8fed0d33593ea122dc4837fa88cde` |
+  | cross_profile | variant_link | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` |
+
+  "Not run": the service loads precision_audit, precision_confirmation and
+  risk_discovery only for Mini Lesson, so those Short Highlight values are
+  never recorded in a run's `prompt_hashes`. Only boundary_review changed
+  versus Stage 14b (Short `b4c4e88a…` -> `2ac809c2…`, Mini `c9cad7b3…` ->
+  `b1c10a16…`); cold-31 is cold for every stage regardless (Stage 14).
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`,
+  `test_semantic_lineage_prompts.py`, `test_semantic_validation_contract.py`)
+  277 passed.
+- (Historical next step; Stage 14c accepted and cold-31 ran, above.)
+  Next: independent tester and reviewer on the Stage 14c SHA (covering
+  Stage 14b `9664efe` too), then the fresh cold run cold-31 only with the
+  user's go-ahead; human review of the cold-30 and earlier renders stays
+  pending.
+
+## Stage 14b: Stage 14 reviewer P3 follow-ups (2026-11-02) — REJECTED (P2 docs hashes); fixed in Stage 14c
+
+- **Reviewer REJECT** on docs commit `66265e2` (P2): the hash table below
+  listed wrong global_review/global_audit values; corrected in place by
+  Stage 14c (see above). The bullets below are the historical
+  implementation record.
+
+- **Status (historical): implemented, pending independent tester and reviewer** in
+  `9664efe5b14c410984e452e339b7c245db480e14` (prompts and tests) on local
+  branch `claude/liveclip-stage8-routing`, after the Stage 14 docs commit
+  `2c088fe`; this docs commit follows. Not pushed or merged. Routing policy
+  stays `quality-gate-risk-routing-v5`; no Python routing, evaluator,
+  threshold, benchmark, algorithm version (`dual-profile-direct-v1`) or
+  cache-key schema change. Gate semantics are unchanged: every flag the
+  new wording names is gated.
+- Prompt alignment with `main.md` ("padding flags describe EDGE material
+  only"):
+  - `boundary_review.md`, `global_review.md`, `global_audit.md`: audibility
+    checks, connection lag and network or playback trouble are padding at an
+    edge of the interval; inside the interval, between on-topic cues, they
+    are `material_interruption`, and a padding flag may be added alongside
+    that interior flag, never used instead of it (replaces "padding (and an
+    interruption when they split a demonstration)"). The speaker's brief
+    equipment/listening explanation attached to an immediate live example
+    stays part of the demonstration, neither padding nor an interruption.
+    This matches Boundary Review's existing interior-chat rule
+    (`padded_with_irrelevant_content` when only off-topic material meets the
+    Profile minimum).
+  - `risk_discovery.md`, `coverage_audit.md`: interior sales, greeting,
+    device or topic interruptions of a risk chain are flagged
+    `material_interruption` (or `topic_switch_inside` when another topic
+    starts inside the chain); padding flags describe edge material only and
+    may accompany, never replace, the interior flag (replaces "attach the
+    corresponding quality flags").
+  - Wording stays generic (no cue numbers, times or anchor IDs).
+- Prompt hashes at `9664efe` (full values pinned in tests; corrected by
+  Stage 14c: the `66265e2` draft of this list gave global_review
+  `879ae319…`/`0b2c6031…` and global_audit `3011be92…`/`dcb20886…`, which are
+  not the service-recorded values):
+  - Changed, Short Highlight: coverage_audit `09fcecd9…`, risk_discovery
+    `12244a54…` (not run for this Profile), boundary_review `b4c4e88a…`,
+    global_review `d2bf9404…`, global_audit `51885f0f…`.
+  - Changed, Mini Lesson: coverage_audit `407c2c9d…`, risk_discovery
+    `7e9af464…`, boundary_review `c9cad7b3…`, global_review `42f5a0bf…`,
+    global_audit `7740969e…`.
+  - Unchanged versus Stage 14: discovery (short `c3b72870…`, mini
+    `7500e47a…`), precision_audit (short `1c65af1b…`, mini `0377c54e…`),
+    precision_confirmation (short `8bdbe2f6…`, mini `17eccbac…`) and the
+    variant link (`def25b05…`). Stage 14 already changed every stage hash,
+    so cold-31 is cold for all stages regardless.
+- Tests: `test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges`
+  (five stages x two Profiles); integration
+  `test_padding_only_discovery_flags_validate_like_an_unflagged_candidate`
+  (representative rule, blocked duplicate, near-identical pair fallback
+  keep order): a candidate whose only Discovery gated flags are padding
+  (Boundary Review cleared, no trim) has an empty persisted set and an
+  identical audit-repair, fallback, diagnostic and final mini result to an
+  unflagged candidate, while a structural flag changes the result. It fails
+  when `discovery_persisted_flags` persists every gated flag (v4 shape;
+  verified by a temporary mutation, then restored).
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  `test_dual_profile_flag_contract.py`,
+  `tests/integration/test_dual_profile_evaluation.py`, prompt contract
+  tests) 276 passed.
+- Next (historical; superseded by Stage 14c above): independent tester and
+  reviewer on the Stage 14b SHA, then the fresh cold run cold-31 only with
+  the user's go-ahead; human review of the cold-30 and earlier renders stays
+  pending.
+
+## Stage 14: padding flags follow Boundary Review (2026-11-01) — ACCEPTED at 2c088fe
+
+- **Accepted** at `2c088fe1af349cb4a93502fe10a5ba8769ef9183` (code
+  `fc31907`, docs `2c088fe`). Tester PASS: lint rc 0; `make test` backend
+  3042 passed; vitest 80; e2e 4/4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits (no P0–P2); the reviewer's replay reproduced
+  cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (routing evidence only). The P3 nits become Stage 14b.
+  The status bullet below is the historical implementation record.
+
+- cold-30 (fresh cold run, real Claude CLI at `194ba65`, pinned 2.1.308,
+  attempt start epoch 1793597156; acceptance attempt): eval rc 0;
+  `cache_hits` 0; 231 calls (Discovery family 158, Boundary Review 52,
+  Global Review/Audit 20, variant link 1) plus 3 Boundary Review repairs,
+  0 retries, no rate-limit marker; tokens in 10,899,690 / out 1,085,708;
+  0 content-identical cache files versus 24 earlier cache roots. Strict
+  **FAIL 92.5** (`missing_any_p0_mini_lesson`): short 7/8 (S03 start
+  +12440 ms outside tolerance); mini 5/6: L01 missed only because Discovery
+  padding-flag persistence blocked the exact candidate
+  `precision_ml_0005_breathy_mix_vs_leak_vs_breathy_voice` (cues 690–746),
+  and L07 hit for the first time
+  (`confirm_high_note_nasal_loop_through_rhinitis_qualification`); R01 and
+  R02 blocked; all 8 N07-overlapping candidates blocked or rejected. 12
+  renders rc 0, automatic checks pass; human review pending. Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261101-claude-cold-30`;
+  evidence in
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`.
+- L01 chain in cold-30: the precision_audit Discovery pass raised
+  `device_or_waiting_padding` for cues 694–698 (a brief remark about having
+  no sound card and moving closer right before a live vocal demonstration);
+  Boundary Review cleared it explicitly without trimming; the initial
+  Global Review kept it `manual_review` (80); the Global Audit, seeing
+  `persisted_discovery_gated_flags=[device_or_waiting_padding]`, replaced
+  the row with `blocked` "to match routing"; v4 persistence would have
+  blocked it anyway. The microphone/demonstration exception lived only in
+  `stages/discovery.md` and `stages/boundary_review.md`; the
+  precision_audit, risk_discovery and coverage_audit passes never loaded it.
+- Reviewer replay analysis (read-only, real assembler and strict evaluator
+  on stored stage outputs of cold-27, warm-28, warm-29b, cold-30): padding
+  flags were the sole blocker on 9 persisted rows, all overlapping gold
+  (S04/L01, R01, L07), none overlapping a negative anchor; every true
+  padding case was also gated by Boundary or Global Review itself.
+  Structural persistence produced the only true positives (the N07
+  `topic_switch_inside` short row in warm-28/warm-29b). Policy "structural
+  flags persist, padding flags follow Boundary Review" predicted cold-27
+  PASS 95.0, warm-28 FAIL 95.0 (unchanged; its mini N07 padding row is
+  covered by the Stage 13 pair audit, not persistence), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (L01 hit, mini 6/6).
+- User decision (2026-11-01): option "Padding follows BR + prompt" →
+  Stage 14.
+- (Historical; accepted above.) **Status: implemented, pending independent
+  tester and reviewer**. Code, prompts and tests in `fc31907266ee07485567580f5b125ced76775cfe`; this docs commit follows. Not pushed or
+  merged. No evaluator, threshold, benchmark, algorithm version
+  (`dual-profile-direct-v1`) or cache-key schema change.
+- Routing policy `quality-gate-risk-routing-v5`: Discovery flag persistence
+  applies only to `PERSISTED_STRUCTURAL_GATED_FLAGS`
+  (`material_interruption`, `topic_switch_inside`, `topic_not_closed`,
+  `asr_uncertain_blocks_meaning`), still unless Boundary Review shrank an
+  edge, still with the reason prefix "Deterministic flag persistence: ".
+  `PADDING_GATED_FLAGS` (`device_or_waiting_padding`,
+  `sales_or_cta_padding`, `padded_with_irrelevant_content`) are not
+  persisted; they follow Boundary Review and any flag Global Review or the
+  audit sets, and still gate when kept. The two classes partition
+  `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS` exactly (checked at import; no
+  gated flag is in neither class). `discovery_persisted_flags` remains the
+  single function behind final assembly, the audit payload
+  `persisted_discovery_gated_flags`, the persisted-flag representative rule,
+  the pair fallback keep order and the manifest diagnostic. v1–v4 and
+  unmarked artifacts still load.
+- Prompts: the shared `main.md` (loaded by every Discovery pass and by
+  Boundary Review) now states the microphone/demonstration rule and that
+  padding flags describe edge material only (unrelated interior content is
+  `material_interruption` or `topic_switch_inside`;
+  `padded_with_irrelevant_content` may be added when only off-topic material
+  meets the Profile minimum, never instead of the interior flag). The
+  duplicate sentence in `stages/discovery.md` is removed; the richer
+  Boundary Review wording stays. `global_review.md` and `global_audit.md`
+  say that only structural Discovery flags persist and that a candidate is
+  not blocked "to match routing" for a padding flag Boundary Review cleared.
+  Every stage prompt hash changed (cold cache for all stages; Stage 14b,
+  above, later changed coverage_audit, risk_discovery, boundary_review,
+  global_review and global_audit again):
+  - Short Highlight: discovery `c3b72870…`, coverage_audit `e98ed2f7…`,
+    precision_audit `1c65af1b…`, precision_confirmation `8bdbe2f6…`,
+    risk_discovery `eba1cd91…`, boundary_review `db074ead…`, global_review
+    `b84f4e82…`, global_audit `f60fcde6…`.
+  - Mini Lesson: discovery `7500e47a…`, coverage_audit `edf10867…`,
+    precision_audit `0377c54e…`, precision_confirmation `17eccbac…`,
+    risk_discovery `bb219de4…`, boundary_review `c40eadb0…`, global_review
+    `cf624569…`, global_audit `bb1a3e32…`.
+  - Variant link unchanged (`def25b05…`).
+- CLI P3: the bounded exhaustion summary now includes the exception notes
+  (for example "failure evidence could not be written: …", truncated to 160
+  characters) when the evidence writer itself failed.
+- Offline replay (the reviewer's simulator against the Stage 14 code, no
+  tracked file touched, no model call): identical to the predicted policy:
+  cold-27 PASS 95.0, warm-28 FAIL 95.0 (`irrelevant_padding`,
+  `ml0007_strong_mix_vs_yanyin_core`, unchanged), warm-29b PASS 95.0,
+  cold-30 PASS 97.5 (L01 hit, mini 6/6). Counterfactual caveats from the
+  analysis apply (Global Review/Audit rows written because of persistence
+  are reverted to the initial review; a real run re-decides the L07 pair
+  group and the prompts changed, so this is routing evidence only, not a
+  benchmark pass).
+- (Historical next step; the tester and reviewer accepted Stage 14 at
+  `2c088fe`, above.) Next: independent tester and reviewer on the Stage 14
+  SHA, then a fresh cold run (cold-31) only with the user's go-ahead; human review of the
+  cold-30 renders and earlier renders stays pending.
+
+## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01) — ACCEPTED at 194ba65
+
+- **Accepted** at `194ba653b0abd9712bc750eaf2d6aada594a61c3`. Tester PASS:
+  backend 3003 passed; vitest 80; e2e 4; concurrency test 5/5. Reviewer
+  ACCEPT with an offline cold simulation, no blocker. The status bullet
+  below is the historical implementation record.
+- (Historical; accepted above.) **Status: implemented, pending independent
+  tester and reviewer** on local branch `claude/liveclip-stage8-routing`, one
+  code commit (`194ba65`) after the docs commit `7bf1bb7` that accepted Stage 13d and recorded warm-29b. Not pushed
+  or merged. Python and tests only (plus wording in `PRODUCT_SPEC.md`): no
+  prompt, cache-key, algorithm, evaluator, threshold or benchmark change.
+- P2 (reviewer probe as a regression test):
+  `test_assembly_only_audit_error_is_repaired_without_the_pair_label`. A
+  merged Global Audit whose only failure is final assembly (an ordinary
+  overlap pair decided distinct; a selected score at the threshold) must
+  raise the assembly error alone and be repaired. Deleting
+  `if assembly_error is not None: raise assembly_error` in the merged-audit
+  check makes it fail (verified by a temporary deletion, then restored).
+- P3 (evidence writer): `run_dual_profile_evaluation` now catches any
+  `Exception` from the failure-evidence writer (previously only
+  `OSError`/`ValueError`) and attaches it as a note
+  (`failure evidence could not be written: <type>: <message>`); the
+  validation error always propagates. Test:
+  `test_a_failure_evidence_writer_bug_never_replaces_the_validation_error`
+  (narrowing the catch again fails it).
+- P3 (concurrent exhaustion), fixed: `_resolve_call` records every
+  `DualProfileValidationExhaustedError` on the run's resolution audit before
+  raising. The executor waits for in-flight units, so when a second unit of
+  the same stage exhausts while the first error propagates, the failure
+  evidence keeps both: the failure file lists it under
+  `concurrent_exhausted_units` (attempts, errors, call records), the partial
+  `provider-calls.json` lists completed units, the failing unit, then the
+  other exhausted units, and `failure-manifest.json` adds
+  `concurrent_failed_subject_ids` (counts and tokens include them).
+  Remaining limitation (documented in the docstring and `PRODUCT_SPEC.md`):
+  a unit that ends with any other error (cancelled after the first failure,
+  or a provider failure) is neither resolved nor exhausted, and its calls
+  are not listed. Test:
+  `test_concurrently_exhausted_units_both_reach_the_failure_evidence` (two
+  Discovery windows meet at a barrier before their regeneration returns;
+  removing the record call fails it).
+- P3 (wording): the attempt and writer docstrings and the Stage 13d
+  `PRODUCT_SPEC.md` amendment now say that only the Claude CLI provider
+  drops (and fails) an output containing its subscription account identity;
+  other providers have no such filter. A Stage 13e amendment records the
+  concurrent-evidence and writer rules.
+- P3 (tests): the identical `keep_lesson_blocked` overlap-audit mode is
+  merged into `blocked_dup`; the warm-29 regression test uses `blocked_dup`.
+- Offline evidence (nothing written under `data/`):
+  - all 17 prompt hashes (16 stage prompts plus the variant link) are
+    identical to `bc150c5` (Global Audit short `686a9fba…`, mini
+    `bdb7ff05…`);
+  - sentinel replay (any model call raises) on a fresh scratchpad `cp -Rp`
+    copy of `data/evaluations/dual-profile-cache-20261101-claude-warm-29b`
+    (309 files): **233 hits, 0 calls**, 0 repairs, no fallback, stale 0,
+    `persisted_flag_representative_duplicates` mini 6 / short 0;
+    `final-validated.json`, `global-review.json`, `boundary-review.json`
+    and both Discovery files byte-identical to the warm-29b run; the run
+    manifest differs only in the call, token, latency and repair counters;
+    the cache copy and the source cache are unchanged (309 sha256 sums).
+- (Historical next step; Stage 13e was accepted at `194ba65` and cold-30
+  ran, above.) Next: independent tester and reviewer on the Stage 13e SHA,
+  then cold-30
+  (fresh cold run at the final code) as the acceptance run, only with the
+  user's go-ahead.
+
+## warm-29b real run (2026-11-01) — strict PASS 95.0 (warm diagnostic, NOT acceptance evidence)
+
+Evidence categories stay distinct: this run is real-model inference evidence
+(warm, diagnostic, **not** an acceptance run); the strict evaluator result is
+deterministic validation of that output; rendering plus human
+editorial/audio review is a separate acceptance activity and is **not**
+claimed here. Acceptance needs a fresh cold run at the final code (planned
+as cold-30, after the Stage 13e cleanup is verified).
+
+- Code: HEAD `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9` (Stage 13d,
+  accepted below). Pinned Claude CLI 2.1.308, subscription login.
+- Roots: `data/evaluations/dual-profile-benchmark-20261101-claude-warm-29b`
+  (run) and cache `data/evaluations/dual-profile-cache-20261101-claude-warm-29b`,
+  a `cp -Rp` copy of the warm-29 cache (306 files). Attempt start epoch
+  1793593441 (2026-11-01 20:24:01 -0800).
+- Eval rc 0 in 666 s.
+- Calls and provenance:
+  - 230 cache hits; exactly 3 new calls (short Global Audit 108.5 s, mini
+    Global Audit 456.7 s, variant link 48.2 s) plus 1 repair (short Global
+    Audit), 4 provider records; 0 retries; no 429, 529 or usage-limit
+    errors. Tokens: input 1,773,780, output 81,778.
+  - Cache 306 → 309 files; 0 pre-existing files changed; every new file
+    has mtime at or after the attempt start; the warm-29 source cache is
+    unchanged.
+  - Manifest: stale cache resolutions 0; `boundary_opening_fallbacks` `[]`;
+    `audit_pair_fallbacks` `[]` (no fallback used);
+    `persisted_flag_representative_duplicates` mini 6, short 0.
+- Strict result: **PASS 95.0**, evaluator rc 0, no hard failures, no PASS
+  blockers. Durable output:
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-warm-29b`
+  (evidence in its `evidence/` subfolder).
+  - Components: short 20, mini 25, risk 10, boundary 15, both 15, audit 10.
+  - Short 8/8; S06 matched by `sh0009_balanced_mix_step5` (selected).
+  - Mini 5/6: L01–L05 hit. L07 still missed: the exact `precision_yuge…`
+    candidate was rejected; `confirm_6001180…` starts −30540 ms from the
+    anchor.
+  - R01 `blocked`, R02 `manual_review`; no misroutes.
+- Both warm-28 N07 hard failures are cleared:
+  - `audit_sh0009_throat_tight_strong_mix_diagnosis` is `blocked` with
+    "Deterministic flag persistence: " (`topic_switch_inside`).
+  - `ml0007_strong_mix_vs_yanyin_core` vs the L04 match
+    `audit_ml0008_yanyin_myth_core_chain`: the audit decided the overlap
+    near-identical pair as a duplicate. `ml0007…core` is `rejected` with
+    `duplicate_of_candidate_id` `audit_ml0008…`, and `audit_ml0008…` stayed
+    `manual_review` (L04 hit). No fallback was used.
+- Pair and row diagnostics:
+  - Prefix rows: short flag-persistence blocked 5; mini quality-gate
+    blocked 2.
+  - Audit pairs, short 6: nested 2 duplicate + 2 distinct; overlap 2
+    distinct.
+  - Audit pairs, mini 59: nested 21 duplicate / 23 distinct; overlap 3
+    duplicate (near-identical) / 10 distinct; containment 2 duplicate
+    (near-identical). All 5 near-identical pairs were decided as
+    duplicates.
+  - Advisory-only rows: short 4 `manual_review`; mini 3 `manual_review`,
+    4 `blocked`, 7 `rejected`.
+  - Unflagged `manual_review` rows: short 36, mini 16 (warm-28: 41/19).
+  - Twin gated disagreement: 0 of 21.
+- Renders: 14 clips into `<run>/renders/`, rc 0 in 266 s, all automatic
+  checks pass. Human visual/audio review is PENDING with the user, as is
+  the L07 gap listening.
+- Comparison: cold-27 PASS 95.0; warm-26 PASS 97.5; warm-28 FAIL 95.0
+  (N07 ×2); warm-29 failed closed; warm-29b PASS 95.0.
+- Next: Stage 13e reviewer follow-ups (section above), independent
+  verification, then cold-30 (fresh cold run at the final code) as the
+  acceptance run, only with the user's go-ahead.
+
+## Stage 13d failure observability and duplicate-status alignment (2026-11-01) — ACCEPTED at bc150c5; warm-29b strict PASS 95.0 (diagnostic)
+
+- **Status: ACCEPTED** (2026-11-01) at
+  `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9`. Not pushed or merged.
+  - Tester: **PASS** at `bc150c5`: lint rc 0; backend 3000 passed in
+    1663.46 s; vitest 14 files / 80 tests; e2e 4; targeted 327; no sleep
+    between 19:50 and 20:22 on 2026-11-01.
+  - Reviewer: **ACCEPT** at `bc150c5`, no P0/P1. Only the Global Audit
+    hashes changed (short `686a9fba…`, mini `bdb7ff05…`); mutation testing
+    killed 11 of 12 mutants; the simulations reproduced; the strict
+    evaluator on cold-27 and warm-28 is byte-identical. Decision 3 judged
+    legitimate: a blocked duplicate can count as R01/R02 routing, exactly
+    like any blocked candidate. The reviewer's P2 and P3 findings are
+    Stage 13e.
+  - The first real run on this code, warm-29b, is a strict PASS 95.0
+    (warm, diagnostic; section above).
+- History: first recorded as **implemented, pending independent tester and
+  reviewer; real run pending** on local branch
+  `claude/liveclip-stage8-routing`, in two code
+  commits after the docs commit `56690c0` that accepted Stage 13c and
+  recorded warm-29:
+  - `6e1152c` (Commit Q): failure observability and validator messages;
+    Python only, no prompt or cache-key change;
+  - Commit R (the commit that adds this section): duplicate-status contract
+    alignment, the Global Audit prompt, the fallback-order check and the
+    Stage 13c reviewer P3s.
+  Not pushed or merged.
+- Observability (`DualProfileValidationExhaustedError`, a `ValueError`):
+  - raised by `_resolve_call` when validation is still failing after the
+    one repair and the one regeneration, in any stage; it carries each
+    failed attempt's structured output and error (`initial`, or
+    `stale_cache` under `--refresh-stale-cache`; `repair`; `regeneration`)
+    and the unit's provider call records;
+  - `run_dual_profile_evaluation` then writes, to the run directory only,
+    `failed-<profile>-<stage>.json`, a partial `provider-calls.json`
+    (`partial: true`; completed units plus the failing unit) and
+    `failure-manifest.json` (written last), and re-raises; an evidence write
+    error is attached as a note and never masks the validation error;
+  - the cache is written only for resolved units, as before; outputs are
+    the provider's parsed outputs (Claude CLI already drops any output that
+    contains the account identity); no credential is written;
+  - the CLI still exits 1 and prints a bounded summary (unit, evidence
+    file, the start of the last error) under the 500-character limit.
+  - Not covered (unchanged): a `StructuredProviderError` raised by the
+    repair or regeneration call itself (a provider/schema failure, not a
+    validation exhaustion) still propagates without the earlier attempts.
+- Validator messages:
+  - final assembly names each violating candidate, its status, its
+    duplicate target and the allowed statuses, and reports every row
+    violation (duplicate reference/status, selected score/flag/risk/boundary
+    facts) in one message (at most 20, then a count);
+  - `validate_nested_pair_decisions` reports every pair violation with the
+    members' IDs, statuses and references, and its text states exactly the
+    final rule;
+  - audit pair-rule messages name the duplicate.
+- Contract alignment (Controller decision 3):
+  - `DUPLICATE_ALLOWED_STATUSES = (rejected, blocked)`, for any candidate,
+    in final assembly (and therefore in the Global Review chunk check and
+    the merged-audit check), matching the pair validator. A `selected` or
+    `manual_review` duplicate stays a hard error; nothing is coerced and
+    nothing is promoted.
+  - Relaxing only makes more outputs valid, so every cached review/audit
+    output that validated before still validates; no cache key changes.
+  - Downstream-consumer audit (read only), no consumer assumes
+    duplicate ⇒ rejected:
+    - delivery (`dual_profile_delivery.py`), review package
+      (`delivery/dual_profile_review.py`), rendering, script export and the
+      variant link payload use only `selected`/`manual_review` rows;
+    - Top-N touches only `selected`; the quality gate only
+      `manual_review`; flag persistence and the twin union downgrade only
+      retained rows, so a blocked duplicate passes through unchanged with
+      its reference and the model's reason;
+    - risk routing turns only `rejected` risk records into `blocked`; a
+      blocked risk duplicate stays legal and keeps its reference;
+    - `resolved_duplicates`, the representative rules, the Stage 13c orphan
+      logic and the manifest cross-checks treat `rejected` and `blocked`
+      alike (non-retained), and an orphan must still keep its reference;
+    - the reverse prefix check concerns only Python-prefixed rows;
+    - the strict evaluator (`scripts/evaluate_benchmark.py`,
+      `scripts/benchmark_gates.py`, unchanged) never reads
+      `duplicate_of_candidate_id`; it scores `selected`/`manual_review` as
+      outputs and accepts `manual_review`/`blocked` as risk routing, so a
+      blocked duplicate is a non-output exactly like a rejected one.
+- Fallback order (decision 5): the merged-audit check now runs final
+  assembly and the listed-pair rules together. When both fail, one plain
+  `ValueError` reports both (`<assembly>; Global Audit pairs: <pairs>`), so
+  a repair sees everything and the fallback correctly does not run (it
+  cannot fix an assembly error). When only the pair rules fail, the
+  `AuditPairRuleError` reaches the fallback as before. No coercion of
+  `selected`/`manual_review` to `rejected` was added.
+- Prompt (decision 4): only `global_audit.md` changed. It says a duplicate
+  ends `rejected` or `blocked`, never `selected`/`manual_review`; that
+  Python only blocks retained rows with gated or persisted flags and never
+  changes a rejected row (a rejected `risk_discovery` candidate is kept as
+  `blocked`); and that when both members of a listed pair carry persisted
+  flags the audit decides `distinct_objective` (Python blocks both) or marks
+  both as duplicates of a non-persisted representative. The `near_identical`
+  parenthetical no longer mentions containment starts. General wording only.
+  - Deviation: for a `near_identical` pair whose members both carry
+    persisted flags, the prompt asks the audit to set both `blocked` itself,
+    because the near-identical rule is checked before routing and would
+    otherwise refuse `distinct_objective` with both members retained.
+  - Global Audit hashes: short `bb9d2e6ad638…` →
+    `686a9fbafa60e00900f0bc6ad7f0cb211ba1a8de0ba9b3de19ee1e01acfaaa64`;
+    mini `4c8313b0d62b…` →
+    `bdb7ff0545a935c421cf9f06d8033e3e0ca2d2f497c91a64e5517a7039dd8a86`.
+    Every other stage hash is unchanged (Discovery family, Boundary Review,
+    Global Review, variant link `def25b05bd98…`). Both audits already missed
+    at `6089884`, so the next run still costs 3 calls plus repairs.
+- Stage 13c reviewer P3s: stale "representatives first" wording corrected
+  (dual-profile ExecPlan, the Stage 13c test list below, the test comment);
+  new tests for the Global Review chunk prefix check, a full prefix
+  mid-text, the audit exemption limited to fallback-blocked IDs (now a
+  `fallback_blocked` argument of `reject_reserved_reason_prefixes`), the
+  exact five prefixes, merged vs initial fallback planning, the orphan
+  record shape and the orphan keeping its duplicate reference.
+- Offline evidence (fresh scratchpad `cp -Rp` copies of
+  `data/evaluations/dual-profile-cache-20261030-claude-warm-29`, 306 files;
+  nothing written under `data/`; the source cache's 306 sha256 sums are
+  unchanged afterwards):
+  - Sentinel replay (placeholder audits that satisfy the rules): 230 hits,
+    exactly 3 calls (2 audits + variant link), 0 repairs, no fail-closed; 3
+    new cache entries carrying the new audit hashes, 0 pre-existing entries
+    changed. Pair counts unchanged: short nested 4, overlap 2,
+    near-identical 0, 32/89 persisted; mini nested 44, overlap 13,
+    containment 2, near-identical 5, 55/116 persisted.
+  - Forced-fallback replay (placeholder audit keeps every pair): 5
+    near-identical records and 2 `orphaned_duplicate` records (the
+    Global Review-level duplicates of `ml0007…core`), as at Stage 13c; the
+    warm rerun made 0 calls with 233 hits; `final-validated.json`,
+    `global-review.json` and `boundary-review.json` byte-identical, the
+    manifest identical apart from the call counters.
+  - The analyst's 11 warm-29 what-if scenarios (crafted short audit outputs
+    for initial, repair and regeneration on the reconstructed payload):
+    new code 10 accepted, 1 failed closed as intended (`manual_with_dup`, a
+    `manual_review` duplicate, now with the candidate-naming message); at
+    `6089884` 7 failed with the warm-29 stderr and 4 were accepted.
+    - Accepted at the first attempt: `both_blocked_distinct`,
+      `both_blocked_third`, `both_rejected_third`, `waist_blocked`
+      (`both_blocked_third` and `waist_blocked` failed at `6089884`).
+    - Accepted by the downgrade-only fallback after repair and regeneration
+      (persisted-flag representative rule, the model's duplicate accepted
+      unchanged): `blocked_dup` (the warm-29 shape), `rejected_dup`,
+      `blocked_dup_core_blocked`, `blocked_dup,rejected_dup,blocked_dup`,
+      `both_blocked_nodup_duplicate,blocked_dup,blocked_dup` and
+      `both_blocked_nodup_duplicate,blocked_dup,rejected_dup`. At
+      `6089884` only `rejected_dup` and the last one were accepted; the
+      other four failed with the warm-29 stderr.
+  - Forced-failure observability on the real payload (`manual_with_dup`):
+    the run directory holds `failed-short_highlight-global_audit.json`
+    (3 attempts with outputs and errors, `cache_written: false`), a partial
+    `provider-calls.json` and `failure-manifest.json`; the cache copy is
+    unchanged (306 files, 0 new, 0 changed); 0 email matches.
+- Tests (mock/fixture only): assembly reports every row violation;
+  pair-validator messages; blocked duplicate accepted for any candidate
+  and a retained duplicate never coerced (mutation reverting the allowed
+  statuses is killed by 3 tests); the warm-29 shape reaches the fallback;
+  a blocked non-risk duplicate needs no repair; assembly and pair errors
+  reported together without the fallback; forced-failure evidence in the
+  run directory only with the cache untouched; CLI exit 1 with a bounded
+  summary; Global Audit prompt contract; the P3 gaps above.
+
+## warm-29 real run (2026-10-30) — FAILED CLOSED in the short Global Audit; Stage 13d decided
+
+- **Result: failed closed, not a quality result.** Real Claude CLI at
+  `6089884` (Stage 13c accepted code), warm, diagnostic. No
+  `provider-calls.json`, `run-manifest.json` or new cache file was written.
+- Setup:
+  - pinned Claude CLI 2.1.308 (`.cache/claude-cli/2.1.308/claude`);
+  - attempt start epoch 1793401583 (2026-10-30 16:06:23 -0700), eval
+    started 1793401601;
+  - roots `data/evaluations/dual-profile-benchmark-20261030-claude-warm-29`
+    (run) and `data/evaluations/dual-profile-cache-20261030-claude-warm-29`
+    (cache), with evidence in
+    `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-29/evidence/`;
+  - the cache is a `cp -Rp` copy of the warm-28 cache: 306 files,
+    byte-identical before the run; after the run 0 new, 0 removed and 0
+    pre-existing files changed, and the warm-28 source cache is unchanged;
+  - `--discovery-concurrency 3`; 0 sleep/wake entries; 0 email matches in
+    the scratch output and evidence.
+- Failure: eval rc 1 after 263 s, in the short Global Audit (the first
+  uncached call). Stderr:
+  `deterministic validation still failed after one repair and one regeneration: duplicate candidate must be retained as a rejected audit row`.
+  The run directory holds only `discovery-short.json`.
+- The raw model outputs (initial, repair, regeneration) cannot be recovered:
+  `claude_cli.py` runs with `--no-session-persistence` in a temporary
+  directory and keeps stdout in memory, and the service writes nothing on
+  a validation failure.
+- Read-only analysis (offline reconstruction of the exact short audit
+  payload from a cache copy, plus what-if simulations with crafted audit
+  outputs; scripts in the session scratchpad `w29/`):
+  - **Root cause: two validators contradict each other.**
+    `validate_nested_pair_decisions` accepts a `rejected` or `blocked`
+    duplicate for any candidate, and its error text tells the model
+    "rejected or blocked with duplicate_of_candidate_id". Final assembly
+    (`assemble_final_profile_result`) accepts a `blocked` duplicate only for
+    `risk_discovery` records, and the short Profile has none.
+  - `global_audit.md` (Stage 13b) says a candidate with persisted gated
+    flags "will be blocked". It never says a duplicate stays rejected even
+    when it carries such flags, and gives no guidance when both members of
+    a pair carry persisted flags. The short payload's nested pair
+    `sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core` is such a
+    pair (both `manual_review`, both with persisted `material_interruption`).
+  - Short payload: 89 candidates (47 manual_review, 34 blocked, 6 rejected,
+    2 selected); 6 audit pairs (4 nested, 2 overlap, 0 near-identical); 32
+    candidates with persisted gated flags; no risk records.
+  - The simulations reproduce the exact warm-29 stderr when a non-risk
+    duplicate is set to `blocked`, and show that the model can oscillate
+    between the two validators' messages across repair and regeneration.
+  - `_audit_pair_fallback` only handles `AuditPairRuleError`. This failure
+    was a plain `ValueError` from the final-assembly check of the merged
+    audit, which runs before the pair rules, so no fallback ran.
+  - The validator message names no candidate and uses "retained" in the
+    opposite sense to the prompt.
+- Controller decisions (2026-10-30), implemented as Stage 13d:
+  - **Commit Q, failure observability and validator messages (Python
+    only).** When validation is exhausted after repair and regeneration
+    (any stage), raise a typed error carrying each attempt's structured
+    output, each error and the provider call records; the service writes
+    `failed-<profile>-<stage>.json`, a partial `provider-calls.json` and a
+    failure manifest to the run directory only (never the cache) and
+    re-raises; the CLI still exits non-zero. Validator messages name the
+    candidate IDs, the current status, the duplicate target and the allowed
+    statuses, separate a retained duplicate from a wrong non-output status,
+    report every violation in one message where feasible, and the
+    pair-validator text matches the final rule. No prompt or cache-key
+    change.
+  - **Commit R, contract alignment and audit prompt.** Final assembly
+    accepts a duplicate as `rejected` or `blocked` for any candidate,
+    matching the pair validator (both statuses are non-output). A
+    `selected`/`manual_review` duplicate stays a hard error and is never
+    coerced. Python still never promotes, and a blocked risk duplicate
+    stays legal. Only `global_audit.md` changes (never `main.md`,
+    `repair.md`, the profile files or another stage file, which would
+    invalidate about 230 cached calls): a duplicate ends `rejected` or
+    `blocked`; Python blocks only retained rows with gated or persisted
+    flags and never changes a rejected row; when both members of a listed
+    pair carry persisted flags, decide `distinct_objective` or make both
+    duplicates of a non-persisted representative. The stale containment
+    "starts" wording in the `near_identical` parenthetical is fixed in the
+    same edit. Both audits already miss at `6089884`, so the next run still
+    costs 3 calls plus repairs. Also: check the audit validation order so
+    the fallback sees whether pair rules are the only remaining failures;
+    the Stage 13c reviewer P3s.
+
+## Stage 13c audit fallback keep order and contract alignment (2026-10-30) — ACCEPTED at 6089884; warm-29 FAILED CLOSED
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `608988463c9e98a7eb861e28a5a80360ea29366d` on local branch
+  `claude/liveclip-stage8-routing` (two code commits, `4543d0a` and
+  `6089884`, after the docs commit that accepted Stage 13b at `e48f601`).
+  Not pushed or merged. (History: first recorded as implemented, pending
+  independent tester and reviewer; real run pending. It had to land before
+  the real run: once a real run writes fallback-marked audit entries, a
+  later change to the fallback would make them fail closed on warm reruns.)
+- Tester: **PASS** at `6089884`. Backend 2986 passed; vitest 80; e2e 4;
+  targeted 255.
+- Reviewer: **ACCEPT** at `6089884`, no P0/P1. P3s, taken up by Stage 13d:
+  - stale "representatives first" wording (dual-profile ExecPlan, this
+    file, a test comment);
+  - reserved-prefix test gaps: the Global Review chunk check, a full prefix
+    appearing mid-text being allowed, the audit exemption limited to
+    fallback-blocked IDs, a hard-coded list of all five prefixes;
+  - audit fallback test gaps: merged vs initial plan, orphan record shape,
+    the orphan keeping its duplicate reference.
+- The first real run on this code, warm-29, failed closed in the short
+  Global Audit (section above).
+- Python only. No prompt changed: Global Audit stays short
+  `bb9d2e6ad638…` / mini `4c8313b0d62b…`, every cache key is unchanged, and
+  the 3-call estimate holds.
+- P2-A, orphaned duplicates (`plan_audit_pair_fallback`,
+  `resolved_duplicates`, `_audit_pair_fallback`):
+  - Keep order, fully deterministic (final, after the Controller decision
+    below):
+    1. no persisted Discovery gated flag first;
+    2. shorter duration;
+    3. more resolved duplicates;
+    4. earlier start, then smaller ID.
+    (History: the first 13c commit `4543d0a` put "more resolved duplicates"
+    before duration.)
+  - Unavoidable orphans are recorded: every duplicate whose resolved
+    representative the fallback blocked gets an `orphaned_duplicate` record
+    (blocked representative, duplicate, `pair_kind` nested, overlap,
+    containment, or none for a Global Review-level duplicate). Nothing is
+    promoted.
+  - Before this, a block-caused representative violation of an overlap pair
+    was recorded as an "accepted" duplicate; it is now an orphan record.
+    "Accepted" records only ever come from the model's own output.
+  - Wording corrected in PRODUCT_SPEC and the Stage 13b section: every
+    blocked member keeps a retained near-identical partner. But for same-end
+    and near-copy pairs the blocked longer member can hold media the kept
+    member lacks, which is the keep-the-shortest-complete-version policy.
+- Controller correction (user decision alignment): containment near-copy
+  listing now follows the user decision exactly. The inner duration must be
+  ≥ 9/10 of the outer, or the ends must be within
+  `AUDIT_SAME_END_TOLERANCE_MS`. "Starts within the tolerance" was never
+  approved and is removed; the decision log records the correction.
+  - The audit prompt still mentions containment starts in its
+    `near_identical` parenthetical. It is not changed here (to keep the hash
+    and cache keys). It describes a superset of the code, and the model
+    reads the precomputed field.
+- P3-2: a block that resolves several near-identical pairs records each pair
+  it resolves. The manifest cross-check changed accordingly: every blocked
+  member must have at least one record whose other member is not blocked,
+  and an orphan must name a fallback-blocked representative.
+- P3-3, reserved prefixes:
+  - Model review reasons may not start with a Python-only prefix
+    (`DETERMINISTIC_REASON_PREFIXES`: audit fallback, flag persistence,
+    quality gate, risk routing, Top-N). This is checked in Global Review
+    chunk validation and on Global Audit replacements (repairable). Only
+    rows the audit fallback itself blocked may carry its prefix.
+  - Reverse manifest check: every final row with the audit-fallback prefix
+    needs a near-identical fallback record. A Top-N prefix requires
+    `rejected`; every other prefix requires `blocked`.
+  - Checked read-only: every existing `final-validated.json` and
+    `run-manifest.json` pair under `data/evaluations` (25 runs, including
+    cold-27, warm-26 and warm-28) still passes `validate_against`, and no
+    warm-28 Global Review or audit cache entry starts with a reserved prefix.
+  - The strict evaluator output for cold-27 (PASS, rc 0) and warm-28 (FAIL,
+    rc 1) is byte-identical to the stored results.
+- P3-5: new tests kill M17 (a blocked row without the fallback prefix fails
+  the manifest check) and M21 (the representative rule on containment
+  pairs).
+- P2-B (documented, plus a diagnostic):
+  - The persisted-flag representative rule is enforced only on listed
+    (Global Review-retained) pairs. Duplicates the Global Review already
+    made that point to a persisted-flag representative rely on the prompt
+    sentence alone.
+  - The run manifest now reports `persisted_flag_representative_duplicates`
+    (per Profile, over the final merged review) so the real run can measure
+    it. Earlier manifests load with `{}`.
+- Offline evidence (fresh scratchpad `cp -Rp` copies of the warm-28 cache;
+  nothing written under `data/`):
+  - Sentinel replay: 230 hits and exactly 3 model calls (2 audits + variant
+    link), no fail-closed.
+  - Pair counts are unchanged from Stage 13b:
+    - short: nested 4, overlap 2, containment 0, near_identical 0;
+    - mini: nested 44, overlap 13, containment 2, near_identical 5.
+    - Both reviewer-identified containment pairs are still listed (both are
+      end-close).
+    - The L02 match appears only in its two nested pairs, and its sub-clip
+      `audit_ml0006_step3…` only in a nested pair with
+      `ml0006_steps1to3_from_step_marker`.
+  - Forced-fallback replay at `4543d0a` (representative-first order,
+    superseded; the placeholder audit keeps every pair, so the mini audit
+    takes initial + repair + regeneration, then the fallback):
+    - 5 near-identical records and 1 `orphaned_duplicate` record
+      (`risk_yanyin_beginner_warning_core` →
+      `risk_yanyin_warning_full_chain`, a Global Review-level duplicate);
+    - no unrecorded orphan;
+    - the warm rerun had 0 calls and 233 hits;
+    - `final-validated.json`, `global-review.json` and
+      `boundary-review.json` were byte-identical, and the manifest was
+      identical apart from the call counters.
+  - **Trade-off found** (decided by the Controller, see below): under the
+    forced fallback,
+    representative-first keeps `ml0007_strong_mix_vs_yanyin_core` (the
+    representative of 2 Global Review duplicates; Boundary Review trimmed
+    it, so it has no persisted flag) and blocks
+    `audit_ml0008_yanyin_myth_core_chain`, the L04 match.
+    - The Stage 13b order would have kept the shorter L04 match and
+      orphaned the 2 duplicates.
+    - This matters only if the real audit fails the near-identical rule
+      three times. The prompt tie-break steers the model to the shortest
+      complete version.
+  - The placeholder audit's `persisted_flag_representative_duplicates` (mini
+    7, short 1) is not evidence; the real run measures it.
+- **Controller decision (2026-10-30): length before representative count.**
+  - Rationale: representative-first kept `ml0007…core`, the 169 s clip that
+    caused warm-28's N07 padding hard FAIL, and blocked the 142 s L04
+    match. That reintroduces the failure Stage 13 targets and loses a
+    P0-adjacent hit.
+  - The user approved "keep the shortest independently complete version"
+    as the dedup policy; a duplicate count is only a proxy and can
+    contradict it. The P2-A orphan risk is accepted: orphans are recorded,
+    never promoted.
+  - Code: `plan_audit_pair_fallback` keep order is persisted-flag key →
+    shorter duration → more resolved duplicates → earlier start → smaller
+    ID.
+  - Tests: the shorter member is kept over a longer representative, and its
+    orphan is recorded with the kept/blocked statuses; equal duration is
+    tie-broken by representative count.
+  - Forced-fallback replay at the new order (fresh scratchpad copy of the
+    warm-28 cache):
+    - in the `ml0007_strong_mix_vs_yanyin_core` /
+      `audit_ml0008_yanyin_myth_core_chain` pair the L04 match
+      `audit_ml0008…` is **kept** (`manual_review`) and `ml0007…core` is
+      blocked;
+    - 5 near-identical records: `audit_6246760…` blocked for its 2
+      containment pairs; `ml0007…core` blocked for 2 pairs (with
+      `audit_ml0008…` and `risk_yanyin_beginner_warning_core`);
+      `risk_age_decline_permanent_damage_2975_3066` blocked for its pair
+      with `ml0021_decline_lowfirst_core`;
+    - 2 `orphaned_duplicate` records, both Global Review-level duplicates
+      (pair kind none) of `ml0007…core`: `ml0007_strong_mix_vs_yanyin_full`
+      and `ml0008_yanyin_beginner_myth`;
+    - no unrecorded orphan; the warm rerun made 0 calls with 233 hits;
+      `final-validated.json`, `global-review.json` and `boundary-review.json`
+      are byte-identical, and the manifest is identical apart from the call
+      counters.
+  - Sentinel replay at the new order: 230 hits, exactly 3 calls.
+- Tests (mock/fixture only):
+  - Unit:
+    - containment boundaries updated: starts 5 s and 1 s now unlisted;
+      short end tolerance 3/4 s;
+    - shorter member kept first, then the representative of more duplicates
+      among equally long members (wording corrected by Stage 13d; it
+      previously read "representative kept first", the superseded `4543d0a`
+      order);
+    - unavoidable nested orphan recorded with its kind;
+    - every resolved pair recorded;
+    - representative rule on containment pairs (M21);
+    - reserved prefixes;
+    - reverse prefix checks;
+    - blocked row without the prefix (M17);
+    - an orphan naming a kept representative is refused.
+  - Integration: a persisted-flag representative violation accepted and
+    counted in the new diagnostic; a model-written fallback prefix repaired.
+- `docs/PRODUCT_SPEC.md`: Stage 13c amendment and inline corrections.
+
+## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30) — ACCEPTED at e48f601; REAL RUN PENDING
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `e48f6018bc9456278585ca1f63f0d0c225834697` on local branch
+  `claude/liveclip-stage8-routing` (code commit after the docs commit that
+  accepted Stages 12c and 13 at `b5da41c`); real run pending. Not pushed or
+  merged. (History: first recorded as implemented, pending independent
+  tester and reviewer; real run pending.)
+- Tester: **PASS** at `e48f601`. `make lint` rc 0; backend 2976 passed in
+  1632.67 s; vitest 14 files / 80; e2e 4; targeted 245. No sleep in the
+  14:49–15:22 window on 2026-10-30.
+- Reviewer: **ACCEPT** at `e48f601`, no P0/P1. 23/27 mutants killed.
+  Deviation 3 is endorsed: accepting the model's duplicate unchanged is the
+  only downgrade-only option for representative-rule violations. Sentinel
+  replay: 230 hits, exactly 3 calls, no fail-closed. A forced-fallback
+  cold → warm replay was byte-identical. The P2s and P3s (fallback keep
+  order and orphaned duplicates, record granularity, a reverse prefix
+  cross-check, mutant-killing tests, the GR-level persisted-flag gap) and a
+  Controller correction of the containment criteria are taken up as
+  Stage 13c.
+- Origin: the Stage 13 reviewer P2s and the binding user decision on
+  near-copy containment (2026-10-30). Everything lands before the real run.
+  The Global Audit prompt hash already changed in Stage 13, so there is no
+  extra cache cost.
+- P2-1, the audit knows about persisted flags:
+  - Problem: a representative that Fix 1 later blocks took its duplicates
+    with it in every replay (cold-27 lost 5 rows, warm-28 3, warm-26 9).
+  - Payload: each audit candidate (audit payload only; the Global Review
+    payloads are unchanged) carries `persisted_discovery_gated_flags`. It is
+    computed with `discovery_persisted_flags`, the same function Fix 1
+    routing uses, so the two cannot drift.
+  - Prompt: `global_audit.md` gains one general sentence. A candidate with
+    persisted gated flags will be blocked, so it must never be chosen as a
+    duplicate representative or kept as the retained member of a pair.
+  - Validator: a `duplicate` decision on any listed pair whose resolved
+    representative carries persisted gated flags fails with rule
+    `persisted_flag_representative` and goes to repair.
+- P2-2, deterministic Global Audit fallback (`AuditPairRuleError`,
+  `plan_audit_pair_fallback`, `apply_audit_pair_blocks`):
+  - When it applies: the pair rules (near-identical, overlap
+    representative, persisted-flag representative) raise one structured
+    error, and only after every other audit check passed. When, after
+    repair and regeneration, these are the only failures left, a
+    downgrade-only fallback runs instead of aborting.
+  - Near-identical rule: each violating pair is resolved by blocking its
+    longer member (ties: later start, then the lexicographically larger
+    ID), with the reason prefix "Deterministic audit fallback: ".
+  - Coverage guarantee: members are visited in keep order and a kept member
+    blocks its still-undecided violating partners, so every blocked member
+    has a near-identical partner that stays retained. The fallback never
+    removes the only retained member covering an interval. (Corrected by Stage 13c: this overstates it. Every blocked member keeps a
+    retained near-identical partner, but for same-end and near-copy pairs
+    the blocked longer member can hold media the kept member lacks, which is
+    the keep-the-shortest-complete-version policy. Duplicates of a blocked
+    representative were also not recorded; Stage 13c records them.)
+  - Deviation 1 (persisted flags): a member with persisted gated flags is
+    kept last, because final routing would block it anyway.
+  - Deviation 2 (chains): in a chain A > B > C, C blocks B; the pair A/B is
+    then already resolved, so A, whose only partner is now blocked, stays
+    retained.
+  - Deviation 3 (representative rules): these violations cannot be fixed
+    without promoting a candidate. The fallback accepts the model's
+    duplicate unchanged and records it. It never promotes, and it never
+    turns a rejected row into blocked.
+  - Any other failure still raises, as does a near-identical violation the
+    blocks do not resolve.
+  - Manifest: every action is recorded in `audit_pair_fallbacks`
+    (`AuditPairFallback`: profile, rule, pair IDs, `blocked_candidate_id`
+    or `duplicate_candidate_id`). Earlier manifests load with an empty
+    tuple.
+  - Cross-checks, as in Stage 12c: shape per rule; unique actions and
+    blocked IDs; a kept member is never blocked by another record; IDs
+    belong to the run; a blocked member ends `blocked` with the fallback
+    prefix; an accepted duplicate never becomes an output.
+  - Cache: as for the Stage 12c Boundary Review fallback, the cache keeps
+    the raw audit output plus a verified `conservative_fallback` marker
+    (stage and affected IDs). A warm hit re-applies the fallback and
+    re-records it; a tampered marker fails closed.
+  - The fallback protocol is now generic: the stage fallback returns the
+    validated output, the marker IDs and the manifest records. The Boundary
+    Review fallback was moved onto it without any behavior change.
+- P2-3, near-copy containment (binding user decision):
+  - A containment pair (strictly inside, no shared edge cue) is listed as
+    `pair_kind: containment`, always `near_identical: true`, only when it
+    is a near-copy: the inner duration is at least 9/10 of the outer, or the
+    ends or the starts are within `AUDIT_SAME_END_TOLERANCE_MS` (short
+    3000, mini 5000). (Corrected by Stage 13c: the user approved only the
+    9/10 and end-tolerance criteria; the starts criterion was a Controller
+    addition and is removed.)
+  - Other containment stays unlisted, which protects a full lesson with a
+    sub-clip inside it.
+  - The near-identical and representative rules apply to containment pairs
+    as to overlap pairs.
+- P3 wording:
+  - `global_audit.md` no longer says "end at the same point". It refers to
+    the precomputed `near_identical` field (ends, or for containment
+    starts, within the boundary tolerance, or ≥90% of the shorter).
+  - The Stage 13 "byte-identical payload" wording is corrected above.
+- Prompt hashes:
+  - Global Audit: short `48d61543a335…` → `bb9d2e6ad6382f7fac8293a718ffb189465d3a84e5dee7759579d57b8b936d71`;
+    mini `1c710835f281…` → `4c8313b0d62b649f6e45c51d0e4cfdce4c240fe6e0cceac08e470992a9348934`.
+    Relative to warm-28's cached audits (`746b625e589b…`, `cb115e030631…`),
+    the audits still simply miss.
+  - Unchanged: the Discovery family, Boundary Review (`3119f245c2cd`,
+    `62fedbec56dc`), Global Review (`1faa9412f673`, `aea87440f0ab`) and
+    variant link (`def25b05bd98`).
+- Offline evidence (sentinel provider on a scratchpad `cp -Rp` copy of the
+  warm-28 cache; nothing written under `data/`):
+  - Calls: 230 hits and exactly **3** model calls (Global Audit short,
+    Global Audit mini, variant link), with no fail-closed error. Discovery,
+    Boundary Review and Global Review all hit. With a sentinel that allows
+    nothing, the first call is the short audit. A real rerun therefore
+    needs 3 calls plus any repairs.
+  - Pairs in the new audit payloads:
+
+    | Profile | nested | overlap | containment near-copy | near_identical |
+    |---|---|---|---|---|
+    | short | 4 | 2 | 0 | 0 |
+    | mini | 44 | 13 | 2 | 5 (3 overlap + 2 containment) |
+
+  - The two reviewer-identified containment pairs are now listed:
+    `audit_6246760_age_decline_recovery_chain` ⊃ `ml0021_decline_lowfirst_core`
+    and ⊃ `risk_age_decline_permanent_damage_2975_3066`.
+  - The L02 match `ml0006_steps1to4_through_transition` appears only in its
+    two existing nested pairs. Its containment of
+    `audit_ml0006_step3_strongmix_vs_falsetto_contrast` stays unlisted.
+  - Persisted flags: short 32 of 89 audit candidates (5 of them retained in
+    the initial review); mini 55 of 116 (4 retained).
+- Tests (mock/fixture only):
+  - Unit:
+    - near-copy containment boundaries: exactly 9/10 listed and 179/200
+      not; ends 5/6 s; starts 5/6 s; a 0.34 sub-clip with distant edges
+      stays unlisted; short tolerance 3/4 s;
+    - shared-edge containment stays nested;
+    - the persisted-flag representative rule;
+    - pair-rule errors are raised only after every other check;
+    - fallback block choice and ties, the chain and persisted-flag keep
+      order, and downgrade-only blocks;
+    - manifest `audit_pair_fallbacks` cross-checks.
+  - Integration:
+    - the audit-only persisted-flag payload field;
+    - a persisted-flag representative repaired;
+    - the near-identical fallback cold → warm round trip with refresh off
+      and on (final output and manifest record reproduced with 0 calls,
+      cache untouched, raw output plus marker);
+    - representative-only violations accepted and recorded without
+      promotion;
+    - other failures still raise;
+    - a tampered audit marker fails closed;
+    - prompt wording checks.
+- `docs/PRODUCT_SPEC.md`: Stage 13b amendment.
+- Unchanged: Discovery, Boundary Review and Global Review prompts, cache-key
+  derivation, `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark JSON/MD,
+  evaluator thresholds, guard patterns, frozen `tools/loop_engineering`.
+
+## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30) — ACCEPTED at b5da41c; REAL RUN PENDING
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` on local branch
+  `claude/liveclip-stage8-routing`, together with Stage 12c (`4a30497`);
+  real run pending. Not pushed or merged. (History: first recorded as
+  implemented, pending independent tester and reviewer; real run pending.)
+- Tester: **PASS** at `b5da41c`. `make lint` rc 0; backend 2953 passed in
+  1632.59 s; vitest 14 files / 80; e2e 4; targeted 222. No sleep in the
+  14:04–14:37 window on 2026-10-30.
+- Reviewer: **ACCEPT** at `b5da41c`, no P0/P1.
+  - 16/16 mutants killed.
+  - The Fix-1-only replay reproduced FAIL 93.0. The 2-point drop is only
+    the offline `call_data` artifact: a post-hoc evaluation with the real
+    tokens gives 95.0 with identical rows.
+  - Post-hoc runs with the Stage 13 routing: cold-27 stays PASS 95.0 and
+    warm-26 stays PASS 97.5, with no hits lost. Evaluator output on cold-27
+    and warm-28 is byte-identical.
+  - P2s (audit unaware of persisted flags; no audit fallback; near-copy
+    containment) are taken up as Stage 13b.
+  - P3, literal-rule consequence (the user has been told): a 1-cue trim on
+    either edge clears every Discovery gated flag, including end-edge flags
+    such as `topic_not_closed` (the R01 record went from cue 1881 to 1882).
+  - P3, deliberate: under `--refresh-stale-cache`, a marked fallback entry
+    (Stage 12c) that later goes stale cannot be refreshed; its marker
+    verification fails closed instead.
+- Origin: the warm-28 root cause and the binding user decisions of
+  2026-10-30 (warm-28 section below). General: no anchor times, IDs or
+  wording appear in code, prompts or tests.
+- **Fix 1, Discovery gated-flag persistence** (`assemble_final_profile_result`,
+  helpers `discovery_persisted_flags` and `boundary_shrank_interval`):
+  - For each final candidate, the gated flags
+    (`MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`) on its Discovery record
+    (whichever pass produced it) survive into the final merged flags unless
+    Boundary Review shrank the interval on at least one edge (start cue
+    later or end cue earlier). Extension alone or an unchanged interval
+    keeps them; advisory flags are never persisted.
+  - A `selected` or `manual_review` row that keeps one becomes `blocked`
+    with the sibling prefix "Deterministic flag persistence: "; rejected
+    and blocked rows keep their status and record the flag. Python only
+    downgrades; it never raises here and never promotes.
+  - Order (documented in the docstring): (1) review-stage validation,
+    unchanged because it sees only the merged Boundary/Global flags, then
+    persistence; (2) same-interval twin union, which therefore shares
+    persisted flags; (3) Profile-local Top-N over rows still `selected`,
+    so a persisted-flag row never takes a slot; (4) risk-record routing and
+    the manual-review quality gate.
+  - Applied at final assembly only, so persistence itself changes no
+    request payload: the Global Review payloads are byte-identical, and the
+    Global Audit payload changed only through Fix 2 (the pair list key was
+    renamed from `nested_pairs` to `audit_pairs`). (Wording corrected by
+    Stage 13b; it first said both payloads were byte-identical.)
+  - `DUAL_PROFILE_ROUTING_POLICY_VERSION` is now
+    `quality-gate-risk-routing-v4`; v1–v3 and unmarked artifacts still load.
+- **Fix 2, overlap adjudication** (`audit_candidate_pairs`,
+  `validate_audit_pair_decisions`, `AuditCandidatePair`, `AuditPairKind`):
+  - The audit payload's pair list is now `audit_pairs` (it was
+    `nested_pairs`). Each entry has `outer_candidate_id`,
+    `inner_candidate_id`, `pair_kind` (`nested` | `overlap`) and
+    `near_identical`.
+  - Nested pairs are exactly the previous `nested_candidate_pairs`.
+  - Overlap pairs are the other retained (`selected`/`manual_review`)
+    same-Profile pairs where neither contains the other and the shared media
+    is at least `AUDIT_OVERLAP_MIN_SHORTER_FRACTION` = 1/2 of the shorter
+    candidate. `outer_candidate_id` is the earlier-starting member.
+  - Containment without a shared edge stays unlisted, as before. Reason: in
+    warm-28 such a pair includes the L02 match and a focused sub-lesson
+    inside it; containment is the "focused lesson inside a broader lesson"
+    case, which the audit may legitimately keep as distinct.
+  - The audit must decide every pair of either kind, including pairs its
+    replacements create, through the existing `validate_nested_pair_decisions`
+    semantics (including the Stage 12 shared-representative rule). The
+    output schema is unchanged: decisions stay in `nested_pair_decisions`.
+  - Safety rule. An overlap pair is `near_identical` when the ends are
+    within `AUDIT_SAME_END_TOLERANCE_MS` (short 3000, mini 5000) or the
+    overlap is at least `AUDIT_NEAR_IDENTICAL_SHORTER_FRACTION` = 9/10 of
+    the shorter candidate. Such a pair may not keep both members
+    `selected`/`manual_review`.
+  - Why this rule instead of "unless the reason names the distinct
+    objective": a free-text reason cannot be checked deterministically, and
+    any keyword test would be gameable and language-dependent. Two retained
+    same-Profile clips sharing ≥90% of the shorter one (or the same ending)
+    are near-identical media, so the simplest sound rule is never to keep
+    both. The audit keeps one representative, or rejects/blocks a member on
+    its own merits.
+  - Representative rule. An overlap `duplicate` must leave the resolved
+    representative `selected` or `manual_review`, so deduplication never
+    deletes the last retained version of that media. Nested-pair semantics
+    are deliberately unchanged ("preserve existing guarantees"; a test pins
+    this).
+  - Known limit: a representative that deterministic routing later blocks
+    (gated flags) takes its duplicate with it, because Python never
+    promotes.
+- `global_audit.md` (both Profiles; minimal and general): the "Nested
+  pairs" paragraph became "Listed pairs" (both kinds, `audit_pairs`), plus
+  the near-identical rule, the retained-representative rule and the
+  tie-break "keep the shortest independently complete version; material
+  only one version adds beyond the shared objective is a reason to reject
+  that version".
+- Prompt hashes:
+  - Changed: Global Audit short `746b625e589b…` → `48d61543a335…`, mini
+    `cb115e030631…` → `1c710835f281…`.
+  - Unchanged: Discovery family, Boundary Review (`3119f245c2cd`,
+    `62fedbec56dc`), Global Review (`1faa9412f673`, `aea87440f0ab`) and
+    variant link (`def25b05bd98`).
+  - No cache-key derivation change, and `DUAL_PROFILE_ALGORITHM_VERSION` is
+    unchanged (the prompt hash already re-keys the audit).
+- Offline evidence (all against `cp -Rp` copies of
+  `data/evaluations/dual-profile-cache-20261030-claude-warm-28` in the
+  session scratchpad; nothing was written under `data/`; the harness, a
+  sentinel provider with the warm-28 provider identity, first reproduced
+  warm-28 at `a7088c4` with 233 hits, 0 calls and a byte-identical
+  `final-validated.json`):
+  - Fix 1 alone (before Fix 2 was wired): Discovery, Boundary Review,
+    Global Review and both Global Audits all hit. The only model call is
+    variant link (1), which cannot hit: its payload lists the final
+    `selected`/`manual_review` candidates, and Fix 1 changes them. With an
+    offline variant-link stub that reuses the warm-28 group labels (232
+    hits, 1 stubbed call), 8 rows move `manual_review` → `blocked`
+    (`audit_sh0009_throat_tight_strong_mix_diagnosis`,
+    `audit_sh0006_breathy_mix_intro_vs_weak_mix`,
+    `sh0018_nasal_highnote_core`, `sh0018_nasal_highnote_diag`,
+    `sh_0016_vocal_cord_issue_check_first`, `ml_0018_tangtang_nasal_diagnosis`,
+    `precision_ml_0018_tangtang_nasal_correction_loop`, and
+    `ml14_nasal_problem_full` through the twin union). Other already-blocked
+    rows gain flags.
+  - Strict evaluator on that offline result (scratchpad output): **FAIL
+    93.0**; hard failure `irrelevant_padding` only (`ml0007…core`, Fix 2's
+    target); `negative_anchor_output` is gone; short 8/8, mini 5/6 (L07
+    still missed), R01 blocked, R02 `manual_review`, no PASS blockers, no
+    lost hit. The 2-point drop from 95.0 is the audit item `call_data`:
+    the offline replay records no tokens. It is not a routing effect.
+  - Final code: the sentinel allows only `global_audit` and `variant_link`
+    (offline placeholders used only to get past them). 230 hits and exactly
+    **3** model calls: Global Audit short, Global Audit mini, variant link.
+    Discovery, Boundary Review and Global Review all hit.
+    - The warm-28 audit entries simply miss under the new prompt hash; they
+      are not failed closed.
+    - The new audits receive short 4 nested + 2 overlap pairs (0
+      near-identical) and mini 44 nested + 13 overlap pairs. The 3 mini
+      near-identical pairs include `ml0007…core` / `audit_ml0008…` (93%).
+    - A real rerun from the warm-28 cache would therefore make about 3
+      calls plus any repairs.
+- Tests (mock/fixture only):
+  - Unit, Fix 1 (10): unchanged/extended intervals keep the flag;
+    start-later, end-earlier and start-later-with-extended-end clear it;
+    advisory flags are unaffected; only downgrades (selected → blocked
+    without raising; rejected/blocked unchanged); order of persistence,
+    twin union and Top-N; helper semantics.
+  - Unit, Fix 2 (9): named constants; pair generation at exactly 50%
+    (listed) and just below (not listed); containment and rejected rows are
+    not listed; nested pairs first and unchanged; same-end tolerance per
+    Profile at the boundary (3/4 s short, 5/6 s mini); 90% boundary; safety
+    and representative rules; nested semantics unchanged.
+  - Integration (6): the service persists a Discovery flag unless Boundary
+    Review trims (both cases); the audit must decide an overlap pair (an
+    omitted decision is repaired); a near-identical pair kept as distinct is
+    repaired to one representative; an old audit without overlap decisions
+    (pre-overlap prompt identity) simply misses and is regenerated with the
+    planted entry untouched; the same old-contract audit under the current
+    identity and payload fails closed.
+  - Updated: the payload key and monkeypatch target (`audit_pairs`,
+    `audit_candidate_pairs`), the audit prompt wording checks, and the
+    routing-policy marker (v4 accepted, v1–v3 still load).
+- `docs/PRODUCT_SPEC.md`: Stage 13 amendment.
+- Unchanged: benchmark JSON/MD, evaluator thresholds, guard patterns,
+  frozen `tools/loop_engineering`, Discovery/Boundary Review/Global Review
+  prompts.
+
+## Stage 12c fallback provenance and manifest cross-checks (2026-10-30) — ACCEPTED at b5da41c
+
+- **Status: ACCEPTED** (2026-10-30). Code commit
+  `4a3049732c3bed64b2387c24e99943195403bc46`, verified at the tip
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` together with Stage 13 (see
+  the tester and reviewer bullets in the Stage 13 section; the reviewer's
+  deliberate-behavior P3 on stale marked entries is recorded there). On
+  local branch `claude/liveclip-stage8-routing` (code commit after the docs
+  commit that accepted Stage 12b at `a7088c4`). Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
+- Origin: the Stage 12b reviewer P2-A, P2-B and P3s at `a7088c4`.
+- P2-A (fallback provenance on a warm hit). Design: the cache keeps the
+  **raw** model output (the regenerated output that still failed only the
+  opening invariant), plus a marker field `conservative_fallback`
+  (`{"stage": "boundary_review", "candidate_ids": [...]}`) that is written
+  only on fallback entries. On a hit, a marked entry is re-resolved with the
+  same deterministic `apply_boundary_opening_fallback`, re-validated and
+  recorded again in `boundary_opening_fallbacks`, so a warm rerun
+  reproduces the cold final output **and** the manifest record. Why a
+  marker in addition to raw output (deviation from "raw only"): a raw
+  output that violates the opening invariant is ambiguous. It is either a
+  cold-run fallback (repair and regeneration already exhausted) or a
+  stale/planted entry, which the Stage 9/12b contract must fail closed by
+  default and repair only under `--refresh-stale-cache` (an existing test
+  plants exactly such an entry). Re-applying the fallback to every
+  violating hit would silently bypass that contract and skip the
+  repair-and-regeneration precondition. The marker is verified, never
+  trusted: it must name this stage and exactly the candidates the fallback
+  downgrades now, the raw output must fail current validation and the
+  downgraded output must pass; otherwise the run fails closed ("fallback
+  marker is invalid") in both refresh modes. Unmarked entries keep exactly
+  the bytes earlier code wrote. No cache-key change: the key is derived
+  from the request, not from file content, so cold-27 and warm-28 entries
+  still hit (offline replay of a warm-28 cache copy at this code: 233 hits,
+  0 calls, `final-validated.json` byte-identical to warm-28).
+- P2-B (manifest cross-checks). `BoundaryOpeningFallback` now requires a
+  Boundary Review subject (`<profile>.boundary.<NNN>`) and unique
+  candidate IDs; the manifest requires unique (Profile, candidate) pairs
+  and unique batches across fallback records, and every stale resolution
+  must name a `superseding_cache_key` different from its `cache_key`.
+  `validate_against(result, boundaries=...)` additionally checks that
+  every fallback ID belongs to an executed Profile, exists in the run's
+  final arrays (which are exactly the Boundary Review rows) and is never
+  `selected`; when the run's Boundary Review output is supplied (the
+  evaluation service passes it), each fallback row must exist there with
+  `opening_complete=false`. The delivery export, which has no Boundary
+  Review output, keeps calling `validate_against(final)` and gets every
+  check except that last one.
+- P3s: `reused=True` is recorded only after the superseding entry passed
+  its identity check and parsed. New tests cover mis-keyed, garbage-JSON
+  and symlinked cache entries for Discovery, Boundary Review and Global
+  Audit with refresh off and on (all raise), and an untrusted superseding
+  entry (never recorded as reused).
+- No prompt, prompt hash, cache-key derivation, Discovery cache,
+  `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark JSON/MD, evaluator threshold,
+  guard pattern or frozen `tools/loop_engineering` change.
+- Tests (mock/fixture only): cold → warm fallback round trip with a
+  provider that fails on any call (refresh off and on; final, Boundary and
+  Global Review artifacts byte-identical; the manifest record reproduced;
+  the cache untouched); five tampered-marker cases × two refresh modes;
+  18 untrusted-entry cases; 3 untrusted-superseding cases; manifest
+  cross-check unit tests.
+- `docs/PRODUCT_SPEC.md`: Stage 12c amendment.
+
+## warm-28 real Claude CLI warm diagnostic at a7088c4 (2026-10-30) — strict FAIL 95.0 (diagnostic only)
+
+Evidence categories stay distinct: this run is real-model inference evidence
+(warm, diagnostic, not an acceptance run); the strict evaluator result is
+deterministic validation of that output; rendering plus human
+editorial/audio review is a separate acceptance activity and is **not**
+claimed here.
+
+- Code: HEAD `a7088c490468cb36e48fc60fd512bf6923140593` (Stage 12b, accepted
+  below). Frozen Claude CLI 2.1.308 binary, subscription login.
+- Roots: `data/evaluations/dual-profile-benchmark-20261030-claude-warm-28`
+  and cache `data/evaluations/dual-profile-cache-20261030-claude-warm-28`.
+  The cache was copied with `cp -Rp` from the cold-27 cache (233 files,
+  byte-verified). Attempt start epoch 1793383796.
+- Eval rc 0 in 2510 s.
+- Calls and cost: 160 cache hits (Discovery family only); 73 new calls
+  (Boundary Review 52, Global Review 18, Global Audit 2, variant link 1)
+  plus 4 repairs, 77 provider records; 0 retries; no 429, 529 or
+  usage-limit errors. Tokens: input 7,336,802, output 740,519.
+- Cache provenance: 73 new cache files, all with mtime at or after the
+  attempt start; 0 of the 233 pre-existing files changed;
+  `stale_cache_resolution_count` 0; `boundary_opening_fallbacks` `[]`.
+- Strict result: **FAIL 95.0**, evaluator rc 1, no PASS blockers. Durable
+  output: `data/evaluations/dual-profile-strict-eval-20261030-claude-warm-28`
+  (evidence in its `evidence/` subfolder).
+  - Short 8/8. S06 matched by `sh0009_balanced_mix_step5` (selected,
+    −2300/+2860 ms).
+  - Mini 5/6. L07 missed: the exact `precision_yuge…` candidate (cues
+    2855–2974) was rejected as the nested duplicate of `confirm_6001180…`,
+    which starts at cue 2854, −30540 ms from the anchor.
+  - R01 `blocked`, R02 `manual_review`.
+  - Hard failures, both on negative anchor N07 (2284100–2404200, chat,
+    devices and fragments; must not pad L03):
+    1. `negative_anchor_output`: `audit_sh0009_throat_tight_strong_mix_diagnosis`
+       (short, `manual_review`, 2295000–2351600).
+    2. `irrelevant_padding`: `ml0007_strong_mix_vs_yanyin_core` (mini,
+       `manual_review`, 2369520–2538460; 34,680 ms of N07 outside L04).
+- Renders: 14 clips into `<run>/renders/`, rc 0 in 253 s, all automatic
+  checks pass. Human visual/audio review is PENDING.
+- Read-only root-cause analysis:
+  - The divergence from cold-27 happened at Boundary Review. On identical
+    Discovery inputs, warm-28 Boundary Review cleared Discovery's gated
+    flags without removing cues: `audit_sh0009` cleared
+    `topic_switch_inside` on an unchanged interval; `ml0007_core` trimmed
+    its start to cue 1036 and cleared `material_interruption` and
+    `device_or_waiting_padding`. cold-27 Boundary Review kept them; Global
+    Review and the Global Audit followed Boundary Review in both runs.
+  - This is a pre-existing gap exposed by sampling, not a Stage 12
+    regression. Ruled out: (b) both rows were unflagged after Boundary
+    Review, so the gated (not advisory) flag contract never applied; (c)
+    neither row was in a repaired Boundary Review batch and there were no
+    fallbacks.
+  - History: N07 caused a hard FAIL in 2 of 5 Claude-era runs (warm-22,
+    warm-28). The warm-26 PASS survived only because its audit happened to
+    deduplicate.
+  - The Global Audit adjudicates only nested pairs, so the 93%-overlapping,
+    non-nested pair `ml0007_core` / `audit_ml0008` (the L04 match) was never
+    compared.
+  - L07 was also missed in cold-27 and warm-24. The cause is a conflict
+    between the Boundary Review untranscribed-gap clause and the
+    song-selection trim clause. Human listening of 01:40:07.5–01:40:35.0 is
+    still pending with the user.
+- **User decisions (2026-10-30, binding):**
+  - Fix 1: keep Discovery gated flags unless Boundary Review actually trims
+    the interval.
+  - Fix 2: the Global Audit also adjudicates same-Profile overlapping pairs
+    whose overlap is at least 50% of the shorter candidate.
+  - Both are scheduled as Stage 13; the reviewer P2s/P3s of Stage 12b are
+    Stage 12c.
+
+## Stage 12b dual-profile review fixes (2026-10-29) — ACCEPTED at a7088c4
+
+- **Status: ACCEPTED** (2026-10-30) at
+  `a7088c490468cb36e48fc60fd512bf6923140593` on local branch
+  `claude/liveclip-stage8-routing` (code commit after the docs commit that
+  accepted Stages 11b and 12 at `88c97e9`). Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
+- Tester: **PASS** at `a7088c4`. `make lint` rc 0; backend 2893 passed in
+  1675.40 s; vitest 14 files / 80; e2e 4; targeted 102. No sleep in the
+  10:34–11:09 window on 2026-10-30. The machine was under high load from an
+  unrelated project; there were no failures.
+- Reviewer: **ACCEPT** at `a7088c4`, no P0/P1. P2-A (the Boundary Review
+  opening fallback provenance is lost on a warm cache hit, because the
+  fallback output is cached as if it were model output) and P2-B (the
+  manifest does not cross-check `boundary_opening_fallbacks` or the stale
+  resolutions) go to Stage 12c. P3s: no repo tests for mis-keyed or
+  untrusted cache entries in either refresh mode, and `reused=True` is
+  recorded before the superseding entry's identity check.
+- Origin: the Stage 12 reviewer P2s at `88c97e9`.
+- P2-1 (Controller decision): the Stage 9 fail-closed contract is the
+  default again. A cached dual-profile output that fails current
+  validation re-raises its validation error, exactly as before Stage 12.
+  Stale-cache repair/regeneration is now opt-in through
+  `liveclip dual-profile-eval --refresh-stale-cache` (service argument
+  `refresh_stale_cache=False` by default). When opted in, every stale
+  resolution is recorded in `run-manifest.json`:
+  `stale_cache_resolutions` (stage, Profile, stale `cache_key`,
+  `superseding_cache_key`, `error_summary`, `reused`),
+  `stale_cache_resolution_count` and `stale_cache_refresh_enabled`. A
+  later opted-in run that reuses an existing superseding entry records it
+  with `reused: true`. Without the option a stale primary entry still fails
+  closed even if a superseding entry exists. The manifest validator
+  requires the count to match and forbids resolutions without the option.
+  The new manifest fields have defaults, so earlier manifests still load.
+- P2-2: the Boundary Review invariant error
+  (`BoundaryOpeningInvariantError`) now lists every violating candidate ID
+  in one message and is raised only after every other check passed, so
+  any other failure keeps its own plain error. When the repair and the
+  regeneration are exhausted and that invariant is the only remaining
+  failure, `apply_boundary_opening_fallback` sets `opening_complete=false`
+  on exactly those rows (only a downgrade; the flag stays), the output is
+  re-validated, the IDs are recorded in the manifest's
+  `boundary_opening_fallbacks`, and the run continues. Any other failure
+  still fails as before.
+- P2-4: the opt-in test asserts that a third run reuses the superseding
+  audit entry with 0 calls.
+- P2-5: the docs now say the superseding key adds the sha256 of the stale
+  output's canonical JSON (`model_dump`, sorted keys), not of its bytes.
+- No prompt, prompt hash, `DUAL_PROFILE_ALGORITHM_VERSION`, Discovery
+  prompt, benchmark JSON/MD, evaluator threshold, guard pattern or frozen
+  `tools/loop_engineering` change. The Boundary Review, Global Review and
+  Global Audit prompt hashes are identical to `88c97e9`, so the warm-rerun
+  estimate from the cold-27 cache (about 73 new calls, 160 hits) still
+  holds; that estimate needs no `--refresh-stale-cache` because the
+  re-keyed stages have no stale entries.
+- Tests (mock/fixture only): restored Stage 9 test (a stale cached audit
+  fails closed by default and leaves the cache unchanged); opt-in test
+  (one repair, entry byte-identical, manifest records the resolution, a
+  third run reuses the superseding entry with 0 calls, a run without the
+  option still fails closed); the Boundary Review stale test now checks
+  both default and opt-in; all-IDs message and no masking of other
+  failures; invariant-only fallback and its manifest record; a fallback
+  that never masks another failure; manifest audit consistency; CLI opt-in
+  flag.
+- Coder verification (mock/fixture only, under `caffeinate -dims` on an
+  awake machine): all dual-profile and benchmark test files plus the
+  affected CLI files (`tests/integration/test_dual_profile_evaluation.py`,
+  `tests/unit/test_dual_profile*.py`, both benchmark-evaluator files, the
+  Claude CLI provider, Codex rate-limit message, CLI retry and doctor
+  files) 286 passed in 21.46 s; `PYTHONDONTWRITEBYTECODE=1
+  NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin make lint` rc 0. A broader
+  run over every test file importing `liveclip.cli` (778 tests) had two
+  `test_persistent_mock_pipeline.py` failures with `proxy_render`
+  `LEASE_EXPIRED` and one transient Claude CLI fake-subprocess failure
+  while the machine was sleeping or overloaded. The `LEASE_EXPIRED`
+  failure reproduced on the clean baseline `f7c98dd`, so it is
+  environmental. Awake reruns passed: both persistent-mock tests 2 passed,
+  and the Claude CLI provider file 58 passed. (At the time, full `make
+  test`, the independent tester and the reviewer were pending; all passed
+  at `a7088c4`, see above.)
+
+## Stage 12 dual-profile flag contract alignment (2026-10-29) — ACCEPTED at 88c97e9; REAL RUN PENDING
+
+- **Status: ACCEPTED** (2026-10-29) at
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` on local branch
+  `claude/liveclip-stage8-routing`; real run pending. Not pushed or merged.
+  (History: first recorded as implemented, pending independent tester and
+  reviewer.)
+- Tester: **PASS** at `88c97e9` (covers Stage 11b `31e6712` and Stage 12
+  `88c97e9`). `make lint` rc 0; backend 2886 passed in 1681.85 s; vitest
+  14 files / 80; e2e 4 passed; targeted 159 passed. No sleep in the
+  18:34–19:11 window on 2026-10-29.
+- Reviewer: **ACCEPT** at `88c97e9`, no P0/P1, five P2s (taken up as
+  Stage 12b below).
+- Origin: the read-only S06/L07 variance analysis (Stage 11 section). The
+  change is general: no anchor times, IDs or wording are used anywhere.
+- Prompts match the code (`clipping_skills/dual_profile_v1/stages/`):
+  - `global_review.md` and `global_audit.md` no longer claim that Python
+    enforces every unresolved flag. Both list the exact classes. Gated
+    flags (Python forces `blocked`; the members of
+    `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`): `padded_with_irrelevant_content`,
+    `sales_or_cta_padding`, `device_or_waiting_padding`,
+    `material_interruption`, `topic_switch_inside`, `topic_not_closed`,
+    `asr_uncertain_blocks_meaning`. Advisory flags (Python only forbids
+    `selected`): `context_dependent_opening`,
+    `missing_required_prior_steps`, `source_title_mismatch`. A candidate
+    the reviewer judges coherent and self-contained with only advisory
+    flags is `manual_review`, with the disagreement in `review_reason`.
+    Rules A/B2/C/D, the equipment carve-out and all other text are kept.
+  - `global_audit.md` also states that a listed pair whose members are
+    both duplicates of the same third representative is `duplicate`.
+  - `boundary_review.md` (one sentence): a review item that keeps
+    `context_dependent_opening` must set `opening_complete` to false.
+  - Discovery-family prompts and `variant_link` are byte-identical.
+  - `tests/unit/test_dual_profile_flag_contract.py` parses both flag lists
+    from both prompts for both Profiles and asserts they equal the code
+    sets, so they cannot drift.
+- Boundary Review invariant: `validate_boundary_review_output` raises a
+  validation error (routed to the existing repair) when a row carries
+  `context_dependent_opening` with `opening_complete=true`.
+- Stale cache entries (`services/dual_profile_evaluation.py::_resolve_call`;
+  **changed by Stage 12b**: this path is now opt-in through
+  `--refresh-stale-cache`, the default fails closed again, and the
+  superseding key adds the sha256 of the stale output's canonical JSON):
+  Stage 9 made cache hits fully validated, but a failing cached output
+  crashed the run. Now a cached output that fails the current validation
+  is stale, not fatal: the entry is left untouched, its output goes through
+  the ordinary repair path (repair, then one deterministic regeneration),
+  and the result is cached under a key whose settings add
+  `supersedes_cache_output_sha256` (bounded chain of 4). A later run finds
+  the superseding entry as a normal hit. This applies to every
+  dual-profile stage; the Stage 9 cached-audit test now asserts the stale
+  audit is refused and repaired instead of failing the run. Untrusted or
+  mis-keyed cache files still raise.
+- Nested pairs: `validate_nested_pair_decisions` accepts `duplicate` when
+  both members are rejected/blocked duplicates that resolve (cycle-safe) to
+  the same third representative, as in a three-way identical cluster.
+  Every other guarantee is unchanged (direct-reference duplicates,
+  `distinct_objective` forbids a direct reference, exact coverage, no
+  unlisted or repeated pairs).
+- `DUAL_PROFILE_ALGORITHM_VERSION` is unchanged: the prompt hashes already
+  change the affected cache keys, and the stale-entry path covers any
+  cache whose prompt did not change.
+- Cache impact for a warm rerun from the cold-27 cache: Discovery family
+  (160 calls) unchanged and fully cached; Boundary Review prompt hashes
+  changed for both Profiles (short `e685d6172f6f` → `3119f245c2cd`, mini
+  `9a09affa78a3` → `62fedbec56dc`), so all 52 calls are new; Global Review
+  (`832c171685e9` → `1faa9412f673`, `6b14c92b237e` → `aea87440f0ab`) and
+  Global Audit (`6aa8a0148446` → `746b625e589b`, `13b53905799a` →
+  `cb115e030631`) changed, so all 20 calls are new; the variant-link prompt
+  is unchanged but its payload is built from the new final candidates, so
+  expect 1 new call. Estimate: about 73 new calls (plus any repairs) and
+  160 cache hits.
+- `docs/PRODUCT_SPEC.md`: Stage 12 amendment.
+- Unchanged: guard patterns, benchmark JSON/MD, evaluator thresholds,
+  frozen `tools/loop_engineering`, Discovery prompts and hashes.
+- Tests (mock/fixture only): flag-contract unit tests (9); Boundary Review
+  invariant unit test; three-way cluster nested-pair unit test;
+  integration tests for a fresh Boundary Review repaired by the invariant
+  (advisory-only candidate stays `manual_review`), a planted violating
+  cached Boundary Review repaired with the stale entry untouched and a
+  superseding entry reused by a third run with zero calls, and the updated
+  Stage 9 cached-audit test.
+- Coder verification (mock/fixture only): all dual-profile and benchmark
+  test files (`tests/integration/test_dual_profile_evaluation.py`,
+  `tests/unit/test_dual_profile*.py`, both benchmark-evaluator files, the
+  Claude CLI provider and Codex rate-limit message files) 267 passed in
+  20.52 s; `PYTHONDONTWRITEBYTECODE=1
+  NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin make lint` rc 0. Full `make
+  test`, the independent tester and the reviewer are pending.
+- Next: independent tester and reviewer; then a real run (warm from the
+  cold-27 cache, or cold) only with the user's go-ahead.
+
+## Stage 11b guard repair fallback and repair message (2026-10-29) — ACCEPTED at 88c97e9
+
+- **Status: ACCEPTED** (2026-10-29). Code commit
+  `31e6712a054465142f5d39ad0fc12e60fc2fad4e`, verified at the tip
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` together with Stage 12 (see
+  the tester and reviewer bullets in the Stage 12 section). Not pushed or
+  merged. (History: first recorded as implemented, pending independent
+  tester and reviewer.)
+- Origin: the Stage 11 reviewer P2s at `ed24a34`, under the binding user
+  decision "rewrite first, if still unsafe block that clip, and the rest of
+  the run must finish".
+- Repair fallback: when the initial Global Review output passed every hard
+  validator and only the deferred text guard failed, an unusable repair no
+  longer fails the run. If the repair call fails (`StructuredProviderError`)
+  or the rewrite fails a hard validator, the rewrite is discarded, the
+  initial output is accepted and the same deterministic gate applies
+  (V4/V5 and v3 → `blocked` with `deterministic_text_guard_gate`; legacy
+  `semantic_global` → `rejected`). A validation event with
+  `phase: repair_fallback`, `fallback: initial_output`, a reason ("repair
+  output failed validation" or "repair call failed: <code>") and a fixed
+  note records it. Sites: the durable executor
+  (`pipeline/semantic_executor.py`), the local V4 loop
+  (`_run_v4_requests`) and the local `semantic_global` helper
+  (`_repair_semantic_global_review`) in `pipeline/stage_handlers.py`.
+  - Durable executor: the committed `raw_output` stays the initial output,
+    so durable replay revalidates it to the same accepted value; the
+    discarded rewrite stays in `agent_outputs` as evidence. On a failed
+    repair call `repair_spent` equals whether a repair call record exists,
+    which the durable evidence check requires.
+  - Local loops cache the initial output, so a later cache hit gates it
+    the same way without a new call.
+  - A hard-invalid initial output still fails exactly as before (including
+    when the repair call fails). Cancellation and configuration errors are
+    unchanged.
+- Repair message: "Deterministic text guard: " is now followed first by the
+  rewrite instruction ("rewrite each listed field as plain prose with the
+  same meaning; no command words, file paths or shell syntax.") and then,
+  per failing field, `candidate <id> <field>[ (first N chars)] matched
+  "<token>"` (or `fails the EditPlan text limits` when no executable
+  pattern matched). The prefix and instruction take 135 characters, so the
+  legacy 240-character truncation keeps the instruction, and for the
+  cold-27 shape also the field and the matched "make". The token comes from
+  the new read-only `executable_text_match` in `domain/edit_plan.py`, which
+  reuses the unchanged patterns in the same order; it quotes at most 40
+  characters of the model's own field text and nothing else.
+- v3 `suspicious_exact_top_n` is recomputed after a demotion. The
+  validator sets it when the discovery count and the eligible count both
+  equal the Top-N ceiling, so it was true only with eligible == discovery
+  count; the gate keeps it true only while that still holds (any demotion
+  clears it; a false flag can never become true).
+- `docs/PRODUCT_SPEC.md`: Stage 11b amendment after the Stage 11 one.
+- Unchanged: guard patterns, shared validators, dual-profile prompts and
+  cache keys, benchmark JSON/MD, evaluator thresholds, frozen
+  `tools/loop_engineering`.
+- Tests (mock/fixture only):
+  - `tests/unit/test_edit_text_guard.py` (13 → 21): message field/token
+    naming and legacy truncation, non-pattern limits, matcher parity with
+    the guard, v3 counter recomputation, executor fallback on a
+    hard-invalid rewrite and on a failed repair call (recorded and
+    unrecorded), hard-invalid initial plus failed repair still fails.
+  - `tests/integration/test_edit_text_guard_pipeline.py` (37 → 58):
+    deferred initial then hard-invalid or failed repair → fallback to the
+    initial output and block, at every loop (V8 local V4, V9/V11/V13
+    durable with replay after the EditPlan commit, `semantic_windowed` v3
+    and legacy `semantic_global`, local and bounded); schema repair already
+    spent → block in the local V4 and both local `semantic_global` loops;
+    legacy cache retry (local and bounded).
+- Coder verification (mock/fixture only): targeted pytest over the two
+  Stage 11 test files plus the semantic executor, semantic lineage
+  runtime, EditPlan, stage handlers, semantic profiles, structured
+  transport budget, semantic unit recovery, lineage runtime pipeline,
+  persistent mock pipeline, transport budget pipeline, all dual-profile and
+  both benchmark-evaluator test files: 663 passed in 527.30 s;
+  `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+  make lint` rc 0. (At the time, full `make test`, the independent tester
+  and the reviewer were pending; all passed at `88c97e9`.)
+
+## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29) — ACCEPTED at ed24a34
+
+- **Status: ACCEPTED** (2026-10-29) on local branch
+  `claude/liveclip-stage8-routing`. Not pushed or merged. Code commit
+  `ed24a346fe0d908dcecdec56ff87d250675a759b` (directly after the docs
+  commit `d6b90c6`). (History: this section was first recorded as
+  implemented, pending independent tester and reviewer.)
+- Tester: **PASS** at `ed24a34`. `make lint` rc 0. `make test`: backend
+  2844 passed, 0 failed, 0 skipped in 1629.85 s; vitest 14 files / 80
+  passed; e2e 4 passed (mock review-delivery 1, real review-delivery 1,
+  completion-goal-real 2); targeted 61 passed; `make test` wall time
+  1851 s. No sleep in the 17:29–18:03 PDT 2026-10-29 window.
+- Reviewer: **ACCEPT** at `ed24a34`, no P0/P1. The reviewer independently
+  ran the backend suite (2844 passed). Its P2 findings (repair fallback
+  when the guard repair returns hard-invalid output, the truncated repair
+  message, test gaps, the v3 `suspicious_exact_top_n` counter) are taken up
+  as Stage 11b below.
+- Origin: the Stage 10 reviewer P1. In
+  `src/liveclip/pipeline/stage_handlers.py` the V5 mini-lesson edit, the
+  legacy mini-lesson edit, the `semantic_global`/`semantic_windowed`
+  `_edit` and the V5 persisted-plan replay copied the model title, hook
+  and `review_reason[:240]` straight into EditPlan. In these paths the
+  model text is real product content (web review, release description,
+  review package, burned title), so harmless prose that trips the
+  unchanged `reject_executable_text` guard ("X make Y", a title such as
+  "ffmpeg 入门") made the edit stage raise and failed the whole
+  generation.
+- **User decision (binding):** first ask the model to rewrite the text
+  through the existing Global Review repair loop; if the rewrite still
+  trips the guard, block only that clip with a deterministic flag/reason
+  and let the rest of the run finish. The guard is not narrowed.
+- Implementation:
+  - New `src/liveclip/pipeline/edit_text_guard.py`: one EditPlan builder
+    (`build_ai_edit_plan`, `profile_v4_edit_plan`) used by every build site
+    and by the V5 replay, so plan construction cannot drift and is
+    byte-identical for guard-passing text; `edit_plan_text_errors` probes
+    each text field through the real `EditPlan` model on the same truncated
+    value (so it mirrors stripping, length, display normalization and the
+    guard exactly); deterministic downgrade functions.
+  - The stage validators (not the shared
+    `validate_profile_global_review_v4` / `validate_global_review_v3` /
+    `validate_global_review`, which dual-profile evaluation and benchmarks
+    share) raise `DeferredValidationError` (new, in
+    `pipeline/semantic_executor.py`) after every shared validator passed.
+    All repair loops (`_run_v4_requests`, the durable semantic-unit
+    executor, the local `_edit` loop) spend their sole repair on it with
+    an error prefixed "Deterministic text guard: " naming the field.
+  - When no repair remains (rewrite still unsafe; the schema repair spent
+    it; a semantic-cache hit; a durable semantic-unit outcome replay), the
+    output is accepted and only the affected candidate is downgraded: V4/V5
+    Profile and v3 rows to `blocked` with validation note
+    `deterministic_text_guard_gate`; the legacy `semantic_global` contract
+    has no blocked bucket, so its selected/manual row becomes `rejected`
+    with `deterministic_text_guard_changed_kept_to_rejected`. Statistics
+    stay consistent; Python never rewrites model text and never promotes a
+    Top-N-excluded candidate. Hard validation errors still fail as before.
+  - No new enum: validation notes are free strings, so schemas, web types
+    and the exported EditPlan JSON Schema are unchanged.
+  - `docs/PRODUCT_SPEC.md` records the behavior (amendment 2026-10-29).
+- Unchanged: guard patterns; dual-profile prompts, cache keys and
+  `DUAL_PROFILE_ALGORITHM_VERSION`; benchmark JSON/MD and evaluator
+  thresholds; the frozen `tools/loop_engineering` files.
+- Tests (mock/fixture only, no model calls):
+  - `tests/unit/test_edit_text_guard.py` (13): the isolated plain "make"
+    false positive; the "ffmpeg 入门" title; truncation/stripping parity;
+    byte-identical plans; V4/v3/legacy downgrades (only the violator,
+    statistics, no promotion, identity for passing text); executor repair,
+    accepted rewrite, schema-repair-spent and hard-failure paths.
+  - `tests/integration/test_edit_text_guard_pipeline.py` (37): full mock
+    pipeline runs for mini-lesson configs V8 (legacy), V9, V11 and V13 and
+    for `semantic_windowed` v3 and legacy `semantic_global`, each local and
+    bounded, with a "make" reason and an "ffmpeg 入门" title that are either
+    repaired by the mock rewrite or blocked; lineage runs crash once after
+    the EditPlan commit so the replay re-applies the gate; cache and
+    durable-outcome retries block without new model calls; every run
+    completes.
+  - Stage 10 P2 nits: the Agent render test now also runs the plain "make"
+    reason alone; a new dual-profile render test covers the
+    `manual_review` product strings.
+- Coder verification (mock/fixture only): targeted pytest over the 15
+  affected files (new tests, stage handlers, semantic executor/unit
+  recovery, lineage runtime, persistent mock pipeline, transport budget,
+  semantic profiles, EditPlan, dual-profile render, Agent delivery) 468
+  passed in 453.38 s; further checks 7 passed (import-only, review-delivery,
+  asset-integrity, worker-race integration), 170 passed (dual-profile and
+  benchmark unit), 681 passed (semantic global/lineage/validation unit);
+  `PYTHONDONTWRITEBYTECODE=1 NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+  make lint` exit 0. (At the time, full `make test`, the independent tester
+  and the reviewer were pending; see the tester and reviewer bullets above.)
+
+## Stage 10 render guard false positive (2026-10-23) — ACCEPTED at 0515ef7
+
+- **Status: ACCEPTED** on local branch `claude/liveclip-stage8-routing`.
+  Not pushed or merged. Code commit
+  `0515ef75f93b68b1bc57794a0c8f356d7c00023e`.
+- Root cause: `render_dual_profile_candidates` copied the model
+  `review_reason[:240]` and the title/hook into the guarded EditPlan
+  fields. The unchanged `reject_executable_text` guard then matched the
+  English word "make" in candidate `sh0006_breathy_mix_vs_leak`, and the
+  cold-27 render failed closed after 5 of 14 clips.
+- Fix: the guarded EditPlan fields (title, hook, reason) now carry
+  deterministic product text built from validated enums and the score, in
+  both the dual-profile and the Agent render paths. Model prose stays in
+  the final JSON, the render manifest and the review package. The guard
+  and its patterns are unchanged.
+- Tester: PASS at `0515ef7`, no sleep in the window: `make lint` rc 0;
+  `make test` rc 0, backend 2792 passed in 1444.08 s, vitest 14 files /
+  80 tests, e2e mock 1, real review-delivery 1, completion-goal 2;
+  targeted 25 passed.
+- Reviewer: ACCEPT. P2 nits: the Agent test mixes "make" with "rm -rf",
+  so it does not isolate the plain "make" false positive; the
+  `manual_review` strings have no coverage.
+- Reviewer P1 (decided by the user, Stage 11 below): the persisted
+  pipeline edit stages in `src/liveclip/pipeline/stage_handlers.py` still
+  put model `review_reason[:240]` and title/hook straight into EditPlan.
+
+### cold-27 real Claude CLI acceptance attempt (2026-10-23, frozen Claude CLI 2.1.308, subscription login)
+
+This is a fresh, resumable acceptance attempt, not a warm diagnostic.
+Evidence categories stay distinct: this run is real-model inference
+evidence; the strict evaluator result is deterministic validation of that
+output; rendering plus human editorial/audio review is a separate
+acceptance activity and is **not** claimed here.
+
+- Code: HEAD `e173c28d9ef076ba2a730f42ca57829a34e01e24` (Stage 9 code).
+- Roots: `data/evaluations/dual-profile-benchmark-20261023-claude-cold-27`
+  and `data/evaluations/dual-profile-cache-20261023-claude-cold-27`. Both
+  were absent at the start and the cache started empty. Doctor and
+  `smoke-claude` OK.
+- One segment (no cold-27b was needed); no usage limit was hit. Eval rc 0
+  in 3756 s.
+- Calls: `cache_hits` 0; 233 calls (Discovery 160, Boundary Review 52,
+  Global Review/Audit 20, variant link 1); 239 provider records; 6
+  repairs; 0 retries; no 429, 529 or usage-limit errors. Tokens: input
+  11,460,411, output 1,059,863. Latency per call: median 26.4 s, p95
+  98.9 s.
+- Provenance: 233 cache files, all with mtime at or after the attempt
+  start (epoch 1792779597). None is content-identical to any of the 3972
+  key files in 20 earlier roots; 81 file names also appear in earlier
+  roots, which is expected because cache keys are deterministic.
+- Strict result: **PASS 95.0**, evaluator exit 0, 0 hard failures.
+  - Components: short 20, mini 25, risk 10, boundary 15, both Profiles 15,
+    audit 10.
+  - Short 8/8. S06 matched by `sh0009_balanced_mix_step5` (selected,
+    −2300/+2860 ms).
+  - Mini 5/6, L01–L05 hit. L07 missed: all three boundary-matching
+    candidates carry `context_dependent_opening` (blocked/rejected); the
+    kept `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts
+    −30540 ms early.
+  - R01 blocked; R02 `manual_review`.
+  - The second auto-selected clip `audit_sh0011_self_taught_era_intuition`
+    lies inside supplemental O01; no gate applies.
+  - Twin union: 0 of 23 groups differ on gated flags after the union.
+    Nested pairs: short 0; mini 36 (16 `duplicate`, 20
+    `distinct_objective`).
+  - Durable strict-eval output:
+    `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`.
+    (2026-10-29 update: this output is complete, strict **PASS 95.0**. The
+    provenance proof was rebuilt there read-only; its attempt-start epoch
+    comes from the runner's report because the original
+    `attempt-start.txt` was lost. An earlier version of this record said
+    the output was still being written by a runner.)
+- Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 (diagnostic) /
+  cold-27 PASS 95.0. L07 and S06 vary between runs with the model's
+  `context_dependent_opening` judgments.
+- S06/L07 variance analysis (2026-10-29, read-only over the ignored run
+  artifacts; no model calls):
+  - warm-26 and cold-27 had identical prompt hashes and identical
+    Discovery inputs, so their differences come purely from model
+    sampling. cold-18 used gpt-5.6-sol through `codex_cli` with older
+    prompts and is not comparable.
+  - S06 (missed in warm-26): Boundary Review kept a Discovery
+    `context_dependent_opening` flag on the candidate while also setting
+    `opening_complete=true`. Global Review disagreed with the flag but
+    chose `blocked` because the review prompts claimed that Python
+    enforces every unresolved flag. Python actually gates only
+    `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`; advisory flags only forbid
+    `selected`.
+  - L07 (missed in cold-27): the anchor start sits after a 27.46 s
+    untranscribed gap (01:40:07.540–01:40:35.000). 3 of 6 Boundary Review
+    calls started at setup cue 2854 to capture the gap; the single Global
+    Audit then chose the cue-2854 version as the representative, which is
+    −30540 ms from the anchor.
+  - Human listening of that gap is pending with the user.
+  - Follow-up: a general flag-contract alignment that is not tuned to any
+    anchor (planned as Stage 12).
+- Renders:
+  - The first attempt into `<run>/renders/` failed closed after 5 of 14
+    clips (the Stage 10 bug). That partial directory has no manifest and
+    is kept untouched.
+  - The re-render at `0515ef7` into `<run>/renders-r2/` succeeded: rc 0,
+    244 s, 14 clips. Automatic checks (decode, black-frame, edge) passed;
+    h264_videotoolbox 1080x1920. The sha256 of `final-validated.json` and
+    `run-manifest.json` is unchanged by the render.
+  - Human visual and audio review is **PENDING**.
+- Open follow-ups: Stage 11 (persisted pipeline edit stages; ACCEPTED at
+  `ed24a34` on 2026-10-29, see the Stage 11 section above; first recorded
+  here as implemented, pending verification);
+  human review of the `renders-r2` clips; an optional holdout livestream
+  (overfitting risk: the prompts were tuned on one transcript); the
+  L07/S06 run-to-run variance (analysed read-only above; human listening
+  of the L07 gap pending); push and merge only with explicit user consent.
+
+## Stage 9 dual-profile routing and review-prompt batch (2026-10-22) — ACCEPTED at 56aa93c
+
+- **Status: ACCEPTED** (2026-10-22) on local branch
+  `claude/liveclip-stage8-routing`. Not pushed or merged. Code commits:
+  - `bfdef3bee12c664bf6b0f21cad86eb656d6a0635`: same-interval gated-flag
+    union (a `selected`/`manual_review` twin that inherits a gated flag
+    becomes `blocked`, never raising; advisory flags and
+    `source_title_mismatch` are not shared); risk records excluded by Top-N
+    are retained as `blocked`; final `evidence_cue_ids` are limited to the
+    final interval (raw Discovery artifacts keep the originals); a fresh
+    Global Audit must also decide nested pairs its own replacements create.
+  - `703cfbbf1f3b5815f1db3dca409ae6b2607e8336`: consolidated review-prompt
+    batch in `stages/boundary_review.md`, `global_review.md` and
+    `global_audit.md` only (rules A, B2, C, D plus the reviewer P2
+    wording). Discovery prompts are byte-identical and their hashes stay
+    pinned.
+  - `56aa93c15b56c9a0f2d226c1203166365dca4b87`: review fix. The Global
+    Audit cache-hit leniency is removed, so cache hits are re-validated
+    with the same rule as fresh outputs (safe because pre-rule audits
+    carry an older audit prompt hash); the equipment/audibility carve-out
+    (a speaker's brief explanation of their own equipment or of why moving
+    closer helps listeners hear is part of the demonstration; an
+    audibility check is asking or answering whether someone can hear;
+    "lag" is connection lag); the duration-minimum wording ("no longer
+    satisfies the Profile duration minimum"; a closing acknowledgement is
+    neither padding nor subtracted); the softened untranscribed-gap rule;
+    a comment on why twins share `topic_switch_inside`/`topic_not_closed`.
+- Routing-policy marker: `quality-gate-risk-routing-v3` (v1, v2 and a
+  missing marker still load). `DUAL_PROFILE_ALGORITHM_VERSION` unchanged.
+- Reviewer round 1 at `703cfbb`: CHANGES_REQUIRED. P1: a warm run crashed
+  on a cached audit that had decided a pair created by its own
+  replacements (the lenient cache-hit validator rejected it as unlisted).
+  P2: prompt anchor risks for L01/S04 (equipment/audibility carve-out too
+  narrow), S08 (duration-minimum wording) and rule C (untranscribed gaps).
+  Re-review: ACCEPT for `4f2c068..56aa93c`.
+- Tester: PASS at `56aa93c` on AC, no sleep: `make lint` exit 0; `make
+  test` x2 exit 0, backend 2790 passed / 0 failed / 0 skipped each
+  (1433.30 s, 1421.72 s), vitest 14 files / 80 tests, e2e 4/4 both runs;
+  targeted 182 passed. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-56aa93c/`.
+- Coder evidence (offline, no model calls): replays and cache predictions
+  under `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-B/`, `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-C/` and `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-D/`. Against the
+  warm-24 cache: all 160 Discovery-family calls hit, 75 misses (Boundary
+  54, Global Review 18, Audit 2, Variant 1); warm-24 replay FAIL 92.5 with
+  only `audit_squeezed_voice_channel_no_shouting_136_178` moving to
+  `blocked`.
+- **Never use the scratch caches** under `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-C/predict-*` and
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage9-D/predict-*` (or the earlier `stage8-f3/predict-*`) as a
+  warm-cache source: they contain synthetic, replayed outputs.
+
+### Real Claude runs after Stage 9 (2026-10-22, frozen Claude CLI 2.1.308, subscription login)
+
+Warm runs are **diagnostic only**: their Discovery outputs came from
+cold-21/warm-22, and the review prompts were iterated against this same
+transcript. They are not acceptance evidence.
+
+- warm-25 (diagnostic, Stage 9 code, cache from warm-24): stopped on the
+  subscription usage limit after 2474 s with 73 of the 75 new calls
+  cached. Not a quality result. Raw twin disagreement on gated flags was
+  6/24 (warm-24: 9/24).
+- warm-26 (diagnostic, Stage 9 code, cache from warm-25, `cache_hits` 233,
+  2 new calls plus 1 audit repair, 1194 s): strict **PASS 97.5**, no hard
+  failures, no PASS blockers.
+  - Short 7/8: S03 is now hit; S06 is missed because its only candidate
+    `sh0009_step5_balanced_mix` was model-blocked with
+    `context_dependent_opening`.
+  - Mini 6/6 (L07 is back). R01 and R02 routed (blocked).
+  - `sh22_find_voice_from_phonation` (N09) is now blocked; the forbidden
+    composite cleared.
+  - Informational: N08 manual review; title/hook faithfulness.
+  - Post-union twin disagreement on gated flags: 0/24.
+  - 13 renders passed automatic checks (S06 not rendered); human visual
+    and audio review is pending.
+- (Historical; cold-27 ran, see the Stage 10 section above.) **Next step:** a fresh acceptance run (method pending a user decision
+  because of the subscription quota), then human editorial/audio review,
+  then push/merge only with explicit operator consent.
+
+## Stage 8 dual-profile routing and review-stage fixes (2026-10-22) — ACCEPTED at 4f2c068
+
+- **Status: ACCEPTED** (2026-10-22) on local branch
+  `claude/liveclip-stage8-routing` (from `b3a4fbe`). Not pushed or merged.
+  Code commits:
+  - F1 `28c9ca1d8d342a4a097a904ec9ac943be867be8d`: final status agrees with
+    the merged quality flags. A `manual_review` row whose merged Boundary ∪
+    Global Review flags include `padded_with_irrelevant_content`,
+    `sales_or_cta_padding`, `device_or_waiting_padding`,
+    `material_interruption`, `topic_switch_inside`, `topic_not_closed` or
+    `asr_uncertain_blocks_meaning` becomes `blocked` ("Deterministic quality
+    gate: …"). `context_dependent_opening` and
+    `missing_required_prior_steps` stay advisory. Python only downgrades.
+  - F2 `1b18ec14010ef53b4f705cbd5a1120675f219688`: a `rejected` record of the
+    dedicated risk-discovery pass is retained as `blocked` ("Deterministic
+    risk routing: …"), keeping its duplicate reference and evidence. The
+    set `risk_record_ids` is derived structurally from the risk pass
+    outputs, never from ID prefixes. **User decision:** this
+    rejected → blocked exception is approved; `docs/PRODUCT_SPEC.md` records
+    it next to "never … upgrades a model rejection".
+  - F3–F5 `4f2c06821777bbb93dc95605554f1aa1e865f0e0`:
+    - F3a: the Boundary evidence-cue lock applies only to risk-pass
+      records; risk tags stay cumulative for every candidate.
+    - F3b: Boundary and Global Review payloads carry a structural
+      `discovery_pass`; the boundary prompt keys risk handling on it.
+    - F3c: boundary edge audit (setup versus premise; CTA, device, chat and
+      filler edges are padding regardless of duration needs).
+    - F4: the `nested_pair_decisions` contract (below).
+    - F5: `context_dependent_opening` only when the opening cannot be
+      recovered inside the interval; same-concept application is payoff;
+      Boundary flags are cumulative and enforced by Python. **User
+      decision:** context-only candidates stay blocked (no deterministic
+      broadening).
+  - Only `stages/boundary_review.md`, `stages/global_review.md` and
+    `stages/global_audit.md` changed among the prompts; Discovery prompts,
+    schema, `main.md`, profiles, `repair.md` and
+    `DUAL_PROFILE_ALGORITHM_VERSION` are unchanged, and a test pins the
+    Discovery-family prompt hashes so the Discovery cache stays valid.
+- Routing-policy marker: `DualProfileFinalResult.routing_policy_version`
+  is optional. `manual-review-quality-gate-v1` (F1) and
+  `quality-gate-risk-routing-v2` (F1+F2, written by new runs) both load, and
+  older artifacts without the field load as `None`.
+- `nested_pair_decisions` contract (F4): Python lists, from the initial
+  Global Review, every same-Profile pair of `selected`/`manual_review`
+  candidates that share a start or end cue (so one contains the other) and
+  sends it as `nested_pairs` to the Global Audit. The required
+  `ProfileGlobalAuditOutput.nested_pair_decisions` must decide each listed
+  pair exactly once as `duplicate` (one row `rejected`, or `blocked` for a
+  risk-pass record, with `duplicate_of_candidate_id` naming the other) or
+  `distinct_objective` (neither references the other), each with a reason.
+  Containment alone never decides duplication. Failures use the existing
+  repair path; old cached audit outputs cannot be reused because the audit
+  prompt hash and payload both changed.
+- Tester: PASS at `4f2c068` on AC, no sleep: `make lint` exit 0; `make test`
+  x2 exit 0, backend 2778 passed / 0 failed / 0 skipped each (1425.50 s,
+  1442.41 s), vitest 14 files / 80 tests, e2e 4/4 both runs; targeted 170
+  passed. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-4f2c068/`.
+- Reviewer: ACCEPT at `4f2c068`, no P0/P1, six P2s. The code P2s (Top-N
+  risk routing, final evidence filtering, post-audit nested pairs) and the
+  prompt-wording P2s are scheduled in Stage 9. Two doc P2s from the
+  earlier `b3a4fbe` review (frozen-canary wording, email residual context)
+  are fixed in the Stage 7 runbook section below.
+- Coder evidence (offline, no model calls): replay logs under
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f1/`, `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f2/` and `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage8-f3/`, including the
+  cache prediction against the warm-22 cache (all 160 Discovery-family
+  calls hit; 75 misses: Boundary 54, Global Review 18, Audit 2, Variant 1).
+
+### Real Claude runs (2026-10-22, frozen Claude CLI 2.1.308, subscription login)
+
+Evidence categories stay separate: these are real model runs scored by the
+strict (Stage 4) evaluator. Warm runs reuse a cache and are **diagnostic
+only**; acceptance needs a fresh cold run (`cache_hits=0`, about 230 calls).
+
+- cold-21 (`data/evaluations/dual-profile-benchmark-20261022-claude-cold-21`):
+  stopped on the subscription usage limit after 1576 s with 115 calls
+  cached. Not a quality result.
+- warm-22 (diagnostic, Stage 7 code, `cache_hits` 115, 120 new calls):
+  strict **FAIL 90.0**; short 6/8, mini 6/6; R01 misrouted (its full-coverage
+  candidates were rejected as duplicates of a blocked row); padding x2;
+  forbidden composite interval.
+- warm-22 offline replay with F1+F2 (no model calls): strict **FAIL 95.0**;
+  R01 matched by `risk_two_faults_vocal_closure_parent` (blocked); remaining
+  hard failure `irrelevant_padding`.
+- warm-23: stopped on the subscription usage limit (73 of the 75 new calls
+  cached). Not a quality result.
+- warm-24 (diagnostic, Stage 8 code at `4f2c068`, `cache_hits` 233, 2 new
+  calls plus 1 repair, 653 s): strict **FAIL 92.5**, no PASS blockers.
+  - Short 7/8 (S03 blocked); mini 5/6 (L07 lost); R01 and R02 routed.
+  - Hard failures: `negative_anchor_output` (`sh22_find_voice_from_phonation`
+    in N09) and `forbidden_composite_interval`
+    (`audit_squeezed_voice_channel_no_shouting_136_178`).
+  - Renders of the 12 matched clips passed automatic checks; human
+    editorial/audio review is pending.
+- Subscription quota is a real constraint: cold-21 and warm-23 both hit the
+  usage limit. Start the cold acceptance run right after a limit reset.
+- (Historical; Stage 9 is ACCEPTED, see above.) **Next step:** Stage 9 (same-interval flag union, Top-N risk routing,
+  final evidence filtering, post-audit nested pairs, consolidated review
+  prompt batch), then warm-25 as a diagnostic, then the cold acceptance
+  run.
+
+## Integration of Stages 6 and 7 on accepted Stage 4 (2026-10-22) — Stages 6 and 7 ACCEPTED at 996962b
+
+- Branch `claude/liveclip-stage7-claude-cli` now holds, in order: Stage 4
+  (ACCEPTED at `8b14aa3`, acceptance docs `0bb4af4`), Stage 6 rebased onto
+  `0bb4af4`, and Stage 7 rebased onto the Stage 6 tip. Local only; not
+  pushed or merged.
+- Rebased SHAs (old -> new):
+  - Stage 6: `a22f9d3` -> `cef7d4b`, `670478e` -> `9a9cfc8`, `039c998` ->
+    `a7bbbf0`, `fc06b3e` -> `84dd4a8`, `7de4760` -> `5a7641e`, `f824df0` ->
+    `437ebb8`; plus new message-only test commit `fc13163` (reviewer P2 #2:
+    the `_wait_for_polls` timeout reports observes, heartbeats, thread
+    liveness and `lost_lease`).
+  - Stage 7: `84fe07e` -> `9eb7a38`, `7340355` -> `e744935`, `fe4350a` ->
+    `850e0af`, `8ca7bba` -> `2865336`, `ad30372` -> `4e2bf8f`, `a010714` ->
+    `db2bc32`.
+- Code identity: the non-doc diff (excluding `STATUS.md`, `docs/**`,
+  `tasks/**`) of each rebased branch against its new base is byte-identical
+  to the reviewed diff against its old base (`cmp` exit 0 for both; sha256
+  `d0873f86...` for Stage 6 and `176bd64d...` for Stage 7). Only doc files
+  conflicted; every section was kept (Stage 7 above Stage 6 above Stage 4).
+- The frozen Claude CLI 2.1.308 binary is in the ignored
+  `.cache/claude-cli/2.1.308/claude` (mode 0555, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`).
+- (History: Stages 6 and 7 awaited the integrated test and review round on
+  this tip; Stage 7 round 3 (`4e2bf8f`, `db2bc32`) was reviewed with it.)
+- **Stage 6 ACCEPTED** (code `a22f9d3` rebased to `cef7d4b`..`437ebb8`, plus
+  diagnostics commit `fc13163`) and **Stage 7 ACCEPTED** (code through
+  `4e2bf8f`, docs `db2bc32`), both verified at the integrated tip
+  `996962b1041181317430ad9463cf6042aac01786` (2026-10-22). Local only; not
+  pushed or merged.
+  - Tester: PASS at `996962b`, on AC power, with 0 sleep/wake entries in
+    every window:
+    - `make lint` exit 0;
+    - `make test` twice, both exit 0: backend 2752 passed, 0 failed,
+      0 skipped each (1411.10 s and 1413.74 s); vitest 14 files / 80 tests;
+      e2e 4/4 in both runs;
+    - lease and suspend set 51 passed x 3;
+    - provider tests 76 passed; benchmark tests 130 passed;
+    - `liveclip doctor` `claude_cli` pass with the frozen path:
+      `reviewed_version` 2.1.308, `auth_method` `claude.ai`,
+      `subscription` true, contract
+      `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`;
+      0 email matches in the saved output;
+    - 1323 pre-existing `playwright-report` files hash-identical.
+
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/integrated-996962b/`.
+  - Reviewer: ACCEPT at `996962b`. The code is byte-identical to the
+    reviewed commits and there is no Stage 6 x Stage 7 interaction. Three
+    doc P2s were fixed in the docs-only commit that follows `996962b`:
+    1. the Stage 4 branch-tip rule now names the range `8b14aa3..0bb4af4`;
+    2. the authorization rationale above names the Claude CLI engine and
+       the subscription-only login;
+    3. the isolation canary was re-run against the frozen binary (see the
+       Stage 7 runbook).
+  - Evidence categories: deterministic validation plus real subscription
+    smoke and canary calls. No benchmark run, rendering or human review is
+    part of this acceptance.
+- (Historical; superseded by the Stage 8 section above.) **Next step:** the real Claude benchmark cold-21 via the Stage 7 runbook:
+  new evaluation and cache roots, the frozen binary
+  (`LIVECLIP_CLAUDE_EXECUTABLE` = the absolute `.cache/claude-cli/2.1.308/claude`
+  path, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`), doctor plus one
+  `smoke-claude` first, `dual-profile-eval --discovery-concurrency 3`, then
+  the strict (Stage 4) evaluator. Compare with cold-18, which is a strict
+  FAIL 90.0.
+
+## Stage 7 Claude CLI structured provider (2026-10-21) — ACCEPTED (code through 4e2bf8f, docs db2bc32)
+
+- **Status: ACCEPTED** (2026-10-22): code through
+  `4e2bf8f616fdb5018df9f92cad2a0c633699fe43`, docs
+  `db2bc3259167c8d9baca3ce9e137f1319459ba9b`, verified at the integrated
+  tip `996962b`. Tester PASS and reviewer ACCEPT; evidence in the
+  integration section above. Not pushed or merged.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance, on local
+  branch `claude/liveclip-stage7-claude-cli`, created from `ca80fb7` (Stage 4
+  docs tip). Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`. Not pushed or merged.
+- Operator directive (2026-10-21): the dual-profile understanding engine
+  switches to the local Claude Code CLI. Reason: the real benchmark runs
+  cold-19 and cold-20 failed within about 7 s. The Codex ChatGPT login
+  returned 429 Too Many Requests on the concurrent Discovery burst, and the
+  pipeline reported only "structured model output could not be validated".
+  Real Claude CLI calls are authorized through the subscription login only,
+  never an API key.
+- What changed:
+  - New `ClaudeCliStructuredLLMProvider` (`src/liveclip/providers/llm/claude_cli.py`).
+    It mirrors the Codex structured provider: the same prompts and payloads,
+    the same strict schema, the single schema repair, and the same
+    `provider-calls.json` and `run-manifest.json` records with
+    `provider=claude_cli`.
+  - Selection: `LIVECLIP_STRUCTURED_PROVIDER=auto|codex-cli|claude-cli`
+    (default `auto`, which keeps the historical Codex mapping). A separate
+    setting is used because `LIVECLIP_AI_PROVIDER` also selects ASR and is
+    persisted in pipeline run identity.
+  - Settings: `LIVECLIP_CLAUDE_EXECUTABLE` (default `claude`),
+    `LIVECLIP_CLAUDE_MODEL` (default `claude-opus-5-5`), a 900 s timeout,
+    and retry settings (5 attempts, 5 s base, 60 s per-wait cap, 300 s
+    total-wait cap).
+  - Efforts map one-to-one: medium for Discovery, high for boundary and
+    global review.
+  - Version pin: CLI `2.1.307` only. The contract identity
+    `claude-cli-editorial-v1.<version>.<sha256>` binds the executable hash,
+    the version, the security profile and an argv-template hash. Cache keys
+    therefore never mix Codex and Claude results.
+  - Rate limits: 429, 529, 5xx and connection errors get exponential
+    backoff with equal jitter. Retries are counted in the call record's
+    `request_count`/`retry_count`. On exhaustion the error names the cause,
+    for example "Claude CLI rate limited (429) after 5 attempts". A
+    subscription usage cap and schema failures are never retried as rate
+    limits.
+  - Codex (small): a 429 now surfaces as "Codex CLI rate limited (429 Too
+    Many Requests) after N attempt(s)". A zero-exit run with no final message
+    but a 429 error event no longer consumes the schema repair. Codex retries
+    were not added.
+  - `liveclip doctor` gains a `claude_cli` check (version, contract, logged
+    in, auth method type, subscription yes/no). New `liveclip smoke-claude`
+    and `make smoke-claude`. `run_cancellable_process` gains an optional
+    `cwd`.
+- Isolation and auth design, verified with real calls:
+  - argv: `--print --output-format json --json-schema <schema> --model
+    --effort --no-session-persistence --tools= --disallowed-tools <list>
+    --permission-mode dontAsk --permission-prompts none
+    --disable-slash-commands --strict-mcp-config --mcp-config
+    {"mcpServers":{}} --setting-sources= --safe-mode --system-prompt
+    <minimal>`. The LiveClip prompt goes on stdin unchanged, with cwd set to
+    a fresh empty temp directory.
+  - `--bare` is not used. Its help says OAuth and keychain are never read; a
+    real `--bare` probe without an API key returned "Not logged in".
+  - The child env is an allowlist (HOME, PATH, USER, LOGNAME, TMPDIR, LANG,
+    LC_ALL, SSL_CERT_FILE, SSL_CERT_DIR). `ANTHROPIC_*`, `CLAUDE_CODE_*` and
+    `CLAUDECODE` are never passed. The run factory refuses any login whose
+    `claude auth status` method is not `claude.ai` with provider
+    `firstParty`.
+  - Real probe in a canary directory with a planted `CLAUDE.md` and project
+    hooks: no CLAUDE.md, memory, skills, MCP servers, plugins or hooks were
+    seen, and the hook did not fire. The only tool was the built-in
+    `StructuredOutput`. A control run with default flags did see the
+    canary, the skills and the MCP servers.
+  - Residual context that cannot be removed without `--bare`: an
+    environment block (temp cwd, platform, date, model name) and an
+    auto-attached account-email reminder. Neither is a credential.
+  - No new `~/.claude/projects` or `~/.claude.json` project entries appeared.
+- Real-call evidence (authorized, subscription login, auth method
+  `claude.ai`):
+  - `smoke-claude`: succeeded, 4542 ms, 1 request, schema valid.
+  - Real dual-profile Discovery on the committed fixture
+    `tests/fixtures/8-30-full-transcript.srt`, `claude-opus-5-5`, effort
+    medium. All three calls passed schema and deterministic validation with
+    no repair and no retry:
+    - `short_highlight` window 0: 6.6 s, 0 candidates;
+    - `short_highlight` window 5: 37.0 s, 5 candidates;
+    - `mini_lesson` window 2: 31.0 s, 3 candidates (the last two ran
+      concurrently).
+  - The full 75-minute benchmark was **not** run; the Controller dispatches
+    it separately.
+- Coder checks: see the Stage 7 Progress entry in
+  `docs/exec-plans/liveclip-agent-runtime-v2.md`. Logs:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/`.
+- Caveats: deterministic tests use fake `claude` executables. Real calls
+  prove only the smoke and three Discovery windows, not benchmark quality.
+  `provider-calls.json` carries transport retries per call. The manifest
+  `retry_count` still counts only the semantic retries made by
+  `dual_profile_evaluation`.
+
+- **Review round 1 at `7340355`: CHANGES_REQUIRED (2 P1, 7 P2).** Fixes are
+  in code commit `fe4350a7ed8b553a9aca980bf78238f42fe6a3ed`, pending tester
+  and reviewer. Not pushed.
+  - P1-1 (auth gate only once per run): `require_claude_subscription` now
+    runs in the provider constructor and before every inference call, next
+    to the contract re-check. If the login changes to an API key, a Console
+    account or a managed `apiKeyHelper`, the next call is refused before
+    launch.
+  - P1-2 (stale pin): the installed CLI auto-updated to 2.1.308. The full
+    re-review found no drift:
+    - the `--help` and `auth status --help` texts are byte-identical to
+      2.1.307;
+    - the production-argv canary (planted CLAUDE.md plus project hooks)
+      showed no CLAUDE.md, memory, skills, MCP or plugins, and the hook did
+      not fire; the only tool was `StructuredOutput`;
+    - the default-flag control saw the canary, 48 tools and 36 skills, and
+      fired the hook;
+    - `--bare` without a key returned "Not logged in";
+    - auth status reported `claude.ai` / `firstParty`;
+    - `smoke-claude` succeeded (4543 ms, 1 request).
+
+    The constant is now `2.1.308`, with a reviewed bump procedure in the
+    code comment: diff the help texts, run the canary plus control, run the
+    bare and auth probes, run one real smoke, and stop on any drift.
+  - Auto-update: `DISABLE_AUTOUPDATER=1` is forced into every child,
+    including the version and auth probes. The user's global Claude
+    settings are unchanged. An interactive Claude session that auto-updates
+    the binary mid-run changes the executable hash and version, so the next
+    call aborts fail-closed. The operator can disable auto-update during
+    benchmarks.
+  - P2s:
+    - Codex: quota and usage-cap markers are classified before the bare-429
+      rule, and a zero-exit quota event also skips the schema repair. In
+      full, round 1 widened 429 detection and added a zero-exit path;
+      round 2 added the cap-first ordering.
+    - Tool activity is checked first.
+    - The account email from the auth probe stays in memory only
+      (`repr=False`). An answer containing it, case-insensitively, is
+      `STRUCTURED_OUTPUT_INVALID`, and its output is dropped from the repair
+      payload, diagnostics and messages.
+    - `LIVECLIP_CLAUDE_MODEL` must be a full `claude-` ID; aliases are
+      rejected.
+    - The contract identity binds the env allowlist and the forced env
+      values.
+    - New tests cover:
+      - malformed auth probes;
+      - probe env;
+      - cancellation during backoff;
+      - the `_resolve_call` exhaustion message;
+      - the auth flip between calls.
+  - Controller decisions:
+    - the pin stays a code constant;
+    - the email is accepted as residual context, with the guard;
+    - no manifest schema change;
+    - the code default concurrency stays 5, and **the first Claude benchmark
+      uses `--discovery-concurrency 3`**.
+  - Round 2 checks:
+    - ruff, format, mypy and schema exit 0;
+    - targeted pytest 670 passed, exit 0;
+    - the full suite was left to the tester, as directed.
+
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/round2/`.
+  - Probe hygiene: the default-flag control and the `--bare` probe each
+    created a `~/.claude/projects` entry (a memory directory and a session
+    file). The coder removed both. Production-argv runs created none.
+
+- **Review round 2 at `8ca7bba`: ACCEPT with 3 non-blocking P2s.** Round 3
+  code commit `ad3037213fdfc1cf3090adc2a034b8cdbab2ffef`. Not pushed.
+  - The subscription login is re-checked after each backoff sleep, before
+    the relaunch.
+  - `liveclip doctor` warns (does not fail) when `claude auth status`
+    reports no account email, because the output identity guard is then
+    inactive. Only the boolean `account_identity_guard` is reported.
+  - `.env.example` states that `LIVECLIP_CLAUDE_MODEL` must be a full
+    `claude-` model ID.
+  - Round 3 checks:
+    - ruff, format, mypy and schema exit 0;
+    - `test_claude_cli_provider.py`, `test_codex_rate_limit_message.py` and
+      `test_dual_profile_evaluation.py`: 76 passed, exit 0.
+
+    Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage7-coder/round3/`.
+- **Benchmark runbook: freeze the reviewed Claude CLI binary.** The
+  interactive Claude Code install can update or re-touch
+  `/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe`
+  mid-run. The contract identity hashes the executable, so the run would
+  abort fail-closed. Before a Claude benchmark, in the worktree that runs
+  it:
+  1. Confirm `claude --version` is the reviewed version (2.1.308).
+  2. Copy it, keeping mode, to the ignored path
+     `.cache/claude-cli/2.1.308/claude`. `.cache/` is already in
+     `.gitignore`; check with `git check-ignore -v`, and never commit the
+     roughly 275 MB file.
+  3. Make the copy read-only (`chmod 0555`) and check that its sha256
+     equals the installed binary's.
+  4. Set `LIVECLIP_CLAUDE_EXECUTABLE=<absolute path of the copy>` and
+     `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
+  5. Run `liveclip doctor` (`claude_cli` must pass with `reviewed_version`
+     2.1.308 and `subscription` true) and one `liveclip smoke-claude`.
+  6. Run `dual-profile-eval --discovery-concurrency 3`.
+
+  Verified 2026-10-21 in the Stage 7 worktree:
+  - The copy's sha256
+    `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`
+    equals the installed binary's, with the same Anthropic code signature.
+  - Doctor `claude_cli` passed: 2.1.308, `claude.ai`, subscription true,
+    identity guard active.
+  - Real `smoke-claude` succeeded in 4578 ms (7.3 s wall under a 300 s
+    guard), with no keychain prompt or hang.
+  - The frozen copy's contract differs from the installed path's only
+    because the identity includes the executable path. Use one path for
+    the whole run.
+  - Global Claude settings were not changed. The copy also never
+    self-updates, because the child env forces `DISABLE_AUTOUPDATER=1`.
+
+  Frozen-path isolation canary (2026-10-22, main worktree at `996962b`;
+  reviewer P2 #3). The round-2 canary ran against the global install,
+  before the copy existed; it was re-run with the frozen copy as the
+  executable so that the isolation evidence covers the exact binary and
+  path the benchmark uses:
+  - Pre-checks: `.cache/claude-cli/2.1.308/claude` mode 0555, sha256
+    `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`,
+    `--version` 2.1.308, ignored by `.gitignore` (`.cache/`).
+  - Contract identity of the frozen path:
+    `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`
+    (the same identity the integrated doctor reported).
+  - Canary directory with a planted `CLAUDE.md` (canary token) and project
+    hooks (`SessionStart`, `UserPromptSubmit`) in `.claude/settings.json`.
+  - Production argv and env (`claude_cli_argv`, `claude_cli_environment`,
+    so the env allowlist plus `DISABLE_AUTOUPDATER=1`), model
+    `claude-opus-5-5`: exit 0, 6352 ms, not an error. No canary token, no
+    project instructions, no memory, no skills, no MCP tools; the only tool
+    was `StructuredOutput`; neither hook fired; no permission denials.
+    Residual context as before: an environment block (cwd, platform, OS,
+    model, date). This time the run also reported Claude Code's built-in
+    note that downloaded files are untrusted data. Round 2 on the same
+    version did not report it; the cause is unconfirmed (self-report
+    variance or server-side text) and it is not an isolation drift. It is
+    harness text, not user or project context, and not a credential.
+    (Corrected 2026-10-22 from "it now also contains", reviewer P2.)
+  - The account-email reminder residual context was not probed by this
+    frozen canary; the in-memory email output guard still applies.
+  - Default-flag control (same binary, env and cwd; only
+    `--no-session-persistence` added to avoid a session file): saw the
+    canary token and project instructions, 48 tools (19 MCP) and 36
+    skills, and both hooks fired. This matches round 2.
+  - Real `smoke-claude` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli` and
+    `LIVECLIP_CLAUDE_EXECUTABLE` set to the frozen path: succeeded, 4190 ms
+    over 1 request (6.2 s wall under a 300 s guard), auth method
+    `claude.ai`, the same contract as above.
+  - No new `~/.claude/projects` or `~/.claude.json` project entries from
+    the production run or the smoke. The control created an empty memory
+    directory entry for the canary path (not the repo); it was removed with
+    `rmdir`, and the listing then matched the pre-run listing.
+  - No drift. Only extracted, email-scrubbed fields were saved (0 email
+    matches). Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/frozen-canary/logs/`.
+
+## Stage 6 engineering follow-ups (2026-10-21) — ACCEPTED (code cef7d4b..437ebb8 plus fc13163)
+
+- **Status: ACCEPTED** (2026-10-22): code `a22f9d3` rebased to
+  `cef7d4b`..`437ebb8`, plus diagnostics commit
+  `fc13163ff1d90a93319723f00d723164666a6cad`, verified at the integrated
+  tip `996962b`. Tester PASS and reviewer ACCEPT; evidence in the
+  integration section above. Not pushed or merged.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance, on local
+  branch `claude/liveclip-stage6-followups`, based on the Stage 4 docs tip
+  `ca80fb7d88e7f8620ef9053347f7598604918ad2`. Not pushed or merged. The
+  Controller may rebase it onto later Stage 4 docs; this section is
+  self-contained.
+- Code commit: `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
+- Scope: the consolidated engineering follow-ups from the Stage 1 and
+  Stage 3 sections (repeated in the Stage 4 section).
+  1. **`LeaseMonitor` suspend recovery** (Stage 3 follow-up; product change in
+     `src/liveclip/application/lease_monitor.py`).
+     - Root cause: leases expire on the shared wall clock
+       (`datetime.now(UTC)` in `SQLiteTaskQueue`), but the monitor scheduled
+       heartbeats on `time.monotonic`, which pauses while the host sleeps.
+       After a sleep longer than `lease - heartbeat` (about 90 s with the
+       120 s / 30 s defaults) the next heartbeat came after expiry, so a
+       still-valid holder lost its lease on wake and the stage cost a retry.
+     - Fix: on every poll the monitor compares how far wall time and
+       monotonic time advanced since the previous poll. If wall time advanced
+       more than 1 s further (`_WALL_CLOCK_JUMP_SECONDS`), the host was
+       suspended or the clock stepped forward, and the heartbeat is made due
+       immediately instead of one monotonic interval later. A false positive
+       costs one extra heartbeat. Defaults, settings and the constructor are
+       unchanged.
+     - Fencing is unchanged: the immediate renewal goes through the same
+       `heartbeat`, whose SQL still requires the caller's `lease_token` and
+       `lease_expires_at > now`. An expired lease is refused, the monitor
+       reports `lost_lease` and stops, and the stored expiry is not touched.
+       A recovered task has a new token, so the old holder cannot extend it.
+     - Tests: new `tests/integration/test_lease_monitor_suspend.py` uses the
+       existing `ShiftedWallClock` and a real SQLite queue with the production
+       120 s lease and 30 s heartbeat:
+       - (a) a 110 s simulated sleep (longer than `lease - heartbeat`, shorter
+         than the lease) is renewed immediately, and the next paced heartbeat
+         30 s later still finds the lease;
+       - (b) a 121 s sleep (longer than the lease) still loses the lease: the
+         heartbeat returns `None`, the stored expiry is unchanged and a later
+         heartbeat is still refused;
+       - (c) without a jump, and with a 0.5 s sub-threshold step, there is no
+         heartbeat, the lease is kept and the expiry is unchanged.
+       - Mutation check: with the pre-Stage 6 monitor, (a) fails (no renewal
+         after the sleep) and (c) passes. (b) also fails there, but only
+         because the old monitor fenced through `observe` instead of an
+         immediate heartbeat; it lost the lease too.
+     - Existing lease tests' assertions are unchanged. The
+       `tests/integration/lease_suspend.py` docstring now describes the
+       Stage 6 behavior.
+  2. **Stage 1 Reviewer P2-b** (`scripts/evaluate_agent_benchmark.py`):
+     - The parent chain is created or proven with
+       `ensure_directory_no_follow`, so a symlinked `--output-dir` chain is
+       refused before anything is written (previously a staging directory
+       was created first, through the symlink).
+     - The staging directory is created with
+       `create_directory_exclusive_no_follow`, which returns its pinned
+       device/inode. Both reports are written through a held
+       `O_NOFOLLOW|O_DIRECTORY` descriptor (`openat`-style `dir_fd`), after
+       checking that descriptor matches the pinned identity.
+     - `publish_directory_no_replace_no_follow` is called with
+       `expected_identity`, so a swapped staging directory is refused.
+     - Cleanup is `remove_tree_no_follow(..., expected_identity=...)`:
+       descriptor-based, no-follow, and it removes only the directory this
+       call created. It is best-effort and never masks the original error.
+  3. **Stage 1 Reviewer P2-c**: new tests in
+     `tests/unit/test_agent_benchmark_evaluator.py` with no mock of the
+     publication path:
+     - `test_agent_publication_rolls_back_after_a_real_rename`: the native
+       no-replace rename really publishes the directory; only the post-rename
+       verification is made to fail. The real rollback renames it back and
+       the cleanup removes it, leaving the parent empty.
+     - `test_agent_publication_real_rename_refused_by_late_destination`: a
+       destination that appears after staging makes the native rename itself
+       fail; the prior evidence is untouched and the staging directory is
+       removed.
+     - `test_agent_publication_refuses_a_swapped_staging_directory`
+       (P2-b regression; fails on the pre-Stage 6 evaluator, which published
+       the impostor) and
+       `test_agent_publication_refuses_symlinked_output_chain_before_staging`.
+  4. **CLI-help symlink restriction**: `--output-dir` help now says the
+     directory must not exist (not even empty), every path component must be
+     a real directory (not a symlink), `..` is refused, and on macOS
+     `/private/tmp/...` must be used instead of `/tmp/...`.
+  5. **Stage 1 Earlier P2-5 (risk discovery counts only final candidates):
+     not changed; documented.** MD sections 3.8, 6 and 10 require a risk to
+     be discovered and then routed to `manual_review`/`blocked`, and FAIL a
+     risk candidate that disappears. Agent v2 has no such routing, so a
+     retained final candidate is the only proof that the risk did not
+     vanish; a raw candidate that the Global Review dropped is exactly the
+     disappearance the MD forbids. The acceptance document does not say
+     otherwise. Counting superseded raw candidates would loosen a mechanical
+     blocker without a spec or operator decision. A code comment at the risk
+     assessment records this. **Operator question:** should a raw
+     (superseded) candidate with evidence cues count as Agent v2 risk
+     discovery? Until answered, the strict reading stays.
+- Not addressed (still open): other `lease_seconds=30` integration tests are
+  not suspend-tolerant. With Stage 6 they lose a lease only when a suspend
+  exceeds the remaining lease, not `lease - heartbeat`. The Stage 2
+  path-based retained-read limit and the product cold-18 FAIL are unchanged.
+- Coder checks in the isolated worktree (main `.venv`,
+  `PYTHONPATH=<worktree>:<worktree>/src`, imports verified to resolve to the
+  worktree), under `caffeinate -dims` with `PYTHONDONTWRITEBYTECODE=1`:
+  - At `a22f9d3`: ruff check "All checks passed!" (exit 0), ruff format
+    "448 files already formatted" (exit 0), mypy "no issues found in 230
+    source files" (exit 0), schema check match (exit 0). `tsc` not run: no
+    web files touched.
+  - Targeted pytest, exit 0: 316 passed in 515.65 s (one Starlette
+    deprecation warning). Files: the new suspend tests, every test that
+    imports `LeaseMonitor` (`test_lease_monitor.py`,
+    `test_delivery_runner.py`, `test_delivery_progress.py`,
+    `test_completion_delivery.py`, `test_completion_worker.py`,
+    `test_transport_budget_pipeline.py`), `test_worker_foreground_race.py`,
+    `test_stage_runner.py`, `test_task_queue.py`, both evaluator test files,
+    `test_secure_files.py` and `test_dual_profile_evaluation.py`.
+  - The lease monitor unit and suspend tests 10 times in a loop: 6 passed
+    each time, all exit 0.
+  - Logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/`.
+  - The coder did not run the full backend suite or `make e2e`; the tester
+    owns them.
+- **Operator note: `scripts/evaluate_agent_benchmark.py --output-dir`
+  restrictions (new since Stage 6).**
+  - Missing parent directories are created no-follow with mode `0700`, not
+    the umask default that `mkdir -p` used before.
+  - A path containing `..` is refused, including a relative one.
+  - Every path component must be a real directory. On macOS `/tmp/...` is
+    refused because `/tmp` is a symlink to `/private/tmp`; use
+    `/private/tmp/...`. A symlinked chain is refused before anything is
+    written, so no staging directory is left behind.
+  - The output directory itself must not exist, not even empty (unchanged).
+- Review round 1: reviewer **ACCEPT at `670478e`**, 0 P0/P1, 3 P2. Fix round
+  2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`), pending acceptance:
+  - P2-1 (flaky test): in `test_suspend_longer_than_lease_still_loses_the_lease`
+    the main thread could shift the clock between a poll's wall read and
+    `observe`, so the lease was lost through `observe` with no heartbeat.
+    Every suspend during monitoring is now applied from inside the monitor
+    thread, right after the N-th `observe` returns, so it always lands
+    between two polls. The assertions are kept (`heartbeats == [None]`,
+    expiry unchanged, a later heartbeat refused).
+  - P2-2 (robustness): the jump rule had two false negatives: a renewal
+    after a jump that failed transiently (for example SQLite locked when many
+    processes wake) was retried only one monotonic interval (30 s) later,
+    and a suspend before the monitor's first poll was not seen. The monitor
+    now also makes the heartbeat due on every poll while less than half a
+    heartbeat interval of wall-clock lease remains
+    (`_RENEW_WITHIN_HEARTBEAT_FRACTION = 0.5`, 15 s with the defaults).
+    - The remaining lease is measured on the monitor's own wall clock: the
+      lease length is `lease_expires_at - heartbeat_at` of the claimed lease,
+      and the renewal start is read just before each successful heartbeat.
+      An injected queue `now` (as in the completion inspection tests) can
+      therefore cause at most one or two early heartbeats at start:
+      `reconcile_completion` calls `monitor.refresh()` right after `start()`,
+      so the first poll may race it. Both heartbeats are fenced and harmless.
+    - Settings require `lease > 2 * heartbeat`, so a paced heartbeat always
+      finds more than one interval (90 s with the defaults) remaining, and
+      the rule never fires in normal operation.
+    - Fencing is unchanged: renewal still goes only through the fenced
+      heartbeat SQL; an expired lease is refused and lost.
+    - Known limit: after a sleep that leaves more than 15 s, a failed
+      renewal is retried once less than 15 s remain (still before expiry),
+      not on the very next poll.
+    - New deterministic tests: a failed first renewal after a 110 s sleep is
+      retried on the next poll; a 110 s suspend before the first poll is
+      renewed; a 121 s suspend before the first poll is still lost; 20 s
+      remaining with no jump does not renew early; the jump test now covers
+      95 s (jump rule only) and 110 s.
+    - Mutation checks: with the round-1 monitor (`670478e`) the three new
+      rule tests fail and the other five pass; with the pre-Stage 6 monitor
+      (`ca80fb7`) six fail and two pass.
+  - P2-3 (docs): the operator note above.
+  - Coder checks for round 2: at `039c998`, under `caffeinate -dims`:
+    ruff check, ruff format ("448 files already formatted"), mypy (230
+    source files) and the schema check all exit 0; targeted pytest exit 0,
+    333 passed in 562.00 s (the round-1 files plus
+    `test_completion_selection.py`, `test_completion_identity.py`,
+    `test_import_only_pipeline.py` and `test_stage_asset_integrity.py`,
+    without the evaluator and `secure_files` files, which round 2 did not
+    touch); the suspend and lease monitor unit tests 20 times in a loop, 11
+    passed each time, all exit 0.
+  - Round 2 logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/round2/`.
+- Review round 2: reviewer **ACCEPT at `fc06b3e`**, one P2 and one nit. Fix
+  round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`), pending acceptance:
+  - P2 (flaky assert): `assert len(held.observes) == 1` depended on how fast
+    the main thread stopped the monitor. The test helper now records
+    `(observe calls, heartbeat calls)` inside the monitor thread when the
+    first renewal succeeds (`first_renewal`), and the renewal tests assert
+    that value: `(1, 1)` after a suspend, `(1, 2)` for a failed renewal and
+    its retry, `(0, 1)` for a suspend before the first poll. The other count
+    assertions were checked; they are read after the monitor thread exits or
+    cover a window with no possible further heartbeat. Test wait bounds were
+    raised from 5 s to 30 s (`WAIT_SECONDS`); they are only upper bounds.
+  - Found while looping under load (load average 70--110): a monitor thread
+    descheduled between its wall and monotonic reads made both clocks
+    advance together but looked like a jump, causing one unneeded heartbeat
+    (reproduced: a 2.57 s apparent jump at the first poll in
+    `test_more_than_half_an_interval_remaining_does_not_renew_early`). In
+    production this costs one fenced heartbeat; in the tests it was a flake.
+    Fix in `lease_monitor.py`: each wall read is bracketed by monotonic reads
+    and the jump is the lower bound
+    `(wall - last_wall) - (monotonic_after - last_monotonic_before)`, so a
+    stall never inflates it, while a real suspend still shows almost in full.
+    New deterministic regression
+    `test_a_stall_between_clock_reads_is_not_a_jump` injects a 3 s stall
+    right after the first wall read; it fails with the round-2 monitor
+    (`fc06b3e`) and passes now. The threshold test's slack was also raised
+    from 5 s to 10 s.
+  - Nit: the injected-`now` note now says "at most one or two early
+    heartbeats at start" (`reconcile_completion` calls `monitor.refresh()`
+    right after `start()`, so the first poll may race it).
+  - Coder checks for round 3, at `7de4760`, under `caffeinate -dims`:
+    - ruff check, ruff format ("448 files already formatted"), mypy (230
+      source files) and the schema check: all exit 0.
+    - Under heavy host load (load average 57--111 on 10 cores, from other
+      concurrent runs): the suspend and lease monitor unit tests 20 times,
+      19 exit 0 and 1 exit 1. The failure was a 30 s
+      `monitor did not poll` timeout in the stall test (the whole run took
+      31.85 s), i.e. the test process was starved, not a wrong heartbeat.
+      The targeted suites in the same window: exit 1, 327 passed, 7 failed,
+      all in `test_delivery_progress.py` with `lost_lease` from a render
+      lease of 30 s (heartbeat 5 s), which is consistent with the same
+      starvation expiring the lease. Re-run alone during that window,
+      `test_delivery_progress.py` passed 22/22 (exit 0).
+    - Re-run at load average 21--27: the 20x loop, 12 passed each time, all
+      exit 0; targeted suites exit 0, 334 passed in 583.58 s (the round-2
+      file set).
+    - Round 2's first under-load loop also had one failure (1 failed, 10
+      passed, 6.29 s). Its log was deleted by the coder's cleanup before it
+      was read, so its cause is unknown; the 40-run reproduction found the
+      false-jump flake fixed above.
+  - Round 3 logs:
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage6-coder/round3/`.
+- Caveats: deterministic validation only; mock/fixture tests. No rendering
+  acceptance, human editorial/audio review or model inference.
+
+## Stage 4 benchmark evaluator rules (2026-10-21) — ACCEPTED at 8b14aa3
+
+- **Status: ACCEPTED** at code commit
+  `8b14aa39420ecfffc4ad54c6d76d8433affd15b6`, verified at tip
+  `ca80fb7d88e7f8620ef9053347f7598604918ad2` (2026-10-22). Local branch
+  `claude/liveclip-stage4-evaluator-rules`; not pushed or merged.
+  - Tester r1: `make lint` 0; 126 benchmark tests passed; the cold-18
+    re-score reproduced FAIL 90.0 exactly with hash-identical inputs.
+    `make test` run #1 passed (2668 backend). Run #2 was invalidated by a
+    clamshell sleep on battery, not by a code failure.
+  - Tester r2, on AC power: two `make test` runs, both exit 0, each with
+    2668 backend passed, vitest 80/80 and e2e 4/4. The lease set passed 39
+    x 3. 0 sleep events. 1143 report files hashed identically.
+  - Reviewer: ACCEPT at `ca80fb7`, no findings. The rebase is
+    byte-identical to the reviewed code.
+  - The Stage 3 P2 commit `f51f696` was verified in this round.
+- Previous status (kept for history): IN PROGRESS, pending tester and
+  reviewer acceptance on local branch `claude/liveclip-stage4-evaluator-rules`,
+  rebased onto the Stage 3 tip `427e80cd3e65bfe9e25a7c9044e960f09c5a0c21`.
+- Code commits, after rebase (identical code diffs to the reviewed commits):
+  - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0` (was `30dc26b`): decisions A
+    and B;
+  - `0440c179cf919d408abd474d6d4188dc55ffb449` (was `2abec1b`): review round
+    2;
+  - `8b14aa39420ecfffc4ad54c6d76d8433affd15b6` (was `052cd46`): comment-only
+    confirmation.
+- The Stage 3 P2 test-only commit `f51f696` is verified as part of this
+  round.
+- Operator decisions, both confirmed by the operator on 2026-10-21. They are
+  recorded in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+  - **A:** an exact boundary hit is tolerance-only: both edges within 3000 ms
+    (short) or 5000 ms (long), inward or outward. This supersedes the earlier
+    Controller full-cue-coverage interpretation.
+  - **B:** negative-only outputs are classified as `negative_anchor_output`, a
+    direct FAIL in both evaluators, with a per-anchor MD section 7 policy:
+    - N01--N07, N10 and N11 hard-fail for `selected` and `manual_review`
+      (the operator confirmed this default);
+    - N08 hard-fails only automatic outputs; a `manual_review` output goes to
+      `human_required`;
+    - N09 allows only the S08 clean sub-interval.
+
+    Mixed candidates stay `irrelevant_padding`. The policy table fails closed
+    on any `benchmark_id`, `reason` or interval mismatch.
+- Reviews:
+  - `30dc26b`: CHANGES_REQUIRED (P1: the "entirely negative" loophole);
+  - `2abec1b`: ACCEPT;
+  - `052cd46`: comment-only.
+- Cold-18 history (`data/evaluations/dual-profile-benchmark-20260924-final-cold-18`,
+  ignored local evidence, read-only):
+  - Baseline evaluator at `7d2689c`: PASS 90.36, reproduced byte-identical.
+  - Strict Stage 1 evaluator at `e51e353`: FAIL 80.0. The reviewer showed that
+    80.0 depended on the then-unconfirmed full-cue-coverage rule.
+  - Stage 4 evaluator: **FAIL 90.0**.
+    - Short 6/8: S01 at +3420 ms exceeds the 3000 ms tolerance and goes to
+      manual adjudication; S03 is missed.
+    - Mini 5/6: L07 is missed because its only exact candidate was blocked.
+      The missed required mini-lesson is L07, not L06 (L06 is supplemental).
+    - Hard failures:
+      - `irrelevant_padding`: `ml_0005_mixed_voice_types_637_746`, with
+        13,340 ms of N05;
+      - `negative_anchor_output`: the two N09 candidates
+        `precision_mini_lesson_0017_c03` and
+        `sh_0022_high_note_channel_01`.
+    - Eight N08 `manual_review` negative-only candidates are informational
+      findings listed in `human_required`.
+    - PASS blocker: `short_recall_below_threshold`.
+- Coder checks in the isolated worktree: ruff, format, mypy and schema
+  exit 0; benchmark tests 126 passed (round 2 and the comment-only commit).
+  Logs:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage4-coder/`.
+- Open follow-ups (not done):
+  - Stage 1: Reviewer P2-b (pin the Agent report staging directory identity;
+    fd-based cleanup), Reviewer P2-c (end-to-end rollback test after a real
+    rename), and Earlier P2-5 (Agent risk discovery counts only final
+    candidates). (2026-10-21: P2-b and P2-c addressed by Stage 6, pending
+    acceptance; P2-5 examined by Stage 6 and deliberately kept strict,
+    pending an operator answer. See the Stage 6 section.)
+  - Stage 2: path-based retained reads cannot detect a swap away and back;
+    the per-file manifest hashes still bind the content.
+  - Stage 3: `LeaseMonitor` should detect a wall-clock versus monotonic jump
+    and refresh immediately while the lease is unexpired. Other
+    `lease_seconds=30` integration tests are not yet suspend-tolerant.
+    (2026-10-21: the `LeaseMonitor` item is addressed by Stage 6, pending
+    acceptance; the `lease_seconds=30` item is still open. 2026-10-22:
+    Stage 6 is ACCEPTED at `996962b`.)
+  - Product: cold-18 still FAILs at 90.0, because of short recall 6/8
+    (S01, S03), L07 being blocked, the `ml_0005` padding and the N09 outputs.
+    Improving it needs product work and a fresh real run, which is allowed
+    without per-run consent since 2026-10-21.
+- Branch-tip rule: `claude/liveclip-stage4-evaluator-rules` is the accepted
+  code `8b14aa3` plus docs-only commits up to its tip `0bb4af4`. To verify,
+  run `git diff --name-only 8b14aa3..0bb4af4`; it must list only
+  `STATUS.md`, `docs/**` and `tasks/**`. (Corrected 2026-10-22: the earlier
+  wording `8b14aa3..HEAD` holds only on the Stage 4 branch; on a branch that
+  carries later stages, `HEAD` includes their code.)
+- Caveats: deterministic validation plus a read-only re-score of existing
+  evidence. No new model inference, rendering or human review.
+
+## Stage 3 cleanup (2026-10-21) — ACCEPTED at ce43f5e
+
+- **Status: ACCEPTED** at code commit
+  `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`.
+  - Tester, at tip `2421df3`: `make lint` 0; `make test` twice under
+    `caffeinate`, both exit 0, each with 2627 backend passed, vitest 80/80,
+    and e2e mock, legacy, completion and B2 PASS; 0 sleep events; the lease
+    and suspend set passed 39 x 3; the new verifier `lstat` test passed;
+    846 report files hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+  - The 3 P2s are fixed in test-only commit
+    `f51f6960f27d298424e968a5a7e329f857c6f201` (details below). That commit
+    is verified as part of the Stage 4 round, not this acceptance.
+- (History: this section was opened as "IN PROGRESS, pending tester and
+  reviewer acceptance".) Opened on local branch `claude/liveclip-stage3-cleanup`, created from
+  `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0` (the Stage 2 docs tip). The
+  operator approved Stage 3 on 2026-10-21. Not pushed or merged.
+- Operator decision 2026-10-21: the semantic-only no-padding-allowance
+  reading is **confirmed**. It is recorded in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`. No evaluator code,
+  threshold or benchmark JSON/MD changed.
+- Scope: the three Stage 2 cleanup follow-ups, all in code commit `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`.
+  1. **Single run-directory lstat** (`scripts/verify_completion_retained.py`).
+     - One `lstat` of the selected run directory now provides both the
+       `S_ISDIR` (not-a-symlink) check and the identity baseline that is
+       re-checked after all reads.
+     - New test
+       `test_retained_verifier_baseline_is_the_same_lstat_as_its_directory_check`
+       swaps the run directory right after its first `lstat`. It passes on
+       the new code and fails ("DID NOT RAISE") on the old two-`lstat` code.
+  2. **Allocation swap test renamed** to
+     `test_report_scope_identity_is_read_from_held_handle_not_trusted_by_name`,
+     with a comment saying what it proves and what it does not. It proves the
+     identity comes from `fstat` on the held `O_NOFOLLOW` handle, so a
+     by-name swap after `open` is not trusted. It does not close the
+     `mkdir`-to-`open` window, which is an accepted risk. Assertions are
+     unchanged.
+  3. **Lease tests robust to host suspend.**
+     - Root cause:
+       - Task leases expire on the shared wall clock: `SQLiteTaskQueue` stores
+         `datetime.now(UTC) + lease_seconds`, and `_recover_expired` compares
+         it against wall-clock now.
+       - `LeaseMonitor` paces heartbeats with `time.monotonic`, which pauses
+         while macOS sleeps.
+       - After a suspend longer than the lease, the next heartbeat finds the
+         lease expired, so the stage ends `LOST_LEASE`. The runner's next
+         `claim` then recovers the task: it requeues with `retry_count + 1`
+         and executes it again. That explains the r1 failures (retry_count 1;
+         PROXY_RENDER 2).
+       - Correction (reviewer P2-2, 2026-10-21): the worst case is a suspend
+         longer than `lease - heartbeat interval`, not only `lease`. The last
+         renewal sets `expiry = renewal + lease`, and the next renewal is due
+         one heartbeat of monotonic time later. If the host sleeps just
+         before a due heartbeat, the lease expires before it can be renewed.
+         With the production defaults (120 s lease, 30 s heartbeat), a sleep
+         of about 90 s or more can cost a retry. With `max_stage_retries=3`,
+         repeated sleeps can FAIL a stage.
+     - Conclusion: this is **correct production behavior**. Wall time is the
+       only clock all worker processes share, and a suspended holder cannot be
+       told apart from a dead one. No `src/` code changed, and no production
+       lease semantics or durations changed. There is no injected-clock seam,
+       and adding one across the repository modules would be a broad
+       production change.
+     - Fix (tests only): the two tests use the existing
+       `SQLiteTaskQueue(lease_seconds=...)` parameter with a 24 h
+       `SUSPEND_TOLERANT_LEASE_SECONDS`, defined in the new helper
+       `tests/integration/lease_suspend.py`. All existing assertions are
+       unchanged: `retry_count == 0` and every stage executed exactly once.
+       Nothing is marked skip, xfail or retry.
+     - Regression tests:
+       - `ShiftedWallClock` advances `datetime.now` in every already-imported
+         LiveClip module that binds `datetime`, and leaves monotonic time
+         alone, as a real suspend does.
+       - `test_simulated_suspend_keeps_exactly_once_only_within_the_test_lease`
+         jumps wall time 12 h while ingest holds its lease. With the test
+         lease, every stage runs exactly once. With the 30 s lease these tests
+         previously used, ingest correctly runs twice (production semantics).
+       - `test_initial_budget_never_retries_across_a_simulated_host_suspend`
+         re-runs the r1 failing parametrization
+         (`short_highlight-None-existing-False`) with a 12 h jump after every
+         stage claim, and keeps `retry_count == 0`. As a mutation check, with
+         the 30 s lease it fails.
+         - Reviewer P2-1 fix (`f51f696`): this test now also asserts that
+           every claimed lease expires at the shifted "now" plus the test
+           lease, which proves the shift reached the queue. Mutation check
+           with no module shifted: the old test passed vacuously (exit 0) and
+           the new test fails (exit 1). With only the queue unshifted, the
+           shifted repository's `not_before` keeps the queue idle, so the run
+           never completes; it does not pass.
+     - Limits: a suspend longer than 24 h would still, correctly, let a
+       holder's lease expire. The other `lease_seconds=30` tests (for example
+       `test_actual_planning_and_serial_domain_repair_keep_attempt_audit`) are
+       out of this stage's scope and keep 30 s.
+- Coder self-checks at `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`, run under `caffeinate -dims` with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  Mock/fixture only.
+  - `make lint` exit 0: ruff "All checks passed!", "447 files already
+    formatted", mypy "no issues found in 230 source files", schema match,
+    `tsc` clean.
+  - `pytest --collect-only tests` exit 0: 2627 tests collected, which
+    confirms the `lease_suspend` helper import works under full collection.
+  - Touched files (`test_e2e_fixture.py`,
+    `test_completion_fixture_verifiers.py`,
+    `test_transport_budget_pipeline.py`, `test_worker_foreground_race.py`):
+    87 passed.
+  - The two lease tests (every parametrization) plus both suspend
+    regressions, 5 times in a loop: 39 passed each time, all exit 0.
+  - `make e2e` once, exit 0, with 4 x "1 passed":
+    - legacy run `eb3031cfa50e4c9194a40d54aef6107a`;
+    - completion run `249daf6b7d8345cfac605627cefd099b` (scope
+      `2277fd1e...`), retained PASS;
+    - B2 run `62079126b46b4e01a15eb6df9a57d7f3` (scope `e530017a...`),
+      retained PASS.
+  - All 792 pre-existing report files hashed identically afterwards.
+  - Logs (session scratchpad, may not persist):
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage3-coder/`.
+  - The coder did not run the full backend suite; the tester owns it.
+- Open follow-up (not done): `LeaseMonitor` should detect a wall-clock
+  versus monotonic jump and refresh immediately while the lease is still
+  unexpired, so a production sleep shorter than the lease costs no retry.
+  (2026-10-21: addressed by Stage 6, pending acceptance.)
+- Caveats: deterministic validation only; mock/fixture providers; no
+  rendering acceptance, human editorial/audio review or model inference.
+
+## Stage 2 real-browser e2e harness idempotency (2026-10-21) — ACCEPTED at cfcff0d
+
+- **Status: ACCEPTED** at code commit
+  `cfcff0dbea66cc291456fcecca800ee9c6313dfe`. It was verified at branch tip
+  `58cb055f59d7011ac83c9d798da472ae919f31c9` (tester round r2 PASS; reviewer
+  ACCEPT, 0 P0/P1). Branch `claude/liveclip-stage2-e2e-harness`, created
+  from `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`. Local only: not pushed or
+  merged.
+- Branch tip rule: the branch is `cfcff0d` (the accepted code) plus
+  docs-only commits, the first being `58cb055`. To verify, run
+  `git diff --name-only cfcff0d..HEAD`; it must list only `STATUS.md`,
+  `docs/**` and `tasks/**`.
+- (History: this section was opened as "IN PROGRESS, pending tester and
+  reviewer acceptance"; the entries below are kept as written, except the
+  fix-1 wording corrected in the P2 fix round.)
+- Goal: `make test` (and `make e2e`) can run repeatedly in the same worktree
+  without moving `apps/web/playwright-report/` aside, while every retained
+  package check stays at least as strict.
+- Root cause: `scripts/e2e_fixture.py` retained each real-browser package at
+  `apps/web/playwright-report/{browser,completion,b2}-packages/<run id>/`,
+  and `scripts/verify_completion_retained.py` globbed the whole scenario
+  folder and required exactly one manifest. Any package left by an earlier
+  invocation therefore failed the next run with `ValueError: exactly one
+  retained completion package required`.
+- Fix (per-invocation, identity-bound report scope):
+  - New `e2e_fixture.py allocate-report-scope --scenario S` creates a fresh
+    random hex32 directory below the scenario folder with an exclusive,
+    no-follow `mkdir` and prints its path, device and inode. The harness
+    calls it once per invocation (legacy, completion, and the chained B2
+    each get their own scope), just before package retention.
+  - `e2e_fixture.py verify --retain-packages` now requires `--report-scope`,
+    `--report-scope-device` and `--report-scope-inode`. Retention opens the
+    scope by walking from the repository root with `O_NOFOLLOW`, checks the
+    path is a generated hex32 child of this scenario's folder, checks the
+    device/inode against the allocation, requires the scope to be empty, and
+    creates the single `<run id>/` directory inside it exclusively. A legacy
+    scope cannot receive completion/B2 evidence and vice versa.
+  - `verify_completion_retained.py` bundle verification now requires
+    `--report-scope`, `--expected-scope-device` and `--expected-scope-inode`.
+    It rejects a relative, traversing, foreign-folder or non-hex32 scope, any
+    symlink along `apps/web/playwright-report/<folder>/<scope>`, and a
+    replaced scope (identity mismatch). Inside the scope it still requires
+    exactly one `*/manifest.json`, and now also requires that the scope holds
+    nothing but that one run directory. All lineage, `--prove-rejection`,
+    byte-bound, credential/signed-URL, ZIP and MP4-decode checks are
+    unchanged. The PASS JSON adds `report_scope`.
+  - Earlier packages (the pre-Stage-2 flat `<folder>/<run id>/` layout and
+    earlier scopes) are never read, moved, overwritten or deleted.
+- New retained layout: `apps/web/playwright-report/<folder>/<scope
+  hex32>/<run id>/manifest.json`.
+- Regression tests (fixture-level, no browser):
+  - `tests/unit/test_e2e_fixture.py`: fresh scopes preserve prior flat and
+    scoped packages; scope rejection of relative, traversing, non-hex32,
+    foreign-folder, cross-scenario, symlinked-scope, symlinked-folder and
+    replaced scopes; second retention into one scope refused; retention
+    without a scope refused for all three scenarios; static check that the
+    harness allocates one scope before retention and passes the same triple
+    to retention and to the retained verifier.
+  - `tests/integration/test_completion_fixture_verifiers.py`: (a) stale
+    flat, earlier-scope and B2-folder packages are neither selected nor
+    changed; (b) two packages, an extra manifest-less run directory or a
+    stray file in this scope fail; (c) an empty scope fails with the
+    exactly-one error and a missing scope fails; (d) relative, traversing,
+    non-hex32, foreign-folder, run-directory, symlinked, replaced and
+    symlinked-folder scopes are rejected.
+- The Stage 1 follow-up "harness non-idempotency" is being addressed here,
+  pending acceptance.
+- Coder self-checks at code commit
+  `bae901c22260af49a79c1d15a7ac11ced4856f18`, run in the main worktree with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  Mock/fixture only.
+  - `make lint` exit 0: ruff "All checks passed!", "446 files already
+    formatted", mypy "no issues found in 230 source files", schema match,
+    `tsc` clean.
+  - Targeted pytest (`test_completion_fixture_verifiers.py`,
+    `test_e2e_fixture.py`, `test_b2_synthetic_worker.py`): 54 passed.
+  - `make e2e` twice back to back, with the Stage 1 packages
+    (`completion-packages/9f8bdc31...`, `b2-packages/e9085d40...`,
+    `browser-packages/59b12aa9...`) left in place. Both exited 0, each with
+    e2e:mock, legacy, completion and B2 passing (4 × "1 passed").
+    - Run 1: legacy run `05ad28ab7b5b4c68a919895d2ec94553` (scope
+      `7c80c8cc...`); completion run `5f42298e1de54a33aeda7cadcdf604e1`
+      (scope `222576bf...`), retained PASS; B2 run
+      `dbdff27bfc9c4ad2a14e4a51b146e1af` (scope `f4098b5a...`), retained
+      PASS.
+    - Run 2: legacy run `dd64a552b0074bc89f813ccffef4a37b` (scope
+      `42d20550...`); completion run `0f30ffa50f1f457482c9951c98bfe5c7`
+      (scope `0db74c68...`), retained PASS; B2 run
+      `cd0955e2b5f3492f954e73b197a89b76` (scope `081aa76c...`), retained
+      PASS.
+    - Each retained PASS reported `full_mp4_decode` PASS, `fixture_removed`
+      true and `wrong_existing_producer_rejected` true.
+    - All 54 pre-existing retained package files hashed identically before
+      and after both runs.
+  - Logs (session scratchpad, may not persist):
+    `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-coder/`.
+  - The full backend suite was not run by the coder; the independent tester
+    owns it.
+- P2 fix round (2026-10-21), still **pending acceptance** until the new SHA
+  is verified (historical; accepted at cfcff0d):
+  - Independent evidence at `c391ced5f3983f4b10654074742b7aaf10197f1c`:
+    - Tester: `make lint` exit 0; `make test` twice, both exit 0, each with
+      2619 backend passed, Web vitest 80/80, and e2e:mock, legacy,
+      completion and B2 all PASS in both runs; 198 pre-existing report files
+      hashed identically.
+    - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+  - Fixes for the 3 P2s, in code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe`:
+    - `allocate_report_scope` now reads the new scope's device/inode with
+      `fstat` on a held handle opened `O_NOFOLLOW` after the exclusive
+      `mkdir`, rather than with a by-name `stat`. Every descriptor is
+      closed on all paths.
+      - Correction (2026-10-21): this does **not** close the allocation
+        race. A residual window remains between `mkdir` and `open`.
+        POSIX cannot close it, because no `mkdirat` returns a handle.
+        It is an accepted risk: an attacker able to exploit it could also
+        edit the scripts.
+    - `verify_bundle` re-validates the report scope (no-symlink chain and
+      device/inode) after all inventory, ZIP, decode and rejection-proof work.
+      It also checks that the run directory keeps the same identity and is
+      still the only entry. A swap between the first check and the reads now
+      fails closed (`retained report scope identity` or `retained run
+      directory changed during verification`).
+    - Tests: retention (legacy and completion) refuses a `playwright-report`
+      parent replaced by a symlink after allocation; the allocate-time
+      symlink test is kept. A scope or run directory swapped after the
+      initial check is rejected. The swap tests fail against the
+      `c391ced` scripts.
+      - The allocation swap unit test swaps the scope **after** the `open`.
+        It therefore proves that the identity comes from the held handle,
+        not that the `mkdir`-to-`open` race is closed. (Corrected
+        2026-10-21: an earlier wording said a swap "right after
+        `mkdir`/open" keeps the original identity.)
+    - Coder self-checks at `cfcff0dbea66cc291456fcecca800ee9c6313dfe`
+      (`NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+      PYTHONDONTWRITEBYTECODE=1`, mock/fixture only):
+      - `make lint` exit 0.
+      - Targeted pytest (`test_e2e_fixture.py`,
+        `test_completion_fixture_verifiers.py`,
+        `test_b2_synthetic_worker.py`): 59 passed.
+      - `make e2e` twice back to back, without moving
+        `apps/web/playwright-report/`; both exit 0, with 4 x "1 passed" each.
+        - Run 1: completion run `0a4a6d5efcba4243a11d626981959eeb` and B2 run
+          `3d817802fa11481c9b40b3fbf56faa12`, both retained PASS.
+        - Run 2: completion run `5581e519d57c470ca26714c506e2a9a4` and B2 run
+          `792dbd8886be442fa6aa082860633851`, both retained PASS.
+      - All 270 pre-existing retained package files hashed identically
+        before and after both runs.
+      - Logs (session scratchpad, may not persist):
+        `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage2-p2-coder/`.
+- Acceptance evidence for `cfcff0d` (2026-10-21):
+  - Tester round 58cb055 r1: **environment-invalid, not accepted.**
+    - `make test` run 1 exited 2 with two failures:
+      - `test_transport_budget_pipeline::test_initial_budget_is_durable_deterministic_and_never_retried[short_highlight-None-existing-False]`
+        (retry_count 1 != 0);
+      - `test_worker_foreground_race::test_foreground_and_worker_share_one_lease_and_execute_each_stage_once`
+        (PROXY_RENDER 2 != 1).
+    - Both tests ran during a macOS "Clamshell Sleep" on battery
+      (09:54:05--10:49:36 per `pmset`). Both use 30 s leases.
+    - Run 2 passed. An isolated rerun of those tests under `caffeinate`
+      passed 37/37.
+  - Tester round 58cb055 r2: **PASS.**
+    - `make lint` exit 0.
+    - `make test` twice under `caffeinate -dims`, both exit 0. Each run had
+      2624 backend passed, Web vitest 80/80, and e2e:mock, legacy,
+      completion and B2 all PASS.
+    - `pmset` shows 0 sleep/wake events in either run window.
+    - 612 pre-existing report files hashed identically, and none were
+      removed.
+  - Reviewer: ACCEPT at `58cb055`, 0 P0/P1.
+- Open follow-ups (not done):
+  - `scripts/verify_completion_retained.py` around lines 604--610: use a
+    single `lstat` for both the run directory's `S_ISDIR` check and its
+    identity baseline. (2026-10-21: addressed by Stage 3, pending
+    acceptance.)
+  - Rename or comment the allocation swap unit test
+    (`tests/unit/test_e2e_fixture.py`, around lines 460--499) to match what
+    it actually proves: identity from the held handle, not a closed race.
+    (2026-10-21: addressed by Stage 3, pending acceptance.)
+  - Inherent limit: path-based reads cannot detect a scope swapped away and
+    back between checks. The per-file manifest hashes still bind the
+    content.
+  - Lease-based integration tests (the two above) fail if the host sleeps
+    mid-test. Run the full `make test` under `caffeinate -dims` on AC power,
+    and consider making these tests robust to suspend. (2026-10-21:
+    addressed by Stage 3, pending acceptance.)
+  - Still-open Stage 1 follow-ups carry over (see the Stage 1 section):
+    Reviewer P2-b, Reviewer P2-c and Earlier P2-5. (2026-10-21: P2-b and
+    P2-c addressed by Stage 6, pending acceptance; P2-5 kept strict pending
+    an operator answer.)
+  - The semantic-only "no padding allowance" reading is still pending
+    operator confirmation. (Resolved 2026-10-21: confirmed by the
+    operator.)
+- Caveats: deterministic validation only; mock/fixture providers; no
+  rendering acceptance, human editorial/audio review or model inference.
+
+## Stage 1 benchmark evaluator strictness (2026-10-20) — ACCEPTED at 6c465b7
+
+- **Status: ACCEPTED** at `6c465b767e3829152d0b07451edbe274980321b1` on
+  `claude/liveclip-stage1-evaluator`. The independent tester's full run is
+  green and the reviewer verdict is ACCEPT, with no P0/P1 open. The branch is
+  local only: not pushed or merged.
+- Branch tip: `claude/liveclip-stage1-evaluator` is `6c465b7` (the accepted
+  code) plus docs-only commits that record the acceptance, the first being
+  `87bd6b2`. To verify, run `git diff --name-only 6c465b7..HEAD`; it must
+  list only `STATUS.md`, `docs/**` and `tasks/**`. The branch is local only
+  and has no upstream.
+- History (base `a449f02b9c5694c258d5b5f47c91b9042073c5a9`):
+  - Round 0 `bf83c80a81d1b47fa834a8a149f9866f3b3d89db`: reviewer
+    CHANGES_REQUIRED (2 P1).
+  - Fix round 1 `d9e9ddec11115195264485bb2005be64790c05c9`: reviewer ACCEPT,
+    with Controller follow-ups.
+  - Fix round 2 `6c465b767e3829152d0b07451edbe274980321b1`: reviewer ACCEPT.
+  - The fix rounds were made on `claude/liveclip-stage1-fix` and integrated
+    by the Controller.
+- Scope: `scripts/evaluate_benchmark.py` and
+  `scripts/evaluate_agent_benchmark.py` share the evaluation-only module
+  `scripts/benchmark_gates.py`. Every rule comes from
+  `liveclip_dual_profile_benchmark_v1.json`; the JSON and `.md` are unchanged.
+  `scripts/__init__.py` makes `scripts` a package, so both evaluators import
+  `scripts.benchmark_gates`. They append the repository root to `sys.path`
+  only when run directly.
+- v1 evaluator:
+  - The status is `PASS`, `CONDITIONAL` or `FAIL`.
+  - A source-hash mismatch is a hard failure.
+  - Semantic equivalence is manual-only and never counts as a hit.
+  - Matching is one-to-one exact-boundary, using augmenting paths and
+    preferring qualified duplicates.
+  - Padding and forbidden composites FAIL for both `selected` and
+    `manual_review` (D2). Only exact-boundary matches earn a padding
+    allowance: the union of every exact-matched gold or supplemental anchor,
+    widened by the tolerance. S08 inside N09 therefore passes, and a
+    semantic-only candidate gets no allowance. Findings add
+    `outside_nearest_anchor_ms`.
+  - RGR-02 fails on any `selected` candidate opening at its start, and on
+    any candidate on its interval missing a required flag.
+  - CONDITIONAL is applied literally (D3).
+  - The boundary score is the qualified fraction of hits; the audit score is
+    computed from five items.
+  - Risk matches need evidence cues, routing and the anchor's risk tags.
+  - A `selected` candidate with a manual/blocking-only risk tag fails.
+  - `title_hook_summary_must_be_source_faithful` is listed under
+    `human_required`. RGR-03 bad openings are reported as findings only.
+- Agent v2 evaluator:
+  - The status is only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+    `INVALID_EVIDENCE`. A source-hash mismatch gives `INVALID_EVIDENCE`.
+  - The report splits into `mechanical_failures` (the only blockers),
+    `not_applicable` and `human_required`.
+  - Executed Profiles are the Global Review `requested_profiles` that still
+    have at least one final candidate.
+  - The raw score is out of 100 with threshold 85 and an applicable maximum
+    of 88 (D1).
+  - The CLI stages both reports in a private sibling directory. It publishes
+    them as one atomic no-replace unit via
+    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`. An
+    existing directory, even an empty one, is refused, and a failure leaves
+    no partial output.
+  - `--output-dir` must be an absolute path whose directory chain contains no
+    symlinks. For example, macOS `/tmp` is refused; use `/private/tmp/...`.
+- D1--D3 are Controller interpretations pending operator confirmation, as is
+  "D2 applies to semantic-only candidates; no semantic allowance". See the
+  Decision Log in `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+  - Update 2026-10-21: the operator **confirmed D1, D2 and D3**. The
+    semantic-only reading ("D2 applies to semantic-only candidates; no
+    semantic padding allowance") remains **pending operator confirmation**.
+  - Update 2026-10-21 (later): the operator **confirmed** the semantic-only
+    reading as well.
+- Independent tester evidence at `6c465b7`. Mock/fixture only, run with
+  `NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin PYTHONDONTWRITEBYTECODE=1`.
+  - `make lint` exit 0:
+    - ruff "All checks passed!" and "446 files already formatted";
+    - mypy "no issues found in 230 source files";
+    - schema match;
+    - `tsc` clean.
+  - Targeted tests (evaluators, `dual_profile`, `secure_files`): 116 passed.
+  - `make test` exit 0:
+    - backend 2612 passed, 15 warnings (deprecations only), 1384.97s;
+    - Web vitest 14 files / 80 tests;
+    - e2e:mock 1 passed;
+    - e2e:real legacy 1 passed, "Required browser scenario execution: PASS";
+    - e2e:real completion 1 passed: retained-package status PASS, run
+      `9f8bdc31ac4c45fb8e79b76ccbd6d3b4`, `full_mp4_decode` PASS,
+      `fixture_removed` true;
+    - e2e:real B2 1 passed: retained-package status PASS, run
+      `e9085d40edfe411d819bf443ece89183`, `full_mp4_decode` PASS.
+- Coder self-checks, each labelled with the SHA and round it ran on:
+  - Round 0 at `bf83c80`, main worktree:
+    - `make lint` exit 0;
+    - evaluator and `dual_profile` tests: 68 passed;
+    - `test_b2_synthetic_worker.py` and `test_e2e_fixture.py` together with
+      them: 111 passed.
+  - Fix round 1 at `d9e9dde`, isolated worktree with the main `.venv`:
+    - ruff check, ruff format --check (446 files) and mypy (230 files):
+      exit 0;
+    - evaluator and `dual_profile` tests: 81 passed;
+    - b2/e2e fixture tests: 43 passed.
+  - Fix round 2 at `6c465b7`, isolated worktree:
+    - ruff, format and mypy: exit 0;
+    - evaluator, `dual_profile` and `secure_files` tests: 116 passed (85
+      without `secure_files`, 31 for `secure_files` alone);
+    - b2/e2e fixture tests: 43 passed.
+- Earlier tester evidence:
+  - The baseline at `7d2689c` was fully green (backend 2545 passed).
+  - At `bf83c80`, `make test` exited 2 only at the e2e:real completion
+    retained-package check (`ValueError: exactly one retained completion
+    package required`), and B2 was not reached.
+  - Cause: a leftover package in the ignored
+    `apps/web/playwright-report/completion-packages/`, left by the earlier
+    baseline run in the same worktree. The Controller moved that ignored
+    folder (it was not deleted) to the session scratchpad archive before the
+    `6c465b7` run.
+- Reviewer verdicts: `bf83c80` CHANGES_REQUIRED (2 P1); `d9e9dde` ACCEPT;
+  `6c465b7` ACCEPT. No P0/P1 are open.
+- Known harness non-idempotency (predates Stage 1; candidate for a later
+  stage): a second `make test` in the same worktree fails unless
+  `apps/web/playwright-report/{completion,b2}-packages` hold no prior
+  package.
+  - Update 2026-10-21: being addressed by Stage 2 on
+    `claude/liveclip-stage2-e2e-harness` (pending acceptance); see the
+    Stage 2 section above.
+  - Resolved 2026-10-21 by Stage 2, ACCEPTED at `cfcff0d`.
+- Open follow-ups (not done):
+  - Reviewer P2-b: pin the staging directory identity (`expected_identity`)
+    in the Agent report publication and make cleanup fd-based. (2026-10-21:
+    addressed by Stage 6, pending acceptance.)
+  - Reviewer P2-c: add an end-to-end rollback test after a real rename.
+    (2026-10-21: addressed by Stage 6, pending acceptance.)
+  - Earlier P2-5: Agent risk discovery counts only final candidates. This is
+    stricter than necessary, because superseded raw candidates could also
+    prove discovery. (2026-10-21: examined by Stage 6 and not changed: the
+    MD treats a dropped risk candidate as a disappearance, so the strict
+    reading stays pending an operator answer. See the Stage 6 section.)
+  - The e2e harness non-idempotency above (2026-10-21: being addressed by
+    Stage 2, pending acceptance). **Resolved** by Stage 2, accepted at
+    `cfcff0d`.
+- Caveats:
+  - This is deterministic validation only. There was no rendering
+    acceptance, no human editorial/audio review and no model inference.
+  - The retained cold-18 PASS 90.36 came from the earlier, looser evaluator.
+    It has not been re-scored under the strict evaluator and must not be
+    cited as a strict PASS. Re-scoring needs operator authority because the
+    evidence is outside this worktree.
+  - D1--D3 and the semantic-only padding reading are pending operator
+    confirmation. (2026-10-21: D1--D3 confirmed by the operator; the
+    semantic-only padding reading is still pending.)
+- Path lists not updated:
+  - The frozen `tools/loop_engineering/m3s_v40/v44/v45_source_freeze.py`
+    list `scripts/evaluate_agent_benchmark.py` as a path. They were left
+    byte-identical as historical records; those files were not edited.
+  - Neither those lists nor the acceptance-v3 Coder allowlist include
+    `scripts/benchmark_gates.py` or `scripts/__init__.py`. This is recorded
+    for future formal-loop runs only.
+- Next: await operator confirmation of D1--D3 and the Stage 2 choice. Do not
+  push.
+  - Update 2026-10-21: the operator confirmed D1--D3 and chose Stage 2
+    (real-browser e2e harness idempotency; see the Stage 2 section above).
+    The semantic-only padding reading is still pending operator
+    confirmation.
+  - Update 2026-10-21 (later): the operator confirmed the semantic-only
+    no-padding-allowance reading. No Stage 1 interpretation remains pending.
+
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 
 - `/input`, `data/models`, `data/evaluations`, and `data/deliveries` are all

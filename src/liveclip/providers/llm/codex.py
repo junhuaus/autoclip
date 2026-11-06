@@ -905,10 +905,17 @@ def _codex_process_failure_code(stderr: str, *, stdout: str = "") -> str:
         and any(word in evidence for word in ("invalid", "unsupported", "not supported"))
     ):
         return "CODEX_CLI_OUTPUT_SCHEMA_REJECTED"
-    if any(marker in evidence for marker in ("rate_limit", "rate limit", "too many requests")):
-        return "CODEX_CLI_RATE_LIMITED"
-    if any(marker in evidence for marker in ("insufficient_quota", "quota exceeded")):
+    # A quota or usage cap is also reported as HTTP 429; classify it first so it
+    # is never mistaken for a transient rate limit.
+    if any(
+        marker in evidence
+        for marker in ("insufficient_quota", "quota exceeded", "usage limit", "usage_limit")
+    ):
         return "CODEX_CLI_QUOTA_EXHAUSTED"
+    if any(
+        marker in evidence for marker in ("rate_limit", "rate limit", "too many requests")
+    ) or re.search(r"(?:status|http|code|error)\W{0,4}429\b", evidence):
+        return "CODEX_CLI_RATE_LIMITED"
     if any(
         marker in evidence
         for marker in ("authentication failed", "invalid api key", "login required", "unauthorized")

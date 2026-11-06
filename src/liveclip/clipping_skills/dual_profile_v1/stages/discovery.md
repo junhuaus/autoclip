@@ -10,8 +10,7 @@ truncate it or manufacture closure.
 Boundary cues carry meaning. Include the initiating question, numbered-step marker or explicit premise
 when it is needed to understand the answer. Include the final comparison, conclusion, acknowledgement
 or brief “OK” when it closes the unit. Conversely, exclude earlier setup once the first direct method
-statement is independently understandable. Brief microphone/distance words that directly enable an
-immediate vocal demonstration are part of that demonstration, not unrelated duration padding.
+statement is independently understandable.
 
 For a live diagnosis, include the first meaningful evaluated singing/example cue, the diagnosis and
 correction loop, the before/after evidence, the final actionable recommendation and its natural closing

@@ -1,5 +1,1643 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## cold-34 strict PASS 92.5 on frozen 50232af (consecutive 2/2; benchmark v1 strict acceptance satisfied) (2026-11-05)
+
+- [x] 2026-11-05 **cold-34**, counted fresh cold run 2 of 2 (real Claude
+  CLI, single segment), on frozen `50232af0cb0b0194fb663528b569998a8a2fd79b` at HEAD `a8ab7cd`
+  (docs-only commits `c5e9f96`, `feef1e5`, `a8ab7cd` on top of the freeze);
+  freeze-diff (incl. `.gitignore`) rc 0 with empty porcelain before and
+  after; eval rc 0, wall 7170 s, 0 sleep/wake events, AC power. Strict
+  **PASS 92.5** (both_profiles 15, short 17.5, mini 25, boundary 15, risk
+  10, audit 10); no hard failure, PASS blocker, direct-fail condition,
+  forbidden-composite, padding, negative-anchor, duration or regression
+  finding. Short 7/8 (S03 missed); mini 5/6 (L05 missed); R01 blocked, R02
+  `manual_review`. Provenance meets the fresh-cold definition
+  (`cache_hits` 0, roots absent at start, 268 cache files all newer than
+  the attempt start, prompt hashes = Stage 17b table). 272 provider
+  records first-attempt, 0 retries/usage-limit markers, 4 successful
+  repairs. Fingerprint identical to cold-33 (Settings fingerprint
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`, run fingerprint
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`). S03/L05 misses are
+  observations only (known residual fragility, no patch): see `STATUS.md`.
+  12 renders rc 0; visual and audio review pending.
+  Consecutive cold strict PASS count: **2/2** (cold-33, cold-34).
+- [x] 2026-11-05 Dual-profile benchmark v1 acceptance policy (2 consecutive
+  fresh-cold strict PASSes on the frozen tree) satisfied: strict benchmark
+  acceptance is complete. (The "Next: cold-34" item in the cold-33 section
+  below is historical; done here.)
+- [ ] Next: human editorial/audio review of the renders of cold-27 r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33 and cold-34 (a separate
+  acceptance activity, pending); the L07 listening check of
+  `input/8-30.ts` 1:40:07–1:40:35 (pending); push/merge to `main` only with
+  explicit user consent.
+- [x] 2026-11-05 Historical-checkbox note (reviewer P2, docs only; earlier
+  lines left unchanged because this plan is append-only): the open
+  "Next: cold-34" item in the cold-33 section and the open "Next: cold-33"
+  item in the freeze-accepted section below are historical and done
+  (cold-33 strict PASS recorded in `a8ab7cd`; cold-34 strict PASS recorded
+  in `55558e8`).
+
+## cold-33 strict PASS 92.5 on frozen 50232af (consecutive 1/2) (2026-11-05)
+
+- [x] 2026-11-05 **cold-33**, the first counted fresh cold run (real Claude
+  CLI, single segment), on frozen `50232af0cb0b0194fb663528b569998a8a2fd79b` at HEAD `feef1e5`;
+  freeze-diff (incl. `.gitignore`) rc 0 with empty porcelain before and
+  after; eval rc 0, wall 7479 s, 0 sleep/wake events, AC power. Strict
+  **PASS 92.5** (both_profiles 15, short 17.5, mini 25, boundary 15, risk
+  10, audit 10); no hard failure, PASS blocker, forbidden-composite,
+  padding or negative-anchor finding. Short 7/8 (S03 missed); mini 5/6
+  (L05 missed); R01 blocked, R02 `manual_review`. Provenance meets the
+  fresh-cold definition (`cache_hits` 0, roots new, 272 cache files all
+  newer than the attempt start, prompt hashes = Stage 17b table). 272
+  provider records first-attempt, 0 repairs/retries/usage-limit markers.
+  Fingerprint cold-34 must match (CLI sha256, model, algorithm, routing v9,
+  Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`, run fingerprint
+  `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5`) and the S03/L05 miss diagnostics
+  (observations only, no patch): see `STATUS.md`. 12 renders rc 0; human
+  editorial/audio review pending (separate evidence category).
+  Consecutive cold strict PASS count: **1/2**.
+- [ ] Next: cold-34 (consecutive run 2 of 2) on the same frozen tree with
+  the same fingerprint; a cold-Nb continuation counts as one run. Human
+  review of the cold-27 through cold-33 renders stays pending.
+
+## Freeze accepted at 50232af (Stage 16b + Stage 17 + Stage 17b) (2026-11-05)
+
+- [x] 2026-11-05 **FREEZE ACCEPTED** at
+  `50232af0cb0b0194fb663528b569998a8a2fd79b`: independent tester at `c5e9f96` (freeze-diff to `50232af` empty): `make
+  lint` rc 0; backend pytest 3224 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; freeze-diff rc 0; `caffeinate` held
+  for the full suite (a 40 s maintenance sleep occurred only during lint,
+  not under `caffeinate`); independent reviewer: Stage 17 ACCEPT with nits (13/13 mutations caught,
+  replay identical); Stage 17b ACCEPT with nits; FREEZE-READY yes (8/8
+  prompt mutations caught; the 17 prompt hashes computed from the tree
+  equal the `STATUS.md` table and the test pins; six-run replay
+  byte-identical). Consecutive cold strict PASS count:
+  **0/2**. Details in `STATUS.md`.
+- [x] 2026-11-05 Reviewer P2 fixed (docs/policy only): a fresh run has
+  run-manifest `cache_hits == 0`, its cache root is new or empty at start,
+  and every cache file's mtime is at or after the run's attempt start; a
+  continuation segment (cold-Nb) has `cache_hits` equal to the number of
+  entries copied from the immediately previous segment of the same run,
+  every carried file byte-identical to that segment and every new file's
+  mtime at or after the segment start; content identity versus other roots
+  is informational only (identical model outputs under identical frozen
+  prompts legitimately produce identical cache files). This replaces the
+  Stage 17b "0 content-identical files" clause.
+- [x] 2026-11-05 Reviewer P3 fixed: the two counted runs need equal
+  run-manifest `provider`, `model`, `prompt_hashes`, final-validated routing
+  policy and algorithm version; the same pinned Claude CLI binary (sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`, version 2.1.308); and the same effective Settings (no
+  `.env`/`.env.local` override of `LIVECLIP_CLAUDE_*` model, timeout or
+  attempt settings; each run records `ls -la .env .env.local` presence and
+  only the `LIVECLIP_` key names of a present file, never values). At this
+  commit `.env` is absent and `.env.local` is present with no
+  `LIVECLIP_CLAUDE_*` or `LIVECLIP_STRUCTURED_PROVIDER` key. `.gitignore` is
+  added to the freeze path list.
+- [x] 2026-11-05 Accepted residuals (reviewer P3, unchanged by decision; any
+  prompt edit starts a new freeze): the `main.md` line 8 and
+  `global_review.md` duration-minimum sentences do not restate the
+  single-cue exemption; the `global_audit.md` exemption lacks "without
+  leaving the topic". Recorded for a future prompt revision.
+- [ ] Next: cold-33, the first counted fresh cold run, at the frozen tree;
+  human review of the cold-27 through cold-32b renders stays pending.
+
+## Stage 17b Stage 17 reviewer nits; freeze definitions (2026-11-05)
+
+- [x] 2026-11-05 Stage 17 reviewer **ACCEPT with nits** on the Stage 16b +
+  Stage 17 candidate at `66b7555` (code `b5d8def`, `2932b7c`): no P0/P1; 13
+  of 13 recorded reviewer mutations caught (Stage 16b A1–A7, including the
+  former R7 survivor; Stage 17 B1–B5 plus a B4 variant); the reviewer's
+  six-run replay equals the Stage 17 table. Nits: P2 "gifts" listed as a
+  platform prompt (conflicts with the single-cue thanks exemption); P3
+  `risk_discovery` "a brief greeting or audience acknowledgement"; P3 Boundary
+  Review's duration test silent on board-writing and the live-demo remark;
+  P3 imprecise freeze and fresh-cold definitions.
+- [x] 2026-11-05 Stage 17b implemented in `50232af0cb0b0194fb663528b569998a8a2fd79b`, **pending
+  independent tester and reviewer** (details in `STATUS.md`):
+  - Prompts (generic): platform-prompt list in `main.md`, `coverage_audit`,
+    `risk_discovery`, `boundary_review`, `global_review` reads "requests for
+    fan badges, follows, likes or gifts, homepage plugs, requests for viewers
+    to join on microphone"; every exemption statement (those five plus
+    `global_audit`) includes "a single-cue thanks for a gift or follow";
+    Boundary Review's cross-reference says the exemption covers that thanks
+    but never these requests, chat reading or troubleshooting;
+    `risk_discovery`'s rhetorical-question paragraph uses the single-cue
+    wording; Boundary Review's duration test keeps board-writing and the
+    live-demo equipment remark inside the lesson (not removed).
+  - Hash table (16 of 17 change; variant link unchanged):
+
+  | prompt identity | before (66b7555, Stage 17) | after (Stage 17b) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | yes |
+  | `short_highlight.coverage_audit` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | yes |
+  | `short_highlight.precision_audit` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | yes |
+  | `short_highlight.precision_confirmation` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | yes |
+  | `short_highlight.risk_discovery` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | yes |
+  | `short_highlight.boundary_review` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | yes |
+  | `short_highlight.global_review` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | yes |
+  | `short_highlight.global_audit` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | yes |
+  | `mini_lesson.discovery` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | yes |
+  | `mini_lesson.coverage_audit` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | yes |
+  | `mini_lesson.precision_audit` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | yes |
+  | `mini_lesson.precision_confirmation` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | yes |
+  | `mini_lesson.risk_discovery` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | yes |
+  | `mini_lesson.boundary_review` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | yes |
+  | `mini_lesson.global_review` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | yes |
+  | `mini_lesson.global_audit` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  - Tests: flag contract 86 → 102 (new all-stage × Profile gift test,
+    superseded patterns, re-pinned Stage 17 wording); hash pins re-pinned
+    with justification. `make lint` rc 0; targeted pytest 677 passed; full
+    backend 3224 passed (3208 at Stage 17 plus 16 Stage 17b items). Six-run replay against the Stage 17b tree identical
+    to Stage 17 (routing unchanged). No routing, algorithm-version,
+    cache-key, schema or Python-behaviour change. Deterministic validation
+    only; no real model call.
+- [x] 2026-11-05 **Acceptance policy definitions** (refine the Stage 17
+  policy; the user decision is unchanged): FROZEN means the code/prompt tree:
+  `git diff --quiet <freeze-sha> -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile .gitignore
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md`
+  rc 0 with no untracked file under those paths, the recorded 17 prompt
+  hashes, routing `quality-gate-risk-routing-v9` and algorithm
+  `dual-profile-direct-v1`; docs-only commits recording run results do not
+  reset the count. Fresh cold means a new empty cache root plus a provenance
+  check (run-manifest `cache_hits == 0`, every cache file's mtime at or
+  after the attempt start; a continuation segment copies only from the
+  immediately previous segment of the same run, with `cache_hits` equal to
+  the copied entries, carried files byte-identical and new files' mtimes
+  at or after the segment start; content identity versus other roots is
+  informational only). (Corrected at freeze acceptance, reviewer P2;
+  `.gitignore` added to the path list, reviewer P3. The Stage 17b text
+  required 0 content-identical files vs every earlier root.) A run aborted by a provider or environment
+  failure without a strict evaluation counts neither way (re-run as a new
+  run or continue as cold-Nb); a strict FAIL resets the count. Human
+  editorial/audio review stays a separate evidence category, not part of
+  strict PASS. The freeze SHA is `50232af0cb0b0194fb663528b569998a8a2fd79b` once its tester and reviewer
+  accept.
+- [x] (Historical next step; tester and reviewer accepted, freeze recorded
+  above.) Next: independent tester and reviewer on `50232af0cb0b0194fb663528b569998a8a2fd79b`; freeze; two
+  consecutive fresh cold strict PASS runs; human review of the cold-27
+  through cold-32b renders.
+
+## Stage 17 routing v9 ending-edge release and narrowed interruption exemption (2026-11-05)
+
+- [x] 2026-11-05 cold-32b analysed by an independent read-only reviewer
+  (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/cold32b-analysis/ANALYSIS.txt`). L02 is a
+  deterministic rule contradiction: a Discovery `topic_not_closed` (a scope
+  claim) persisted after Boundary Review cleared it without a shrink while
+  attesting all four facts; the audit rule then steered representation to
+  the identical-interval risk twin, and the v6 union gave that twin the same
+  flag. The forbidden composite came from Boundary/Global Review applying the
+  Stage 15 exemption to interior calls to action, platform prompts, chat
+  reading and presentation troubleshooting (n = 1; earlier runs flagged the
+  same spans). Failure-mode table and fragility estimate (Discovery gated
+  flag on 9.2 % of 119 gold-exact rows; about 35–45 % chance per run of
+  losing at least one P0 through a single vote; observed 3 of 6) are in
+  `STATUS.md`.
+- [x] 2026-11-05 User decisions: **"Both" fixes** (routing P-a plus the prompt
+  narrowing; P-b' not approved, twin union unchanged) and acceptance
+  **"Freeze, 2 cold PASS in a row"**.
+- [x] 2026-11-05 Stage 17 implemented in `2932b7c15af600a900a8838deed4cfcf08a9c95b`,
+  **pending independent tester and reviewer** (together with Stage 16b):
+  - Routing `quality-gate-risk-routing-v9` inside `discovery_persisted_flags`:
+    on an unshrunk candidate a Discovery `topic_not_closed`
+    (`ENDING_EDGE_STRUCTURAL_FLAGS`) is released when Boundary Review's own
+    item clears it and `boundary_attests_complete_unit` holds (opening,
+    ending, central objective, shortest all true); interior structural flags
+    keep v5 persistence. Final assembly, audit payload, representative
+    validator, pair fallback keep order and manifest diagnostic share the
+    helper. v1–v8 still load; algorithm version and cache-key schema
+    unchanged.
+  - Prompts: `main.md` exemption narrowed to a single-cue passed-over
+    thanks, greeting or name call-out; interior calls to action and platform
+    prompts, chat reading and presentation troubleshooting are
+    `material_interruption` even when brief and are subtracted in the
+    duration test; writing the taught term on the board stays in the lesson.
+    Mirrored in `coverage_audit`, `risk_discovery`, `boundary_review`,
+    `global_review`, `global_audit`; `global_review` states the v9 release.
+  - Hash table (16 of 17 change):
+
+  | prompt identity | before (03ec7ef, Stage 16b) | after (Stage 17) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `42f26c40658f26efa7efdc51bbca2b9ae7c82d7e2c6665cf1abd9a80f5cc1ed1` | `ff8aeed5916548aa8e34b4183e0b1e1302dc9e31afc78f50518991593c6a6ab5` | yes |
+  | `short_highlight.coverage_audit` | `d59f993675d587ac81b902ea0db24a70877dc49048382a4296485ff58fb279a4` | `0e6927b50f086f190c31ec57d2c58fc6763bef4e34f72d614db566e12cc2aa29` | yes |
+  | `short_highlight.precision_audit` | `5c7445188cbe9d52a52ff50d3c480d8fd45f2ddee0177f7ab0841ae7660e52fa` | `3c8bcd41051aafcd4e9cb87037937e045ae9457e5cbbdaeb9805d5d73f0d25d8` | yes |
+  | `short_highlight.precision_confirmation` | `edcc0a5fb314a92937a4c621cc5f1872e2c0780158aa0933528d19d110331d05` | `3d39dd7d0e8fde23c7b2f54998c4f59a7fe1c09ed79e859c54dd79edb0771b1e` | yes |
+  | `short_highlight.risk_discovery` | `804d156fda48f709d59b0cfe8bc59f0457677798c13ad774ce74307fad67eec5` | `a335cc1532f8fbab3ef15b2eb9d8a80462cdac97d2cbabcdcbf4cc1a51266d2c` | yes |
+  | `short_highlight.boundary_review` | `89eb40e58aacd8e0bfdfcb03d3937bb90299659516ff1bc27db35d8c84026b3f` | `622d230f0290c8526181e3b36f55730a3e6b190b7efa977a6dbdd9941216d9e5` | yes |
+  | `short_highlight.global_review` | `14fc738fcbda816b1ce415540a579504bd605b479639dc6e2c83961f4ff187a4` | `f9477baa0e5dd267e091b51e6b3c42276e92bd1a4b40d3549f16e2d29b86d39b` | yes |
+  | `short_highlight.global_audit` | `d3b000d3910dd4d699741f704810f859d4b8f3aa930e078d41829ed435a1e8b3` | `a4ff7d01d8f84b4d5cb6ab94c4acb8730d69cacbdba7cb4960c9479af4f896ed` | yes |
+  | `mini_lesson.discovery` | `cb37977bbad61c0c1ba64039164bc2c5543e0fd8d14ad44beedc65d9cd4aa84a` | `03010be4c3baa706fbb77f7590d5ca4a91b53de0c42c8138e7e6a8085ecb8666` | yes |
+  | `mini_lesson.coverage_audit` | `42e2a18413d919ca69989cf39d6b7aca1b5f0f444bfd95a1e77f7fc64685eb8a` | `b5dc773e58cbd24a1dd8498f0be3867880e24944e00ce7944c57aff644452eb2` | yes |
+  | `mini_lesson.precision_audit` | `d864bcf6bfa50352e6eacec3eb02b84922daccc31877af345acc385f0e9900f8` | `286795bb1d3f5bc8a72ddce67c81ee4eab1d7548198ef93a0063c2b5ab8716d7` | yes |
+  | `mini_lesson.precision_confirmation` | `fbfdd8eb99e86f4407b382d4c60defa0d8beb91f8f838755a20f62ecf89d8e92` | `1a4959e0a4b130282c79c0743c7fdf3dd151a253cdc67dd99313e5ce2fa82ef3` | yes |
+  | `mini_lesson.risk_discovery` | `6ba50849cc3b3707dc72d6d97333e1e839f3fe34001b7d3daa7531cba793b952` | `2a3e44f2a63dcb10f395434b18014ee0b012586aeee695b827685648d8a3a4ba` | yes |
+  | `mini_lesson.boundary_review` | `50d3041f34fcbbeca570738ef5e14c8dcccdc07df409fd0379b4b4c1ed340cf9` | `63f525607cad124aaf0002fe89476bdcbbfa565b94b454da9f3142eb8ae2aa5f` | yes |
+  | `mini_lesson.global_review` | `99287e4cf343de527b9e56809e528a60224c92bf8b8c6a630007fa610d7968f1` | `857eb960f1c4a40aefbf2c4d43b9d9c778dc62d19d50729a5489f4241bef284a` | yes |
+  | `mini_lesson.global_audit` | `509db61a808132aa9662be5fcb72250b2f4000247945d8548504304576337619` | `a9d42e17e6fb374595a3eec64db9041caf358cb4cdb55a397f1fddc02b29c08f` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  - Tests +51 (unit 141 → 160, flag contract 68 → 86, integration 99 → 113);
+    8/8 scratch-only mutations caught; `make lint` rc 0; targeted pytest
+    494 passed; full backend pytest 3208 passed. Deterministic validation
+    only; no real model call.
+  - Replay (stored outputs, six runs; v8 column equals the reviewer's v8
+    replay, v9 equals the reviewer's P-a replay):
+
+  | run | v8 rule (this tree) | v9 shipped | mini hits v9 | hard failures v9 | negatives v9 | rows changed v8->v9 | v8 == reviewer v8 / v9 == reviewer P-a | validate |
+  |---|---|---|---|---|---|---|---|---|
+  | cold-27 | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | warm-28 | FAIL 95.0 | FAIL 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | ['irrelevant_padding'] | - | - | True / True | ok |
+  | warm-29b | PASS 95.0 | PASS 95.0 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | - | - | True / True | ok |
+  | cold-30 | FAIL 92.5 | FAIL 92.5 | 5 ['L02', 'L03', 'L04', 'L05', 'L07'] | ['missing_any_p0_mini_lesson'] | - | - | True / True | ok |
+  | cold-31 | PASS 92.5 | PASS 92.5 | 5 ['L01', 'L02', 'L03', 'L04', 'L05'] | - | ['N08'] | - | True / True | ok |
+  | cold-32b | FAIL 92.5 | FAIL 97.5 | 6 ['L01', 'L02', 'L03', 'L04', 'L05', 'L07'] | ['forbidden_composite_interval'] | - | [('mini', 'risk_curriculum_steps_1_to_4_claim_chain', 'blocked', 'manual_review')] | True / True | ok |
+
+- [x] 2026-11-05 **Acceptance policy** (user decision): after Stage 17 is
+  accepted, code and prompts are frozen; benchmark acceptance requires two
+  consecutive fresh cold runs with strict PASS on the frozen SHA; a failed
+  run is analysed before any change (no immediate patching), and any change
+  starts a new frozen SHA and count; a usage-limit continuation segment
+  (cold-Nb) counts as one run.
+- [x] (Historical next step; the reviewer accepted with nits, which became
+  Stage 17b, above.) Next: independent tester and reviewer on the Stage 16b (`b5d8def`) and
+  Stage 17 SHAs; then freeze and two fresh cold runs; human review of the
+  cold-27 through cold-32b renders.
+
+## Stage 16b Stage 16 reviewer nits; cold-32b result (2026-11-04)
+
+- [x] 2026-11-04 Stage 16 (`b1f11ec` code, `58186f5` docs) fast-forwarded
+  into `claude/liveclip-stage8-routing`. Reviewer **ACCEPT with nits** (no
+  P0–P2; 7 of 8 independent mutations caught, R7 — a regeneration-phase
+  provider failure labelled `repair` — survived).
+- [x] 2026-11-04 cold-32b: continuation of cold-32 at `b758f71` (routing `quality-gate-risk-routing-v8`, real Claude CLI): eval rc 0; 99 cache hits from the preserved cold-32 cache plus 182 fresh provider records; 0 sleep during the run; provenance clean (0 content-identical cache files vs 26 other cache roots). Strict **FAIL 92.5**. Hard failures: (1) `missing_any_p0_mini_lesson` (L02): the base `ml_0006_steps_1_to_4_numbered` kept its Discovery `topic_not_closed` flag through structural persistence after Boundary Review cleared it without a trim; Global Review rejected it as a duplicate of its risk twin `risk_curriculum_steps_1_to_4_claim_chain`, and the twin union passed the gated flag to that risk receiver, so the quality gate blocked it; (2) `forbidden_composite_interval` (new): three `ml_0003_*` mini candidates routed `manual_review` overlap 1099200–1351000 ms. Short 7/8 (S03 missed); mini 5/6 (L01, L03, L04, L05, L07 hit); R01 blocked, R02 `manual_review`; every N07/N08-overlapping row blocked or rejected; Discovery `material_interruption` mini 69 / short 21. 12 renders rc 0, human editorial/audio review pending. Evidence `data/evaluations/dual-profile-strict-eval-20261104-claude-cold-32b/evidence/`. Analysis pending.
+  Real-model inference at `b758f71`; not evidence for Stage 16/16b.
+- [x] 2026-11-04 Stage 16b implemented in
+  `b5d8def745d468863917ae04d1c2d1dd314004c2`, **pending independent tester and reviewer** (details in
+  `STATUS.md`): (1) regeneration-phase provider-failure tests (error,
+  failure file and manifest `failed_phase`); (2) the v1 aggregate and every
+  stage rewrap forward `timeout_seconds` / `suspended_seconds` (AST-checked;
+  the persisted v4 unit outcome stores only its code, schema unchanged);
+  (3) fixed messages for the two budget codes, `SEMANTIC_UNIT_INTERNAL_ERROR`
+  and `PROVIDER_CANCELLED`; (4) the backstop manifest keeps only
+  `exception_type` plus `exception_message_recorded: false`, never the text;
+  (5) sleep gap on `CLOCK_MONOTONIC_RAW` on Darwin (wall clock elsewhere),
+  also counted toward the deadline; (6) CLI summaries trim a long evidence
+  path from its start, staying under the CLI bound.
+  - No prompt (17/17 hashes equal the Stage 16 table), routing,
+    algorithm-version, cache-key or persisted-schema change.
+  - Self-check: `make lint` rc 0; targeted pytest (29 files) 999 passed;
+    19 new test items; 12/12 scratch-only mutations caught (R7 included).
+- [x] (Historical next step; cold-32b analysed and Stage 17 followed, above;
+  Stage 16b verification is deferred to the joint Stage 16b + 17 review.)
+  Next: independent tester and reviewer on the Stage 16b SHAs; cold-32b
+  analysis; human review of the cold-31, cold-32b and earlier renders.
+
+## Stage 16 provider-failure observability (Stage 15c reviewer Part B) (2026-11-04)
+
+- [x] 2026-11-04 Stage 15c **ACCEPTED** at
+  `b758f7172f6cecebadb4afc82de502788d26de9e` (code `b026c64`). Tester PASS:
+  lint rc 0; backend 3104 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep in the test window. Reviewer ACCEPT: 7 of 7 independent
+  mutations caught; offline replay identical.
+- [x] 2026-11-04 cold-32 root cause (reviewer Part B): two consecutive
+  wall-clock `PROVIDER_TIMEOUT`s in `short_highlight` Global Review during
+  the machine sleep, misreported as "structured model output could not be
+  validated" because every unlisted provider code mapped to that text; only
+  exhausted validation wrote evidence, so the completed call records were
+  lost (reviewer P3 nit). The cold-32 cache was verified valid by a
+  read-only check (99 files).
+- [x] 2026-11-04 cold-32b (continuation on the preserved cold-32 cache)
+  started at `b758f71`; result pending, not evidence for Stage 16.
+- [x] 2026-11-04 Stage 16 implemented in
+  `b1f11ecbea257488815fce3f8636bc853078ba2f` on `claude/liveclip-stage16`,
+  **pending independent tester and reviewer** (details in `STATUS.md`):
+  - P1: `DualProfileProviderFailureError` wraps a provider failure from the
+    initial generation, repair or regeneration, is recorded beside exhausted
+    units, and the run writes `failed-<profile>-<stage>.json`
+    (`provider_failed`), partial `provider-calls.json` and
+    `failure-manifest.json` (`provider_failure`) to the run directory only;
+    an `unexpected_error` backstop manifest for any other exception after
+    the run directory exists; always re-raised.
+  - P2: fixed messages per provider code (timeout with the configured
+    seconds); "could not be validated" only for `STRUCTURED_OUTPUT_INVALID`.
+  - P2: `ProcessInterruptedBySleep` (a `TimeoutExpired` subclass) when only
+    the wall-clock deadline fired and the wall clock ran more than 60 s
+    ahead of the monotonic clock; `PROVIDER_INTERRUPTED_BY_SLEEP` is never
+    semantically retried; job pipelines still treat it as transient.
+  - P3: the CLI prints code, stage, profile, subject, phase and evidence
+    path.
+  - No prompt, hash (17/17 equal the Stage 15c table), routing,
+    algorithm-version or cache-key change; success path unchanged.
+  - Self-check: ruff check/format clean; `mypy src/liveclip` clean;
+    targeted pytest 581 passed; full backend pytest tests 3138 passed (3104 at b758f71 plus 34 new); 12/12 scratch-only mutations caught.
+- [x] (Historical next step; reviewer ACCEPT with nits, Stage 16b and the
+  cold-32b result followed, above.) Next: independent tester and reviewer on
+  the Stage 16 SHAs; record the cold-32b result.
+
+## Stage 15c risk-twin review covers risk-record receivers (routing v8) and Stage 15b reviewer nits (2026-11-04)
+
+- [x] 2026-11-04 Stage 15b **ACCEPTED** at
+  `e960414b381d6086151f8fe0572feb5d2b8784f9` (code `11df4c6`). Tester PASS:
+  lint rc 0; backend 3101 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep. Reviewer ACCEPT with nits (no P0–P2; 8 of 9 independent
+  mutations caught, R5b survived; replay byte-identical; hashes match).
+- [x] 2026-11-04 cold-32 (fresh cold run) started at `e960414` (routing v7);
+  result pending, not evidence for Stage 15c.
+- [x] 2026-11-04 Stage 15c implemented in `b026c64b42fb92e66841150d69d8167655b99c61`, **pending independent
+  tester and reviewer** (user decision "when a risk twin has a high-risk tag,
+  its twin can't be auto-published"):
+  - Nit 1: routing policy `quality-gate-risk-routing-v8` — risk-twin review
+    downgrades ANY row still `selected` after the twin union (risk records
+    included) whose identical interval has a DIFFERENT risk-discovery record
+    with an `AUTO_BLOCKING_RISK_TAGS` tag; a record is never its own source.
+    Position, prefix, `manual_review`-only, idempotence, manifest diagnostic
+    and `validate_against` unchanged through the single helper
+    `risk_twin_review`. v1–v7 load; prompts, hashes, algorithm version and
+    cache-key schema unchanged. The v7-pinning unit case is flipped with
+    justification.
+  - Nit 2: `RiskTwinProvider` gains a `manual_review` base twin and a
+    selected `commercial_claim` risk-pass twin; a service test now fails
+    under mutation R5b (`len(sources)`), verified scratch-only.
+  - Nit 3 (accepted residual, outside the decision): a selected row next to
+    a non-risk twin with an automatic-blocking tag is not downgraded; risk
+    tags have never been shared between non-risk twins.
+  - Offline replay (`stage15c-sim/replay.py`): identical to v7 (final JSON
+    identical except the marker) for cold-27 PASS 95.0, warm-28 FAIL 95.0,
+    warm-29b PASS 95.0, cold-30 FAIL 92.5, cold-31 PASS 92.5; downgrades
+    0/0 in every run.
+  - Self-check: ruff check/format clean; mypy clean on changed `src`;
+    targeted pytest 325 passed; full backend 3103 passed, 1 failed (`test_stage_runner.py::test_running_stage_observes_durable_cancel_and_acknowledges_it`, a 3 s/5 s thread-wait test in code this stage does not touch, run while cold-32 loaded the host; it and its module pass in isolation, 3 passed); 12/12
+    mutations caught (originally recorded as 13/13; the script runs twelve); all 17 prompt hashes equal the Stage 15b table.
+- [x] 2026-11-04 cold-32 (started at `e960414`, routing v7, real Claude CLI) was **interrupted by a machine sleep**: the lid was closed and the charger unplugged at 15:56 PST; the evaluation exited rc 1 at 16:37 with stderr only "structured model output could not be validated" and no `failed-*.json` was written. The `short_highlight` stage cache (discovery, coverage_audit, boundary_review, global_review) is preserved. The run is **environment-invalid** (no benchmark result, no evidence for or against any stage); a continuation run **cold-32b** on the preserved cache is planned.
+- [x] 2026-11-04 Stage 15c fast-forwarded into `claude/liveclip-stage8-routing`
+  (isolated worktree and `claude/liveclip-stage15c` removed). Re-verification after integration (main checkout at `c99d198`, before this docs commit): `make lint` rc 0; targeted pytest (the five files above) 325 passed; all 17 prompt hashes equal the Stage 15b table; mutation script re-run on scratch copies of the main checkout's `src` (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/mutate_main.py`, `mutation_results_main.txt`): 12 of 12 caught, R5b by `test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins` and the v7 receiver restriction by three tests; offline replay re-run from the main checkout (`/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage15c-sim/replay_main.py`, `replay_output_main.txt`) identical to the table above. Deterministic validation only.
+- [x] (Historical next step; Stage 15c was accepted at `b758f71`, cold-32b
+  was started there, and Stage 16 followed, above.) Next: independent tester
+  and reviewer on the Stage 15c SHAs; cold-32b
+  (continuation on the preserved cold-32 cache).
+
+## Stage 15b risk-twin review (routing v7) and Stage 15 reviewer P3s (2026-11-04)
+
+- [x] 2026-11-04 Stage 15 **ACCEPTED** at
+  `8af759ad2ac9866d9ef08b82fae49136f9cc068f` (code `289530e`). Tester PASS:
+  lint rc 0; backend 3087 passed; vitest 80; e2e 4/4; concurrency test 5/5;
+  no sleep. Reviewer ACCEPT with nits (no P0–P2; 8 mutation checks, 7
+  caught and 1 equivalent; replay byte-identical; hashes match).
+- [x] 2026-11-04 Stage 15b implemented in
+  `11df4c61a829dc80f24929013019d6aff88f2d45`, **pending independent tester
+  and reviewer** (user decision "Add: drop to manual review"):
+  - Routing policy `quality-gate-risk-routing-v7`: after the twin union and
+    before Top-N, a non-risk row still `selected` whose identical interval
+    has a risk-discovery twin with an `AUTO_BLOCKING_RISK_TAGS` tag becomes
+    `manual_review` with the Python-only prefix
+    "Deterministic risk-twin review: " (source twins and tags in the reason;
+    no tag copied). Shared helper `risk_twin_review` drives assembly, the new
+    manifest diagnostic `risk_twin_review_downgrades` and its
+    `validate_against` cross-check; the reverse prefix check requires
+    `manual_review`. v1–v6 still load; algorithm version and cache-key schema
+    unchanged.
+  - Reviewer P3s: v6 trade-off stated precisely (risk tags were never
+    shared; before v6 a risk twin's gated flag blocked a selected twin only
+    as a side effect); Boundary Review duration test reconciled with the
+    `material_interruption` threshold; `main.md`/`global_audit.md` long
+    lines re-wrapped; no-op filter removed; `final_profile_rows` reused by
+    the service; cold-30 replay note reconciled. Every `main.md`-loading
+    stage hash changed (table in `STATUS.md`); variant link unchanged.
+  - Offline replay (`stage15b-sim/replay.py`): identical to v6 for cold-27
+    PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS 95.0, cold-30 FAIL 92.5,
+    cold-31 PASS 92.5; `risk_twin_review_downgrades` 0/0 in every run (no
+    selected row shares an interval with a tagged risk twin).
+  - Self-check: lint rc 0; targeted pytest 322 passed; 12/12 mutations
+    caught.
+- [x] (Historical next step; Stage 15b accepted at `e960414`, cold-32
+  started there, and Stage 15c, above, followed.) Independent tester and
+  reviewer on the Stage 15b SHAs, then a fresh cold run (cold-32) only with
+  the user's go-ahead.
+
+## Stage 15 risk-twin flags not propagated (routing v6), interruption threshold, self-promotion; cold-31 strict FAIL 87.5 (2026-11-02/04)
+
+- [x] 2026-11-02 Stage 14c **ACCEPTED** at
+  `867d1cf669ffb9d8eccce40ba97d84fd44e016ef`. Tester PASS: lint rc 0;
+  backend 3056 passed; vitest 80; e2e 4; concurrency test 5/5; no sleep.
+  Reviewer ACCEPT with nits.
+- [x] 2026-11-02 cold-31 at `867d1cf` (fresh cold, 242 provider records,
+  `cache_hits` 0, 0 content-identical cache files versus 25 earlier roots,
+  every prompt hash = Stage 14c): strict **FAIL 87.5**
+  (`missing_any_p0_mini_lesson`: L02). Short 7/8 (S03 miss); mini 4/6
+  (L01/L03/L04/L05 hit; L02's exact clean base candidate blocked only by
+  the Stage 9 same-interval twin union copying `material_interruption`
+  from its risk-discovery twin; L07 missed by representative-choice
+  variance); R01/R02 blocked; all N07-overlapping rows blocked; N08
+  `manual_review` informational; 11 renders rc 0, human review pending.
+  Evidence in
+  `data/evaluations/dual-profile-strict-eval-20261102-claude-cold-31/evidence/`
+  and `STATUS.md`.
+- [x] 2026-11-04 Stage 15 implemented in
+  `289530eba3b59f89325ede5c268f9064f8cb5257`, **pending independent tester
+  and reviewer** (user decisions "Ignore risk-twin tags", restore the
+  `material_interruption` threshold, reject self-promotion):
+  - Routing policy `quality-gate-risk-routing-v6`: risk-discovery records
+    are not flag sources in the twin union (they keep their own flags and
+    still receive non-risk twins' flags); shared helper
+    `same_interval_twin_flags` drives final assembly, the new manifest
+    diagnostic `risk_twin_flags_not_propagated` and its `validate_against`
+    cross-check. v1–v5 still load; algorithm version and cache-key schema
+    unchanged.
+  - Prompts: threshold sentence in `main.md`, mirrored in `risk_discovery.md`
+    and `coverage_audit.md`; `boundary_review.md` aligned;
+    `precision_audit.md` defers to it; self-promotion rule in
+    `boundary_review.md`, `global_review.md`, `global_audit.md`. Every stage
+    hash except the variant link changed (table in `STATUS.md`).
+  - Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0, warm-29b PASS
+    95.0, cold-30 FAIL 92.5 (unchanged versus v5), cold-31 PASS 92.5
+    (routing evidence only).
+  - Self-check: lint rc 0; targeted pytest 308 passed.
+- [x] (Historical next step; Stage 15 accepted at `8af759a`, and Stage 15b,
+  above, followed.) Independent tester and reviewer on the Stage 15 SHAs,
+  then a fresh cold run (cold-32) only with the user's go-ahead.
+
+## Stage 14c Stage 14b reviewer REJECT follow-ups (2026-11-02)
+
+- [x] 2026-11-02 Stage 14b reviewer **REJECT** on docs commit
+  `66265e2e79d36a08e98e46c857ae71a490da2049` (P2, docs only): the
+  `STATUS.md` Stage 14b hash table listed intermediate-draft global_review
+  and global_audit hashes (both Profiles). Code at `9664efe` unaffected.
+- [x] 2026-11-02 Stage 14c implemented (prompt, test and docs commit after
+  `66265e2`), **pending independent tester and reviewer**. Routing policy
+  stays `quality-gate-risk-routing-v5`; no Python routing, evaluator,
+  threshold, benchmark, algorithm version or cache-key schema change; gate
+  semantics unchanged.
+  - `boundary_review.md` (reviewer P3, generic wording): the
+    `material_interruption` definition cross-references interior
+    audibility/lag/playback trouble as `material_interruption`; interior
+    chat kept for duration flags `padded_with_irrelevant_content` alongside
+    `material_interruption` (or `topic_switch_inside`), never instead.
+    boundary_review hashes change for both Profiles; all others unchanged.
+  - New test `test_review_stage_prompt_identities_match_pins` pins the full
+    service-recorded hashes of boundary_review, global_review and
+    global_audit (both Profiles) and the variant link.
+  - `STATUS.md` Stage 14b hash table corrected to the service-recorded values
+    (history noted in place); full Stage 14c hash table in `STATUS.md`.
+  - Self-check: lint rc 0; targeted pytest 277 passed.
+- [x] (Historical next step; Stage 14c accepted and cold-31 ran, above.)
+  Independent tester and reviewer on the Stage 14c SHA, then the fresh cold
+  run cold-31 only with the user's go-ahead.
+
+## Stage 14b Stage 14 reviewer P3 follow-ups (2026-11-02)
+
+- [x] 2026-11-02 Stage 14b implemented in
+  `9664efe5b14c410984e452e339b7c245db480e14` (prompts and tests), **pending
+  independent tester and reviewer**. Routing policy stays
+  `quality-gate-risk-routing-v5`; no Python routing, evaluator, threshold,
+  benchmark, algorithm version or cache-key schema change; gate semantics
+  unchanged.
+  - Boundary Review, Global Review and Global Audit: audibility, lag and
+    network or playback trouble are padding at an edge; inside the interval
+    they are `material_interruption` (a padding flag may be added alongside,
+    never instead), consistent with `main.md`.
+  - Risk Discovery and Coverage Audit: interior interruptions of a risk
+    chain are `material_interruption` (or `topic_switch_inside`); padding
+    flags are edge-only and may accompany, never replace, them.
+  - Changed hashes (both Profiles): coverage_audit, risk_discovery,
+    boundary_review, global_review, global_audit. Unchanged: discovery,
+    precision_audit, precision_confirmation, variant link. List in
+    `STATUS.md`.
+  - New integration test: a padding-only Discovery-flagged candidate
+    (Boundary Review cleared, no trim) validates exactly like an unflagged
+    candidate under the representative rule, a blocked duplicate and the
+    pair fallback keep order.
+  - Self-check: lint rc 0; targeted pytest 276 passed.
+- [x] (Historical next step; Stage 14b REJECTED on docs hashes, fixed in
+  Stage 14c above.) Independent tester and reviewer on the Stage 14b SHA,
+  then the fresh cold run cold-31 only with the user's go-ahead.
+
+## Stage 14 padding flags follow Boundary Review; cold-30 strict FAIL 92.5 (2026-11-01)
+
+- [x] 2026-11-01 cold-30 at `194ba65` (fresh cold, `cache_hits` 0, 231
+  calls): strict FAIL 92.5; L01 missed only through Discovery padding-flag
+  persistence; L07 hit for the first time; N07 clean. Evidence in
+  `data/evaluations/dual-profile-strict-eval-20261101-claude-cold-30/evidence/`
+  and `STATUS.md`.
+- [x] 2026-11-01 Stage 14 implemented in `fc31907266ee07485567580f5b125ced76775cfe`, **pending independent
+  tester and reviewer** (user decision "Padding follows BR + prompt"):
+  routing policy `quality-gate-risk-routing-v5` persists only structural
+  Discovery gated flags (`PERSISTED_STRUCTURAL_GATED_FLAGS`); padding flags
+  (`PADDING_GATED_FLAGS`) follow Boundary Review. Shared `main.md` carries
+  the microphone/demonstration rule and padding = edge material; Global
+  Review/Audit wording updated; every stage prompt hash changed (list in
+  `STATUS.md`). CLI exhaustion summary keeps the evidence-writer note.
+  Offline replay: cold-27 PASS 95.0, warm-28 FAIL 95.0 (unchanged),
+  warm-29b PASS 95.0, cold-30 PASS 97.5 (routing evidence only).
+- [x] 2026-11-02 Stage 14 **ACCEPTED** at
+  `2c088fe1af349cb4a93502fe10a5ba8769ef9183`. Tester PASS: lint rc 0;
+  `make test` backend 3042 passed; vitest 80; e2e 4/4; concurrency test
+  5/5; no sleep. Reviewer ACCEPT with nits (no P0–P2); replay cold-27 PASS
+  95.0, warm-28 FAIL 95.0 (unchanged), warm-29b PASS 95.0, cold-30 PASS
+  97.5. The P3 nits become Stage 14b.
+- [x] (Historical next step; Stage 14 accepted above.) Independent tester
+  and reviewer on the Stage 14 SHA, then a fresh cold run only with the
+  user's go-ahead.
+
+## Stage 13e: Stage 13d reviewer follow-ups (2026-11-01)
+
+- [x] 2026-11-01 Stage 13e implemented on `claude/liveclip-stage8-routing`,
+  **pending independent tester and reviewer**. Python and tests only; every
+  prompt hash and cache key unchanged versus `bc150c5`.
+  - P2: the reviewer's assembly-only audit probe is a regression test; it
+    fails when the merged-audit `raise assembly_error` is deleted.
+  - P3: the failure-evidence writer catches any `Exception` and attaches
+    it as a note; the validation error always propagates.
+  - P3: concurrently exhausted units of one stage are all kept
+    (`concurrent_exhausted_units`, every exhausted unit's records in the
+    partial `provider-calls.json`, `concurrent_failed_subject_ids`); units
+    ending with another error stay unlisted (documented).
+  - P3: "drops output containing the account identity" is stated for the
+    Claude CLI provider only; the duplicate test mode `keep_lesson_blocked`
+    is merged into `blocked_dup`.
+  - Offline: sentinel replay on a scratchpad copy of the warm-29b cache: 233
+    hits, 0 calls, outputs byte-identical to warm-29b.
+- [x] 2026-11-01 Stage 13e **ACCEPTED** at
+  `194ba653b0abd9712bc750eaf2d6aada594a61c3`. Tester PASS: backend 3003
+  passed; vitest 80; e2e 4; concurrency test 5/5. Reviewer ACCEPT with an
+  offline cold simulation, no blocker.
+- [x] (Historical next step; Stage 13e accepted above and cold-30 ran at
+  `194ba65`.) Independent tester and reviewer on the Stage 13e SHA, then
+  cold-30 as the acceptance run, only with the user's go-ahead.
+
+## Stage 13d accepted at bc150c5; warm-29b strict PASS 95.0 (2026-11-01)
+
+- [x] 2026-11-01 Stage 13d **ACCEPTED** at
+  `bc150c5f5fc772f574e09c305ba0d7d5d9991bc9`. Tester PASS: lint rc 0;
+  backend 3000 passed in 1663.46 s; vitest 14 files / 80 tests; e2e 4;
+  targeted 327; no sleep 19:50–20:22. Reviewer ACCEPT, no P0/P1: only the
+  Global Audit hashes changed (short `686a9fba…`, mini `bdb7ff05…`); 11 of
+  12 mutants killed; simulations reproduced; strict evaluator on cold-27
+  and warm-28 byte-identical; Decision 3 legitimate (a blocked duplicate
+  can count as R01/R02 routing like any blocked candidate). Reviewer P2/P3
+  findings become Stage 13e.
+- [x] 2026-11-01 warm-29b (real Claude CLI at `bc150c5`, pinned 2.1.308,
+  warm from a `cp -Rp` copy of the warm-29 cache, 306 files; attempt start
+  epoch 1793593441; **diagnostic only, not acceptance evidence**): eval rc 0
+  in 666 s; 230 hits, exactly 3 new calls (short audit, mini audit, variant
+  link) plus 1 repair, 4 records, 0 retries; tokens in 1,773,780 / out
+  81,778; cache 306 → 309, 0 pre-existing changed; stale 0, no boundary or
+  audit fallback. **Strict PASS 95.0** (short 20, mini 25, risk 10,
+  boundary 15, both 15, audit 10): short 8/8; mini 5/6 (L07 still missed);
+  R01 blocked, R02 manual_review. Both warm-28 N07 failures cleared (flag
+  persistence blocks `audit_sh0009…`; the audit made `ml0007…core` a
+  rejected duplicate of the L04 match `audit_ml0008…`). 14 renders rc 0,
+  automatic checks pass; human review pending. Details in `STATUS.md`.
+- [x] (Historical next step; Stage 13e implemented 2026-11-01, pending
+  verification, see above.) Stage 13e reviewer follow-ups (Python and tests
+  only; no prompt, cache-key or algorithm change), independent
+  verification, then cold-30 (fresh cold run at the final code) as the
+  acceptance run, only with the user's go-ahead; human review of the
+  renders and the L07 gap.
+
+## Stage 13d failure observability and duplicate-status alignment (2026-11-01)
+
+- [x] 2026-11-01 Stage 13d implemented on `claude/liveclip-stage8-routing`
+  (Controller decisions after warm-29), first recorded as **pending
+  independent tester and reviewer; real run pending**; ACCEPTED at
+  `bc150c5` the same day (section above). Code `6e1152c` (Python only) and
+  the following commit.
+  - Validation exhaustion raises `DualProfileValidationExhaustedError` and
+    writes `failed-<profile>-<stage>.json`, a partial `provider-calls.json`
+    and `failure-manifest.json` to the run directory only; CLI exit 1.
+  - Validator messages name candidates, statuses, targets and allowed
+    statuses and report every violation at once.
+  - A duplicate may be `rejected` or `blocked` for any candidate (aligned
+    with the pair validator); a retained duplicate stays a hard error.
+  - Merged-audit assembly and pair errors are reported together; only a
+    pair-rule-only failure reaches the fallback.
+  - Only `global_audit.md` changed (short `686a9fbafa60…`, mini
+    `bdb7ff0545a9…`); Stage 13c reviewer P3s done.
+  - Offline (warm-29 cache copies): sentinel 230 hits / exactly 3 calls;
+    analyst what-ifs 10 accepted, 1 retained duplicate fails closed with
+    run-directory evidence and an untouched cache.
+- [x] (Historical next step; done 2026-11-01 at `bc150c5`, then warm-29b
+  above.) Independent tester and reviewer on the Stage 13d SHA; a real run
+  with the user's go-ahead.
+
+## warm-29 real run failed closed; Stage 13d decided (2026-10-30)
+
+- [x] 2026-10-30 warm-29 (real Claude CLI at `6089884`, pinned 2.1.308,
+  warm from a byte-identical `cp -Rp` copy of the warm-28 cache, 306
+  files; attempt start epoch 1793401583; diagnostic only) **failed
+  closed** after 263 s in the short Global Audit: `deterministic validation
+  still failed after one repair and one regeneration: duplicate candidate
+  must be retained as a rejected audit row`. No provider-calls, manifest
+  or new cache file (0 new / 0 changed); the raw model outputs are
+  unrecoverable. Not a quality result.
+  - Root cause (read-only reconstruction and offline what-if sims): the
+    pair validator accepts a `blocked` duplicate for any candidate, final
+    assembly only for risk-discovery records; the audit prompt does not
+    say a duplicate stays rejected despite persisted flags, nor what to do
+    when both members of a pair carry them
+    (`sh0018_nasal_highnote_diag` ⊃ `sh0018_nasal_highnote_core`). The
+    audit fallback only sees `AuditPairRuleError`; this was a plain
+    `ValueError` raised before the pair rules.
+- [x] (Historical next step; implemented 2026-11-01, see the Stage 13d
+  section above.) Stage 13d (Controller decisions in `STATUS.md`): failure
+  observability and validator messages (Python only); duplicate-status
+  contract alignment (`rejected` or `blocked` for any duplicate; a
+  retained duplicate stays a hard error) and an edit of `global_audit.md`
+  only; the Stage 13c reviewer P3s. Then independent tester and reviewer,
+  then a real run only with the user's go-ahead.
+
+## Stage 13c audit fallback keep order and contract alignment (2026-10-30)
+
+- [x] 2026-10-30 Stage 13c implemented on `claude/liveclip-stage8-routing`
+  (Stage 13b reviewer P2/P3s and a Controller correction); first recorded
+  as pending independent tester and reviewer; **ACCEPTED at
+  `608988463c9e98a7eb861e28a5a80360ea29366d`** the same day (tester PASS:
+  backend 2986, vitest 80, e2e 4, targeted 255; reviewer ACCEPT, no P0/P1,
+  P3s for Stage 13d). Python only: the
+  audit prompt hash and every cache key are unchanged (3-call estimate
+  holds). Must land before the real run.
+  - Fallback keep order (Controller decision, second 13c commit): persisted-flag
+    key, then shorter duration, then more resolved duplicates, then
+    earlier/smaller ID (first 13c commit `4543d0a` had representatives
+    before duration). Unavoidable orphans are recorded
+    (`orphaned_duplicate` with pair kind); every resolved pair is recorded.
+  - Containment near-copy: inner ≥ 9/10 or ends within tolerance only
+    (starts criterion removed; correction logged).
+  - Python-only reason prefixes are reserved in Global Review and audit
+    outputs; the manifest reverse-checks prefixed final rows.
+  - Manifest diagnostic `persisted_flag_representative_duplicates`
+    (GR-level duplicates rely on the prompt sentence alone).
+  - Offline (warm-28 cache copies): exactly 3 calls; pair counts unchanged;
+    forced fallback has no unrecorded orphan and a byte-identical warm
+    rerun. The representative-first trade-off (`ml0007…core` kept over the
+    L04 match) is resolved by length-first: the forced fallback now keeps
+    `audit_ml0008…` and records 2 orphans (details in `STATUS.md`).
+- [x] (Historical next step; done 2026-10-30 at `6089884`, then warm-29
+  above.) Independent tester and reviewer on the Stage 13c SHA; a real
+  run with the user's go-ahead.
+
+## Stage 13b audit awareness, audit fallback, near-copy containment (2026-10-30)
+
+- [x] 2026-10-30 Stage 13b implemented on `claude/liveclip-stage8-routing`
+  (Stage 13 reviewer P2s; binding user decision on near-copy containment);
+  **ACCEPTED at `e48f6018bc9456278585ca1f63f0d0c225834697` on 2026-10-30**
+  (first recorded as pending independent tester and reviewer); real run
+  pending. Not pushed. Tester PASS: lint rc 0; backend 2976 passed
+  (1632.67 s); vitest 14/80; e2e 4; targeted 245; no sleep 14:49–15:22.
+  Reviewer ACCEPT, no P0/P1: 23/27 mutants killed; Deviation 3 endorsed;
+  sentinel replay 230 hits / exactly 3 calls / no fail-closed;
+  forced-fallback cold → warm replay byte-identical. P2s/P3s and a
+  containment-criteria correction become Stage 13c.
+  - P2-1: audit candidates carry `persisted_discovery_gated_flags` (same
+    function as Fix 1; audit payload only); one general prompt sentence; a
+    duplicate resolving to a persisted-flag representative is invalid.
+  - P2-2: after repair and regeneration, if only the deterministic pair
+    rules fail, a downgrade-only fallback blocks the longer member of each
+    near-identical pair (ties: later start, larger ID; persisted-flag
+    members kept last; every blocked member keeps a retained partner) and
+    accepts representative-rule violations unchanged; all recorded in
+    `audit_pair_fallbacks` with manifest cross-checks; cached as raw output
+    plus a verified marker, so warm reruns reproduce it.
+  - P2-3: near-copy containment pairs (inner ≥ 9/10 of outer, or ends or
+    starts within 3 s/5 s; the starts criterion was removed by Stage 13c as
+    a Controller correction) are listed as `containment`, always
+    near-identical; other containment stays unlisted.
+  - Only `global_audit.md` changed (hashes in `STATUS.md`). Offline on a
+    warm-28 cache copy: exactly 3 calls; mini now lists 2 containment pairs
+    (the two reviewer-identified pairs); L02 stays protected.
+- [x] (Historical next step; done 2026-10-30 at `e48f601`.) Independent
+  tester and reviewer on the Stage 13b SHA.
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 13c section above.) Stage 13c.
+- [ ] Next: a real run only with the user's go-ahead, after Stage 13c is
+  verified.
+
+## Stage 13 deterministic flag persistence and overlap adjudication (2026-10-30)
+
+- [x] 2026-10-30 Stage 13 implemented on `claude/liveclip-stage8-routing`
+  (binding user decisions after warm-28); **ACCEPTED at
+  `b5da41c7a60dec2f8e05417e64505cafe7dd5547` on 2026-10-30** (first
+  recorded as pending independent tester and reviewer); real run pending.
+  Not pushed. Tester PASS: lint rc 0; backend 2953 passed (1632.59 s);
+  vitest 14/80; e2e 4; targeted 222; no sleep 14:04–14:37. Reviewer
+  ACCEPT, no P0/P1: 16/16 mutants killed; the Fix-1-only replay reproduced
+  FAIL 93.0 (post-hoc with real tokens 95.0, identical rows); post-hoc
+  cold-27 stays PASS 95.0 and warm-26 PASS 97.5 with no hits lost;
+  evaluator output on cold-27/warm-28 byte-identical. P2s become Stage 13b.
+  P3s: a 1-cue trim on either edge clears every Discovery gated flag,
+  including end-edge flags such as `topic_not_closed` (R01 record 1881 →
+  1882; the user has been told); under `--refresh-stale-cache` a marked
+  fallback entry that later goes stale cannot be refreshed (deliberate).
+  - Fix 1: Discovery gated flags persist into the final flags unless
+    Boundary Review shrank the interval on an edge; `selected`/`manual_review`
+    rows that keep one become `blocked` ("Deterministic flag persistence: ").
+    Order: validation (unchanged) → persistence → twin union → Top-N → risk
+    routing / quality gate. Routing policy `quality-gate-risk-routing-v4`
+    (v1–v3 still load). Persistence changes no payload (Global Review
+    payloads byte-identical; the audit payload changed only through Fix 2's
+    `audit_pairs` key; wording corrected by Stage 13b).
+  - Fix 2: the Global Audit also decides same-Profile overlap pairs (neither
+    contains the other, overlap ≥ 1/2 of the shorter); payload `audit_pairs`
+    with `pair_kind` and `near_identical`; near-identical pairs (same end
+    within 3 s/5 s, or ≥ 9/10 of the shorter) may not keep both retained;
+    an overlap duplicate must keep a retained representative; nested
+    semantics unchanged. Only `global_audit.md` changed (both Profile
+    hashes).
+  - Offline (warm-28 cache copies in the scratchpad): Fix 1 alone hits every
+    stage except variant link (1 call) and turns the N07 negative-anchor
+    output into `blocked` with every hit kept (strict FAIL 93.0 offline,
+    only `irrelevant_padding` left; −2 is the token-less `call_data`
+    item). Final code: exactly 3 calls (2 audits + variant link), 230 hits.
+- [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent
+  tester and reviewer on the Stage 12c and Stage 13 SHAs.
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 13b section above.) Stage 13b (reviewer P2s).
+- [ ] Next: a real warm or cold run only with the user's go-ahead, after
+  Stage 13b is verified.
+
+## Stage 12c fallback provenance and manifest cross-checks (2026-10-30)
+
+- [x] 2026-10-30 Stage 12c implemented on `claude/liveclip-stage8-routing`
+  (Stage 12b reviewer P2-A/P2-B/P3s at `a7088c4`); **ACCEPTED** (code
+  `4a30497`, verified at the tip `b5da41c` with Stage 13; first recorded as
+  pending independent tester and reviewer). Not pushed.
+  - P2-A: the cache keeps the raw model output plus a verified
+    `conservative_fallback` marker on fallback entries only; a hit re-applies
+    the deterministic opening fallback and re-records it, so warm reruns
+    reproduce the final output and the manifest record. Raw-only
+    re-application was rejected because an invariant-violating raw output is
+    indistinguishable from a stale entry that must fail closed by default.
+    No cache-key change.
+  - P2-B: manifest cross-checks for fallback records (Boundary Review
+    subject, unique IDs and batches, IDs in the run, never `selected`,
+    `opening_complete=false` in the supplied Boundary Review output) and
+    stale resolutions (`cache_key != superseding_cache_key`).
+  - P3s: `reused=True` only after the superseding identity check; tests for
+    mis-keyed, garbage-JSON and symlinked entries in both refresh modes.
+- [x] (Historical next step; done 2026-10-30 at `b5da41c`.) Independent
+  tester and reviewer (together with Stage 13).
+
+## warm-28 warm diagnostic and Stage 13 decisions (2026-10-30)
+
+- [x] 2026-10-30 warm-28 (real Claude CLI, warm from a byte-verified copy of
+  the cold-27 cache, diagnostic only) at `a7088c4`: eval rc 0 in 2510 s;
+  160 Discovery-family hits, 73 new calls (Boundary Review 52, Global
+  Review 18, audit 2, variant 1) plus 4 repairs; 0 retries; no
+  usage-limit errors; 0 pre-existing cache files changed; no stale
+  resolutions or opening fallbacks. Strict **FAIL 95.0** (evaluator rc 1,
+  no PASS blockers): short 8/8, mini 5/6 (L07 missed again), R01 blocked,
+  R02 `manual_review`; two hard failures on N07
+  (`audit_sh0009_throat_tight_strong_mix_diagnosis`
+  `negative_anchor_output`; `ml0007_strong_mix_vs_yanyin_core`
+  `irrelevant_padding`). 14 renders pass automatic checks; human review
+  pending. Details and the read-only root cause in `STATUS.md`.
+- [x] Root cause (read-only): Boundary Review cleared Discovery gated flags
+  without trimming (or after trimming only the start); the Global Audit
+  compares nested pairs only, so a 93%-overlapping non-nested pair was
+  never adjudicated. Pre-existing gap exposed by sampling, not a Stage 12
+  regression.
+- [x] User decisions (2026-10-30, binding): Fix 1, Discovery gated flags
+  persist unless Boundary Review shrinks the interval; Fix 2, the Global
+  Audit also adjudicates same-Profile overlapping pairs at ≥50% of the
+  shorter candidate.
+- [x] (Historical next step; implemented 2026-10-30, pending verification,
+  see the Stage 12c and Stage 13 sections above.) Stage 12c and Stage 13.
+- [ ] Next: independent tester and reviewer; a real run only with the
+  user's go-ahead.
+
+## Stage 12b dual-profile review fixes (2026-10-29)
+
+- [x] 2026-10-29 Stage 12b implemented on `claude/liveclip-stage8-routing`
+  (reviewer P2s at `88c97e9`); **ACCEPTED at
+  `a7088c490468cb36e48fc60fd512bf6923140593` on 2026-10-30** (first
+  recorded as pending independent tester and reviewer). Tester PASS: lint
+  rc 0; backend 2893 passed in 1675.40 s; vitest 14/80; e2e 4; targeted
+  102; no sleep 10:34–11:09; high load from an unrelated project, no
+  failures. Reviewer ACCEPT, no P0/P1; P2-A (opening fallback provenance
+  lost on a warm cache hit) and P2-B (manifest does not cross-check
+  fallbacks/stale resolutions) plus two P3s (no mis-keyed/untrusted cache
+  tests in either mode; `reused=True` recorded before the identity check)
+  become Stage 12c. Not pushed.
+  - Stage 9 fail-closed is the default again for stale cached outputs;
+    repair under a superseding key is opt-in (`--refresh-stale-cache`) and
+    every resolution plus a count is recorded in `run-manifest.json`.
+  - The Boundary Review invariant error lists every violating ID; if it is
+    the only failure left after repair and regeneration, a downgrade-only
+    fallback sets `opening_complete=false` on those rows and records them
+    in the manifest. Any other failure still fails.
+  - Docs: the superseding key adds the sha256 of the stale output's
+    canonical JSON, not its bytes. No prompt or prompt-hash change.
+- [x] (Historical next step; done 2026-10-30 at `a7088c4`.) Independent
+  tester and reviewer on the Stage 12b SHA; the warm-28 real run followed
+  with the user's go-ahead (see above).
+
+## Stage 12 dual-profile flag contract alignment (2026-10-29)
+
+- [x] 2026-10-29 **Stage 12 ACCEPTED** at
+  `88c97e950bd981fe5f63a9c90753b2eb39cb0f60` on
+  `claude/liveclip-stage8-routing` (first recorded as implemented, pending
+  independent tester and reviewer); real run pending. Not pushed.
+  Tester PASS at `88c97e9`: lint rc 0; backend 2886 passed (1681.85 s);
+  vitest 14/80; e2e 4; targeted 159; no sleep 18:34–19:11. Reviewer
+  ACCEPT, no P0/P1, five P2s (Stage 12b). General, not anchor-tuned: Global Review/Audit prompts list the
+  exact gated and advisory flags (drift test); advisory-only coherent
+  candidates are `manual_review`; Boundary Review invariant
+  `context_dependent_opening` ⇒ `opening_complete=false` via the repair
+  path; stale dual-profile cache entries are repaired under a superseding
+  key instead of crashing; nested-pair `duplicate` through a shared
+  representative. Discovery prompts unchanged; Boundary Review, Global
+  Review and Global Audit caches invalidated. Details and the cache impact
+  in `STATUS.md`; decisions in the dual-profile ExecPlan.
+- [x] (Historical next step; done 2026-10-29.) Independent tester and
+  reviewer on the Stage 12 SHA.
+- [x] (Historical next step; Stage 12b ACCEPTED at `a7088c4` on
+  2026-10-30, and the warm-28 real run followed.) Stage 12b (reviewer
+  P2s); real run only with the user's go-ahead.
+
+## Stage 11b guard repair fallback and repair message (2026-10-29)
+
+- [x] 2026-10-29 **Stage 11b ACCEPTED** (code `31e6712`, verified at the
+  tip `88c97e9` with Stage 12: tester PASS, reviewer ACCEPT with no P0/P1;
+  first recorded as pending independent tester and reviewer) on
+  `claude/liveclip-stage8-routing` (reviewer P2s at `ed24a34`). Not pushed.
+  - Deferred-only initial output + unusable repair (failed call or
+    hard-invalid rewrite) → initial output accepted, deterministic gate
+    applied, `repair_fallback` validation event; in the durable executor
+    the committed `raw_output` stays the initial output so replay is
+    consistent, and `repair_spent` matches the presence of a repair call
+    record. Hard-invalid initial output still fails as before.
+  - Repair message: prefix, then the instruction, then per field
+    `candidate <id> <field> matched "<token>"`; fits the legacy 240-char
+    truncation. Read-only `executable_text_match` reuses the unchanged
+    patterns.
+  - v3 `suspicious_exact_top_n` recomputed after demotion.
+  - Tests: unit 13 → 21, integration 37 → 58 (fallback at every loop,
+    schema-repair-spent block in the local loops, legacy cache retry).
+    Details in `STATUS.md`.
+- Decision Log (2026-10-29): a failed repair call after a deferred-only
+  initial output falls back for every `StructuredProviderError` code,
+  including global codes, because the initial output already passed every
+  hard validator and the user decision requires the rest of the run to
+  finish; other units still surface a global provider failure on their own
+  calls. Cancellation and configuration errors keep their existing paths.
+- [x] (Historical next step; done 2026-10-29 at `88c97e9`.) Independent
+  tester and reviewer on the Stage 11b SHA.
+
+## Stage 11 guard-safe text in persisted pipeline edit stages (2026-10-29)
+
+- [x] 2026-10-29 **Stage 11 ACCEPTED** at
+  `ed24a346fe0d908dcecdec56ff87d250675a759b` on
+  `claude/liveclip-stage8-routing` (code commit after `d6b90c6`; first
+  recorded as implemented, pending independent tester and reviewer). Not
+  pushed.
+  - Tester PASS at `ed24a34`: `make lint` rc 0; backend 2844 passed / 0
+    failed / 0 skipped (1629.85 s); vitest 14 files / 80; e2e 4 (mock
+    review-delivery 1, real review-delivery 1, completion-goal-real 2);
+    targeted 61; `make test` wall time 1851 s; no sleep 17:29–18:03 PDT
+    2026-10-29.
+  - Reviewer ACCEPT at `ed24a34`, no P0/P1; independently ran backend
+    2844 passed. P2s (guard-repair fallback on hard-invalid repair output,
+    repair message truncation, test gaps, v3 `suspicious_exact_top_n`)
+    carried into Stage 11b.
+  - Scope: the V5 and legacy mini-lesson edit, the
+    `semantic_global`/`semantic_windowed` `_edit` and the V5 persisted-plan
+    replay in `pipeline/stage_handlers.py`, which copied model title, hook
+    and `review_reason[:240]` into EditPlan (Stage 10 reviewer P1).
+  - User decision (binding): rewrite through the existing Global Review
+    repair loop first; if the rewrite still trips the guard, block only
+    that clip with a deterministic flag/reason; the rest of the run
+    completes; the guard is not narrowed.
+  - `pipeline/edit_text_guard.py`: single EditPlan builder shared by build
+    and replay (byte-identical for passing text); per-field probe through
+    the real `EditPlan`; deterministic downgrades (V4/V5 and v3 →
+    `blocked` with `deterministic_text_guard_gate`; legacy
+    `semantic_global` → `rejected` with
+    `deterministic_text_guard_changed_kept_to_rejected`; no promotion).
+  - `DeferredValidationError` (in `pipeline/semantic_executor.py`): stage
+    validators raise it after every shared validator passed; repair loops
+    spend their sole repair on it; with no repair left (rewrite still
+    unsafe, schema repair spent, cache hit, durable outcome replay) the
+    output is accepted and the downgrade applies.
+  - Shared validators, guard patterns, dual-profile prompts/cache keys/
+    `DUAL_PROFILE_ALGORITHM_VERSION`, benchmark files, evaluator thresholds
+    and frozen loop-engineering files are unchanged. No new enum.
+  - Tests: `tests/unit/test_edit_text_guard.py` (13) and
+    `tests/integration/test_edit_text_guard_pipeline.py` (37), mock only;
+    Stage 10 P2 nits (plain "make" Agent test; dual-profile
+    `manual_review` strings). Details in `STATUS.md`.
+- Decision Log (2026-10-29): the text guard is a stage-level deferred
+  rule, not part of the shared Global Review validators, so dual-profile
+  evaluation and benchmark outcomes cannot change. The legacy
+  `semantic_global` contract has no `blocked` bucket; `rejected` is the
+  only deterministic non-delivery state there. A guard hit on a cached or
+  durable output is blocked without a new model call (no repair remains).
+- [x] (Historical next step; done 2026-10-29.) Independent tester (`make
+  lint`, `make test`) and reviewer on the Stage 11 SHA.
+- [ ] Next: Stage 11b (reviewer P2s), human review of the cold-27
+  `renders-r2` clips, human listening of the L07 untranscribed gap;
+  push/merge only with explicit user consent.
+
+## Stage 10 render guard false positive and cold-27 (2026-10-23)
+
+- [x] 2026-10-23 **Stage 10 ACCEPTED** at `0515ef7` on
+  `claude/liveclip-stage8-routing`. Root cause: `render_dual_profile_candidates`
+  copied the model `review_reason[:240]` and title/hook into the guarded
+  EditPlan fields, and the unchanged `reject_executable_text` guard matched
+  "make" in `sh0006_breathy_mix_vs_leak`. Fix: deterministic product text
+  in those fields in the dual-profile and Agent render paths; the guard is
+  unchanged. Not pushed.
+  - Tester PASS at `0515ef7`: `make lint` rc 0; `make test` rc 0, backend
+    2792 passed (1444.08 s), vitest 14/80, e2e mock 1, real
+    review-delivery 1, completion-goal 2; targeted 25; no sleep.
+  - Reviewer ACCEPT; P2 nits: the Agent test mixes "make" with "rm -rf";
+    no coverage of the `manual_review` strings. P1 (user-decided, Stage
+    11): the persisted pipeline edit stages still copy model text into
+    EditPlan.
+- Real run cold-27 (fresh resumable acceptance attempt, frozen Claude CLI
+  2.1.308, subscription login, HEAD `e173c28`): new roots
+  `dual-profile-benchmark-20261023-claude-cold-27` and
+  `dual-profile-cache-20261023-claude-cold-27` (both absent at start, empty
+  cache); doctor and smoke OK; one segment, no usage limit; eval rc 0 in
+  3756 s; `cache_hits` 0, 233 calls (Discovery 160, Boundary 52, Global
+  Review/Audit 20, variant 1), 239 provider records, 6 repairs, 0 retries,
+  no 429/529/usage-limit; tokens 11,460,411 in / 1,059,863 out; latency
+  median 26.4 s, p95 98.9 s. Provenance: 233 cache files, all mtime at or
+  after epoch 1792779597; 0 content-identical to 3972 key files in 20
+  earlier roots (81 shared names, expected for deterministic keys).
+- cold-27 strict **PASS 95.0**, exit 0, 0 hard failures (short 20, mini
+  25, risk 10, boundary 15, both Profiles 15, audit 10). Short 8/8 (S06 via
+  `sh0009_balanced_mix_step5`, selected, −2300/+2860 ms); mini 5/6 (L07
+  missed: all three boundary-matching candidates carry
+  `context_dependent_opening`; the kept
+  `precision_yuge_highnote_nasal_rhinitis_closed_loop` starts −30540 ms
+  early); R01 blocked, R02 `manual_review`; twin union 0/23 groups differ;
+  nested pairs short 0, mini 36 (16 duplicate, 20 distinct_objective).
+  Strict-eval output (complete, PASS 95.0):
+  `data/evaluations/dual-profile-strict-eval-20261029-claude-cold-27`;
+  its provenance proof was rebuilt there read-only, with the attempt-start
+  epoch taken from the runner's report because the original
+  `attempt-start.txt` was lost.
+  Comparison: cold-18 FAIL 90.0 / warm-26 PASS 97.5 / cold-27 PASS 95.0;
+  L07 and S06 vary with the model's `context_dependent_opening` judgments.
+- S06/L07 variance analysis (2026-10-29, read-only, no model calls):
+  warm-26 and cold-27 had identical prompt hashes and Discovery inputs, so
+  their differences are pure model sampling; cold-18 (gpt-5.6-sol via
+  `codex_cli`, older prompts) is not comparable. S06 (warm-26): Boundary
+  Review kept a Discovery `context_dependent_opening` flag while setting
+  `opening_complete=true`; Global Review disagreed with the flag but chose
+  `blocked` because the prompts claimed Python enforces every flag, while
+  Python gates only `MANUAL_REVIEW_BLOCKING_QUALITY_FLAGS`. L07 (cold-27):
+  the anchor start follows a 27.46 s untranscribed gap
+  (01:40:07.540–01:40:35.000); 3 of 6 Boundary Review calls started at
+  setup cue 2854 to capture it, and the single Global Audit chose that
+  version as representative (−30540 ms from the anchor). Human listening
+  of the gap is pending with the user.
+- Renders: the first attempt into `renders/` failed closed after 5 of 14
+  clips (Stage 10 bug; partial directory without a manifest, kept
+  untouched). The re-render at `0515ef7` into `renders-r2/` succeeded (rc
+  0, 244 s, 14 clips; decode/black-frame/edge pass; h264_videotoolbox
+  1080x1920; `final-validated.json` and `run-manifest.json` sha256
+  unchanged). Human visual/audio review is PENDING and is not claimed.
+- Evidence categories stay distinct: deterministic validation, rendering
+  plus human review, and real-model inference are separate kinds of
+  evidence. Details in `STATUS.md`.
+- [ ] Next: Stage 11 (guard-safe text in persisted pipeline edit stages;
+  2026-10-29 implemented, pending verification; ACCEPTED at `ed24a34`
+  the same day, see above),
+  human review of the `renders-r2` clips, optional holdout livestream
+  (overfitting risk), investigate the L07/S06 run-to-run variance;
+  push/merge only with explicit user consent.
+
+## Stage 9 dual-profile routing and review-prompt batch (2026-10-22)
+
+- [x] 2026-10-22 **Stage 9 ACCEPTED** at `56aa93c` on
+  `claude/liveclip-stage8-routing`: `bfdef3b` (twin gated-flag union,
+  Top-N risk → blocked, final evidence filter, audit-created nested
+  pairs), `703cfbb` (review-prompt batch A/B2/C/D plus P2 wording),
+  `56aa93c` (review fix: cache-hit leniency removed; equipment/audibility
+  carve-out; duration-minimum wording; softened untranscribed-gap rule;
+  twin-flag comment). Not pushed.
+  - Reviewer round 1 at `703cfbb`: CHANGES_REQUIRED (P1 warm-run crash on
+    cached audits deciding created pairs; P2 anchor risks L01/S04, S08,
+    rule C). Re-review ACCEPT for `4f2c068..56aa93c`.
+  - Tester PASS at `56aa93c`: `make lint` 0; `make test` x2 exit 0,
+    backend 2790 passed / 0 failed / 0 skipped (1433.30 s, 1421.72 s),
+    vitest 14/80, e2e 4/4 both; targeted 182; AC, no sleep.
+- Decision Log (2026-10-22): routing policy `quality-gate-risk-routing-v3`
+  (v1/v2/None still load). Cache hits of the Global Audit are validated
+  with the full created-pair rule; pre-rule audits cannot be hits because
+  their audit prompt hash differs. Scratch prediction caches contain
+  synthetic outputs and must never seed a warm run.
+- Real runs (diagnostic only; Discovery from cold-21/warm-22, prompts
+  iterated on this transcript): warm-25 stopped on the usage limit after
+  2474 s (73 of 75 new calls cached); warm-26 (233 hits, 2 new calls + 1
+  audit repair, 1194 s) strict PASS 97.5, no hard failures, no PASS
+  blockers, short 7/8 (S06 missed: its only candidate model-blocked with
+  `context_dependent_opening`), mini 6/6, R01/R02 blocked; 13 renders pass
+  automatic checks; human review pending. Details in `STATUS.md`.
+- [x] (Historical next step; cold-27 ran, see the Stage 10 section above.)
+  A fresh acceptance run (method pending user decision because of
+  the subscription quota).
+- [ ] Still pending from that step: human editorial/audio review, then
+  push/merge only with explicit consent. (Corrected 2026-10-29: these
+  parts were previously under the `[x]` above.)
+
+## Stage 8 dual-profile routing and review-stage fixes (2026-10-22)
+
+- [x] 2026-10-22 **Stage 8 ACCEPTED** at `4f2c068` on local branch
+  `claude/liveclip-stage8-routing` (from `b3a4fbe`). Code commits: F1
+  `28c9ca1` (manual_review with a gated merged quality flag → blocked), F2
+  `1b18ec1` (rejected risk-discovery-pass record → blocked; structural
+  `risk_record_ids`), F3–F5 `4f2c068` (risk-pass-only evidence lock,
+  structural `discovery_pass` in review payloads, boundary edge audit,
+  `nested_pair_decisions`, context/payoff prompt rules). Not pushed.
+  - Tester PASS at `4f2c068`: `make lint` 0; `make test` x2 exit 0, backend
+    2778 passed / 0 failed / 0 skipped each (1425.50 s, 1442.41 s), vitest
+    14/80, e2e 4/4 both runs; targeted 170 passed; AC, no sleep.
+  - Reviewer ACCEPT: no P0/P1, six P2s; the code and prompt-wording P2s
+    are scheduled in Stage 9.
+- Decision Log (2026-10-22):
+  - User decision: the F2 exception is approved. A rejected record of the
+    dedicated risk-discovery pass is retained as `blocked` (never an
+    output) so risk material stays auditable; `docs/PRODUCT_SPEC.md`
+    records it.
+  - User decision: context-only candidates stay blocked; no deterministic
+    broadening of `context_dependent_opening`.
+  - Routing-policy marker `routing_policy_version` (optional on
+    `DualProfileFinalResult`): `manual-review-quality-gate-v1` (F1),
+    `quality-gate-risk-routing-v2` (F1+F2, current); missing loads as
+    `None`. `DUAL_PROFILE_ALGORITHM_VERSION` is unchanged so Discovery
+    cache keys stay valid.
+  - `nested_pair_decisions`: Python lists same-Profile
+    `selected`/`manual_review` pairs sharing a start or end cue; the Global
+    Audit must decide each exactly once as `duplicate` (one rejected, or
+    blocked for a risk-pass record, referencing the other) or
+    `distinct_objective` (no reference). Containment alone never decides
+    duplication.
+- Real runs (frozen Claude CLI 2.1.308, subscription login; warm runs are
+  diagnostic only): cold-21 stopped on the usage limit after 1576 s (115
+  calls cached); warm-22 strict FAIL 90.0; warm-22 F1+F2 offline replay
+  FAIL 95.0; warm-23 stopped on the usage limit (73 of 75 new calls
+  cached); warm-24 (Stage 8 code, `cache_hits` 233, 2 new calls + 1 repair,
+  653 s) strict FAIL 92.5, no PASS blockers, short 7/8, mini 5/6, hard
+  failures `negative_anchor_output` and `forbidden_composite_interval`.
+  Details in `STATUS.md`.
+- [x] (Historical next step; Stage 9 ACCEPTED, warm-25 run, see above.)
+  Stage 9 (same-interval flag union, Top-N risk routing, final
+  evidence filtering, post-audit nested pairs, consolidated review prompt
+  batch), then warm-25 (diagnostic), then a fresh cold acceptance run
+  (`cache_hits=0`, about 230 calls) started right after a subscription
+  usage-limit reset.
+
+## Integration of Stages 6 and 7 (2026-10-22)
+
+- [x] 2026-10-22 Stages 6 and 7 are rebased onto accepted Stage 4
+  (`8b14aa3`, docs `0bb4af4`) on `claude/liveclip-stage7-claude-cli`, with
+  byte-identical non-doc diffs. (Previously: they awaited the integrated
+  test and review round.) Details and the SHA mapping are in `STATUS.md`.
+- [x] 2026-10-22 **Stage 6 ACCEPTED** (code `a22f9d3` rebased to
+  `cef7d4b`..`437ebb8`, plus diagnostics `fc13163`) and **Stage 7
+  ACCEPTED** (code through `4e2bf8f`, docs `db2bc32`), both verified at the
+  integrated tip `996962b`.
+  - Tester PASS at `996962b` on AC, 0 sleep/wake entries in every window:
+    `make lint` exit 0; `make test` x2 exit 0, backend 2752 passed / 0
+    failed / 0 skipped each (1411.10 s, 1413.74 s), vitest 14 files / 80
+    tests, e2e 4/4 both runs; lease and suspend set 51 passed x 3; provider
+    tests 76 passed; benchmark tests 130 passed; doctor `claude_cli` pass
+    with the frozen path (2.1.308, `claude.ai`, subscription true, contract
+    `claude-cli-editorial-v1.2.1.308.d65edfc7c242edac24dbf6180a38d31f9df396615005e549f168da7e73e9bbbe`,
+    0 email matches); 1323 pre-existing `playwright-report` files
+    hash-identical. Logs: `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/integrated-996962b/`.
+  - Reviewer ACCEPT at `996962b`: code byte-identical to the reviewed
+    commits, no Stage 6 x Stage 7 interaction. Three doc P2s are fixed in
+    the following docs-only commit: the Stage 4 tip-rule range
+    `8b14aa3..0bb4af4`, the authorization rationale in `STATUS.md` (Claude
+    CLI engine, subscription login only, possible extra-usage charges), and
+    the isolation canary re-run against the frozen binary (no drift; see
+    the Stage 7 runbook in `STATUS.md`).
+- [x] (Historical next step, superseded by Stage 8.) The real Claude
+  benchmark cold-21 via the `STATUS.md` runbook (new roots, frozen binary,
+  `--discovery-concurrency 3`, strict evaluator), compared with cold-18
+  (strict FAIL 90.0). 2026-10-22: cold-21 stopped on the subscription usage
+  limit; see Stage 8.
+
+## Stage 7 Claude CLI structured provider (2026-10-21)
+
+### Progress
+
+- [x] 2026-10-21 On local branch `claude/liveclip-stage7-claude-cli` (from
+  `ca80fb7`), add `ClaudeCliStructuredLLMProvider` and select it for
+  `liveclip dual-profile-eval` with `LIVECLIP_STRUCTURED_PROVIDER=claude-cli`.
+  Status: **ACCEPTED** (2026-10-22; code through `4e2bf8f`, docs `db2bc32`,
+  verified at the integrated tip `996962b`). (Previously: IN PROGRESS,
+  pending acceptance.)
+  - Code commit: `84fe07efda188fcf49008908129f93571a74f0cd`.
+  - Review round 1 at `7340355`: CHANGES_REQUIRED (2 P1, 7 P2). Fix commit
+    `fe4350a7ed8b553a9aca980bf78238f42fe6a3ed`, pending tester and reviewer.
+    - P1-1: the subscription login is re-verified in the provider
+      constructor and before every inference call.
+    - P1-2: the reviewed CLI is bumped to 2.1.308 after a full re-review,
+      and `DISABLE_AUTOUPDATER=1` is forced into every child and probe.
+    - P2s:
+      - Codex quota and usage caps are classified before the 429 rule;
+      - tool activity is checked first;
+      - an in-memory account-email output guard;
+      - full `claude-` model IDs only;
+      - the env policy is bound into the contract identity;
+      - extra tests.
+    - Round 2 checks:
+      - ruff, format, mypy and schema exit 0;
+      - targeted pytest 670 passed, exit 0;
+      - real 2.1.308 canary and smoke passed.
+  - Review round 2 at `8ca7bba`: ACCEPT with 3 P2s, fixed in round 3 code
+    commit `ad3037213fdfc1cf3090adc2a034b8cdbab2ffef`:
+    - the subscription check re-runs after each backoff sleep;
+    - doctor warns when no account email is reported;
+    - the model-ID comment in `.env.example`.
+
+    The benchmark runbook now freezes the reviewed binary under the ignored
+    `.cache/claude-cli/<version>/claude` and points
+    `LIVECLIP_CLAUDE_EXECUTABLE` at it. This was verified with a real doctor
+    run and a real smoke. Round 3 checks: lint exit 0, 76 targeted tests
+    passed.
+  - 2026-10-22 (reviewer P2 #3 at `996962b`): the isolation canary was
+    re-run with the frozen copy as the executable (contract
+    `claude-cli-editorial-v1.2.1.308.d65edfc7...`). The production argv saw
+    no CLAUDE.md, memory, skills, MCP or plugins, the hooks did not fire,
+    and the only tool was `StructuredOutput`. ("No plugins" is inferred
+    from 0 skills, 0 MCP tools and 1 tool; plugins were not enumerated
+    directly.) The default-flag control saw
+    the canary and fired the hooks. A real frozen-path `smoke-claude`
+    succeeded in 4190 ms. No drift.
+  - Scope:
+    - the provider (`src/liveclip/providers/llm/claude_cli.py`);
+    - settings and selection;
+    - the `claude_cli` doctor check;
+    - `liveclip smoke-claude` and `make smoke-claude`;
+    - the Codex 429 message;
+    - an optional `cwd` for `run_cancellable_process`.
+  - Coder checks: ruff, format, mypy and schema exit 0. Targeted pytest (new tests plus settings, doctor, Codex, structured, semantic, process, readiness, dual-profile and stage-handler suites): 651 passed, exit 0. The full suite did not complete on the overloaded host (load average about 90); one timing-sensitive integration test that failed there passed when re-run alone. The tester's `make test` is authoritative.
+  - Real calls (authorized, subscription login): `smoke-claude` succeeded.
+    Three real dual-profile Discovery windows on the committed fixture
+    passed schema and deterministic validation. The full benchmark was not
+    run.
+
+  Evidence, argv, isolation findings and caveats are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 Operator directive: after Codex 429 failures in cold-19 and
+  cold-20 (concurrent Discovery burst on the ChatGPT login), the
+  dual-profile understanding engine uses the local Claude Code CLI. Real
+  calls go through the subscription login only, never an API key.
+  - Default model: `claude-opus-5-5`.
+  - Pinned CLI: `2.1.307`, then `2.1.308` after the CLI auto-updated the same
+    day (see the bump decision below).
+- 2026-10-21 Selection uses a dedicated `LIVECLIP_STRUCTURED_PROVIDER`
+  rather than a new `LIVECLIP_AI_PROVIDER` value, because the latter also
+  selects ASR and is persisted in pipeline run identity. `auto` keeps Codex
+  for `*-codex` modes.
+- 2026-10-21 Codex changes (corrected in review round 2; the earlier wording
+  "unchanged apart from the 429 message" was inaccurate):
+  - Failure classification is widened. Status-style text such as
+    `status|http|code|error … 429` is now a rate limit. Since round 2, quota
+    and usage-cap markers (`insufficient_quota`, quota exceeded, usage limit)
+    are checked first, so a cap is never a transient rate limit.
+  - Zero-exit repair path: a run that exits 0 without a final message but
+    carries a 429 or quota error event now fails as
+    `CODEX_CLI_RATE_LIMITED` or `CODEX_CLI_QUOTA_EXHAUSTED`. Previously it
+    was `STRUCTURED_OUTPUT_INVALID` and consumed the schema repair.
+  - Rate-limit and quota errors carry a cause-specific message instead of
+    "structured model output could not be validated".
+  - No Codex retries were added.
+- 2026-10-21 Isolation without `--bare`. Bare mode never reads OAuth or the
+  keychain, so it would force API-key auth; this was confirmed by a real
+  "Not logged in" probe. Instead the provider combines:
+  - `--setting-sources=` (this flag, not `--system-prompt`, is what
+    suppresses CLAUDE.md);
+  - `--safe-mode` and `--disable-slash-commands`;
+  - `--strict-mcp-config` with an empty MCP config;
+  - `--tools=`, `--disallowed-tools`, `--permission-mode dontAsk` and
+    `--permission-prompts none`;
+  - a minimal `--system-prompt`;
+  - a fresh empty cwd;
+  - an allowlisted env.
+
+  An environment block and an account-email reminder remain visible to the
+  model. They are accepted as non-credential residual context.
+- 2026-10-21 The version pin is a reviewed code constant, as for Codex. It
+  is not an environment setting, so an unreviewed CLI cannot be enabled by
+  configuration alone. The Controller confirmed this in review round 1.
+- 2026-10-21 Reviewed bump procedure (also in the `claude_cli.py` comment).
+  For each new version:
+  1. Diff `claude --help` and `claude auth status --help` against the last
+     reviewed copies.
+  2. Run the isolation canary with the exact production argv and env, plus
+     a default-flag control.
+  3. Confirm `--bare` without a key is still "Not logged in" and that auth
+     status still reports `claude.ai` / `firstParty`.
+  4. Run one real `smoke-claude`.
+  5. Stop and report on any drift.
+
+  Applied to 2.1.308: the help text is byte-identical and the behaviour is
+  unchanged.
+- 2026-10-21 Auto-update. `DISABLE_AUTOUPDATER=1` is forced into the child
+  env; the user's global Claude settings are not changed. An interactive
+  Claude session that auto-updates the binary during a run changes the
+  executable hash and version, so the next call fails closed with an
+  identity or version error. The operator can disable auto-update during
+  benchmarks.
+- 2026-10-21 Controller decisions in review round 1:
+  - accept the account email as residual context, with the in-memory output
+    guard;
+  - no manifest schema change (`provider-calls.json` per-call retries
+    suffice);
+  - aliases are rejected;
+  - the code default discovery concurrency stays 5, and the first Claude
+    benchmark uses `--discovery-concurrency 3`.
+
+## Stage 6 engineering follow-ups (2026-10-21)
+
+### Progress
+
+- [x] 2026-10-21 On local branch `claude/liveclip-stage6-followups` (based on
+  the Stage 4 docs tip `ca80fb7`), address the consolidated engineering
+  follow-ups. Status: **ACCEPTED** (2026-10-22; rebased to
+  `cef7d4b`..`437ebb8` plus diagnostics `fc13163`, verified at the
+  integrated tip `996962b`). (Previously: IN PROGRESS, pending acceptance.)
+  Code commit: `a22f9d36e59b6022a6b9c39c8847de428b92ed14`.
+  - `LeaseMonitor` suspend recovery (Stage 3 follow-up): a wall-clock versus
+    monotonic jump of more than 1 s between polls makes the heartbeat due
+    immediately. Fencing is unchanged: the renewal is the same fenced
+    `heartbeat`, which refuses an expired lease or a foreign token.
+    Regression tests: `tests/integration/test_lease_monitor_suspend.py`.
+  - Stage 1 Reviewer P2-b: the Agent report staging directory is created
+    exclusively with a pinned identity, written through a held no-follow
+    descriptor, published with `expected_identity` and removed with the
+    identity-checked, descriptor-based `remove_tree_no_follow`. A symlinked
+    `--output-dir` chain is refused before staging.
+  - Stage 1 Reviewer P2-c: rollback after a real no-replace rename, a real
+    refused rename, a swapped staging directory and a symlinked chain are
+    tested without mocking the publication path.
+  - `--output-dir` help documents the symlink restriction.
+  - Stage 1 Earlier P2-5: not changed. See the Decision Log.
+
+  Evidence and remaining follow-ups are in `STATUS.md`.
+- [x] 2026-10-21 Stage 6 review round 1: reviewer ACCEPT at `670478e` (0
+  P0/P1, 3 P2). Fix round 2 (code commit `039c998978ac197b12aef18c9f04ca1e6ad16247`), pending
+  acceptance: deterministic in-thread suspends in the suspend tests (P2-1);
+  a remaining-lease renewal rule for failed post-wake renewals and suspends
+  before the first poll (P2-2); an operator note on the `--output-dir`
+  restrictions in `STATUS.md` (P2-3).
+- [x] 2026-10-21 Stage 6 review round 2: reviewer ACCEPT at `fc06b3e` (one
+  P2, one nit). Fix round 3 (code commit `7de47601a39852aafd2ed93061c11e53a16a7ebc`), pending
+  acceptance: thread-independent renewal assertions, a lower-bound jump
+  estimate so a descheduled monitor thread is not mistaken for a suspend
+  (found under load), and the injected-`now` wording in `STATUS.md`.
+  (2026-10-22: rounds 2 and 3 accepted with Stage 6 at the integrated tip
+  `996962b`.)
+
+### Decision Log
+
+- 2026-10-21 (Stage 6 round 2, coder; pending review) In addition to the jump
+  rule, the monitor renews on every poll while less than half a heartbeat
+  interval of wall-clock lease remains. Half an interval is below the
+  `lease - heartbeat > heartbeat` margin that settings guarantee, so normal
+  operation is unchanged, and it leaves 15 s of retries with the defaults.
+  The remaining lease is measured on the monitor's own wall clock so that an
+  injected queue `now` cannot cause repeated heartbeats.
+- 2026-10-21 (Stage 6, coder; pending review) Agent v2 risk discovery keeps
+  counting only final candidates. MD sections 3.8, 6 and 10 require a risk to
+  be discovered and then routed to `manual_review`/`blocked`, and FAIL a risk
+  candidate that disappears. Agent v2 has no such routing, so a retained
+  final candidate is the only proof that the risk did not vanish, and a raw
+  candidate the Global Review dropped is that disappearance. Loosening the
+  mechanical blocker needs an operator decision; the question is open.
+- 2026-10-21 (Stage 6, coder; pending review) The suspend fix detects jumps
+  in the monitor loop rather than adding an injected clock across modules. A
+  1 s threshold is used because wall and monotonic time advance together
+  under load, so only a suspend or a clock step produces a difference, and a
+  false positive costs one extra heartbeat.
+
+## Stage 4 benchmark evaluator rules (2026-10-21)
+
+### Progress
+
+- [x] 2026-10-21 On local branch `claude/liveclip-stage4-evaluator-rules`
+  (rebased onto the Stage 3 tip `427e80c`), apply operator decisions A and B
+  to `scripts/benchmark_gates.py`, `scripts/evaluate_benchmark.py` and
+  `scripts/evaluate_agent_benchmark.py`. Status: **ACCEPTED** at code commit
+  `8b14aa3`, verified at tip `ca80fb7` (2026-10-22): tester r1 and r2 green
+  (r2 on AC: two `make test` runs exit 0, 2668 backend each), reviewer
+  ACCEPT with no findings. Branch-tip rule: on
+  `claude/liveclip-stage4-evaluator-rules`,
+  `git diff --name-only 8b14aa3..0bb4af4` lists only `STATUS.md`, `docs/**`
+  and `tasks/**`. (Corrected 2026-10-22 from `8b14aa3..HEAD`, which holds
+  only on the Stage 4 branch. Previously: pending acceptance.)
+  - Code commits, after rebase:
+    - `2c4de9afb8c05e6ef30d3fb3e46bea0a181e07f0`;
+    - `0440c179cf919d408abd474d6d4188dc55ffb449`;
+    - `8b14aa39420ecfffc4ad54c6d76d8433affd15b6`.
+  - Reviews: `30dc26b` CHANGES_REQUIRED, then `2abec1b` ACCEPT, then
+    `052cd46` comment-only.
+  - Read-only cold-18 re-score: FAIL 90.0.
+  - For Agent v2: a Global Review `final` candidate is treated as an automatic
+    output, so N08 negative-only finals are a mechanical failure
+    (`negative_anchor_output`).
+
+  Evidence and follow-ups are in `STATUS.md`.
+
+### Decision Log
+
+- 2026-10-21 The operator confirmed decision A (an exact boundary hit is
+  tolerance-only, superseding the Controller full-cue-coverage
+  interpretation) and decision B (`negative_anchor_output` with the per-anchor
+  MD section 7 policy). Under B, N01--N07, N10 and N11 hard-fail for
+  `manual_review` as well as `selected`; N08 hard-fails only automatic
+  outputs; N09 allows only the S08 clean sub-interval.
+
+  Details are in the Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`.
+
+## Stage 3 cleanup (2026-10-21)
+
+### Progress
+
+- [x] 2026-10-21 On local branch `claude/liveclip-stage3-cleanup` (from
+  `e51e353dadbcb1a0315f7c31f3f68a8e0da09ac0`), address the Stage 2
+  follow-ups. Status: implemented by the coder in code commit `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`,
+  **pending independent tester and reviewer acceptance**. Not pushed or
+  merged.
+  - The verifier uses one run-directory `lstat` for both the real-directory
+    check and the identity baseline, with a swap regression test.
+  - The allocation swap unit test is renamed and commented to state what it
+    proves: identity from the held handle, not a closed `mkdir`-to-`open`
+    race.
+  - The two lease-based integration tests are robust to host suspend:
+    - they use a 24 h test-only lease through the existing `lease_seconds`
+      parameter;
+    - all assertions are unchanged;
+    - there is no `src/` change;
+    - regressions simulate a 12 h wall-clock jump that leaves monotonic time
+      alone.
+
+  Details and evidence are in `STATUS.md`.
+- [x] 2026-10-21 Stage 3 **ACCEPTED** at code commit
+  `ce43f5ed23819201a750d4cef0a8a8cbfbed644b`. The item above, written while
+  pending, is checked by this acceptance.
+  - Tester at `2421df3`: `make lint` 0; `make test` twice under
+    `caffeinate`, both exit 0 (2627 backend each, vitest 80/80, e2e mock,
+    legacy, completion and B2 PASS); 0 sleep events; lease and suspend set
+    39 passed x 3; the new verifier `lstat` test passed; 846 report files
+    hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1, 3 P2.
+- [x] 2026-10-21 Reviewer P2 fixes in test-only commit
+  `f51f6960f27d298424e968a5a7e329f857c6f201`, verified as part of the Stage 4
+  round:
+  - the suspend regression now proves the shift reached the queue;
+  - the root-cause wording is corrected to the `lease - heartbeat` worst case;
+  - the "30 s lease these tests previously used" and `ShiftedWallClock`
+    wording is fixed.
+
+### Decision Log
+
+- 2026-10-21 Lease expiry across a host suspend longer than the lease is
+  correct production behavior, so the production lease is not changed.
+  Leases expire on the shared wall clock, the only clock that separate worker
+  processes agree on. Heartbeats are paced by `time.monotonic`, which pauses
+  during macOS sleep. A suspended holder therefore cannot renew, and
+  recovering its task with `retry_count + 1` is the designed behavior. Tests
+  that assert `retry_count == 0` or exactly-once execution use a
+  suspend-tolerant 24 h lease instead. No injected-clock seam was added:
+  wall-clock `now` is read in many repository modules, and changing all of
+  them would be a broad production change outside this stage.
+  Correction (reviewer P2-2, 2026-10-21): in the worst case a holder loses its
+  lease once a suspend exceeds `lease - heartbeat interval`, not only `lease`.
+  With the production defaults (120 s lease, 30 s heartbeat) that is about
+  90 s, and with `max_stage_retries=3` repeated sleeps can fail a stage.
+  Follow-up (not done): `LeaseMonitor` should detect a wall-clock versus
+  monotonic jump and refresh immediately while the lease is still unexpired.
+- 2026-10-21 Operator authorizations:
+  - Real pipeline runs are allowed without per-run consent. The LLM engine is
+    the Codex CLI and ASR uses local models, so these runs incur no paid
+    usage.
+  - Local assets may be copied from `/Users/junhuaxu/autoclip` into this
+    worktree's ignored paths. The Controller cloned `input/8-30.ts`, whose
+    sha256 matches this ExecPlan, and `data/evaluations/`.
+  - Push and merge still require explicit consent.
+- 2026-10-21 The operator confirmed the semantic-only no-padding-allowance
+  reading (Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`). No interpretation
+  remains pending.
+
+## Stage 2 real-browser e2e harness idempotency (2026-10-21)
+
+### Progress
+
+- [x] 2026-10-21 On local branch `claude/liveclip-stage2-e2e-harness` (from
+  `8b4e66c2a339934ff782a8edfc0d8884f9c3ae29`), make
+  `scripts/run_real_browser_e2e.sh` safe to rerun in the same worktree. This
+  addresses the Stage 1 follow-up "harness non-idempotency" (listed in
+  `STATUS.md`). Status: implemented by the coder, **pending independent
+  tester and reviewer acceptance**. Not pushed or merged.
+  - Each harness invocation (legacy, completion, and the B2 run chained from
+    completion) allocates a fresh random hex32 report scope below
+    `apps/web/playwright-report/<folder>/` with
+    `e2e_fixture.py allocate-report-scope`, which returns the path plus its
+    device/inode.
+  - `e2e_fixture.py verify --retain-packages` must receive that scope and
+    identity; it retains exactly one `<run id>/` package into the empty,
+    identity-matched, no-follow-opened scope of the matching scenario folder.
+  - `scripts/verify_completion_retained.py` must receive the same scope and
+    identity. It validates the scope path, the absence of symlinks along the
+    report chain and the identity, then requires exactly one manifest and no
+    other entry inside the scope. All other retained checks are unchanged.
+  - Prior packages (the pre-Stage-2 flat layout and earlier scopes) are
+    preserved and are never selected.
+  - Evidence categories: deterministic validation only (lint, targeted
+    pytest, two back-to-back mock-provider `make e2e` runs). No rendering
+    acceptance, human review or model inference.
+  - Coder self-checks at code commit
+    `bae901c22260af49a79c1d15a7ac11ced4856f18`: `make lint` exit 0;
+    targeted pytest 54 passed; `make e2e` run 1 and run 2 back to back
+    without moving `apps/web/playwright-report/` aside, both exit 0 with
+    legacy, completion and B2 retained PASS (completion runs
+    `5f42298e1de54a33aeda7cadcdf604e1` and
+    `0f30ffa50f1f457482c9951c98bfe5c7`; B2 runs
+    `dbdff27bfc9c4ad2a14e4a51b146e1af` and
+    `cd0955e2b5f3492f954e73b197a89b76`). All pre-existing retained files
+    were byte-identical afterwards. Details are in `STATUS.md`.
+- [x] 2026-10-21 P2 fix round on the same branch, still pending acceptance
+  (historical; accepted at cfcff0d).
+  At `c391ced5f3983f4b10654074742b7aaf10197f1c`, the independent tester was
+  green: `make lint` 0; `make test` twice, both exit 0, 2619 backend passed
+  each, vitest 80/80, e2e mock, legacy, completion and B2 PASS in both runs,
+  and 198 pre-existing report files hashed identically. The reviewer
+  returned ACCEPT with 0 P0/P1 and 3 P2. Code commit `cfcff0dbea66cc291456fcecca800ee9c6313dfe` fixes the
+  three P2s:
+  - The scope identity at allocation comes from `fstat` on a held
+    `O_NOFOLLOW` handle. (Corrected 2026-10-21: a residual window between
+    `mkdir` and `open` remains. POSIX cannot close it, because no `mkdirat`
+    returns a handle, and it is an accepted risk. The allocation swap unit
+    test swaps after `open`, so it proves the handle-based identity, not
+    that the race is closed.)
+  - The verifier re-checks the scope and run-directory identity after all
+    reads, so a swap fails closed.
+  - Restored coverage that retention refuses a symlinked `playwright-report`
+    parent, plus swap regressions.
+
+  Evidence is in `STATUS.md`.
+- [x] 2026-10-21 Stage 2 **ACCEPTED** at code commit
+  `cfcff0dbea66cc291456fcecca800ee9c6313dfe`, verified at tip
+  `58cb055f59d7011ac83c9d798da472ae919f31c9`. The two items above (historically
+  written as pending) are checked by this acceptance.
+  - Tester round r1: environment-invalid, not accepted. `make test` run 1
+    exited 2 in the 30 s-lease tests `test_transport_budget_pipeline` and
+    `test_worker_foreground_race`, which ran during a macOS Clamshell Sleep
+    on battery (09:54:05--10:49:36). Run 2 passed, and an isolated rerun
+    under `caffeinate` passed 37/37.
+  - Tester round r2: PASS. `make lint` 0. `make test` twice under
+    `caffeinate -dims`, both exit 0: 2624 backend passed each, vitest
+    80/80, e2e mock, legacy, completion and B2 PASS. `pmset` showed 0
+    sleep/wake events, and 612 pre-existing report files hashed identically.
+  - Reviewer: ACCEPT, 0 P0/P1.
+  - The Stage 1 "harness non-idempotency" follow-up is resolved.
+  - Branch-tip rule: `git diff --name-only cfcff0d..HEAD` must list only
+    `STATUS.md`, `docs/**` and `tasks/**`.
+  - Open follow-ups (listed in `STATUS.md`): single `lstat` for the run
+    directory check and baseline; rename or comment the allocation swap
+    test; the inherent swap-away-and-back limit of path-based reads; lease
+    tests that are sensitive to host sleep (run `make test` under
+    `caffeinate -dims` on AC); the carried Stage 1 follow-ups; the
+    semantic-only reading, still pending operator confirmation.
+    (2026-10-21: the single `lstat`, the swap-test rename and the lease-test
+    suspend robustness are addressed by Stage 3, pending acceptance. The
+    semantic-only reading was confirmed by the operator.)
+
+### Decision Log
+
+- 2026-10-21 Scope the "exactly one retained package" invariant to an
+  identity-bound directory created by this invocation, rather than relaxing
+  it to "at least one" or "newest", or deleting/moving earlier evidence.
+  Rationale: the invariant keeps its full strength inside the scope (two
+  packages, an incomplete extra run directory or a stray file still fail),
+  stale packages cannot be confused with the current one because the
+  verifier never enumerates outside the scope it was handed, and the
+  device/inode binding plus no-follow traversal stop a replaced or
+  symlinked scope from standing in for it. The scope is allocated just
+  before retention so an early-failing run leaves at most one empty scope.
+- 2026-10-21 The operator confirmed Controller interpretations D1, D2 and D3
+  (Decision Log of `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`).
+  The separate reading "D2 applies to semantic-only candidates; semantic-only
+  candidates get no padding allowance" remains pending operator
+  confirmation. No code or threshold changed with this confirmation.
+  (Update 2026-10-21, later: the operator confirmed the semantic-only reading
+  too.)
+- 2026-10-21 Accept the residual allocation window between `mkdir` and
+  `open` in `allocate_report_scope`. POSIX has no `mkdirat` that returns a
+  handle, and an attacker who could race it could also edit the harness
+  scripts. The identity is taken via `fstat` on the held `O_NOFOLLOW`
+  handle, and the verifier re-checks scope and run-directory identity after
+  all reads.
+- 2026-10-21 Classify tester round 58cb055 r1 as environment-invalid: its
+  two lease-based failures coincided with host sleep. Acceptance rests on
+  round r2, which ran under `caffeinate -dims` with no sleep/wake events.
+
+## Stage 1 benchmark evaluator strictness (2026-10-20)
+
+### Progress
+
+- [x] 2026-10-20 On branch `claude/liveclip-stage1-evaluator` (base
+  `a449f02b9c5694c258d5b5f47c91b9042073c5a9`), close product-code acceptance
+  gap 2 under "Product-code acceptance gaps" (Context and Orientation):
+  `scripts/evaluate_agent_benchmark.py` no longer emits a plain `PASS`. It
+  emits only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+  `INVALID_EVIDENCE`; a source-hash mismatch or malformed evidence is
+  `INVALID_EVIDENCE`; it separates mechanical hard failures, `not_evaluable`
+  gates (which block the technical pass) and `human_required` activities; it
+  derives executed Profiles only from an explicit record; and its CLI requires
+  a new `--output-dir`, refuses an existing one and publishes both reports by
+  one directory rename. The shared v1 gates (manual-only semantic
+  equivalence, one-to-one matching, padding, composites, RGR-02, duration,
+  risk discovery with evidence cues) apply where the Agent result carries the
+  data. Because the current Agent v2 result records no executed-Profile list,
+  decision buckets, quality flags or risk tags, a real Agent v2 result
+  currently evaluates to `TECHNICAL_FAIL` with those gates `not_evaluable`.
+  Evidence is fixture/unit-test only; the completed full-transcript run was
+  not re-evaluated and no model inference occurred. Earlier sections are
+  unchanged history.
+- [x] 2026-10-20 Fix rounds on `claude/liveclip-stage1-fix` (descending from
+  `bf83c80a81d1b47fa834a8a149f9866f3b3d89db`), superseding parts of the entry
+  above, which is kept as history. Controller interpretations D1--D3 are
+  pending operator confirmation (Decision Log of
+  `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md`):
+  - D1: no threshold changes. The Agent v2 score stays raw out of 100 with
+    threshold 85. Not-applicable components score 0, so the applicable
+    maximum is 88.
+  - D2: padding and forbidden composites are direct FAIL for every output
+    decision. This includes semantic-only candidates, which get no padding
+    allowance.
+  - D3: `acceptance.conditional` is applied literally.
+
+  Update 2026-10-21: the operator confirmed D1--D3. The semantic-only
+  padding reading in D2 above ("semantic-only candidates, which get no
+  padding allowance") remains pending operator confirmation.
+  Update 2026-10-21 (later): the operator confirmed the semantic-only reading.
+
+  Gap 2 status for `scripts/evaluate_agent_benchmark.py`:
+  - **Statuses:** only `TECHNICAL_PASS_HUMAN_PENDING`, `TECHNICAL_FAIL` or
+    `INVALID_EVIDENCE`; never a plain or full `PASS`.
+  - **Report sections:** `mechanical_failures` (the only blockers besides
+    `INVALID_EVIDENCE`), `not_applicable` legacy-v1 concepts (decision
+    buckets, the score>75 auto-selection gate, risk routing, cache/repair) and
+    `human_required` checks (quality-flag adjudication, RGR-02 flags for
+    candidates on that interval, title/hook/summary fidelity, semantic-only
+    matches, editorial/audio/subtitle review). `not_evaluable` and the
+    explicit executed-Profile record described above no longer exist.
+  - **Executed Profiles:** the Global Review `requested_profiles` that still
+    have at least one final candidate. `save_global_review` enforces this
+    invariant.
+  - **Report publication:** the CLI requires a new `--output-dir`. It writes
+    and fsyncs both reports in a private sibling staging directory and
+    publishes them as one unit with
+    `liveclip.media.secure_files.publish_directory_no_replace_no_follow`.
+    That is an exclusive no-follow directory rename, which refuses any
+    existing destination, including an empty directory. The two reports
+    therefore appear together, no-replace and atomic as a pair.
+  - **On failure:** the staging directory is removed and no partial output
+    directory remains. The one exception is when `secure_files` itself
+    reports that a rollback could not be completed safely.
+  - **Output path requirement:** `--output-dir` must be an absolute path
+    whose directory chain contains no symlinks, because publication is
+    anchored to no-follow parent descriptors. For example, macOS `/tmp` (a
+    symlink to `/private/tmp`) is refused; use `/private/tmp/...`. The CLI
+    help text does not yet say this. That is a code change left for a later
+    stage.
+  - **Accepted:** the reviewer accepted the fix rounds at `d9e9dde` and
+    `6c465b767e3829152d0b07451edbe274980321b1`, and the independent
+    tester's full `make lint` and `make test` at `6c465b7` were green.
+    `STATUS.md` holds the evidence.
+  - **Open follow-ups (not done):**
+    - Pin the staging directory identity (`expected_identity`) and make
+      cleanup fd-based.
+    - Add an end-to-end rollback test after a real rename.
+    - Agent risk discovery counts only final candidates, which is stricter
+      than necessary.
+
+  Gaps 1 and 3--6 (completed-evidence validation, render/package binding,
+  publisher, human review) are not part of this stage. Evidence is
+  fixture/unit-test only; the completed full-transcript run was not
+  re-evaluated and no model inference occurred.
+- [x] 2026-10-20 Informational for future formal-loop runs (no files edited):
+  the evaluators now depend on the new `scripts/benchmark_gates.py` and the
+  new package marker `scripts/__init__.py`. Neither path is in the
+  "Exact Coder allowlist" of
+  `docs/requirements/liveclip-agent-runtime-v2-acceptance-v3.md`, nor in the
+  frozen path lists of `tools/loop_engineering/m3s_v40_source_freeze.py`,
+  `m3s_v44_source_freeze.py` or `m3s_v45_source_freeze.py`, which name
+  `scripts/evaluate_agent_benchmark.py` only. A later formal loop that freezes
+  or allowlists the evaluator must include both paths.
+
 ## Local asset boundary corrected in the current Git tree (2026-10-20)
 
 The operator clarified the repository boundary after the Agent v2 publication:

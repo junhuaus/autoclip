@@ -74,6 +74,7 @@ from liveclip.services.agent_clipping_delivery import (
     export_agent_clipping_review_package,
     render_agent_clipping_result,
 )
+from liveclip.services.claude_smoke import ClaudeSmokeError, run_claude_smoke
 from liveclip.services.cloud_smoke import CloudSmokeError, run_cloud_smoke
 from liveclip.services.codex_smoke import CodexSmokeError, run_codex_smoke
 from liveclip.services.database_backup import (
@@ -89,6 +90,8 @@ from liveclip.services.dual_profile_delivery import (
     export_dual_profile_review_package,
 )
 from liveclip.services.dual_profile_evaluation import (
+    DualProfileProviderFailureError,
+    DualProfileValidationExhaustedError,
     configured_dual_profile_provider_factory,
     render_dual_profile_candidates,
     run_dual_profile_evaluation,
@@ -1289,6 +1292,17 @@ def dual_profile_eval(
         int,
         typer.Option("--discovery-concurrency", min=1, max=8),
     ] = 5,
+    refresh_stale_cache: Annotated[
+        bool,
+        typer.Option(
+            "--refresh-stale-cache",
+            help=(
+                "Repair cached outputs that fail current validation under a superseding "
+                "cache key and record each one in the run manifest. Off by default: a "
+                "stale cache entry fails the run."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run independent short-highlight and mini-lesson semantic tracks."""
 
@@ -1306,9 +1320,23 @@ def dual_profile_eval(
             ),
             cache_dir=cache,
             discovery_concurrency=discovery_concurrency,
+            refresh_stale_cache=refresh_stale_cache,
         )
+    except DualProfileValidationExhaustedError as exc:
+        # The full message can exceed the generic 500-character limit; print a
+        # bounded summary that names the failing unit and its evidence file.
+        typer.echo(_safe_cli_error(ValueError(exc.summary())), err=True)
+        raise typer.Exit(code=1) from exc
+    except DualProfileProviderFailureError as exc:
+        # Stage 16: name the provider failure code, unit and evidence file.
+        typer.echo(_safe_cli_error(RuntimeError(exc.summary())), err=True)
+        raise typer.Exit(code=1) from exc
     except (ValidationError, ValueError, RuntimeError) as exc:
         typer.echo(_safe_cli_error(exc), err=True)
+        # The run's failure backstop notes where its failure manifest is.
+        for note in getattr(exc, "__notes__", ()):
+            if isinstance(note, str) and note.startswith("failure evidence"):
+                typer.echo(_safe_cli_error(RuntimeError(note)), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
 
@@ -2088,6 +2116,27 @@ def smoke_codex() -> None:
     typer.echo(f"Provider: {result.provider}")
     typer.echo(f"Model: {result.model}")
     typer.echo(f"Codex thread ID: {result.thread_id}")
+    typer.echo(f"Usage: input={result.input_tokens} output={result.output_tokens}")
+    typer.echo(f"Score: {result.score}")
+    typer.echo(f"Title: {result.title}")
+    typer.echo(f"Boundary: {result.source_start_ms}-{result.source_end_ms} ms")
+
+
+@app.command("smoke-claude")
+def smoke_claude() -> None:
+    """Run one real tool-free Claude CLI structured call using the subscription login."""
+
+    try:
+        result = run_claude_smoke(get_settings())
+    except (ClaudeSmokeError, ValidationError, ValueError, RuntimeError) as exc:
+        typer.echo(_safe_cli_error(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo("Claude smoke: succeeded")
+    typer.echo(f"Provider: {result.provider}")
+    typer.echo(f"Model: {result.model} (answered by {result.response_model})")
+    typer.echo(f"Auth method: {result.auth_method}")
+    typer.echo(f"Contract: {result.contract}")
+    typer.echo(f"Latency: {result.latency_ms} ms over {result.request_count} request(s)")
     typer.echo(f"Usage: input={result.input_tokens} output={result.output_tokens}")
     typer.echo(f"Score: {result.score}")
     typer.echo(f"Title: {result.title}")

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
+from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import TypeVar, cast
 
 from pydantic import BaseModel
@@ -40,12 +42,21 @@ from liveclip.media.secure_files import (
 )
 from liveclip.pipeline.dual_profile import (
     DUAL_PROFILE_ALGORITHM_VERSION,
+    DUAL_PROFILE_ROUTING_POLICY_VERSION,
+    AuditCandidatePair,
+    AuditPairFallback,
+    AuditPairRule,
+    AuditPairRuleError,
+    AuditPairViolation,
+    BoundaryOpeningFallback,
+    BoundaryOpeningInvariantError,
     BoundaryReviewItem,
     CrossProfileVariantLinkOutput,
     DiscoveryWindow,
     DualProfileFinalResult,
     DualProfileRunConfig,
     DualProfileRunManifest,
+    FinalProfileCandidate,
     FinalProfileResult,
     GlobalReviewItem,
     ProfileBoundaryReviewOutput,
@@ -54,17 +65,30 @@ from liveclip.pipeline.dual_profile import (
     ProfileGlobalReviewOutput,
     ProfileManifestStats,
     RawProfileCandidate,
+    StaleCacheResolution,
+    apply_audit_pair_blocks,
+    apply_boundary_opening_fallback,
     apply_cross_profile_variant_links,
     assemble_final_profile_result,
     assert_no_cross_profile_dedup,
+    audit_candidate_pairs,
+    discovery_persisted_flags,
+    final_profile_rows,
+    plan_audit_pair_fallback,
     plan_profile_discovery_windows,
+    reject_reserved_reason_prefixes,
+    resolved_duplicates,
+    risk_twin_review,
+    same_interval_twin_flags,
     semantic_cache_key,
+    validate_audit_pair_decisions,
     validate_boundary_review_output,
     validate_discovery_output,
 )
 from liveclip.pipeline.semantic_global import transcript_cues
 from liveclip.pipeline.srt import load_srt_transcript
 from liveclip.providers.llm.structured import (
+    StructuredCallResult,
     StructuredLLMProvider,
     StructuredProviderError,
 )
@@ -89,10 +113,209 @@ class _ResolvedCall:
     repair_count: int
 
 
+_SUMMARY_LIMIT = 480
+_SUMMARY_NOTE_LIMIT = 160
+# Stage 16b: the evidence path never pushes the summary head past the CLI bound
+# (which would replace the whole line, code and unit included, with a generic
+# message); a longer path keeps its tail, so the file name always survives.
+_SUMMARY_EVIDENCE_LIMIT = 200
+_SUMMARY_EVIDENCE_MINIMUM = 40
+
+
+def _bounded_evidence_path(path: str, limit: int = _SUMMARY_EVIDENCE_LIMIT) -> str:
+    """One-line evidence path of at most ``limit`` characters (tail kept)."""
+
+    value = " ".join(path.split())
+    if len(value) <= limit:
+        return value
+    return f"...{value[len(value) - (limit - 3) :]}"
+
+
+def _failure_summary(
+    prefix: str,
+    *,
+    evidence_file: str | None,
+    notes: Sequence[str],
+    detail_label: str,
+    detail: str,
+) -> str:
+    """Bounded one-line CLI summary: ``prefix`` (code and unit) always comes first.
+
+    Notes (for example "failure evidence could not be written: ...") are bounded
+    and kept; the evidence path is trimmed from its start to the room left; the
+    trailing detail is the part dropped first. The result never exceeds
+    ``_SUMMARY_LIMIT`` (the CLI prints at most 500 characters).
+    """
+
+    note_text = " ".join("; ".join(notes).split())
+    if len(note_text) > _SUMMARY_NOTE_LIMIT:
+        note_text = f"{note_text[: _SUMMARY_NOTE_LIMIT - 3]}..."
+    notes_part = f"; {note_text}" if note_text else ""
+    evidence_part = ""
+    if evidence_file:
+        room = min(
+            _SUMMARY_EVIDENCE_LIMIT,
+            _SUMMARY_LIMIT - len(prefix) - len(notes_part) - len("; evidence: "),
+        )
+        evidence_part = (
+            "; evidence: "
+            f"{_bounded_evidence_path(evidence_file, max(room, _SUMMARY_EVIDENCE_MINIMUM))}"
+        )
+    head = f"{prefix}{evidence_part}{notes_part}"
+    if len(head) > _SUMMARY_LIMIT:
+        return f"{head[: _SUMMARY_LIMIT - 3]}..."
+    budget = min(240, _SUMMARY_LIMIT - len(head) - len(f"; {detail_label}: "))
+    if budget < 40:
+        return head
+    text = " ".join(detail.split())
+    if len(text) > budget:
+        text = f"{text[: budget - 3]}..."
+    return f"{head}; {detail_label}: {text}"
+
+
+@dataclass(frozen=True, slots=True)
+class DualProfileValidationAttempt:
+    """One structured output that failed deterministic validation.
+
+    ``phase`` is ``initial`` (the first generation), ``stale_cache`` (a cached
+    output re-validated under ``--refresh-stale-cache``), ``repair`` or
+    ``regeneration``. ``output`` is the provider's parsed structured output, kept
+    as the provider returned it. Only the Claude CLI provider drops (and fails) an
+    output that contains its subscription account identity; other providers have
+    no such filter, and nothing here adds one.
+    """
+
+    phase: str
+    output: Mapping[str, object]
+    error: str
+
+
+class DualProfileValidationExhaustedError(ValueError):
+    """Deterministic validation still failed after one repair and one regeneration.
+
+    Carries every failed attempt and the provider call records of the failing
+    unit, so the run can write failure evidence to its run directory (never to the
+    cache) before the error propagates.
+    """
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        profile: str,
+        subject_id: str,
+        cache_key: str,
+        attempts: Sequence[DualProfileValidationAttempt],
+        records: Sequence[ProviderCallRecord],
+        final_error: ValueError,
+    ) -> None:
+        self.stage = stage
+        self.profile = profile
+        self.subject_id = subject_id
+        self.cache_key = cache_key
+        self.attempts = tuple(attempts)
+        self.records = tuple(records)
+        self.final_error = final_error
+        self.evidence_file: str | None = None
+        super().__init__(
+            "deterministic validation still failed after one repair and one "
+            f"regeneration: {final_error}"
+        )
+
+    @property
+    def failure_file_name(self) -> str:
+        return f"failed-{self.profile}-{self.stage}.json"
+
+    def summary(self) -> str:
+        """Bounded one-line summary for the CLI (the full error may be long)."""
+
+        return _failure_summary(
+            "dual Profile validation exhausted after one repair and one regeneration "
+            f"in {self.profile} {self.stage} ({self.subject_id})",
+            evidence_file=self.evidence_file,
+            notes=getattr(self, "__notes__", ()),
+            detail_label="last error",
+            detail=str(self.final_error),
+        )
+
+
+class DualProfileProviderFailureError(RuntimeError):
+    """A unit's structured provider call failed (Stage 16).
+
+    Raised for a ``StructuredProviderError`` from the initial generation (after
+    its one semantic retry), the repair or the regeneration. Carries the failing
+    unit, the provider failure code, every validation attempt made so far and the
+    accumulated plus failing call records, so the run writes failure evidence to
+    its run directory (never to the cache) before the error propagates.
+    """
+
+    def __init__(
+        self,
+        *,
+        stage: str,
+        profile: str,
+        subject_id: str,
+        cache_key: str,
+        phase: str,
+        provider_error: StructuredProviderError,
+        attempts: Sequence[DualProfileValidationAttempt],
+        records: Sequence[ProviderCallRecord],
+    ) -> None:
+        self.stage = stage
+        self.profile = profile
+        self.subject_id = subject_id
+        self.cache_key = cache_key
+        self.phase = phase
+        self.failure_code = provider_error.code
+        self.provider_message = str(provider_error)
+        self.provider_attempts = tuple(provider_error.repair_attempts)
+        self.attempts = tuple(attempts)
+        self.records = tuple(records)
+        self.evidence_file: str | None = None
+        super().__init__(
+            f"{self.provider_message} [{self.failure_code}] in {profile} {stage} "
+            f"({subject_id}) during {phase}"
+        )
+
+    @property
+    def failure_file_name(self) -> str:
+        return f"failed-{self.profile}-{self.stage}.json"
+
+    def summary(self) -> str:
+        """Bounded one-line summary for the CLI: code, unit and evidence path."""
+
+        # The cause is fixed provider text; it is the part trimmed to stay bounded.
+        return _failure_summary(
+            f"dual Profile provider failure {self.failure_code} in {self.profile} "
+            f"{self.stage} ({self.subject_id}) during {self.phase}",
+            evidence_file=self.evidence_file,
+            notes=getattr(self, "__notes__", ()),
+            detail_label="cause",
+            detail=self.provider_message,
+        )
+
+
+_UnitFailure = DualProfileValidationExhaustedError | DualProfileProviderFailureError
+
+
 def configured_dual_profile_provider_factory(
     settings: Settings,
 ) -> DualProfileProviderFactory:
     return configured_structured_editorial_provider_factory(settings)
+
+
+@dataclass
+class _RunProgress:
+    """What a run has done so far, shared with the wrapper that writes failure evidence."""
+
+    resolution_audit: _ResolutionAudit
+    requested_profiles: tuple[ClipProfile, ...] = ()
+    output_dir_created: bool = False
+    source_hash: str = ""
+    provider_name: str = ""
+    model_name: str = ""
+    prompt_files: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    prompt_hashes: dict[str, str] = field(default_factory=dict)
 
 
 def run_dual_profile_evaluation(
@@ -104,24 +327,115 @@ def run_dual_profile_evaluation(
     cache_dir: Path | None = None,
     discovery_concurrency: int = 5,
     cancel_requested: Callable[[], bool] = lambda: False,
+    refresh_stale_cache: bool = False,
 ) -> dict[str, object]:
-    """Run independent short and mini semantic tracks over one transcript."""
+    """Run independent short and mini semantic tracks over one transcript.
 
+    ``refresh_stale_cache`` is off by default: a cached output that fails current
+    validation then fails the run closed. When explicitly enabled, such an entry is
+    repaired under a superseding key and recorded in the run manifest.
+
+    When a unit's validation is exhausted after one repair and one regeneration
+    (Stage 13d), the failed attempts, a partial ``provider-calls.json`` and a
+    ``failure-manifest.json`` are written to ``output_dir`` (never to the cache) and
+    the ``DualProfileValidationExhaustedError`` is re-raised. A unit whose provider
+    call fails (Stage 16) writes the same three files with ``provider_failed`` /
+    ``provider_failure`` and re-raises ``DualProfileProviderFailureError``. Any
+    other exception after the output directory exists writes only a
+    ``failure-manifest.json`` (``unexpected_error``) and is re-raised.
+    """
+
+    started = time.monotonic()
+    progress = _RunProgress(
+        resolution_audit=_ResolutionAudit(refresh_stale_cache=refresh_stale_cache)
+    )
+    try:
+        return _run_dual_profile_evaluation(
+            transcript_path=transcript_path,
+            output_dir=output_dir,
+            provider_factory=provider_factory,
+            config=config,
+            cache_dir=cache_dir,
+            discovery_concurrency=discovery_concurrency,
+            cancel_requested=cancel_requested,
+            refresh_stale_cache=refresh_stale_cache,
+            progress=progress,
+            started=started,
+        )
+    except (DualProfileValidationExhaustedError, DualProfileProviderFailureError) as error:
+        if progress.output_dir_created:
+            try:
+                _write_validation_failure(
+                    output_dir,
+                    error,
+                    progress,
+                    refresh_stale_cache=refresh_stale_cache,
+                    elapsed_ms=round((time.monotonic() - started) * 1_000),
+                )
+            except Exception as write_error:
+                # Never mask the unit failure with an evidence-writing failure,
+                # whatever its cause (I/O, an invalid name, or a writer bug).
+                error.add_note(
+                    "failure evidence could not be written: "
+                    f"{type(write_error).__name__}: {write_error}"
+                )
+        raise
+    except Exception as error:
+        # Stage 16 backstop: an unexpected failure still leaves a manifest with the
+        # completed call records behind, and the original exception propagates.
+        if progress.output_dir_created:
+            try:
+                _write_unexpected_failure(
+                    output_dir,
+                    error,
+                    progress,
+                    refresh_stale_cache=refresh_stale_cache,
+                    elapsed_ms=round((time.monotonic() - started) * 1_000),
+                )
+            except Exception as write_error:
+                error.add_note(
+                    "failure evidence could not be written: "
+                    f"{type(write_error).__name__}: {write_error}"
+                )
+            else:
+                error.add_note(
+                    "failure evidence: "
+                    + _bounded_evidence_path(str(output_dir / "failure-manifest.json"))
+                )
+        raise
+
+
+def _run_dual_profile_evaluation(
+    *,
+    transcript_path: Path,
+    output_dir: Path,
+    provider_factory: DualProfileProviderFactory,
+    config: DualProfileRunConfig | None,
+    cache_dir: Path | None,
+    discovery_concurrency: int,
+    cancel_requested: Callable[[], bool],
+    refresh_stale_cache: bool,
+    progress: _RunProgress,
+    started: float,
+) -> dict[str, object]:
     if not 1 <= discovery_concurrency <= 8:
         raise ValueError("Discovery concurrency must be between one and eight")
-    started = time.monotonic()
     resolved = config or DualProfileRunConfig()
+    progress.requested_profiles = resolved.requested_profiles
     transcript = load_srt_transcript(transcript_path)
     source_hash, _ = hash_regular_file_no_follow(transcript_path)
     create_directory_exclusive_no_follow(output_dir)
+    progress.output_dir_created = True
+    progress.source_hash = source_hash
     if cache_dir is not None:
         ensure_directory_no_follow(cache_dir)
     calls: list[ProviderCallRecord] = []
     cache_hits = 0
     retry_count = 0
     repair_count = 0
-    prompt_files: dict[str, tuple[str, ...]] = {}
-    prompt_hashes: dict[str, str] = {}
+    resolution_audit = progress.resolution_audit
+    prompt_files = progress.prompt_files
+    prompt_hashes = progress.prompt_hashes
     stage_counts = {
         "discovery": 0,
         "boundary_review": 0,
@@ -132,6 +446,10 @@ def run_dual_profile_evaluation(
     boundaries_by_profile: dict[ClipProfile, ProfileBoundaryReviewOutput] = {}
     global_by_profile: dict[ClipProfile, ProfileGlobalReviewOutput] = {}
     results: dict[ClipProfile, FinalProfileResult] = {}
+    persisted_representative_duplicates: dict[ClipProfile, int] = {}
+    risk_twin_flags_not_propagated: dict[ClipProfile, int] = {}
+    risk_twin_review_downgrades: dict[ClipProfile, int] = {}
+    risk_record_ids_by_profile: dict[ClipProfile, frozenset[str]] = {}
     model_name = ""
     provider_name = ""
 
@@ -142,6 +460,8 @@ def run_dual_profile_evaluation(
         discovery_provider = provider_factory(discovery_prompt, "medium")
         provider_name = discovery_provider.provider_name
         model_name = discovery_provider.model_name
+        progress.provider_name = provider_name
+        progress.model_name = model_name
         prompt_files[f"{profile.value}.discovery"] = discovery_prompt.loaded_files
         prompt_hashes[f"{profile.value}.discovery"] = discovery_prompt.sha256
         windows = plan_profile_discovery_windows(transcript, profile)
@@ -172,6 +492,7 @@ def run_dual_profile_evaluation(
                 return validate_discovery_call(output_value, window)
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="discovery",
                 subject_id=window.window_id,
                 payload=payload,
@@ -253,6 +574,7 @@ def run_dual_profile_evaluation(
                 return validated
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="coverage_audit",
                 subject_id=f"{window.window_id}.coverage",
                 payload=payload,
@@ -353,6 +675,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="precision_audit",
                     subject_id=f"{window.window_id}.precision",
                     payload=payload,
@@ -451,6 +774,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="precision_confirmation",
                     subject_id=f"{window.window_id}.confirmation",
                     payload=payload,
@@ -559,6 +883,7 @@ def run_dual_profile_evaluation(
                     return validated
 
                 response = _resolve_call(
+                    resolution_audit=resolution_audit,
                     stage="risk_discovery",
                     subject_id=f"{window.window_id}.risk",
                     payload=payload,
@@ -604,6 +929,25 @@ def run_dual_profile_evaluation(
             *confirmation_discoveries,
             *risk_discoveries,
         )
+        # Structural risk-pass membership: taken from the dedicated risk-discovery
+        # pass outputs, never inferred from candidate-ID prefixes.
+        risk_record_ids = frozenset(
+            candidate.candidate_id for output in risk_discoveries for candidate in output.candidates
+        )
+        # Structural provenance shown to review stages, keyed by the pass that
+        # produced each candidate (never inferred from ID prefixes).
+        discovery_pass_by_id = {
+            candidate.candidate_id: pass_name
+            for pass_name, outputs in (
+                ("base", base_discoveries),
+                ("coverage_audit", audit_discoveries),
+                ("precision_audit", precision_discoveries),
+                ("precision_confirmation", confirmation_discoveries),
+                ("risk_discovery", risk_discoveries),
+            )
+            for output in outputs
+            for candidate in output.candidates
+        }
         all_candidate_ids = [
             candidate.candidate_id
             for output in profile_discoveries
@@ -653,8 +997,12 @@ def run_dual_profile_evaluation(
             current_profile: ClipProfile = profile,
             current_provider: StructuredLLMProvider = boundary_provider,
             failure_event: Event = boundary_failed,
+            current_passes: Mapping[str, str] = discovery_pass_by_id,
+            current_risk_ids: frozenset[str] = risk_record_ids,
         ) -> tuple[int, _ResolvedCall]:
-            boundary_payload = _boundary_payload(current_profile, candidate_chunk, transcript)
+            boundary_payload = _boundary_payload(
+                current_profile, candidate_chunk, transcript, current_passes
+            )
 
             def validate_boundary_call(
                 output_value: ProfileBoundaryReviewOutput,
@@ -664,11 +1012,14 @@ def run_dual_profile_evaluation(
                     profile=current_profile,
                     candidates=candidate_chunk,
                     transcript=transcript,
+                    risk_record_ids=current_risk_ids,
                 )
 
+            boundary_subject = f"{current_profile.value}.boundary.{chunk_index:03d}"
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="boundary_review",
-                subject_id=f"{current_profile.value}.boundary.{chunk_index:03d}",
+                subject_id=boundary_subject,
                 payload=boundary_payload,
                 response_model=ProfileBoundaryReviewOutput,
                 provider=current_provider,
@@ -679,6 +1030,9 @@ def run_dual_profile_evaluation(
                 cache_dir=cache_dir,
                 validate=validate_boundary_call,
                 cancel_requested=lambda: cancel_requested() or failure_event.is_set(),
+                conservative_fallback=_boundary_opening_fallback(
+                    current_profile, boundary_subject, validate_boundary_call
+                ),
             )
             return chunk_index, response
 
@@ -710,6 +1064,7 @@ def run_dual_profile_evaluation(
             profile=profile,
             candidates=raw_candidates,
             transcript=transcript,
+            risk_record_ids=risk_record_ids,
         )
         boundaries_by_profile[profile] = boundary
 
@@ -723,6 +1078,7 @@ def run_dual_profile_evaluation(
             current_profile: ClipProfile = profile,
             current_discoveries: tuple[ProfileDiscoveryOutput, ...] = profile_discoveries,
             current_boundary: ProfileBoundaryReviewOutput = boundary,
+            current_risk_ids: frozenset[str] = risk_record_ids,
         ) -> ProfileGlobalReviewOutput:
             review = value
             assemble_final_profile_result(
@@ -733,6 +1089,7 @@ def run_dual_profile_evaluation(
                 transcript=transcript,
                 top_n=resolved.top_n[current_profile],
                 score_threshold_exclusive=resolved.score_threshold_exclusive,
+                risk_record_ids=current_risk_ids,
             )
             return review
 
@@ -754,6 +1111,8 @@ def run_dual_profile_evaluation(
             current_discoveries: tuple[ProfileDiscoveryOutput, ...] = profile_discoveries,
             current_boundary: ProfileBoundaryReviewOutput = boundary,
             partition_count: int = len(global_chunks),
+            current_risk_ids: frozenset[str] = risk_record_ids,
+            current_passes: Mapping[str, str] = discovery_pass_by_id,
         ) -> tuple[int, _ResolvedCall]:
             candidate_ids = {candidate.candidate_id for candidate in candidate_chunk}
             chunk_discoveries = tuple(
@@ -781,6 +1140,7 @@ def run_dual_profile_evaluation(
                     candidate_chunk,
                     chunk_boundary,
                     transcript,
+                    current_passes,
                 ),
                 "review_partition": {
                     "index": chunk_index,
@@ -792,6 +1152,7 @@ def run_dual_profile_evaluation(
             def validate_global_chunk(
                 review_value: ProfileGlobalReviewOutput,
             ) -> ProfileGlobalReviewOutput:
+                reject_reserved_reason_prefixes(review_value.reviews)
                 assemble_final_profile_result(
                     profile=current_profile,
                     discoveries=chunk_discoveries,
@@ -800,10 +1161,12 @@ def run_dual_profile_evaluation(
                     transcript=transcript,
                     top_n=resolved.top_n[current_profile],
                     score_threshold_exclusive=resolved.score_threshold_exclusive,
+                    risk_record_ids=current_risk_ids,
                 )
                 return review_value
 
             response = _resolve_call(
+                resolution_audit=resolution_audit,
                 stage="global_review",
                 subject_id=f"{current_profile.value}.global.{chunk_index:03d}",
                 payload=chunk_payload,
@@ -851,41 +1214,140 @@ def run_dual_profile_evaluation(
             reviews=tuple(review_map[candidate.candidate_id] for candidate in raw_candidates),
         )
         validate_global(global_review)
-        global_payload = _global_payload(profile, raw_candidates, boundary, transcript)
+        global_payload = _global_payload(
+            profile, raw_candidates, boundary, transcript, discovery_pass_by_id
+        )
         global_audit_prompt = load_dual_profile_prompt("global_audit", profile)
         global_audit_provider = provider_factory(global_audit_prompt, "high")
         prompt_files[f"{profile.value}.global_audit"] = global_audit_prompt.loaded_files
         prompt_hashes[f"{profile.value}.global_audit"] = global_audit_prompt.sha256
         initial_review_map = {value.candidate_id: value for value in global_review.reviews}
+        audit_pairs = audit_candidate_pairs(global_review, transcript)
+        # Stage 13b: the Discovery gated flags that WILL persist into final routing
+        # (no Boundary Review shrink; routing v5: structural flags only, padding
+        # flags follow Boundary Review; routing v9: a Discovery `topic_not_closed`
+        # that Boundary Review cleared while attesting every boundary fact is
+        # released), computed by the same function the routing uses, so the
+        # audit's view and the final routing cannot drift.
+        boundary_by_id = {value.candidate_id: value for value in boundary.reviews}
+        persisted_by_id = {
+            candidate.candidate_id: discovery_persisted_flags(
+                candidate, boundary_by_id[candidate.candidate_id]
+            )
+            for candidate in raw_candidates
+        }
+        persisted_flag_ids = frozenset(key for key, flags in persisted_by_id.items() if flags)
 
         def validate_global_audit(
             value: ProfileGlobalAuditOutput,
             current_profile: ClipProfile = profile,
             current_initial_ids: frozenset[str] = frozenset(initial_review_map),
             current_global: ProfileGlobalReviewOutput = global_review,
+            current_pairs: tuple[AuditCandidatePair, ...] = audit_pairs,
+            current_persisted: frozenset[str] = persisted_flag_ids,
+            *,
+            fallback_blocked: frozenset[str] = frozenset(),
         ) -> ProfileGlobalAuditOutput:
             if value.profile != current_profile:
                 raise ValueError("Global Audit used the wrong Profile")
+            # Python-only prefixes; only rows the audit fallback itself blocked may
+            # carry the audit fallback prefix.
+            reject_reserved_reason_prefixes(value.replacements, fallback_blocked=fallback_blocked)
             replacement_map = {item.candidate_id: item for item in value.replacements}
             if len(replacement_map) != len(value.replacements):
                 raise ValueError("Global Audit replacement candidate IDs are not unique")
             if not set(replacement_map) <= current_initial_ids:
                 raise ValueError("Global Audit references an unknown candidate")
-            merged = ProfileGlobalReviewOutput(
-                profile=current_profile,
-                reviews=tuple(
-                    replacement_map.get(item.candidate_id, item) for item in current_global.reviews
-                ),
-            )
-            validate_global(merged)
+            merged = _merge_audit(value, current_global)
+            # Stage 13d: final-assembly and pair errors are reported together, so
+            # one repair sees every failure and cannot oscillate between them.
+            assembly_error: ValueError | None = None
+            try:
+                validate_global(merged)
+            except ValueError as error:
+                assembly_error = error
+            try:
+                # Pairs that the audit's own replacements create (for example by
+                # promoting a candidate) must be decided as well. Cache hits are
+                # re-validated with this same rule: every cached audit under the
+                # current audit prompt hash was written and validated under it, and
+                # audits cached before the rule carry an older prompt hash, so they
+                # can never be cache hits.
+                # Nested and overlap pairs alike (Stage 13).
+                listed = {pair.members for pair in current_pairs}
+                required_pairs = (
+                    *current_pairs,
+                    *(
+                        pair
+                        for pair in audit_candidate_pairs(merged, transcript)
+                        if pair.members not in listed
+                    ),
+                )
+                # The deterministic pair rules raise AuditPairRuleError, and only
+                # after every other pair check passed.
+                validate_audit_pair_decisions(
+                    required_pairs,
+                    value.nested_pair_decisions,
+                    merged,
+                    persisted_flag_ids=current_persisted,
+                )
+            except ValueError as pair_error:
+                if assembly_error is None:
+                    # Only here can an AuditPairRuleError reach the audit fallback:
+                    # the pair rules are then the sole remaining failures.
+                    raise
+                # A plain ValueError: the fallback cannot fix an assembly error.
+                raise ValueError(
+                    f"{assembly_error}; Global Audit pairs: {pair_error}"
+                ) from assembly_error
+            if assembly_error is not None:
+                raise assembly_error
             return value
 
+        def audit_pair_fallback(
+            value: ProfileGlobalAuditOutput,
+            error: ValueError,
+            current_profile: ClipProfile = profile,
+            current_global: ProfileGlobalReviewOutput = global_review,
+            current_validate: Callable[..., ProfileGlobalAuditOutput] = validate_global_audit,
+            current_persisted: frozenset[str] = persisted_flag_ids,
+        ) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
+            def validate_fixed(
+                fixed: ProfileGlobalAuditOutput, blocked: frozenset[str]
+            ) -> ProfileGlobalAuditOutput:
+                return current_validate(fixed, fallback_blocked=blocked)
+
+            return _audit_pair_fallback(
+                value,
+                error,
+                current_profile,
+                current_global,
+                validate_fixed,
+                transcript,
+                current_persisted,
+            )
+
         global_audit_call = _resolve_call(
+            resolution_audit=resolution_audit,
             stage="global_audit",
             subject_id=f"{profile.value}.global_audit",
             payload={
                 **global_payload,
+                # Audit payload only: the Global Review payloads stay unchanged.
+                "candidates": [
+                    {
+                        **entry,
+                        "persisted_discovery_gated_flags": [
+                            flag.value
+                            for flag in persisted_by_id[
+                                cast(dict[str, str], entry["candidate"])["candidate_id"]
+                            ]
+                        ],
+                    }
+                    for entry in cast(list[dict[str, object]], global_payload["candidates"])
+                ],
                 "initial_global_review": global_review.model_dump(mode="json"),
+                "audit_pairs": [pair.model_dump(mode="json") for pair in audit_pairs],
             },
             response_model=ProfileGlobalAuditOutput,
             provider=global_audit_provider,
@@ -896,6 +1358,7 @@ def run_dual_profile_evaluation(
             cache_dir=cache_dir,
             validate=validate_global_audit,
             cancel_requested=cancel_requested,
+            conservative_fallback=audit_pair_fallback,
         )
         global_audit = cast(ProfileGlobalAuditOutput, global_audit_call.output)
         replacement_map = {item.candidate_id: item for item in global_audit.replacements}
@@ -911,6 +1374,11 @@ def run_dual_profile_evaluation(
         repair_count += global_audit_call.repair_count
         stage_counts["global_review"] += int(not global_audit_call.cache_hit)
         global_by_profile[profile] = global_review
+        persisted_representative_duplicates[profile] = sum(
+            len(duplicates)
+            for representative, duplicates in resolved_duplicates(global_review).items()
+            if representative in persisted_flag_ids
+        )
         results[profile] = assemble_final_profile_result(
             profile=profile,
             discoveries=profile_discoveries,
@@ -919,7 +1387,23 @@ def run_dual_profile_evaluation(
             transcript=transcript,
             top_n=resolved.top_n[profile],
             score_threshold_exclusive=resolved.score_threshold_exclusive,
+            risk_record_ids=risk_record_ids,
         )
+        # Stage 15 diagnostic (routing v6), derived by the same twin rule the
+        # assembly used: gated flags that only risk-discovery twins carried and
+        # that were therefore not propagated to their same-interval twins.
+        # Stage 15b diagnostic (routing v7; every receiver since v8), derived by
+        # the same risk-twin review rule: rows downgraded from selected to
+        # manual_review (the downgraded count, not the number of rows with a
+        # tagged risk twin).
+        risk_record_ids_by_profile[profile] = risk_record_ids
+        final_rows = final_profile_rows(results[profile]).values()
+        risk_twin_flags_not_propagated[profile] = same_interval_twin_flags(
+            final_rows, risk_record_ids
+        ).not_propagated_count
+        risk_twin_review_downgrades[profile] = risk_twin_review(
+            final_rows, risk_record_ids
+        ).downgraded_count
 
     assert_no_cross_profile_dedup(results.values())
     variant_prompt = load_dual_profile_variant_link_prompt()
@@ -958,6 +1442,7 @@ def run_dual_profile_evaluation(
         return value
 
     variant_call = _resolve_call(
+        resolution_audit=resolution_audit,
         stage="variant_link",
         subject_id="cross_profile.variant_link",
         payload=variant_payload,
@@ -985,8 +1470,10 @@ def run_dual_profile_evaluation(
         requested_profiles=resolved.requested_profiles,
         executed_profiles=tuple(results),
         profiles=results,
+        routing_policy_version=DUAL_PROFILE_ROUTING_POLICY_VERSION,
     )
     elapsed_ms = round((time.monotonic() - started) * 1_000)
+    stale_resolutions = resolution_audit.stale_resolutions()
     manifest = DualProfileRunManifest(
         source_hash=source_hash,
         requested_profiles=resolved.requested_profiles,
@@ -1006,8 +1493,18 @@ def run_dual_profile_evaluation(
         cache_hits=cache_hits,
         retry_count=retry_count,
         repair_count=repair_count,
+        stale_cache_refresh_enabled=refresh_stale_cache,
+        stale_cache_resolution_count=len(stale_resolutions),
+        stale_cache_resolutions=stale_resolutions,
+        boundary_opening_fallbacks=resolution_audit.opening_fallbacks(),
+        audit_pair_fallbacks=resolution_audit.audit_fallbacks(),
+        persisted_flag_representative_duplicates=persisted_representative_duplicates,
+        risk_twin_flags_not_propagated=risk_twin_flags_not_propagated,
+        risk_twin_review_downgrades=risk_twin_review_downgrades,
     )
-    manifest.validate_against(final)
+    manifest.validate_against(
+        final, boundaries=boundaries_by_profile, risk_record_ids=risk_record_ids_by_profile
+    )
     _write_json(
         output_dir / "boundary-review.json",
         {
@@ -1114,9 +1611,11 @@ def render_dual_profile_candidates(
                 source_start_ms=candidate.start_ms,
                 source_end_ms=candidate.end_ms,
                 score=candidate.score,
-                title=candidate.title[:40],
-                hook=candidate.hook[:80],
-                reason=candidate.review_reason[:240],
+                # Model prose (title/hook/review_reason) stays in the final JSON and
+                # review package; the guarded EditPlan text is product-generated.
+                title=f"Dual-profile {profile.value}",
+                hook=f"Dual-profile {candidate.review_status.value} candidate",
+                reason=_dual_profile_render_reason(profile, candidate),
                 layout=Layout.CENTER_CROP,
                 caption_template=CaptionTemplate.CLEAN_ZH_V1,
                 effect=Effect.NONE,
@@ -1221,6 +1720,15 @@ def _source_streams(path: Path) -> dict[str, int]:
     return selected
 
 
+def _dual_profile_render_reason(profile: ClipProfile, candidate: FinalProfileCandidate) -> str:
+    """Deterministic EditPlan reason built only from validated enums and the score."""
+
+    return (
+        f"Dual-profile {profile.value} candidate rendered with final status "
+        f"{candidate.review_status.value} and score {candidate.score:.2f}."
+    )
+
+
 def _render_clip_id(candidate_id: str) -> str:
     safe = "".join(
         character if character.isascii() and (character.isalnum() or character in "-_") else "-"
@@ -1230,6 +1738,385 @@ def _render_clip_id(candidate_id: str) -> str:
         return safe
     digest = hashlib.sha256(candidate_id.encode("utf-8")).hexdigest()[:16]
     return f"dual-{digest}"
+
+
+# Bound on stale (now-invalid) cache entries chained by superseding keys.
+_MAX_SUPERSEDED_CACHE_ENTRIES = 4
+
+
+class _ResolutionAudit:
+    """Run-level record of opt-in stale-cache refreshes and conservative fallbacks."""
+
+    def __init__(self, *, refresh_stale_cache: bool) -> None:
+        self.refresh_stale_cache = refresh_stale_cache
+        self._lock = Lock()
+        self._stale: list[StaleCacheResolution] = []
+        self._fallbacks: list[BoundaryOpeningFallback] = []
+        self._audit_fallbacks: list[AuditPairFallback] = []
+        # Stage 13d: every resolved unit, so a failed run can write partial
+        # provider-call evidence (completed units only; the failing unit's records
+        # travel on its DualProfileValidationExhaustedError).
+        self._records: list[ProviderCallRecord] = []
+        self._resolved: Counter[tuple[str, str]] = Counter()
+        # Stage 13e: every unit whose validation was exhausted, in order. Units of
+        # one stage run concurrently, so a second unit can exhaust while the first
+        # error propagates; the executor waits for it, and its records and attempts
+        # are kept here for the failure evidence instead of being lost. Stage 16
+        # keeps units whose provider call failed in the same ordered list.
+        self._unit_failures: list[_UnitFailure] = []
+
+    def record_resolved(self, stage: str, resolved: _ResolvedCall) -> None:
+        with self._lock:
+            self._records.extend(resolved.records)
+            self._resolved[(stage, "cache_hit" if resolved.cache_hit else "new")] += 1
+            self._resolved[(stage, "retry")] += resolved.retry_count
+            self._resolved[(stage, "repair")] += resolved.repair_count
+
+    def completed_records(self) -> tuple[ProviderCallRecord, ...]:
+        with self._lock:
+            return tuple(self._records)
+
+    def record_exhausted(self, error: DualProfileValidationExhaustedError) -> None:
+        with self._lock:
+            self._unit_failures.append(error)
+
+    def record_provider_failure(self, error: DualProfileProviderFailureError) -> None:
+        with self._lock:
+            self._unit_failures.append(error)
+
+    def exhausted_errors(self) -> tuple[DualProfileValidationExhaustedError, ...]:
+        with self._lock:
+            return tuple(
+                value
+                for value in self._unit_failures
+                if isinstance(value, DualProfileValidationExhaustedError)
+            )
+
+    def unit_failures(self) -> tuple[_UnitFailure, ...]:
+        with self._lock:
+            return tuple(self._unit_failures)
+
+    def resolved_counts(self) -> dict[str, dict[str, int]]:
+        with self._lock:
+            counts: dict[str, dict[str, int]] = {}
+            for (stage, kind), value in sorted(self._resolved.items()):
+                counts.setdefault(stage, {})[kind] = value
+            return counts
+
+    def record_stale(
+        self,
+        stage: str,
+        profile: str,
+        cache_key: str,
+        superseding_cache_key: str,
+        error: str,
+        *,
+        reused: bool,
+    ) -> None:
+        summary = " ".join(error.split())[:500] or "validation failed"
+        with self._lock:
+            self._stale.append(
+                StaleCacheResolution(
+                    stage=stage,
+                    profile=profile,
+                    cache_key=cache_key,
+                    superseding_cache_key=superseding_cache_key,
+                    error_summary=summary,
+                    reused=reused,
+                )
+            )
+
+    def record_fallbacks(self, records: Sequence[BaseModel]) -> None:
+        with self._lock:
+            for record in records:
+                if isinstance(record, BoundaryOpeningFallback):
+                    self._fallbacks.append(record)
+                elif isinstance(record, AuditPairFallback):
+                    self._audit_fallbacks.append(record)
+                else:
+                    raise TypeError("unknown conservative fallback record")
+
+    def stale_resolutions(self) -> tuple[StaleCacheResolution, ...]:
+        with self._lock:
+            return tuple(sorted(self._stale, key=lambda v: (v.stage, v.profile, v.cache_key)))
+
+    def opening_fallbacks(self) -> tuple[BoundaryOpeningFallback, ...]:
+        with self._lock:
+            return tuple(sorted(self._fallbacks, key=lambda v: (v.profile, v.subject_id)))
+
+    def audit_fallbacks(self) -> tuple[AuditPairFallback, ...]:
+        with self._lock:
+            return tuple(
+                sorted(
+                    self._audit_fallbacks,
+                    key=lambda v: (
+                        v.profile,
+                        v.rule,
+                        v.outer_candidate_id,
+                        v.inner_candidate_id,
+                        v.blocked_candidate_id or "",
+                        v.duplicate_candidate_id or "",
+                    ),
+                )
+            )
+
+
+# Provider failure codes that the dual-profile semantic retry never retries.
+_NO_SEMANTIC_RETRY_CODES = frozenset({"PROVIDER_INTERRUPTED_BY_SLEEP"})
+
+
+@dataclass(frozen=True)
+class _GeneratedCall:
+    result: StructuredCallResult[BaseModel]
+    records: tuple[ProviderCallRecord, ...]
+    retry_count: int
+
+
+def _generate_with_semantic_retry(
+    *,
+    provider: StructuredLLMProvider,
+    subject_id: str,
+    payload: dict[str, object],
+    response_model: type[BaseModel],
+    cancel_requested: Callable[[], bool],
+) -> _GeneratedCall:
+    """One initial request plus at most one retry after a structured provider failure.
+
+    A request interrupted by system sleep is not retried (Stage 16): the retry
+    would start into the same suspended host, so the unit fails fast with evidence.
+    """
+
+    try:
+        result = provider.generate(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            cancel_requested=cancel_requested,
+        )
+    except StructuredProviderError as first_error:
+        if first_error.code in _NO_SEMANTIC_RETRY_CODES:
+            raise
+        try:
+            retried = provider.generate(
+                subject_id=f"{subject_id}.semantic_retry_1",
+                payload=payload,
+                response_model=response_model,
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as second_error:
+            raise StructuredProviderError(
+                second_error.code,
+                (*first_error.call_records, *second_error.call_records),
+                repair_attempts=(
+                    *first_error.repair_attempts,
+                    *second_error.repair_attempts,
+                ),
+                timeout_seconds=second_error.timeout_seconds,
+                suspended_seconds=second_error.suspended_seconds,
+            ) from second_error
+        return _GeneratedCall(retried, (*first_error.call_records, *retried.call_records), 1)
+    return _GeneratedCall(result, tuple(result.call_records), 0)
+
+
+# A stage's deterministic last-resort fallback: given the output that still failed
+# after repair and regeneration and its error, return the fully validated fixed
+# output, the affected candidate IDs (the cache marker) and the manifest records,
+# or ``None`` when the failure is not eligible.
+_FallbackResult = tuple[OutputModel, tuple[str, ...], tuple[BaseModel, ...]]
+_ConservativeFallback = Callable[[OutputModel, ValueError], _FallbackResult[OutputModel] | None]
+
+
+def _boundary_opening_fallback(
+    profile: ClipProfile,
+    subject_id: str,
+    validate: Callable[[ProfileBoundaryReviewOutput], ProfileBoundaryReviewOutput],
+) -> _ConservativeFallback[ProfileBoundaryReviewOutput]:
+    """After repair and regeneration, only the opening invariant may be resolved,
+    and only by downgrading ``opening_complete``; any other failure stays fatal."""
+
+    def fallback(
+        output: ProfileBoundaryReviewOutput, error: ValueError
+    ) -> _FallbackResult[ProfileBoundaryReviewOutput] | None:
+        if not isinstance(error, BoundaryOpeningInvariantError):
+            return None
+        fixed = validate(apply_boundary_opening_fallback(output, error.candidate_ids))
+        record = BoundaryOpeningFallback(
+            profile=profile, subject_id=subject_id, candidate_ids=error.candidate_ids
+        )
+        return fixed, error.candidate_ids, (record,)
+
+    return fallback
+
+
+def _merge_audit(
+    value: ProfileGlobalAuditOutput, initial: ProfileGlobalReviewOutput
+) -> ProfileGlobalReviewOutput:
+    replacement_map = {item.candidate_id: item for item in value.replacements}
+    return ProfileGlobalReviewOutput(
+        profile=initial.profile,
+        reviews=tuple(replacement_map.get(item.candidate_id, item) for item in initial.reviews),
+    )
+
+
+def _audit_pair_fallback(
+    output: ProfileGlobalAuditOutput,
+    error: ValueError,
+    profile: ClipProfile,
+    initial: ProfileGlobalReviewOutput,
+    validate: Callable[[ProfileGlobalAuditOutput, frozenset[str]], ProfileGlobalAuditOutput],
+    transcript: TranscriptDocument,
+    persisted_flag_ids: frozenset[str],
+) -> tuple[ProfileGlobalAuditOutput, tuple[str, ...], tuple[BaseModel, ...]] | None:
+    """Downgrade-only Global Audit fallback (Stage 13b/13c), after repair and regeneration.
+
+    Eligible only when every remaining failure is a deterministic audit-pair rule
+    (``AuditPairRuleError``). Each violating near-identical pair is resolved by
+    blocking a member chosen by ``plan_audit_pair_fallback`` (the shorter member
+    is kept; among equally long members the representative of more duplicates);
+    one record per resolved pair. Every duplicate whose resolved representative the fallback
+    blocked is recorded as an ``orphaned_duplicate`` (nested, overlap,
+    containment or unlisted). Representative-rule violations of the model's own
+    output cannot be fixed without promoting a candidate, so the model's duplicate
+    is accepted unchanged and recorded. Nothing is ever promoted. Any other
+    failure, or a near-identical violation the blocks do not resolve, keeps the
+    run failing.
+    """
+
+    if not isinstance(error, AuditPairRuleError):
+        return None
+    merged = _merge_audit(output, initial)
+    resolutions = plan_audit_pair_fallback(
+        error, merged, transcript, persisted_flag_ids=persisted_flag_ids
+    )
+    blocked_ids = frozenset(blocked for blocked, _ in resolutions)
+    fixed = apply_audit_pair_blocks(output, initial, sorted(blocked_ids))
+    remaining: tuple[AuditPairViolation, ...] = ()
+    try:
+        validate(fixed, blocked_ids)
+    except AuditPairRuleError as remaining_error:
+        if remaining_error.near_identical:
+            return None
+        remaining = remaining_error.violations
+    listed_kinds: dict[frozenset[str], tuple[AuditCandidatePair, ...]] = {}
+    for pair in (
+        *audit_candidate_pairs(initial, transcript),
+        *audit_candidate_pairs(merged, transcript),
+    ):
+        listed_kinds.setdefault(pair.members, (pair,))
+    orphans = sorted(
+        (representative, duplicate)
+        for representative, duplicates in resolved_duplicates(merged).items()
+        if representative in blocked_ids
+        for duplicate in duplicates
+    )
+    orphan_ids = {duplicate for _, duplicate in orphans}
+    original = set(error.violations)
+    accepted = [value for value in dict.fromkeys(remaining) if value in original]
+    if any(
+        value not in original and value.duplicate_candidate_id not in orphan_ids
+        for value in remaining
+    ):
+        return None
+    records: list[BaseModel] = [
+        AuditPairFallback(
+            profile=profile,
+            rule=AuditPairRule.NEAR_IDENTICAL_PAIR,
+            outer_candidate_id=pair[0],
+            inner_candidate_id=pair[1],
+            blocked_candidate_id=blocked,
+        )
+        for blocked, pair in resolutions
+    ]
+    for representative, duplicate in orphans:
+        listed = listed_kinds.get(frozenset((representative, duplicate)))
+        outer, inner = (
+            (listed[0].outer_candidate_id, listed[0].inner_candidate_id)
+            if listed
+            else (representative, duplicate)
+        )
+        records.append(
+            AuditPairFallback(
+                profile=profile,
+                rule=AuditPairRule.ORPHANED_DUPLICATE,
+                outer_candidate_id=outer,
+                inner_candidate_id=inner,
+                blocked_candidate_id=representative,
+                duplicate_candidate_id=duplicate,
+                pair_kind=listed[0].pair_kind if listed else None,
+            )
+        )
+    records.extend(
+        AuditPairFallback(
+            profile=profile,
+            rule=value.rule,
+            outer_candidate_id=value.outer_candidate_id,
+            inner_candidate_id=value.inner_candidate_id,
+            duplicate_candidate_id=value.duplicate_candidate_id,
+        )
+        for value in accepted
+    )
+    affected = sorted(
+        blocked_ids
+        | {value.duplicate_candidate_id for value in accepted if value.duplicate_candidate_id}
+    )
+    if not affected:
+        return None
+    return fixed, tuple(affected), tuple(records)
+
+
+_FALLBACK_MARKER_FIELD = "conservative_fallback"
+
+
+def _replay_cached_fallback(
+    marker: object,
+    stage: str,
+    output: OutputModel,
+    validate: Callable[[OutputModel], OutputModel],
+    conservative_fallback: _ConservativeFallback[OutputModel] | None,
+) -> _FallbackResult[OutputModel]:
+    """Re-apply a recorded conservative fallback to a cached raw model output.
+
+    The marker must name this stage and exactly the candidates the fallback would
+    downgrade now, the raw output must fail current validation, and the downgraded
+    output must pass it; anything else is an untrusted cache entry and fails closed
+    in both refresh modes.
+    """
+
+    invalid = ValueError("dual Profile cache fallback marker is invalid")
+    if (
+        conservative_fallback is None
+        or not isinstance(marker, dict)
+        or set(marker) != {"stage", "candidate_ids"}
+        or marker["stage"] != stage
+        or not isinstance(marker["candidate_ids"], list)
+        or not marker["candidate_ids"]
+        or not all(isinstance(value, str) for value in marker["candidate_ids"])
+    ):
+        raise invalid
+    try:
+        validate(output)
+    except ValueError as error:
+        rescued = _apply_conservative_fallback(conservative_fallback, output, error)
+    else:
+        raise invalid
+    if rescued is None or list(rescued[1]) != marker["candidate_ids"]:
+        raise invalid
+    return rescued
+
+
+def _apply_conservative_fallback(
+    conservative_fallback: _ConservativeFallback[OutputModel] | None,
+    output: OutputModel,
+    error: ValueError,
+) -> _FallbackResult[OutputModel] | None:
+    """Apply the stage's deterministic fallback; ``None`` unless it fully validates."""
+
+    if conservative_fallback is None:
+        return None
+    try:
+        return conservative_fallback(output, error)
+    except ValueError:
+        return None
 
 
 def _resolve_call(
@@ -1246,7 +2133,12 @@ def _resolve_call(
     cache_dir: Path | None,
     validate: Callable[[OutputModel], OutputModel],
     cancel_requested: Callable[[], bool],
+    resolution_audit: _ResolutionAudit | None = None,
+    conservative_fallback: _ConservativeFallback[OutputModel] | None = None,
 ) -> _ResolvedCall:
+    # Without an explicit audit the Stage 9 fail-closed default applies.
+    if resolution_audit is None:
+        resolution_audit = _ResolutionAudit(refresh_stale_cache=False)
     model_settings = {
         "reasoning_effort": getattr(provider, "reasoning_effort", "provider_default"),
         "contract_version": provider.contract_version,
@@ -1260,82 +2152,175 @@ def _resolve_call(
         "payload_sha256": payload_sha256,
         "output_model": response_model.__name__,
     }
-    key = semantic_cache_key(
-        source_hash=source_hash,
-        profile=profile,
-        window_start=window_start,
-        window_end=window_end,
-        prompt_hash=provider.prompt_sha256,
-        model=provider.model_name,
-        model_settings=cache_settings,
-    )
     profile_value = profile.value if isinstance(profile, ClipProfile) else profile
-    cache_path = cache_dir / profile_value / stage / f"{key}.json" if cache_dir else None
-    if cache_path is not None:
+
+    def cache_location(settings: Mapping[str, object]) -> tuple[str, Path | None]:
+        location_key = semantic_cache_key(
+            source_hash=source_hash,
+            profile=profile,
+            window_start=window_start,
+            window_end=window_end,
+            prompt_hash=provider.prompt_sha256,
+            model=provider.model_name,
+            model_settings=dict(settings),
+        )
+        return location_key, (
+            cache_dir / profile_value / stage / f"{location_key}.json" if cache_dir else None
+        )
+
+    key, cache_path = cache_location(cache_settings)
+    # Stage 9 contract: every cache hit is fully validated, and by default a cached
+    # output that fails current validation fails the run closed. A cached raw output
+    # whose entry carries the conservative-fallback marker is re-resolved with the
+    # same deterministic fallback (Stage 12c), never treated as stale. Only with the
+    # explicit refresh option is such an entry treated as stale: it stays untouched,
+    # its output goes through the ordinary repair path, and the result is cached under
+    # a superseding key whose settings add the sha256 of the stale output's canonical
+    # JSON (``model_dump``). Every stale resolution is recorded in the run manifest.
+    stale: tuple[OutputModel, ValueError] | None = None
+    pending_link: tuple[str, str, str] | None = None
+    for _ in range(_MAX_SUPERSEDED_CACHE_ENTRIES + 1):
+        if cache_path is None:
+            break
         try:
             raw = json.loads(read_regular_text_no_follow(cache_path, max_bytes=32 * 1024 * 1024))
         except SecureFileMissing:
-            raw = None
+            if pending_link is not None:
+                resolution_audit.record_stale(stage, profile_value, *pending_link, reused=False)
+            break
         except (SecureFileError, json.JSONDecodeError) as exc:
             raise ValueError("dual Profile cache exists but is not trusted") from exc
-        if raw is not None:
-            if not isinstance(raw, dict) or raw.get("cache_key") != key:
-                raise ValueError("dual Profile cache identity is invalid")
-            output = response_model.model_validate_json(
-                json.dumps(raw.get("output"), ensure_ascii=False)
+        if not isinstance(raw, dict) or raw.get("cache_key") != key:
+            raise ValueError("dual Profile cache identity is invalid")
+        output = response_model.model_validate_json(
+            json.dumps(raw.get("output"), ensure_ascii=False)
+        )
+        has_marker = _FALLBACK_MARKER_FIELD in raw
+        if pending_link is not None:
+            # Recorded only once the superseding entry passed its identity check.
+            resolution_audit.record_stale(stage, profile_value, *pending_link, reused=True)
+            pending_link = None
+        if has_marker:
+            # The cache holds the raw model output. Its marker says the cold run
+            # resolved it with the deterministic conservative fallback after repair
+            # and regeneration, so the same fallback is re-applied and recorded: a
+            # warm rerun reproduces the cold output and the manifest record.
+            fixed_hit, _hit_ids, hit_records = _replay_cached_fallback(
+                raw[_FALLBACK_MARKER_FIELD], stage, output, validate, conservative_fallback
             )
-            validate(output)
-            return _ResolvedCall(
-                output=output,
+            resolution_audit.record_fallbacks(hit_records)
+            marked_hit = _ResolvedCall(
+                output=fixed_hit,
                 records=(),
                 cache_hit=True,
                 retry_count=0,
                 repair_count=0,
             )
-    semantic_retry_count = 0
-    prior_records: list[ProviderCallRecord] = []
-    try:
-        result = provider.generate(
-            subject_id=subject_id,
-            payload=payload,
-            response_model=response_model,
-            cancel_requested=cancel_requested,
-        )
-    except StructuredProviderError as first_error:
-        semantic_retry_count = 1
-        prior_records.extend(first_error.call_records)
+            resolution_audit.record_resolved(stage, marked_hit)
+            return marked_hit
         try:
-            result = provider.generate(
-                subject_id=f"{subject_id}.semantic_retry_1",
+            validate(output)
+        except ValueError as stale_error:
+            if not resolution_audit.refresh_stale_cache:
+                raise
+            stale = (output, stale_error)
+            stale_key = key
+            cache_settings = {
+                **cache_settings,
+                "supersedes_cache_output_sha256": hashlib.sha256(
+                    json.dumps(
+                        output.model_dump(mode="json"),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+            }
+            key, cache_path = cache_location(cache_settings)
+            pending_link = (stale_key, key, str(stale_error))
+            continue
+        plain_hit = _ResolvedCall(
+            output=output,
+            records=(),
+            cache_hit=True,
+            retry_count=0,
+            repair_count=0,
+        )
+        resolution_audit.record_resolved(stage, plain_hit)
+        return plain_hit
+    else:
+        raise ValueError("dual Profile cache has too many superseded entries")
+    semantic_retry_count = 0
+    records: list[ProviderCallRecord] = []
+    resolved_repair_count = 0
+    # After a conservative fallback the cache keeps the raw model output plus a
+    # marker naming the downgraded candidates; otherwise it keeps ``output``.
+    cached_output: OutputModel | None = None
+    fallback_marker: dict[str, object] | None = None
+    first_output: OutputModel
+    first_error: ValueError | None
+    first_phase = "initial"
+    # Stage 16: validation attempts made so far, for a later provider failure.
+    failed_attempts: list[DualProfileValidationAttempt] = []
+
+    def provider_failure(
+        phase: str, error: StructuredProviderError
+    ) -> DualProfileProviderFailureError:
+        # The unit's completed calls plus the failing call(s); recorded so a unit
+        # failing concurrently with the propagating error keeps its evidence. The
+        # cache is never written for a failed unit.
+        failure = DualProfileProviderFailureError(
+            stage=stage,
+            profile=profile_value,
+            subject_id=subject_id,
+            cache_key=key,
+            phase=phase,
+            provider_error=error,
+            attempts=failed_attempts,
+            records=(*records, *error.call_records),
+        )
+        resolution_audit.record_provider_failure(failure)
+        return failure
+
+    if stale is not None:
+        first_output, first_error = stale
+        first_phase = "stale_cache"
+    else:
+        try:
+            result = _generate_with_semantic_retry(
+                provider=provider,
+                subject_id=subject_id,
                 payload=payload,
                 response_model=response_model,
                 cancel_requested=cancel_requested,
             )
-        except StructuredProviderError as second_error:
-            raise StructuredProviderError(
-                second_error.code,
-                (*prior_records, *second_error.call_records),
-                repair_attempts=(
-                    *first_error.repair_attempts,
-                    *second_error.repair_attempts,
-                ),
-            ) from second_error
-    records = [*prior_records, *result.call_records]
-    resolved_repair_count = max(int(result.repaired), len(result.repair_attempts))
-    try:
-        output = validate(result.output)
-    except ValueError as exc:
-        repaired_result = provider.repair(
-            subject_id=subject_id,
-            payload={
-                **payload,
-                "invalid_output": result.output.model_dump(mode="json"),
-                "deterministic_validation_errors": [str(exc)[:2_000]],
-            },
-            response_model=response_model,
-            validation_errors=(str(exc)[:500],),
-            cancel_requested=cancel_requested,
-        )
+        except StructuredProviderError as initial_provider_error:
+            raise provider_failure("initial", initial_provider_error) from initial_provider_error
+        semantic_retry_count = result.retry_count
+        records.extend(result.records)
+        first_output = cast(OutputModel, result.result.output)
+        resolved_repair_count = max(int(result.result.repaired), len(result.result.repair_attempts))
+        try:
+            output = validate(first_output)
+            first_error = None
+        except ValueError as exc:
+            first_error = exc
+    if first_error is not None:
+        failed_attempts.append(_failed_attempt(first_phase, first_output, first_error))
+        try:
+            repaired_result = provider.repair(
+                subject_id=subject_id,
+                payload={
+                    **payload,
+                    "invalid_output": first_output.model_dump(mode="json"),
+                    "deterministic_validation_errors": [str(first_error)[:2_000]],
+                },
+                response_model=response_model,
+                validation_errors=(str(first_error)[:500],),
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as repair_provider_error:
+            raise provider_failure("repair", repair_provider_error) from repair_provider_error
         records.extend(repaired_result.call_records)
         resolved_repair_count += max(
             1,
@@ -1346,21 +2331,29 @@ def _resolve_call(
             output = validate(repaired_result.output)
         except ValueError as repaired_error:
             semantic_retry_count += 1
-            validation_retry_result = provider.generate(
-                subject_id=f"{subject_id}.deterministic_retry_1",
-                payload={
-                    **payload,
-                    "invalid_output": repaired_result.output.model_dump(mode="json"),
-                    "deterministic_validation_errors": [str(repaired_error)[:2_000]],
-                    "required_action": (
-                        "Regenerate the whole response once. Omit an optional Discovery "
-                        "candidate if no cue-exact interval satisfies every deterministic "
-                        "constraint; never pad or alter cue timestamps."
-                    ),
-                },
-                response_model=response_model,
-                cancel_requested=cancel_requested,
+            failed_attempts.append(
+                _failed_attempt("repair", repaired_result.output, repaired_error)
             )
+            try:
+                validation_retry_result = provider.generate(
+                    subject_id=f"{subject_id}.deterministic_retry_1",
+                    payload={
+                        **payload,
+                        "invalid_output": repaired_result.output.model_dump(mode="json"),
+                        "deterministic_validation_errors": [str(repaired_error)[:2_000]],
+                        "required_action": (
+                            "Regenerate the whole response once. Omit an optional Discovery "
+                            "candidate if no cue-exact interval satisfies every deterministic "
+                            "constraint; never pad or alter cue timestamps."
+                        ),
+                    },
+                    response_model=response_model,
+                    cancel_requested=cancel_requested,
+                )
+            except StructuredProviderError as regeneration_provider_error:
+                raise provider_failure(
+                    "regeneration", regeneration_provider_error
+                ) from regeneration_provider_error
             records.extend(validation_retry_result.call_records)
             resolved_repair_count += max(
                 int(validation_retry_result.repaired),
@@ -1369,33 +2362,58 @@ def _resolve_call(
             try:
                 output = validate(validation_retry_result.output)
             except ValueError as final_error:
-                raise ValueError(
-                    "deterministic validation still failed after one repair and one "
-                    f"regeneration: {final_error}"
-                ) from final_error
+                rescued = _apply_conservative_fallback(
+                    conservative_fallback,
+                    validation_retry_result.output,
+                    final_error,
+                )
+                if rescued is None:
+                    # Stage 13d: keep every failed attempt for the run directory; the
+                    # cache is never written for a failed unit.
+                    exhausted = DualProfileValidationExhaustedError(
+                        stage=stage,
+                        profile=profile_value,
+                        subject_id=subject_id,
+                        cache_key=key,
+                        attempts=(
+                            _failed_attempt(first_phase, first_output, first_error),
+                            _failed_attempt("repair", repaired_result.output, repaired_error),
+                            _failed_attempt(
+                                "regeneration", validation_retry_result.output, final_error
+                            ),
+                        ),
+                        records=records,
+                        final_error=final_error,
+                    )
+                    # Stage 13e: a concurrently exhausted unit is kept as well.
+                    resolution_audit.record_exhausted(exhausted)
+                    raise exhausted from final_error
+                output, fallback_ids, fallback_records = rescued
+                cached_output = validation_retry_result.output
+                fallback_marker = {"stage": stage, "candidate_ids": list(fallback_ids)}
+                resolution_audit.record_fallbacks(fallback_records)
     if cache_path is not None:
         ensure_directory_no_follow(cache_path.parent)
+        cache_document: dict[str, object] = {
+            "schema_version": "1",
+            "cache_key": key,
+            "source_hash": source_hash,
+            "profile": profile_value,
+            "stage": stage,
+            "window_start": window_start,
+            "window_end": window_end,
+            "prompt_hash": provider.prompt_sha256,
+            "model": provider.model_name,
+            "model_settings": cache_settings,
+            "output_model": response_model.__name__,
+            "output": (cached_output or output).model_dump(mode="json"),
+        }
+        if fallback_marker is not None:
+            # Only fallback entries carry the marker, so every other entry keeps
+            # exactly the bytes earlier code wrote.
+            cache_document[_FALLBACK_MARKER_FIELD] = fallback_marker
         payload_text = (
-            json.dumps(
-                {
-                    "schema_version": "1",
-                    "cache_key": key,
-                    "source_hash": source_hash,
-                    "profile": profile_value,
-                    "stage": stage,
-                    "window_start": window_start,
-                    "window_end": window_end,
-                    "prompt_hash": provider.prompt_sha256,
-                    "model": provider.model_name,
-                    "model_settings": cache_settings,
-                    "output_model": response_model.__name__,
-                    "output": output.model_dump(mode="json"),
-                },
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n"
+            json.dumps(cache_document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         )
         try:
             write_text_immutable_no_follow(
@@ -1409,12 +2427,22 @@ def _resolve_call(
                 raise ValueError(
                     "dual Profile cache publication raced with different bytes"
                 ) from exc
-    return _ResolvedCall(
+    resolved = _ResolvedCall(
         output=output,
         records=tuple(records),
         cache_hit=False,
         retry_count=semantic_retry_count,
         repair_count=resolved_repair_count,
+    )
+    resolution_audit.record_resolved(stage, resolved)
+    return resolved
+
+
+def _failed_attempt(
+    phase: str, output: BaseModel, error: ValueError
+) -> DualProfileValidationAttempt:
+    return DualProfileValidationAttempt(
+        phase=phase, output=output.model_dump(mode="json"), error=str(error)
     )
 
 
@@ -1442,6 +2470,7 @@ def _boundary_payload(
     profile: ClipProfile,
     candidates: Sequence[RawProfileCandidate],
     transcript: TranscriptDocument,
+    discovery_pass_by_id: Mapping[str, str],
 ) -> dict[str, object]:
     guard_ms = 30_000 if profile == ClipProfile.SHORT_HIGHLIGHT else 60_000
     return {
@@ -1451,6 +2480,7 @@ def _boundary_payload(
         "candidates": [
             {
                 "candidate": value.model_dump(mode="json"),
+                "discovery_pass": discovery_pass_by_id[value.candidate_id],
                 "context": _candidate_context(value, transcript, guard_ms=guard_ms),
             }
             for value in candidates
@@ -1463,6 +2493,7 @@ def _global_payload(
     candidates: Sequence[RawProfileCandidate],
     boundary: ProfileBoundaryReviewOutput,
     transcript: TranscriptDocument,
+    discovery_pass_by_id: Mapping[str, str],
 ) -> dict[str, object]:
     boundary_map = {value.candidate_id: value for value in boundary.reviews}
     guard_ms = 30_000 if profile == ClipProfile.SHORT_HIGHLIGHT else 60_000
@@ -1483,6 +2514,7 @@ def _global_payload(
         candidate_payloads.append(
             {
                 "candidate": value.model_dump(mode="json"),
+                "discovery_pass": discovery_pass_by_id[value.candidate_id],
                 "boundary_review": boundary_map[value.candidate_id].model_dump(mode="json"),
                 "context_refs": context_refs,
             }
@@ -1555,6 +2587,256 @@ def _call_metadata(value: ProviderCallRecord) -> dict[str, object]:
     }
 
 
+_FAILURE_NAME_PART = re.compile(r"^[a-z_]+$")
+
+
+def _attempt_rows(
+    attempts: Sequence[DualProfileValidationAttempt],
+) -> list[dict[str, object]]:
+    return [
+        {"phase": value.phase, "error": value.error, "output": dict(value.output)}
+        for value in attempts
+    ]
+
+
+def _json_safe(value: object) -> object:
+    # Provider repair attempts are JSON-shaped dicts; never let an odd value turn
+    # the evidence writer into the failure.
+    return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+
+
+def _unit_failure_kind(value: _UnitFailure) -> str:
+    if isinstance(value, DualProfileValidationExhaustedError):
+        return "validation_exhausted"
+    return "provider_failure"
+
+
+def _unit_failure_row(value: _UnitFailure) -> dict[str, object]:
+    row: dict[str, object] = {
+        "stage": value.stage,
+        "profile": value.profile,
+        "subject_id": value.subject_id,
+        "cache_key": value.cache_key,
+        "attempts": _attempt_rows(value.attempts),
+        "provider_calls": [_call_metadata(item) for item in value.records],
+    }
+    if isinstance(value, DualProfileValidationExhaustedError):
+        row["final_error"] = str(value.final_error)
+    else:
+        row.update(
+            {
+                "failure_code": value.failure_code,
+                "failed_phase": value.phase,
+                "message": value.provider_message,
+                "provider_attempts": _json_safe(list(value.provider_attempts)),
+            }
+        )
+    return row
+
+
+def _failure_manifest_common(
+    progress: _RunProgress,
+    all_calls: Sequence[ProviderCallRecord],
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> dict[str, object]:
+    audit = progress.resolution_audit
+    return {
+        "schema_version": "1",
+        "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+        "status": "failed",
+        "source_hash": progress.source_hash,
+        "requested_profiles": [value.value for value in progress.requested_profiles],
+        "provider": progress.provider_name,
+        "model": progress.model_name,
+        "prompt_files": {key: list(value) for key, value in progress.prompt_files.items()},
+        "prompt_hashes": dict(progress.prompt_hashes),
+        "resolved_units": audit.resolved_counts(),
+        "provider_call_count": len(all_calls),
+        "input_tokens": _usage_total(all_calls, "input_tokens"),
+        "output_tokens": _usage_total(all_calls, "output_tokens"),
+        "latency_ms": sum(value.latency_ms for value in all_calls),
+        "elapsed_ms": elapsed_ms,
+        "stale_cache_refresh_enabled": refresh_stale_cache,
+        "stale_cache_resolutions": [
+            value.model_dump(mode="json") for value in audit.stale_resolutions()
+        ],
+        "boundary_opening_fallbacks": [
+            value.model_dump(mode="json") for value in audit.opening_fallbacks()
+        ],
+        "audit_pair_fallbacks": [
+            value.model_dump(mode="json") for value in audit.audit_fallbacks()
+        ],
+    }
+
+
+def _unit_failure_summaries(values: Sequence[_UnitFailure]) -> list[dict[str, object]]:
+    return [
+        {
+            "stage": value.stage,
+            "profile": value.profile,
+            "subject_id": value.subject_id,
+            "failure_kind": _unit_failure_kind(value),
+            "failure_code": (
+                value.failure_code if isinstance(value, DualProfileProviderFailureError) else None
+            ),
+        }
+        for value in values
+    ]
+
+
+def _write_validation_failure(
+    output_dir: Path,
+    error: _UnitFailure,
+    progress: _RunProgress,
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> None:
+    """Write Stage 13d / Stage 16 unit-failure evidence to the run directory only.
+
+    ``error`` is an exhausted validation (``validation_exhausted``) or a provider
+    failure (``provider_failed`` / ``provider_failure``). Order: the failed unit's
+    file, the partial provider-call records (completed units, the failing unit,
+    then every other unit of the run that exhausted or whose provider failed
+    concurrently, in the order they failed), then the failure manifest last. A
+    concurrently failed unit's details go into ``concurrent_exhausted_units`` or
+    ``concurrent_provider_failed_units`` of the same failure file. A unit that ends
+    with any other error (for example one cancelled after the first failure) is
+    neither resolved nor failed, so its calls are not listed. Nothing is written to
+    the cache and no credential is written: call records use the same durable
+    metadata as ``provider-calls.json`` on success, and outputs are the provider's
+    parsed structured outputs as returned (only the Claude CLI provider drops an
+    output that contains its subscription account identity).
+    """
+
+    if not (
+        _FAILURE_NAME_PART.fullmatch(error.profile) and _FAILURE_NAME_PART.fullmatch(error.stage)
+    ):
+        raise ValueError("dual Profile failure evidence name is invalid")
+    audit = progress.resolution_audit
+    exhausted = isinstance(error, DualProfileValidationExhaustedError)
+    concurrent = [value for value in audit.unit_failures() if value is not error]
+    _write_json(
+        output_dir / error.failure_file_name,
+        {
+            "schema_version": "1",
+            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+            "status": "validation_exhausted" if exhausted else "provider_failed",
+            **_unit_failure_row(error),
+            "cache_written": False,
+            "concurrent_exhausted_units": [
+                _unit_failure_row(value)
+                for value in concurrent
+                if isinstance(value, DualProfileValidationExhaustedError)
+            ],
+            "concurrent_provider_failed_units": [
+                _unit_failure_row(value)
+                for value in concurrent
+                if isinstance(value, DualProfileProviderFailureError)
+            ],
+        },
+    )
+    completed = audit.completed_records()
+    all_calls = (
+        *completed,
+        *error.records,
+        *(record for value in concurrent for record in value.records),
+    )
+    _write_json(
+        output_dir / "provider-calls.json",
+        {
+            "schema_version": "1",
+            "algorithm_version": DUAL_PROFILE_ALGORITHM_VERSION,
+            "partial": True,
+            "calls": [_call_metadata(value) for value in all_calls],
+        },
+    )
+    _write_json(
+        output_dir / "failure-manifest.json",
+        {
+            **_failure_manifest_common(
+                progress,
+                all_calls,
+                refresh_stale_cache=refresh_stale_cache,
+                elapsed_ms=elapsed_ms,
+            ),
+            "failure_kind": _unit_failure_kind(error),
+            **(
+                {}
+                if exhausted
+                else {
+                    "failure_code": cast(DualProfileProviderFailureError, error).failure_code,
+                    "failed_phase": cast(DualProfileProviderFailureError, error).phase,
+                }
+            ),
+            "failure_file": error.failure_file_name,
+            "failed_stage": error.stage,
+            "failed_profile": error.profile,
+            "failed_subject_id": error.subject_id,
+            "concurrent_failed_subject_ids": [value.subject_id for value in concurrent],
+            "concurrent_failures": _unit_failure_summaries(concurrent),
+            "error": str(error)[:4_000],
+        },
+    )
+    error.evidence_file = str(output_dir / error.failure_file_name)
+
+
+def _write_unexpected_failure(
+    output_dir: Path,
+    error: Exception,
+    progress: _RunProgress,
+    *,
+    refresh_stale_cache: bool,
+    elapsed_ms: int,
+) -> None:
+    """Stage 16 backstop: a run that fails any other way still leaves a manifest.
+
+    Only ``failure-manifest.json`` is written (``unexpected_error``), never the
+    cache: the exception type and every completed call record plus the records of
+    any unit that already failed. Stage 16b: the exception text is never stored.
+    An arbitrary exception may quote a local path, an account identity or a token,
+    and this file is durable evidence, so only the class name (a code identifier)
+    is kept; the text still reaches the operator once, on stderr, through the
+    re-raised exception. Provider failures above carry fixed text and codes.
+    """
+
+    audit = progress.resolution_audit
+    unit_failures = audit.unit_failures()
+    all_calls = (
+        *audit.completed_records(),
+        *(record for value in unit_failures for record in value.records),
+    )
+    _write_json(
+        output_dir / "failure-manifest.json",
+        {
+            **_failure_manifest_common(
+                progress,
+                all_calls,
+                refresh_stale_cache=refresh_stale_cache,
+                elapsed_ms=elapsed_ms,
+            ),
+            "failure_kind": "unexpected_error",
+            "exception_type": _exception_type_name(error),
+            "exception_message_recorded": False,
+            "failure_file": None,
+            "recorded_unit_failures": _unit_failure_summaries(unit_failures),
+            "provider_calls": [_call_metadata(value) for value in all_calls],
+        },
+    )
+
+
+_EXCEPTION_TYPE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
+
+
+def _exception_type_name(error: BaseException) -> str:
+    # A class name is a code identifier; anything else (a dynamically built type)
+    # is not trusted as one.
+    name = type(error).__name__
+    return name if _EXCEPTION_TYPE_NAME.fullmatch(name) else "Exception"
+
+
 def _write_json(path: Path, value: Mapping[str, object]) -> None:
     write_text_immutable_no_follow(
         path,
@@ -1565,6 +2847,9 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 __all__ = [
     "DualProfileProviderFactory",
+    "DualProfileProviderFailureError",
+    "DualProfileValidationAttempt",
+    "DualProfileValidationExhaustedError",
     "configured_dual_profile_provider_factory",
     "render_dual_profile_candidates",
     "run_dual_profile_evaluation",

@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
+import subprocess
+import threading
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
+import pytest
 from pydantic import BaseModel
 
 from liveclip.clipping_skills.dual_profile_v1 import (
@@ -13,22 +20,38 @@ from liveclip.clipping_skills.dual_profile_v1 import (
 from liveclip.clipping_skills.semantic_global_v1 import SemanticGlobalPromptBundle
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.pipeline.dual_profile import (
+    DUAL_PROFILE_ROUTING_POLICY_VERSION,
     BoundaryReviewItem,
     BoundaryState,
     CandidateDisposition,
     CrossProfileVariantLinkOutput,
     DualProfileFinalResult,
     DualProfileRunManifest,
+    DualQualityFlag,
+    DualRiskTag,
     GlobalReviewItem,
+    NestedPairDecision,
+    NestedPairDecisionKind,
     ProfileBoundaryReviewOutput,
     ProfileDiscoveryOutput,
     ProfileGlobalAuditOutput,
     ProfileGlobalReviewOutput,
     RawProfileCandidate,
     VariantLinkItem,
+    final_profile_rows,
+    plan_profile_discovery_windows,
+    risk_twin_review,
 )
+from liveclip.pipeline.srt import load_srt_transcript
+from liveclip.providers.llm import claude_cli as claude_cli_module
+from liveclip.providers.llm.claude_cli import ClaudeCliStructuredLLMProvider
 from liveclip.providers.llm.structured import StructuredCallResult, StructuredProviderError
-from liveclip.services.dual_profile_evaluation import run_dual_profile_evaluation
+from liveclip.providers.telemetry import ProviderCallRecord, ProviderCallStatus
+from liveclip.services import dual_profile_evaluation as dual_profile_evaluation_module
+from liveclip.services.dual_profile_evaluation import (
+    DualProfileValidationExhaustedError,
+    run_dual_profile_evaluation,
+)
 
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
 
@@ -111,6 +134,7 @@ class ScriptedDualProvider:
                 ProfileGlobalAuditOutput(
                     profile=ClipProfile(str(payload["profile"])),
                     replacements=(),
+                    nested_pair_decisions=(),
                     audit_reason="Mock audit found no corrections.",
                 ),
             )
@@ -357,6 +381,297 @@ class InvalidDeterministicRepairProvider(SchemaThenDeterministicRepairProvider):
         )
 
 
+class RiskRoutingProvider(ScriptedDualProvider):
+    """Adds a risk-pass record and a base-pass look-alike that share the risk_ prefix."""
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        profile = ClipProfile.MINI_LESSON
+        if response_model is ProfileDiscoveryOutput and mini:
+            window_id = str(payload["window_id"])
+            ownership = cast(dict[str, object], payload["ownership_interval"])
+            discovery_pass = payload.get("discovery_pass")
+            if int(ownership["start_ms"]) == 0 and discovery_pass in {None, "risk_discovery"}:
+                base = cast(ProfileDiscoveryOutput, super()._output(payload, response_model))
+                extra = RawProfileCandidate(
+                    candidate_id=(
+                        "risk_from_pass" if discovery_pass == "risk_discovery" else "risk_lookalike"
+                    ),
+                    profile=profile,
+                    source_window_id=window_id,
+                    start_cue_id=2 if discovery_pass is None else 3,
+                    end_cue_id=12 if discovery_pass is None else 13,
+                    evidence_cue_ids=(4,),
+                    title="风险相关内容",
+                    summary="包含健康主张的教学片段。",
+                    boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
+                    risk_tags=(DualRiskTag.MEDICAL_CLAIM,),
+                )
+                candidates = (extra,) if discovery_pass else (*base.candidates, extra)
+                return cast(
+                    OutputModel,
+                    ProfileDiscoveryOutput(
+                        profile=profile, window_id=window_id, candidates=candidates
+                    ),
+                )
+        output = super()._output(payload, response_model)
+        if response_model is ProfileBoundaryReviewOutput:
+            raw = {
+                value.candidate_id: value
+                for value in (
+                    RawProfileCandidate.model_validate_json(json.dumps(item["candidate"]))
+                    for item in cast(list[dict[str, Any]], payload["candidates"])
+                )
+            }
+            boundary = cast(ProfileBoundaryReviewOutput, output)
+            return cast(
+                OutputModel,
+                boundary.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(update={"risk_tags": raw[item.candidate_id].risk_tags})
+                            for item in boundary.reviews
+                        )
+                    }
+                ),
+            )
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item
+                            if not item.candidate_id.startswith("risk_")
+                            else item.model_copy(
+                                update={
+                                    "score": 60.0,
+                                    "review_status": CandidateDisposition.REJECTED,
+                                    "duplicate_of_candidate_id": "mini_lesson_lesson",
+                                    "risk_tags": (DualRiskTag.MEDICAL_CLAIM,),
+                                    "review_reason": "Duplicate of the representative lesson.",
+                                }
+                            )
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
+class NestedPairProvider(ScriptedDualProvider):
+    """Mini Discovery returns a nested same-start pair; the first audit omits its decision."""
+
+    def __init__(self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int]) -> None:
+        super().__init__(prompt, counter)
+        self.payloads: list[tuple[str, dict[str, object]]] = []
+        self.audit_repairs = 0
+
+    def generate(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        self.payloads.append((response_model.__name__, payload))
+        return super().generate(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            cancel_requested=cancel_requested,
+        )
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs += 1
+            assert any("cover every listed nested pair" in value for value in validation_errors)
+            initial = ProfileGlobalReviewOutput.model_validate_json(
+                json.dumps(payload["initial_global_review"])
+            )
+            outer = next(
+                value for value in initial.reviews if value.candidate_id == "mini_lesson_lesson"
+            )
+            output = ProfileGlobalAuditOutput(
+                profile=ClipProfile.MINI_LESSON,
+                replacements=(
+                    outer.model_copy(
+                        update={
+                            "review_status": CandidateDisposition.REJECTED,
+                            "duplicate_of_candidate_id": "mini_inner",
+                            "score": 60.0,
+                            "review_reason": "Same objective; the inner unit is complete.",
+                        }
+                    ),
+                ),
+                nested_pair_decisions=(
+                    NestedPairDecision(
+                        outer_candidate_id="mini_lesson_lesson",
+                        inner_candidate_id="mini_inner",
+                        decision=NestedPairDecisionKind.DUPLICATE,
+                        reason="Same objective; keep the shortest complete unit.",
+                    ),
+                ),
+                audit_reason="Resolved the listed nested pair.",
+            )
+            return StructuredCallResult(
+                output=cast(OutputModel, output), call_records=(), repaired=True
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        output = super()._output(payload, response_model)
+        if (
+            response_model is ProfileDiscoveryOutput
+            and payload.get("profile") == ClipProfile.MINI_LESSON.value
+            and payload.get("discovery_pass") is None
+        ):
+            discovery = cast(ProfileDiscoveryOutput, output)
+            if discovery.candidates:
+                inner = discovery.candidates[0].model_copy(
+                    update={
+                        "candidate_id": "mini_inner",
+                        "end_cue_id": 10,
+                        "evidence_cue_ids": (1, 10),
+                    }
+                )
+                return cast(
+                    OutputModel,
+                    discovery.model_copy(update={"candidates": (*discovery.candidates, inner)}),
+                )
+        return output
+
+
+class AuditCreatedPairProvider(NestedPairProvider):
+    """The inner candidate starts rejected; the audit promotes it, creating a nested pair."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        decide_created_pair_on_repair: bool = True,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.decide_created_pair_on_repair = decide_created_pair_on_repair
+
+    def _audit(self, payload: dict[str, object], *, decide: bool) -> ProfileGlobalAuditOutput:
+        initial = ProfileGlobalReviewOutput.model_validate_json(
+            json.dumps(payload["initial_global_review"])
+        )
+        inner = next(value for value in initial.reviews if value.candidate_id == "mini_inner")
+        return ProfileGlobalAuditOutput(
+            profile=ClipProfile.MINI_LESSON,
+            replacements=(
+                inner.model_copy(
+                    update={
+                        "review_status": CandidateDisposition.MANUAL_REVIEW,
+                        "score": 70.0,
+                        "review_reason": "Distinct narrower objective worth review.",
+                    }
+                ),
+            ),
+            nested_pair_decisions=(
+                (
+                    NestedPairDecision(
+                        outer_candidate_id="mini_lesson_lesson",
+                        inner_candidate_id="mini_inner",
+                        decision=NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+                        reason="Each answers its own question.",
+                    ),
+                )
+                if decide
+                else ()
+            ),
+            audit_reason="Promoted the narrower lesson.",
+        )
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        if response_model is ProfileGlobalAuditOutput and mini:
+            assert payload["audit_pairs"] == []
+            return cast(OutputModel, self._audit(payload, decide=False))
+        output = super()._output(payload, response_model)
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "review_status": CandidateDisposition.REJECTED,
+                                    "score": 60.0,
+                                }
+                            )
+                            if item.candidate_id == "mini_inner"
+                            else item
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs += 1
+            assert any("cover every listed nested pair" in value for value in validation_errors)
+            return StructuredCallResult(
+                output=cast(
+                    OutputModel,
+                    self._audit(payload, decide=self.decide_created_pair_on_repair),
+                ),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
 def _write_srt(path: Path) -> None:
     cues = []
     for index in range(1, 71):
@@ -433,6 +748,2754 @@ def test_dual_profile_service_executes_independent_pools_and_reuses_profile_cach
     }
 
 
+def test_service_routes_rejections_from_the_risk_pass_structurally(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RiskRoutingProvider(prompt, counter)
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    ).validate_against(final)
+    assert final.routing_policy_version == DUAL_PROFILE_ROUTING_POLICY_VERSION
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    # Same risk_ prefix and same rejection, but only the record produced by the
+    # dedicated risk-discovery pass is retained as blocked.
+    assert [value.candidate_id for value in mini.blocked] == ["risk_from_pass"]
+    assert mini.blocked[0].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert mini.blocked[0].review_reason.startswith("Deterministic risk routing: ")
+    assert [value.candidate_id for value in mini.rejected] == ["risk_lookalike"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    assert mini.statistics.discovered == 3
+
+
+def test_global_audit_must_decide_python_listed_nested_pairs(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[NestedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = NestedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    payloads = [item for provider in providers for item in provider.payloads]
+    audit_payloads = [
+        payload
+        for name, payload in payloads
+        if name == "ProfileGlobalAuditOutput" and payload["profile"] == "mini_lesson"
+    ]
+    assert audit_payloads[0]["audit_pairs"] == [
+        {
+            "outer_candidate_id": "mini_lesson_lesson",
+            "inner_candidate_id": "mini_inner",
+            "pair_kind": "nested",
+            "near_identical": False,
+        }
+    ]
+    boundary_payloads = [
+        payload for name, payload in payloads if name == "ProfileBoundaryReviewOutput"
+    ]
+    global_payloads = [payload for name, payload in payloads if name == "ProfileGlobalReviewOutput"]
+    for payload in (*boundary_payloads, *global_payloads):
+        for entry in cast(list[dict[str, object]], payload["candidates"]):
+            assert entry["discovery_pass"] == "base"
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_inner"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_inner"
+
+
+def test_fresh_audit_must_decide_pairs_its_replacements_create(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[AuditCreatedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        cache_dir=tmp_path / "cache",
+        discovery_concurrency=2,
+    )
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.manual_review] == ["mini_inner"]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+
+
+def test_warm_rerun_after_a_fresh_audit_decided_a_created_pair(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+    providers: list[AuditCreatedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    # The cold audit was repaired once to decide the pair its replacement created.
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    generated = sum(counter.values())
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    assert sum(counter.values()) == generated
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert warm.calls == {
+        "discovery": 0,
+        "boundary_review": 0,
+        "global_review": 0,
+        "variant_link": 0,
+    }
+    cold_final = (tmp_path / "cold" / "final-validated.json").read_text(encoding="utf-8")
+    warm_final = (tmp_path / "warm" / "final-validated.json").read_text(encoding="utf-8")
+    assert cold_final == warm_final
+
+
+# Global Audit prompt hashes at 4f2c068, the last audit prompt before the
+# created-pair rule.  Any audit cached without that rule carries one of these
+# (or an older) identity and therefore can never be a cache hit now.
+PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES = {
+    "mini_lesson": "ff7f2745be299b993820e377bb46c4cf45f8969a37fb3720d98a61a8590794d5",
+    "short_highlight": "9c0b507b110b62977cafad0657cb2d2cc6ffc71f46410418c983a61e69b73e5a",
+}
+
+
+def _plant_stale_created_pair_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    counter: dict[str, int],
+) -> tuple[Path, Path, dict[Path, bytes]]:
+    """Plant an audit that omits the created-pair decision under the CURRENT prompt.
+
+    This is impossible in practice (see the hashes above); it models a cache entry
+    written under a weaker validation contract.
+    """
+
+    from liveclip.services import dual_profile_evaluation as service
+
+    for profile, old_hash in PRE_CREATED_PAIR_RULE_AUDIT_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256 != old_hash
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    original_pairs = service.audit_candidate_pairs
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            service,
+            "audit_candidate_pairs",
+            lambda review, transcript: (
+                ()
+                if any(
+                    item.candidate_id == "mini_inner"
+                    and item.review_status == CandidateDisposition.MANUAL_REVIEW
+                    for item in review.reviews
+                )
+                else original_pairs(review, transcript)
+            ),
+        )
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "planted",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    assert planted
+    return transcript, cache, planted
+
+
+def test_cache_hit_audits_are_fully_validated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Negative control (Stage 9 contract, the default): a cache hit is re-validated
+    # with the full rule and refused, failing closed rather than being accepted
+    # under a weaker contract or silently refreshed.
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    assert {path: path.read_bytes() for path in planted} == planted
+    assert set(cache.glob("*/global_audit/*.json")) == set(planted)
+
+
+def test_opt_in_stale_cache_refresh_repairs_once_and_reuses_the_superseding_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
+    providers: list[AuditCreatedPairProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = AuditCreatedPairProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    def run(name: str) -> DualProfileRunManifest:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / name,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+            refresh_stale_cache=True,
+        )
+        return DualProfileRunManifest.model_validate_json(
+            (tmp_path / name / "run-manifest.json").read_text(encoding="utf-8")
+        )
+
+    warm = run("warm")
+    # The stale audit was refused and repaired once (the repair asserts the "cover
+    # every listed nested pair" error); the planted entry stays byte-identical.
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    assert {path: path.read_bytes() for path in planted} == planted
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "warm" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert [
+        value.candidate_id for value in final.profiles[ClipProfile.MINI_LESSON].manual_review
+    ] == ["mini_inner"]
+    # The resolution is visible in the run artifacts, not only in cache files.
+    assert warm.stale_cache_refresh_enabled is True
+    assert warm.stale_cache_resolution_count == 1
+    (resolution,) = warm.stale_cache_resolutions
+    assert (resolution.stage, resolution.profile) == ("global_audit", "mini_lesson")
+    assert resolution.cache_key in {path.stem for path in planted}
+    assert "cover every listed nested pair" in resolution.error_summary
+    assert resolution.reused is False
+    superseding = (
+        cache / "mini_lesson" / "global_audit" / f"{resolution.superseding_cache_key}.json"
+    )
+    assert (
+        "supersedes_cache_output_sha256"
+        in json.loads(superseding.read_text("utf-8"))["model_settings"]
+    )
+    assert warm.calls["global_review"] == 1
+
+    # A third run reuses the superseding audit entry with zero calls.
+    generated = dict(counter)
+    third = run("third")
+    assert counter == generated
+    assert sum(provider.audit_repairs for provider in providers) == 1
+    assert set(third.calls.values()) == {0}
+    (reused,) = third.stale_cache_resolutions
+    assert reused.reused is True
+    assert reused.superseding_cache_key == resolution.superseding_cache_key
+    assert {path: path.read_bytes() for path in planted} == planted
+
+    # Without the option the stale primary entry still fails closed.
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "default",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+
+
+class OpeningFlagBoundaryProvider(ScriptedDualProvider):
+    """Boundary Review keeps `context_dependent_opening` with `opening_complete=true`.
+
+    Its repair (or a later honest answer) sets `opening_complete=false`. Global
+    Review routes a candidate with any merged flag to `manual_review`.
+    """
+
+    def __init__(self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int]) -> None:
+        super().__init__(prompt, counter)
+        self.boundary_repairs: list[tuple[str, ...]] = []
+
+    def _boundary(self, payload: dict[str, object], *, opening_complete: bool) -> Any:
+        output = cast(
+            ProfileBoundaryReviewOutput,
+            super()._output(payload, ProfileBoundaryReviewOutput),
+        )
+        return output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(
+                        update={
+                            "opening_complete": opening_complete,
+                            "quality_flags": (DualQualityFlag.CONTEXT_DEPENDENT_OPENING,),
+                        }
+                    )
+                    for item in output.reviews
+                )
+            }
+        )
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileBoundaryReviewOutput:
+            return cast(OutputModel, self._boundary(payload, opening_complete=True))
+        output = super()._output(payload, response_model)
+        if response_model is ProfileGlobalReviewOutput:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "review_status": CandidateDisposition.MANUAL_REVIEW,
+                                    "score": 70.0,
+                                    "review_reason": (
+                                        "Coherent; disagrees with the advisory opening flag."
+                                    ),
+                                }
+                            )
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileBoundaryReviewOutput:
+            self.boundary_repairs.append(validation_errors)
+            return StructuredCallResult(
+                output=cast(OutputModel, self._boundary(payload, opening_complete=False)),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
+def _opening_flag_factory(counter: dict[str, int], providers: list[OpeningFlagBoundaryProvider]):
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = OpeningFlagBoundaryProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    return factory
+
+
+def test_boundary_opening_flag_invariant_is_repaired_not_fatal(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[OpeningFlagBoundaryProvider] = []
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "output",
+        provider_factory=_opening_flag_factory(counter, providers),
+        discovery_concurrency=1,
+    )
+    repairs = [errors for provider in providers for errors in provider.boundary_repairs]
+    # One Boundary Review chunk per Profile, each repaired once through the existing path.
+    assert len(repairs) == len(ClipProfile)
+    assert all(
+        "context_dependent_opening requires opening_complete=false" in errors[0]
+        for errors in repairs
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "output" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    for result in final.profiles.values():
+        # Advisory-only flag: the coherent candidate stays reviewable, not blocked.
+        assert [value.review_status for value in result.manual_review] == [
+            CandidateDisposition.MANUAL_REVIEW
+        ]
+        assert result.blocked == ()
+
+
+def test_cached_boundary_review_violating_the_invariant_is_repaired_not_fatal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+    providers: list[OpeningFlagBoundaryProvider] = []
+    factory = _opening_flag_factory(counter, providers)
+
+    # Plant Boundary Review cache entries written under a validator without the
+    # invariant (as a pre-invariant cache under an unchanged prompt would be).
+    original = service.validate_boundary_review_output
+
+    def lenient(output, **kwargs):
+        relaxed = output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(update={"opening_complete": False}) for item in output.reviews
+                )
+            }
+        )
+        original(relaxed, **kwargs)
+        return output
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "validate_boundary_review_output", lenient)
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "planted",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    assert not any(provider.boundary_repairs for provider in providers)
+    planted = {path: path.read_bytes() for path in sorted(cache.glob("*/boundary_review/*.json"))}
+    assert len(planted) == len(ClipProfile)
+
+    # By default (Stage 9 contract) the violating cached entry fails the run closed.
+    with pytest.raises(ValueError, match="context_dependent_opening requires"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "default",
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    assert not any(provider.boundary_repairs for provider in providers)
+
+    # With the explicit option the warm run re-validates each cached Boundary
+    # Review, refuses it and sends it through the existing repair path.
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+        refresh_stale_cache=True,
+    )
+    repairs = [errors for provider in providers for errors in provider.boundary_repairs]
+    assert len(repairs) == len(ClipProfile)
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert warm.calls["discovery"] == 0
+    assert warm.calls["boundary_review"] == len(ClipProfile)
+    assert warm.stale_cache_resolution_count == len(ClipProfile)
+    assert {value.stage for value in warm.stale_cache_resolutions} == {"boundary_review"}
+    assert {value.profile for value in warm.stale_cache_resolutions} == {
+        profile.value for profile in ClipProfile
+    }
+    assert not any(value.reused for value in warm.stale_cache_resolutions)
+    assert {value.cache_key for value in warm.stale_cache_resolutions} == {
+        path.stem for path in planted
+    }
+    # Cache entries are immutable evidence: the stale entry is untouched and the
+    # repaired output is stored under a key bound to the stale output's bytes.
+    assert {path: path.read_bytes() for path in planted} == planted
+    boundary_files = sorted(cache.glob("*/boundary_review/*.json"))
+    assert len(boundary_files) == 2 * len(ClipProfile)
+    superseding = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in boundary_files
+        if path not in planted
+    ]
+    assert all("supersedes_cache_output_sha256" in value["model_settings"] for value in superseding)
+    assert all(
+        not item["opening_complete"] for value in superseding for item in value["output"]["reviews"]
+    )
+
+    # A third run resolves every stage from the cache, including the repaired entry.
+    generated = dict(counter)
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "third",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+        refresh_stale_cache=True,
+    )
+    assert counter == generated
+    assert len([errors for provider in providers for errors in provider.boundary_repairs]) == len(
+        ClipProfile
+    )
+    third = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "third" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(third.calls.values()) == {0}
+    assert third.stale_cache_resolution_count == len(ClipProfile)
+    assert all(value.reused for value in third.stale_cache_resolutions)
+
+
+class StubbornOpeningFlagProvider(OpeningFlagBoundaryProvider):
+    """Repair and regeneration keep violating the opening invariant."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        also_break_evidence: bool = False,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.also_break_evidence = also_break_evidence
+
+    def _boundary(self, payload: dict[str, object], *, opening_complete: bool) -> Any:
+        del opening_complete
+        output = super()._boundary(payload, opening_complete=True)
+        if not self.also_break_evidence:
+            return output
+        return output.model_copy(
+            update={
+                "reviews": tuple(
+                    item.model_copy(update={"evidence_cue_ids": (item.end_cue_id + 1,)})
+                    for item in output.reviews
+                )
+            }
+        )
+
+
+def test_exhausted_opening_invariant_alone_falls_back_conservatively(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+    providers: list[StubbornOpeningFlagProvider] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        provider = StubbornOpeningFlagProvider(prompt, counter)
+        providers.append(provider)
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "output",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    # One repair per chunk, then one regeneration, then the deterministic fallback.
+    assert len([e for p in providers for e in p.boundary_repairs]) == len(ClipProfile)
+    manifest = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "output" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert {value.profile for value in manifest.boundary_opening_fallbacks} == set(ClipProfile)
+    assert sorted(
+        candidate_id
+        for value in manifest.boundary_opening_fallbacks
+        for candidate_id in value.candidate_ids
+    ) == sorted(f"{profile.value}_lesson" for profile in ClipProfile)
+    assert manifest.stale_cache_resolutions == ()
+    boundary = json.loads((tmp_path / "output" / "boundary-review.json").read_text("utf-8"))
+    for profile_output in boundary["profiles"].values():
+        for item in profile_output["reviews"]:
+            # Only downgraded: the flag stays and the opening is marked incomplete.
+            assert item["opening_complete"] is False
+            assert item["quality_flags"] == ["context_dependent_opening"]
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "output" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    for result in final.profiles.values():
+        assert result.selected == ()
+
+
+def test_opening_fallback_never_masks_another_validation_failure(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return StubbornOpeningFlagProvider(prompt, counter, also_break_evidence=True)
+
+    with pytest.raises(ValueError, match="evidence lies outside its final interval"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=1,
+        )
+
+
+class RecordingStubbornProvider(StubbornOpeningFlagProvider):
+    """Stubborn Boundary Review outputs plus one call record per request."""
+
+    def _with_record(
+        self, result: StructuredCallResult[OutputModel], subject_id: str, operation: str
+    ) -> StructuredCallResult[OutputModel]:
+        record = ProviderCallRecord(
+            call_id=uuid.uuid4().hex,
+            operation_key=hashlib.sha256(f"{operation}:{subject_id}".encode()).hexdigest(),
+            subject_id=subject_id,
+            provider="mock",
+            operation=operation,
+            model="mock-dual-v1",
+            request_count=1,
+            retry_count=0,
+            latency_ms=7,
+            usage_json={"input_tokens": 3, "output_tokens": 2},
+            status=ProviderCallStatus.SUCCEEDED,
+            called_at=datetime.now(UTC),
+        )
+        return StructuredCallResult(
+            output=result.output, call_records=(record,), repaired=result.repaired
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        return self._with_record(
+            super().generate(subject_id=subject_id, **kwargs), subject_id, "generate"
+        )
+
+    def repair(self, *, subject_id: str, **kwargs: Any) -> Any:
+        return self._with_record(
+            super().repair(subject_id=subject_id, **kwargs), subject_id, "repair"
+        )
+
+
+def test_exhausted_validation_writes_failure_evidence_to_the_run_dir_only(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d: the failed attempts, partial calls and a failure manifest survive."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingStubbornProvider(prompt, {}, also_break_evidence=True)
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    error = caught.value
+    assert isinstance(error, ValueError)
+    assert str(error).startswith(
+        "deterministic validation still failed after one repair and one regeneration: "
+    )
+    assert (error.profile, error.stage) == ("short_highlight", "boundary_review")
+    assert error.subject_id == "short_highlight.boundary.001"
+    assert [value.phase for value in error.attempts] == ["initial", "repair", "regeneration"]
+    assert error.evidence_file == str(output_dir / "failed-short_highlight-boundary_review.json")
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-boundary_review.json").read_text("utf-8")
+    )
+    assert failed["status"] == "validation_exhausted"
+    assert failed["cache_written"] is False
+    assert failed["subject_id"] == "short_highlight.boundary.001"
+    assert [value["phase"] for value in failed["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    for attempt in failed["attempts"]:
+        assert "evidence lies outside its final interval" in attempt["error"]
+        assert attempt["output"]["profile"] == "short_highlight"
+        assert attempt["output"]["reviews"]
+    assert [value["subject_id"] for value in failed["provider_calls"]] == [
+        "short_highlight.boundary.001",
+        "short_highlight.boundary.001",
+        "short_highlight.boundary.001.deterministic_retry_1",
+    ]
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Completed units first (every short Discovery-family call), then the failing unit.
+    assert subjects[-3:] == [value["subject_id"] for value in failed["provider_calls"]]
+    assert len(subjects) > 3
+    assert not any(".boundary." in subject for subject in subjects[:-3])
+
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_file"] == "failed-short_highlight-boundary_review.json"
+    assert manifest["concurrent_failed_subject_ids"] == []
+    assert failed["concurrent_exhausted_units"] == []
+    assert (manifest["failed_profile"], manifest["failed_stage"]) == (
+        "short_highlight",
+        "boundary_review",
+    )
+    assert manifest["provider_call_count"] == len(subjects)
+    assert manifest["input_tokens"] == 3 * len(subjects)
+    assert "short_highlight.boundary_review" in manifest["prompt_hashes"]
+    assert manifest["resolved_units"]["discovery"]["new"] >= 1
+    assert "boundary_review" not in manifest["resolved_units"]
+    assert not (output_dir / "run-manifest.json").exists()
+    assert not (output_dir / "final-validated.json").exists()
+
+    # The cache holds only completed units: nothing for the failed stage and no
+    # failure evidence.
+    assert not list(cache.glob("short_highlight/boundary_review/*.json"))
+    for entry in cache.rglob("*.json"):
+        text = entry.read_text("utf-8")
+        assert "validation_exhausted" not in text
+        assert "deterministic_retry" not in text
+
+
+def test_a_failure_evidence_writer_bug_never_replaces_the_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 13e (reviewer P3): any exception from the evidence writer, not only an
+    OSError or ValueError, is attached as a note; the validation error propagates."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def broken_writer(*args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+        raise KeyError("writer bug")
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "_write_validation_failure", broken_writer)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingStubbornProvider(prompt, {}, also_break_evidence=True)
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=1,
+        )
+    assert caught.value.stage == "boundary_review"
+    assert caught.value.evidence_file is None
+    assert caught.value.__notes__ == [
+        "failure evidence could not be written: KeyError: 'writer bug'"
+    ]
+
+
+class ConcurrentlyExhaustedDiscoveryProvider(RecordingStubbornProvider):
+    """Two short Discovery windows always answer with a wrong window identity.
+
+    Both units wait for each other before their regeneration result returns, so
+    both exhaust validation while the first error propagates.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        failing_windows: frozenset[str],
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.failing_windows = failing_windows
+        self.barrier = barrier
+
+    def _failing(self, payload: dict[str, object]) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") in self.failing_windows
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        result = super().generate(subject_id=subject_id, **kwargs)
+        if subject_id.endswith(".deterministic_retry_1") and self._failing(kwargs["payload"]):
+            self.barrier.wait()
+        return result
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._failing(payload):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_concurrently_exhausted_units_both_reach_the_failure_evidence(tmp_path: Path) -> None:
+    """Stage 13e (reviewer P3): when two units of one stage exhaust concurrently, the
+    partial provider calls hold both units' records and the failure file keeps the
+    second unit's attempts; neither unit writes the cache."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    windows = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )
+    assert len(windows) >= 2
+    failing = frozenset(value.window_id for value in windows[:2])
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ConcurrentlyExhaustedDiscoveryProvider(
+            prompt, {}, failing_windows=failing, barrier=barrier
+        )
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    assert (error.profile, error.stage) == ("short_highlight", "discovery")
+    assert error.subject_id in failing
+    (other,) = failing - {error.subject_id}
+
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    assert failed["subject_id"] == error.subject_id
+    (concurrent,) = failed["concurrent_exhausted_units"]
+    assert (concurrent["profile"], concurrent["stage"], concurrent["subject_id"]) == (
+        "short_highlight",
+        "discovery",
+        other,
+    )
+    assert [value["phase"] for value in concurrent["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    for attempt in concurrent["attempts"]:
+        assert "Discovery output identity differs from its request" in attempt["error"]
+    assert [value["subject_id"] for value in concurrent["provider_calls"]] == [
+        other,
+        other,
+        f"{other}.deterministic_retry_1",
+    ]
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Completed units first (a worker freed by the first failure may still resolve
+    # a later window), then the failing unit, then the concurrently exhausted one.
+    assert subjects[-6:] == [
+        error.subject_id,
+        error.subject_id,
+        f"{error.subject_id}.deterministic_retry_1",
+        other,
+        other,
+        f"{other}.deterministic_retry_1",
+    ]
+    assert not any(subject.split(".")[0] in failing for subject in subjects[:-6])
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failed_subject_id"] == error.subject_id
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert manifest["provider_call_count"] == len(subjects)
+    # Only completed units are cached; neither exhausted unit is.
+    cached = [
+        json.loads(entry.read_text("utf-8"))["output"]["window_id"]
+        for entry in cache.glob("short_highlight/discovery/*.json")
+    ]
+    assert len(cached) == len(subjects) - 6
+    assert not failing & set(cached)
+
+
+class NoCallProvider(ScriptedDualProvider):
+    """Any model call fails the test: a warm rerun must be served from the cache."""
+
+    def generate(self, **kwargs: Any) -> Any:
+        raise AssertionError(f"unexpected model call: {kwargs['subject_id']}")
+
+    def repair(self, **kwargs: Any) -> Any:
+        raise AssertionError(f"unexpected model repair: {kwargs['subject_id']}")
+
+
+def _no_call_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+    del reasoning_effort
+    return NoCallProvider(prompt, {})
+
+
+def _stubborn_cold_run(tmp_path: Path) -> tuple[Path, Path, DualProfileRunManifest]:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    counter: dict[str, int] = {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return StubbornOpeningFlagProvider(prompt, counter)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    cold = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "cold" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    return transcript, cache, cold
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_opening_fallback_round_trips_through_the_cache(tmp_path: Path, refresh: bool) -> None:
+    transcript, cache, cold = _stubborn_cold_run(tmp_path)
+    assert {value.profile for value in cold.boundary_opening_fallbacks} == set(ClipProfile)
+    # The cache keeps only the raw model output; a marker names the downgraded rows.
+    boundary_files = sorted(cache.glob("*/boundary_review/*.json"))
+    assert len(boundary_files) == len(ClipProfile)
+    for path in boundary_files:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        assert all(item["opening_complete"] for item in entry["output"]["reviews"])
+        assert entry["conservative_fallback"] == {
+            "stage": "boundary_review",
+            "candidate_ids": [f"{entry['profile']}_lesson"],
+        }
+        assert "supersedes_cache_output_sha256" not in entry["model_settings"]
+    # Ordinary entries are written exactly as before (no marker field).
+    others = [path for path in cache.glob("*/*/*.json") if path not in boundary_files]
+    assert others
+    assert not any(
+        "conservative_fallback" in json.loads(path.read_text("utf-8")) for path in others
+    )
+    before = {path: path.read_bytes() for path in cache.glob("*/*/*.json")}
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "warm",
+        provider_factory=_no_call_factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+        refresh_stale_cache=refresh,
+    )
+    warm = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "warm" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(warm.calls.values()) == {0}
+    assert warm.boundary_opening_fallbacks == cold.boundary_opening_fallbacks
+    assert warm.stale_cache_resolutions == ()
+    for name in ("final-validated.json", "boundary-review.json", "global-review.json"):
+        assert (tmp_path / "warm" / name).read_bytes() == (tmp_path / "cold" / name).read_bytes()
+    assert {path: path.read_bytes() for path in cache.glob("*/*/*.json")} == before
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+@pytest.mark.parametrize(
+    "tamper",
+    ["wrong_ids", "wrong_stage", "extra_key", "not_a_mapping", "valid_output"],
+)
+def test_tampered_fallback_marker_fails_closed(tmp_path: Path, refresh: bool, tamper: str) -> None:
+    transcript, cache, _ = _stubborn_cold_run(tmp_path)
+    path = sorted(cache.glob("short_highlight/boundary_review/*.json"))[0]
+    entry = json.loads(path.read_text(encoding="utf-8"))
+    marker = entry["conservative_fallback"]
+    if tamper == "wrong_ids":
+        marker["candidate_ids"] = ["someone_else"]
+    elif tamper == "wrong_stage":
+        marker["stage"] = "global_review"
+    elif tamper == "extra_key":
+        marker["note"] = "x"
+    elif tamper == "not_a_mapping":
+        entry["conservative_fallback"] = ["short_highlight_lesson"]
+    else:
+        # A marker on an output that already validates is not a fallback entry.
+        for item in entry["output"]["reviews"]:
+            item["opening_complete"] = False
+    path.chmod(0o600)
+    path.write_text(json.dumps(entry), encoding="utf-8")
+    with pytest.raises(ValueError, match="fallback marker is invalid"):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+            refresh_stale_cache=refresh,
+        )
+
+
+def _scripted_cold_cache(tmp_path: Path) -> tuple[Path, Path]:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ScriptedDualProvider(prompt, {})
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "cold",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+    )
+    return transcript, cache
+
+
+def _corrupt_cache_entry(path: Path, corruption: str) -> None:
+    original = path.read_text(encoding="utf-8")
+    path.chmod(0o600)
+    if corruption == "mis_keyed":
+        entry = json.loads(original)
+        entry["cache_key"] = "0" * 64
+        path.write_text(json.dumps(entry), encoding="utf-8")
+    elif corruption == "garbage_json":
+        path.write_text("{not json", encoding="utf-8")
+    else:
+        target = path.with_name("symlink-target.txt")
+        target.write_text(original, encoding="utf-8")
+        path.unlink()
+        path.symlink_to(target)
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+@pytest.mark.parametrize("corruption", ["mis_keyed", "garbage_json", "symlink"])
+@pytest.mark.parametrize("stage", ["discovery", "boundary_review", "global_audit"])
+def test_untrusted_dual_profile_cache_entries_always_raise(
+    tmp_path: Path, refresh: bool, corruption: str, stage: str
+) -> None:
+    transcript, cache = _scripted_cold_cache(tmp_path)
+    path = sorted(cache.glob(f"short_highlight/{stage}/*.json"))[0]
+    _corrupt_cache_entry(path, corruption)
+    expected = "identity is invalid" if corruption == "mis_keyed" else "is not trusted"
+    with pytest.raises(ValueError, match=expected):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "warm",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+            refresh_stale_cache=refresh,
+        )
+
+
+@pytest.mark.parametrize("corruption", ["mis_keyed", "garbage_json", "symlink"])
+def test_untrusted_superseding_entry_raises_and_is_never_recorded_as_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    counter: dict[str, int] = {}
+    transcript, cache, planted = _plant_stale_created_pair_audit(tmp_path, monkeypatch, counter)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return AuditCreatedPairProvider(prompt, counter)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "refresh",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+        refresh_stale_cache=True,
+    )
+    (superseding,) = set(cache.glob("*/global_audit/*.json")) - set(planted)
+    _corrupt_cache_entry(superseding, corruption)
+    recorded: list[bool] = []
+    original_record = service._ResolutionAudit.record_stale
+
+    def spy(self: Any, *args: Any, reused: bool) -> None:
+        recorded.append(reused)
+        original_record(self, *args, reused=reused)
+
+    monkeypatch.setattr(service._ResolutionAudit, "record_stale", spy)
+    expected = "identity is invalid" if corruption == "mis_keyed" else "is not trusted"
+    with pytest.raises(ValueError, match=expected):
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "third",
+            provider_factory=_no_call_factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+            refresh_stale_cache=True,
+        )
+    assert True not in recorded
+
+
+class DiscoveryFlagProvider(ScriptedDualProvider):
+    """Base Discovery flags a gated issue; Boundary Review silently clears it.
+
+    ``trim`` makes Boundary Review move the mini candidate's start one cue later;
+    ``flags`` are the Discovery quality flags (a structural flag by default).
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        trim: bool,
+        flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.trim = trim
+        self.flags = flags
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        output = super()._output(payload, response_model)
+        if response_model is ProfileDiscoveryOutput and payload.get("discovery_pass") is None:
+            discovery = cast(ProfileDiscoveryOutput, output)
+            return cast(
+                OutputModel,
+                discovery.model_copy(
+                    update={
+                        "candidates": tuple(
+                            value.model_copy(update={"quality_flags": self.flags})
+                            for value in discovery.candidates
+                        )
+                    }
+                ),
+            )
+        if (
+            self.trim
+            and response_model in {ProfileBoundaryReviewOutput, ProfileGlobalReviewOutput}
+            and payload.get("profile") == ClipProfile.MINI_LESSON.value
+        ):
+            reviews = cast(Any, output).reviews
+            return cast(
+                OutputModel,
+                cast(Any, output).model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(update={"start_cue_id": 2, "evidence_cue_ids": (2, 11)})
+                            for item in reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
+@pytest.mark.parametrize("trim", [False, True])
+def test_service_persists_discovery_gated_flags_unless_boundary_review_trims(
+    tmp_path: Path, trim: bool
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return DiscoveryFlagProvider(prompt, {}, trim=trim)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert final.routing_policy_version == "quality-gate-risk-routing-v9"
+    short = final.profiles[ClipProfile.SHORT_HIGHLIGHT]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    # Short: unchanged interval, so the Discovery flag cleared by review still gates.
+    assert short.selected == ()
+    (blocked,) = short.blocked
+    assert DualQualityFlag.TOPIC_SWITCH_INSIDE in blocked.quality_flags
+    assert blocked.review_reason.startswith("Deterministic flag persistence: ")
+    if trim:
+        # A trimmed start lets Boundary Review resolve the Discovery flag.
+        assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+        assert mini.selected[0].quality_flags == ()
+    else:
+        assert mini.selected == ()
+        assert [value.candidate_id for value in mini.blocked] == ["mini_lesson_lesson"]
+
+
+@pytest.mark.parametrize(
+    ("flags", "persisted"),
+    [
+        ((DualQualityFlag.TOPIC_NOT_CLOSED,), ()),
+        (
+            (DualQualityFlag.TOPIC_NOT_CLOSED, DualQualityFlag.MATERIAL_INTERRUPTION),
+            (DualQualityFlag.MATERIAL_INTERRUPTION,),
+        ),
+        (
+            (DualQualityFlag.TOPIC_NOT_CLOSED, DualQualityFlag.TOPIC_SWITCH_INSIDE),
+            (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
+        ),
+        (
+            (DualQualityFlag.TOPIC_NOT_CLOSED, DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING),
+            (DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,),
+        ),
+    ],
+    ids=["tnc_only", "tnc_and_mi", "tnc_and_tsi", "tnc_and_asrb"],
+)
+def test_service_releases_only_an_attested_topic_not_closed(
+    tmp_path: Path,
+    flags: tuple[DualQualityFlag, ...],
+    persisted: tuple[DualQualityFlag, ...],
+) -> None:
+    """Stage 17 (routing v9): Boundary Review keeps the interval, clears every
+    Discovery flag and attests all four boundary facts.  `topic_not_closed` is
+    released; interior structural flags still persist (no shrink)."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return DiscoveryFlagProvider(prompt, {}, trim=False, flags=flags)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert final.routing_policy_version == "quality-gate-risk-routing-v9"
+    for result in final.profiles.values():
+        if not persisted:
+            assert result.blocked == ()
+            (kept,) = result.selected
+            assert kept.quality_flags == ()
+            assert not kept.review_reason.startswith("Deterministic flag persistence: ")
+        else:
+            assert result.selected == ()
+            (blocked,) = result.blocked
+            assert blocked.quality_flags == persisted
+            assert blocked.review_reason.startswith("Deterministic flag persistence: ")
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+        DualQualityFlag.SALES_OR_CTA_PADDING,
+        DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+    ],
+    ids=str,
+)
+def test_service_lets_discovery_padding_flags_follow_boundary_review(
+    tmp_path: Path, flag: DualQualityFlag
+) -> None:
+    """Stage 14 (routing v5), L01 shape: an untrimmed interval whose Discovery
+    padding flag Boundary Review cleared is not blocked by persistence."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return DiscoveryFlagProvider(prompt, {}, trim=False, flags=(flag,))
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "run" / "final-validated.json").read_text(encoding="utf-8")
+    )
+    assert final.routing_policy_version == "quality-gate-risk-routing-v9"
+    for result in final.profiles.values():
+        assert result.blocked == ()
+        for value in (*result.selected, *result.manual_review, *result.rejected):
+            assert flag not in value.quality_flags
+            assert not value.review_reason.startswith("Deterministic flag persistence: ")
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+
+
+class RiskTwinProvider(ScriptedDualProvider):
+    """Adds a same-interval twin of the mini lesson that carries
+    `material_interruption` and ``risk_tag``, emitted either by the dedicated
+    risk-discovery pass or by the base pass under a look-alike `risk_` ID.
+
+    Stage 15c options: ``manual_twin`` adds a base-pass same-interval twin that
+    Global Review keeps ``manual_review`` (a tagged-twin row the rule does not
+    downgrade, so the downgrade count differs from the number of rows with a
+    tagged risk twin); ``risk_commercial_twin`` adds a risk-discovery record
+    with only the non-automatic-blocking `commercial_claim` tag on the same
+    interval, which Global Review selects."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        from_risk_pass: bool,
+        risk_tag: DualRiskTag = DualRiskTag.HEALTH_ADVICE,
+        manual_twin: bool = False,
+        risk_commercial_twin: bool = False,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self._twin_pass = "risk_discovery" if from_risk_pass else None
+        self._risk_tag = risk_tag
+        self._manual_twin = manual_twin
+        self._risk_commercial_twin = risk_commercial_twin
+
+    @staticmethod
+    def _same_interval(
+        candidate_id: str,
+        window_id: str,
+        *,
+        quality_flags: tuple[DualQualityFlag, ...] = (),
+        risk_tags: tuple[DualRiskTag, ...] = (),
+    ) -> RawProfileCandidate:
+        return RawProfileCandidate(
+            candidate_id=candidate_id,
+            profile=ClipProfile.MINI_LESSON,
+            source_window_id=window_id,
+            start_cue_id=1,
+            end_cue_id=11,
+            evidence_cue_ids=(1, 11),
+            title="风险链",
+            summary="包含健康主张的完整链条。",
+            boundary_state=BoundaryState(opening_complete=True, ending_complete=True),
+            quality_flags=quality_flags,
+            risk_tags=risk_tags,
+        )
+
+    def _output(
+        self,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+    ) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        profile = ClipProfile.MINI_LESSON
+        if response_model is ProfileGlobalAuditOutput and mini:
+            # The Stage 15c twins are retained beside the lesson on its interval,
+            # so Python lists the pairs; keep both as distinct objectives.
+            pairs = cast(list[dict[str, object]], payload["audit_pairs"])
+            return cast(
+                OutputModel,
+                ProfileGlobalAuditOutput(
+                    profile=profile,
+                    replacements=(),
+                    nested_pair_decisions=tuple(
+                        NestedPairDecision(
+                            outer_candidate_id=str(pair["outer_candidate_id"]),
+                            inner_candidate_id=str(pair["inner_candidate_id"]),
+                            decision=NestedPairDecisionKind.DISTINCT_OBJECTIVE,
+                            reason="Mock audit keeps both twins.",
+                        )
+                        for pair in pairs
+                    ),
+                    audit_reason="Mock audit decided the listed twin pairs.",
+                ),
+            )
+        if response_model is ProfileDiscoveryOutput and mini:
+            window_id = str(payload["window_id"])
+            ownership = cast(dict[str, object], payload["ownership_interval"])
+            discovery_pass = payload.get("discovery_pass")
+            extra: list[RawProfileCandidate] = []
+            if int(ownership["start_ms"]) == 0:
+                if discovery_pass == self._twin_pass:
+                    extra.append(
+                        self._same_interval(
+                            "risk_twin",
+                            window_id,
+                            quality_flags=(DualQualityFlag.MATERIAL_INTERRUPTION,),
+                            risk_tags=(self._risk_tag,),
+                        )
+                    )
+                if discovery_pass == "risk_discovery" and self._risk_commercial_twin:
+                    extra.append(
+                        self._same_interval(
+                            "risk_commercial",
+                            window_id,
+                            risk_tags=(DualRiskTag.COMMERCIAL_CLAIM,),
+                        )
+                    )
+                if discovery_pass is None and self._manual_twin:
+                    extra.append(self._same_interval("mini_lesson_manual", window_id))
+            if extra:
+                base = cast(ProfileDiscoveryOutput, super()._output(payload, response_model))
+                return cast(
+                    OutputModel,
+                    ProfileDiscoveryOutput(
+                        profile=profile,
+                        window_id=window_id,
+                        candidates=(*base.candidates, *extra),
+                    ),
+                )
+        output = super()._output(payload, response_model)
+        if response_model is ProfileBoundaryReviewOutput and mini:
+            boundary = cast(ProfileBoundaryReviewOutput, output)
+            return cast(
+                OutputModel,
+                boundary.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "risk_tags": (self._risk_tag,),
+                                    "quality_flags": (DualQualityFlag.MATERIAL_INTERRUPTION,),
+                                }
+                            )
+                            if item.candidate_id == "risk_twin"
+                            else item.model_copy(
+                                update={"risk_tags": (DualRiskTag.COMMERCIAL_CLAIM,)}
+                            )
+                            if item.candidate_id == "risk_commercial"
+                            else item
+                            for item in boundary.reviews
+                        )
+                    }
+                ),
+            )
+        if response_model is ProfileGlobalReviewOutput and mini:
+            review = cast(ProfileGlobalReviewOutput, output)
+            return cast(
+                OutputModel,
+                review.model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(
+                                update={
+                                    "score": 50.0,
+                                    "review_status": CandidateDisposition.BLOCKED,
+                                    "risk_tags": (self._risk_tag,),
+                                    "review_reason": "Interior interruption in the risk chain.",
+                                }
+                            )
+                            if item.candidate_id == "risk_twin"
+                            else item.model_copy(
+                                update={
+                                    "score": 70.0,
+                                    "review_status": CandidateDisposition.MANUAL_REVIEW,
+                                    "review_reason": "Mock global review asks for a human check.",
+                                }
+                            )
+                            if item.candidate_id == "mini_lesson_manual"
+                            else item
+                            for item in review.reviews
+                        )
+                    }
+                ),
+            )
+        return output
+
+
+def _risk_twin_run(
+    tmp_path: Path,
+    *,
+    from_risk_pass: bool,
+    risk_tag: DualRiskTag,
+    manual_twin: bool = False,
+    risk_commercial_twin: bool = False,
+) -> tuple[DualProfileFinalResult, DualProfileRunManifest]:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RiskTwinProvider(
+            prompt,
+            {},
+            from_risk_pass=from_risk_pass,
+            risk_tag=risk_tag,
+            manual_twin=manual_twin,
+            risk_commercial_twin=risk_commercial_twin,
+        )
+
+    output_dir = tmp_path / "run"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (output_dir / "final-validated.json").read_text(encoding="utf-8")
+    )
+    manifest = DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    manifest.validate_against(final)
+    assert final.routing_policy_version == "quality-gate-risk-routing-v9"
+    return final, manifest
+
+
+@pytest.mark.parametrize("from_risk_pass", [True, False])
+def test_service_twin_union_ignores_risk_pass_sources_structurally(
+    tmp_path: Path, from_risk_pass: bool
+) -> None:
+    """Stage 15 (routing v6): a same-interval twin from the dedicated
+    risk-discovery pass does not pass its gated flag to the clean lesson; the
+    same twin from the base pass (look-alike `risk_` ID) still does.  Stage 15b
+    changed the twin's risk tag to the non-automatic-blocking `commercial_claim`
+    so the v6 property is isolated from the v7 risk-twin review (covered below
+    with `health_advice`)."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=from_risk_pass, risk_tag=DualRiskTag.COMMERCIAL_CLAIM
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert DualQualityFlag.MATERIAL_INTERRUPTION in twin.quality_flags
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 0,
+    }
+    if from_risk_pass:
+        assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+        assert mini.selected[0].quality_flags == ()
+        assert manifest.risk_twin_flags_not_propagated == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 1,
+        }
+    else:
+        assert mini.selected == ()
+        lesson = next(value for value in mini.blocked if value.candidate_id == "mini_lesson_lesson")
+        assert DualQualityFlag.MATERIAL_INTERRUPTION in lesson.quality_flags
+        assert lesson.review_reason.startswith("Deterministic quality gate: ")
+        assert manifest.risk_twin_flags_not_propagated == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 0,
+        }
+
+
+@pytest.mark.parametrize("from_risk_pass", [True, False])
+def test_service_risk_twin_review_drops_the_selected_twin_to_manual_review(
+    tmp_path: Path, from_risk_pass: bool
+) -> None:
+    """Stage 15b (routing v7, user decision 2026-11-04 "drop to manual review"):
+    a risk-discovery twin with an automatic-blocking risk tag (`health_advice`)
+    drops the selected same-interval lesson to manual_review (not blocked, tags
+    not copied) and the run manifest records the downgrade; risk-pass membership
+    is structural, so the base-pass look-alike `risk_` twin instead blocks the
+    lesson through the twin union and triggers no risk-twin review."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=from_risk_pass, risk_tag=DualRiskTag.HEALTH_ADVICE
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert twin.risk_tags == (DualRiskTag.HEALTH_ADVICE,)
+    assert mini.selected == ()
+    if from_risk_pass:
+        (lesson,) = mini.manual_review
+        assert lesson.candidate_id == "mini_lesson_lesson"
+        assert lesson.review_reason.startswith(
+            "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+            "carries health_advice. "
+        )
+        assert lesson.risk_tags == ()
+        assert lesson.quality_flags == ()
+        assert manifest.risk_twin_review_downgrades == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 1,
+        }
+        assert manifest.risk_twin_flags_not_propagated[ClipProfile.MINI_LESSON] == 1
+    else:
+        lesson = next(value for value in mini.blocked if value.candidate_id == "mini_lesson_lesson")
+        assert lesson.review_reason.startswith("Deterministic quality gate: ")
+        assert manifest.risk_twin_review_downgrades == {
+            ClipProfile.SHORT_HIGHLIGHT: 0,
+            ClipProfile.MINI_LESSON: 0,
+        }
+    # The short Profile is untouched by the mini-only twin.
+    assert final.profiles[ClipProfile.SHORT_HIGHLIGHT].selected != ()
+
+
+def test_service_risk_twin_review_diagnostic_counts_downgrades_not_tagged_twins(
+    tmp_path: Path,
+) -> None:
+    """Stage 15c (reviewer nit 2): a base-pass twin that Global Review already
+    keeps manual_review also has the tagged risk twin, but it is not downgraded,
+    so the manifest records one downgrade although two rows have a tagged risk
+    twin (a count of rows with a tagged twin would record two)."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=True, risk_tag=DualRiskTag.HEALTH_ADVICE, manual_twin=True
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == ()
+    manual = {value.candidate_id: value for value in mini.manual_review}
+    assert set(manual) == {"mini_lesson_lesson", "mini_lesson_manual"}
+    assert manual["mini_lesson_lesson"].review_reason.startswith(
+        "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+        "carries health_advice. "
+    )
+    assert manual["mini_lesson_manual"].review_reason == (
+        "Mock global review asks for a human check."
+    )
+    review = risk_twin_review(final_profile_rows(mini).values(), {"risk_twin"})
+    assert set(review.sources) == {"mini_lesson_lesson", "mini_lesson_manual"}
+    assert review.downgraded == ("mini_lesson_lesson",)
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 1,
+    }
+    manifest.validate_against(
+        final,
+        risk_record_ids={
+            ClipProfile.SHORT_HIGHLIGHT: frozenset(),
+            ClipProfile.MINI_LESSON: frozenset({"risk_twin"}),
+        },
+    )
+
+
+def test_service_risk_twin_review_drops_a_selected_risk_record_to_manual_review(
+    tmp_path: Path,
+) -> None:
+    """Stage 15c (routing v8, user decision 2026-11-04 "when a risk twin has a
+    high-risk tag, its twin can't be auto-published"): a risk-discovery record
+    with only a non-automatic-blocking tag that Global Review selects on the
+    interval of a different risk-discovery record carrying `health_advice` drops
+    to manual_review like the non-risk lesson (v7 left it selected); the tagged
+    record is not its own source."""
+
+    final, manifest = _risk_twin_run(
+        tmp_path, from_risk_pass=True, risk_tag=DualRiskTag.HEALTH_ADVICE, risk_commercial_twin=True
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == ()
+    manual = {value.candidate_id: value for value in mini.manual_review}
+    assert set(manual) == {"mini_lesson_lesson", "risk_commercial"}
+    for value in manual.values():
+        assert value.review_reason.startswith(
+            "Deterministic risk-twin review: same-interval risk-discovery twin risk_twin "
+            "carries health_advice. "
+        )
+        assert DualRiskTag.HEALTH_ADVICE not in value.risk_tags
+    twin = next(value for value in mini.blocked if value.candidate_id == "risk_twin")
+    assert not twin.review_reason.startswith("Deterministic risk-twin review: ")
+    assert manifest.risk_twin_review_downgrades == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 2,
+    }
+    manifest.validate_against(
+        final,
+        risk_record_ids={
+            ClipProfile.SHORT_HIGHLIGHT: frozenset(),
+            ClipProfile.MINI_LESSON: frozenset({"risk_twin", "risk_commercial"}),
+        },
+    )
+
+
+class OverlapPairProvider(ScriptedDualProvider):
+    """Mini Discovery adds a non-nested candidate that overlaps the base lesson.
+
+    The base mini lesson spans cues 1-11 ([0 s, 110 s)). ``overlap_start`` cue 2
+    gives [10 s, 120 s) (100 of 110 s shared: near-identical); cue 3 gives
+    [20 s, 130 s) (90 of 110 s: an ordinary overlap). The first audit decides no
+    pair (``first_audit="omit"``) or keeps both as distinct objectives
+    (``first_audit="distinct"``); its repair applies ``repair_audit``.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        overlap_start: int,
+        first_audit: str,
+        repair_audit: str,
+        prompt_sha256: str | None = None,
+        flag_lesson: bool = False,
+        lesson_flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
+        lesson_boundary: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.flag_lesson = flag_lesson
+        self.lesson_flags = lesson_flags
+        # Stage 17: overrides for the mini lesson's Boundary Review item (facts or
+        # flags); the initial Global Review then keeps it `manual_review`.
+        self.lesson_boundary = lesson_boundary
+        self.overlap_start = overlap_start
+        self.first_audit = first_audit
+        self.repair_audit = repair_audit
+        self._prompt_override = prompt_sha256
+        self.audit_payloads: list[dict[str, object]] = []
+        self.audit_repairs: list[tuple[str, ...]] = []
+
+    @property
+    def prompt_sha256(self) -> str:
+        return self._prompt_override or super().prompt_sha256
+
+    def _audit(self, payload: dict[str, object], mode: str) -> ProfileGlobalAuditOutput:
+        profile = ClipProfile(str(payload["profile"]))
+        pairs = cast(list[dict[str, object]], payload["audit_pairs"])
+        initial = ProfileGlobalReviewOutput.model_validate_json(
+            json.dumps(payload["initial_global_review"])
+        )
+        replacements: tuple[GlobalReviewItem, ...] = ()
+        by_id = {value.candidate_id: value for value in initial.reviews}
+
+        def duplicate(removed: str, representative: str) -> GlobalReviewItem:
+            return by_id[removed].model_copy(
+                update={
+                    "review_status": CandidateDisposition.REJECTED,
+                    "duplicate_of_candidate_id": representative,
+                    "score": 60.0,
+                    "review_reason": "Same objective; keep one representative.",
+                }
+            )
+
+        if mode == "duplicate":
+            replacements = (duplicate("mini_lesson_lesson", "mini_overlap"),)
+        elif mode == "keep_lesson":
+            replacements = (duplicate("mini_overlap", "mini_lesson_lesson"),)
+        elif mode == "prefixed":
+            replacements = (
+                by_id["mini_lesson_lesson"].model_copy(
+                    update={"review_reason": "Deterministic audit fallback: model-written."}
+                ),
+            )
+        elif mode == "blocked_dup":
+            # Stage 13d: a non-risk duplicate may be blocked instead of rejected
+            # (``keep_lesson`` with a blocked duplicate; Stage 13e merged the
+            # identical ``keep_lesson_blocked`` mode into this one).
+            replacements = (
+                duplicate("mini_overlap", "mini_lesson_lesson").model_copy(
+                    update={"review_status": CandidateDisposition.BLOCKED}
+                ),
+            )
+        elif mode == "low_selected":
+            # A final-assembly error (score at the threshold) while both members of a
+            # near-identical pair stay retained (a pair-rule error).
+            replacements = (
+                by_id["mini_lesson_lesson"].model_copy(
+                    update={"review_status": CandidateDisposition.SELECTED, "score": 60.0}
+                ),
+            )
+        elif mode == "dup_blocked_rep":
+            replacements = (
+                duplicate("mini_lesson_lesson", "mini_overlap"),
+                by_id["mini_overlap"].model_copy(
+                    update={
+                        "review_status": CandidateDisposition.BLOCKED,
+                        "score": 60.0,
+                        "review_reason": "Blocked on its own merits.",
+                    }
+                ),
+            )
+        decisions = (
+            ()
+            if mode == "omit"
+            else tuple(
+                NestedPairDecision(
+                    outer_candidate_id=str(pair["outer_candidate_id"]),
+                    inner_candidate_id=str(pair["inner_candidate_id"]),
+                    decision=(
+                        NestedPairDecisionKind.DUPLICATE
+                        if mode
+                        in {
+                            "duplicate",
+                            "keep_lesson",
+                            "dup_blocked_rep",
+                            "blocked_dup",
+                        }
+                        else NestedPairDecisionKind.DISTINCT_OBJECTIVE
+                    ),
+                    reason="Decided on content.",
+                )
+                for pair in pairs
+            )
+        )
+        return ProfileGlobalAuditOutput(
+            profile=profile,
+            replacements=replacements,
+            nested_pair_decisions=decisions,
+            audit_reason="Overlap audit.",
+        )
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        mini = payload.get("profile") == ClipProfile.MINI_LESSON.value
+        if response_model is ProfileGlobalAuditOutput and mini:
+            self.audit_payloads.append(payload)
+            return cast(OutputModel, self._audit(payload, self.first_audit))
+        output = super()._output(payload, response_model)
+        if (
+            self.lesson_boundary is not None
+            and mini
+            and response_model in {ProfileBoundaryReviewOutput, ProfileGlobalReviewOutput}
+        ):
+            update: dict[str, object] = (
+                self.lesson_boundary
+                if response_model is ProfileBoundaryReviewOutput
+                else {"review_status": CandidateDisposition.MANUAL_REVIEW, "score": 80.0}
+            )
+            reviews = cast(Any, output).reviews
+            return cast(
+                OutputModel,
+                cast(Any, output).model_copy(
+                    update={
+                        "reviews": tuple(
+                            item.model_copy(update=update)
+                            if item.candidate_id == "mini_lesson_lesson"
+                            else item
+                            for item in reviews
+                        )
+                    }
+                ),
+            )
+        if (
+            response_model is ProfileDiscoveryOutput
+            and mini
+            and payload.get("discovery_pass") is None
+        ):
+            discovery = cast(ProfileDiscoveryOutput, output)
+            if discovery.candidates:
+                if self.flag_lesson:
+                    discovery = discovery.model_copy(
+                        update={
+                            "candidates": tuple(
+                                value.model_copy(update={"quality_flags": self.lesson_flags})
+                                for value in discovery.candidates
+                            )
+                        }
+                    )
+                end = self.overlap_start + 10
+                overlap = discovery.candidates[0].model_copy(
+                    update={
+                        "candidate_id": "mini_overlap",
+                        "start_cue_id": self.overlap_start,
+                        "end_cue_id": end,
+                        "evidence_cue_ids": (self.overlap_start, end),
+                        "quality_flags": (),
+                    }
+                )
+                return cast(
+                    OutputModel,
+                    discovery.model_copy(update={"candidates": (*discovery.candidates, overlap)}),
+                )
+        return output
+
+    def repair(
+        self,
+        *,
+        subject_id: str,
+        payload: dict[str, object],
+        response_model: type[OutputModel],
+        validation_errors: tuple[str, ...],
+        cancel_requested=lambda: False,
+    ) -> StructuredCallResult[OutputModel]:
+        if response_model is ProfileGlobalAuditOutput:
+            self.audit_repairs.append(validation_errors)
+            return StructuredCallResult(
+                output=cast(OutputModel, self._audit(payload, self.repair_audit)),
+                call_records=(),
+                repaired=True,
+            )
+        return super().repair(
+            subject_id=subject_id,
+            payload=payload,
+            response_model=response_model,
+            validation_errors=validation_errors,
+            cancel_requested=cancel_requested,
+        )
+
+
+def _overlap_run(
+    tmp_path: Path,
+    name: str,
+    *,
+    overlap_start: int,
+    first_audit: str,
+    repair_audit: str,
+    cache: Path | None = None,
+    audit_prompt_overrides: dict[str, str] | None = None,
+    counter: dict[str, int] | None = None,
+    flag_lesson: bool = False,
+    lesson_flags: tuple[DualQualityFlag, ...] = (DualQualityFlag.TOPIC_SWITCH_INSIDE,),
+    lesson_boundary: dict[str, object] | None = None,
+    refresh_stale_cache: bool = False,
+    no_calls: bool = False,
+) -> tuple[list[OverlapPairProvider], DualProfileFinalResult]:
+    transcript = tmp_path / "transcript.srt"
+    if not transcript.exists():
+        _write_srt(transcript)
+    providers: list[OverlapPairProvider] = []
+    shared_counter = counter if counter is not None else {}
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        override = (audit_prompt_overrides or {}).get(prompt.sha256)
+        provider = OverlapPairProvider(
+            prompt,
+            shared_counter,
+            overlap_start=overlap_start,
+            first_audit=first_audit,
+            repair_audit=repair_audit,
+            prompt_sha256=override,
+            flag_lesson=flag_lesson,
+            lesson_flags=lesson_flags,
+            lesson_boundary=lesson_boundary,
+        )
+        providers.append(provider)
+        if no_calls:
+            return NoCallProvider(prompt, {})
+        return provider
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / name,
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=1,
+        refresh_stale_cache=refresh_stale_cache,
+    )
+    final = DualProfileFinalResult.model_validate_json(
+        (tmp_path / name / "final-validated.json").read_text(encoding="utf-8")
+    )
+    return providers, final
+
+
+def test_global_audit_must_decide_overlap_pairs(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="omit", repair_audit="distinct"
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    assert payload["audit_pairs"] == [
+        {
+            "outer_candidate_id": "mini_lesson_lesson",
+            "inner_candidate_id": "mini_overlap",
+            "pair_kind": "overlap",
+            "near_identical": False,
+        }
+    ]
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "cover every listed nested pair" in errors[0]
+    # An ordinary overlap may keep both as distinct objectives.
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert {value.candidate_id for value in mini.selected} == {"mini_lesson_lesson", "mini_overlap"}
+
+
+def test_near_identical_overlap_pair_cannot_keep_both(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=2, first_audit="distinct", repair_audit="duplicate"
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    (pair,) = cast(list[dict[str, object]], payload["audit_pairs"])
+    assert (pair["pair_kind"], pair["near_identical"]) == ("overlap", True)
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "cannot keep both candidates" in errors[0]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_overlap"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert mini.rejected[0].duplicate_of_candidate_id == "mini_overlap"
+
+
+# Global Audit prompt hashes at a7088c4 (Stage 12b), before overlap pairs.
+PRE_OVERLAP_AUDIT_PROMPT_HASHES = {
+    "mini_lesson": "cb115e0306315ec87c9e76bc7a6d73cd568aa4783fcc77dcbf8ce040c8e7a35d",
+    "short_highlight": "746b625e589b3a6a555ca34b425ebc25916fdaea8f10b264d37570dd5c6f6d32",
+}
+
+
+def test_cached_audit_without_overlap_decisions_misses_under_the_new_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liveclip.services import dual_profile_evaluation as service
+
+    for profile, old_hash in PRE_OVERLAP_AUDIT_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256 != old_hash
+    cache = tmp_path / "cache"
+    nested_only = service.audit_candidate_pairs
+
+    def old_contract(review: Any, transcript: Any) -> Any:
+        return tuple(pair for pair in nested_only(review, transcript) if pair.pair_kind == "nested")
+
+    counter: dict[str, int] = {}
+    # An audit written by the pre-overlap contract: no overlap pair was listed or
+    # decided, under the old audit prompt identity.
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "audit_candidate_pairs", old_contract)
+        _overlap_run(
+            tmp_path,
+            "old",
+            overlap_start=2,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+            audit_prompt_overrides={
+                load_dual_profile_prompt("global_audit", ClipProfile(profile)).sha256: old_hash
+                for profile, old_hash in PRE_OVERLAP_AUDIT_PROMPT_HASHES.items()
+            },
+            counter=counter,
+        )
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    assert len(planted) == len(ClipProfile)
+    audits_before = counter["ProfileGlobalAuditOutput"]
+
+    # Under the current prompt the old entries are simply cache misses: the audit
+    # is regenerated (and must decide the overlap pair), never failed closed.
+    providers, final = _overlap_run(
+        tmp_path,
+        "new",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="duplicate",
+        cache=cache,
+        counter=counter,
+    )
+    assert counter["ProfileGlobalAuditOutput"] == audits_before + len(ClipProfile)
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    assert [value.candidate_id for value in final.profiles[ClipProfile.MINI_LESSON].selected] == [
+        "mini_overlap"
+    ]
+    assert {path: path.read_bytes() for path in planted} == planted
+    manifest = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "new" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest.calls["discovery"] == 0
+    assert manifest.calls["boundary_review"] == 0
+
+
+def test_old_contract_audit_under_the_current_identity_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Impossible in practice (the audit prompt hash changed); models an audit that
+    # omits its overlap decision but sits under the current identity and payload.
+    from liveclip.services import dual_profile_evaluation as service
+
+    cache = tmp_path / "cache"
+    full = service.validate_audit_pair_decisions
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            service,
+            "validate_audit_pair_decisions",
+            lambda pairs, decisions, merged, **kwargs: full(
+                tuple(pair for pair in pairs if pair.pair_kind == "nested"),
+                decisions,
+                merged,
+                **kwargs,
+            ),
+        )
+        _overlap_run(
+            tmp_path,
+            "planted",
+            overlap_start=3,
+            first_audit="omit",
+            repair_audit="omit",
+            cache=cache,
+        )
+    planted = {path: path.read_bytes() for path in cache.glob("*/global_audit/*.json")}
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        _overlap_run(
+            tmp_path,
+            "warm",
+            overlap_start=3,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+        )
+    assert {path: path.read_bytes() for path in planted} == planted
+
+
+def _manifest(tmp_path: Path, name: str) -> DualProfileRunManifest:
+    return DualProfileRunManifest.model_validate_json(
+        (tmp_path / name / "run-manifest.json").read_text(encoding="utf-8")
+    )
+
+
+def test_audit_payload_lists_persisted_discovery_flags_only_for_the_audit(
+    tmp_path: Path,
+) -> None:
+    providers, _ = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="duplicate",
+        repair_audit="duplicate",
+        flag_lesson=True,
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    flags = {
+        cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+            "persisted_discovery_gated_flags"
+        ]
+        for entry in cast(list[dict[str, object]], payload["candidates"])
+    }
+    assert flags == {"mini_lesson_lesson": ["topic_switch_inside"], "mini_overlap": []}
+
+
+@pytest.mark.parametrize(
+    ("lesson_flags", "expected"),
+    [
+        (
+            (DualQualityFlag.DEVICE_OR_WAITING_PADDING, DualQualityFlag.TOPIC_SWITCH_INSIDE),
+            ["topic_switch_inside"],
+        ),
+        (
+            (
+                DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+                DualQualityFlag.SALES_OR_CTA_PADDING,
+                DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+            ),
+            [],
+        ),
+        (
+            (
+                DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+                DualQualityFlag.MATERIAL_INTERRUPTION,
+                DualQualityFlag.TOPIC_NOT_CLOSED,
+                DualQualityFlag.ASR_UNCERTAIN_BLOCKS_MEANING,
+            ),
+            # Routing v9: Boundary Review cleared `topic_not_closed` and attested
+            # every boundary fact, so only the interior structural flags persist.
+            ["material_interruption", "asr_uncertain_blocks_meaning"],
+        ),
+        ((DualQualityFlag.TOPIC_NOT_CLOSED,), []),
+    ],
+    ids=["padding_and_structural", "padding_only", "all_structural_plus_padding", "tnc_only"],
+)
+def test_audit_payload_persisted_flags_contain_only_structural_flags(
+    tmp_path: Path,
+    lesson_flags: tuple[DualQualityFlag, ...],
+    expected: list[str],
+) -> None:
+    """Stage 14 (routing v5): the audit sees exactly the flags final routing persists."""
+
+    providers, _ = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="duplicate",
+        repair_audit="duplicate",
+        flag_lesson=True,
+        lesson_flags=lesson_flags,
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads]
+    flags = {
+        cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+            "persisted_discovery_gated_flags"
+        ]
+        for entry in cast(list[dict[str, object]], payload["candidates"])
+    }
+    assert flags == {"mini_lesson_lesson": expected, "mini_overlap": []}
+
+
+PADDING_ONLY_FLAGS = (
+    DualQualityFlag.DEVICE_OR_WAITING_PADDING,
+    DualQualityFlag.SALES_OR_CTA_PADDING,
+    DualQualityFlag.PADDED_WITH_IRRELEVANT_CONTENT,
+)
+
+
+@pytest.mark.parametrize(
+    ("first_audit", "repair_audit"),
+    [
+        # Representative rule: the padding-flagged lesson represents its duplicate.
+        ("keep_lesson", "duplicate"),
+        # A blocked duplicate whose representative is the padding-flagged lesson.
+        ("blocked_dup", "duplicate"),
+        # Pair fallback keep order: both near-identical members stay retained.
+        ("distinct", "distinct"),
+    ],
+    ids=["representative", "blocked_duplicate", "pair_fallback"],
+)
+def test_padding_only_discovery_flags_validate_like_an_unflagged_candidate(
+    tmp_path: Path, first_audit: str, repair_audit: str
+) -> None:
+    """Stage 14b: a candidate whose only Discovery gated flags are padding
+    (Boundary Review cleared them without trimming) is not a persisted-flag
+    candidate: its persisted set is empty, so the duplicate-representative rule
+    and the near-identical pair fallback keep order treat it exactly like an
+    unflagged candidate. A structural flag on the same candidate changes the
+    outcome, so the comparison is discriminating."""
+
+    def observed(name: str, *, flag_lesson: bool, lesson_flags: tuple[DualQualityFlag, ...]):
+        providers, final = _overlap_run(
+            tmp_path,
+            name,
+            overlap_start=2,
+            first_audit=first_audit,
+            repair_audit=repair_audit,
+            flag_lesson=flag_lesson,
+            lesson_flags=lesson_flags,
+        )
+        payloads = [value for provider in providers for value in provider.audit_payloads]
+        persisted = {
+            cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+                "persisted_discovery_gated_flags"
+            ]
+            for entry in cast(list[dict[str, object]], payloads[0]["candidates"])
+        }
+        manifest = _manifest(tmp_path, name)
+        return {
+            "persisted": persisted,
+            "repairs": [value for provider in providers for value in provider.audit_repairs],
+            "fallbacks": manifest.audit_pair_fallbacks,
+            "representative_duplicates": manifest.persisted_flag_representative_duplicates,
+            "mini": final.profiles[ClipProfile.MINI_LESSON].model_dump(mode="json"),
+        }
+
+    padding = observed("padding", flag_lesson=True, lesson_flags=PADDING_ONLY_FLAGS)
+    unflagged = observed("unflagged", flag_lesson=False, lesson_flags=())
+    assert padding["persisted"] == {"mini_lesson_lesson": [], "mini_overlap": []}
+    assert padding["representative_duplicates"] == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 0,
+    }
+    assert padding == unflagged
+    mini = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "padding" / "final-validated.json").read_text(encoding="utf-8")
+    ).profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    for value in (*mini.selected, *mini.manual_review, *mini.blocked, *mini.rejected):
+        assert not set(PADDING_ONLY_FLAGS) & set(value.quality_flags)
+        assert not value.review_reason.startswith("Deterministic flag persistence: ")
+    if first_audit == "distinct":
+        # Unflagged keep order: equal spans, so the earlier start is kept.
+        (record,) = padding["fallbacks"]
+        assert (record.rule, record.blocked_candidate_id) == ("near_identical_pair", "mini_overlap")
+    else:
+        assert padding["repairs"] == [] and padding["fallbacks"] == ()
+
+    structural = observed(
+        "structural",
+        flag_lesson=True,
+        lesson_flags=(*PADDING_ONLY_FLAGS, DualQualityFlag.TOPIC_SWITCH_INSIDE),
+    )
+    assert structural["persisted"]["mini_lesson_lesson"] == ["topic_switch_inside"]
+    assert structural["mini"] != unflagged["mini"]
+
+
+@pytest.mark.parametrize(
+    ("first_audit", "repair_audit"),
+    [
+        ("keep_lesson", "duplicate"),
+        ("blocked_dup", "duplicate"),
+        ("distinct", "distinct"),
+    ],
+    ids=["representative", "blocked_duplicate", "pair_fallback"],
+)
+def test_attested_topic_not_closed_validates_like_an_unflagged_candidate(
+    tmp_path: Path, first_audit: str, repair_audit: str
+) -> None:
+    """Stage 17 (routing v9): a Discovery `topic_not_closed` that Boundary Review
+    cleared without shrinking while attesting all four boundary facts is not a
+    persisted flag anywhere: the Global Audit payload, the persisted-flag
+    representative rule, the near-identical pair fallback keep order, the
+    manifest diagnostic and final routing all treat the candidate exactly like
+    an unflagged one."""
+
+    def observed(name: str, *, flag_lesson: bool):
+        providers, final = _overlap_run(
+            tmp_path,
+            name,
+            overlap_start=2,
+            first_audit=first_audit,
+            repair_audit=repair_audit,
+            flag_lesson=flag_lesson,
+            lesson_flags=(DualQualityFlag.TOPIC_NOT_CLOSED,),
+        )
+        payloads = [value for provider in providers for value in provider.audit_payloads]
+        persisted = {
+            cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+                "persisted_discovery_gated_flags"
+            ]
+            for entry in cast(list[dict[str, object]], payloads[0]["candidates"])
+        }
+        manifest = _manifest(tmp_path, name)
+        return {
+            "persisted": persisted,
+            "repairs": [value for provider in providers for value in provider.audit_repairs],
+            "fallbacks": manifest.audit_pair_fallbacks,
+            "representative_duplicates": manifest.persisted_flag_representative_duplicates,
+            "mini": final.profiles[ClipProfile.MINI_LESSON].model_dump(mode="json"),
+        }
+
+    released = observed("released", flag_lesson=True)
+    unflagged = observed("unflagged", flag_lesson=False)
+    assert released["persisted"] == {"mini_lesson_lesson": [], "mini_overlap": []}
+    assert released == unflagged
+    mini = DualProfileFinalResult.model_validate_json(
+        (tmp_path / "released" / "final-validated.json").read_text(encoding="utf-8")
+    ).profiles[ClipProfile.MINI_LESSON]
+    for value in (*mini.selected, *mini.manual_review, *mini.blocked, *mini.rejected):
+        assert DualQualityFlag.TOPIC_NOT_CLOSED not in value.quality_flags
+        assert not value.review_reason.startswith("Deterministic flag persistence: ")
+
+
+@pytest.mark.parametrize(
+    "lesson_boundary",
+    [
+        None,
+        {"ending_complete": False},
+        {"opening_complete": False},
+        {"central_objective_complete": False},
+        {"shortest_complete_boundary": False},
+        {"quality_flags": (DualQualityFlag.TOPIC_NOT_CLOSED,)},
+    ],
+    ids=["attested", "ending_false", "opening_false", "objective_false", "shortest_false", "kept"],
+)
+def test_topic_not_closed_representative_rule_follows_the_v9_release(
+    tmp_path: Path, lesson_boundary: dict[str, object] | None
+) -> None:
+    """The audit keeps the Discovery-`topic_not_closed` lesson as a representative.
+    Released (attested and cleared by Boundary Review) it is a valid
+    representative; otherwise it is a persisted-flag representative, the audit is
+    asked to repair, the fallback records it and routing blocks the lesson."""
+
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=3,
+        first_audit="keep_lesson",
+        repair_audit="keep_lesson",
+        flag_lesson=True,
+        lesson_flags=(DualQualityFlag.TOPIC_NOT_CLOSED,),
+        lesson_boundary=lesson_boundary,
+    )
+    (payload,) = [value for provider in providers for value in provider.audit_payloads][:1]
+    persisted = {
+        cast(dict[str, str], entry["candidate"])["candidate_id"]: entry[
+            "persisted_discovery_gated_flags"
+        ]
+        for entry in cast(list[dict[str, object]], payload["candidates"])
+    }
+    repairs = [value for provider in providers for value in provider.audit_repairs]
+    manifest = _manifest(tmp_path, "run")
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_overlap"]
+    if lesson_boundary is None:
+        assert persisted == {"mini_lesson_lesson": [], "mini_overlap": []}
+        assert repairs == [] and manifest.audit_pair_fallbacks == ()
+        assert manifest.persisted_flag_representative_duplicates[ClipProfile.MINI_LESSON] == 0
+        assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+        assert mini.selected[0].quality_flags == ()
+        return
+    assert persisted == {"mini_lesson_lesson": ["topic_not_closed"], "mini_overlap": []}
+    (errors,) = repairs
+    assert "persisted Discovery gated flags" in errors[0]
+    (record,) = manifest.audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id) == (
+        "persisted_flag_representative",
+        "mini_overlap",
+    )
+    assert manifest.persisted_flag_representative_duplicates[ClipProfile.MINI_LESSON] == 1
+    assert mini.selected == () and mini.manual_review == ()
+    (blocked,) = mini.blocked
+    assert blocked.candidate_id == "mini_lesson_lesson"
+    assert DualQualityFlag.TOPIC_NOT_CLOSED in blocked.quality_flags
+
+
+def test_audit_may_not_keep_a_representative_that_persisted_flags_will_block(
+    tmp_path: Path,
+) -> None:
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="keep_lesson",
+        repair_audit="duplicate",
+        flag_lesson=True,
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "persisted Discovery gated flags" in errors[0]
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_overlap"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_near_identical_audit_fallback_blocks_one_member_and_round_trips(
+    tmp_path: Path, refresh: bool
+) -> None:
+    cache = tmp_path / "cache"
+    # The audit insists on keeping both near-identical members (initial, repair and
+    # regeneration alike); the downgrade-only fallback lets the run finish.
+    providers, cold_final = _overlap_run(
+        tmp_path,
+        "cold",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    cold = _manifest(tmp_path, "cold")
+    (record,) = cold.audit_pair_fallbacks
+    # Both span 110 s; the later-starting member is blocked, the other is kept.
+    assert (record.rule, record.blocked_candidate_id) == ("near_identical_pair", "mini_overlap")
+    mini = cold_final.profiles[ClipProfile.MINI_LESSON]
+    assert [value.candidate_id for value in mini.selected] == ["mini_lesson_lesson"]
+    (blocked,) = mini.blocked
+    assert blocked.review_reason.startswith("Deterministic audit fallback: ")
+    (entry_path,) = cache.glob("mini_lesson/global_audit/*.json")
+    entry = json.loads(entry_path.read_text(encoding="utf-8"))
+    assert entry["conservative_fallback"] == {
+        "stage": "global_audit",
+        "candidate_ids": ["mini_overlap"],
+    }
+    # The cache keeps the raw model output (no block in it).
+    assert entry["output"]["replacements"] == []
+    before = {path: path.read_bytes() for path in cache.glob("*/*/*.json")}
+
+    _overlap_run(
+        tmp_path,
+        "warm",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+        refresh_stale_cache=refresh,
+        no_calls=True,
+    )
+    warm = _manifest(tmp_path, "warm")
+    assert set(warm.calls.values()) == {0}
+    assert warm.audit_pair_fallbacks == cold.audit_pair_fallbacks
+    for name in ("final-validated.json", "global-review.json"):
+        assert (tmp_path / "warm" / name).read_bytes() == (tmp_path / "cold" / name).read_bytes()
+    assert {path: path.read_bytes() for path in cache.glob("*/*/*.json")} == before
+
+
+def test_representative_rule_fallback_accepts_and_records_without_promoting(
+    tmp_path: Path,
+) -> None:
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=2,
+        first_audit="dup_blocked_rep",
+        repair_audit="dup_blocked_rep",
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    (record,) = _manifest(tmp_path, "run").audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id, record.blocked_candidate_id) == (
+        "overlap_representative",
+        "mini_lesson_lesson",
+        None,
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == ()
+    assert [value.candidate_id for value in mini.rejected] == ["mini_lesson_lesson"]
+    assert [value.candidate_id for value in mini.blocked] == ["mini_overlap"]
+
+
+def test_persisted_representative_violation_is_accepted_and_counted(tmp_path: Path) -> None:
+    # The audit keeps insisting on a representative that persisted flags will block.
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=3,
+        first_audit="keep_lesson",
+        repair_audit="keep_lesson",
+        flag_lesson=True,
+    )
+    assert len([value for provider in providers for value in provider.audit_repairs]) == 1
+    manifest = _manifest(tmp_path, "run")
+    (record,) = manifest.audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id) == (
+        "persisted_flag_representative",
+        "mini_overlap",
+    )
+    # Run diagnostic for the real run (Stage 13c P2-B).
+    assert manifest.persisted_flag_representative_duplicates == {
+        ClipProfile.SHORT_HIGHLIGHT: 0,
+        ClipProfile.MINI_LESSON: 1,
+    }
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == ()
+    assert [value.candidate_id for value in mini.blocked] == ["mini_lesson_lesson"]
+    assert [value.candidate_id for value in mini.rejected] == ["mini_overlap"]
+
+
+def test_warm29_blocked_duplicate_of_a_persisted_representative_reaches_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d regression for the warm-29 shape: the model blocks a non-risk
+    duplicate whose representative carries persisted flags. Before, final assembly
+    refused the blocked duplicate with a plain ValueError and the run failed closed;
+    now only the persisted-flag representative rule remains, and the downgrade-only
+    fallback accepts the model's duplicate unchanged."""
+
+    providers, final = _overlap_run(
+        tmp_path,
+        "run",
+        overlap_start=3,
+        first_audit="blocked_dup",
+        repair_audit="blocked_dup",
+        flag_lesson=True,
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "duplicate mini_overlap resolves to a representative with persisted" in errors[0]
+    assert "rejected audit row" not in errors[0]
+    (record,) = _manifest(tmp_path, "run").audit_pair_fallbacks
+    assert (record.rule, record.duplicate_candidate_id) == (
+        "persisted_flag_representative",
+        "mini_overlap",
+    )
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert mini.selected == () and mini.manual_review == () and mini.rejected == ()
+    blocked = {value.candidate_id: value for value in mini.blocked}
+    assert blocked["mini_overlap"].duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert blocked["mini_lesson_lesson"].review_reason.startswith(
+        "Deterministic flag persistence: "
+    )
+
+
+def test_blocked_non_risk_duplicate_is_accepted_without_repair(tmp_path: Path) -> None:
+    """Stage 13d: final assembly accepts a blocked duplicate for any candidate, as the
+    pair validator does, so the warm-29 contradiction cannot recur."""
+
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=2, first_audit="blocked_dup", repair_audit="omit"
+    )
+    assert [value for provider in providers for value in provider.audit_repairs] == []
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    (blocked,) = [value for value in mini.blocked if value.candidate_id == "mini_overlap"]
+    assert blocked.duplicate_of_candidate_id == "mini_lesson_lesson"
+    assert blocked.review_reason == "Same objective; keep one representative."
+    assert [value.candidate_id for value in mini.selected + mini.manual_review] == [
+        "mini_lesson_lesson"
+    ]
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
+
+
+def test_assembly_and_pair_errors_are_reported_together_and_skip_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Stage 13d: one message carries both error kinds; the downgrade-only fallback
+    runs only when the pair rules are the sole failures, so it is not applied."""
+
+    with pytest.raises(DualProfileValidationExhaustedError) as caught:
+        _overlap_run(
+            tmp_path,
+            "run",
+            overlap_start=2,
+            first_audit="low_selected",
+            repair_audit="low_selected",
+        )
+    error = caught.value
+    assert (error.profile, error.stage) == ("mini_lesson", "global_audit")
+    for attempt in error.attempts:
+        assert "selected candidate mini_lesson_lesson does not exceed the score threshold" in (
+            attempt.error
+        )
+        assert "; Global Audit pairs: " in attempt.error
+        assert "cannot keep both candidates selected or manual_review" in attempt.error
+    failed = json.loads((tmp_path / "run" / "failed-mini_lesson-global_audit.json").read_text())
+    assert [value["phase"] for value in failed["attempts"]] == [
+        "initial",
+        "repair",
+        "regeneration",
+    ]
+    manifest = json.loads((tmp_path / "run" / "failure-manifest.json").read_text())
+    assert manifest["audit_pair_fallbacks"] == []
+
+
+def test_assembly_only_audit_error_is_repaired_without_the_pair_label(tmp_path: Path) -> None:
+    """Stage 13e (reviewer P2): a merged audit whose only failure is final assembly
+    (an ordinary overlap pair decided distinct, a selected score at the threshold)
+    raises the assembly error alone, so it is repaired; it must never be accepted."""
+
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="low_selected", repair_audit="distinct"
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    message = errors[0]
+    assert "selected candidate mini_lesson_lesson does not exceed the score threshold" in message
+    assert "Global Audit pairs" not in message
+    mini = final.profiles[ClipProfile.MINI_LESSON]
+    assert all(value.score > 60.0 for value in mini.selected)
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
+
+
+class PrefixedGlobalReviewProvider(ScriptedDualProvider):
+    """The first Global Review chunk output starts a reason with a reserved prefix."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        repairs: list[Any],
+        prefix: str = "Deterministic quality gate: ",
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.repairs = repairs
+        self.prefix = prefix
+
+    def generate(self, *, subject_id: str, response_model: Any, **kwargs: Any) -> Any:
+        result = super().generate(subject_id=subject_id, response_model=response_model, **kwargs)
+        if response_model is not ProfileGlobalReviewOutput:
+            return result
+        output = cast(ProfileGlobalReviewOutput, result.output)
+        first, *rest = output.reviews
+        prefixed = first.model_copy(update={"review_reason": f"{self.prefix}{first.review_reason}"})
+        return StructuredCallResult(
+            output=output.model_copy(update={"reviews": (prefixed, *rest)}),
+            call_records=(),
+            repaired=False,
+        )
+
+    def repair(self, *, subject_id: str, validation_errors: Any, **kwargs: Any) -> Any:
+        self.repairs.append((subject_id, validation_errors))
+        return super().repair(subject_id=subject_id, validation_errors=validation_errors, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "prefix", ["Deterministic quality gate: ", "Deterministic risk-twin review: "]
+)
+def test_global_review_chunk_refuses_a_reserved_prefix_through_repair(
+    tmp_path: Path, prefix: str
+) -> None:
+    """Stage 13d (Stage 13c reviewer P3): the Global Review chunk check is covered.
+    Stage 15b: the risk-twin review prefix (routing v7) is refused the same way."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    repairs: list[Any] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return PrefixedGlobalReviewProvider(prompt, {}, repairs, prefix)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "run",
+        provider_factory=factory,
+        discovery_concurrency=1,
+    )
+    assert sorted(subject for subject, _errors in repairs) == [
+        "mini_lesson.global.001",
+        "short_highlight.global.001",
+    ]
+    for _subject, errors in repairs:
+        assert "starts with a prefix reserved for deterministic Python routing" in errors[0]
+    review = json.loads((tmp_path / "run" / "global-review.json").read_text("utf-8"))
+    assert not any(
+        item["review_reason"].startswith(prefix)
+        for profile in review["profiles"].values()
+        for item in profile["reviews"]
+    )
+
+
+def test_model_written_fallback_prefix_is_repaired(tmp_path: Path) -> None:
+    providers, final = _overlap_run(
+        tmp_path, "run", overlap_start=3, first_audit="prefixed", repair_audit="distinct"
+    )
+    (errors,) = [value for provider in providers for value in provider.audit_repairs]
+    assert "reserved for deterministic Python routing" in errors[0]
+    assert _manifest(tmp_path, "run").audit_pair_fallbacks == ()
+    assert not any(
+        value.review_reason.startswith("Deterministic audit fallback: ")
+        for result in final.profiles.values()
+        for group in (result.selected, result.manual_review, result.blocked, result.rejected)
+        for value in group
+    )
+
+
+def test_audit_fallback_never_masks_another_failure(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cover every listed nested pair"):
+        _overlap_run(tmp_path, "run", overlap_start=2, first_audit="omit", repair_audit="omit")
+
+
+def test_tampered_audit_fallback_marker_fails_closed(tmp_path: Path) -> None:
+    cache = tmp_path / "cache"
+    _overlap_run(
+        tmp_path,
+        "cold",
+        overlap_start=2,
+        first_audit="distinct",
+        repair_audit="distinct",
+        cache=cache,
+    )
+    (entry_path,) = cache.glob("mini_lesson/global_audit/*.json")
+    entry = json.loads(entry_path.read_text(encoding="utf-8"))
+    entry["conservative_fallback"]["candidate_ids"] = ["mini_lesson_lesson"]
+    entry_path.chmod(0o600)
+    entry_path.write_text(json.dumps(entry), encoding="utf-8")
+    with pytest.raises(ValueError, match="fallback marker is invalid"):
+        _overlap_run(
+            tmp_path,
+            "warm",
+            overlap_start=2,
+            first_audit="distinct",
+            repair_audit="distinct",
+            cache=cache,
+            no_calls=True,
+        )
+
+
 def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> None:
     short = load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT)
     mini = load_dual_profile_prompt("discovery", ClipProfile.MINI_LESSON)
@@ -471,6 +3534,271 @@ def test_dual_profile_prompts_are_profile_specific_and_forbid_cross_dedup() -> N
     assert "candidate_id` must start with `audit_" in audit.instructions
     assert "ownership_interval` literally" in audit.instructions
     assert "strictly less than `ownership_interval.end_ms`" in audit.instructions
+
+
+# Discovery-family prompt identities are frozen: a change would invalidate every
+# cached Discovery call.  Review-stage prompts may evolve independently.
+# Stage 14 (user decision 2026-11-01) deliberately re-pinned them: the shared
+# main.md gained the microphone/demonstration rule and the padding-is-edge
+# definition, so every Discovery pass sees them (cold Discovery cache).
+# Stage 14b re-pinned coverage_audit (both Profiles) and risk_discovery: interior
+# interruptions are named `material_interruption`; padding flags stay edge-only.
+# Stage 15 (user decision 2026-11-04) re-pinned every Discovery pass: the shared
+# main.md gained the `material_interruption` threshold (interior content counts
+# only when it breaks the teaching or claim logic; a brief passed-over audience
+# acknowledgement is neither an interruption nor padding), mirrored in
+# risk_discovery and coverage_audit; precision_audit's greeting sentence now
+# defers to that threshold (cold Discovery cache again).
+# Stage 15b (2026-11-04, reviewer P3-d) re-pinned every Discovery pass again: the
+# shared main.md microphone/demonstration sentence was re-wrapped (a 167-character
+# line split at the usual width; the words are unchanged), which changes the bytes
+# every stage loads (cold Discovery cache again).
+# Stage 17 (user decision 2026-11-05, "Both" fixes) re-pinned every Discovery pass:
+# the shared main.md narrows the Stage 15 exemption to a single-cue passed-over
+# audience thanks, greeting or name call-out; interior calls to action, platform
+# prompts, chat reading and presentation troubleshooting are
+# `material_interruption` even when brief and are subtracted in the duration
+# test; writing the taught term on the board stays part of the lesson. Mirrored
+# verbatim in coverage_audit and risk_discovery (cold Discovery cache again).
+# Stage 17b (2026-11-05, reviewer P2/P3) re-pinned every Discovery pass: the shared
+# main.md lists gifts only as something the speaker requests ("requests for fan
+# badges, follows, likes or gifts") and names a single-cue thanks for a gift or
+# follow inside the exemption; mirrored verbatim in coverage_audit and
+# risk_discovery, whose rhetorical-question paragraph now uses the same single-cue
+# wording instead of "a brief greeting or audience acknowledgement" (cold
+# Discovery cache again).
+FROZEN_DISCOVERY_PROMPT_HASHES = {
+    ("short_highlight", "discovery"): (
+        "2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802"
+    ),
+    ("short_highlight", "coverage_audit"): (
+        "834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31"
+    ),
+    ("mini_lesson", "discovery"): (
+        "f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba"
+    ),
+    ("mini_lesson", "coverage_audit"): (
+        "984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1"
+    ),
+    ("mini_lesson", "precision_audit"): (
+        "941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870"
+    ),
+    ("mini_lesson", "precision_confirmation"): (
+        "fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b"
+    ),
+    ("mini_lesson", "risk_discovery"): (
+        "76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4"
+    ),
+}
+
+
+def test_discovery_prompt_identities_are_unchanged() -> None:
+    for (profile, stage), expected in FROZEN_DISCOVERY_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt(stage, ClipProfile(profile)).sha256 == expected
+
+
+# Review-stage prompt identities as the service records them (prompt_hashes from
+# load_dual_profile_prompt / load_dual_profile_variant_link_prompt).  Review prompts
+# may evolve, but every change must re-pin here and in the STATUS/ExecPlan hash
+# tables, so documented hashes cannot drift from the shipped prompts.
+# Stage 14c (2026-11-02): boundary_review re-pinned (interior chat kept for duration
+# flags `padded_with_irrelevant_content` alongside the interior flag; interior
+# audibility/lag/playback trouble cross-referenced as `material_interruption`).
+# Stage 15 (2026-11-04): every review stage re-pinned. main.md (shared) carries the
+# `material_interruption` threshold; boundary_review lists the brief passed-over
+# acknowledgement among non-interruptions ("teaching or claim logic") and
+# boundary_review, global_review and global_audit gained the self-promotion rule
+# (a candidate centred on the speaker's own credentials, pricing, course sales or
+# schedule is rejected, not merely flagged). The variant link (no main.md) is
+# unchanged.
+# Stage 15b (2026-11-04): every review stage re-pinned. main.md was re-wrapped
+# (words unchanged); boundary_review's on-topic duration test now subtracts only
+# interior material that meets the `material_interruption` threshold, and a brief
+# passed-over greeting or thanks is neither flag nor removed (reviewer P3-b);
+# global_audit's near-identical paragraph was re-wrapped (words unchanged). The
+# variant link (no main.md) is unchanged.
+# Stage 17 (2026-11-05): every review stage re-pinned. main.md (shared) narrows the
+# exemption (see FROZEN_DISCOVERY_PROMPT_HASHES); boundary_review mirrors it in its
+# `material_interruption` definition and on-topic duration test; global_review and
+# global_audit restate it next to the interior audibility rule; global_review also
+# states the routing v9 release of an attested, cleared `topic_not_closed`. The
+# variant link (no main.md) is unchanged.
+# Stage 17b (2026-11-05, reviewer P2/P3): every review stage re-pinned. main.md
+# (shared) changes as described at FROZEN_DISCOVERY_PROMPT_HASHES; boundary_review,
+# global_review and global_audit name the single-cue gift or follow thanks inside
+# their exemption and list gifts only as requests; boundary_review's duration test
+# keeps board-writing and the live-demo equipment remark inside the lesson (not
+# subtracted). The variant link (no main.md) is unchanged.
+PINNED_REVIEW_PROMPT_HASHES = {
+    ("short_highlight", "boundary_review"): (
+        "ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2"
+    ),
+    ("short_highlight", "global_review"): (
+        "a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646"
+    ),
+    ("short_highlight", "global_audit"): (
+        "5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc"
+    ),
+    ("mini_lesson", "boundary_review"): (
+        "abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23"
+    ),
+    ("mini_lesson", "global_review"): (
+        "ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3"
+    ),
+    ("mini_lesson", "global_audit"): (
+        "092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f"
+    ),
+}
+PINNED_VARIANT_LINK_PROMPT_HASH = "def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef"
+
+
+def test_review_stage_prompt_identities_match_pins() -> None:
+    assert {stage for _, stage in PINNED_REVIEW_PROMPT_HASHES} == {
+        "boundary_review",
+        "global_review",
+        "global_audit",
+    }
+    assert {profile for profile, _ in PINNED_REVIEW_PROMPT_HASHES} == {
+        profile.value for profile in ClipProfile
+    }
+    for (profile, stage), expected in PINNED_REVIEW_PROMPT_HASHES.items():
+        assert load_dual_profile_prompt(stage, ClipProfile(profile)).sha256 == expected
+    assert load_dual_profile_variant_link_prompt().sha256 == PINNED_VARIANT_LINK_PROMPT_HASH
+
+
+def test_review_stage_prompts_route_by_structure_and_audit_nested_pairs() -> None:
+    def text(stage: Any, profile: ClipProfile) -> str:
+        return " ".join(load_dual_profile_prompt(stage, profile).instructions.split())
+
+    for profile in ClipProfile:
+        boundary = text("boundary_review", profile)
+        review = text("global_review", profile)
+        audit = text("global_audit", profile)
+        assert "beginning with `risk_`" not in boundary
+        assert "`discovery_pass` is `risk_discovery`" in boundary
+        assert "only to meet duration" not in boundary
+        assert "whether or not they are needed to reach the Profile minimum" in boundary
+        assert "setup, not premises" in boundary
+        for value in (boundary, review, audit):
+            assert "meaning cannot be recovered from cues inside the interval" in value
+            assert "is not a dependency" in value
+            assert "immediate application or consequence of the same concept" in value
+        assert "also remove `missing_required_prior_steps`" not in audit
+        assert "Boundary Review quality flags are cumulative" in review
+        assert "Boundary Review quality flags are cumulative" in audit
+        assert "`nested_pair_decisions`" in audit
+        assert "containment, a shared edge or overlap alone never establishes duplication" in audit
+        assert "shortest independently complete candidate" in audit
+        # Stage 13: overlap pairs, the near-identical rule and the general tie-break.
+        assert "`audit_pairs`" in audit and "`nested_pairs`" not in audit
+        assert "`overlap`: neither contains the other" in audit
+        assert "do not keep both `selected`/`manual_review`" in audit
+        assert "keep the shortest independently complete version" in audit
+        # Stage 13b: near-copy containment, the precomputed field and persisted flags.
+        assert "`containment`: one lies strictly inside the other" in audit
+        assert "precomputed `near_identical` field" in audit
+        assert "the two end at the same point" not in audit
+        assert "`persisted_discovery_gated_flags`" in audit
+        assert "never choose it as a duplicate representative" in audit
+        # Stage 13d: duplicates end rejected or blocked (matching final assembly),
+        # flags never require a blocked duplicate, guidance for pairs whose members
+        # both carry persisted flags, and containment starts are not a criterion.
+        assert (
+            "A candidate with `duplicate_of_candidate_id` must end `rejected` or `blocked`, "
+            "never `selected` or `manual_review`; both are non-output." in audit
+        )
+        assert "never changes a `rejected` row" in audit
+        assert "so flags never require a duplicate to be `blocked`" in audit
+        assert "When both members of a listed pair carry `persisted_discovery_gated_flags`" in (
+            audit
+        )
+        assert "decide `distinct_objective` without a duplicate reference" in audit
+        assert "mark both as duplicates of that representative" in audit
+        assert "so that the other one is `rejected` or `blocked` with" in audit
+        assert "may instead be `blocked`" not in audit
+        assert "start, within the boundary tolerance" not in audit
+        assert "inner candidate of a `containment` pair lasts at least 90% of the outer" in audit
+        # General wording only: no candidate IDs, cue IDs or timestamps.
+        raw_audit = load_dual_profile_prompt("global_audit", profile).instructions
+        stage_text = raw_audit[raw_audit.index("Listed pairs.") :]
+        assert re.search(r"\b(?:sh|ml)_?\d{2,}|\b\d{3,}\b|\d+:\d{2}", stage_text) is None
+
+
+def test_stage9_review_prompt_batch_is_general_and_consistent() -> None:
+    def text(stage: Any, profile: ClipProfile) -> str:
+        return " ".join(load_dual_profile_prompt(stage, profile).instructions.split())
+
+    shared_label_rule = (
+        "A number, nickname or ordinal attached to an item that the interval itself presents, "
+        "contrasts or demonstrates is recoverable even if it was coined earlier, including when it "
+        "appears only in the conclusion; do not flag it or extend the interval to its "
+        "coinage. Flag a dependency only when the opening or the conclusion's instruction "
+        "depends on a definition, sample, step or comparison half that the interval never "
+        "presents"
+    )
+    for profile in ClipProfile:
+        boundary = text("boundary_review", profile)
+        review = text("global_review", profile)
+        audit = text("global_audit", profile)
+        for value in (boundary, review, audit):
+            assert shared_label_rule in value
+            assert "second half of a before/after comparison is context-dependent" in value
+            assert "never resolves a dependency" in value
+        # A: narrowed audio-note carve-out and device/playback trouble.
+        assert "short device-distance statement" not in boundary
+        assert "brief functional audio-position note" not in boundary
+        assert "own brief remark about microphone distance or placement" not in boundary
+        assert (
+            "brief explanation of their own equipment, microphone distance or placement, or of why "
+            "moving closer helps listeners hear, is part of the demonstration" in boundary
+        )
+        assert "An audibility check means asking or answering whether someone can hear" in boundary
+        assert "connection lag" in boundary
+        assert "A speaker explaining how listeners can hear better is not an audibility check" in (
+            boundary
+        )
+        assert "described as part of the teaching, is not connection lag" in boundary
+        for value in (review, audit):
+            assert "asking or answering whether someone can hear" in value
+            assert "brief explanation of their own equipment" in value
+        assert "trouble playing back a recording are `device_or_waiting_padding`" in boundary
+        assert "`material_interruption` when they split a demonstration" not in boundary
+        assert (
+            "Inside the interval, between on-topic cues, the same content is "
+            "`material_interruption`; `device_or_waiting_padding` may be added alongside that "
+            "interior flag, never used instead of it" in boundary
+        )
+        assert (
+            "A reference to another video or post is setup when the kept interval defines and "
+            "demonstrates its own method" in boundary
+        )
+        # C: live diagnosis boundaries come from transcribed cues.
+        assert "starts at the first transcribed cue of the evaluated sample" in boundary
+        assert "untranscribed gap holds audio" in boundary
+        assert (
+            "An edge may extend into an untranscribed gap only when transcribed cues inside the "
+            "interval show that the sample in that gap is the one being evaluated" in boundary
+        )
+        assert "an earlier untranscribed sample is the one evaluated" in review
+        assert "a participant's own question about their voice" in boundary
+        assert "starting at its first transcribed cue" in review
+        # B2: the Profile minimum must be met by on-topic content.
+        assert "The Profile minimum must be met by on-topic content" in boundary
+        assert "at or under the Profile minimum" not in boundary
+        assert (
+            "would leave a clip that no longer satisfies the Profile duration minimum, flag "
+            "`padded_with_irrelevant_content`" in boundary
+        )
+        assert (
+            "closing acknowledgement or address to the audience is neither padding nor subtracted "
+            "from the duration" in boundary
+        )
+        # Reviewer P2 wording.
+        assert "(a `risk_discovery` record is retained as `blocked`)" in review
+        assert "decide every pair your replacements create" in audit
+        # Earlier asserted phrases are kept.
+        assert "status, flags and reason must agree" in audit
+        assert "setup, not premises" in boundary
 
 
 def test_service_allows_one_deterministic_repair_after_provider_schema_repair(
@@ -558,3 +3886,801 @@ def test_service_regenerates_once_when_deterministic_repair_is_still_invalid(
     assert manifest.retry_count == 1
     assert manifest.repair_count == 2
     assert final.profiles[ClipProfile.SHORT_HIGHLIGHT].statistics.discovered == 1
+
+
+def test_claude_cli_provider_and_model_reach_the_run_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    contract = f"claude-cli-editorial-v1.2.1.307.{'c' * 64}"
+    monkeypatch.setattr(claude_cli_module, "resolve_claude_executable", lambda _value: "/fake")
+    monkeypatch.setattr(claude_cli_module, "claude_cli_contract_version", lambda _value: contract)
+    auth_checks: list[str] = []
+
+    def subscription(value: str) -> claude_cli_module.ClaudeCliAuthStatus:
+        auth_checks.append(value)
+        return claude_cli_module.ClaudeCliAuthStatus(
+            logged_in=True, auth_method="claude.ai", api_provider="firstParty"
+        )
+
+    monkeypatch.setattr(claude_cli_module, "require_claude_subscription", subscription)
+    scripted = ScriptedDualProvider(
+        load_dual_profile_prompt("discovery", ClipProfile.SHORT_HIGHLIGHT), {}
+    )
+    models: dict[str, type[BaseModel]] = {
+        model.__name__: model
+        for model in (
+            ProfileDiscoveryOutput,
+            ProfileBoundaryReviewOutput,
+            ProfileGlobalReviewOutput,
+            ProfileGlobalAuditOutput,
+            CrossProfileVariantLinkOutput,
+        )
+    }
+    efforts: list[str] = []
+
+    def run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        # Stand-in for the CLI: answer from the scripted Profile fixture.
+        efforts.append(argv[argv.index("--effort") + 1])
+        schema = json.loads(argv[argv.index("--json-schema") + 1])
+        prompt = kwargs["stdin_stream"].read().decode()
+        payload = json.loads(
+            prompt.split("<untrusted_json>\n", 1)[1].rsplit("\n</untrusted_json>", 1)[0]
+        )
+        output = scripted._output(payload, models[schema["title"]])
+        result = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "structured_output": output.model_dump(mode="json"),
+            "num_turns": 2,
+            "permission_denials": [],
+            "usage": {"input_tokens": 3, "cache_read_input_tokens": 7, "output_tokens": 5},
+            "modelUsage": {"claude-opus-5-5": {}},
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(result), "")
+
+    monkeypatch.setattr(claude_cli_module, "run_cancellable_process", run)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: Any):
+        return ClaudeCliStructuredLLMProvider(
+            prompts=prompt,
+            model_name="claude-opus-5-5",
+            claude_executable="claude",
+            timeout_seconds=60,
+            contract_version=contract,
+            reasoning_effort=reasoning_effort,
+        )
+
+    output_dir = tmp_path / "output"
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=output_dir,
+        provider_factory=factory,
+        discovery_concurrency=2,
+    )
+
+    manifest = DualProfileRunManifest.model_validate_json(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    calls = json.loads((output_dir / "provider-calls.json").read_text(encoding="utf-8"))["calls"]
+    assert manifest.provider == "claude_cli"
+    assert manifest.model == "claude-opus-5-5"
+    assert manifest.input_tokens == 10 * len(calls)
+    assert manifest.output_tokens == 5 * len(calls)
+    assert calls
+    assert {call["provider"] for call in calls} == {"claude_cli"}
+    assert {call["model"] for call in calls} == {"claude-opus-5-5"}
+    assert {call["request_count"] for call in calls} == {1}
+    assert {"medium", "high"} <= set(efforts)
+    # One subscription check per provider construction plus one per call.
+    assert len(auth_checks) > len(efforts)
+
+
+# --- Stage 16: provider-failure observability -----------------------------------
+
+
+def _call_record(
+    subject_id: str,
+    operation: str,
+    *,
+    status: ProviderCallStatus = ProviderCallStatus.SUCCEEDED,
+    failure_code: str | None = None,
+) -> ProviderCallRecord:
+    return ProviderCallRecord(
+        call_id=uuid.uuid4().hex,
+        operation_key=hashlib.sha256(
+            f"{operation}:{subject_id}:{uuid.uuid4().hex}".encode()
+        ).hexdigest(),
+        subject_id=subject_id,
+        provider="mock",
+        operation=operation,
+        model="mock-dual-v1",
+        request_count=1,
+        retry_count=0,
+        latency_ms=7,
+        usage_json={"input_tokens": 3, "output_tokens": 2},
+        status=status,
+        failure_code=failure_code,
+        called_at=datetime.now(UTC),
+    )
+
+
+class RecordingDualProvider(ScriptedDualProvider):
+    """Scripted outputs plus one succeeded call record per request."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        requests: list[tuple[object, str]] | None = None,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.requests = requests if requests is not None else []
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        self.requests.append((kwargs["payload"].get("profile"), kwargs["response_model"].__name__))
+        result = super().generate(subject_id=subject_id, **kwargs)
+        return StructuredCallResult(
+            output=result.output,
+            call_records=(_call_record(subject_id, "generate"),),
+            repaired=result.repaired,
+        )
+
+    def repair(self, *, subject_id: str, **kwargs: Any) -> Any:
+        result = super().repair(subject_id=subject_id, **kwargs)
+        return StructuredCallResult(
+            output=result.output,
+            call_records=(_call_record(subject_id, "repair"),),
+            repaired=result.repaired,
+        )
+
+
+def _is_short_global_review(kwargs: dict[str, Any]) -> bool:
+    return (
+        kwargs["response_model"] is ProfileGlobalReviewOutput
+        and kwargs["payload"].get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+    )
+
+
+class GlobalReviewTimeoutProvider(RecordingDualProvider):
+    """Every short Global Review request times out, as cold-32 did during sleep."""
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if _is_short_global_review(kwargs):
+            raise StructuredProviderError(
+                "PROVIDER_TIMEOUT",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_TIMEOUT",
+                    ),
+                ),
+                timeout_seconds=1800,
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+
+def _cache_snapshot(cache: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(cache)): path.read_bytes() for path in sorted(cache.rglob("*.json"))
+    }
+
+
+def test_global_review_provider_timeouts_write_provider_failure_evidence(
+    tmp_path: Path,
+) -> None:
+    """Stage 16 P1 (cold-32): two consecutive PROVIDER_TIMEOUTs in Global Review
+    leave a failure file, partial provider calls and a failure manifest in the run
+    directory, never touch the cache for the failing unit, keep every earlier cache
+    entry reusable, and re-raise."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+
+    def failing_factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return GlobalReviewTimeoutProvider(prompt, {})
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=failing_factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    assert isinstance(error, RuntimeError)
+    assert (error.profile, error.stage, error.phase) == (
+        "short_highlight",
+        "global_review",
+        "initial",
+    )
+    assert error.subject_id == "short_highlight.global.001"
+    assert error.failure_code == "PROVIDER_TIMEOUT"
+    assert error.provider_message == "structured provider request timed out after 1800 s"
+    assert "could not be validated" not in str(error)
+    assert error.evidence_file == str(output_dir / "failed-short_highlight-global_review.json")
+    failing_subjects = [
+        "short_highlight.global.001",
+        "short_highlight.global.001.semantic_retry_1",
+    ]
+    assert [record.subject_id for record in error.records] == failing_subjects
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-global_review.json").read_text("utf-8")
+    )
+    assert failed["status"] == "provider_failed"
+    assert failed["failure_code"] == "PROVIDER_TIMEOUT"
+    assert failed["failed_phase"] == "initial"
+    assert failed["message"] == "structured provider request timed out after 1800 s"
+    assert failed["cache_written"] is False
+    assert failed["attempts"] == []
+    assert [value["subject_id"] for value in failed["provider_calls"]] == failing_subjects
+    assert {value["status"] for value in failed["provider_calls"]} == {"failed"}
+    assert {value["failure_code"] for value in failed["provider_calls"]} == {
+        "STRUCTURED_PROVIDER_TIMEOUT"
+    }
+    assert failed["concurrent_exhausted_units"] == []
+    assert failed["concurrent_provider_failed_units"] == []
+
+    calls = json.loads((output_dir / "provider-calls.json").read_text("utf-8"))
+    assert calls["partial"] is True
+    subjects = [value["subject_id"] for value in calls["calls"]]
+    # Every completed unit's call first, then the two failing calls.
+    assert subjects[-2:] == failing_subjects
+    completed = calls["calls"][:-2]
+    assert completed
+    assert {value["status"] for value in completed} == {"succeeded"}
+    assert any(".boundary." in subject for subject in subjects[:-2])
+
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["failure_code"] == "PROVIDER_TIMEOUT"
+    assert manifest["failed_phase"] == "initial"
+    assert manifest["failure_file"] == "failed-short_highlight-global_review.json"
+    assert (manifest["failed_profile"], manifest["failed_stage"]) == (
+        "short_highlight",
+        "global_review",
+    )
+    assert manifest["failed_subject_id"] == "short_highlight.global.001"
+    assert manifest["concurrent_failed_subject_ids"] == []
+    assert manifest["provider_call_count"] == len(subjects)
+    assert manifest["input_tokens"] == 3 * len(subjects)
+    assert "global_review" not in manifest["resolved_units"]
+    assert manifest["resolved_units"]["boundary_review"]["new"] >= 1
+    assert not (output_dir / "run-manifest.json").exists()
+    assert not (output_dir / "final-validated.json").exists()
+
+    # Nothing cached for the failing unit; no failure evidence in the cache.
+    assert not list(cache.glob("short_highlight/global_review/*.json"))
+    snapshot = _cache_snapshot(cache)
+    assert snapshot
+    for text in snapshot.values():
+        assert b"provider_failed" not in text
+        assert b"semantic_retry" not in text
+
+    # Earlier entries stay intact and are reused byte-for-byte by a later run.
+    requests: list[tuple[object, str]] = []
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {}, requests)
+
+    run_dual_profile_evaluation(
+        transcript_path=transcript,
+        output_dir=tmp_path / "rerun",
+        provider_factory=factory,
+        cache_dir=cache,
+        discovery_concurrency=2,
+    )
+    rerun = DualProfileRunManifest.model_validate_json(
+        (tmp_path / "rerun" / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert rerun.cache_hits == len(snapshot)
+    after = _cache_snapshot(cache)
+    assert {key: after[key] for key in snapshot} == snapshot
+    assert ("short_highlight", "ProfileGlobalReviewOutput") in requests
+    assert ("short_highlight", "ProfileBoundaryReviewOutput") not in requests
+
+
+class ConcurrentGlobalChunkFailureProvider(RecordingDualProvider):
+    """Two short candidates, one Global Review chunk each; both chunks fail.
+
+    Each chunk's first request waits for the other before failing, so the two
+    provider failures overlap while the first one propagates.
+    """
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.barrier = barrier
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if _is_short_global_review(kwargs):
+            if not subject_id.endswith(".semantic_retry_1"):
+                self.barrier.wait()
+            raise StructuredProviderError(
+                "PROVIDER_ERROR",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_ERROR",
+                    ),
+                ),
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        value = super()._output(payload, response_model)
+        if (
+            response_model is ProfileDiscoveryOutput
+            and payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and isinstance(value, ProfileDiscoveryOutput)
+            and value.candidates
+        ):
+            (first,) = value.candidates
+            second = first.model_copy(
+                update={
+                    "candidate_id": "short_highlight_second",
+                    "variant_group_id": "second_lesson",
+                    "start_cue_id": 7,
+                    "end_cue_id": 11,
+                    "evidence_cue_ids": (7, 11),
+                    "title": "第二个短片",
+                }
+            )
+            return cast(OutputModel, value.model_copy(update={"candidates": (first, second)}))
+        return value
+
+
+def test_concurrent_global_chunk_provider_failures_are_all_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    real_chunks = dual_profile_evaluation_module._chunks
+
+    def single_candidate_chunks(values: Any, *, size: int) -> Any:
+        del size
+        return real_chunks(values, size=1)
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "_chunks", single_candidate_chunks)
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ConcurrentGlobalChunkFailureProvider(prompt, {}, barrier=barrier)
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=3,
+        )
+    error = caught.value
+    chunks = {"short_highlight.global.001", "short_highlight.global.002"}
+    assert error.subject_id in chunks
+    (other,) = chunks - {error.subject_id}
+    assert error.failure_code == "PROVIDER_ERROR"
+
+    failed = json.loads(
+        (output_dir / "failed-short_highlight-global_review.json").read_text("utf-8")
+    )
+    assert failed["subject_id"] == error.subject_id
+    assert failed["concurrent_exhausted_units"] == []
+    (concurrent,) = failed["concurrent_provider_failed_units"]
+    assert (concurrent["stage"], concurrent["subject_id"], concurrent["failure_code"]) == (
+        "global_review",
+        other,
+        "PROVIDER_ERROR",
+    )
+    assert [value["subject_id"] for value in concurrent["provider_calls"]] == [
+        other,
+        f"{other}.semantic_retry_1",
+    ]
+
+    subjects = [
+        value["subject_id"]
+        for value in json.loads((output_dir / "provider-calls.json").read_text("utf-8"))["calls"]
+    ]
+    assert subjects[-4:] == [
+        error.subject_id,
+        f"{error.subject_id}.semantic_retry_1",
+        other,
+        f"{other}.semantic_retry_1",
+    ]
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert manifest["concurrent_failures"] == [
+        {
+            "stage": "global_review",
+            "profile": "short_highlight",
+            "subject_id": other,
+            "failure_kind": "provider_failure",
+            "failure_code": "PROVIDER_ERROR",
+        }
+    ]
+    assert manifest["provider_call_count"] == len(subjects)
+    assert not list(cache.glob("short_highlight/global_review/*.json"))
+
+
+class ExhaustedAndProviderFailedDiscoveryProvider(RecordingDualProvider):
+    """One short Discovery window exhausts validation while another's provider
+    call fails; each waits for the other before failing."""
+
+    def __init__(
+        self,
+        prompt: SemanticGlobalPromptBundle,
+        counter: dict[str, int],
+        *,
+        exhausted_window: str,
+        failed_window: str,
+        barrier: threading.Barrier,
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.exhausted_window = exhausted_window
+        self.failed_window = failed_window
+        self.barrier = barrier
+
+    @staticmethod
+    def _base_discovery(payload: dict[str, object], window: str) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") == window
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        payload = kwargs["payload"]
+        if self._base_discovery(payload, self.failed_window):
+            if not subject_id.endswith(".semantic_retry_1"):
+                self.barrier.wait()
+            raise StructuredProviderError(
+                "PROVIDER_ERROR",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_ERROR",
+                    ),
+                ),
+            )
+        result = super().generate(subject_id=subject_id, **kwargs)
+        if subject_id.endswith(".deterministic_retry_1") and self._base_discovery(
+            payload, self.exhausted_window
+        ):
+            self.barrier.wait()
+        return result
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._base_discovery(
+            payload, self.exhausted_window
+        ):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_exhausted_and_provider_failed_units_share_one_failure_record(tmp_path: Path) -> None:
+    """Stage 16: when an exhausted validation and a provider failure overlap, the
+    propagating error writes the evidence and the other is kept beside it."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    output_dir = tmp_path / "output"
+    windows = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )
+    exhausted_window, failed_window = windows[0].window_id, windows[1].window_id
+    barrier = threading.Barrier(2, timeout=30)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return ExhaustedAndProviderFailedDiscoveryProvider(
+            prompt,
+            {},
+            exhausted_window=exhausted_window,
+            failed_window=failed_window,
+            barrier=barrier,
+        )
+
+    with pytest.raises(
+        (
+            DualProfileValidationExhaustedError,
+            dual_profile_evaluation_module.DualProfileProviderFailureError,
+        )
+    ) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            discovery_concurrency=2,
+        )
+    error = caught.value
+    exhausted_first = isinstance(error, DualProfileValidationExhaustedError)
+    other = failed_window if exhausted_first else exhausted_window
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert failed["subject_id"] == error.subject_id
+    if exhausted_first:
+        assert failed["status"] == "validation_exhausted"
+        assert manifest["failure_kind"] == "validation_exhausted"
+        assert failed["concurrent_exhausted_units"] == []
+        (concurrent,) = failed["concurrent_provider_failed_units"]
+        assert concurrent["failure_code"] == "PROVIDER_ERROR"
+        other_kind = "provider_failure"
+    else:
+        assert failed["status"] == "provider_failed"
+        assert manifest["failure_kind"] == "provider_failure"
+        assert failed["concurrent_provider_failed_units"] == []
+        (concurrent,) = failed["concurrent_exhausted_units"]
+        assert [value["phase"] for value in concurrent["attempts"]] == [
+            "initial",
+            "repair",
+            "regeneration",
+        ]
+        other_kind = "validation_exhausted"
+    assert concurrent["subject_id"] == other
+    assert manifest["concurrent_failed_subject_ids"] == [other]
+    assert [value["failure_kind"] for value in manifest["concurrent_failures"]] == [other_kind]
+    subjects = [
+        value["subject_id"]
+        for value in json.loads((output_dir / "provider-calls.json").read_text("utf-8"))["calls"]
+    ]
+    for window in (exhausted_window, failed_window):
+        assert window in subjects
+
+
+def test_an_unexpected_mid_run_error_still_writes_a_failure_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16 backstop: any other exception after the run directory exists writes
+    failure-manifest.json with the completed call records and is re-raised."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    defect = ValueError("synthetic mid-run defect")
+
+    def broken_risk_twin_review(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise defect
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "risk_twin_review", broken_risk_twin_review)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(ValueError, match="synthetic mid-run defect") as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=2,
+        )
+    assert caught.value is defect
+    manifest_path = output_dir / "failure-manifest.json"
+    assert caught.value.__notes__ == [f"failure evidence: {manifest_path}"]
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["failure_kind"] == "unexpected_error"
+    assert manifest["exception_type"] == "ValueError"
+    # Stage 16b: the exception text is never stored in durable evidence.
+    assert manifest["exception_message_recorded"] is False
+    assert "error" not in manifest
+    assert "synthetic mid-run defect" not in manifest_path.read_text("utf-8")
+    assert manifest["failure_file"] is None
+    assert manifest["recorded_unit_failures"] == []
+    assert manifest["provider_calls"]
+    assert manifest["provider_call_count"] == len(manifest["provider_calls"])
+    assert {value["status"] for value in manifest["provider_calls"]} == {"succeeded"}
+    assert manifest["resolved_units"]["global_review"]["new"] >= 1
+    # Only the manifest is added: no unit failure file, no partial calls, no final
+    # outputs (intermediate stage outputs written earlier stay as they were).
+    names = {path.name for path in output_dir.iterdir()}
+    assert "failure-manifest.json" in names
+    assert not {name for name in names if name.startswith("failed-")}
+    assert not names & {"provider-calls.json", "run-manifest.json", "final-validated.json"}
+    # The completed units were cached; the failure evidence never is.
+    assert list(cache.rglob("*.json"))
+    for entry in cache.rglob("*.json"):
+        assert "unexpected_error" not in entry.read_text("utf-8")
+
+
+def test_the_backstop_manifest_never_stores_the_exception_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stage 16b: an arbitrary exception may quote an account, a token or a local
+    path; the durable manifest keeps only its class name. The text still reaches
+    the caller through the re-raised exception."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    output_dir = tmp_path / "output"
+    # Synthetic values only; the address is assembled so no literal appears here.
+    address = "someone" + "@" + "example.invalid"
+    secret_text = (
+        f"defect for {address} token sk-synthetic0123456789abcdef at "
+        "/Users/someone/private/notes.txt"
+    )
+
+    class SyntheticDefectError(RuntimeError):
+        pass
+
+    def broken_risk_twin_review(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise SyntheticDefectError(secret_text)
+
+    monkeypatch.setattr(dual_profile_evaluation_module, "risk_twin_review", broken_risk_twin_review)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(SyntheticDefectError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            discovery_concurrency=2,
+        )
+    assert str(caught.value) == secret_text
+    text = (output_dir / "failure-manifest.json").read_text("utf-8")
+    manifest = json.loads(text)
+    assert manifest["failure_kind"] == "unexpected_error"
+    assert manifest["exception_type"] == "SyntheticDefectError"
+    assert manifest["exception_message_recorded"] is False
+    for fragment in (address, "sk-synthetic", "/Users/someone", "defect for"):
+        assert fragment not in text
+
+
+class RegenerationProviderFailureDiscoveryProvider(RecordingDualProvider):
+    """One short Discovery window fails validation on its initial and repaired
+    outputs; its regeneration request then fails at the provider."""
+
+    def __init__(
+        self, prompt: SemanticGlobalPromptBundle, counter: dict[str, int], *, window: str
+    ) -> None:
+        super().__init__(prompt, counter)
+        self.window = window
+
+    def _target(self, payload: dict[str, object]) -> bool:
+        return (
+            payload.get("profile") == ClipProfile.SHORT_HIGHLIGHT.value
+            and payload.get("discovery_pass") is None
+            and payload.get("window_id") == self.window
+        )
+
+    def generate(self, *, subject_id: str, **kwargs: Any) -> Any:
+        if subject_id.endswith(".deterministic_retry_1") and self._target(kwargs["payload"]):
+            raise StructuredProviderError(
+                "PROVIDER_TIMEOUT",
+                (
+                    _call_record(
+                        subject_id,
+                        "generate",
+                        status=ProviderCallStatus.FAILED,
+                        failure_code="STRUCTURED_PROVIDER_TIMEOUT",
+                    ),
+                ),
+                timeout_seconds=1800,
+            )
+        return super().generate(subject_id=subject_id, **kwargs)
+
+    def _output(self, payload: dict[str, object], response_model: type[OutputModel]) -> OutputModel:
+        if response_model is ProfileDiscoveryOutput and self._target(payload):
+            return cast(
+                OutputModel,
+                ProfileDiscoveryOutput(
+                    profile=ClipProfile.SHORT_HIGHLIGHT,
+                    window_id=f"{payload['window_id']}_wrong",
+                ),
+            )
+        return super()._output(payload, response_model)
+
+
+def test_a_regeneration_provider_failure_is_recorded_as_the_regeneration_phase(
+    tmp_path: Path,
+) -> None:
+    """Stage 16b (reviewer mutation R7): the failure file and the failure manifest
+    name ``regeneration`` and keep the initial and repair attempts."""
+
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+    cache = tmp_path / "cache"
+    output_dir = tmp_path / "output"
+    window = plan_profile_discovery_windows(
+        load_srt_transcript(transcript), ClipProfile.SHORT_HIGHLIGHT
+    )[0].window_id
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RegenerationProviderFailureDiscoveryProvider(prompt, {}, window=window)
+
+    with pytest.raises(dual_profile_evaluation_module.DualProfileProviderFailureError) as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=output_dir,
+            provider_factory=factory,
+            cache_dir=cache,
+            discovery_concurrency=1,
+        )
+    error = caught.value
+    assert (error.stage, error.profile, error.phase) == (
+        "discovery",
+        "short_highlight",
+        "regeneration",
+    )
+    assert error.failure_code == "PROVIDER_TIMEOUT"
+    failed = json.loads((output_dir / "failed-short_highlight-discovery.json").read_text("utf-8"))
+    assert failed["status"] == "provider_failed"
+    assert failed["failed_phase"] == "regeneration"
+    assert failed["message"] == "structured provider request timed out after 1800 s"
+    assert [value["phase"] for value in failed["attempts"]] == ["initial", "repair"]
+    assert [value["status"] for value in failed["provider_calls"]] == [
+        "succeeded",
+        "succeeded",
+        "failed",
+    ]
+    assert failed["provider_calls"][-1]["subject_id"].endswith(".deterministic_retry_1")
+    manifest = json.loads((output_dir / "failure-manifest.json").read_text("utf-8"))
+    assert manifest["failure_kind"] == "provider_failure"
+    assert manifest["failed_phase"] == "regeneration"
+    assert manifest["failure_code"] == "PROVIDER_TIMEOUT"
+    assert manifest["failed_stage"] == "discovery"
+    assert "during regeneration" in manifest["error"]
+    # The failing unit is never cached: no cached output carries its invalid window.
+    for path in cache.rglob("*.json"):
+        text = path.read_text("utf-8")
+        assert f"{window}_wrong" not in text
+        assert "provider_failed" not in text
+
+
+def test_an_error_before_the_run_directory_exists_writes_nothing(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.srt"
+    _write_srt(transcript)
+
+    def factory(prompt: SemanticGlobalPromptBundle, reasoning_effort: str):
+        del reasoning_effort
+        return RecordingDualProvider(prompt, {})
+
+    with pytest.raises(ValueError, match="Discovery concurrency") as caught:
+        run_dual_profile_evaluation(
+            transcript_path=transcript,
+            output_dir=tmp_path / "output",
+            provider_factory=factory,
+            discovery_concurrency=0,
+        )
+    assert not hasattr(caught.value, "__notes__")
+    assert not (tmp_path / "output").exists()

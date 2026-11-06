@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pickle
 import subprocess
 import sys
 import time
@@ -137,6 +138,188 @@ def test_process_timeout_counts_wall_time_when_monotonic_clock_stalls(monkeypatc
         )
 
     assert real_monotonic() - started < 3
+
+
+def _wall_clock_jump(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    wall_jump: float,
+    monotonic_jump: float = 0.0,
+    sleep_clock_jump: float | None = None,
+) -> Any:
+    """Advance the clocks once the runner has started its deadline bookkeeping.
+
+    The jump is armed by the first cancellation poll, which runs after every start
+    time was read, so it models a host that slept during the request. The
+    sleep-counting clock (``CLOCK_MONOTONIC_RAW`` on Darwin, the wall clock
+    elsewhere) jumps with the wall clock unless ``sleep_clock_jump`` says
+    otherwise, as both count a real sleep.
+    """
+
+    real_time = time.time
+    real_monotonic = time.monotonic
+    # The unpatched sleep-counting clock: on the wall-clock fallback it must not
+    # read the patched ``time.time`` below, or the jump would count twice.
+    real_sleep_clock: Any = (
+        (lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW))
+        if process_module._SLEEP_CLOCK_IS_MONOTONIC_RAW
+        else real_time
+    )
+    sleep_jump = wall_jump if sleep_clock_jump is None else sleep_clock_jump
+    state = {"armed": False}
+    monkeypatch.setattr(
+        process_module.time, "time", lambda: real_time() + (wall_jump if state["armed"] else 0)
+    )
+    monkeypatch.setattr(
+        process_module.time,
+        "monotonic",
+        lambda: real_monotonic() + (monotonic_jump if state["armed"] else 0),
+    )
+    monkeypatch.setattr(
+        process_module,
+        "_sleep_counting_clock",
+        lambda: real_sleep_clock() + (sleep_jump if state["armed"] else 0),
+    )
+
+    def cancel_requested() -> bool:
+        state["armed"] = True
+        return False
+
+    return cancel_requested
+
+
+def test_process_timeout_after_system_sleep_is_classified_as_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stage 16: the wall clock ran 120 s ahead of the monotonic clock, and only the
+    wall-clock deadline fired, so the host slept through the child."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=120.0)
+    started = time.perf_counter()
+    with pytest.raises(process_module.ProcessInterruptedBySleep) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import os,time;os.write(2,b'partial');time.sleep(30)"],
+            timeout_seconds=60,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+
+    error = caught.value
+    # Still a TimeoutExpired, so every existing caller keeps its timeout semantics.
+    assert isinstance(error, subprocess.TimeoutExpired)
+    assert error.timeout == 60
+    assert error.wall_elapsed_seconds >= 120
+    assert error.monotonic_elapsed_seconds < 60
+    assert 60 < error.suspended_seconds <= 125
+    assert "host was suspended" in str(error)
+    assert time.perf_counter() - started < 15
+    restored = pickle.loads(pickle.dumps(error))
+    assert type(restored) is process_module.ProcessInterruptedBySleep
+    assert restored.suspended_seconds == error.suspended_seconds
+
+
+def test_process_wall_clock_timeout_below_the_sleep_gap_stays_a_plain_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=45.0)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=40,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
+
+
+def test_process_timeout_whose_monotonic_budget_is_spent_is_not_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A large wall-clock lead does not hide a genuine timeout: the monotonic clock
+    alone had already used the whole budget."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=1_200.0, monotonic_jump=1_000.0)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=600,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
+
+
+def test_process_wall_clock_step_without_sleep_is_a_plain_timeout_on_darwin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stage 16b: on Darwin the gap is measured on CLOCK_MONOTONIC_RAW, so a wall
+    clock stepped 120 s forward (NTP, by hand) while the host stayed awake fires
+    the wall-clock deadline as a plain timeout, never as a sleep."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=120.0, sleep_clock_jump=0.0)
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=60,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
+
+
+def test_process_sleep_is_detected_even_if_the_wall_clock_was_stepped_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sleep-counting clock enforces the deadline and measures the gap, so a
+    sleep is still detected when the wall clock did not move forward."""
+
+    cancel_requested = _wall_clock_jump(monkeypatch, wall_jump=-30.0, sleep_clock_jump=120.0)
+    started = time.perf_counter()
+    with pytest.raises(process_module.ProcessInterruptedBySleep) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=60,
+            poll_seconds=0.01,
+            cancel_requested=cancel_requested,
+        )
+    assert caught.value.wall_elapsed_seconds >= 120
+    assert 60 < caught.value.suspended_seconds <= 125
+    assert time.perf_counter() - started < 15
+
+
+def test_sleep_counting_clock_is_monotonic_raw_on_darwin_and_wall_time_elsewhere(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_raw = sys.platform == "darwin" and hasattr(time, "CLOCK_MONOTONIC_RAW")
+    assert process_module._SLEEP_CLOCK_IS_MONOTONIC_RAW is expected_raw
+    raw_clock = getattr(time, "CLOCK_MONOTONIC_RAW", 4)
+    monkeypatch.setattr(process_module.time, "CLOCK_MONOTONIC_RAW", raw_clock, raising=False)
+    read: list[int] = []
+
+    def clock_gettime(clock: int) -> float:
+        read.append(clock)
+        return 1_000.0
+
+    monkeypatch.setattr(process_module.time, "clock_gettime", clock_gettime, raising=False)
+    monkeypatch.setattr(process_module.time, "time", lambda: 2_000.0)
+
+    monkeypatch.setattr(process_module, "_SLEEP_CLOCK_IS_MONOTONIC_RAW", True)
+    assert process_module._sleep_counting_clock() == 1_000.0
+    assert read == [raw_clock]
+
+    monkeypatch.setattr(process_module, "_SLEEP_CLOCK_IS_MONOTONIC_RAW", False)
+    assert process_module._sleep_counting_clock() == 2_000.0
+    assert read == [raw_clock]
+
+
+def test_process_real_timeout_is_a_plain_timeout() -> None:
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        run_cancellable_process(
+            [sys.executable, "-c", "import time;time.sleep(30)"],
+            timeout_seconds=0.2,
+            poll_seconds=0.01,
+        )
+    assert type(caught.value) is subprocess.TimeoutExpired
 
 
 def test_process_runner_terminates_process_group_on_cancellation(tmp_path: Path) -> None:

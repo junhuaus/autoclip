@@ -14,7 +14,7 @@ VENV_BIN := $(PROJECT_ROOT)/.venv/bin
 NODE_LTS_BIN ?= /usr/local/bin
 UV_ENV := UV_CACHE_DIR=$(UV_CACHE_DIR_LOCAL) UV_PYTHON_INSTALL_DIR=$(UV_PYTHON_DIR_LOCAL)
 
-.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status start-codex resume-codex
+.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-claude smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status start-codex resume-codex
 
 setup:
 	@command -v $(UV) >/dev/null || { echo "uv is required: https://docs.astral.sh/uv/"; exit 1; }
@@ -67,6 +67,9 @@ smoke-cloud:
 
 smoke-codex:
 	@"$(VENV_BIN)/liveclip" smoke-codex
+
+smoke-claude:
+	@"$(VENV_BIN)/liveclip" smoke-claude
 
 smoke-openrouter:
 	@test -n "$(INPUT)" || { echo 'INPUT=/absolute/path/to/short.mp4 is required'; exit 2; }

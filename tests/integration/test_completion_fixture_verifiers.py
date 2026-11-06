@@ -254,10 +254,13 @@ def completion_sample(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
         _insert_rows(connection, "deliveries", durable["deliveries"])
         _insert_rows(connection, "delivery_clips", durable["delivery_clips"])
         _insert_rows(connection, "assets", durable["assets"])
+    scope, scope_identity = _FIXTURE.allocate_report_scope("completion")
     sample = {
         "repository": repository,
         "root": root,
         "identity": identity,
+        "scope": scope,
+        "scope_identity": scope_identity,
         "database": database,
         "durable": durable,
         "evidence": evidence,
@@ -272,7 +275,11 @@ def completion_sample(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
 
 def _verified_run(sample: dict, *, retain: bool = False) -> dict:
     return _FIXTURE.verify_completion_run(
-        sample["root"], expected_identity=sample["identity"], retain_packages=retain
+        sample["root"],
+        expected_identity=sample["identity"],
+        retain_packages=retain,
+        report_scope=sample["scope"],
+        report_scope_identity=sample["scope_identity"],
     )
 
 
@@ -428,14 +435,20 @@ def test_complete_sqlite_verifier_refuses_signed_zip_retention(
 def _bundle_paths(sample: dict) -> tuple[Path, Path]:
     repository = sample["repository"]
     run_id = sample["durable"]["run"]["id"]
-    folder = repository / "apps/web/playwright-report/completion-packages" / run_id
+    folder = sample["scope"] / run_id
+    assert sample["scope"].parent == repository / "apps/web/playwright-report/completion-packages"
     return repository, folder
 
 
-def _verified_bundle(sample: dict) -> dict:
-    return _RETAINED.verify_bundle(
-        sample["repository"], removed_fixture_root=sample["root"], prove_rejection=True
-    )
+def _verified_bundle(sample: dict, **overrides: object) -> dict:
+    arguments: dict[str, object] = {
+        "removed_fixture_root": sample["root"],
+        "prove_rejection": True,
+        "report_scope": sample["scope"],
+        "report_scope_identity": sample["scope_identity"],
+        **overrides,
+    }
+    return _RETAINED.verify_bundle(sample["repository"], **arguments)
 
 
 def _rehash(folder: Path, *names: str) -> None:
@@ -636,3 +649,195 @@ def test_complete_retained_verifier_rejects_rehashed_mutations(
         marker_path.write_bytes(original_marker)
         manifest_path.write_bytes(original_manifest)
         assert _verified_bundle(sample)["status"] == "PASS"
+
+
+def _retained_sample(sample: dict) -> Path:
+    _verified_run(sample, retain=True)
+    assert _FIXTURE.cleanup_fixture(sample["root"], expected_identity=sample["identity"])
+    _repository, folder = _bundle_paths(sample)
+    return folder
+
+
+def _tree_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_retained_verifier_ignores_and_preserves_prior_invocation_packages(
+    completion_sample: dict,
+) -> None:
+    sample = completion_sample
+    run_id = sample["durable"]["run"]["id"]
+    report_root = sample["scope"].parent
+    # Earlier invocations: one pre-scope flat package and one scoped package,
+    # each deliberately invalid so selecting either one would fail closed.
+    flat = report_root / ("c" * 32)
+    flat.mkdir()
+    (flat / "manifest.json").write_bytes(b"{}")
+    earlier_scope, _earlier_identity = _FIXTURE.allocate_report_scope("completion")
+    earlier = earlier_scope / run_id
+    earlier.mkdir()
+    (earlier / "manifest.json").write_bytes(b'{"stale": true}')
+    folder = _retained_sample(sample)
+    # A complete package in the B2 folder is never completion evidence.
+    b2_scope, _b2_identity = _FIXTURE.allocate_report_scope("b2")
+    shutil.copytree(folder, b2_scope / run_id)
+    before = {path: _tree_bytes(path) for path in (flat, earlier_scope, b2_scope)}
+    result = _verified_bundle(sample)
+    assert result["status"] == "PASS"
+    assert result["report_scope"] == sample["scope"].name
+    assert result["run_id"] == run_id
+    assert result["manifest_sha256"] == _digest((folder / "manifest.json").read_bytes())
+    for path, contents in before.items():
+        assert _tree_bytes(path) == contents
+    # The same identity-bound scope verifies repeatedly without consuming evidence.
+    assert _verified_bundle(sample)["status"] == "PASS"
+
+
+def test_retained_verifier_keeps_exactly_one_package_within_invocation_scope(
+    completion_sample: dict,
+) -> None:
+    sample = completion_sample
+    scope = sample["scope"]
+    with pytest.raises(ValueError, match="exactly one retained completion package required"):
+        _verified_bundle(sample, removed_fixture_root=Path("/nonexistent-liveclip-fixture"))
+    folder = _retained_sample(sample)
+    second = scope / ("e" * 32)
+    shutil.copytree(folder, second)
+    with pytest.raises(ValueError, match="exactly one retained completion package required"):
+        _verified_bundle(sample)
+    shutil.rmtree(second)
+    assert _verified_bundle(sample)["status"] == "PASS"
+    incomplete = scope / ("e" * 32)
+    incomplete.mkdir()
+    with pytest.raises(ValueError, match="retained run directory"):
+        _verified_bundle(sample)
+    incomplete.rmdir()
+    stray = scope / "notes.txt"
+    stray.write_text("unscoped")
+    with pytest.raises(ValueError, match="retained run directory"):
+        _verified_bundle(sample)
+    stray.unlink()
+    # A scope another invocation allocated cannot stand in for this one.
+    other, other_identity = _FIXTURE.allocate_report_scope("completion")
+    with pytest.raises(ValueError, match="exactly one retained completion package required"):
+        _verified_bundle(sample, report_scope=other, report_scope_identity=other_identity)
+    with pytest.raises(ValueError, match="retained report scope identity"):
+        _verified_bundle(sample, report_scope=other)
+    other.rmdir()
+    with pytest.raises(ValueError, match="retained report scope missing"):
+        _verified_bundle(sample, report_scope=other, report_scope_identity=other_identity)
+    assert _verified_bundle(sample)["status"] == "PASS"
+
+
+def test_retained_verifier_rejects_foreign_traversal_and_symlinked_scopes(
+    completion_sample: dict,
+) -> None:
+    sample = completion_sample
+    scope = sample["scope"]
+    folder = _retained_sample(sample)
+    report_root = scope.parent
+    for foreign in (
+        scope.relative_to(sample["repository"]),
+        report_root / ".." / "completion-packages" / scope.name,
+        report_root / "latest",
+        report_root.parent / "b2-packages" / scope.name,
+        folder,
+    ):
+        with pytest.raises(ValueError, match="retained report scope path"):
+            _verified_bundle(sample, report_scope=foreign)
+    with pytest.raises(ValueError, match="retained report scope path"):
+        _verified_bundle(sample, scenario="b2")
+    link = report_root / ("f" * 32)
+    link.symlink_to(scope, target_is_directory=True)
+    with pytest.raises(ValueError, match="retained report scope not a real directory"):
+        _verified_bundle(sample, report_scope=link)
+    link.unlink()
+    aside = scope.with_name(f".{scope.name}.aside")
+    scope.rename(aside)
+    scope.mkdir()
+    shutil.copytree(aside / folder.name, scope / folder.name)
+    with pytest.raises(ValueError, match="retained report scope identity"):
+        _verified_bundle(sample)
+    shutil.rmtree(scope)
+    aside.rename(scope)
+    real_root = report_root.with_name("real-completion-packages")
+    report_root.rename(real_root)
+    report_root.symlink_to(real_root, target_is_directory=True)
+    try:
+        with pytest.raises(ValueError, match="retained report scope not a real directory"):
+            _verified_bundle(sample)
+    finally:
+        report_root.unlink()
+        real_root.rename(report_root)
+    assert _verified_bundle(sample)["status"] == "PASS"
+
+
+@pytest.mark.parametrize("swap", ["scope", "run"])
+def test_retained_verifier_rejects_scope_swapped_after_initial_check(
+    completion_sample: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    swap: str,
+) -> None:
+    sample = completion_sample
+    scope = sample["scope"]
+    folder = _retained_sample(sample)
+    assert _verified_bundle(sample)["status"] == "PASS"
+    original = _RETAINED.prove_lineage_rejections
+    target = scope if swap == "scope" else folder
+    aside = target.with_name(f".{target.name}.aside")
+
+    def swap_then_prove(*args: object, **kwargs: object) -> None:
+        # Runs after the scope was validated and every retained byte was read.
+        target.rename(aside)
+        shutil.copytree(aside, target)
+        original(*args, **kwargs)
+
+    monkeypatch.setattr(_RETAINED, "prove_lineage_rejections", swap_then_prove)
+    message = (
+        "retained report scope identity"
+        if swap == "scope"
+        else "retained run directory changed during verification"
+    )
+    with pytest.raises(ValueError, match=message):
+        _verified_bundle(sample)
+    monkeypatch.setattr(_RETAINED, "prove_lineage_rejections", original)
+    shutil.rmtree(target)
+    aside.rename(target)
+    assert _verified_bundle(sample)["status"] == "PASS"
+
+
+def test_retained_verifier_baseline_is_the_same_lstat_as_its_directory_check(
+    completion_sample: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample = completion_sample
+    folder = _retained_sample(sample)
+    assert _verified_bundle(sample)["status"] == "PASS"
+    # Outside the scope, so the scope still holds only the (replaced) run.
+    aside = sample["repository"] / f".{folder.name}.aside"
+    original_lstat = Path.lstat
+    swaps: list[Path] = []
+
+    def lstat_then_swap(self: Path) -> object:
+        result = original_lstat(self)
+        if self == folder and not swaps:
+            # Replace the run directory right after its first lstat. With a
+            # separate second lstat the baseline would be the replacement and
+            # the swap would go unnoticed.
+            swaps.append(self)
+            folder.rename(aside)
+            shutil.copytree(aside, folder)
+        return result
+
+    monkeypatch.setattr(Path, "lstat", lstat_then_swap)
+    with pytest.raises(ValueError, match="retained run directory changed during verification"):
+        _verified_bundle(sample)
+    monkeypatch.setattr(Path, "lstat", original_lstat)
+    assert swaps == [folder]
+    shutil.rmtree(folder)
+    aside.rename(folder)
+    assert _verified_bundle(sample)["status"] == "PASS"

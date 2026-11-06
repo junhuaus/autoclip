@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from lease_suspend import SIMULATED_SUSPEND, SUSPEND_TOLERANT_LEASE_SECONDS, ShiftedWallClock
 
 from liveclip.application.pipeline import (
     LeaseIdentity,
@@ -50,10 +51,13 @@ class BlockingCountingHandler:
         return self._delegate.execute(work, lease, cancel_requested=cancel_requested)
 
 
-@pytest.mark.integration
-def test_foreground_and_worker_share_one_lease_and_execute_each_stage_once(
+def _run_foreground_with_blocked_ingest(
     tmp_path: Path,
-) -> None:
+    *,
+    lease_seconds: int,
+    while_ingest_blocked: Callable[[], None] = lambda: None,
+) -> BlockingCountingHandler:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     media_root = tmp_path / "media"
     source_path = media_root / "source.mp4"
     data_dir = tmp_path / "projects"
@@ -62,7 +66,7 @@ def test_foreground_and_worker_share_one_lease_and_execute_each_stage_once(
     Base.metadata.create_all(engine)
     repository = SqlAlchemyPipelineRepository(engine)
     service = PipelineService(repository)
-    queue = SQLiteTaskQueue(engine, lease_seconds=30)
+    queue = SQLiteTaskQueue(engine, lease_seconds=lease_seconds)
     handler = BlockingCountingHandler(
         PipelineStageHandlers(
             data_dir=data_dir,
@@ -127,13 +131,56 @@ def test_foreground_and_worker_share_one_lease_and_execute_each_stage_once(
             worker.run_one(worker_id="independent-worker", pipeline_run_id=created.run_id)
             == RunOneOutcome.IDLE
         )
+        while_ingest_blocked()
         handler.release_ingest.set()
         thread.join(timeout=60)
 
         assert not thread.is_alive()
         assert failures == []
         assert snapshots == [PipelineRunStatus.COMPLETED]
-        assert handler.counts == Counter({stage: 1 for stage in PipelineStage})
+        return handler
     finally:
         handler.release_ingest.set()
         engine.dispose(close=True)
+
+
+@pytest.mark.integration
+def test_foreground_and_worker_share_one_lease_and_execute_each_stage_once(
+    tmp_path: Path,
+) -> None:
+    handler = _run_foreground_with_blocked_ingest(
+        tmp_path, lease_seconds=SUSPEND_TOLERANT_LEASE_SECONDS
+    )
+    assert handler.counts == Counter({stage: 1 for stage in PipelineStage})
+
+
+@pytest.mark.integration
+def test_simulated_suspend_keeps_exactly_once_only_within_the_test_lease(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = ShiftedWallClock(monkeypatch)
+
+    def suspend() -> None:
+        # Wall time jumps while the stage holds its lease; monotonic time does not.
+        clock.suspend()
+
+    handler = _run_foreground_with_blocked_ingest(
+        tmp_path / "tolerant",
+        lease_seconds=SUSPEND_TOLERANT_LEASE_SECONDS,
+        while_ingest_blocked=suspend,
+    )
+    assert clock.offset == SIMULATED_SUSPEND
+    assert handler.counts == Counter({stage: 1 for stage in PipelineStage})
+
+    # Production semantics stay intact: past the 30 s lease these tests
+    # previously used, the same suspend expires the lease, so the stage is
+    # recovered and executed again.
+    handler = _run_foreground_with_blocked_ingest(
+        tmp_path / "operational",
+        lease_seconds=30,
+        while_ingest_blocked=suspend,
+    )
+    assert handler.counts == Counter(
+        {stage: 2 if stage == PipelineStage.INGEST else 1 for stage in PipelineStage}
+    )

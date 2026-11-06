@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -18,6 +19,63 @@ _KILL_GRACE_SECONDS = 5.0
 
 class ProcessCancelled(RuntimeError):
     """A subprocess was terminated after its owning task requested cancellation."""
+
+
+# A wall-clock lead over the monotonic clock beyond this many seconds at the time
+# a timeout fires means the host was suspended (system sleep) while the child was
+# running, not that the child used its whole budget.
+SLEEP_DETECTION_GAP_SECONDS = 60.0
+
+# Stage 16b: the suspension gap is measured against a clock that keeps counting
+# while the host sleeps. On Darwin ``time.monotonic`` (mach_absolute_time) stops
+# during sleep while ``CLOCK_MONOTONIC_RAW`` keeps counting and, unlike the wall
+# clock, is never stepped by NTP or by hand, so a wall-clock correction is never
+# mistaken for a sleep there. Elsewhere the wall clock is the fallback.
+_SLEEP_CLOCK_IS_MONOTONIC_RAW = sys.platform == "darwin" and hasattr(time, "CLOCK_MONOTONIC_RAW")
+
+
+def _sleep_counting_clock() -> float:
+    """Seconds on a clock that keeps counting while the host is suspended."""
+
+    if _SLEEP_CLOCK_IS_MONOTONIC_RAW:
+        return time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
+    return time.time()
+
+
+class ProcessInterruptedBySleep(subprocess.TimeoutExpired):
+    """The wall-clock deadline expired while the host was suspended.
+
+    A subclass of ``TimeoutExpired`` so every existing caller keeps its timeout
+    semantics; a caller that can tell the two apart catches this class first.
+    Raised only when the monotonic budget was *not* exhausted and the
+    sleep-counting clock (``CLOCK_MONOTONIC_RAW`` on Darwin, the wall clock
+    elsewhere) ran more than ``SLEEP_DETECTION_GAP_SECONDS`` ahead of the
+    monotonic clock. ``wall_elapsed_seconds`` is the elapsed time on that clock.
+    """
+
+    def __init__(
+        self,
+        cmd: Sequence[str],
+        timeout: float,
+        *,
+        wall_elapsed_seconds: float = 0.0,
+        monotonic_elapsed_seconds: float = 0.0,
+        output: str | None = None,
+        stderr: str | None = None,
+    ) -> None:
+        super().__init__(cmd, timeout, output=output, stderr=stderr)
+        self.wall_elapsed_seconds = wall_elapsed_seconds
+        self.monotonic_elapsed_seconds = monotonic_elapsed_seconds
+
+    @property
+    def suspended_seconds(self) -> float:
+        return max(0.0, self.wall_elapsed_seconds - self.monotonic_elapsed_seconds)
+
+    def __str__(self) -> str:
+        return (
+            f"Command timed out after {self.timeout} seconds of wall-clock time while the "
+            f"host was suspended for about {round(self.suspended_seconds)} seconds"
+        )
 
 
 class _BoundedCapture:
@@ -109,6 +167,7 @@ def run_cancellable_process(
     stdin_stream: BinaryIO | None = None,
     env: Mapping[str, str] | None = None,
     on_started: Callable[[], None] | None = None,
+    cwd: str | os.PathLike[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run an argv-only child with bounded output, timeout, and cancellation."""
 
@@ -139,6 +198,7 @@ def run_cancellable_process(
         start_new_session=True,
         pass_fds=inherited_fds,
         env=dict(env) if env is not None else None,
+        cwd=cwd,
     )
     if on_started is not None:
         try:
@@ -184,6 +244,7 @@ def run_cancellable_process(
 
     started = time.monotonic()
     wall_started = time.time()
+    sleep_clock_started = _sleep_counting_clock()
     try:
         while process.poll() is None or not all(reader.done for reader in readers):
             for reader in readers:
@@ -197,12 +258,32 @@ def run_cancellable_process(
             # of system sleep. A provider request started before sleep must not
             # receive a fresh timeout budget after wake, so enforce the larger
             # of monotonic and wall-clock elapsed time. A backwards wall-clock
-            # correction cannot weaken the monotonic deadline.
-            elapsed = max(time.monotonic() - started, time.time() - wall_started)
+            # correction cannot weaken the monotonic deadline. The
+            # sleep-counting clock also counts, so on Darwin a sleep is enforced
+            # even if the wall clock was stepped backwards meanwhile.
+            monotonic_elapsed = time.monotonic() - started
+            wall_elapsed = time.time() - wall_started
+            sleep_clock_elapsed = _sleep_counting_clock() - sleep_clock_started
+            elapsed = max(monotonic_elapsed, wall_elapsed, sleep_clock_elapsed)
             remaining = timeout_seconds - elapsed
             if remaining <= 0:
                 _terminate_process_group(process)
                 _join_readers(readers)
+                # The monotonic budget was not spent and the sleep-counting clock
+                # ran far ahead of the monotonic clock: the host slept through the
+                # call (a wall-clock step alone is not a sleep on Darwin).
+                if (
+                    monotonic_elapsed < timeout_seconds
+                    and sleep_clock_elapsed - monotonic_elapsed > SLEEP_DETECTION_GAP_SECONDS
+                ):
+                    raise ProcessInterruptedBySleep(
+                        arguments,
+                        timeout_seconds,
+                        wall_elapsed_seconds=sleep_clock_elapsed,
+                        monotonic_elapsed_seconds=monotonic_elapsed,
+                        output=stdout_capture.text(),
+                        stderr=stderr_capture.text(),
+                    )
                 raise subprocess.TimeoutExpired(
                     arguments,
                     timeout_seconds,

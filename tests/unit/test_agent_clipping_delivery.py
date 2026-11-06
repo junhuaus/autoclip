@@ -5,11 +5,13 @@ import json
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 import liveclip.cli.app as cli_module
+import liveclip.services.agent_clipping_delivery as delivery_module
 from liveclip.agent_runtime.models import AgentArtifact, AgentRunResult
 from liveclip.agent_runtime.skills import load_packaged_agent_skill
 from liveclip.agent_tools.clipping import (
@@ -25,6 +27,7 @@ from liveclip.agent_tools.titles import (
     SaveTitleOptionsArguments,
     build_title_options_artifact,
 )
+from liveclip.domain.edit_plan import EditPlan, reject_executable_text
 from liveclip.services.agent_clipping_delivery import (
     AgentClippingDeliveryError,
     export_agent_clipping_review_package,
@@ -95,6 +98,49 @@ def test_agent_render_and_review_package_preserve_agent_evidence(
         assert "人工验收清单.csv" in archive.namelist()
         assert "全部切片脚本.md" in archive.namelist()
         assert "全部切片脚本.json" in archive.namelist()
+
+
+@pytest.mark.parametrize(
+    "unsafe_reason",
+    [
+        # Stage 10 P2: the plain English "make" false positive, isolated.
+        "Cues 1 through 2 make a complete boundary for this lesson.",
+        "Cues 1 through 2 make a complete boundary; rm -rf / is not a caption.",
+    ],
+)
+def test_agent_render_plan_uses_product_text_not_model_score_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_reason: str,
+) -> None:
+    with pytest.raises(ValueError, match="executable"):
+        reject_executable_text(unsafe_reason)
+    source, transcript, result_path = _run_evidence(tmp_path, score_reason=unsafe_reason)
+    _install_fake_media(monkeypatch)
+    plans: list[EditPlan] = []
+    fake_render = delivery_module.render_edit_plan_revision
+
+    def capture(**arguments: Any) -> object:
+        plans.append(arguments["revision"].plan)
+        return fake_render(**arguments)
+
+    monkeypatch.setattr(delivery_module, "render_edit_plan_revision", capture)
+
+    render = render_agent_clipping_result(
+        source_video=source,
+        transcript_path=transcript,
+        run_result_path=result_path,
+        output_dir=tmp_path / "render",
+        encoder="fixture",
+    )
+
+    assert render.clip_count == 1
+    assert [(plan.title, plan.hook, plan.reason) for plan in plans] == [
+        ("Agent 候选切片", "Agent 候选切片", "Agent candidate rendered with score 86 of 100.")
+    ]
+    # Model prose is preserved as untrusted evidence outside the guarded EditPlan.
+    assert render.clips[0].score_reason == unsafe_reason
+    assert render.clips[0].primary_title == "这一步做对了, 新手也能讲清楚"
 
 
 def test_agent_review_package_rejects_render_member_tampering(
@@ -221,7 +267,11 @@ def test_agent_delivery_commands_are_exposed_and_bind_arguments(
     assert captured["include_zip"] is False
 
 
-def _run_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _run_evidence(
+    tmp_path: Path,
+    *,
+    score_reason: str = "问题、方法和结论完整, 值得人工选择。",
+) -> tuple[Path, Path, Path]:
     source = (tmp_path / "source.mp4").resolve()
     source.write_bytes(b"fixture source media")
     transcript = (tmp_path / "transcript.srt").resolve()
@@ -250,7 +300,7 @@ def _run_evidence(tmp_path: Path) -> tuple[Path, Path, Path]:
             "end_ms": 50_000,
             "duration_ms": 50_000,
             "score": 86,
-            "score_reason": "问题、方法和结论完整, 值得人工选择。",
+            "score_reason": score_reason,
             "score_dimensions": [
                 {"name": "完整性", "score": 90, "rationale": "方法闭环"},
                 {"name": "可理解性", "score": 82, "rationale": "小白可理解"},

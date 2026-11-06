@@ -66,10 +66,6 @@ from liveclip.domain.candidate import CandidateClip
 from liveclip.domain.clip_profile import ClipProfile
 from liveclip.domain.edit_plan import (
     EDIT_PLAN_PIPELINE_CONTRACT_VERSION,
-    CaptionTemplate,
-    EditPlan,
-    Effect,
-    Layout,
     captions_to_srt,
 )
 from liveclip.domain.review import EditPlanRevision, RevisionOrigin
@@ -108,6 +104,16 @@ from liveclip.media.secure_files import (
 )
 from liveclip.observability import redact_value
 from liveclip.pipeline.candidates import CandidateGenerationConfig, generate_candidates
+from liveclip.pipeline.edit_text_guard import (
+    block_global_review_text_violations,
+    block_profile_v4_text_violations,
+    build_ai_edit_plan,
+    global_review_text_errors,
+    profile_v4_edit_plan,
+    profile_v4_text_errors,
+    raise_for_text_guard,
+    text_guard_message,
+)
 from liveclip.pipeline.editing import edit_and_rank_candidates
 from liveclip.pipeline.semantic_cache import (
     load_semantic_stage_cache,
@@ -119,7 +125,12 @@ from liveclip.pipeline.semantic_clipping import (
     generate_semantic_analysis_windows,
     select_semantic_clips,
 )
-from liveclip.pipeline.semantic_executor import SemanticUnitRequest
+from liveclip.pipeline.semantic_executor import (
+    DeferredValidationError,
+    SemanticUnitRequest,
+    deferred_repair_fallback_event,
+    validate_or_accept_deferred,
+)
 from liveclip.pipeline.semantic_global import (
     BoundaryReviewOutputV3,
     DiscoveryOutput,
@@ -941,6 +952,8 @@ class PipelineStageHandlers:
                             "validation_events": discovery_validation_events,
                         },
                     ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 )
 
             def normalize_discovery(
@@ -1708,17 +1721,20 @@ class PipelineStageHandlers:
         if ledger != final.lineage:
             raise ValueError("saved V5 lineage differs from the committed rough graph")
         if final.global_review is not None:
-            quality = validate_profile_global_review_v4(
-                final.global_review,
-                candidates=tuple(project_quality_v4(ChainCandidateV4, unit) for unit in units),
-                boundary_reviews=tuple(
-                    project_quality_v4(BoundaryReviewV4, review) for review in boundaries
-                ),
-                transcript=transcript,
-                profile=ClipProfile.MINI_LESSON,
-                top_n=work.config.top_n,
-                score_threshold_exclusive=work.config.semantic_score_threshold,
-                validation_contract=work.config.semantic_validation_contract,
+            # Re-apply the same deterministic text-guard gate as the build path.
+            quality = block_profile_v4_text_violations(
+                validate_profile_global_review_v4(
+                    final.global_review,
+                    candidates=tuple(project_quality_v4(ChainCandidateV4, unit) for unit in units),
+                    boundary_reviews=tuple(
+                        project_quality_v4(BoundaryReviewV4, review) for review in boundaries
+                    ),
+                    transcript=transcript,
+                    profile=ClipProfile.MINI_LESSON,
+                    top_n=work.config.top_n,
+                    score_threshold_exclusive=work.config.semantic_score_threshold,
+                    validation_contract=work.config.semantic_validation_contract,
+                )
             )
         else:
             quality = ValidatedProfileResultV4(
@@ -1749,21 +1765,8 @@ class PipelineStageHandlers:
         for rank, (item, selected) in enumerate(zip(prepared, quality.selected, strict=True), 1):
             review = selected.review
             slot = semantic.candidate_slot_map[review.candidate_id]
-            expected_plan = EditPlan(
-                candidate_id=slot,
-                source_start_ms=selected.start_ms,
-                source_end_ms=selected.end_ms,
-                score=float(review.total_score),
-                title=review.title,
-                hook=review.learning_outcome[:80],
-                reason=review.review_reason[:240],
-                layout=Layout.CENTER_CROP,
-                caption_template=CaptionTemplate.CLEAN_ZH_V1,
-                effect=Effect.NONE,
-                risk_flags=tuple(value.value for value in review.risk_flags)[:8],
-                prompt_version="semantic_topic_chain_v1.global_review",
-                model=work.config.llm_model,
-                degraded=False,
+            expected_plan = profile_v4_edit_plan(
+                selected, candidate_id=slot, model=work.config.llm_model
             )
             if (
                 item.candidate_id != expected_ids[review.candidate_id]
@@ -2220,7 +2223,7 @@ class PipelineStageHandlers:
             )
 
             def validate_global(value: GlobalReviewOutputV4) -> GlobalReviewOutputV4:
-                validate_profile_global_review_v4(
+                result = validate_profile_global_review_v4(
                     value,
                     candidates=quality_candidates,
                     boundary_reviews=quality_boundaries,
@@ -2230,6 +2233,9 @@ class PipelineStageHandlers:
                     score_threshold_exclusive=work.config.semantic_score_threshold,
                     validation_contract=work.config.semantic_validation_contract,
                 )
+                # EditPlan text is product text: request one rewrite through the
+                # repair loop; without a repair the candidate is blocked below.
+                raise_for_text_guard(profile_v4_text_errors(result), accepted=value)
                 return value
 
             global_outputs, global_audit = self._run_v4_requests(
@@ -2244,15 +2250,17 @@ class PipelineStageHandlers:
                 cancel_requested=cancel_requested,
             )
             global_output = global_outputs["mini_lesson"]
-            validated = validate_profile_global_review_v4(
-                global_output,
-                candidates=quality_candidates,
-                boundary_reviews=quality_boundaries,
-                transcript=transcript,
-                profile=ClipProfile.MINI_LESSON,
-                top_n=work.config.top_n,
-                score_threshold_exclusive=work.config.semantic_score_threshold,
-                validation_contract=work.config.semantic_validation_contract,
+            validated = block_profile_v4_text_violations(
+                validate_profile_global_review_v4(
+                    global_output,
+                    candidates=quality_candidates,
+                    boundary_reviews=quality_boundaries,
+                    transcript=transcript,
+                    profile=ClipProfile.MINI_LESSON,
+                    top_n=work.config.top_n,
+                    score_threshold_exclusive=work.config.semantic_score_threshold,
+                    validation_contract=work.config.semantic_validation_contract,
+                )
             )
 
         by_slot = {value.candidate.candidate_id: value for value in persisted_candidates}
@@ -2264,21 +2272,8 @@ class PipelineStageHandlers:
                 review = selected.review
                 persistent_key = slot_map[review.candidate_id]
                 persisted = by_slot[persistent_key]
-                plan = EditPlan(
-                    candidate_id=persistent_key,
-                    source_start_ms=selected.start_ms,
-                    source_end_ms=selected.end_ms,
-                    score=float(review.total_score),
-                    title=review.title,
-                    hook=review.learning_outcome[:80],
-                    reason=review.review_reason[:240],
-                    layout=Layout.CENTER_CROP,
-                    caption_template=CaptionTemplate.CLEAN_ZH_V1,
-                    effect=Effect.NONE,
-                    risk_flags=tuple(value.value for value in review.risk_flags)[:8],
-                    prompt_version="semantic_topic_chain_v1.global_review",
-                    model=work.config.llm_model,
-                    degraded=False,
+                plan = profile_v4_edit_plan(
+                    selected, candidate_id=persistent_key, model=work.config.llm_model
                 )
                 captions = captions_for_clip(
                     transcript.segments,
@@ -2836,7 +2831,7 @@ class PipelineStageHandlers:
             )
 
             def validate_global(value: GlobalReviewOutputV4) -> GlobalReviewOutputV4:
-                validate_profile_global_review_v4(
+                result = validate_profile_global_review_v4(
                     value,
                     candidates=chain_candidates,
                     boundary_reviews=boundary_reviews,
@@ -2846,6 +2841,9 @@ class PipelineStageHandlers:
                     score_threshold_exclusive=work.config.semantic_score_threshold,
                     validation_contract=work.config.semantic_validation_contract,
                 )
+                # EditPlan text is product text: request one rewrite through the
+                # repair loop; without a repair the candidate is blocked below.
+                raise_for_text_guard(profile_v4_text_errors(result), accepted=value)
                 return value
 
             global_outputs, global_audit = self._run_v4_requests(
@@ -2860,15 +2858,17 @@ class PipelineStageHandlers:
                 cancel_requested=cancel_requested,
             )
             global_output = global_outputs["mini_lesson"]
-            validated = validate_profile_global_review_v4(
-                global_output,
-                candidates=chain_candidates,
-                boundary_reviews=boundary_reviews,
-                transcript=transcript,
-                profile=ClipProfile.MINI_LESSON,
-                top_n=work.config.top_n,
-                score_threshold_exclusive=work.config.semantic_score_threshold,
-                validation_contract=work.config.semantic_validation_contract,
+            validated = block_profile_v4_text_violations(
+                validate_profile_global_review_v4(
+                    global_output,
+                    candidates=chain_candidates,
+                    boundary_reviews=boundary_reviews,
+                    transcript=transcript,
+                    profile=ClipProfile.MINI_LESSON,
+                    top_n=work.config.top_n,
+                    score_threshold_exclusive=work.config.semantic_score_threshold,
+                    validation_contract=work.config.semantic_validation_contract,
+                )
             )
 
         by_slot = {value.candidate.candidate_id: value for value in persisted_candidates}
@@ -2880,21 +2880,8 @@ class PipelineStageHandlers:
                 review = selected.review
                 persistent_key = slot_map[review.candidate_id]
                 persisted = by_slot[persistent_key]
-                plan = EditPlan(
-                    candidate_id=persistent_key,
-                    source_start_ms=selected.start_ms,
-                    source_end_ms=selected.end_ms,
-                    score=float(review.total_score),
-                    title=review.title,
-                    hook=review.learning_outcome[:80],
-                    reason=review.review_reason[:240],
-                    layout=Layout.CENTER_CROP,
-                    caption_template=CaptionTemplate.CLEAN_ZH_V1,
-                    effect=Effect.NONE,
-                    risk_flags=tuple(value.value for value in review.risk_flags)[:8],
-                    prompt_version="semantic_topic_chain_v1.global_review",
-                    model=work.config.llm_model,
-                    degraded=False,
+                plan = profile_v4_edit_plan(
+                    selected, candidate_id=persistent_key, model=work.config.llm_model
                 )
                 captions = captions_for_clip(
                     transcript.segments,
@@ -3197,26 +3184,37 @@ class PipelineStageHandlers:
                     )
                 )
                 model_settings = _semantic_model_settings(work, global_provider)
+
+                def validate_global_output(
+                    value: BaseModel,
+                ) -> ValidatedGlobalReview | ValidatedGlobalReviewV3:
+                    if v3_enabled:
+                        return validate_global_review_v3(
+                            cast(GlobalReviewOutputV3, value),
+                            transcript=transcript,
+                            discovery_outputs=discovery_outputs,
+                            boundary_outputs=boundary_outputs,
+                            config=semantic_config,
+                        )
+                    return validate_global_review(
+                        cast(GlobalReviewOutput, value),
+                        transcript=transcript,
+                        discovery_outputs=discovery_outputs,
+                        config=semantic_config,
+                        input_mode=input_plan.mode,
+                        require_candidate_assessments=require_candidate_assessments,
+                    )
+
+                validated: ValidatedGlobalReview | ValidatedGlobalReviewV3
                 if getattr(work.config, "semantic_execution_contract", None) is not None:
 
                     def validate_global_unit(value: BaseModel) -> BaseModel:
-                        if v3_enabled:
-                            validate_global_review_v3(
-                                cast(GlobalReviewOutputV3, value),
-                                transcript=transcript,
-                                discovery_outputs=discovery_outputs,
-                                boundary_outputs=boundary_outputs,
-                                config=semantic_config,
-                            )
-                        else:
-                            validate_global_review(
-                                cast(GlobalReviewOutput, value),
-                                transcript=transcript,
-                                discovery_outputs=discovery_outputs,
-                                config=semantic_config,
-                                input_mode=input_plan.mode,
-                                require_candidate_assessments=require_candidate_assessments,
-                            )
+                        # EditPlan text is product text: request one rewrite through
+                        # the repair loop; without a repair the clip is blocked below.
+                        raise_for_text_guard(
+                            global_review_text_errors(validate_global_output(value)),
+                            accepted=value,
+                        )
                         return value
 
                     global_units, global_audit = self._run_semantic_units(
@@ -3254,24 +3252,7 @@ class PipelineStageHandlers:
                     global_validation_events = cast(
                         list[dict[str, object]], global_audit["validation_events"]
                     )
-                    validated = (
-                        validate_global_review_v3(
-                            cast(GlobalReviewOutputV3, global_output),
-                            transcript=transcript,
-                            discovery_outputs=discovery_outputs,
-                            boundary_outputs=boundary_outputs,
-                            config=semantic_config,
-                        )
-                        if v3_enabled
-                        else validate_global_review(
-                            cast(GlobalReviewOutput, global_output),
-                            transcript=transcript,
-                            discovery_outputs=discovery_outputs,
-                            config=semantic_config,
-                            input_mode=input_plan.mode,
-                            require_candidate_assessments=require_candidate_assessments,
-                        )
-                    )
+                    validated = validate_global_output(global_output)
                 else:
                     global_cache_dir = generation_dir / "editing/semantic-cache/global_review"
                     global_cache_key = semantic_stage_cache_key(
@@ -3302,25 +3283,10 @@ class PipelineStageHandlers:
                     )
                     global_cache_hit = cached_global is not None
                     if cached_global is not None:
+                        # A cache hit has no repair left; the text-guard gate below
+                        # blocks affected clips deterministically.
                         global_output = cached_global
-                        validated = (
-                            validate_global_review_v3(
-                                cast(GlobalReviewOutputV3, global_output),
-                                transcript=transcript,
-                                discovery_outputs=discovery_outputs,
-                                boundary_outputs=boundary_outputs,
-                                config=semantic_config,
-                            )
-                            if v3_enabled
-                            else validate_global_review(
-                                cast(GlobalReviewOutput, global_output),
-                                transcript=transcript,
-                                discovery_outputs=discovery_outputs,
-                                config=semantic_config,
-                                input_mode=input_plan.mode,
-                                require_candidate_assessments=require_candidate_assessments,
-                            )
-                        )
+                        validated = validate_global_output(global_output)
                     else:
                         try:
                             result = global_provider.generate(
@@ -3351,131 +3317,53 @@ class PipelineStageHandlers:
                         )
                         try:
                             global_output = result.output
-                            validated = (
-                                validate_global_review_v3(
-                                    cast(GlobalReviewOutputV3, global_output),
-                                    transcript=transcript,
-                                    discovery_outputs=discovery_outputs,
-                                    boundary_outputs=boundary_outputs,
-                                    config=semantic_config,
-                                )
-                                if v3_enabled
-                                else validate_global_review(
-                                    cast(GlobalReviewOutput, global_output),
-                                    transcript=transcript,
-                                    discovery_outputs=discovery_outputs,
-                                    config=semantic_config,
-                                    input_mode=input_plan.mode,
-                                    require_candidate_assessments=require_candidate_assessments,
-                                )
+                            validated = validate_global_output(global_output)
+                            raise_for_text_guard(
+                                global_review_text_errors(validated), accepted=validated
                             )
                         except ValueError as exc:
                             global_validation_events.append(
                                 {
                                     "stage": "global_review",
                                     "error": _semantic_error_detail(work, exc, legacy_limit=1_000),
+                                    **(
+                                        {"deferred": True}
+                                        if isinstance(exc, DeferredValidationError)
+                                        else {}
+                                    ),
                                 }
                             )
-                            if result.repaired:
+                            if result.repaired and isinstance(exc, DeferredValidationError):
+                                # The schema repair spent the sole repair; the gate
+                                # below blocks the affected clips.
+                                validated = cast(
+                                    ValidatedGlobalReview | ValidatedGlobalReviewV3,
+                                    exc.accepted,
+                                )
+                            elif result.repaired:
                                 raise StructuredProviderError(
                                     "STRUCTURED_OUTPUT_INVALID",
                                     (),
                                     repair_attempts=result.repair_attempts,
                                 ) from exc
-                            try:
-                                repaired = global_provider.repair(
-                                    subject_id=work.run_id,
-                                    payload=_semantic_repair_request(
-                                        work,
-                                        global_payload,
-                                        result.output,
-                                        validation_errors=(
-                                            _semantic_error_detail(work, exc, legacy_limit=500),
-                                        ),
-                                    ),
+                            else:
+                                validated, repaired_output = self._repair_semantic_global_review(
+                                    work,
+                                    fence=fence,
+                                    provider=global_provider,
+                                    payload=global_payload,
                                     response_model=global_output_model,
-                                    validation_errors=(
-                                        _semantic_error_detail(work, exc, legacy_limit=240),
-                                    ),
+                                    initial_output=result.output,
+                                    initial_call_records=result.call_records,
+                                    error=exc,
+                                    validate=validate_global_output,
+                                    agent_outputs=global_agent_outputs,
+                                    validation_events=global_validation_events,
                                     cancel_requested=cancel_requested,
                                 )
-                            except StructuredProviderError as repair_exc:
-                                self._state.record_provider_calls(
-                                    fence,
-                                    repair_exc.call_records,
-                                    cache_hit=False,
+                                global_output = cast(
+                                    GlobalReviewOutput | GlobalReviewOutputV3, repaired_output
                                 )
-                                if (
-                                    getattr(work.config, "semantic_transport_contract", None)
-                                    is not None
-                                ):
-                                    aggregate = _aggregate_semantic_failures(
-                                        [repair_exc],
-                                        (*result.call_records, *repair_exc.call_records),
-                                    )
-                                    raise StructuredProviderError(
-                                        aggregate.code,
-                                        aggregate.call_records,
-                                        repair_attempts=(
-                                            *aggregate.repair_attempts,
-                                            {
-                                                "phase": "stage_validation",
-                                                "semantic_stage": "global_review",
-                                                "agent_outputs": global_agent_outputs,
-                                                "validation_events": global_validation_events,
-                                            },
-                                        ),
-                                    ) from repair_exc
-                                raise
-                            self._state.record_provider_calls(
-                                fence,
-                                repaired.call_records,
-                                cache_hit=False,
-                            )
-                            global_output = repaired.output
-                            global_agent_outputs.append(
-                                {
-                                    "phase": "domain_repair",
-                                    "repaired": True,
-                                    "repair_attempts": list(repaired.repair_attempts),
-                                    "output": repaired.output.model_dump(mode="json"),
-                                }
-                            )
-                            try:
-                                validated = (
-                                    validate_global_review_v3(
-                                        cast(GlobalReviewOutputV3, global_output),
-                                        transcript=transcript,
-                                        discovery_outputs=discovery_outputs,
-                                        boundary_outputs=boundary_outputs,
-                                        config=semantic_config,
-                                    )
-                                    if v3_enabled
-                                    else validate_global_review(
-                                        cast(GlobalReviewOutput, global_output),
-                                        transcript=transcript,
-                                        discovery_outputs=discovery_outputs,
-                                        config=semantic_config,
-                                        input_mode=input_plan.mode,
-                                        require_candidate_assessments=(
-                                            require_candidate_assessments
-                                        ),
-                                    )
-                                )
-                            except ValueError as repair_validation_error:
-                                global_validation_events.append(
-                                    {
-                                        "stage": "global_review_repair",
-                                        "error": _semantic_error_detail(
-                                            work, repair_validation_error, legacy_limit=1_000
-                                        ),
-                                    }
-                                )
-                                raise StructuredProviderError(
-                                    "STRUCTURED_OUTPUT_INVALID",
-                                    (),
-                                    repair_attempts=repaired.repair_attempts,
-                                ) from repair_validation_error
                         write_semantic_stage_cache(
                             cache_dir=global_cache_dir,
                             cache_key=global_cache_key,
@@ -3485,6 +3373,9 @@ class PipelineStageHandlers:
                             model_settings=model_settings,
                             output=global_output,
                         )
+                # Deterministic product-text gate after every resolution path
+                # (fresh, repaired, cached or durable): only downgrades.
+                validated = block_global_review_text_violations(validated)
                 retained_clips = _materialized_global_review_clips(validated)
                 if len(retained_clips) > len(candidates):
                     raise ValueError(
@@ -3507,21 +3398,17 @@ class PipelineStageHandlers:
                         hook = reviewed.clip.hook
                         reason = reviewed.clip.review_reason
                         risk_flags = _global_review_risk_flags(reviewed)
-                    plan = EditPlan(
+                    plan = build_ai_edit_plan(
                         candidate_id=slot.candidate.candidate_id,
                         source_start_ms=reviewed.start_ms,
                         source_end_ms=reviewed.end_ms,
                         score=float(reviewed.final_score),
                         title=title,
-                        hook=hook[:80],
-                        reason=reason[:240],
-                        layout=Layout.CENTER_CROP,
-                        caption_template=CaptionTemplate.CLEAN_ZH_V1,
-                        effect=Effect.NONE,
+                        hook=hook,
+                        reason=reason,
                         risk_flags=risk_flags,
                         prompt_version=f"{global_prompt.version}.global_review",
                         model=global_provider.model_name,
-                        degraded=False,
                     )
                     captions = captions_for_clip(
                         transcript.segments,
@@ -3760,6 +3647,140 @@ class PipelineStageHandlers:
                 "selected_count": len(revisions),
             },
         )
+
+    def _repair_semantic_global_review(
+        self,
+        work: StageWork,
+        *,
+        fence: StageMutationFence,
+        provider: StructuredLLMProvider,
+        payload: dict[str, object],
+        response_model: type[BaseModel],
+        initial_output: BaseModel,
+        initial_call_records: tuple[ProviderCallRecord, ...],
+        error: ValueError,
+        validate: Callable[[BaseModel], ValidatedGlobalReview | ValidatedGlobalReviewV3],
+        agent_outputs: list[dict[str, object]],
+        validation_events: list[dict[str, object]],
+        cancel_requested: Callable[[], bool],
+    ) -> tuple[ValidatedGlobalReview | ValidatedGlobalReviewV3, BaseModel]:
+        """Spend the sole semantic-global repair; a remaining text-guard hit is deferred.
+
+        When only a deferred rule failed initially and the repair call fails or its
+        output fails a hard validator, the initial output is kept (and cached by the
+        caller) and the caller's deterministic gate downgrades the affected clips.
+        """
+
+        deferred = error if isinstance(error, DeferredValidationError) else None
+        try:
+            repaired = provider.repair(
+                subject_id=work.run_id,
+                payload=_semantic_repair_request(
+                    work,
+                    payload,
+                    initial_output,
+                    validation_errors=(_semantic_error_detail(work, error, legacy_limit=500),),
+                ),
+                response_model=response_model,
+                validation_errors=(_semantic_error_detail(work, error, legacy_limit=240),),
+                cancel_requested=cancel_requested,
+            )
+        except StructuredProviderError as repair_exc:
+            self._state.record_provider_calls(
+                fence,
+                repair_exc.call_records,
+                cache_hit=False,
+            )
+            if deferred is not None:
+                validation_events.append(
+                    {
+                        "stage": "global_review_repair",
+                        **deferred_repair_fallback_event(f"repair call failed: {repair_exc.code}"),
+                    }
+                )
+                return (
+                    cast(ValidatedGlobalReview | ValidatedGlobalReviewV3, deferred.accepted),
+                    initial_output,
+                )
+            if getattr(work.config, "semantic_transport_contract", None) is not None:
+                aggregate = _aggregate_semantic_failures(
+                    [repair_exc],
+                    (*initial_call_records, *repair_exc.call_records),
+                )
+                raise StructuredProviderError(
+                    aggregate.code,
+                    aggregate.call_records,
+                    repair_attempts=(
+                        *aggregate.repair_attempts,
+                        {
+                            "phase": "stage_validation",
+                            "semantic_stage": "global_review",
+                            "agent_outputs": agent_outputs,
+                            "validation_events": validation_events,
+                        },
+                    ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
+                ) from repair_exc
+            raise
+        self._state.record_provider_calls(
+            fence,
+            repaired.call_records,
+            cache_hit=False,
+        )
+        agent_outputs.append(
+            {
+                "phase": "domain_repair",
+                "repaired": True,
+                "repair_attempts": list(repaired.repair_attempts),
+                "output": repaired.output.model_dump(mode="json"),
+            }
+        )
+        try:
+            validated = validate(repaired.output)
+        except ValueError as repair_validation_error:
+            validation_events.append(
+                {
+                    "stage": "global_review_repair",
+                    "error": _semantic_error_detail(
+                        work, repair_validation_error, legacy_limit=1_000
+                    ),
+                }
+            )
+            if deferred is not None:
+                # The hard-invalid rewrite is discarded; the initial output is kept.
+                validation_events.append(
+                    {
+                        "stage": "global_review_repair",
+                        **deferred_repair_fallback_event("repair output failed validation"),
+                    }
+                )
+                return (
+                    cast(ValidatedGlobalReview | ValidatedGlobalReviewV3, deferred.accepted),
+                    initial_output,
+                )
+            raise StructuredProviderError(
+                "STRUCTURED_OUTPUT_INVALID",
+                (),
+                repair_attempts=repaired.repair_attempts,
+            ) from repair_validation_error
+        guard_errors = global_review_text_errors(validated)
+        if guard_errors:
+            # The rewrite still trips the guard; the caller blocks only those clips.
+            validation_events.append(
+                {
+                    "stage": "global_review_repair",
+                    "error": _semantic_error_detail(
+                        work,
+                        DeferredValidationError(
+                            text_guard_message(guard_errors), accepted=validated
+                        ),
+                        legacy_limit=1_000,
+                    ),
+                    "deferred": True,
+                }
+            )
+        return validated, repaired.output
 
     def _require_action_capabilities(
         self, work: StageWork, required: tuple[PipelineCapability, ...]
@@ -4089,7 +4110,9 @@ class PipelineStageHandlers:
                 output_model=response_model,
             )
             if cached is not None:
-                resolved[subject_id] = validator(cached)
+                # A cached output has no repair left; deferred rules are applied by
+                # the caller's deterministic gate instead of failing the stage.
+                resolved[subject_id] = validate_or_accept_deferred(validator, cached)
                 cache_hits[subject_id] = True
             else:
                 uncached.append((subject_id, payload, validator, cache_key))
@@ -4148,10 +4171,20 @@ class PipelineStageHandlers:
                         if complete_audit
                         else _semantic_error_detail(work, exc, legacy_limit=1_000)
                     )
+                    deferred = isinstance(exc, DeferredValidationError)
                     validation_events.append(
-                        {"subject_id": subject_id, "phase": "initial", "error": detail}
+                        {
+                            "subject_id": subject_id,
+                            "phase": "initial",
+                            "error": detail,
+                            **({"deferred": True} if deferred else {}),
+                        }
                     )
-                    if result.repaired:
+                    if result.repaired and isinstance(exc, DeferredValidationError):
+                        # The schema repair spent the sole repair; accept and let the
+                        # caller's deterministic gate downgrade the affected rows.
+                        validated = cast(V4Output, exc.accepted)
+                    elif result.repaired:
                         failure = StructuredProviderError(
                             "STRUCTURED_OUTPUT_INVALID",
                             (),
@@ -4160,69 +4193,113 @@ class PipelineStageHandlers:
                         failures.append((subject_id, cache_key, failure))
                         first_error = first_error or failure
                         continue
-                    try:
-                        repaired = provider.repair(
-                            subject_id=f"{work.run_id}.{stage}.{subject_id}",
-                            payload=_semantic_repair_payload_v4(
-                                payload,
-                                result.output,
-                                validation_errors=(detail,),
-                            ),
-                            response_model=response_model,
-                            validation_errors=(
-                                (
-                                    detail
-                                    if complete_audit
-                                    else _semantic_error_detail(work, exc, legacy_limit=500)
+                    else:
+                        deferred_error = exc if isinstance(exc, DeferredValidationError) else None
+                        repaired: StructuredCallResult[V4Output] | None = None
+                        try:
+                            repaired = provider.repair(
+                                subject_id=f"{work.run_id}.{stage}.{subject_id}",
+                                payload=_semantic_repair_payload_v4(
+                                    payload,
+                                    result.output,
+                                    validation_errors=(detail,),
                                 ),
-                            ),
-                            cancel_requested=cancel_requested,
-                        )
-                    except StructuredProviderError as repair_exc:
-                        self._state.record_provider_calls(
-                            fence, repair_exc.call_records, cache_hit=False
-                        )
-                        call_records.extend(repair_exc.call_records)
-                        subject_call_ids[subject_id].extend(
-                            record.call_id for record in repair_exc.call_records
-                        )
-                        failures.append((subject_id, cache_key, repair_exc))
-                        first_error = first_error or repair_exc
-                        continue
-                    self._state.record_provider_calls(fence, repaired.call_records, cache_hit=False)
-                    call_records.extend(repaired.call_records)
-                    subject_call_ids[subject_id].extend(
-                        record.call_id for record in repaired.call_records
-                    )
-                    agent_outputs.append(
-                        {
-                            "subject_id": subject_id,
-                            "phase": "domain_repair",
-                            "repaired": True,
-                            "repair_attempts": list(repaired.repair_attempts),
-                            "output": repaired.output.model_dump(mode="json"),
-                        }
-                    )
-                    try:
-                        validated = validator(repaired.output)
-                    except ValueError as repair_error:
-                        validation_events.append(
-                            {
-                                "subject_id": subject_id,
-                                "phase": "repair",
-                                "error": str(repair_error)
-                                if complete_audit
-                                else str(repair_error)[:1_000],
-                            }
-                        )
-                        failure = StructuredProviderError(
-                            "STRUCTURED_OUTPUT_INVALID",
-                            (),
-                            repair_attempts=repaired.repair_attempts,
-                        )
-                        failures.append((subject_id, cache_key, failure))
-                        first_error = first_error or failure
-                        continue
+                                response_model=response_model,
+                                validation_errors=(
+                                    (
+                                        detail
+                                        if complete_audit
+                                        else _semantic_error_detail(work, exc, legacy_limit=500)
+                                    ),
+                                ),
+                                cancel_requested=cancel_requested,
+                            )
+                        except StructuredProviderError as repair_exc:
+                            self._state.record_provider_calls(
+                                fence, repair_exc.call_records, cache_hit=False
+                            )
+                            call_records.extend(repair_exc.call_records)
+                            subject_call_ids[subject_id].extend(
+                                record.call_id for record in repair_exc.call_records
+                            )
+                            if deferred_error is None:
+                                failures.append((subject_id, cache_key, repair_exc))
+                                first_error = first_error or repair_exc
+                                continue
+                            # Only a deferred rule failed initially, so the initial
+                            # output stays; the caller's deterministic gate applies.
+                            validation_events.append(
+                                {
+                                    "subject_id": subject_id,
+                                    **deferred_repair_fallback_event(
+                                        f"repair call failed: {repair_exc.code}"
+                                    ),
+                                }
+                            )
+                            validated = cast(V4Output, deferred_error.accepted)
+                        if repaired is not None:
+                            self._state.record_provider_calls(
+                                fence, repaired.call_records, cache_hit=False
+                            )
+                            call_records.extend(repaired.call_records)
+                            subject_call_ids[subject_id].extend(
+                                record.call_id for record in repaired.call_records
+                            )
+                            agent_outputs.append(
+                                {
+                                    "subject_id": subject_id,
+                                    "phase": "domain_repair",
+                                    "repaired": True,
+                                    "repair_attempts": list(repaired.repair_attempts),
+                                    "output": repaired.output.model_dump(mode="json"),
+                                }
+                            )
+                            try:
+                                validated = validator(repaired.output)
+                            except DeferredValidationError as repair_deferred:
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        "phase": "repair",
+                                        "error": str(repair_deferred)
+                                        if complete_audit
+                                        else str(repair_deferred)[:1_000],
+                                        "deferred": True,
+                                    }
+                                )
+                                # The rewrite still trips the guard; the caller blocks
+                                # only the affected candidates deterministically.
+                                validated = cast(V4Output, repair_deferred.accepted)
+                            except ValueError as repair_error:
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        "phase": "repair",
+                                        "error": str(repair_error)
+                                        if complete_audit
+                                        else str(repair_error)[:1_000],
+                                    }
+                                )
+                                if deferred_error is None:
+                                    failure = StructuredProviderError(
+                                        "STRUCTURED_OUTPUT_INVALID",
+                                        (),
+                                        repair_attempts=repaired.repair_attempts,
+                                    )
+                                    failures.append((subject_id, cache_key, failure))
+                                    first_error = first_error or failure
+                                    continue
+                                # The hard-invalid rewrite is discarded; the initial
+                                # output (cached below) is gated deterministically.
+                                validation_events.append(
+                                    {
+                                        "subject_id": subject_id,
+                                        **deferred_repair_fallback_event(
+                                            "repair output failed validation"
+                                        ),
+                                    }
+                                )
+                                validated = cast(V4Output, deferred_error.accepted)
                 write_semantic_stage_cache(
                     cache_dir=cache_dir,
                     cache_key=cache_key,
@@ -4256,6 +4333,8 @@ class PipelineStageHandlers:
                     tuple(call_records),
                     repair_attempts=first_error.repair_attempts,
                     diagnostic_relative_path=diagnostic,
+                    timeout_seconds=first_error.timeout_seconds,
+                    suspended_seconds=first_error.suspended_seconds,
                 ) from first_error
             raise first_error
         if set(resolved) != {value[0] for value in requests}:
@@ -4357,6 +4436,8 @@ class PipelineStageHandlers:
                     aggregate.call_records,
                     repair_attempts=aggregate.repair_attempts,
                     diagnostic_relative_path=diagnostic,
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 ),
                 deterministic=any(
                     outcome.disposition in {"exhausted", "cancelled"}
@@ -4859,6 +4940,8 @@ class PipelineStageHandlers:
                             "validation_events": validation_events,
                         },
                     ),
+                    timeout_seconds=aggregate.timeout_seconds,
+                    suspended_seconds=aggregate.suspended_seconds,
                 )
             raise failures[0]
         ordered_indices = [
@@ -5804,10 +5887,14 @@ def _aggregate_semantic_failures(
         if previous is not None and previous != record:
             raise ValueError("conflicting semantic provider call records")
         unique_calls[record.call_id] = record
+    # Stage 16b: the selected failure's fixed timing numbers (configured timeout,
+    # host suspension) survive the aggregate, so its message keeps naming them.
     return StructuredProviderError(
         selected.code,
         tuple(unique_calls.values()),
         repair_attempts=tuple(attempts),
+        timeout_seconds=selected.timeout_seconds,
+        suspended_seconds=selected.suspended_seconds,
     )
 
 
