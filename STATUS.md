@@ -102,8 +102,15 @@
   are unchanged since `2c4de9a`; `src/liveclip/pipeline/dual_profile.py`,
   whose schema classes the evaluator imports, is unchanged between
   `50232af` and `f525338` (Stage 18 changed only prompts and two test
-  files). cold-35 and cold-36 are therefore scored by the same evaluator
-  and benchmark as cold-33 and cold-34.
+  files). `scripts/benchmark_gates.py`, which the evaluator also imports,
+  last changed in `8b14aa3` (Stage 4, comment-only) and has no diff over
+  `8b14aa3..4bb17a8`; `8b14aa3` is an ancestor of `50232af`. The
+  reviewer's re-evaluation of cold-35 and cold-36 is byte-identical to the
+  stored results (a coder re-run of the stored argv into a scratch
+  directory also reproduced `benchmark-result.json` and
+  `benchmark-report.md` byte-identically). cold-35 and cold-36 are
+  therefore scored by the same evaluator and benchmark as cold-33 and
+  cold-34.
 - Renders: 12 clips (7 short, 5 mini), rc 0, automatic checks pass. Visual
   and audio review pending (separate evidence category, not part of
   strict PASS). The evaluator's `human_required` check
@@ -159,7 +166,16 @@
   S07, S08 0/0 ms). Mini **6/6** (L01–L04 0/0 ms; **L05
   `audit_student_high_note_live_diagnosis` 0/−4060 ms, `manual_review`,
   a new hit**; L07 0/+1980 ms). R01 blocked and R02 `manual_review`, both
-  routed correctly. 0 selected rows in either profile.
+  routed correctly. Informational R02 diagnostic (gates nothing):
+  `risk_findings.R02.misrouted` is not empty but lists
+  `ml0014_regional_nasal` (cues 1990–2053, rejected by Global Review as a
+  duplicate, with the blocked risk twin `risk_nasal_regional_attribution`;
+  `required_routing` [`blocked`, `manual_review`]), while the evaluator
+  hard-fails only when a required risk anchor has no matched candidate
+  (`scripts/evaluate_benchmark.py:371-372`), R02 is matched by the
+  `manual_review` row `ml0014_nasal_full_chain`, the risk component is
+  10/10, and cold-31, cold-33, cold-34 and cold-36 have empty `misrouted`
+  lists. 0 selected rows in either profile.
 - Stage 18 watch items (`evidence/stage18-watch.txt`): (1) **L05**: no
   in-tolerance row carries `material_interruption`; Boundary Review
   explicitly applies the passing-pen carve-out to cues 2337–2340. The

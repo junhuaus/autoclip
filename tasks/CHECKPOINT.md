@@ -1284,7 +1284,16 @@ duration or regression finding; `source_hash_matches` true. Short 7/8 (S03
 missed; S06 −2300/+2860 ms; all other short hits 0/0 ms); mini 6/6 (L01–L04
 0/0 ms; L05 `audit_student_high_note_live_diagnosis` 0/−4060 ms,
 `manual_review`, a new hit; L07 0/+1980 ms); R01 blocked, R02
-`manual_review`; 0 selected rows.
+`manual_review`; 0 selected rows. Informational R02 diagnostic (gates
+nothing): `risk_findings.R02.misrouted` is not empty but lists
+`ml0014_regional_nasal` (cues 1990–2053, rejected by Global Review as a
+duplicate, with the blocked risk twin `risk_nasal_regional_attribution`;
+`required_routing` [`blocked`, `manual_review`]), while the evaluator
+hard-fails only when a required risk anchor has no matched candidate
+(`scripts/evaluate_benchmark.py:371-372`), R02 is matched by the
+`manual_review` row `ml0014_nasal_full_chain`, the risk component is
+10/10, and cold-31, cold-33, cold-34 and cold-36 have empty `misrouted`
+lists.
 
 Stage 18 watch items (`evidence/stage18-watch.txt`): (1) L05: no
 in-tolerance row carries `material_interruption`; Boundary Review
@@ -1401,7 +1410,13 @@ fingerprint sha256 `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880
 `LIVECLIP_CLAUDE_*` override in `.env` or `.env.local`. Evaluator
 (informational): `scripts/evaluate_benchmark.py` and the benchmark
 JSON/MD are unchanged since `2c4de9a`; `src/liveclip/pipeline/dual_profile.py`
-is unchanged between `50232af` and `f525338`.
+is unchanged between `50232af` and `f525338`; `scripts/benchmark_gates.py`,
+which the evaluator also imports, last changed in `8b14aa3` (Stage 4,
+comment-only) and has no diff over `8b14aa3..4bb17a8`, and `8b14aa3` is an
+ancestor of `50232af`. The reviewer's re-evaluation of cold-35 and cold-36
+is byte-identical to the stored results (a coder re-run of the stored argv
+into a scratch directory also reproduced `benchmark-result.json` and
+`benchmark-report.md` byte-identically).
 
 12 renders (7 short, 5 mini) rc 0, automatic checks pass; human
 editorial/audio review pending (separate evidence category). The

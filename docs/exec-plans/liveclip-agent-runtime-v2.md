@@ -53,6 +53,15 @@
 - [x] 2026-11-06 Historical-checkbox note (this plan is append-only, so the
   earlier line is left unchanged): the open "Next: cold-36" item in the
   cold-35 section below is historical and done by this run.
+- [x] 2026-11-06 Evaluator-precision clarification (inserted; the lines
+  above are left unchanged): besides `scripts/evaluate_benchmark.py`, the
+  benchmark JSON/MD and `dual_profile.py`, the evaluator also imports
+  `scripts/benchmark_gates.py`, which last changed in `8b14aa3` (Stage 4,
+  comment-only) and has no diff over `8b14aa3..4bb17a8`; `8b14aa3` is an
+  ancestor of `50232af`. The reviewer's re-evaluation of cold-35 and
+  cold-36 is byte-identical to the stored results (a coder re-run of the
+  stored argv into a scratch directory also reproduced
+  `benchmark-result.json` and `benchmark-report.md` byte-identically).
 - [ ] Next: human editorial/audio review of the renders of cold-27 r2,
   warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33, cold-34, cold-35
   and cold-36, including the `human_required` source-faithfulness check
@@ -89,6 +98,16 @@
   review pending (separate evidence category; `human_required` lists 61
   IDs, the `manual_review` rows mini 21 + short 40). Consecutive cold
   strict PASS count for `f525338`: **1/2**.
+- [x] 2026-11-06 Informational R02 diagnostic for cold-35 (inserted; gates
+  nothing): `risk_findings.R02.misrouted` is not empty but lists
+  `ml0014_regional_nasal` (cues 1990–2053, rejected by Global Review as a
+  duplicate, with the blocked risk twin `risk_nasal_regional_attribution`;
+  `required_routing` [`blocked`, `manual_review`]), while the evaluator
+  hard-fails only when a required risk anchor has no matched candidate
+  (`scripts/evaluate_benchmark.py:371-372`), R02 is matched by the
+  `manual_review` row `ml0014_nasal_full_chain`, the risk component is
+  10/10, and cold-31, cold-33, cold-34 and cold-36 have empty `misrouted`
+  lists.
 - [x] 2026-11-06 The "Next: cold-35" item of the f525338 freeze section
   below is done (historical) by this run.
 - [ ] Next: cold-36 (consecutive run 2 of 2) on the same frozen tree with
