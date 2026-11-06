@@ -1,5 +1,41 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## cold-35 strict PASS 97.5 on frozen f525338 (consecutive 1/2) (2026-11-06)
+
+- [x] 2026-11-06 **cold-35**, the first counted fresh cold run on the
+  Stage 18 freeze (real Claude CLI, single segment), on frozen
+  `f525338ed9427b0fcac9925bac6075d60af13e69` at HEAD `15c4ff8`; freeze-diff (incl. `.gitignore`) rc 0
+  with empty porcelain before and after; eval rc 0, wall 6952 s, 0
+  sleep/wake events, AC power. Strict **PASS 97.5** (both_profiles 15,
+  short 17.5, mini 30, boundary 15, risk 10, audit 10;
+  `qualified_boundary_hits` 13); no hard failure, PASS blocker,
+  forbidden-composite, padding or negative-anchor finding. Short 7/8 (S03
+  missed, measured only); mini **6/6** (L05
+  `audit_student_high_note_live_diagnosis` 0/−4060 ms, `manual_review`,
+  a new hit); R01 blocked, R02 `manual_review`; 0 selected rows. Watch
+  items: L05 in-tolerance rows carry no `material_interruption` and
+  Boundary Review applies the passing-pen carve-out to cues 2337–2340;
+  all 9 N07-overlapping mini rows `blocked` or rejected for the
+  pen-testing pause (carve-out invoked only to deny it); composites clean;
+  L04 exact; S01/S04 0/0 ms. Provenance meets the fresh-cold definition
+  (`cache_hits` 0, roots new, 264 cache files all newer than the attempt
+  start, 0 prompt-hash mismatches, the 17 tree identities and 14 manifest
+  hashes equal Stage 18b). 265 provider records first-attempt, 0
+  retries, 1 repair. Run fingerprint cold-36 must match
+  `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0` (differs from `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through
+  `prompt_hashes`; Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` and CLI pin
+  unchanged): see `STATUS.md`. 13 renders rc 0; human editorial/audio
+  review pending (separate evidence category; `human_required` lists 61
+  IDs, the `manual_review` rows mini 21 + short 40). Consecutive cold
+  strict PASS count for `f525338`: **1/2**.
+- [x] 2026-11-06 The "Next: cold-35" item of the f525338 freeze section
+  below is done (historical) by this run.
+- [ ] Next: cold-36 (consecutive run 2 of 2) on the same frozen tree with
+  the same run fingerprint `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; a cold-Nb continuation counts
+  as one run. Human editorial/audio review of the cold-27 r2 through
+  cold-35 renders and the L07 listening check stay pending; push/merge
+  only with explicit user consent.
+
 ## Freeze accepted at f525338 (Stage 18) (2026-11-06)
 
 - [x] 2026-11-06 **FREEZE ACCEPTED** at

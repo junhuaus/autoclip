@@ -1262,5 +1262,72 @@ Stage 18 amendment now "general wording, motivated by the L05 miss"); P2-5
 (`STATUS.md` Stage 18 recovery now "the `50232af` frozen-path and prompt
 tree; docs differ").
 
-Next: cold-35, the first counted fresh-cold run on `f525338`. Not pushed.
+(Historical next step; done, below.) Next: cold-35, the first counted fresh-cold run on `f525338`. Not pushed.
 Push and merge still need explicit user consent.
+
+## cold-35 strict PASS 97.5 on frozen f525338 (2026-11-06) — consecutive cold strict PASS 1/2 for f525338
+
+Counted fresh cold run 1 of 2 on the Stage 18 freeze (real Claude CLI,
+single segment) at HEAD `15c4ff8`; freeze-diff to `f525338ed9427b0fcac9925bac6075d60af13e69` (incl.
+`.gitignore`) rc 0 with empty porcelain before and after. Attempt start
+epoch 1793989235 (2026-11-06 10:20:35 −0800). Eval rc 0, wall 6952 s
+(10:20:35 to 12:16:27 local), 0 sleep/wake events, AC power throughout.
+Roots
+`data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261106-claude-cold-35`
+(the strict-eval root holds `benchmark-result.json`, `benchmark-report.md`
+and `evidence/`).
+
+Strict PASS 97.5: both_profiles 15, short 17.5, mini 30, boundary 15, risk
+10, audit 10; `qualified_boundary_hits` 13; no hard failure, PASS blocker,
+direct-fail condition, forbidden-composite, padding, negative-anchor,
+duration or regression finding; `source_hash_matches` true. Short 7/8 (S03
+missed; S06 −2300/+2860 ms; all other short hits 0/0 ms); mini 6/6 (L01–L04
+0/0 ms; L05 `audit_student_high_note_live_diagnosis` 0/−4060 ms,
+`manual_review`, a new hit; L07 0/+1980 ms); R01 blocked, R02
+`manual_review`; 0 selected rows.
+
+Stage 18 watch items (`evidence/stage18-watch.txt`): (1) L05: no
+in-tolerance row carries `material_interruption`; Boundary Review
+explicitly applies the passing-pen carve-out to cues 2337–2340; the blocked
+2287–2394 rows are out of tolerance, with `material_interruption` from the
+farewell and mic invitation at cues 2374–2389. (2) N07: all 9 overlapping
+mini rows `blocked` or rejected; the rows containing the pause are blocked
+for `material_interruption` over the pen-testing pause at cues 1030–1035;
+the carve-out is invoked only to deny it ("about 13 s, not a passing pen
+fault"); no padding finding; no 998–1048 or 1028–1172 row this run. (3)
+Composites 562000–847000 and 1099200–1351000: no selected or
+`manual_review` mini row. (4) L04 representative cues 1049–1130, exact. (5)
+S01 and S04 0/0 ms, unchanged. (6) S03 (measured only): missed; Discovery
+475–506 was trimmed by Boundary Review to 476–499 (+12440/−11160 ms)
+because "500–506 is a new topic"; the 470–499 rows were rejected as
+duplicates. (7) Provenance (fresh-cold definition met): `cache_hits` 0;
+roots new at attempt start; 264 cache files, all mtimes after the start; 0
+prompt-hash mismatches; 0 content-identical files in 30 other roots
+(informational); the 17 tree prompt identities and the 14 run-manifest
+hashes equal the Stage 18b "after" column. (8) Discovery
+`material_interruption` flags mini 86 / short 39 (cold-34 92/51, cold-33
+102/59, cold-32b 69/21).
+
+265 provider records, all first attempt; 0 retries or usage-limit markers;
+1 successful repair (Boundary Review); tokens in 10,382,502 / out
+1,857,884.
+
+Fingerprint cold-36 must match: CLI 2.1.308 sha256
+`ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37` (pin unchanged); model `claude-opus-5-5`; algorithm
+`dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`; Settings
+fingerprint sha256 `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` (unchanged); run
+fingerprint sha256 `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`, which differs from
+cold-34's `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through `prompt_hashes`
+(verified by substitution, `evidence/fp-compare.txt`); no
+`LIVECLIP_CLAUDE_*` override in `.env` or `.env.local`.
+
+13 renders (7 short, 6 mini, including the new L05 clip) rc 0, automatic
+checks pass; human editorial/audio review pending (separate evidence
+category). The `human_required` check
+`title_hook_summary_must_be_source_faithful` lists 61 candidate IDs,
+exactly the `manual_review` rows (mini 21 + short 40).
+
+Next: cold-36 (consecutive run 2 of 2) on the same frozen tree with the
+same run fingerprint `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; a cold-Nb continuation
+counts as one run. Not pushed. Push and merge still need explicit user
+consent.
