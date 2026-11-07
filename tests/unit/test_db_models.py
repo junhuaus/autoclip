@@ -98,6 +98,12 @@ def test_schema_contains_every_v1_persistence_entity_and_named_constraints(
         "release_metric_snapshots",
         "release_packages",
         "release_publication_evidence",
+        "dual_profile_imports",
+        "dual_profile_import_clips",
+        "dual_profile_clip_decisions",
+        "customer_deliveries",
+        "customer_delivery_clips",
+        "customer_share_links",
     }
     for table in Base.metadata.sorted_tables:
         assert all(constraint.name for constraint in table.constraints)
