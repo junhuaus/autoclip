@@ -52,6 +52,8 @@ _PUBLIC_ASSET_KINDS = frozenset(
         "final_video",
         "render_contact_sheet",
         "clip_subtitle_srt",
+        "dual_profile_video",
+        "dual_profile_subtitle",
     }
 )
 _SCOPED_ASSET_KINDS = frozenset(
