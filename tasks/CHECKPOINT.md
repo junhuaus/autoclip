@@ -1440,3 +1440,25 @@ L07 listening check of `input/8-30.ts` 1:40:07–1:40:35.
 Next: that human review and listening check (user). Branch
 `claude/liveclip-stage18-l05` is not pushed. Push, PR and merge still need
 explicit user consent.
+
+## Stage 19 started: customer delivery of dual-profile results (2026-11-07)
+
+Stage 18 is merged to `main` as `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`
+(merge commit of PR #2; tree equals `d386981`). Stage 19 runs on
+`claude/liveclip-stage19-customer-delivery` (from `origin/main`; not
+pushed). Plan: `docs/exec-plans/liveclip-customer-delivery.md` (user
+decisions of 2026-11-07, design, stages 19a–19e).
+
+Freeze rule amended by the user: the benchmark freeze now covers only the
+dual-profile benchmark closure (path list and five-item reviewer evidence
+in `STATUS.md`, "Acceptance policy from Stage 17", amendment bullet). The
+freeze SHA stays `f525338` with count 2/2. The coder verified the closure
+by an AST import walk and added `cli/app.py`/`__main__.py`, package
+`__init__` files, the imported `domain/`, `media/` and `pipeline/` modules,
+`limits.py`, `prompts/`, `observability/`, `scripts/__init__.py`,
+`pyproject.toml` and `uv.lock` to the draft list. Stage 19 must not edit
+`src/liveclip/cli/app.py`.
+
+Next: Stage 19a (freeze pin test, verified render-set refactor,
+eligibility domain, migration and repository, import service). Push, PR
+and merge still need explicit user consent.

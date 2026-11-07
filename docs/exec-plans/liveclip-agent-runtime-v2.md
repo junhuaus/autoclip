@@ -1,5 +1,26 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 19 started; benchmark freeze amended to the dual-profile closure (2026-11-07)
+
+- [x] 2026-11-07 Recovery Note (insert-only; the dual-profile sections below
+  are historical and unchanged). Stage 18 is merged to `main` as
+  `a79deaf0a62e4a506b8ea2c3221e9388d12dd286` (merge commit of PR #2; tree equals `d386981`). Stage 19
+  (customer delivery of dual-profile results) started on
+  `claude/liveclip-stage19-customer-delivery`; its Living ExecPlan is
+  `docs/exec-plans/liveclip-customer-delivery.md`.
+- [x] 2026-11-07 User decision: the benchmark freeze now covers only the
+  dual-profile benchmark closure (path list and the five-item reviewer
+  evidence in `STATUS.md`, "Acceptance policy from Stage 17", amendment
+  bullet). The freeze SHA stays `f525338ed9427b0fcac9925bac6075d60af13e69`
+  with count 2/2; changes outside the closure do not reset it when the
+  evidence is clean at every checkpoint. The FROZEN path list in the
+  sections below (whole `src tests scripts …` tree) is superseded for
+  future checkpoints, not rewritten.
+- [ ] Next: Stage 19a (freeze pin test, verified render-set refactor,
+  eligibility domain, migration, import service). Human editorial/audio
+  review and the L07 listening check remain pending. Push/merge only with
+  explicit user consent.
+
 ## cold-36 strict PASS 92.5 on frozen f525338 (consecutive 2/2; Stage 18 strict acceptance satisfied) (2026-11-06)
 
 - [x] 2026-11-06 **cold-36**, counted fresh cold run 2 of 2 on the Stage

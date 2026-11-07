@@ -18,6 +18,42 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 19: customer delivery of dual-profile results (2026-11-07) — STARTED (Checkpoint 1, docs only)
+
+- **Stage 18 is merged to `main`:** `origin/main` =
+  `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`, the merge commit of PR #2
+  (`claude/liveclip-stage18-l05`); its tree equals `d386981`. Stage 18
+  strict benchmark acceptance (2/2 on frozen `f525338`) is unchanged.
+- Branch `claude/liveclip-stage19-customer-delivery` created from
+  `origin/main` `a79deaf` (no upstream set; not pushed).
+- Authoritative plan: `docs/exec-plans/liveclip-customer-delivery.md`
+  (user decisions of 2026-11-07, design, stages 19a–19e, freeze closure).
+  User decisions: end-customer audience (read-only watch, read and
+  download; no internal fields); offline ZIP package and expiring
+  read-only LAN share link; import existing dual-profile CLI results
+  first; customer text overrides at approval (originals immutable); clean
+  MP4 plus separate SRT; LAN-only share link, explicit opt-in, no TLS.
+- **Freeze rule amended (user decision 2026-11-07):** the benchmark freeze
+  now covers only the dual-profile benchmark closure; see the amendment
+  bullet at the end of "Acceptance policy from Stage 17" below for the
+  path list and the five-item reviewer evidence. Closure verified by an AST
+  import walk at `a79deaf`; `git diff --exit-code f525338 -- <closure>`
+  rc 0. Added to the Controller's draft list: `cli/app.py` and
+  `__main__.py` (the `dual-profile-eval` command owns the `--short-top-n`
+  and `--mini-lesson-top-n` defaults of 15 used by the counted runs),
+  package `__init__` files, `domain/`, `media/` and `pipeline/` modules
+  imported by the closure, `limits.py`, `prompts/`, `observability/`,
+  `scripts/__init__.py`, `pyproject.toml`, `uv.lock`.
+- Discovery: the existing `dual-profile-review-package` CLI rejects the
+  stored cold-36 render manifest ("video path is not an absolute system
+  path") because its video/subtitle paths are repo-relative; Stage 19a's
+  import resolves relative paths against an allowed import root.
+- Next: Stage 19a (freeze pin test, verified render-set refactor, eligibility
+  domain, migration and repository, import service, `CustomerClipView`).
+  Human editorial/audio review of cold-27 r2 through cold-36 renders and
+  the L07 listening check remain pending (separate evidence category).
+  Push, PR and merge need explicit user consent.
+
 ## cold-36 real run on frozen f525338 (2026-11-06) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied)
 
 - **Counted run 2 of 2** on the Stage 18 freeze
@@ -1130,6 +1166,50 @@ result exactly; no model call, nothing written under `data/`).
   candidate, because Stage 17b changes 16 of the 17 prompt identities.
   (Later, 2026-11-05: accepted; `50232af0cb0b0194fb663528b569998a8a2fd79b` is the
   freeze SHA.)
+- **Amendment (user decision 2026-11-07, Stage 19; appended, the bullets
+  above are historical and unchanged).** The benchmark freeze now covers
+  only the **dual-profile benchmark closure**, no longer the whole
+  `src tests scripts config tools apps migrations pyproject.toml uv.lock
+  alembic.ini Makefile .gitignore` tree. The current freeze SHA stays
+  `f525338ed9427b0fcac9925bac6075d60af13e69` and its count stays **2/2**. Changes outside the closure do
+  not reset the count and need no cold re-run, provided the reviewer's
+  freeze evidence below is clean at every checkpoint. A change inside the
+  closure, to a prompt identity, the routing policy or the algorithm
+  version still starts a new freeze SHA and a count of zero. The closure
+  (transitive in-repo import closure of
+  `src/liveclip/services/dual_profile_evaluation.py` and
+  `src/liveclip/pipeline/dual_profile.py`, the `dual-profile-eval` CLI
+  entry, the evaluator and its imports, the benchmark files and the
+  dependency lock; derivation in
+  `docs/exec-plans/liveclip-customer-delivery.md`, "Freeze closure"):
+  `src/liveclip/__init__.py`, `src/liveclip/__main__.py`,
+  `src/liveclip/limits.py`, `src/liveclip/cli/__init__.py`,
+  `src/liveclip/cli/app.py`, `src/liveclip/clipping_skills`,
+  `src/liveclip/config`,
+  `src/liveclip/domain/{__init__,candidate,clip_profile,edit_plan,review,semantic_validation,state_transitions,time,transcript}.py`,
+  `src/liveclip/media/{__init__,ingest,models,process,secure_files}.py`,
+  `src/liveclip/observability`,
+  `src/liveclip/pipeline/{__init__,dual_profile,semantic_global,semantic_lineage,semantic_profiles,semantic_transport,srt}.py`,
+  `src/liveclip/prompts`, `src/liveclip/providers`,
+  `src/liveclip/renderer`,
+  `src/liveclip/services/{__init__,captions,dual_profile_evaluation,structured_editorial_provider}.py`,
+  `scripts/{__init__,evaluate_benchmark,benchmark_gates}.py`,
+  `liveclip_dual_profile_benchmark_v1.json`,
+  `liveclip_dual_profile_benchmark_v1.md`, `pyproject.toml`, `uv.lock`
+  (brace lists expand to individual files; directories are frozen
+  recursively). **Reviewer freeze evidence, every checkpoint:** (1)
+  `git diff --exit-code f525338 -- <closure paths>` exits 0 and
+  `git status --porcelain -- <closure paths>` is empty; (2)
+  `tests/unit/test_dual_profile_freeze_pins.py` passes and an independent
+  recompute of the 17 prompt identities matches the Stage 18b "after"
+  column; (3) the Settings fingerprint recompute equals
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; (4) re-running
+  `scripts/evaluate_benchmark.py` on the stored cold-35 and cold-36 inputs
+  yields byte-identical `benchmark-result.json`; (5) when
+  `src/liveclip/services/dual_profile_delivery.py` changes, the cold-36
+  review-package `manifest.json` regenerated before/after is identical
+  (only the wall-clock `created_at` normalised; procedure in the Stage 19
+  ExecPlan). Stage 19 must not edit `src/liveclip/cli/app.py`.
 
 ### Stage 16b status
 
