@@ -64,11 +64,14 @@ trouble are padding at an edge of the interval. Inside the interval, between on-
 `material_interruption`; a padding flag may be added alongside that interior flag, never used instead
 of it. Inside the interval, calls to action and platform prompts (requests for fan badges, follows,
 likes or gifts, homepage plugs, requests for viewers to join on microphone), chat reading and
-presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see) are
-`material_interruption` too, even when brief, and are subtracted when testing the Profile duration
-minimum; only a single-cue audience thanks, greeting or name call-out that the speaker passes over
-without leaving the topic, including a single-cue thanks for a gift or follow, is exempt, and writing
-the taught term on the board is part of the lesson.
+presentation troubleshooting (stopping to wait for, test, request or change a pen or colour, fixing
+glare, or asking whether viewers can see) are `material_interruption` too, even when brief, and are
+subtracted when testing the Profile duration minimum; only a single-cue audience thanks, greeting or
+name call-out that the speaker passes over without leaving the topic, including a single-cue thanks
+for a gift or follow, is exempt, and writing the taught term on the board is part of the lesson. A
+passing remark of a few seconds that a pen or marker has failed, when the speaker does not stop to
+wait for, test or replace it and goes straight on with the same point, is not a
+`material_interruption`; treat it as part of the lesson.
 A speaker's brief explanation of their own equipment or of how listeners hear better, attached
 to an immediate live example, is part of the demonstration: neither padding nor an interruption.
 Trimming an edge never resolves a dependency the trimmed cue disclosed: a clip holding only the second

@@ -18,6 +18,492 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## cold-36 real run on frozen f525338 (2026-11-06) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied)
+
+- **Counted run 2 of 2** on the Stage 18 freeze
+  `f525338ed9427b0fcac9925bac6075d60af13e69` under the unchanged acceptance policy. Fresh cold, real
+  Claude CLI, single segment. HEAD at run time `f6b7882` (three docs-only
+  commits `2812985`, `15c4ff8`, `f6b7882` on top of the freeze SHA);
+  freeze-diff to `f525338` (including `.gitignore`) rc 0 with empty
+  porcelain before and after the run. Eval rc 0, wall 7511 s (2026-11-06
+  12:28:05 to 14:33:16 local; attempt start epoch 1793996885, 12:28:05
+  −0800); 0 sleep/wake events in the window; AC power throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261106-claude-cold-36`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 92.5**: both_profiles 15, short 17.5, mini 25, boundary 15,
+  risk 10, audit 10; `qualified_boundary_hits` 12. No hard failure, PASS
+  blocker, direct-fail condition, forbidden-composite, padding,
+  negative-anchor, duration or regression finding (every finding list
+  empty); `source_hash_matches` true. Short 7/8 (S03 missed; S06
+  −2300/+2860 ms; S01, S02, S04, S05, S07, S08 0/0 ms). Mini 5/6 (L01–L04
+  0/0 ms; L05 `audit_ml_0015_live_diagnosis_mix_voice_high_notes`
+  0/−4060 ms, `manual_review`; L07 missed). R01 blocked and R02 blocked
+  (R02 was `manual_review` in cold-33, cold-34 and cold-35), both routed
+  correctly. 0 selected rows in either profile; N07, N08 and both
+  composites clean.
+- L07 miss (representative-choice variance; no quality flag involved):
+  the in-tolerance row 2855–2974
+  (`confirm_nasal_sample_to_rhinitis_qualification`, 0/+1980 ms) was
+  rejected by Global Review as a duplicate of the retained 2854–2974
+  representative `precision_yuge_nasal_correction_rhinitis_closure`
+  (−30540/+1980 ms, `manual_review`), because the evaluated sung sample
+  sits in an untranscribed gap before cue 2855. L07 also missed in cold-31.
+  Recorded as known residual fragility, measured only; no patch under the
+  freeze (`evidence/near-misses.txt`).
+- Stage 18 watch items (`evidence/stage18-watch.txt`): (1) **L05**: 3
+  in-tolerance mini rows, none with `material_interruption`; every
+  Boundary Review reason applies the passing-pen carve-out to the pen
+  remark at cues 2337–2340 (Chinese wording: a passing mention that the pen
+  broke, then straight back to the same point, "不算中断/不算打断"). The
+  out-of-tolerance 2287–2394 row is blocked with `material_interruption`
+  from the farewell and mic invitation at cues 2374–2383, the same
+  mechanism as cold-35. (2) **N07**: all 9 overlapping mini rows are
+  `blocked` or rejected; the six rows that contain the pause carry
+  `material_interruption` for the pen-testing pause at cues 1030–1035; the
+  carve-out is invoked only to deny it; no padding or negative-anchor
+  finding; no 998–1048 or 1028–1172 row this run. (3) **Composites**:
+  562000–847000 has 11 blocked and 2 rejected mini rows, 1099200–1351000
+  has 14 blocked and 2 rejected; none selected or `manual_review`. (4)
+  **L04** representative: cues 1049–1130, exact. (5) **S01/S04**: both
+  0/0 ms, unchanged. (6) **S03** (measured only): missed; 476–506 is
+  `manual_review` at +12440/0 ms and the in-tolerance 472–506 row
+  (+2400/0 ms) was rejected as a duplicate of that shorter row, the same
+  mechanism as cold-33. (7) **Provenance** (below). (8) Discovery
+  `material_interruption` flags mini 91 / short 44 (cold-35 86/39,
+  cold-34 92/51, cold-33 102/59).
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 268 cache files,
+  every mtime after the attempt start; 0 cached `prompt_hash` mismatches;
+  0 content-identical files in 31 other cache roots (informational only;
+  81 same-key file names in the cold-35 root, none content-identical).
+  The run manifest, and therefore the run fingerprint, carries the 14
+  executed-stage prompt hashes (short_highlight `precision_audit`,
+  `precision_confirmation` and `risk_discovery` are not executed); all 14
+  equal the Stage 18b "after" column. Separately, all 17 prompt identities
+  recomputed from the tree (`evidence/step0-tree-prompt-hashes.txt`) equal
+  the Stage 18b table.
+- Provider: 269 provider records (run-manifest calls: Discovery 160,
+  Boundary Review 78, Global Review/Audit 29, variant link 1, plus 1
+  repair record), all succeeded on the first attempt; 1 successful repair
+  (Boundary Review), 0 retries, no usage-limit marker. Tokens in
+  10,737,580 / out 1,980,892.
+- **Run fingerprint identical to cold-35:** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37` (pin unchanged); model `claude-opus-5-5`;
+  algorithm `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` (unchanged); run fingerprint sha256
+  `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0` (fingerprint input dicts identical,
+  `evidence/fp-compare.txt`). No `LIVECLIP_CLAUDE_*` override in `.env`
+  (absent) or `.env.local` (key names only recorded).
+- Evaluator (informational): `scripts/evaluate_benchmark.py` and the two
+  root benchmark files (`liveclip_dual_profile_benchmark_v1.json`/`.md`)
+  are unchanged since `2c4de9a`; `src/liveclip/pipeline/dual_profile.py`,
+  whose schema classes the evaluator imports, is unchanged between
+  `50232af` and `f525338` (Stage 18 changed only prompts and two test
+  files). `scripts/benchmark_gates.py`, which the evaluator also imports,
+  last changed in `8b14aa3` (Stage 4, comment-only) and has no diff over
+  `8b14aa3..4bb17a8`; `8b14aa3` is an ancestor of `50232af`. The
+  reviewer's re-evaluation of cold-35 and cold-36 is byte-identical to the
+  stored results (a coder re-run of the stored argv into a scratch
+  directory also reproduced `benchmark-result.json` and
+  `benchmark-report.md` byte-identically). cold-35 and cold-36 are
+  therefore scored by the same evaluator and benchmark as cold-33 and
+  cold-34.
+- Renders: 12 clips (7 short, 5 mini), rc 0, automatic checks pass. Visual
+  and audio review pending (separate evidence category, not part of
+  strict PASS). The evaluator's `human_required` check
+  `title_hook_summary_must_be_source_faithful` lists 64 candidate IDs
+  (verified read-only against the stored `benchmark-result.json`), exactly
+  the `manual_review` rows (mini 23 + short 41); both cold-35 and cold-36
+  auto-select 0 candidates in both profiles, so every short and mini match
+  is `manual_review` (R01 and R02 are `blocked` in cold-36).
+- **Consecutive cold strict PASS count for `f525338`: 2/2 (cold-35 PASS
+  97.5, cold-36 PASS 92.5).** The acceptance policy (2 consecutive
+  fresh-cold strict PASSes on the frozen tree) is satisfied for the
+  Stage 18 freeze; **Stage 18 strict benchmark acceptance is complete on
+  `f525338`.** The `50232af` acceptance (cold-33/cold-34) remains the
+  historical baseline.
+- Residuals (recorded, no patch under the freeze): S03 (structural,
+  deferred; missed in every cold run since cold-30), L07
+  representative-choice variance (above), and the accepted Stage 18
+  reviewer prompt nits P2-1, P2-3, P2-4 and P2-6.
+- Still pending, each a separate evidence category that strict PASS does
+  not claim: (1) human editorial/audio review of the renders of cold-27
+  r2, warm-28, warm-29b, cold-30, cold-31, cold-32b, cold-33, cold-34,
+  cold-35 and cold-36; it also covers the `human_required` source
+  faithfulness check (61 IDs for cold-35, 64 for cold-36); (2) the L07
+  listening check of `input/8-30.ts` 1:40:07–1:40:35. Branch
+  `claude/liveclip-stage18-l05` is not pushed; push, PR and merge need
+  explicit user consent.
+- Recovery: docs-only; reverting this commit removes only this record (the
+  documented count returns to 1/2). No code, prompt, routing, algorithm,
+  evaluator or benchmark change; the freeze is unaffected.
+- **Next:** human editorial/audio review of the renders listed above, the
+  source-faithfulness review and the L07 listening check (user);
+  push/PR/merge only with explicit consent.
+
+## cold-35 real run on frozen f525338 (2026-11-06) — strict PASS 97.5 (fresh cold; consecutive cold strict PASS 1/2 for f525338)
+
+- **Counted run 1 of 2** on the Stage 18 freeze
+  `f525338ed9427b0fcac9925bac6075d60af13e69` under the unchanged acceptance policy. Fresh cold, real
+  Claude CLI, single segment. HEAD at run time `15c4ff8` (two docs-only
+  commits `2812985`, `15c4ff8` on top of the freeze SHA); freeze-diff to
+  `f525338` (including `.gitignore`) rc 0 with empty porcelain before and
+  after the run. Eval rc 0, wall 6952 s (2026-11-06 10:20:35 to 12:16:27
+  local; attempt start epoch 1793989235, 10:20:35 −0800); 0 sleep/wake
+  events in the window; AC power throughout.
+- Roots
+  `data/evaluations/dual-profile-{benchmark,cache,strict-eval}-20261106-claude-cold-35`
+  (the strict-eval root holds `benchmark-result.json`,
+  `benchmark-report.md` and `evidence/`).
+- Strict **PASS 97.5**: both_profiles 15, short 17.5, mini 30, boundary 15,
+  risk 10, audit 10; `qualified_boundary_hits` 13. No hard failure, PASS
+  blocker, direct-fail condition, forbidden-composite, padding,
+  negative-anchor, duration or regression finding; `source_hash_matches`
+  true. Short 7/8 (S03 missed; S06 −2300/+2860 ms; S01, S02, S04, S05,
+  S07, S08 0/0 ms). Mini **6/6** (L01–L04 0/0 ms; **L05
+  `audit_student_high_note_live_diagnosis` 0/−4060 ms, `manual_review`,
+  a new hit**; L07 0/+1980 ms). R01 blocked and R02 `manual_review`, both
+  routed correctly. Informational R02 diagnostic (gates nothing):
+  `risk_findings.R02.misrouted` is not empty but lists
+  `ml0014_regional_nasal` (cues 1990–2053, rejected by Global Review as a
+  duplicate, with the blocked risk twin `risk_nasal_regional_attribution`;
+  `required_routing` [`blocked`, `manual_review`]), while the evaluator
+  hard-fails only when a required risk anchor has no matched candidate
+  (`scripts/evaluate_benchmark.py:371-372`), R02 is matched by the
+  `manual_review` row `ml0014_nasal_full_chain`, the risk component is
+  10/10, and cold-31, cold-33, cold-34 and cold-36 have empty `misrouted`
+  lists. 0 selected rows in either profile.
+- Stage 18 watch items (`evidence/stage18-watch.txt`): (1) **L05**: no
+  in-tolerance row carries `material_interruption`; Boundary Review
+  explicitly applies the passing-pen carve-out to cues 2337–2340. The
+  blocked 2287–2394 rows are out of tolerance; their
+  `material_interruption` comes from the farewell and mic invitation at
+  cues 2374–2389. (2) **N07**: all 9 overlapping mini rows are `blocked`
+  or rejected; the rows containing the pause are blocked for
+  `material_interruption` over the pen-testing pause at cues 1030–1035;
+  the carve-out is invoked only to deny it ("about 13 s, not a passing pen
+  fault"); no padding or negative-anchor finding; no 998–1048 or 1028–1172
+  row appeared this run. (3) **Composites** 562000–847000 and
+  1099200–1351000: no selected or `manual_review` mini row. (4) **L04**
+  representative: cues 1049–1130, exact. (5) **S01/S04**: both 0/0 ms,
+  unchanged from cold-33/cold-34. (6) **S03** (measured only): missed;
+  Discovery proposed 475–506, which Boundary Review trimmed to 476–499
+  (+12440/−11160 ms) because "500–506 is a new topic"; the 470–499 rows
+  were rejected as duplicates. (7) **Provenance** (below). (8) Discovery
+  `material_interruption` flags mini 86 / short 39 (cold-34 92/51, cold-33
+  102/59, cold-32b 69/21).
+- Provenance (meets the fresh-cold definition): run-manifest `cache_hits`
+  0; run and cache roots did not exist at attempt start; 264 cache files,
+  every mtime after the attempt start; 0 cached `prompt_hash` mismatches;
+  0 content-identical files in 30 other cache roots (informational only).
+  All 17 prompt identities recomputed from the tree
+  (`evidence/step0-tree-prompt-hashes.txt`) and the 14 run-manifest
+  executed-stage hashes equal the Stage 18b "after" column.
+- Provider: 265 provider records (run-manifest calls: Discovery 160,
+  Boundary Review 75, Global Review/Audit 28, variant link 1, plus 1
+  repair record), all succeeded on the first attempt; 1 successful repair
+  (Boundary Review), 0 retries, no usage-limit marker. Tokens in
+  10,382,502 / out 1,857,884.
+- **Run fingerprint (cold-36 must match):** Claude CLI 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37` (pin unchanged); model `claude-opus-5-5`;
+  algorithm `dual-profile-direct-v1`; routing `quality-gate-risk-routing-v9`;
+  Settings fingerprint sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` (unchanged); run fingerprint sha256
+  `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`. It differs from the cold-33/cold-34
+  value `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through `prompt_hashes`
+  (13 of the 14 executed-stage hashes change; variant link unchanged),
+  verified by substituting the cold-35 `prompt_hashes` into the cold-34
+  fingerprint input (`evidence/fp-compare.txt`), as the freeze expects. No
+  `LIVECLIP_CLAUDE_*` override in `.env` (absent) or `.env.local` (key
+  names only recorded).
+- Renders: 13 clips (7 short, 6 mini, including the new L05 clip), rc 0,
+  automatic checks pass. Visual and audio review pending (separate
+  evidence category, not part of strict PASS). The evaluator's
+  `human_required` check `title_hook_summary_must_be_source_faithful`
+  lists 61 candidate IDs, exactly the `manual_review` rows (mini 21 +
+  short 40).
+- **Consecutive cold strict PASS count for `f525338`: 1/2.**
+- Recovery: docs-only; reverting this commit removes only this record (the
+  documented count returns to 0/2). No code, prompt, routing, algorithm or
+  benchmark change; the freeze is unaffected.
+- (Historical next step; done: cold-36 strict PASS 92.5, count 2/2 for
+  `f525338`, see the cold-36 section above.) **Next: cold-36** (consecutive run 2 of 2) on the same frozen tree
+  `f525338` with the same run fingerprint `e8bef66db0a64159a4ba45be73ee85d501e8bb8200b96df4c8248aa48880e3f0`; a
+  cold-Nb continuation counts as one run. Pre-run checks and the eight
+  watch items as for cold-35. Human editorial/audio review of the cold-27
+  r2 through cold-35 renders and the L07 listening check stay pending
+  (separate evidence category). Push and merge still need explicit
+  consent.
+
+## FREEZE ACCEPTED at f525338 (Stage 18) (2026-11-06) — consecutive cold strict PASS 0/2
+
+- **Freeze SHA `f525338ed9427b0fcac9925bac6075d60af13e69`** (Stage 18 code commit, prompts and
+  tests only). On `claude/liveclip-stage18-l05`; not pushed or merged to
+  `main`. It replaces `50232af` as the frozen tree for new counted runs;
+  the `50232af` acceptance (cold-33/cold-34, 2/2) stays the historical
+  baseline for that tree.
+- **Tester:** independent tester at `2812985` (freeze-diff to `f525338` empty):
+  `make lint` rc 0; backend pytest 3241 passed; vitest 80 passed; e2e 4/4;
+  concurrency 5/5; media-process 3/3; flag contract
+  (`test_dual_profile_flag_contract.py`) 3/3 repeats, 119 passed each;
+  no sleep during the suite. Deterministic validation only; no real model
+  call, no render, no human review.
+- **Reviewer:** independent reviewer at `2812985`: ACCEPT with nits; no P0
+  or P1. Nits P2-1 to P2-6: P2-2 and P2-5 are docs wording and are fixed in
+  this commit; P2-1, P2-3, P2-4 and P2-6 are prompt wording and are accepted
+  residuals (below). No code or prompt change.
+- **FROZEN (definition, as for `50232af`, now against `f525338`).**
+  `git diff --quiet f525338 -- src tests scripts config tools apps
+  migrations pyproject.toml uv.lock alembic.ini Makefile
+  liveclip_dual_profile_benchmark_v1.json liveclip_dual_profile_benchmark_v1.md
+  .gitignore` must exit 0, with empty porcelain, before and after each
+  counted run. In addition: (a) all 17 prompt identities computed from the
+  tree equal the "after (Stage 18)" column of the Stage 18b table in the
+  Stage 18 section below; (b) routing policy `quality-gate-risk-routing-v9`;
+  (c) algorithm version `dual-profile-direct-v1`. Docs-only commits on top
+  of the freeze SHA are allowed.
+- **Run environment (unchanged rules).** The same pinned Claude CLI binary
+  (`.cache/claude-cli/2.1.308/claude`, `--version` 2.1.308, sha256
+  `ca923c86ac84b30574a82331a05b6e066c27477a926ceaffe46a845a33e4dd37`); the same Settings fingerprint (sha256
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`); the same no-override rule (no `.env` or
+  `.env.local` override of the `LIVECLIP_CLAUDE_*` model, timeout or attempt
+  settings; each run records `ls -la .env .env.local` presence and, for a
+  present file, only the names of its `LIVECLIP_` keys, never values). The
+  two counted runs need equal run-manifest `provider`, `model`,
+  `prompt_hashes`, final-validated routing policy and algorithm version.
+  Check at this docs commit (2026-11-06): `.env` absent; `.env.local`
+  present and ignored (`.gitignore` `.env.*`), with no `LIVECLIP_CLAUDE_*`
+  and no `LIVECLIP_STRUCTURED_PROVIDER` key; the CLI binary's recomputed
+  sha256 equals the pin and `--version` prints 2.1.308.
+- **Run fingerprint.** The run fingerprint is expected to differ from the
+  cold-33/cold-34 value `04f5de6e76150fd763c5669be38aed69a32376097e5c2f874c902f89052b9cc5` only through
+  `prompt_hashes` (the 14 executed-stage hashes change to the Stage 18
+  values); any other difference disqualifies the run. The second counted
+  run must match the first run's fingerprint, as cold-34 matched cold-33.
+- **Fresh cold and counting (unchanged).** The fresh-cold provenance
+  criterion of the `50232af` FREEZE section applies unchanged (run-manifest
+  `cache_hits == 0`, a new or empty cache root at start, every cache file's
+  mtime at or after the attempt start; a cold-Nb continuation may copy only
+  the immediately previous segment of the same run, with `cache_hits` equal
+  to the copied entries; content identity against other roots is
+  informational only). A cold-Nb continuation counts as one run. A warm or
+  seeded run is a diagnostic, never acceptance evidence.
+- **Per-run watch items (reviewer; each counted run records all eight).**
+  (1) L05: status and `material_interruption` reasons of the in-tolerance
+  L05 rows, and whether any reason still cites the pen remark (cues
+  2337–2340). (2) N07-overlapping mini rows (the 1023–1130 / 1023–1172
+  class, the 998–1048 risk row, the 1028–1172 row): they must stay
+  `blocked` or rejected for the pen-testing pause, with no
+  `irrelevant_padding` or negative-anchor finding; record whether any
+  reason invokes the carve-out. (3) Composites 562000–847000 and
+  1099200–1351000: no selected or `manual_review` mini output. (4) The L04
+  representative. (5) The S01 and S04 start/end offsets. (6) The S03
+  outcome (measured only). (7) Provenance and prompt hashes (fresh-cold
+  criterion; every `prompt_hash` equals the Stage 18b "after" column).
+  (8) Discovery `material_interruption` flag counts compared with cold-34
+  (mini 92 / short 51).
+- **Accepted residuals (reviewer P2, unchanged by decision; any prompt edit
+  breaks this freeze).** (P2-1) The item list says "stopping to wait for,
+  test, request or change a pen or colour" while the carve-out says "does
+  not stop to wait for, test or replace it", so a passing request for
+  another pen is ambiguous between the two. (P2-3) "The only exemption
+  is…" sits next to the carve-out (`main.md:28`,
+  `stages/risk_discovery.md:16`, `stages/coverage_audit.md:34`, under
+  `src/liveclip/clipping_skills/dual_profile_v1/`), which can read as a
+  conflict with "only". (P2-4) `stages/global_audit.md` lines 62–72: the
+  rule is one long semicolon list with uneven punctuation. (P2-6) Pen
+  remarks in an edge position (at a candidate's start or end) are not
+  addressed by separate wording. All four are recorded for a future prompt
+  revision.
+- **Docs nits fixed here (reviewer P2-2, P2-5).** P2-2: the Stage 18
+  amendment in `docs/PRODUCT_SPEC.md` no longer says "general, not tuned to
+  any benchmark anchor"; it now says the wording is general and motivated
+  by the L05 miss. P2-5: the Stage 18 recovery bullet below now says that
+  reverting restores the `50232af` frozen-path and prompt tree (docs
+  differ).
+- **Consecutive cold strict PASS count for `f525338`: 0/2.**
+- Recovery: docs-only; reverting this commit removes only this record and
+  the two wording fixes. No code, prompt, routing, algorithm or benchmark
+  change.
+- (Historical next step; done: cold-35 strict PASS 97.5, count 1/2 for
+  `f525338`, see the cold-35 section above.) **Next: cold-35**, the first counted fresh cold run on `f525338`.
+  Pre-run: freeze-diff (including `.gitignore`) rc 0 with empty porcelain;
+  new empty cache root; CLI sha256 and version; `.env`/`.env.local`
+  presence and `LIVECLIP_` key names; record the eight watch items. Human
+  editorial/audio review of the earlier renders and the L07 listening check
+  stay pending (separate evidence category). Push and merge still need
+  explicit consent.
+
+## Stage 18: passing pen-remark carve-out from `material_interruption` ("L05 only") (2026-11-06) — ACCEPTED at f525338 (FREEZE SHA; was implemented, pending independent tester and reviewer; freeze of 50232af broken)
+
+- **Status: ACCEPTED at `f525338` (new freeze SHA; see the FREEZE section
+  above). Was: implemented, pending independent tester and reviewer.** Prompts
+  and tests in `f525338ed9427b0fcac9925bac6075d60af13e69` on `claude/liveclip-stage18-l05` (branched from
+  `origin/main` `701f540`, the merge of PR #1, whose tree equals `ef07143`);
+  this docs commit follows. Not pushed. Routing policy
+  `quality-gate-risk-routing-v9`, algorithm version `dual-profile-direct-v1`,
+  cache-key schema, persisted schemas, Python behaviour, evaluator,
+  thresholds, benchmark JSON/MD, short-profile file
+  (`profiles/short_highlight.md`) and `tools/loop_engineering` are
+  unchanged: `git diff --stat origin/main -- src ':!src/liveclip/clipping_skills'`
+  is empty.
+- **User decision (2026-11-06): "L05 only".** Narrow the Stage 17 rule so a
+  brief, passing remark that a pen or marker has failed is not a
+  `material_interruption`; genuine presentation troubleshooting stays
+  `material_interruption` even when brief. This **partly re-widens the
+  Stage 17 narrowed exemption** for presentation troubleshooting, by explicit
+  user decision; the single-cue thanks, greeting or name exemption itself is
+  unchanged. S03 is out of scope.
+- **Root cause (independent read-only reviewer).** The Stage 17 clause
+  (`2932b7c`) listed "presentation troubleshooting (waiting for a pen or
+  colour, glare, asking whether viewers can see)" as `material_interruption`
+  "even when brief", which overrode the threshold "only when it actually
+  breaks the teaching or claim logic". In cold-33 and cold-34 every
+  in-tolerance L05 row was blocked for `material_interruption` over a few
+  seconds' pen-failure remark that the speaker passes over (cues 2337–2340).
+  Reviewer analysis and offline replays (stored stage outputs with the flag
+  released deterministically; an estimate, not real-model evidence):
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage18-analysis/` (`replay18*.txt`): releasing only the
+  L05 rows would give cold-33 and cold-34 PASS 96.35 with mini 6/6, while also
+  releasing the N07-overlapping mini rows (which contain a genuine
+  pen-testing pause) would add `irrelevant_padding` and, in cold-34, a
+  negative-anchor finding. Hence the carve-out is limited to a passing remark
+  with no stop to wait for, test or replace the pen.
+- **S03: deferred, measured only.** Reviewer root cause: the window-ownership
+  edge, the shortest-complete prompts and Discovery variance (as recorded:
+  cold-34 Discovery never proposed the full span and Global Review and Global
+  Audit kept the shorter duplicate; cold-33 had an in-tolerance row rejected
+  as a duplicate). No prompt or routing change for S03; each new run records
+  the S03 outcome.
+- (1) **Prompts (generic wording; no cue numbers, times, anchor IDs, digits
+  or quoted transcript).** In every copy of the rule (`main.md`,
+  `coverage_audit.md`, `risk_discovery.md`, `boundary_review.md`
+  definition cross-reference and on-topic duration test, `global_review.md`,
+  `global_audit.md`; `discovery.md`, `precision_audit.md`,
+  `precision_confirmation.md`, `repair.md` and both Profile files carry no
+  copy and are unchanged) the item list reads "presentation troubleshooting
+  (stopping to wait for, test, request or change a pen or colour, fixing
+  glare, or asking whether viewers can see)", followed by the identical
+  carve-out: "A passing remark of a few seconds that a pen or marker has
+  failed, when the speaker does not stop to wait for, test or replace it and
+  goes straight on with the same point, is not a `material_interruption`;
+  treat it as part of the lesson." `global_audit.md` previously named
+  troubleshooting without the item list; it now carries the same list so
+  every mirror is identical. Boundary Review's duration test still removes
+  calls to action, platform prompts, chat reading and (genuine) presentation
+  troubleshooting even when brief, and now keeps "such a passing pen or
+  marker remark" in the lesson beside board-writing and the live-demo
+  equipment remark. Unchanged: calls to action and platform prompts (fan
+  badges, follows, likes, gifts, homepage plugs, microphone-join requests)
+  and chat reading stay `material_interruption`; the single-cue thanks,
+  greeting or name exemption; board-writing is part of the lesson.
+- (2) **Stage 18b prompt-hash table** (all 17 identities from the repo's
+  `load_dual_profile_prompt` / `load_dual_profile_variant_link_prompt` via
+  `stage18-coder/prompt_hashes.py` on `origin/main` (= `50232af` prompts) and
+  on the Stage 18 tree; the "before" column equals the Stage 17b table; JSON
+  in `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage18-coder/`):
+
+  | prompt identity | before (50232af, Stage 17b) | after (Stage 18) | changed |
+  |---|---|---|---|
+  | `short_highlight.discovery` | `2832239f9534ce78ed7dc19d99dae0d9044267dc20ad2e773372065cfbf3f802` | `c2d9dfc5d9602a6691a7dfdf249f4685ff84950968d6603061952570e70ca1e5` | yes |
+  | `short_highlight.coverage_audit` | `834f4e170e3e99fe2f181d77f275915cb3e4839a3e65fd57a74be74e721dac31` | `b3237e3dcf88c17f85642127bb7711bbe6f376e1012d5e0d6eb5748df69c564a` | yes |
+  | `short_highlight.precision_audit` | `80e8fc4c1c5705f9a8411ceb20dcd03cfe058dc7cef36260c4e0456d5a3be382` | `f955e61abaf482fd594cb875498524bf6ac4d078f3e13663a5378c2d1f47af78` | yes |
+  | `short_highlight.precision_confirmation` | `be470cf717a5a815adcec65e3a9df5b6caf4af0464481a8eb930eb7c806218e2` | `0784d166170419526247b24427207457ce3b1903634f31482784dc6e7d2297fb` | yes |
+  | `short_highlight.risk_discovery` | `8e03366fc65f11d93aa57c6c74eaddb815a1e81c4d5fec19e6a438a2ae6504ed` | `8315d03f096e04eae886cd73cf4d922cd886483e8d84e0d0d5b8450cd9797ccd` | yes |
+  | `short_highlight.boundary_review` | `ec2f6175bd57e1eb252170c9168d78a8e55d06790e0443c2cc2404de0aca01c2` | `4c8621c0a77613b6070b3d2aabeaac11519dfbac0bb1e7d0a976eab370c9b939` | yes |
+  | `short_highlight.global_review` | `a47b9e7124620763756b294cc3e05cbac3d85267a0e666b3ac1ab26eeb6aa646` | `89cd790f3860e8881fd6ded8c577979fb9698e8fc677c59e343a83b605961543` | yes |
+  | `short_highlight.global_audit` | `5c35970f963583cb46ab3f8a5b52da9416ebc9c8d003a6a908a05e504b2400fc` | `070b605413e4caaa9ce1d74bd534eb61d36def4c7db9a453cd991a23c9243a54` | yes |
+  | `mini_lesson.discovery` | `f29619ec3161e468cb5def022d568490a07cecba1ce774a3e3db849679af24ba` | `b93d1d564b1a675bc675f13859dd6a133288fae4bbba0c76434755cebd1c82f8` | yes |
+  | `mini_lesson.coverage_audit` | `984cdbaf69b98630fbd88ec0c531f4cb19a62af0438877f51b9c4ba24d5153a1` | `80480fb064d1afe7dcc4ea9ade1b930e9c376d9b5d7f6b1057a9890827d07692` | yes |
+  | `mini_lesson.precision_audit` | `941db84773ebc6a1bbd454e6d6c648de0fa66b0b28f83dccf4eab8da196a2870` | `0894b7d32611b30d4f344b1f435f2ec4021f27dd3859b1126036969bcaeaec11` | yes |
+  | `mini_lesson.precision_confirmation` | `fd86951677ffa03a8e19fe2f2b16a2c3ea1051c2d4f6f4f971e3d4b390f3705b` | `e2350c1ec657bc1118e399bdf983c8cbe0e9e53d6e2384597daf5c15df58c642` | yes |
+  | `mini_lesson.risk_discovery` | `76809629a4714f03ded6fda51d16b0f07db781256030fcc984a33585437ed7c4` | `dd5c1ef7bc839c613f5b5ccaca367a6eff3b9d4de5b7448fbfbf7f5d0cdf1182` | yes |
+  | `mini_lesson.boundary_review` | `abb7f51674cdae7cdbc9f7471a7cdfefbe1c2c0a48099ccc80320368c8032d23` | `5907d96caaf97020891dddf9a017908caed3ec6eb2779f61ae8584bfcbef688c` | yes |
+  | `mini_lesson.global_review` | `ea58c71b71b81d000f5df3ca31e718e1a5acef6a423ccbeeed780e6d456180e3` | `af68fc7c175ad07bd879fbc6576f0720c883c66e795229c958ff35f20c1097dd` | yes |
+  | `mini_lesson.global_audit` | `092264576bfe411281b1d2f041e50ea0e0b758c9ca2acb71992dc875ab970d1f` | `bd7f9654717c8dcafc868f52767d8deebb765268153fd2b2fa7b9f120e522dc9` | yes |
+  | `variant_link` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | `def25b05bd987a293cf74d5f964ca00504d8d247cfd8b1d4af17299289152aef` | no |
+
+  16 of 17 identities change (`main.md` is loaded by every stage except the
+  variant link); the variant link is unchanged. The 13 pinned identities are
+  re-pinned with a Stage 18 justification in
+  `tests/integration/test_dual_profile_evaluation.py`
+  (`FROZEN_DISCOVERY_PROMPT_HASHES`, `PINNED_REVIEW_PROMPT_HASHES`); the
+  three short_highlight `precision_audit`, `precision_confirmation` and
+  `risk_discovery` identities are not pinned (not executed), as before. The
+  next real run has a cold cache for every stage except the variant link.
+- (3) Tests (`test_dual_profile_flag_contract.py` 102 → 119, +17): the
+  Stage 17/17b pins (`MI_THRESHOLD`, Boundary Review cross-reference and
+  duration test, Global Review/Audit restatements) carry the new wording via
+  shared constants `TROUBLESHOOTING_ITEMS` and `PEN_REMARK_CARVE_OUT`; new
+  `test_a_passing_pen_remark_is_part_of_the_lesson_and_genuine_troubleshooting_stays_mi`
+  (8 stages × 2 Profiles: per-stage own and inherited counts of the item list
+  and the carve-out; the superseded "waiting for a pen or colour" wording
+  absent; every "presentation troubleshooting" carries the item list except
+  Boundary Review's one back-reference; genuine items, platform-prompt list,
+  chat reading, single-cue and gift-thanks exemptions and board-writing
+  present; Boundary Review's duration test still subtracts the genuine types;
+  no digits or CJK in the rule text) and
+  `test_every_mirror_of_the_troubleshooting_rule_is_identical` (reads every
+  `*.md` of the `dual_profile_v1` tree, including Discovery, repair and the
+  Profile files: every item list and carve-out is byte-identical after
+  whitespace normalisation, the carrying file set is exactly the six files
+  above, and neither Profile file mentions troubleshooting).
+- (4) Mutation self-check (prompt files mutated in place, restored
+  byte-for-byte, prompt hashes re-verified equal afterwards;
+  `stage18-coder/mutate.py`, `mutation_results.txt`): 5 of 5 caught — M1
+  `global_review` drops the carve-out (6 failures), M2 `coverage_audit`
+  restores the old item list (8), M3 `risk_discovery` carve-out drifts to
+  "several seconds" (8), M4 Boundary Review duration test drops the
+  troubleshooting subtraction (7), M5 `main.md` drops the carve-out (31).
+- (5) Replay sanity (deterministic; evaluator and routing untouched):
+  `scripts/evaluate_benchmark.py` re-run on the stored cold-33 and cold-34
+  `final-validated.json` and `run-manifest.json` into
+  `stage18-coder/replay-cold-{33,34}/`: rc 0, PASS 92.5 each,
+  `benchmark-result.json` and `benchmark-report.md` byte-identical to the
+  stored strict-eval files. Nothing written under `data/`.
+- Self-check: `make lint` rc 0; targeted pytest (`test_dual_profile.py`,
+  flag contract, `test_dual_profile_evaluation.py`) 392 passed; every
+  prompt-loading test file (20 files plus `test_dual_profile.py`) 1077
+  passed; full backend pytest 3241 passed (3224 at Stage 17b plus 17 Stage 18 items). Deterministic validation only; no
+  real model call, no render, no human review.
+- **50232af acceptance stays the historical baseline.** cold-33 and cold-34
+  (strict PASS 92.5 each, 2/2 on frozen `50232af`) remain valid evidence for
+  that tree; they are not evidence for the Stage 18 tree.
+- **Freeze broken.** Stage 18 changes prompt identities, so under the
+  "Acceptance policy from Stage 17" the `50232af` freeze no longer covers
+  HEAD and the consecutive count for the new tree is **0/2**. A new freeze SHA
+  (candidate: the Stage 18 code commit `f525338ed9427b0fcac9925bac6075d60af13e69`, once the independent
+  tester and reviewer accept it; accepted 2026-11-06, see the FREEZE
+  section above) and **2 new consecutive fresh-cold strict
+  PASSes** on it are required. The FROZEN definition, fresh-cold provenance,
+  run environment and "what counts" rules are unchanged, except that (b)
+  compares against the Stage 18b table above.
+- **Per-run watch items (each new counted run records them; extended to
+  the eight reviewer items in the FREEZE section above):** (1) the L05
+  hit (status and `material_interruption` reasons of the in-tolerance L05
+  rows); (2) the status and `material_interruption` reasons of the
+  N07-overlapping mini rows, which contain a genuine pen-testing pause and
+  must stay `blocked` or rejected (no `irrelevant_padding` or
+  negative-anchor finding); (3) the composite rows (562000–847000 and
+  1099200–1351000 must have no selected or `manual_review` mini output);
+  (4) the L04 representative; (5) the S01 and S04 start/end offsets; plus the
+  S03 outcome (measured only).
+- Recovery: revert `f525338ed9427b0fcac9925bac6075d60af13e69` (and this docs commit); that restores the
+  Stage 17b prompt hashes and the `50232af` frozen-path and prompt tree
+  (every path in the freeze list, prompts included, equals `50232af`; docs
+  differ), where the cold-33/34 acceptance applies. No routing, cache-key
+  or schema impact. (Wording made precise at freeze acceptance, reviewer
+  P2-5.)
+- (Historical next step; done: tester and reviewer accepted, freeze SHA
+  `f525338`, see the FREEZE section above.) **Next:** independent tester and reviewer on `f525338ed9427b0fcac9925bac6075d60af13e69`; on acceptance it
+  becomes the new freeze SHA; then two consecutive fresh-cold strict PASS
+  runs on it with the watch items above. Human editorial/audio review of
+  earlier renders and the L07 listening check stay pending (separate
+  evidence category). Push and merge still need explicit consent.
+
 ## cold-34 real run on frozen 50232af (2026-11-05) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2; benchmark v1 strict acceptance satisfied)
 
 - **Counted run 2 of 2** under the "Acceptance policy from Stage 17" (as
@@ -101,7 +587,9 @@
 - Recovery: docs-only; reverting this commit removes only this record (the
   documented count returns to 1/2). No code, prompt, routing, algorithm or
   benchmark change; the freeze is unaffected.
-- **Next:** human editorial/audio review of the renders listed above and
+- (Historical next step for the `50232af` tree; L05 is addressed by Stage 18
+  above by user decision, S03 stays measured only, and the human review and
+  L07 check stay pending.) **Next:** human editorial/audio review of the renders listed above and
   the L07 listening check (user); push/merge only with explicit consent.
   The S03 and L05 residual fragility stays recorded for future work.
 

@@ -69,9 +69,12 @@ interruption.
 Interior audibility checks, connection lag and playback trouble, as described below, are such unrelated
 content and count as `material_interruption`. So are interior calls to action and platform prompts
 (requests for fan badges, follows, likes or gifts, homepage plugs, requests for viewers to join on
-microphone), chat reading and presentation troubleshooting (waiting for a pen or colour, glare, asking
-whether viewers can see), even when brief; the single-cue exemption above covers a single-cue thanks
-for a gift or follow but never these requests, chat reading or troubleshooting.
+microphone), chat reading and presentation troubleshooting (stopping to wait for, test, request or
+change a pen or colour, fixing glare, or asking whether viewers can see), even when brief; the
+single-cue exemption above covers a single-cue thanks for a gift or follow but never these requests,
+chat reading or troubleshooting. A passing remark of a few seconds that a pen or marker has failed,
+when the speaker does not stop to wait for, test or replace it and goes straight on with the same
+point, is not a `material_interruption`; treat it as part of the lesson.
 `device_or_waiting_padding` requires explicit device/network/waiting content. An audibility check means
 asking or answering whether someone can hear. Audibility checks, connection or network talk, connection
 lag, switching networks and trouble playing back a recording are `device_or_waiting_padding` at an edge
@@ -115,9 +118,13 @@ such interior material, flag `padded_with_irrelevant_content` alongside `materia
 `topic_switch_inside`), never instead of it. Only a single-cue audience thanks, greeting or name
 call-out that the speaker passes over without leaving the topic, including a single-cue thanks for a
 gift or follow, is neither flag and is not removed in this test; calls to action, platform prompts,
-chat reading and presentation troubleshooting are removed in it even when brief. Writing the taught
-term on the board and the speaker's brief equipment or listening explanation attached to an immediate
-live example are part of the lesson and are not removed in this test. A closing acknowledgement or
+chat reading and presentation troubleshooting (stopping to wait for, test, request or change a pen or
+colour, fixing glare, or asking whether viewers can see) are removed in it even when brief. A passing
+remark of a few seconds that a pen or marker has failed, when the speaker does not stop to wait for,
+test or replace it and goes straight on with the same point, is not a `material_interruption`; treat
+it as part of the lesson. Writing the taught term on the board, such a passing pen or marker remark
+and the speaker's brief equipment or listening explanation attached to an immediate live example are
+part of the lesson and are not removed in this test. A closing acknowledgement or
 address to the audience is neither padding nor subtracted from the duration in this test.
 
 Use `context_dependent_opening` only when the opening's meaning cannot be recovered from cues inside the

@@ -59,13 +59,17 @@ Pay special attention to:
   playback trouble left in a kept interval: at an edge they are padding; inside the interval, between
   on-topic cues, they are `material_interruption`, and a padding flag may be added alongside that
   interior flag, never used instead of it; inside the interval, calls to action and platform prompts,
-  chat reading and presentation troubleshooting are `material_interruption` too, even when brief, and
-  only a single-cue audience thanks, greeting or name call-out that the speaker passes over, including
-  a single-cue thanks for a gift or follow, is exempt; writing the taught term on the board is part of
-  the lesson; a speaker's brief explanation of their own equipment or of how listeners hear better,
-  attached to an immediate live example, is part of the demonstration, neither padding nor an
-  interruption; trimming an edge never resolves a dependency the trimmed cue disclosed; a clip holding
-  only the second half of a before/after comparison is context-dependent;
+  chat reading and presentation troubleshooting (stopping to wait for, test, request or change a pen or
+  colour, fixing glare, or asking whether viewers can see) are `material_interruption` too, even when
+  brief, and only a single-cue audience thanks, greeting or name call-out that the speaker passes over,
+  including a single-cue thanks for a gift or follow, is exempt. A passing remark of a few seconds that
+  a pen or marker has failed, when the speaker does not stop to wait for, test or replace it and goes
+  straight on with the same point, is not a `material_interruption`; treat it as part of the lesson.
+  Writing the taught term on the board is part of the lesson; a speaker's brief explanation of their
+  own equipment or of how listeners hear better, attached to an immediate live example, is part of the
+  demonstration, neither padding nor an interruption; trimming an edge never resolves a dependency the
+  trimmed cue disclosed; a clip holding only the second half of a before/after comparison is
+  context-dependent;
 - live diagnosis loops where singing immediately before the diagnosis is the evaluated sample;
 - kept candidates whose central objective is the speaker's own credentials, qualifications, pricing,
   course sales or schedule: such a candidate is not a teaching or highlight unit, so replace it as

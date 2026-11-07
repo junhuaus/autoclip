@@ -154,6 +154,19 @@ def test_prompts_name_interior_interruptions_and_keep_padding_flags_at_the_edges
 # platform prompts, chat reading and presentation troubleshooting are
 # `material_interruption` and are subtracted in the duration-minimum test.
 ALL_STAGES = (*DISCOVERY_AND_BOUNDARY_STAGES, "global_review", "global_audit")
+# Stage 18 (user decision 2026-11-06, "L05 only"): presentation troubleshooting is
+# genuine troubleshooting (stopping to wait for, test, request or change a pen or
+# colour, fixing glare, asking whether viewers can see); a passing remark that a pen
+# or marker has failed, when the speaker goes straight on, is part of the lesson.
+TROUBLESHOOTING_ITEMS = (
+    "presentation troubleshooting (stopping to wait for, test, request or change a pen or "
+    "colour, fixing glare, or asking whether viewers can see)"
+)
+PEN_REMARK_CARVE_OUT = (
+    "A passing remark of a few seconds that a pen or marker has failed, when the speaker does not "
+    "stop to wait for, test or replace it and goes straight on with the same point, is not a "
+    "`material_interruption`; treat it as part of the lesson."
+)
 MI_THRESHOLD = (
     "Interior content counts as `material_interruption` only when it actually breaks the "
     "teaching or claim logic. The only exemption is a single-cue audience thanks, greeting or "
@@ -161,10 +174,9 @@ MI_THRESHOLD = (
     "single-cue thanks for a gift or follow: it is neither an interruption nor padding. Inside "
     "the interval, calls to action and platform prompts (requests for fan badges, follows, likes "
     "or gifts, homepage plugs, requests for viewers to join on microphone), chat reading and "
-    "presentation troubleshooting (waiting for a pen or colour, glare, asking whether viewers can "
-    "see) are `material_interruption` even when brief, like audibility checks, and they are "
-    "subtracted when testing the Profile duration minimum. Writing the taught term on the board "
-    "is part of the lesson."
+    f"{TROUBLESHOOTING_ITEMS} are `material_interruption` even when brief, like audibility checks, "
+    "and they are subtracted when testing the Profile duration minimum. "
+    f"{PEN_REMARK_CARVE_OUT} Writing the taught term on the board is part of the lesson."
 )
 # The Stage 15 wording that reviewers stretched to calls to action and
 # presentation troubleshooting; no stage may carry it any more.
@@ -226,15 +238,17 @@ def test_boundary_review_threshold_matches_the_shared_definition(profile: ClipPr
         "attached to an immediate live example is not by itself an interruption."
     ) in text
     # Stage 14c cross-reference kept; Stage 17 extends it to calls to action,
-    # platform prompts, chat reading and presentation troubleshooting.
+    # platform prompts, chat reading and presentation troubleshooting; Stage 18 narrows
+    # troubleshooting and adds the passing pen or marker remark carve-out.
     assert (
         "Interior audibility checks, connection lag and playback trouble, as described below, are "
         "such unrelated content and count as `material_interruption`. So are interior calls to "
         "action and platform prompts (requests for fan badges, follows, likes or gifts, homepage "
-        "plugs, requests for viewers to join on microphone), chat reading and presentation "
-        "troubleshooting (waiting for a pen or colour, glare, asking whether viewers can see), "
-        "even when brief; the single-cue exemption above covers a single-cue thanks for a gift or "
-        "follow but never these requests, chat reading or troubleshooting." in text
+        "plugs, requests for viewers to join on microphone), chat reading and "
+        f"{TROUBLESHOOTING_ITEMS}, even when brief; the single-cue exemption above covers a "
+        "single-cue thanks for a gift or "
+        f"follow but never these requests, chat reading or troubleshooting. {PEN_REMARK_CARVE_OUT}"
+        in text
     )
 
 
@@ -260,15 +274,17 @@ def test_boundary_review_duration_test_obeys_the_interruption_threshold(
     ) in text
     # Stage 17: only the single-cue passed-over exemption is kept in the test; Stage 17b
     # names the single-cue gift or follow thanks and keeps board-writing and the
-    # live-demo equipment remark inside the lesson (not subtracted).
+    # live-demo equipment remark inside the lesson (not subtracted). Stage 18 narrows
+    # the subtracted troubleshooting to genuine troubleshooting and keeps a passing pen
+    # or marker remark inside the lesson.
     assert (
         "Only a single-cue audience thanks, greeting or name call-out that the speaker passes "
         "over without leaving the topic, including a single-cue thanks for a gift or follow, is "
         "neither flag and is not removed in this test; calls to action, platform prompts, chat "
-        "reading and presentation troubleshooting are removed in it even when brief. Writing the "
-        "taught term on the board and the speaker's brief equipment or listening explanation "
-        "attached to an immediate live example are part of the lesson and are not removed in "
-        "this test."
+        f"reading and {TROUBLESHOOTING_ITEMS} are removed in it even when brief. "
+        f"{PEN_REMARK_CARVE_OUT} Writing the taught term on the board, such a passing pen or "
+        "marker remark and the speaker's brief equipment or listening explanation attached to an "
+        "immediate live example are part of the lesson and are not removed in this test."
     ) in text
     # The Stage 15b closing-acknowledgement edge rule is unchanged.
     assert (
@@ -285,19 +301,18 @@ REVIEW_STAGE_NARROW_EXEMPTION = {
     "global_review": (
         "Inside the interval, calls to action and platform prompts (requests for fan badges, "
         "follows, likes or gifts, homepage plugs, requests for viewers to join on microphone), "
-        "chat reading and presentation troubleshooting (waiting for a pen or colour, glare, "
-        "asking whether viewers can see) are `material_interruption` too, even when brief, and "
-        "are subtracted when testing the Profile duration minimum; only a single-cue audience "
-        "thanks, greeting or name call-out that the speaker passes over without leaving the "
-        "topic, including a single-cue thanks for a gift or follow, is exempt, and writing the "
-        "taught term on the board is part of the lesson."
+        f"chat reading and {TROUBLESHOOTING_ITEMS} are `material_interruption` too, even when "
+        "brief, and are subtracted when testing the Profile duration minimum; only a single-cue "
+        "audience thanks, greeting or name call-out that the speaker passes over without leaving "
+        "the topic, including a single-cue thanks for a gift or follow, is exempt, and writing the "
+        f"taught term on the board is part of the lesson. {PEN_REMARK_CARVE_OUT}"
     ),
     "global_audit": (
         "inside the interval, calls to action and platform prompts, chat reading and "
-        "presentation troubleshooting are `material_interruption` too, even when brief, and only "
-        "a single-cue audience thanks, greeting or name call-out that the speaker passes over, "
-        "including a single-cue thanks for a gift or follow, is exempt; writing the taught term "
-        "on the board is part of the lesson;"
+        f"{TROUBLESHOOTING_ITEMS} are `material_interruption` too, even when brief, and only a "
+        "single-cue audience thanks, greeting or name call-out that the speaker passes over, "
+        f"including a single-cue thanks for a gift or follow, is exempt. {PEN_REMARK_CARVE_OUT} "
+        "Writing the taught term on the board is part of the lesson;"
     ),
 }
 
@@ -396,6 +411,126 @@ def test_gifts_are_prompts_only_when_requested_and_a_gift_thanks_stays_exempt(
     for rule in (PLATFORM_PROMPT_LIST, GIFT_THANKS_EXEMPTION):
         assert re.search(r"\d", rule) is None
         assert re.search(r"[\u3000-\u9fff\uff00-\uffef]", rule) is None
+
+
+# Stage 18 (user decision 2026-11-06, "L05 only"): every copy of the presentation
+# troubleshooting rule names only genuine troubleshooting and carries the same
+# passing pen or marker remark carve-out. Own-text counts per stage; every stage
+# also inherits one copy of each from main.md.
+STAGE18_OWN_COUNT = {
+    "risk_discovery": 1,
+    "coverage_audit": 1,
+    "boundary_review": 2,
+    "global_review": 1,
+    "global_audit": 1,
+}
+# Wording superseded by Stage 18: no stage may carry it any more.
+STAGE18_SUPERSEDED = (
+    "waiting for a pen or colour",
+    "(waiting for a pen",
+    "a pen or colour, glare, asking",
+    "chat reading and presentation troubleshooting are",
+)
+GENUINE_TROUBLESHOOTING = (
+    "stopping to wait for, test, request or change a pen or colour",
+    "fixing glare",
+    "asking whether viewers can see",
+)
+# The only bare mention: Boundary Review's duration-test list of material that meets
+# the threshold above (which defines troubleshooting with the full item list).
+BARE_TROUBLESHOOTING_REFERENCE = "platform prompts, presentation troubleshooting or device talk)"
+DUAL_PROFILE_SKILL_DIR = (
+    Path(__file__).resolve().parents[2] / "src" / "liveclip" / "clipping_skills" / "dual_profile_v1"
+)
+STAGE18_RULE_FILES = {
+    "main.md",
+    "stages/coverage_audit.md",
+    "stages/risk_discovery.md",
+    "stages/boundary_review.md",
+    "stages/global_review.md",
+    "stages/global_audit.md",
+}
+
+
+@pytest.mark.parametrize("stage", ALL_STAGES)
+@pytest.mark.parametrize("profile", list(ClipProfile))
+def test_a_passing_pen_remark_is_part_of_the_lesson_and_genuine_troubleshooting_stays_mi(
+    stage: str, profile: ClipProfile
+) -> None:
+    text = _text(stage, profile)
+    own = _stage_text(stage, profile)
+    for superseded in STAGE18_SUPERSEDED:
+        assert superseded not in text
+    expected_own = STAGE18_OWN_COUNT.get(stage, 0)
+    assert own.count(TROUBLESHOOTING_ITEMS) == expected_own
+    assert own.count(PEN_REMARK_CARVE_OUT) == expected_own
+    assert text.count(TROUBLESHOOTING_ITEMS) == expected_own + 1
+    assert text.count(PEN_REMARK_CARVE_OUT) == expected_own + 1
+    # Every mention of presentation troubleshooting carries the narrowed item list,
+    # except Boundary Review's reference back to its own threshold.
+    bare = text.count(BARE_TROUBLESHOOTING_REFERENCE)
+    assert bare == (1 if stage == "boundary_review" else 0)
+    assert text.count("presentation troubleshooting") == text.count(TROUBLESHOOTING_ITEMS) + bare
+    # The carve-out is the only place a failed pen or marker is mentioned.
+    assert text.count("pen or marker") == text.count(PEN_REMARK_CARVE_OUT) + (
+        1 if stage == "boundary_review" else 0
+    )
+    # Genuine troubleshooting, calls to action and platform prompts, chat reading,
+    # the single-cue exemption and board-writing are unchanged.
+    for item in GENUINE_TROUBLESHOOTING:
+        assert item in text
+    assert MI_THRESHOLD in text
+    assert PLATFORM_PROMPT_LIST in text
+    assert "chat reading" in text
+    assert SINGLE_CUE_EXEMPTION in text
+    assert GIFT_THANKS_EXEMPTION in text
+    assert "Writing the taught term on the board is part of the lesson." in text
+    if stage in STAGE18_OWN_COUNT:
+        assert "chat reading" in own
+        assert SINGLE_CUE_EXEMPTION in own
+        assert "even when brief" in own
+    if stage == "boundary_review":
+        # The duration test still subtracts the genuine interruption types and keeps
+        # the passing remark inside the lesson.
+        assert (
+            "calls to action, platform prompts, chat reading and "
+            f"{TROUBLESHOOTING_ITEMS} are removed in it even when brief." in own
+        )
+        assert (
+            "Writing the taught term on the board, such a passing pen or marker remark and the "
+            "speaker's brief equipment or listening explanation attached to an immediate live "
+            "example are part of the lesson and are not removed in this test." in own
+        )
+    for rule in (TROUBLESHOOTING_ITEMS, PEN_REMARK_CARVE_OUT):
+        assert re.search(r"\d", rule) is None
+        assert re.search(r"[\u3000-\u9fff\uff00-\uffef]", rule) is None
+
+
+def test_every_mirror_of_the_troubleshooting_rule_is_identical() -> None:
+    """Stage 18: read every prompt file of the skill tree (including the Profile
+    files, Discovery and repair) so no copy of the rule can drift or be missed."""
+
+    files = sorted(DUAL_PROFILE_SKILL_DIR.rglob("*.md"))
+    assert len(files) >= 13
+    carrying: set[str] = set()
+    for path in files:
+        name = path.relative_to(DUAL_PROFILE_SKILL_DIR).as_posix()
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        items = re.findall(r"presentation troubleshooting \([^)]*\)", text)
+        remarks = re.findall(r"A passing remark[^.]*\.", text)
+        assert set(items) <= {TROUBLESHOOTING_ITEMS}, name
+        assert set(remarks) <= {PEN_REMARK_CARVE_OUT}, name
+        assert len(items) == len(remarks), name
+        assert text.count("pen or marker") >= len(remarks), name
+        for superseded in STAGE18_SUPERSEDED:
+            assert superseded not in text, name
+        if items:
+            carrying.add(name)
+    assert carrying == STAGE18_RULE_FILES
+    for profile_file in ("profiles/short_highlight.md", "profiles/mini_lesson.md"):
+        text = (DUAL_PROFILE_SKILL_DIR / profile_file).read_text(encoding="utf-8")
+        assert "troubleshooting" not in text
+        assert "pen or marker" not in text
 
 
 @pytest.mark.parametrize("profile", list(ClipProfile))
