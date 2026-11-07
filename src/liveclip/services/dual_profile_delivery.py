@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
@@ -98,19 +99,41 @@ class DualProfileRenderManifest(BaseModel):
         return self
 
 
-def export_dual_profile_review_package(
+@dataclass(frozen=True, slots=True)
+class VerifiedDualProfileRenderSet:
+    """Exact final/run/render/transcript evidence joined and verified for packaging."""
+
+    final: DualProfileFinalResult
+    run_manifest: DualProfileRunManifest
+    render_manifest: DualProfileRenderManifest
+    transcript_sha256: str
+    final_sha256: str
+    render_sha256: str
+    run_sha256: str
+    snapshot_fingerprint: str
+    clips: tuple[DualProfileReviewClipInput, ...]
+
+
+def load_verified_dual_profile_render_set(
     *,
     transcript_path: Path,
     final_result_path: Path,
     run_manifest_path: Path,
     render_manifest_path: Path,
-    output_dir: Path,
-    include_zip: bool = True,
-    package_version: str = "v001",
-    package_title: str = "LiveClip 双轨切分人工审核",
-) -> DualProfileReviewPackageResult:
-    """Join exact run/render evidence and publish a friendly offline-review package."""
+    relative_render_path_base: Path | None = None,
+) -> VerifiedDualProfileRenderSet:
+    """Join exact run/render evidence and verify every rendered clip.
 
+    Every rendered clip must be selected/manual final evidence bound to the same
+    interval and status, confined to the render-manifest directory, hash-equal to
+    its manifest record, carry the transcript-derived SRT and an automatically
+    passed quality report. By default every render path must be absolute; when
+    ``relative_render_path_base`` is given (an absolute directory), relative render
+    paths are first joined to it and then confined exactly like absolute ones.
+    """
+
+    if relative_render_path_base is not None and not relative_render_path_base.is_absolute():
+        raise DualProfileDeliveryError("relative render path base must be absolute")
     try:
         final_text = read_regular_text_no_follow(
             final_result_path,
@@ -158,15 +181,23 @@ def export_dual_profile_review_package(
                 f"rendered candidate is not selected/manual final evidence: {rendered.candidate_id}"
             )
         _validate_candidate_binding(candidate, rendered)
-        video_path = _confined_file(rendered.video_path, root=render_root, label="video")
-        subtitle_path = _confined_file(rendered.subtitle_path, root=render_root, label="subtitle")
+        video_path = _confined_file(
+            _render_path(rendered.video_path, relative_render_path_base),
+            root=render_root,
+            label="video",
+        )
+        subtitle_path = _confined_file(
+            _render_path(rendered.subtitle_path, relative_render_path_base),
+            root=render_root,
+            label="subtitle",
+        )
         contact_path = _confined_file(
-            rendered.contact_sheet_path,
+            _render_path(rendered.contact_sheet_path, relative_render_path_base),
             root=render_root,
             label="contact sheet",
         )
         quality_path = _confined_file(
-            rendered.quality_report_path,
+            _render_path(rendered.quality_report_path, relative_render_path_base),
             root=render_root,
             label="quality report",
         )
@@ -250,6 +281,46 @@ def export_dual_profile_review_package(
         run_sha256=run_sha256,
         clips=tuple(package_clips),
     )
+    return VerifiedDualProfileRenderSet(
+        final=final,
+        run_manifest=run_manifest,
+        render_manifest=render_manifest,
+        transcript_sha256=transcript_sha256,
+        final_sha256=final_sha256,
+        render_sha256=render_sha256,
+        run_sha256=run_sha256,
+        snapshot_fingerprint=snapshot_fingerprint,
+        clips=tuple(package_clips),
+    )
+
+
+def export_dual_profile_review_package(
+    *,
+    transcript_path: Path,
+    final_result_path: Path,
+    run_manifest_path: Path,
+    render_manifest_path: Path,
+    output_dir: Path,
+    include_zip: bool = True,
+    package_version: str = "v001",
+    package_title: str = "LiveClip 双轨切分人工审核",
+) -> DualProfileReviewPackageResult:
+    """Join exact run/render evidence and publish a friendly offline-review package."""
+
+    verified = load_verified_dual_profile_render_set(
+        transcript_path=transcript_path,
+        final_result_path=final_result_path,
+        run_manifest_path=run_manifest_path,
+        render_manifest_path=render_manifest_path,
+    )
+    final = verified.final
+    run_manifest = verified.run_manifest
+    render_manifest = verified.render_manifest
+    snapshot_fingerprint = verified.snapshot_fingerprint
+    final_sha256 = verified.final_sha256
+    render_sha256 = verified.render_sha256
+    run_sha256 = verified.run_sha256
+    package_clips = verified.clips
     package = DualProfileReviewPackageInput(
         package_id=f"dual_profile_review_{snapshot_fingerprint[:20]}",
         package_version=package_version,
@@ -347,6 +418,12 @@ def _safe_render_root(render_manifest_path: Path) -> Path:
     if not root.is_dir():
         raise DualProfileDeliveryError("render manifest parent is not a directory")
     return root
+
+
+def _render_path(path: Path, relative_base: Path | None) -> Path:
+    if relative_base is None or path.is_absolute() or ".." in path.parts:
+        return path
+    return relative_base / path
 
 
 def _confined_file(path: Path, *, root: Path, label: str) -> Path:
