@@ -466,6 +466,44 @@ def test_reimport_is_idempotent_per_user_and_snapshot(harness: Harness) -> None:
     assert other.created is True and other.project_id != first.project_id
 
 
+def test_concurrent_duplicate_import_resolves_to_the_winner(harness: Harness) -> None:
+    fixture = build_run(harness.base)
+    winner = _import(harness, fixture)
+
+    class _StaleFirstLookup:
+        def __init__(self, inner: SqlAlchemyDualProfileImportRepository) -> None:
+            self._inner = inner
+            self._calls = 0
+
+        def find_import(self, **kwargs: Any) -> Any:
+            self._calls += 1
+            return None if self._calls == 1 else self._inner.find_import(**kwargs)
+
+        def insert_import(self, record: Any) -> Any:
+            return self._inner.insert_import(record)
+
+    racing = DualProfileImportService(
+        _StaleFirstLookup(harness.repository),
+        data_dir=harness.data_dir,
+        allowed_run_roots=(harness.base / "evaluations",),
+        allowed_transcript_roots=(harness.base / "evaluations",),
+        relative_path_base=harness.base,
+        now=lambda: FIXED_NOW,
+    )
+    loser = racing.import_run(
+        acting_user_id=USER_ID,
+        run_dir=fixture.run_dir,
+        transcript_path=fixture.transcript,
+    )
+
+    assert loser.created is False
+    assert (loser.project_id, loser.import_id) == (winner.project_id, winner.import_id)
+    assert _project_dirs(harness) == [harness.data_dir / winner.project_id]
+    with harness.engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(ProjectRow)) == 1
+        assert connection.scalar(select(func.count()).select_from(AssetRow)) == 4
+
+
 def test_relative_run_and_transcript_paths_resolve_against_the_base(harness: Harness) -> None:
     fixture = build_run(harness.base)
     result = _import(
