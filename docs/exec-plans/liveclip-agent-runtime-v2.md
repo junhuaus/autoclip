@@ -20,6 +20,12 @@
   eligibility domain, migration, import service). Human editorial/audio
   review and the L07 listening check remain pending. Push/merge only with
   explicit user consent.
+- [x] 2026-11-07 (inserted) Stage 19a implemented at `096a7ca` (plus test
+  follow-ups `437f5f0`, `49f8f66`), pending independent tester and
+  reviewer; freeze evidence clean (closure diff to `f525338` rc 0, 17/17
+  prompt identities, Settings fingerprint unchanged, evaluator re-run
+  byte-identical). Details in `STATUS.md` and
+  `docs/exec-plans/liveclip-customer-delivery.md`.
 
 ## cold-36 strict PASS 92.5 on frozen f525338 (consecutive 2/2; Stage 18 strict acceptance satisfied) (2026-11-06)
 

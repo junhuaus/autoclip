@@ -336,11 +336,14 @@ benchmark files.
   `docs/exec-plans/liveclip-dual-profile-benchmark-v1.md` and
   `docs/exec-plans/liveclip-agent-runtime-v2.md`; closure verified by AST
   walk (`git diff --exit-code f525338 -- <closure>` rc 0 at `a79deaf`).
-- [ ] Stage 19a: freeze pin test; `load_verified_dual_profile_render_set()`
-  refactor (byte-preservation evidence); eligibility domain function;
-  migration, models, repository; `application/dual_profile_imports.py`;
-  `CustomerClipView`; tests (eligibility truth table incl. overrides, tamper
-  matrix, idempotent re-import, migration up/down).
+- [x] 2026-11-07 Stage 19a implemented (pending independent tester and
+  reviewer): code commits `cb13bb69098f26cafd9f7ec752ccd2d4ebef64b6` (freeze pin test;
+  `load_verified_dual_profile_render_set()` refactor) and
+  `096a7ca1884ce1ff6d5b1b8daa3010e37a61881b` (eligibility domain, migration `d5e8a1c3f907`,
+  models, repository, import service, `CustomerClipView`, tests), plus test-only
+  follow-ups `437f5f015e2f0f43b51c4c42f9905834973733e8` (concurrent duplicate import) and
+  `49f8f661e5542eac593052a1d4d662c43b20f995` (schema inventory test). Evidence in
+  "Stage 19a results" below.
 - [ ] Stage 19b: API and internal review UI (authz matrix, project
   isolation 404, overrides; vitest; Playwright `e2e/dual-profile-review.spec.ts`
   with the mock provider).
@@ -399,6 +402,85 @@ of Stage 19.
 - Rollback: each sub-stage is a separate commit series; reverting 19a removes
   the migration (downgrade drops only the new tables).
 
+## Stage 19a results (2026-11-07)
+
+Files: `tests/unit/test_dual_profile_freeze_pins.py` (new),
+`src/liveclip/services/dual_profile_delivery.py` (refactor),
+`src/liveclip/domain/customer_delivery.py` (new),
+`src/liveclip/db/models.py` (six new row classes),
+`migrations/versions/d5e8a1c3f907_add_dual_profile_customer_delivery.py`
+(new), `src/liveclip/db/dual_profile_repository.py` (new),
+`src/liveclip/application/dual_profile_imports.py` (new),
+`src/liveclip/application/media_assets.py` (`_PUBLIC_ASSET_KINDS` gains
+`dual_profile_video`, `dual_profile_subtitle`),
+`tests/unit/test_customer_delivery_domain.py`,
+`tests/integration/test_dual_profile_imports.py`,
+`tests/integration/test_dual_profile_migration.py` (new), and the
+`HEAD` constant in `tests/integration/test_completion_migrations.py`
+(now `d5e8a1c3f907`; those tests upgrade to `HEAD` and then run
+`alembic check`, which requires the true head) and the expected table
+set in `tests/unit/test_db_models.py`.
+`tests/unit/test_dual_profile_delivery.py` is unchanged
+(`git diff a79deaf -- tests/unit/test_dual_profile_delivery.py` empty).
+
+- **Pins:** the 17 prompt identities computed by the real loaders equal
+  the Stage 18b "after" column (21 tests: table size, aggregate, one per
+  identity, routing `quality-gate-risk-routing-v9`, algorithm
+  `dual-profile-direct-v1`). The pin table also equals the operator file
+  `data/evaluations/dual-profile-strict-eval-20261106-claude-cold-36/evidence/stage18b-expected.txt`
+  and the cold-36 `tree_ph.py` recompute reports 17/17, 0 mismatches.
+- **Refactor byte preservation (freeze evidence item 5):** the stored
+  cold-36 render manifest cannot be exported by the `a79deaf` CLI (see
+  Surprises), so an APFS clone of the cold-36 `renders/` with an
+  absolutised render manifest lives in the session scratchpad
+  (`stage19a/renders-abs/`). (1) CLI `dual-profile-review-package` before
+  (at `a79deaf`) and after the refactor: 136 files and ZIP members
+  identical after normalising only `manifest.json` `created_at` (and the
+  manifest hash in `checksums.sha256`); a second before-run shows the
+  same single-field difference, so `created_at` is the only
+  nondeterminism. (2) With the wall clock fixed (harness
+  `stage19a/harness/fixed_clock_export.py`, `a79deaf` module source vs
+  working-tree module), the whole 69-file package is byte-identical:
+  `manifest.json` sha256
+  `a7a5a6f13f3cb651b494a0ed9784c3048092161eee71c859215544c20b0e2590`, ZIP sha256
+  `4b7b35c64eda612f8dfde9e966abbba1d75d54c7eba7a5155c0198fc07847149` before, after and again at
+  `096a7ca`.
+- **Import:** verification reuses the extracted loader (run manifest vs
+  final, algorithm/Profiles, transcript hash, selected ∪ manual_review
+  membership, interval/status binding, confinement, file hashes, SRT vs
+  transcript captions, quality report passed) and adds routing v9. Run
+  dir and transcript must resolve inside allowed roots; evidence files must
+  not be reached through a symbolic link; relative render paths are joined
+  to the repository base and then confined to the render directory. Media
+  is copied with `copy_immutable_member` into
+  `data/projects/<pid>/imports/<iid>/<profile>/<candidate_id>.{mp4,srt}`;
+  one transaction inserts the project (`editorial_review`,
+  `dual-profile-import:<fp20>`, owner = importer), owner membership,
+  import, committed Assets, immutable clips and an audit event (no paths).
+  Failure before commit removes the new project directory; a lost race on
+  the unique (importer, snapshot) constraint returns the winner.
+- **Real-data smoke (read-only):** importing the stored cold-36 run
+  (`data/evaluations/dual-profile-benchmark-20261106-claude-cold-36`,
+  transcript `tests/fixtures/8-30-full-transcript.srt`) into a scratch data
+  directory yields 12 clips (7 short, 5 mini), all `manual_review`, 0
+  deliverable before approval, snapshot prefix `744f55f73e45152c4f54`; a
+  re-import returns the same project (`created` false). The cold-36
+  `final-validated.json` and `run-manifest.json` still match
+  `evidence/inputs-after-render.sha256`.
+- **Freeze evidence at `096a7ca`:** (1) `git diff --exit-code f525338 --
+  <closure>` rc 0, porcelain empty; (2) pins pass, independent recompute
+  17/17; (3) Settings fingerprint recompute (cold-36 `settings_fp.py`, same
+  env as the counted runs)
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; (4) `scripts/evaluate_benchmark.py` re-run
+  on stored cold-35 and cold-36 inputs: `benchmark-result.json` and
+  `benchmark-report.md` byte-identical (cold-35 result sha256
+  `a9f58fb8aade3fbadc9601d79745165b7d5c53ef4b80207d46b98abb9dcf86dd`, cold-36
+  `d7067d2f57867c56e8e86149dce176cb824a88ae07b1c0029bfd476c915c7ad2`); (5) above.
+- **Validation:** `make lint` rc 0; targeted pytest (pins, domain,
+  imports, migration, delivery, flag contract, dual-profile evaluation
+  integration, migration suites) 364 passed; full `make test` at `49f8f661e5542eac593052a1d4d662c43b20f995` rc 0: backend pytest 3353 passed (15 deprecation warnings), vitest 14 files / 80 tests passed, e2e 4 passed. (A first full run at `437f5f0` had 2 failures: `tests/unit/test_db_models.py` schema inventory, fixed in `49f8f66` by listing the six new tables, and `tests/unit/test_b2_synthetic_worker.py::test_canonical_independent_worker_commits_two_real_pauses` (`needs_action` instead of `succeeded`), which passed 3/3 in isolation and in the second full run; the first run overlapped an unrelated pytest process on the host, so it is classified transient and timing-related, recorded, not hidden).
+  Deterministic validation only; no real model call, no render.
+
 ## Surprises and Discoveries
 
 - 2026-11-07: the existing `dual-profile-review-package` CLI cannot export
@@ -427,6 +509,33 @@ of Stage 19.
   `git diff --exit-code` cannot express a function-level freeze and Stage 19
   needs no CLI change.
 
+- 2026-11-07 (coder, 19a; for Controller confirmation): **stricter
+  eligibility** — an explicit later reject also removes an automatically
+  `selected` clip (the design's literal rule makes `selected` always
+  deliverable). It only narrows eligibility; the customer can never
+  receive a clip a reviewer rejected. cold-36 has 0 `selected`, so the
+  real run is unaffected.
+- 2026-11-07 (coder, 19a): one import per project (`UNIQUE(project_id)`)
+  and idempotency by `UNIQUE(imported_by, snapshot_fingerprint)` instead of
+  "fingerprint unique per project", because each import creates its own
+  project; another user importing the same run gets a separate project.
+- 2026-11-07 (coder, 19a): relative render paths are resolved against the
+  repository base (the CLI working directory), not the import root,
+  because cold-36 records `data/evaluations/...`; the result must still lie
+  in the render directory, which must lie inside the allowed import root.
+- 2026-11-07 (coder, 19a): the transcript has its own allowed roots
+  (`allowed_transcript_roots`), because the cold-36 transcript is
+  `tests/fixtures/8-30-full-transcript.srt`, outside `data/evaluations`.
+  19b chooses the wired default.
+- 2026-11-07 (coder, 19a): decisions carry a per-clip `sequence`
+  (`UNIQUE(import_clip_id, sequence)`) so "latest" is deterministic; each
+  approval states the complete customer text (a field it does not override
+  falls back to the model original). SQLite BEFORE UPDATE triggers make
+  imports, imported clips, decisions and customer-delivery clips
+  immutable; their FKs never use SET NULL. Customer deliveries and share
+  links are created in the same migration (19c/19d may add a later
+  migration if they need changes). Imported SRTs are copied byte-for-byte.
+
 ## Risks and Mitigations
 
 - Leaking internal fields to the customer: allowlist model with
@@ -442,7 +551,19 @@ of Stage 19.
 
 ## Recovery Notes
 
-2026-11-07: Checkpoint 1 (docs only) is committed on
+2026-11-07 (Stage 19a): implemented at `096a7ca` (code) plus a test
+follow-up and this docs commit; pending independent tester and reviewer,
+who must re-check the five freeze-evidence items. First next task after
+acceptance: Stage 19b (API and internal review UI); wire
+`DualProfileImportService` in `src/liveclip/bootstrap.py` (data dir,
+`default_dual_profile_import_root(project_root)`, transcript roots), and
+verify that project list/workspace endpoints tolerate an imported project
+with no pipeline run (`current_generation` 0). Recovery: reverting the 19a
+commits and downgrading to `c84f5d1a702e` drops only the six new tables;
+copied media under `data/projects/<pid>/imports/` belongs to the project
+and is purged with it.
+
+(Historical) 2026-11-07: Checkpoint 1 (docs only) is committed on
 `claude/liveclip-stage19-customer-delivery` (from `origin/main` `a79deaf`).
 First next task: Stage 19a, starting with
 `tests/unit/test_dual_profile_freeze_pins.py`, then the

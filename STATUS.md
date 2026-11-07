@@ -18,7 +18,7 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 19: customer delivery of dual-profile results (2026-11-07) — STARTED (Checkpoint 1, docs only)
+## Stage 19: customer delivery of dual-profile results (2026-11-07) — Stage 19a IMPLEMENTED, pending independent verification (Checkpoint 1 docs done)
 
 - **Stage 18 is merged to `main`:** `origin/main` =
   `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`, the merge commit of PR #2
@@ -48,11 +48,46 @@
   stored cold-36 render manifest ("video path is not an absolute system
   path") because its video/subtitle paths are repo-relative; Stage 19a's
   import resolves relative paths against an allowed import root.
-- Next: Stage 19a (freeze pin test, verified render-set refactor, eligibility
+- (Historical next step; done below.) Next: Stage 19a (freeze pin test, verified render-set refactor, eligibility
   domain, migration and repository, import service, `CustomerClipView`).
   Human editorial/audio review of cold-27 r2 through cold-36 renders and
   the L07 listening check remain pending (separate evidence category).
   Push, PR and merge need explicit user consent.
+- **Stage 19a implemented, pending independent tester and reviewer.**
+  Commits `cb13bb69098f26cafd9f7ec752ccd2d4ebef64b6` (freeze pin test;
+  `load_verified_dual_profile_render_set()` extracted from
+  `export_dual_profile_review_package`), `096a7ca1884ce1ff6d5b1b8daa3010e37a61881b` (eligibility
+  domain `src/liveclip/domain/customer_delivery.py`, migration
+  `d5e8a1c3f907` with six tables and immutability triggers, models,
+  `src/liveclip/db/dual_profile_repository.py`,
+  `src/liveclip/application/dual_profile_imports.py`, `CustomerClipView`,
+  tests), `437f5f015e2f0f43b51c4c42f9905834973733e8` (concurrent-import test),
+  `49f8f661e5542eac593052a1d4d662c43b20f995` (schema inventory test). No API route or UI
+  yet (19b). Details and deviations (stricter eligibility: a later reject
+  also blocks an auto-`selected` clip; idempotency per importer and
+  snapshot; relative render paths resolved against the repo base;
+  separate transcript roots) in the Stage 19 ExecPlan.
+- Freeze evidence at `096a7ca` (and unchanged at the docs HEAD): closure
+  diff to `f525338` rc 0; pins 21 passed and independent recompute 17/17;
+  Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; evaluator
+  re-run on stored cold-35/cold-36 byte-identical; cold-36 review package
+  byte-identical before/after the refactor with a fixed clock (69 files,
+  `manifest.json` `a7a5a6f13f3cb651b494a0ed9784c3048092161eee71c859215544c20b0e2590`), and identical except
+  `created_at` via the CLI. The stored cold-36 render manifest has
+  repo-relative video/subtitle paths that the existing export rejects, so
+  the comparison used an APFS clone with absolutised paths in scratch.
+- Real-data smoke (read-only on `data/evaluations`): cold-36 imports into
+  a scratch data dir as 12 clips (7 short, 5 mini), all `manual_review`,
+  0 deliverable before approval; re-import is idempotent.
+- Validation: `make lint` rc 0; targeted pytest 364 passed; full `make test` at `49f8f661e5542eac593052a1d4d662c43b20f995` rc 0: backend pytest 3353 passed (15 deprecation warnings), vitest 14 files / 80 tests passed, e2e 4 passed. (A first full run at `437f5f0` had 2 failures: `tests/unit/test_db_models.py` schema inventory, fixed in `49f8f66` by listing the six new tables, and `tests/unit/test_b2_synthetic_worker.py::test_canonical_independent_worker_commits_two_real_pauses` (`needs_action` instead of `succeeded`), which passed 3/3 in isolation and in the second full run; the first run overlapped an unrelated pytest process on the host, so it is classified transient and timing-related, recorded, not hidden).
+  Deterministic only; no real model call.
+- Next: independent tester and reviewer for Stage 19a (re-check the five
+  freeze-evidence items), then Stage 19b. Push, PR and merge need explicit
+  user consent.
+- Resume prompt: "Read CLAUDE.md, AGENTS.md, STATUS.md (Stage 19 section)
+  and docs/exec-plans/liveclip-customer-delivery.md; on branch
+  claude/liveclip-stage19-customer-delivery verify the five freeze-evidence
+  items, then continue with the first unchecked Stage 19 milestone."
 
 ## cold-36 real run on frozen f525338 (2026-11-06) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied)
 

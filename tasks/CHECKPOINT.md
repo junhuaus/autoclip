@@ -1462,3 +1462,16 @@ by an AST import walk and added `cli/app.py`/`__main__.py`, package
 Next: Stage 19a (freeze pin test, verified render-set refactor,
 eligibility domain, migration and repository, import service). Push, PR
 and merge still need explicit user consent.
+
+## Stage 19a implemented, pending verification (2026-11-07)
+
+Commits `cb13bb6` (freeze pin test; `load_verified_dual_profile_render_set`
+refactor), `096a7ca` (eligibility domain, migration `d5e8a1c3f907`, models,
+repository, import service, `CustomerClipView`, tests), `437f5f0`
+(concurrent-import test), `49f8f66` (schema inventory test). Freeze
+evidence clean (closure diff rc 0, pins and independent recompute 17/17,
+Settings fingerprint unchanged, evaluator re-run byte-identical on cold-35
+and cold-36, cold-36 review package byte-identical with a fixed clock).
+`make lint` rc 0; `make test` rc 0 at `49f8f66` (backend 3353, vitest 80,
+e2e 4). Deviations for Controller confirmation are in the Stage 19
+ExecPlan Decision Log. Next: independent tester and reviewer, then 19b.
