@@ -537,7 +537,14 @@ Tests: `tests/integration/test_dual_profile_review_api.py`,
 - Imported projects: `GET /projects`, `/projects/search` and
   `/projects/{id}` work; the snapshot has `source_kind`
   `dual_profile_import`, `current_run_id` "" and `generation` 0, status
-  `pending_review`.
+  `pending_review`. **Pipeline actions are refused** on imported projects
+  (corrected after the 19b review, P1): `allowed_actions` is limited to
+  `read`, `manage_members`, `manage_project`, `review_clip`, `comment`,
+  `deliver`; `_require_project_access` returns 409 for every non-read action
+  unless the endpoint opts in (members, ownership transfer, management,
+  lifecycle, dual-profile decisions); `create_run` also refuses inside its
+  write transaction. Tested with valid bodies for runs, batch review, legacy
+  deliveries, edit packages and releases.
 - UI: the imported workspace never requests `/runs/*` or `/clips` (vitest
   and e2e assert it); 批准 opens a form prefilled with the effective text and
   sends only fields that differ from the model original, so re-approval
@@ -551,6 +558,51 @@ Tests: `tests/integration/test_dual_profile_review_api.py`,
   `services/dual_profile_delivery.py` unchanged since `cb13bb6`; (6)
   `.venv/bin/python -m liveclip dual-profile-eval --help` rc 0.
 - Validation: `make lint` rc 0; targeted API/import/migration/settings pytest and vitest green; full `make test` at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` rc 0: backend pytest 3424 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (mock: `review-delivery.spec.ts` and the new `dual-profile-review.spec.ts`; real-browser: 3 scenario runs). Unrelated pytest processes from other host repositories were running during the suite; they were not touched. Deterministic only; no model call.
+
+## Stage 19b review fix (2026-11-07)
+
+Reviewer REJECT on one P1 at `68e6edb`: `POST /api/v1/projects/{imported}/runs`
+with an Idempotency-Key returned 202, queued a run, flipped the project to
+`source_kind` "pipeline" and lost the dual-profile branch, because the
+imported snapshot exposed every role action and `create_run` had no import
+guard. Fixed in `248082c7fbb4a9b2a5a3dbc903acb4263eb13179`:
+
+- `create_run` raises `PipelineConflict` (409) when a `dual_profile_imports`
+  row exists, inside the same `BEGIN IMMEDIATE` transaction.
+- `imported_project_actions()` (`src/liveclip/application/authorization.py`)
+  restricts the snapshot; `_require_project_access(..., allow_imported=False)`
+  enforces it server-side. Audit of project-scoped mutating endpoints: runs,
+  reviews/batch, deliveries, edit-packages and releases go through it and
+  now 409; members, ownership transfer, management, lifecycle and
+  dual-profile decisions opt in; clip-, run-, render-, delivery-, package-
+  and release-item-scoped endpoints address entities an imported project
+  never has (404), and completion goals either create a new project from a
+  source or address a run.
+- `ProjectSnapshot` validator ties `source_kind` "pipeline" to a non-empty
+  `current_run_id` and generation ≥ 1, and "dual_profile_import" to "" and 0.
+- P2: the import never reads from the managed data directory — the same
+  rule as `POST /jobs`, which calls `resolve_allowed_source(...,
+  forbidden_roots=(configured_data_dir,))` with `configured_data_dir` =
+  `settings.resolved_data_dir()` (`data/projects`). `data/evaluations` stays
+  allowed; anything under `data/projects` is refused even when a configured
+  root contains it. Containment is checked lexically before existence (and
+  again after strict resolution), so paths outside the roots, existing or
+  not, get one message. Root lists strip each item; empty, whitespace-only
+  or separator-only values fall back to the defaults. Customer links must
+  use the folder of their profile (`clips/short` ↔ short, `clips/lesson` ↔
+  mini lesson). Web wording is consistently 不通过. The e2e records
+  forbidden `/runs` and `/clips` requests and asserts there were none.
+- New tests: refused pipeline actions (5, valid bodies) with the project
+  still `dual_profile_import` and no pipeline/task rows; allowed actions per
+  role; repository-level `create_run` refusal; archived imported project
+  blocks decisions (403); real `StorageAdministrationService.purge_project`
+  of an imported project; data-dir exclusion; no existence oracle; settings
+  parsing; `ProjectSnapshot` validator.
+- Known limitation: the import hashes, verifies and copies media
+  synchronously inside the HTTP request (cold-36: about 1 GB). A future
+  stage should move it to a worker Task with progress, like deliveries.
+- Residual (Stage 19a reviewer P2-6; pre-existing, not changed by Stage 19): `load_verified_dual_profile_render_set()` in `src/liveclip/services/dual_profile_delivery.py` parses `final-validated.json`, `run-manifest.json` and `renders/render-manifest.json` from one no-follow read but computes their recorded SHA-256 (`_hash_file`) from a second, separate read; likewise the transcript is hashed and then re-read by `load_srt_transcript`. A process able to write inside the allowed import root between the two reads could make the stored hashes and snapshot fingerprint describe bytes other than the parsed content. Rendered media are not affected: `copy_immutable_member` re-hashes exactly the bytes it copies against the manifest hash. Exploiting it requires local write access to the operator-controlled import root; accepted for Stage 19. A future fix hashes and parses the same in-memory bytes.
+- Validation: `make lint` rc 0; full `make test` at `248082c7fbb4a9b2a5a3dbc903acb4263eb13179` rc 0: backend pytest 3447 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (2 mock specs, 3 real-browser scenario runs).
 
 ## Surprises and Discoveries
 
@@ -651,7 +703,8 @@ Tests: `tests/integration/test_dual_profile_review_api.py`,
 
 ## Recovery Notes
 
-2026-11-07 (Stage 19b): implemented at `cf11aef` plus this docs commit;
+2026-11-07 (Stage 19b, after review): P1 fixed at `248082c`; pending
+re-review. (Earlier:) implemented at `cf11aef` plus this docs commit;
 pending independent tester and reviewer (re-check the six freeze-evidence
 items). First next task after acceptance: Stage 19c (offline customer
 package from `CustomerClipView`, immutable `customer_deliveries` v001…).

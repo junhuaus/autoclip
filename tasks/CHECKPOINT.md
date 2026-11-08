@@ -1489,3 +1489,17 @@ web import dialog and `DualProfileReviewSection`. Freeze evidence clean
 `dual-profile-eval --help` rc 0). `make lint` rc 0; `make test` rc 0
 (backend 3424, vitest 87, e2e 5). Next: independent tester and reviewer,
 then 19c.
+
+## Stage 19b review P1 fixed, pending re-review (2026-11-07)
+
+Reviewer REJECT at `68e6edb` (tester green): `POST /projects/{imported}/runs`
+queued a run on an imported project. Fixed in `248082c`: `create_run`
+refuses imported projects in its transaction; imported projects expose
+only read/manage_members/manage_project/review_clip/comment/deliver and
+`_require_project_access` returns 409 for every other mutation unless the
+endpoint opts in; `ProjectSnapshot` validator; P2s (managed data dir
+excluded like `/jobs`, no existence oracle, root parsing, profile-matched
+links, archived and purge tests, 不通过 wording, e2e request log; P2-6
+residual recorded verbatim). Freeze evidence clean (closure diff rc 0,
+single head `e4b2c7d9a1f3`, `dual-profile-eval --help` rc 0). `make lint`
+rc 0; `make test` rc 0 (backend 3447, vitest 87, e2e 5). Next: re-review.

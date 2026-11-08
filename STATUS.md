@@ -42,8 +42,24 @@
   cold-35/cold-36 byte-identical; `dual_profile_delivery.py` unchanged since
   `cb13bb6`; `python -m liveclip dual-profile-eval --help` rc 0.
 - Validation: `make lint` rc 0; targeted API/import/migration/settings pytest and vitest green; full `make test` at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` rc 0: backend pytest 3424 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (mock: `review-delivery.spec.ts` and the new `dual-profile-review.spec.ts`; real-browser: 3 scenario runs). Unrelated pytest processes from other host repositories were running during the suite; they were not touched.
-- Next: independent tester and reviewer for Stage 19b, then 19c. Push, PR
+- (Historical next step; reviewed below.) Next: independent tester and reviewer for Stage 19b, then 19c. Push, PR
   and merge need explicit user consent.
+- **Stage 19b review (68e6edb): tester green, reviewer REJECT on P1** —
+  pipeline actions were possible on imported projects (`POST
+  /projects/{id}/runs` queued a run and turned the project into a pipeline
+  project). **Fixed in `248082c7fbb4a9b2a5a3dbc903acb4263eb13179`**: `create_run` refuses imported projects in
+  its transaction; imported projects expose only read, manage_members,
+  manage_project, review_clip, comment, deliver, and every other mutation
+  returns 409 server-side (runs, batch review, legacy deliveries, edit
+  packages, releases tested with valid bodies); `ProjectSnapshot`
+  validator; P2s (managed data dir excluded like `/jobs`, no existence
+  oracle, root parsing, profile-matched links, archived/purge tests,
+  不通过 wording, e2e request log). The Stage 19a reviewer P2-6 residual is
+  recorded verbatim in the ExecPlan. Freeze evidence at `248082c`: closure
+  diff rc 0, single alembic head `e4b2c7d9a1f3`, `dual-profile-eval --help`
+  rc 0, pins in the full run. Validation: `make lint` rc 0; full `make test` at `248082c7fbb4a9b2a5a3dbc903acb4263eb13179` rc 0: backend pytest 3447 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (2 mock specs, 3 real-browser scenario runs).
+- Next: re-review of Stage 19b, then 19c. Push, PR and merge need explicit
+  user consent.
 
 
 - **Stage 18 is merged to `main`:** `origin/main` =
