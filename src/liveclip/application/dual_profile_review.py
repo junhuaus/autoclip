@@ -37,6 +37,7 @@ from liveclip.domain.customer_delivery import (
     is_selected_for_delivery,
     latest_review_decision,
     strong_customer_text_warnings,
+    unacknowledged_strong_warnings,
 )
 
 PROFILE_ORDER = (ClipProfile.SHORT_HIGHLIGHT, ClipProfile.MINI_LESSON)
@@ -48,14 +49,22 @@ class DualProfileImportNotFound(LookupError):
 
 
 class CustomerTextWarningConflict(RuntimeError):
-    """An approval would publish customer text that still has strong warnings (409)."""
+    """Customer text that still has strong warnings would be approved, selected or
+    delivered without an explicit acknowledgement (409)."""
 
-    def __init__(self, warnings: tuple[CustomerTextWarning, ...]) -> None:
+    def __init__(
+        self,
+        warnings: tuple[CustomerTextWarning, ...],
+        *,
+        clip_ids: tuple[str, ...] = (),
+    ) -> None:
         super().__init__(
-            "customer text still contains reviewer-style notes; rewrite it or "
-            "approve with acknowledge_warnings"
+            "customer text still contains reviewer-style notes; rewrite it at approval or "
+            "keep it explicitly with acknowledge_warnings"
         )
         self.warnings = warnings
+        # Parallel to ``warnings`` when raised for several clips (delivery creation).
+        self.clip_ids = clip_ids
 
 
 class DualProfileTextWarningView(BaseModel):
@@ -234,25 +243,29 @@ class DualProfileReviewService:
         record = self._repository.load_review(project_id=project_id)
         if record is None:
             raise DualProfileImportNotFound("project has no dual-profile import")
-        if action is ClipDecisionAction.APPROVE:
-            clip = next(
-                (value for value in record.clips if value.import_clip_id == import_clip_id), None
+        clip = next(
+            (value for value in record.clips if value.import_clip_id == import_clip_id), None
+        )
+        if (
+            action is ClipDecisionAction.SELECT
+            and clip is not None
+            and not acknowledge_warnings
+            and is_deliverable(clip.routed_status, clip.decisions)
+        ):
+            pending = unacknowledged_strong_warnings(clip.original_text, clip.decisions)
+            if pending:
+                raise CustomerTextWarningConflict(pending)
+        if action is ClipDecisionAction.APPROVE and clip is not None:
+            proposed = CustomerText(
+                title=title_override if title_override is not None else clip.original_text.title,
+                hook=hook_override if hook_override is not None else clip.original_text.hook,
+                summary=(
+                    summary_override if summary_override is not None else clip.original_text.summary
+                ),
             )
-            if clip is not None:
-                proposed = CustomerText(
-                    title=title_override
-                    if title_override is not None
-                    else clip.original_text.title,
-                    hook=hook_override if hook_override is not None else clip.original_text.hook,
-                    summary=(
-                        summary_override
-                        if summary_override is not None
-                        else clip.original_text.summary
-                    ),
-                )
-                strong = strong_customer_text_warnings(proposed)
-                if strong and not acknowledge_warnings:
-                    raise CustomerTextWarningConflict(strong)
+            strong = strong_customer_text_warnings(proposed)
+            if strong and not acknowledge_warnings:
+                raise CustomerTextWarningConflict(strong)
         self._repository.append_decision(
             project_id=project_id,
             import_clip_id=import_clip_id,
@@ -262,7 +275,8 @@ class DualProfileReviewService:
             hook_override=hook_override,
             summary_override=summary_override,
             require_deliverable=action is ClipDecisionAction.SELECT,
-            acknowledge_warnings=acknowledge_warnings and action is ClipDecisionAction.APPROVE,
+            acknowledge_warnings=acknowledge_warnings
+            and action in {ClipDecisionAction.APPROVE, ClipDecisionAction.SELECT},
             now=self._now(),
         )
         return self.get_review(project_id)

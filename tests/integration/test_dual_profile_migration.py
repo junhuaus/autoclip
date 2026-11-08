@@ -14,6 +14,7 @@ PARENT = "c84f5d1a702e"
 REVISION = "d5e8a1c3f907"
 DELETE_GUARD_REVISION = "e4b2c7d9a1f3"
 ACKNOWLEDGE_REVISION = "f6a1b3c5d7e9"
+AUDIT_INDEX_REVISION = "a7c9e1b3d5f2"
 NEW_TABLES = {
     "dual_profile_imports",
     "dual_profile_import_clips",
@@ -63,7 +64,7 @@ def test_dual_profile_customer_delivery_migration_round_trip(
     monkeypatch.setenv("LIVECLIP_DATABASE_PATH", str(database_path))
     config = Config(str(project_root / "alembic.ini"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == ACKNOWLEDGE_REVISION
+    assert script.get_current_head() == AUDIT_INDEX_REVISION
     revision = script.get_revision(REVISION)
     assert revision is not None and revision.down_revision == PARENT
 
@@ -108,6 +109,22 @@ def test_dual_profile_customer_delivery_migration_round_trip(
             value["name"] for value in inspect(engine).get_columns("dual_profile_clip_decisions")
         }
         assert "acknowledge_warnings" in columns
+    finally:
+        engine.dispose(close=True)
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        indexes = {
+            value["name"]: value["column_names"]
+            for value in inspect(engine).get_indexes("audit_events")
+        }
+        assert indexes["ix_audit_events_target"] == ["target_type", "target_id"]
+    finally:
+        engine.dispose(close=True)
+    command.downgrade(config, ACKNOWLEDGE_REVISION)
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        names = {value["name"] for value in inspect(engine).get_indexes("audit_events")}
+        assert "ix_audit_events_target" not in names
     finally:
         engine.dispose(close=True)
     command.downgrade(config, DELETE_GUARD_REVISION)

@@ -76,32 +76,74 @@ class ShareSettingsError(ValueError):
     """The share server configuration is unsafe or incomplete."""
 
 
-_LOOPBACK_NAMES = frozenset({"localhost"})
+# The only networks a share server may bind to or answer (Stage 19d review P1):
+# loopback, RFC 1918 private IPv4, IPv4 link-local, IPv6 unique-local and IPv6
+# link-local. Everything else (public IPv4/IPv6, CGNAT, multicast, the
+# unspecified IPv6 address) is refused; internet exposure is out of scope.
+LAN_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+)
+_LOOPBACK_NETWORKS = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
+
+
+def _parse_address(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    candidate = value.strip()
+    if candidate.startswith("[") and candidate.endswith("]"):
+        candidate = candidate[1:-1]
+    candidate = candidate.split("%", 1)[0]  # drop an IPv6 zone index (fe80::1%en0)
+    try:
+        address = ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
+
+
+def is_lan_address(value: str | None) -> bool:
+    """True only for an IP literal inside ``LAN_NETWORKS`` (IPv4-mapped IPv6 unwrapped)."""
+
+    if not value:
+        return False
+    address = _parse_address(value)
+    return address is not None and any(address in network for network in LAN_NETWORKS)
 
 
 def _is_loopback(host: str) -> bool:
-    if host.lower() in _LOOPBACK_NAMES:
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
+    address = _parse_address(host)
+    return address is not None and any(address in network for network in _LOOPBACK_NETWORKS)
 
 
 def _is_lan_host(host: str) -> bool:
-    """Private, link-local or unique-local addresses, or an mDNS ``.local`` name."""
+    """A LAN IP literal, or an mDNS ``.local`` name (base URL only)."""
 
     if host.lower().endswith(".local") and len(host) > len(".local"):
         return True
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        return False
-    if address.is_loopback:
-        return True
-    if isinstance(address, ipaddress.IPv4Address):
-        return address.is_private and not address.is_unspecified and not address.is_reserved
-    return address in ipaddress.ip_network("fc00::/7") or address.is_link_local
+    return is_lan_address(host)
+
+
+def _validate_bind_host(host: str) -> None:
+    address = _parse_address(host)
+    if address is None:
+        raise ShareSettingsError(
+            "LIVECLIP_SHARE_HOST must be an IP address literal (for example 127.0.0.1 or "
+            "the Mac's LAN address from `ipconfig getifaddr en0`); hostnames are refused"
+        )
+    if str(address) == "0.0.0.0":
+        return
+    if not any(address in network for network in LAN_NETWORKS):
+        raise ShareSettingsError(
+            "LIVECLIP_SHARE_HOST must be loopback, 0.0.0.0, a private (10/8, 172.16/12, "
+            "192.168/16) or link-local address, or an IPv6 unique-local/link-local address; "
+            "public addresses and '::' are refused"
+        )
 
 
 class ShareSettings(BaseSettings):
@@ -109,8 +151,13 @@ class ShareSettings(BaseSettings):
 
     - ``LIVECLIP_SHARE_HOST`` (default ``127.0.0.1``) and ``LIVECLIP_SHARE_PORT``
       (default ``8766``): where ``make share`` binds.
-    - A non-loopback bind (for example ``0.0.0.0`` or a LAN address) requires
+    - ``LIVECLIP_SHARE_HOST`` must be an IP literal: loopback, ``0.0.0.0``, a
+      private/link-local IPv4 or a unique-local/link-local IPv6 address
+      (prefer the Mac's own LAN address); hostnames, ``::`` and public
+      addresses are refused. A non-loopback bind requires
       ``LIVECLIP_SHARE_ALLOW_LAN=true`` **and** ``LIVECLIP_SHARE_BASE_URL``.
+    - Independently of the bind, the share app answers only clients whose
+      address is in ``LAN_NETWORKS``; every other client gets the generic 404.
     - ``LIVECLIP_SHARE_BASE_URL`` (``http(s)://host[:port]``, no path, query or
       credentials) builds the URLs shown to reviewers. Its host must be
       loopback, a private/link-local/unique-local IP address or a ``.local``
@@ -135,6 +182,7 @@ class ShareSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_exposure(self) -> ShareSettings:
+        _validate_bind_host(self.host)
         if not _is_loopback(self.host):
             if not self.allow_lan:
                 raise ShareSettingsError(
@@ -146,6 +194,8 @@ class ShareSettings(BaseSettings):
                     "LIVECLIP_SHARE_BASE_URL is required when sharing on the local network"
                 )
         if self.base_url is not None:
+            if "#" in self.base_url or "?" in self.base_url:
+                raise ShareSettingsError("LIVECLIP_SHARE_BASE_URL must not contain '?' or '#'")
             parsed = urlsplit(self.base_url)
             if (
                 parsed.scheme not in {"http", "https"}
@@ -178,11 +228,18 @@ class ShareSettings(BaseSettings):
     def public_base_url(self) -> str:
         if self.base_url is not None:
             return self.base_url.rstrip("/")
-        host = self.host if not self.host.startswith("::") else "[::1]"
+        address = _parse_address(self.host)
+        host = f"[{address}]" if isinstance(address, ipaddress.IPv6Address) else self.host
         return f"http://{host}:{self.port}"
 
     def share_url(self, token: str) -> str:
         return f"{self.public_base_url}/s/{token}"
 
 
-__all__ = ["DualProfileImportSettings", "ShareSettings", "ShareSettingsError"]
+__all__ = [
+    "LAN_NETWORKS",
+    "DualProfileImportSettings",
+    "ShareSettings",
+    "ShareSettingsError",
+    "is_lan_address",
+]

@@ -18,7 +18,7 @@ import logging
 import re
 import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -35,7 +35,7 @@ from liveclip.application.customer_share_links import ShareTarget
 from liveclip.application.media_assets import MediaAssetInvalid, MediaAssetNotFound
 from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings, get_settings
-from liveclip.customer_delivery_settings import ShareSettings
+from liveclip.customer_delivery_settings import ShareSettings, is_lan_address
 from liveclip.delivery.customer_package import (
     CONTENT_SECURITY_POLICY,
     CustomerDeliveryManifest,
@@ -78,7 +78,12 @@ class ShareRateLimited(Exception):
 
 
 class ShareRateLimiter:
-    """In-process sliding windows: misses per client IP and requests per link."""
+    """In-process sliding windows: misses per client IP and requests per link.
+
+    Memory is bounded: a key whose window empties is deleted, and every
+    ``prune_every`` operations a sweep drops all keys with no timestamp left
+    in their window.
+    """
 
     def __init__(
         self,
@@ -88,40 +93,90 @@ class ShareRateLimiter:
         link_limit: int = 600,
         link_window_seconds: float = 60,
         clock: Callable[[], float] = time.monotonic,
+        prune_every: int = 256,
     ) -> None:
         self._miss_limit = miss_limit
         self._miss_window = miss_window_seconds
         self._link_limit = link_limit
         self._link_window = link_window_seconds
         self._clock = clock
-        self._misses: dict[str, deque[float]] = defaultdict(deque)
-        self._links: dict[str, deque[float]] = defaultdict(deque)
+        self._prune_every = max(1, prune_every)
+        self._operations = 0
+        self._misses: dict[str, deque[float]] = {}
+        self._links: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
 
-    def _trim(self, values: deque[float], window: float, now: float) -> None:
+    def tracked_keys(self) -> tuple[int, int]:
+        with self._lock:
+            return len(self._misses), len(self._links)
+
+    @staticmethod
+    def _trim(values: deque[float], window: float, now: float) -> None:
         while values and values[0] <= now - window:
             values.popleft()
+
+    def _maybe_prune(self, now: float) -> None:
+        self._operations += 1
+        if self._operations % self._prune_every:
+            return
+        for table, window in ((self._misses, self._miss_window), (self._links, self._link_window)):
+            for key in list(table):
+                values = table[key]
+                self._trim(values, window, now)
+                if not values:
+                    del table[key]
 
     def check_client(self, client: str) -> None:
         now = self._clock()
         with self._lock:
-            values = self._misses[client]
+            self._maybe_prune(now)
+            values = self._misses.get(client)
+            if values is None:
+                return
             self._trim(values, self._miss_window, now)
+            if not values:
+                del self._misses[client]
+                return
             if len(values) >= self._miss_limit:
                 raise ShareRateLimited(int(values[0] + self._miss_window - now) + 1)
 
     def record_miss(self, client: str) -> None:
+        now = self._clock()
         with self._lock:
-            self._misses[client].append(self._clock())
+            self._maybe_prune(now)
+            self._misses.setdefault(client, deque()).append(now)
 
     def hit_link(self, link_id: str) -> None:
         now = self._clock()
         with self._lock:
-            values = self._links[link_id]
+            self._maybe_prune(now)
+            values = self._links.setdefault(link_id, deque())
             self._trim(values, self._link_window, now)
             if len(values) >= self._link_limit:
                 raise ShareRateLimited(int(values[0] + self._link_window - now) + 1)
             values.append(now)
+
+
+class RefusedClientCounter:
+    """Bounded (O(1)) count of requests refused because the client is not on the LAN.
+
+    Refused clients are not tracked per address: an internet client gets the
+    generic 404 without creating any per-key state, so it can neither grow
+    memory nor learn anything from a 429.
+    """
+
+    def __init__(self) -> None:
+        self._count = 0
+        self._lock = threading.Lock()
+
+    def add(self) -> int:
+        with self._lock:
+            self._count += 1
+            return self._count
+
+    @property
+    def count(self) -> int:
+        return self._count
 
 
 def _not_found() -> HTMLResponse:
@@ -143,10 +198,12 @@ def create_share_app(
     runtime: LiveClipRuntime | None = None,
     project_root: Path | None = None,
     rate_limiter: ShareRateLimiter | None = None,
+    refused_counter: RefusedClientCounter | None = None,
 ) -> FastAPI:
     configured = settings or get_settings()
     sharing = share_settings or ShareSettings()
     limiter = rate_limiter or ShareRateLimiter()
+    refused = refused_counter or RefusedClientCounter()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -178,7 +235,20 @@ def create_share_app(
     async def guard(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        client = request.client.host if request.client is not None else "unknown"
+        client = request.client.host if request.client is not None else None
+        if not is_lan_address(client):
+            # Not loopback/private/link-local (or unparseable): answer exactly like
+            # an unknown link, never touch the database, the link statistics or
+            # the per-IP limiter. proxy headers are never trusted.
+            refused.add()
+            response: Response = _not_found()
+            logger.info(
+                "share_request_refused_non_lan method=%s path=%s",
+                request.method,
+                redact_share_path(request.url.path),
+            )
+            return response
+        assert client is not None
         try:
             limiter.check_client(client)
             response = await call_next(request)
@@ -188,6 +258,13 @@ def create_share_app(
                 status_code=429,
                 headers={**SECURITY_HEADERS, "Retry-After": str(exc.retry_after)},
             )
+        except Exception as exc:  # pragma: no branch - defensive generic answer
+            logger.warning(
+                "share_request_failed error_type=%s path=%s",
+                type(exc).__name__,
+                redact_share_path(request.url.path),
+            )
+            response = _not_found()
         if response.status_code == 404:
             limiter.record_miss(client)
         for name, value in SECURITY_HEADERS.items():
@@ -201,6 +278,15 @@ def create_share_app(
             response.status_code,
         )
         return response
+
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception) -> Response:
+        logger.warning(
+            "share_request_failed error_type=%s path=%s",
+            type(exc).__name__,
+            redact_share_path(request.url.path),
+        )
+        return _not_found()
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_request: Request, exc: StarletteHTTPException) -> Response:
@@ -372,6 +458,7 @@ def create_share_app(
 
 __all__ = [
     "SECURITY_HEADERS",
+    "RefusedClientCounter",
     "ShareRateLimited",
     "ShareRateLimiter",
     "create_share_app",

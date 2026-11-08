@@ -21,6 +21,7 @@ from liveclip.application.customer_deliveries import (
     CustomerDeliveryWork,
     CustomerDeliveryWorkClip,
 )
+from liveclip.application.dual_profile_review import CustomerTextWarningConflict
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import LeaseIdentity
 from liveclip.db.base import new_id
@@ -48,6 +49,7 @@ from liveclip.domain.customer_delivery import (
     is_deliverable,
     is_selected_for_delivery,
     latest_approval,
+    unacknowledged_strong_warnings,
 )
 from liveclip.domain.state_transitions import (
     AssetStatus,
@@ -103,6 +105,12 @@ class SqlAlchemyCustomerDeliveryRepository:
                 )
             if not selected:
                 raise CustomerDeliveryConflict("no deliverable clip is selected for delivery")
+            pending = [(clip["id"], value) for clip in selected for value in clip["text_warnings"]]
+            if pending:
+                raise CustomerTextWarningConflict(
+                    tuple(value for _, value in pending),
+                    clip_ids=tuple(clip_id for clip_id, _ in pending),
+                )
             version = (
                 int(
                     connection.scalar(
@@ -426,6 +434,7 @@ def _clip_states(connection: Connection, project_id: str) -> list[dict[str, Any]
             DualProfileClipDecisionRow.title_override,
             DualProfileClipDecisionRow.hook_override,
             DualProfileClipDecisionRow.summary_override,
+            DualProfileClipDecisionRow.acknowledge_warnings,
         )
         .where(DualProfileClipDecisionRow.project_id == project_id)
         .order_by(DualProfileClipDecisionRow.sequence)
@@ -441,6 +450,7 @@ def _clip_states(connection: Connection, project_id: str) -> list[dict[str, Any]
                     title_override=value.title_override,
                     hook_override=value.hook_override,
                     summary_override=value.summary_override,
+                    acknowledge_warnings=bool(value.acknowledge_warnings),
                 ),
             )
         )
@@ -476,6 +486,12 @@ def _clip_states(connection: Connection, project_id: str) -> list[dict[str, Any]
                 "video_sha256": str(row.video_sha256),
                 "subtitle_sha256": str(row.subtitle_sha256),
                 "approval_decision_id": approval_id,
+                "text_warnings": unacknowledged_strong_warnings(
+                    CustomerText(
+                        title=str(row.title), hook=str(row.hook), summary=str(row.summary)
+                    ),
+                    clip_decisions,
+                ),
                 "deliverable": is_deliverable(status, clip_decisions),
                 "selected": is_selected_for_delivery(status, clip_decisions),
             }

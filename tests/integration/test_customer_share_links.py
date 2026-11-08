@@ -18,7 +18,7 @@ from pydantic import SecretStr
 from sqlalchemy import text
 
 from liveclip.api.app import create_app
-from liveclip.api.share import ShareRateLimiter, create_share_app
+from liveclip.api.share import RefusedClientCounter, ShareRateLimiter, create_share_app
 from liveclip.bootstrap import LiveClipRuntime
 from liveclip.config import Settings
 from liveclip.customer_delivery_settings import DualProfileImportSettings, ShareSettings
@@ -128,7 +128,9 @@ def _boot(tmp_path: Path, *, limiter: ShareRateLimiter | None = None) -> Iterato
     )
     with (
         TestClient(api_app, raise_server_exceptions=False) as api,
-        TestClient(share_app, raise_server_exceptions=False) as share,
+        TestClient(
+            share_app, raise_server_exceptions=False, client=("192.168.1.30", 50000)
+        ) as share,
     ):
         owner = {"Authorization": f"Bearer {TOKENS['owner']}"}
         created = api.post(
@@ -322,11 +324,14 @@ def test_a_token_reaches_only_its_own_delivery(harness: Harness) -> None:
 )
 def test_everything_else_is_the_same_404(harness: Harness, path: str) -> None:
     token = harness.token()
-    response = harness.share.get(
-        path.format(token=token),
-        headers={"Authorization": f"Bearer {TOKENS['owner']}"},
-        cookies={"liveclip_session": "anything"},
-    )
+    harness.share.cookies.set("liveclip_session", "anything")
+    try:
+        response = harness.share.get(
+            path.format(token=token),
+            headers={"Authorization": f"Bearer {TOKENS['owner']}"},
+        )
+    finally:
+        harness.share.cookies.clear()
     assert response.status_code == 404
     assert response.content == harness.share.get("/s/" + "B" * 43).content
     _assert_security_headers(response)
@@ -418,3 +423,95 @@ def test_rate_limits_answer_429_with_retry_after(tmp_path: Path) -> None:
         assert 1 <= int(blocked.headers["retry-after"]) <= 601
         clock[0] += 601
         assert harness.share.get(f"/s/{token}").status_code == 200
+
+
+counter = RefusedClientCounter()
+
+
+def _share_client(harness: Harness, host: str) -> TestClient:
+    app = create_share_app(
+        harness.settings,
+        share_settings=ShareSettings(host="127.0.0.1", port=8766),
+        runtime=harness.runtime,
+        refused_counter=counter,
+    )
+    return TestClient(app, raise_server_exceptions=False, client=(host, 50000))
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["8.8.8.8", "100.64.1.2", "2001:4860:4860::8888", "::ffff:8.8.8.8", "testclient", ""],
+)
+def test_clients_outside_the_lan_get_the_generic_404(harness: Harness, host: str) -> None:
+    token = harness.token()
+    before = counter.count
+    with _share_client(harness, host) as client:
+        responses = [
+            client.get(f"/s/{token}"),
+            client.get(f"/s/{token}/clips/1/video"),
+            client.get(f"/s/{token}/download"),
+        ]
+    generic = harness.share.get("/s/" + "D" * 43)
+    for response in responses:
+        assert response.status_code == 404
+        assert response.content == generic.content
+        _assert_security_headers(response)
+    assert counter.count == before + 3
+    [link] = harness.links()
+    assert (link["view_count"], link["download_count"]) == (0, 0)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "127.0.0.1",
+        "::1",
+        "10.1.2.3",
+        "172.20.0.9",
+        "192.168.31.8",
+        "169.254.3.4",
+        "fd12:3456::1",
+        "fe80::1",
+        "::ffff:192.168.1.9",
+    ],
+)
+def test_loopback_and_lan_clients_are_served(harness: Harness, host: str) -> None:
+    token = harness.token()
+    with _share_client(harness, host) as client:
+        assert client.get(f"/s/{token}").status_code == 200
+
+
+def test_an_unexpected_error_is_the_generic_404_without_details(
+    harness: Harness, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = harness.token()
+
+    def explode(value: str) -> None:
+        raise RuntimeError(f"boom {value}")
+
+    monkeypatch.setattr(harness.runtime.share_link_service, "resolve", explode)
+    caplog.set_level(logging.INFO, logger="liveclip.share")
+    response = harness.share.get(f"/s/{token}")
+    assert response.status_code == 404
+    assert response.content == harness.share.get("/s/" + "E" * 43).content
+    _assert_security_headers(response)
+    assert "boom" not in response.text and "Traceback" not in response.text
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("share_request_failed error_type=RuntimeError" in value for value in messages)
+    assert all(token not in value and "boom" not in value for value in messages)
+    assert all(record.exc_info is None for record in caplog.records)
+
+
+def test_rate_limiter_memory_is_bounded() -> None:
+    clock = [0.0]
+    limiter = ShareRateLimiter(
+        miss_window_seconds=10, link_window_seconds=10, clock=lambda: clock[0], prune_every=8
+    )
+    for index in range(200):
+        limiter.record_miss(f"10.0.0.{index}")
+        limiter.hit_link(f"link-{index}")
+    assert limiter.tracked_keys() == (200, 200)
+    clock[0] += 11
+    for _ in range(8):
+        limiter.check_client("10.9.9.9")
+    assert limiter.tracked_keys() == (0, 0)

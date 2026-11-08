@@ -68,6 +68,8 @@ def test_narration_is_advisory_only(summary: str) -> None:
         "唱歌学习路径分四步：真声、强混、假声，最后是真假声转换。",
         "老师提醒不要硬喊，声带需要放松，先在中音区建立正确的发声习惯。",
         "这一句的气息要稳，结尾不要收得太快。",
+        "直播间答疑为什么高音会卡，老师逐一解释原因。",
+        "学员质疑为何要先练真声，老师用示范说明。",
     ],
 )
 def test_ordinary_teaching_sentences_do_not_trip(summary: str) -> None:

@@ -424,3 +424,97 @@ def test_purge_removes_a_project_with_a_built_customer_delivery(harness: Harness
         ):
             count = connection.exec_driver_sql(f"SELECT count(*) FROM {table}").scalar_one()
             assert count == 0, table
+
+
+def test_auto_selected_clips_with_reviewer_notes_need_an_explicit_keep(tmp_path: Path) -> None:
+    from liveclip.db.dual_profile_repository import SqlAlchemyDualProfileImportRepository
+    from liveclip.domain.customer_delivery import ClipDecisionAction
+
+    for harness in _flagged_harness(tmp_path):
+        refused = harness.decide("short-one", "select", role="editor")
+        assert refused.status_code == 409
+        assert refused.json()["error"]["code"] == "CUSTOMER_TEXT_WARNING"
+        kept = harness.decide("short-one", "select", role="editor", acknowledge_warnings=True)
+        assert kept.status_code == 200, kept.text
+        short = next(
+            clip
+            for group in kept.json()["review"]["groups"]
+            for clip in group["clips"]
+            if clip["candidate_id"] == "short-one"
+        )
+        assert short["selected_for_delivery"] is True
+        assert short["decisions"][-1]["acknowledge_warnings"] is True
+        assert harness.create().status_code == 202
+
+        # Defense in depth: a selection that bypassed the service gate is still
+        # refused when the customer delivery is created.
+        harness.decide("short-one", "deselect", role="editor")
+        repository = SqlAlchemyDualProfileImportRepository(harness.runtime.engine)
+        editor = harness.runtime.workspace_service.get_user_by_username("local-admin")
+        from datetime import UTC, datetime
+
+        repository.append_decision(
+            project_id=harness.project_id,
+            import_clip_id=harness.clips["short-one"],
+            acting_user_id=editor.user_id,
+            action=ClipDecisionAction.SELECT,
+            require_deliverable=True,
+            now=datetime.now(UTC),
+        )
+        blocked = harness.create(title="第二版")
+        assert blocked.status_code == 409
+        error = blocked.json()["error"]
+        assert error["code"] == "CUSTOMER_TEXT_WARNING"
+        assert error["details"][0]["location"][0] == harness.clips["short-one"]
+        assert harness.decide("short-one", "reject", acknowledge_warnings=True).status_code == 422
+
+
+def _flagged_harness(tmp_path: Path) -> Iterator[Harness]:
+    base = tmp_path.resolve()
+    (base / "media").mkdir()
+    (base / "evaluations").mkdir()
+    fixture = build_run(
+        base, relative_paths=False, short_summary="老师示范打哈欠。“那口腔”疑为转写错误。"
+    )
+    settings = Settings(
+        data_dir=base / "projects",
+        allowed_media_roots_raw=str(base / "media"),
+        api_token=SecretStr(TOKENS["owner"]),
+        workspace_tokens_raw=json.dumps({"customer-delivery-editor": TOKENS["editor"]}),
+        ai_provider="mock",
+        _env_file=None,
+    )
+    runtime = LiveClipRuntime.open(
+        settings,
+        project_root=PROJECT_ROOT,
+        dual_profile_settings=DualProfileImportSettings(
+            import_roots_raw=str(base / "evaluations"),
+            transcript_roots_raw=str(base / "evaluations"),
+        ),
+    )
+    app = create_app(settings, runtime=runtime, project_root=PROJECT_ROOT)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        owner = {"Authorization": f"Bearer {TOKENS['owner']}"}
+        created = client.post(
+            "/api/v1/dual-profile-imports",
+            headers=owner,
+            json={"run_dir": str(fixture.run_dir), "transcript_path": str(fixture.transcript)},
+        )
+        project_id = created.json()["project_id"]
+        client.post(
+            f"/api/v1/projects/{project_id}/members",
+            headers=owner,
+            json={
+                "username": "customer-delivery-editor",
+                "display_name": "editor",
+                "role": "editor",
+            },
+        )
+        review = client.get(f"/api/v1/projects/{project_id}/dual-profile-import", headers=owner)
+        clips = {
+            clip["candidate_id"]: clip["import_clip_id"]
+            for group in review.json()["review"]["groups"]
+            for clip in group["clips"]
+        }
+        yield Harness(client, runtime, base, project_id, clips, "")
+    runtime.close()

@@ -283,6 +283,19 @@ export function ImportedClipCard({
   onDecide: (body: DualProfileDecisionRequest) => Promise<void>;
 }) {
   const [approving, setApproving] = useState(false);
+  const [selectNeedsKeep, setSelectNeedsKeep] = useState(false);
+  const select = async (body: DualProfileDecisionRequest) => {
+    try {
+      await onDecide(body);
+      setSelectNeedsKeep(false);
+    } catch (error) {
+      setSelectNeedsKeep(
+        body.action === "select" &&
+          error instanceof LiveClipApiError &&
+          error.code === "CUSTOMER_TEXT_WARNING",
+      );
+    }
+  };
   const titleId = `dual-clip-title-${clip.import_clip_id}`;
   const selectionDisabled = !canDeliver || !clip.deliverable || busy;
   const selectionHint = !clip.deliverable
@@ -321,9 +334,7 @@ export function ImportedClipCard({
                 checked={clip.selected_for_delivery}
                 disabled={selectionDisabled}
                 onChange={(event) =>
-                  void onDecide({
-                    action: event.currentTarget.checked ? "select" : "deselect",
-                  }).catch(() => undefined)
+                  void select({ action: event.currentTarget.checked ? "select" : "deselect" })
                 }
               />
               选入交付
@@ -338,6 +349,20 @@ export function ImportedClipCard({
             />
           </div>
           {selectionHint ? <p className="hint dual-profile-select-hint">{selectionHint}</p> : null}
+          {selectNeedsKeep ? (
+            <div className="dual-profile-text-warning is-strong" role="note" aria-label="选入交付文案提示">
+              <strong>疑似审核备注，请改写</strong>
+              <span>这条切片的客户文案仍含疑似审核备注。请先“批准”并改写文案，或明确保留原文后选入。</span>
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={busy}
+                onClick={() => void select({ action: "select", acknowledge_warnings: true })}
+              >
+                仍然保留原文并选入
+              </button>
+            </div>
+          ) : null}
           <h3 id={titleId}>
             {clip.effective.title}
             {clip.has_override ? <span className="dual-profile-override-tag">已改写</span> : null}

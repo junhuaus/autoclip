@@ -481,3 +481,55 @@ it("creates a share link, shows the URL once with copy, and revokes links", asyn
   expect(await within(panel).findByText("已撤销")).toBeInTheDocument();
   expect(within(panel).queryByRole("button", { name: "撤销" })).not.toBeInTheDocument();
 });
+
+it("asks to keep flagged text explicitly when selecting an automatically selected clip", async () => {
+  const bodies: DualProfileDecisionRequest[] = [];
+  const flaggedShort = {
+    ...dualProfileShortClip,
+    text_warnings: [
+      { field: "summary" as const, kind: "strong" as const, start: 0, end: 2, match: "疑为", message: "审核推测" },
+    ],
+  };
+  serveWorkspace(dualProfileProject, [flaggedShort, dualProfileLessonClip]);
+  server.use(
+    http.post(
+      "/api/v1/projects/dual-1/dual-profile-import/clips/clip-short/decisions",
+      async ({ request }) => {
+        const body = (await request.json()) as DualProfileDecisionRequest;
+        bodies.push(body);
+        if (!body.acknowledge_warnings) {
+          return HttpResponse.json(
+            {
+              error: {
+                schema_version: "1",
+                code: "CUSTOMER_TEXT_WARNING",
+                message: "customer text still contains reviewer-style notes",
+                retryable: false,
+                resource_id: null,
+                correlation_id: "c-3",
+                details: [{ location: ["summary", 0, 2], type: "customer_text_warning.strong" }],
+              },
+            },
+            { status: 409 },
+          );
+        }
+        return HttpResponse.json(
+          dualProfileReview([{ ...flaggedShort, selected_for_delivery: true }, dualProfileLessonClip]),
+        );
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+  await screen.findByRole("heading", { name: "短片（1）" });
+  await user.click(within(card("短片原标题")).getByRole("checkbox", { name: "选入交付" }));
+  const note = await within(card("短片原标题")).findByRole("note", { name: "选入交付文案提示" });
+  await user.click(within(note).getByRole("button", { name: "仍然保留原文并选入" }));
+  await waitFor(() =>
+    expect(bodies).toEqual([{ action: "select" }, { action: "select", acknowledge_warnings: true }]),
+  );
+  await waitFor(() =>
+    expect(within(card("短片原标题")).getByRole("checkbox", { name: "选入交付" })).toBeChecked(),
+  );
+  expect(within(card("短片原标题")).queryByRole("note", { name: "选入交付文案提示" })).not.toBeInTheDocument();
+});

@@ -69,12 +69,20 @@ class ClipDecision:
     title_override: str | None = None
     hook_override: str | None = None
     summary_override: str | None = None
+    acknowledge_warnings: bool = False
 
     def __post_init__(self) -> None:
         if self.sequence < 1:
             raise CustomerDeliveryRuleError("decision sequence must be positive")
         if self.action is not ClipDecisionAction.APPROVE and self.has_override:
             raise CustomerDeliveryRuleError("only an approval may override customer text")
+        if self.acknowledge_warnings and self.action not in {
+            ClipDecisionAction.APPROVE,
+            ClipDecisionAction.SELECT,
+        }:
+            raise CustomerDeliveryRuleError(
+                "only an approval or a selection may keep text with warnings"
+            )
         for value, limit in (
             (self.title_override, TITLE_MAX_CHARS),
             (self.hook_override, HOOK_MAX_CHARS),
@@ -209,7 +217,8 @@ WarningKind = Literal["strong", "narration"]
 CustomerTextField = Literal["title", "hook", "summary"]
 CUSTOMER_TEXT_WARNING_PATTERNS: tuple[tuple[WarningKind, re.Pattern[str], str], ...] = (
     ("strong", re.compile(r"误?转写"), "提及转写/误转写，属于审核备注"),
-    ("strong", re.compile(r"疑为|疑似"), "“疑为/疑似”是审核推测，不应给客户看"),
+    # Lookbehind avoids 答疑/质疑/存疑 + 为/似 (e.g. "直播间答疑为什么…").
+    ("strong", re.compile(r"(?<![答质存])疑[为似]"), "“疑为/疑似”是审核推测，不应给客户看"),
     ("strong", re.compile(r"ASR", re.IGNORECASE), "提及 ASR 语音识别"),
     ("strong", re.compile(r"字幕(?:中|作|误作)|误作"), "提及字幕识别差异"),
     ("strong", re.compile(r"时长上限"), "提及切片时长上限"),
@@ -275,6 +284,39 @@ def customer_text_warnings(title: str, hook: str, summary: str) -> tuple[Custome
             )
     order = {"title": 0, "hook": 1, "summary": 2}
     return tuple(sorted(found, key=lambda value: (order[value.field], value.start, value.kind)))
+
+
+def unacknowledged_strong_warnings(
+    original: CustomerText,
+    decisions: Iterable[ClipDecision],
+) -> tuple[CustomerTextWarning, ...]:
+    """Strong warnings on the effective text that no decision explicitly kept.
+
+    The effective text comes from the latest approval (or the model original);
+    it is covered when that latest approval, or the latest selection made after
+    the latest review decision, carried ``acknowledge_warnings``. This also
+    gates automatically ``selected`` clips, which never need an approval.
+    """
+
+    values = ordered_decisions(decisions)
+    strong = strong_customer_text_warnings(effective_customer_text(original, values))
+    if not strong:
+        return ()
+    approval = latest_approval(values)
+    if approval is not None and approval.acknowledge_warnings:
+        return ()
+    review = latest_review_decision(values)
+    floor = review.sequence if review is not None else 0
+    selections = [
+        value for value in values if value.action in _SELECTION_ACTIONS and value.sequence > floor
+    ]
+    if (
+        selections
+        and selections[-1].action is ClipDecisionAction.SELECT
+        and selections[-1].acknowledge_warnings
+    ):
+        return ()
+    return strong
 
 
 def strong_customer_text_warnings(text: CustomerText) -> tuple[CustomerTextWarning, ...]:
@@ -412,5 +454,6 @@ __all__ = [
     "latest_review_decision",
     "ordered_decisions",
     "strong_customer_text_warnings",
+    "unacknowledged_strong_warnings",
     "validate_customer_text_field",
 ]

@@ -3015,10 +3015,14 @@ def _install_exception_handlers(app: FastAPI) -> None:
             message=str(exc),
             details=tuple(
                 ApiErrorItem(
-                    location=(value.field, value.start, value.end),
+                    location=(
+                        (exc.clip_ids[index], value.field, value.start, value.end)
+                        if exc.clip_ids
+                        else (value.field, value.start, value.end)
+                    ),
                     type=f"customer_text_warning.{value.kind}",
                 )
-                for value in exc.warnings
+                for index, value in enumerate(exc.warnings)
             ),
         )
 

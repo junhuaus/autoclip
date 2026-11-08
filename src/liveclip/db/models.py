@@ -184,6 +184,7 @@ class AuthLoginAttemptRow(Base):
 
 class AuditEventRow(Base):
     __tablename__ = "audit_events"
+    __table_args__ = (Index("ix_audit_events_target", "target_type", "target_id"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     actor_user_id: Mapped[str | None] = mapped_column(

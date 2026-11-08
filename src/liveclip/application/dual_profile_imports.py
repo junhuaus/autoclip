@@ -522,6 +522,7 @@ def clip_decision_from_values(
     title_override: str | None,
     hook_override: str | None,
     summary_override: str | None,
+    acknowledge_warnings: bool = False,
 ) -> ClipDecision:
     return ClipDecision(
         sequence=sequence,
@@ -529,6 +530,7 @@ def clip_decision_from_values(
         title_override=title_override,
         hook_override=hook_override,
         summary_override=summary_override,
+        acknowledge_warnings=acknowledge_warnings,
     )
 
 

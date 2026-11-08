@@ -230,6 +230,7 @@ class SqlAlchemyDualProfileImportRepository:
                 title_override=title_override,
                 hook_override=hook_override,
                 summary_override=summary_override,
+                acknowledge_warnings=acknowledge_warnings,
             )
             decision_id = new_id()
             connection.execute(
@@ -244,7 +245,7 @@ class SqlAlchemyDualProfileImportRepository:
                     summary_override=decision.summary_override,
                     actor_user_id=acting_user_id,
                     decided_at=now,
-                    acknowledge_warnings=acknowledge_warnings,
+                    acknowledge_warnings=decision.acknowledge_warnings,
                 )
             )
             _audit(
@@ -321,6 +322,7 @@ class SqlAlchemyDualProfileImportRepository:
                         title_override=row.title_override,
                         hook_override=row.hook_override,
                         summary_override=row.summary_override,
+                        acknowledge_warnings=bool(row.acknowledge_warnings),
                     ),
                     actor_username=str(row.username),
                     actor_display_name=str(row.display_name),
@@ -382,6 +384,7 @@ class SqlAlchemyDualProfileImportRepository:
                     DualProfileClipDecisionRow.title_override,
                     DualProfileClipDecisionRow.hook_override,
                     DualProfileClipDecisionRow.summary_override,
+                    DualProfileClipDecisionRow.acknowledge_warnings,
                 )
                 .where(DualProfileClipDecisionRow.project_id == project_id)
                 .order_by(
@@ -398,6 +401,7 @@ class SqlAlchemyDualProfileImportRepository:
                     title_override=row.title_override,
                     hook_override=row.hook_override,
                     summary_override=row.summary_override,
+                    acknowledge_warnings=bool(row.acknowledge_warnings),
                 )
             )
         return tuple(
@@ -431,6 +435,7 @@ def _clip_decisions(connection: Connection, import_clip_id: str) -> tuple[ClipDe
             DualProfileClipDecisionRow.title_override,
             DualProfileClipDecisionRow.hook_override,
             DualProfileClipDecisionRow.summary_override,
+            DualProfileClipDecisionRow.acknowledge_warnings,
         )
         .where(DualProfileClipDecisionRow.import_clip_id == import_clip_id)
         .order_by(DualProfileClipDecisionRow.sequence)
@@ -442,6 +447,7 @@ def _clip_decisions(connection: Connection, import_clip_id: str) -> tuple[ClipDe
             title_override=row.title_override,
             hook_override=row.hook_override,
             summary_override=row.summary_override,
+            acknowledge_warnings=bool(row.acknowledge_warnings),
         )
         for row in rows
     )

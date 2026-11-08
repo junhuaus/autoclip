@@ -105,6 +105,7 @@ def build_run(
     quality_status: str = "passed",
     include_blocked: bool = False,
     lesson_summary: str | None = None,
+    short_summary: str | None = None,
 ) -> RunFixture:
     root = base / "evaluations"
     run_dir = root / name
@@ -135,6 +136,8 @@ def build_run(
         title="小课教学",
         status=CandidateDisposition.MANUAL_REVIEW,
     )
+    if short_summary is not None:
+        short = short.model_copy(update={"summary": short_summary})
     if lesson_summary is not None:
         lesson = lesson.model_copy(update={"summary": lesson_summary})
     blocked = _candidate(
