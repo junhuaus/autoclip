@@ -353,13 +353,37 @@ class DualProfileImportService:
         roots: tuple[Path, ...],
         label: str,
     ) -> Path:
+        """Resolve a requested path inside the allowed roots, outside the managed data dir.
+
+        Containment is checked before existence, and the same message covers
+        "outside" and "missing outside", so the import cannot be used to probe
+        whether paths outside the allowed roots exist. Like ``POST /jobs``
+        (``forbidden_roots=(data_dir,)``), the application's managed data
+        directory (``data/projects``) is never an import source, even when an
+        allowed root contains it.
+        """
+
         if ".." in path.parts:
             raise DualProfileImportError(f"{label} path must not contain '..'")
-        candidate = path if path.is_absolute() else base / path
+        candidate = (path if path.is_absolute() else base / path).expanduser()
+        forbidden = self._data_dir.expanduser().resolve(strict=False)
+        outside = DualProfileImportError(f"{label} path is outside the allowed import roots")
+        try:
+            lexical = candidate.resolve(strict=False)
+        except (OSError, RuntimeError) as exc:
+            raise outside from exc
+        if not _confined(lexical, roots, forbidden):
+            raise outside
         resolved = _resolve_existing(candidate, label=f"{label} path")
-        if not any(resolved == root or root in resolved.parents for root in roots):
-            raise DualProfileImportError(f"{label} path is outside the allowed import roots")
+        if not _confined(resolved, roots, forbidden):
+            raise outside
         return resolved
+
+
+def _confined(path: Path, roots: tuple[Path, ...], forbidden: Path) -> bool:
+    if path == forbidden or forbidden in path.parents:
+        return False
+    return any(path == root or root in path.parents for root in roots)
 
 
 def _validate_frozen_contract(verified: VerifiedDualProfileRenderSet) -> None:

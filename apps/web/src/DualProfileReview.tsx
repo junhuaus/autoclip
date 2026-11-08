@@ -23,7 +23,7 @@ const DECISION_LABELS: Record<DualProfileDecisionAction, string> = {
 const REVIEW_STATE_LABELS: Record<DualProfileReviewClip["review_state"], string> = {
   pending: "待审核",
   approved: "已批准",
-  rejected: "未通过",
+  rejected: "不通过",
 };
 
 function durationLabel(durationMs: number): string {
@@ -146,7 +146,7 @@ export function ImportedClipCard({
   const selectionDisabled = !canDeliver || !clip.deliverable || busy;
   const selectionHint = !clip.deliverable
     ? clip.review_state === "rejected"
-      ? "未通过的切片不能选入交付"
+      ? "不通过的切片不能选入交付"
       : "批准后才能选入交付"
     : !canDeliver
       ? "当前角色不能选择交付内容"

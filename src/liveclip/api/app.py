@@ -85,6 +85,7 @@ from liveclip.api.schemas import (
 )
 from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
 from liveclip.application.authorization import (
+    IMPORTED_PROJECT_ACTIONS,
     ProjectAction,
     ProjectActionDenied,
     require_project_action,
@@ -1055,6 +1056,7 @@ def create_app(
             _caller(request),
             project_id,
             action=decision_permission(action),
+            allow_imported=True,
         )
         review = active.dual_profile_review_service.decide(
             project_id,
@@ -1094,6 +1096,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         active.workspace_service.add_project_member(
             project_id=project_id,
@@ -1123,6 +1126,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         active.workspace_service.remove_project_member(
             project_id=project_id,
@@ -1150,6 +1154,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         members = active.workspace_service.transfer_project_ownership(
             project_id=project_id,
@@ -1174,6 +1179,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_project",
+            allow_imported=True,
         )
         active.project_management_service.update_management(
             project_id=project_id,
@@ -1198,6 +1204,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_project",
+            allow_imported=True,
         )
         active.project_management_service.transition_lifecycle(
             project_id=project_id,
@@ -2361,7 +2368,16 @@ def _require_project_access(
     project_id: str,
     *,
     action: ProjectAction = "read",
+    allow_imported: bool = False,
 ) -> WorkspaceUser:
+    """Authorize one project action for the caller.
+
+    Imported dual-profile projects (Stage 19) accept only reads and the
+    endpoints that opt in with ``allow_imported`` (membership, management,
+    lifecycle and dual-profile review decisions); every pipeline-oriented
+    mutation is refused with a state conflict.
+    """
+
     user = runtime.workspace_service.get_user_by_username(caller.username)
     project = runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
     require_project_action(
@@ -2369,6 +2385,13 @@ def _require_project_access(
         action,
         archived=project.lifecycle.value == "archived",
     )
+    if project.source_kind == "dual_profile_import" and action != "read":
+        if not allow_imported:
+            raise PipelineConflict(
+                "imported dual-profile projects do not support this pipeline action"
+            )
+        if action not in IMPORTED_PROJECT_ACTIONS:
+            raise ProjectActionDenied("imported projects do not grant this action")
     return user
 
 

@@ -432,6 +432,48 @@ def test_symlinked_run_dir_escaping_the_root_is_rejected(harness: Harness) -> No
         _import(harness, fixture, run_dir=link)
 
 
+def test_the_managed_data_dir_is_never_an_import_source(harness: Harness) -> None:
+    fixture = build_run(harness.base)
+    smuggled_run = harness.data_dir / "smuggled-run"
+    shutil.copytree(fixture.run_dir, smuggled_run)
+    smuggled_transcript = harness.data_dir / "smuggled.srt"
+    shutil.copyfile(fixture.transcript, smuggled_transcript)
+    permissive = DualProfileImportService(
+        harness.repository,
+        data_dir=harness.data_dir,
+        allowed_run_roots=(harness.base,),
+        allowed_transcript_roots=(harness.base,),
+        relative_path_base=harness.base,
+        now=lambda: FIXED_NOW,
+    )
+
+    with pytest.raises(DualProfileImportError, match="run path is outside"):
+        permissive.import_run(
+            acting_user_id=USER_ID, run_dir=smuggled_run, transcript_path=fixture.transcript
+        )
+    with pytest.raises(DualProfileImportError, match="transcript path is outside"):
+        permissive.import_run(
+            acting_user_id=USER_ID, run_dir=fixture.run_dir, transcript_path=smuggled_transcript
+        )
+    assert permissive.import_run(
+        acting_user_id=USER_ID, run_dir=fixture.run_dir, transcript_path=fixture.transcript
+    ).created
+
+
+def test_paths_outside_the_roots_do_not_reveal_existence(harness: Harness) -> None:
+    fixture = build_run(harness.base)
+    existing = harness.base / "not-allowed"
+    existing.mkdir()
+    messages = []
+    for run_dir in (existing, harness.base / "missing-outside", Path("/definitely/missing")):
+        with pytest.raises(DualProfileImportError) as caught:
+            _import(harness, fixture, run_dir=run_dir)
+        messages.append(str(caught.value))
+    assert messages == ["run path is outside the allowed import roots"] * 3
+    with pytest.raises(DualProfileImportError, match="run path does not exist"):
+        _import(harness, fixture, run_dir=fixture.root / "missing-inside")
+
+
 def test_transcript_outside_allowed_roots_is_rejected(harness: Harness) -> None:
     fixture = build_run(harness.base)
     outside = harness.base / "transcript.srt"

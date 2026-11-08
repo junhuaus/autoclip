@@ -90,7 +90,7 @@ it("gates 选入交付 on eligibility and posts select for a deliverable clip", 
 
   const lessonCheckbox = within(card("审核改写标题")).getByRole("checkbox", { name: "选入交付" });
   expect(lessonCheckbox).toBeDisabled();
-  expect(within(card("审核改写标题")).getByText("未通过的切片不能选入交付")).toBeInTheDocument();
+  expect(within(card("审核改写标题")).getByText("不通过的切片不能选入交付")).toBeInTheDocument();
 
   const shortCheckbox = within(card("短片原标题")).getByRole("checkbox", { name: "选入交付" });
   expect(shortCheckbox).toBeEnabled();

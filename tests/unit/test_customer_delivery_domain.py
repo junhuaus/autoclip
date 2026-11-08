@@ -249,7 +249,7 @@ def test_customer_clip_view_forbids_internal_fields(field: str) -> None:
     "href",
     [
         "clips/short/01-标题.mp4",
-        "clips/lesson/12-小课_标题-二.srt",
+        "clips/short/12-短片_标题-二.srt",
         "clips/short/001-Title9.mp4",
         f"/s/{TOKEN}/clips/1/video",
         f"/s/{TOKEN}/clips/12/subtitle",
@@ -294,6 +294,20 @@ def test_customer_clip_view_accepts_emitted_link_shapes(href: str) -> None:
 def test_customer_clip_view_rejects_unsafe_links(href: str) -> None:
     with pytest.raises(ValidationError):
         CustomerClipView(**_view(video_href=href))  # type: ignore[arg-type]
+
+
+def test_lesson_links_are_accepted_for_mini_lessons_only() -> None:
+    lesson = _view(
+        profile=ClipProfile.MINI_LESSON,
+        profile_label="小课",
+        video_href="clips/lesson/02-小课.mp4",
+        subtitle_href="clips/lesson/02-小课.srt",
+    )
+    assert CustomerClipView(**lesson).video_href == "clips/lesson/02-小课.mp4"  # type: ignore[arg-type]
+    with pytest.raises(ValidationError, match="folder differs"):
+        CustomerClipView(**_view(video_href="clips/lesson/02-小课.mp4"))  # type: ignore[arg-type]
+    with pytest.raises(ValidationError, match="folder differs"):
+        CustomerClipView(**{**lesson, "subtitle_href": "clips/short/02-小课.srt"})  # type: ignore[arg-type]
 
 
 def test_customer_clip_view_label_must_match_profile() -> None:

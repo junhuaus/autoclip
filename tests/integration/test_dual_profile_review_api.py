@@ -34,6 +34,8 @@ class ApiHarness:
     client: TestClient
     base: Path
     fixture: RunFixture
+    runtime: LiveClipRuntime
+    settings: Settings
 
     def auth(self, role: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {TOKENS[role]}"}
@@ -91,7 +93,9 @@ def api(tmp_path: Path) -> Iterator[ApiHarness]:
     )
     app = create_app(settings, runtime=runtime, project_root=PROJECT_ROOT)
     with TestClient(app, raise_server_exceptions=False) as client:
-        yield ApiHarness(client=client, base=base, fixture=fixture)
+        yield ApiHarness(
+            client=client, base=base, fixture=fixture, runtime=runtime, settings=settings
+        )
 
 
 def _imported_project(api: ApiHarness) -> str:
@@ -337,3 +341,178 @@ def test_tampered_import_reports_a_safe_reason(api: ApiHarness) -> None:
     message = response.json()["error"]["message"]
     assert "differs from its manifest hash" in message and str(api.base) not in message
     assert api.client.get("/api/v1/projects", headers=api.auth("owner")).json() == []
+
+
+IMPORTED_OWNER_ACTIONS = [
+    "read",
+    "manage_members",
+    "manage_project",
+    "review_clip",
+    "comment",
+    "deliver",
+]
+
+
+def _guarded_requests(project_id: str) -> list[tuple[str, str, dict[str, Any], dict[str, str]]]:
+    clip = "c" * 32
+    return [
+        (
+            "runs",
+            f"/api/v1/projects/{project_id}/runs",
+            {"clipping_algorithm": "a"},
+            {"Idempotency-Key": "imported-run-0001"},
+        ),
+        (
+            "reviews-batch",
+            f"/api/v1/projects/{project_id}/reviews/batch",
+            {"items": [{"clip_id": clip, "expected_revision": 1, "status": "approved"}]},
+            {"Idempotency-Key": "imported-batch-0001"},
+        ),
+        (
+            "deliveries",
+            f"/api/v1/projects/{project_id}/deliveries",
+            {"include_zip": True},
+            {"Idempotency-Key": "imported-delivery-0001"},
+        ),
+        (
+            "edit-packages",
+            f"/api/v1/projects/{project_id}/edit-packages",
+            {"items": [{"clip_id": clip, "expected_revision": 1}]},
+            {"Idempotency-Key": "imported-edit-0001"},
+        ),
+        (
+            "releases",
+            f"/api/v1/projects/{project_id}/releases",
+            {
+                "clip_id": clip,
+                "expected_revision": 1,
+                "platform": "douyin",
+                "account_label": "主账号",
+            },
+            {"Idempotency-Key": "imported-release-0001"},
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "name", ["runs", "reviews-batch", "deliveries", "edit-packages", "releases"]
+)
+def test_pipeline_actions_are_refused_on_imported_projects(api: ApiHarness, name: str) -> None:
+    project_id = _imported_project(api)
+    _, path, body, headers = next(
+        value for value in _guarded_requests(project_id) if value[0] == name
+    )
+
+    response = api.client.post(path, headers={**api.auth("owner"), **headers}, json=body)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "STATE_CONFLICT"
+    assert "imported dual-profile projects" in response.json()["error"]["message"]
+    project = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).json()
+    assert project["source_kind"] == "dual_profile_import"
+    assert project["current_run_id"] == "" and project["generation"] == 0
+    assert project["lifecycle"] == "editorial_review"
+    with api.runtime.engine.connect() as connection:
+        for table in ("pipeline_runs", "deliveries", "edit_packages", "release_items", "tasks"):
+            count = connection.exec_driver_sql(f"SELECT count(*) FROM {table}").scalar_one()
+            assert count == 0, table
+    assert api.review(project_id).status_code == 200
+
+
+def test_imported_project_exposes_only_supported_actions(api: ApiHarness) -> None:
+    project_id = _imported_project(api)
+    owner = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).json()
+    assert owner["allowed_actions"] == IMPORTED_OWNER_ACTIONS
+    editor = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("editor")).json()
+    assert editor["allowed_actions"] == ["read", "comment", "deliver"]
+    reviewer = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("reviewer")).json()
+    assert reviewer["allowed_actions"] == ["read", "review_clip", "comment"]
+
+
+def test_create_run_repository_refuses_imported_projects(api: ApiHarness) -> None:
+    from liveclip.application.pipeline import PipelineConflict
+    from liveclip.bootstrap import pipeline_config_from_settings
+
+    project_id = _imported_project(api)
+    with pytest.raises(PipelineConflict, match="imported dual-profile projects"):
+        api.runtime.pipeline_service.create_run(
+            project_id=project_id,
+            config=pipeline_config_from_settings(api.settings),
+            max_stage_retries=1,
+        )
+    snapshot = api.runtime.pipeline_service.get_project(project_id)
+    assert snapshot.source_kind == "dual_profile_import"
+
+
+def test_archived_imported_project_blocks_decisions(api: ApiHarness) -> None:
+    project_id = _imported_project(api)
+    lesson_id = _clips(api.review(project_id).json())["lesson-one"]["import_clip_id"]
+    project = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).json()
+    archived = api.client.post(
+        f"/api/v1/projects/{project_id}/lifecycle",
+        headers=api.auth("owner"),
+        json={
+            "expected_management_version": project["management_version"],
+            "target": "archived",
+            "reason": "归档导入项目",
+        },
+    )
+    assert archived.status_code == 200, archived.text
+
+    for role, action in (("owner", "approve"), ("reviewer", "reject"), ("editor", "select")):
+        response = api.decide(project_id, lesson_id, role=role, action=action)
+        assert response.status_code == 403, response.text
+    assert api.review(project_id).status_code == 200
+
+
+def test_storage_purge_removes_an_imported_project(api: ApiHarness) -> None:
+    from liveclip.application.storage import ProjectPurgeCommand
+
+    project_id = _imported_project(api)
+    lesson_id = _clips(api.review(project_id).json())["lesson-one"]["import_clip_id"]
+    assert api.decide(project_id, lesson_id, role="reviewer", action="approve").status_code == 200
+    project_dir = api.base / "projects" / project_id
+    assert project_dir.is_dir()
+    project = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).json()
+    archived = api.client.post(
+        f"/api/v1/projects/{project_id}/lifecycle",
+        headers=api.auth("owner"),
+        json={
+            "expected_management_version": project["management_version"],
+            "target": "archived",
+            "reason": "清理导入项目",
+        },
+    )
+    assert archived.status_code == 200, archived.text
+    admin = api.runtime.workspace_service.get_user_by_username("local-admin")
+    service = api.runtime.storage_administration_service
+    plan = service.project_purge_plan(admin, project_id)
+    assert plan.ready is True
+
+    service.purge_project(
+        admin,
+        project_id,
+        ProjectPurgeCommand(
+            snapshot_fingerprint=plan.snapshot_fingerprint,
+            project_name=plan.project_name,
+            administrator_username=admin.username,
+            confirmation_phrase=plan.confirmation_phrase,
+        ),
+    )
+
+    assert not project_dir.exists()
+    with api.runtime.engine.connect() as connection:
+        for table in (
+            "projects",
+            "dual_profile_imports",
+            "dual_profile_import_clips",
+            "dual_profile_clip_decisions",
+            "assets",
+        ):
+            count = connection.exec_driver_sql(f"SELECT count(*) FROM {table}").scalar_one()
+            assert count == 0, table
+    assert (api.fixture.run_dir / "final-validated.json").is_file()
+    assert (
+        api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).status_code
+        == 404
+    )

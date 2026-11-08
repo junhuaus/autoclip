@@ -733,6 +733,15 @@ class ProjectSnapshot(BaseModel):
     allowed_actions: tuple[ProjectAction, ...] = ()
     allowed_lifecycle_transitions: tuple[ProjectLifecycle, ...] = ()
 
+    @model_validator(mode="after")
+    def validate_source_kind(self) -> ProjectSnapshot:
+        if self.source_kind == "pipeline":
+            if not self.current_run_id or self.generation < 1:
+                raise ValueError("a pipeline project needs a current run and generation >= 1")
+        elif self.current_run_id != "" or self.generation != 0:
+            raise ValueError("an imported dual-profile project has no run and generation 0")
+        return self
+
 
 class LeaseIdentity(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)

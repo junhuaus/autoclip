@@ -15,6 +15,10 @@ environment variables (never from ``.env`` files).
   transcript elsewhere names that directory explicitly.
 
 Relative paths given to the import resolve against the repository root.
+Each root list is split on ``os.pathsep`` with every item stripped; an empty,
+whitespace-only or separator-only value (e.g. ``":"``) falls back to the
+default. Independently of these roots, the application's managed data
+directory (``data/projects``) is never an import source.
 """
 
 from __future__ import annotations
@@ -27,7 +31,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _split_paths(value: str) -> tuple[Path, ...]:
-    return tuple(Path(item).expanduser() for item in value.split(os.pathsep) if item.strip())
+    """Split on ``os.pathsep`` and strip each item; blank items are ignored.
+
+    An unset, empty, whitespace-only or separator-only value (for example ``":"``)
+    yields no paths, so the documented defaults apply.
+    """
+
+    return tuple(
+        Path(item.strip()).expanduser() for item in value.split(os.pathsep) if item.strip()
+    )
 
 
 class DualProfileImportSettings(BaseSettings):

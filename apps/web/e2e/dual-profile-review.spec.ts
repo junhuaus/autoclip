@@ -18,6 +18,7 @@ test("imports dual-profile results, approves with an override and selects for de
   let imported = false;
   let importBody: DualProfileImportRequest | null = null;
   const decisions: DualProfileDecisionRequest[] = [];
+  const forbiddenRequests: string[] = [];
   const project: ProjectSnapshot = dualProfileProject;
   let shortClip: DualProfileReviewClip = structuredClone(dualProfileShortClip);
   let lessonClip: DualProfileReviewClip = {
@@ -173,7 +174,9 @@ test("imports dual-profile results, approves with an override and selects for de
       return;
     }
     if (path.startsWith("/api/v1/runs/") || path.endsWith("/clips")) {
-      throw new Error(`Imported projects must not request pipeline resources: ${method} ${path}`);
+      forbiddenRequests.push(`${method} ${path}`);
+      await route.fulfill({ status: 404, json: { error: { code: "RESOURCE_NOT_FOUND", message: "not found", retryable: false, correlation_id: "e2e", details: [] } } });
+      return;
     }
     await route.fulfill({ json: {} });
   });
@@ -215,4 +218,5 @@ test("imports dual-profile results, approves with an override and selects for de
     { action: "select" },
   ]);
   await expect(page.getByRole("heading", { name: "客户交付版本" })).toBeVisible();
+  expect(forbiddenRequests).toEqual([]);
 });

@@ -193,6 +193,10 @@ def effective_customer_text(
 _SHARE_HREF = re.compile(r"/s/[A-Za-z0-9_-]{16,128}/clips/[1-9][0-9]{0,4}/(?:video|subtitle)")
 _OFFLINE_HREF_PREFIXES = ("clips/short/", "clips/lesson/")
 _OFFLINE_SUFFIXES = (".mp4", ".srt")
+_OFFLINE_PROFILE_FOLDERS = {
+    ClipProfile.SHORT_HIGHLIGHT: "clips/short/",
+    ClipProfile.MINI_LESSON: "clips/lesson/",
+}
 
 
 def _is_offline_filename(name: str) -> bool:
@@ -262,6 +266,10 @@ class CustomerClipView(BaseModel):
                 raise ValueError(str(exc)) from exc
         _validate_href(self.video_href)
         _validate_href(self.subtitle_href)
+        folder = _OFFLINE_PROFILE_FOLDERS[self.profile]
+        for href in (self.video_href, self.subtitle_href):
+            if href.startswith("clips/") and not href.startswith(folder):
+                raise ValueError("customer link folder differs from the clip profile")
         return self
 
 
