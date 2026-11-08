@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001
 """Stage 19b: dual-profile import and internal review API."""
 
 from __future__ import annotations
@@ -514,4 +515,77 @@ def test_storage_purge_removes_an_imported_project(api: ApiHarness) -> None:
     assert (
         api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).status_code
         == 404
+    )
+
+
+FLAGGED_SUMMARY = "老师示范推气，最后以OK收束。“那口腔”疑为转写错误。"
+
+
+def _flagged_project(api: ApiHarness) -> tuple[str, str]:
+    flagged = build_run(
+        api.base, name="flagged", relative_paths=False, lesson_summary=FLAGGED_SUMMARY
+    )
+    created = api.client.post(
+        "/api/v1/dual-profile-imports",
+        headers=api.auth("owner"),
+        json={"run_dir": str(flagged.run_dir), "transcript_path": str(flagged.transcript)},
+    )
+    assert created.status_code == 201, created.text
+    project_id = str(created.json()["project_id"])
+    lesson_id = _clips(api.review(project_id).json())["lesson-one"]["import_clip_id"]
+    return project_id, lesson_id
+
+
+def test_review_view_reports_warnings_on_effective_text(api: ApiHarness) -> None:
+    project_id, _ = _flagged_project(api)
+    lesson = _clips(api.review(project_id).json())["lesson-one"]
+    kinds = {(value["field"], value["kind"], value["match"]) for value in lesson["text_warnings"]}
+    assert ("summary", "strong", "疑为") in kinds
+    assert ("summary", "narration", "以OK收束") in kinds
+    for value in lesson["text_warnings"]:
+        assert FLAGGED_SUMMARY[value["start"] : value["end"]] == value["match"]
+    short = _clips(api.review(project_id).json())["short-one"]
+    assert short["text_warnings"] == []
+
+
+def test_approval_with_strong_warnings_needs_a_rewrite_or_acknowledgement(api: ApiHarness) -> None:
+    project_id, lesson_id = _flagged_project(api)
+
+    blocked = api.decide(project_id, lesson_id, action="approve")
+    assert blocked.status_code == 409
+    error = blocked.json()["error"]
+    assert error["code"] == "CUSTOMER_TEXT_WARNING"
+    assert {tuple(item["location"]) for item in error["details"]} >= {("summary", 20, 22)}
+    assert all(item["type"] == "customer_text_warning.strong" for item in error["details"])
+    still_flagged = api.decide(
+        project_id, lesson_id, action="approve", summary="改写后仍然疑似误转写的摘要"
+    )
+    assert still_flagged.status_code == 409
+    assert _clips(api.review(project_id).json())["lesson-one"]["decisions"] == []
+
+    rewritten = api.decide(
+        project_id, lesson_id, action="approve", summary="老师示范推气，讲清内口腔的位置。"
+    )
+    assert rewritten.status_code == 200, rewritten.text
+    lesson = _clips(rewritten.json())["lesson-one"]
+    assert (
+        lesson["text_warnings"] == [] and lesson["decisions"][-1]["acknowledge_warnings"] is False
+    )
+
+    kept = api.decide(project_id, lesson_id, action="approve", acknowledge_warnings=True)
+    assert kept.status_code == 200, kept.text
+    lesson = _clips(kept.json())["lesson-one"]
+    assert lesson["decisions"][-1]["acknowledge_warnings"] is True
+    assert any(value["kind"] == "strong" for value in lesson["text_warnings"])
+
+
+def test_narration_alone_never_blocks_and_acknowledgement_is_approve_only(api: ApiHarness) -> None:
+    project_id, lesson_id = _flagged_project(api)
+    narration_only = api.decide(
+        project_id, lesson_id, action="approve", summary="老师示范推气，最后以OK收束。"
+    )
+    assert narration_only.status_code == 200, narration_only.text
+    assert (
+        api.decide(project_id, lesson_id, action="reject", acknowledge_warnings=True).status_code
+        == 422
     )

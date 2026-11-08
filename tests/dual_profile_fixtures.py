@@ -104,6 +104,7 @@ def build_run(
     relative_paths: bool = True,
     quality_status: str = "passed",
     include_blocked: bool = False,
+    lesson_summary: str | None = None,
 ) -> RunFixture:
     root = base / "evaluations"
     run_dir = root / name
@@ -134,6 +135,8 @@ def build_run(
         title="小课教学",
         status=CandidateDisposition.MANUAL_REVIEW,
     )
+    if lesson_summary is not None:
+        lesson = lesson.model_copy(update={"summary": lesson_summary})
     blocked = _candidate(
         candidate_id="short-blocked",
         profile=ClipProfile.SHORT_HIGHLIGHT,

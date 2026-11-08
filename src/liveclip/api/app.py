@@ -123,6 +123,7 @@ from liveclip.application.dual_profile_imports import (
     DualProfileImportError,
 )
 from liveclip.application.dual_profile_review import (
+    CustomerTextWarningConflict,
     DualProfileReviewView,
     decision_permission,
 )
@@ -1075,6 +1076,7 @@ def create_app(
             title_override=body.title,
             hook_override=body.hook,
             summary_override=body.summary,
+            acknowledge_warnings=body.acknowledge_warnings,
         )
         return _dual_profile_review_response(security, review)
 
@@ -2947,6 +2949,25 @@ def _install_exception_handlers(app: FastAPI) -> None:
             status_code=422,
             code="DUAL_PROFILE_DECISION_INVALID",
             message=message if 0 < len(message) <= 300 else "The review decision is invalid",
+        )
+
+    @app.exception_handler(CustomerTextWarningConflict)
+    async def customer_text_warning_handler(
+        request: Request,
+        exc: CustomerTextWarningConflict,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=409,
+            code="CUSTOMER_TEXT_WARNING",
+            message=str(exc),
+            details=tuple(
+                ApiErrorItem(
+                    location=(value.field, value.start, value.end),
+                    type=f"customer_text_warning.{value.kind}",
+                )
+                for value in exc.warnings
+            ),
         )
 
     @app.exception_handler(CustomerDeliveryConflict)

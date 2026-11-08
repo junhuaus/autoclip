@@ -2829,3 +2829,56 @@ summary {
   margin: 0.2rem 0 0;
   padding-left: 1.2rem;
 }
+
+/* Stage 19d: customer-text warnings */
+.dual-profile-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dual-profile-text-warning {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--warning);
+  border-radius: calc(var(--radius) / 3);
+  background: rgba(242, 202, 107, 0.12);
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
+.dual-profile-text-warning.is-narration {
+  border-style: dashed;
+  background: transparent;
+}
+
+.dual-profile-text-warning ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.dual-profile-warning-text {
+  color: inherit;
+  white-space: pre-wrap;
+}
+
+.dual-profile-warning-text mark {
+  background: var(--warning);
+  color: #1b1b1b;
+  border-radius: 3px;
+  padding: 0 0.15rem;
+}
+
+.dual-profile-warning-badge {
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
+.dual-profile-keep-original {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--warning);
+  font-size: 0.82rem;
+}

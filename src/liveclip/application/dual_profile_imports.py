@@ -167,6 +167,7 @@ class DecisionRecord:
     actor_username: str
     actor_display_name: str
     decided_at: datetime
+    acknowledge_warnings: bool = False
 
 
 @dataclass(frozen=True, slots=True)

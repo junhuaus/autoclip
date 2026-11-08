@@ -192,6 +192,7 @@ class SqlAlchemyDualProfileImportRepository:
         hook_override: str | None = None,
         summary_override: str | None = None,
         require_deliverable: bool = False,
+        acknowledge_warnings: bool = False,
         now: datetime,
     ) -> ClipDecision:
         """Append one decision with the next per-clip sequence number.
@@ -243,6 +244,7 @@ class SqlAlchemyDualProfileImportRepository:
                     summary_override=decision.summary_override,
                     actor_user_id=acting_user_id,
                     decided_at=now,
+                    acknowledge_warnings=acknowledge_warnings,
                 )
             )
             _audit(
@@ -252,7 +254,11 @@ class SqlAlchemyDualProfileImportRepository:
                 project_id=project_id,
                 target_type="dual_profile_import_clip",
                 target_id=import_clip_id,
-                after={"sequence": decision.sequence, "override": decision.has_override},
+                after={
+                    "sequence": decision.sequence,
+                    "override": decision.has_override,
+                    "acknowledge_warnings": acknowledge_warnings,
+                },
                 now=now,
             )
         return decision
@@ -291,6 +297,7 @@ class SqlAlchemyDualProfileImportRepository:
                     DualProfileClipDecisionRow.hook_override,
                     DualProfileClipDecisionRow.summary_override,
                     DualProfileClipDecisionRow.decided_at,
+                    DualProfileClipDecisionRow.acknowledge_warnings,
                     WorkspaceUserRow.username,
                     WorkspaceUserRow.display_name,
                 )
@@ -318,6 +325,7 @@ class SqlAlchemyDualProfileImportRepository:
                     actor_username=str(row.username),
                     actor_display_name=str(row.display_name),
                     decided_at=row.decided_at,
+                    acknowledge_warnings=bool(row.acknowledge_warnings),
                 )
             )
         return DualProfileReviewRecord(

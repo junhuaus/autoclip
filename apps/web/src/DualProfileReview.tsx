@@ -1,8 +1,9 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   LiveClipApiClient,
+  LiveClipApiError,
   createIdempotencyKey,
   errorMessage,
   signedUrlRefreshInterval,
@@ -16,6 +17,7 @@ import type {
   DualProfileReviewClip,
   DualProfileReviewResponse,
   DualProfileReviewView,
+  DualProfileTextWarning,
   ProjectSnapshot,
 } from "./types";
 
@@ -51,6 +53,87 @@ export function approvalOverrides(
   return result;
 }
 
+type TextField = "title" | "hook" | "summary";
+const TEXT_FIELDS: TextField[] = ["title", "hook", "summary"];
+const FIELD_LABELS: Record<TextField, string> = {
+  title: "客户标题",
+  hook: "高光钩子",
+  summary: "内容摘要",
+};
+
+interface CheckedText {
+  text: DualProfileClipText;
+  warnings: DualProfileTextWarning[];
+}
+
+/** Warnings from a 409 CUSTOMER_TEXT_WARNING response, located in the submitted text. */
+export function warningsFromConflict(
+  error: unknown,
+  submitted: DualProfileClipText,
+): DualProfileTextWarning[] | null {
+  if (!(error instanceof LiveClipApiError) || error.code !== "CUSTOMER_TEXT_WARNING") return null;
+  return error.details.flatMap((item) => {
+    const [field, start, end] = item.location as [TextField, number, number];
+    if (!TEXT_FIELDS.includes(field) || typeof start !== "number" || typeof end !== "number") {
+      return [];
+    }
+    const kind = item.type.endsWith(".narration") ? "narration" : "strong";
+    return [{ field, kind, start, end, match: submitted[field].slice(start, end), message: "" }];
+  });
+}
+
+function HighlightedText({ text, warnings }: { text: string; warnings: DualProfileTextWarning[] }) {
+  const parts: Array<{ value: string; marked: boolean }> = [];
+  let cursor = 0;
+  for (const warning of [...warnings].sort((a, b) => a.start - b.start)) {
+    if (warning.start < cursor) continue;
+    if (warning.start > cursor) parts.push({ value: text.slice(cursor, warning.start), marked: false });
+    parts.push({ value: text.slice(warning.start, warning.end), marked: true });
+    cursor = warning.end;
+  }
+  if (cursor < text.length) parts.push({ value: text.slice(cursor), marked: false });
+  return (
+    <span className="dual-profile-warning-text">
+      {parts.map((part, index) =>
+        part.marked ? <mark key={index}>{part.value}</mark> : <span key={index}>{part.value}</span>,
+      )}
+    </span>
+  );
+}
+
+function FieldWarnings({
+  field,
+  text,
+  warnings,
+}: {
+  field: TextField;
+  text: string;
+  warnings: DualProfileTextWarning[];
+}) {
+  const own = warnings.filter((warning) => warning.field === field);
+  if (own.length === 0) return null;
+  const strong = own.some((warning) => warning.kind === "strong");
+  return (
+    <div
+      className={`dual-profile-text-warning ${strong ? "is-strong" : "is-narration"}`}
+      role="note"
+      aria-label={`${FIELD_LABELS[field]}文案提示`}
+    >
+      <strong>{strong ? "疑似审核备注，请改写" : "叙述收尾方式，建议改写"}</strong>
+      <HighlightedText text={text} warnings={own} />
+      {own.some((warning) => warning.message) ? (
+        <ul>
+          {own
+            .filter((warning) => warning.message)
+            .map((warning) => (
+              <li key={`${warning.start}-${warning.kind}`}>{warning.message}</li>
+            ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function ApprovalForm({
   clip,
   limits,
@@ -62,27 +145,61 @@ function ApprovalForm({
   limits: DualProfileReviewView["text_limits"];
   busy: boolean;
   onCancel: () => void;
-  onSubmit: (overrides: Pick<DualProfileDecisionRequest, "title" | "hook" | "summary">) => void;
+  onSubmit: (
+    overrides: Pick<DualProfileDecisionRequest, "title" | "hook" | "summary">,
+    acknowledgeWarnings: boolean,
+  ) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<DualProfileClipText>(() => ({ ...clip.effective }));
-  const invalid = (["title", "hook", "summary"] as const).some(
-    (field) => draft[field].trim().length === 0,
+  const [checked, setChecked] = useState<CheckedText>(() => ({
+    text: { ...clip.effective },
+    warnings: clip.text_warnings,
+  }));
+  const [keepOriginal, setKeepOriginal] = useState(false);
+  const invalid = TEXT_FIELDS.some((field) => draft[field].trim().length === 0);
+  // Warnings apply to a field only while its text is still the checked text.
+  const visible = checked.warnings.filter(
+    (warning) => draft[warning.field].trim() === checked.text[warning.field],
   );
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const hasStrong = visible.some((warning) => warning.kind === "strong");
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!invalid) onSubmit(approvalOverrides(clip.original, draft));
+    if (invalid) return;
+    const submitted: DualProfileClipText = {
+      title: draft.title.trim(),
+      hook: draft.hook.trim(),
+      summary: draft.summary.trim(),
+    };
+    try {
+      await onSubmit(approvalOverrides(clip.original, draft), hasStrong && keepOriginal);
+    } catch (error) {
+      const warnings = warningsFromConflict(error, submitted);
+      if (warnings) {
+        setChecked({ text: submitted, warnings });
+        setKeepOriginal(false);
+      }
+    }
   };
+  const field = (name: TextField, control: ReactNode) => (
+    <div className="dual-profile-field">
+      <label>
+        {FIELD_LABELS[name]}
+        {control}
+      </label>
+      <FieldWarnings field={name} text={draft[name].trim()} warnings={visible} />
+    </div>
+  );
   return (
     <form
       className="dual-profile-approval-form"
       aria-label={`批准 ${clip.effective.title}`}
-      onSubmit={submit}
+      onSubmit={(event) => void submit(event)}
     >
       <p className="hint">
         客户看到的标题、钩子和摘要；已预填当前生效文案，修改后即为改写，原模型文案保持不变。
       </p>
-      <label>
-        客户标题
+      {field(
+        "title",
         <input
           value={draft.title}
           maxLength={limits.title}
@@ -90,10 +207,10 @@ function ApprovalForm({
             const value = event.currentTarget.value;
             setDraft((current) => ({ ...current, title: value }));
           }}
-        />
-      </label>
-      <label>
-        高光钩子
+        />,
+      )}
+      {field(
+        "hook",
         <textarea
           value={draft.hook}
           maxLength={limits.hook}
@@ -102,10 +219,10 @@ function ApprovalForm({
             const value = event.currentTarget.value;
             setDraft((current) => ({ ...current, hook: value }));
           }}
-        />
-      </label>
-      <label>
-        内容摘要
+        />,
+      )}
+      {field(
+        "summary",
         <textarea
           value={draft.summary}
           maxLength={limits.summary}
@@ -114,16 +231,33 @@ function ApprovalForm({
             const value = event.currentTarget.value;
             setDraft((current) => ({ ...current, summary: value }));
           }}
-        />
-      </label>
+        />,
+      )}
+      {hasStrong ? (
+        <label className="dual-profile-keep-original">
+          <input
+            type="checkbox"
+            checked={keepOriginal}
+            onChange={(event) => setKeepOriginal(event.currentTarget.checked)}
+          />
+          仍然保留原文
+        </label>
+      ) : null}
       <div className="dual-profile-form-actions">
-        <button type="submit" className="button button-primary" disabled={busy || invalid}>
+        <button
+          type="submit"
+          className="button button-primary"
+          disabled={busy || invalid || (hasStrong && !keepOriginal)}
+        >
           确认批准
         </button>
         <button type="button" className="button button-ghost" disabled={busy} onClick={onCancel}>
           取消
         </button>
       </div>
+      {hasStrong && !keepOriginal ? (
+        <p className="hint disabled-reason">请改写标记的文字，或勾选“仍然保留原文”。</p>
+      ) : null}
     </form>
   );
 }
@@ -145,7 +279,7 @@ export function ImportedClipCard({
   canReview: boolean;
   canDeliver: boolean;
   busy: boolean;
-  onDecide: (body: DualProfileDecisionRequest) => void;
+  onDecide: (body: DualProfileDecisionRequest) => Promise<void>;
 }) {
   const [approving, setApproving] = useState(false);
   const titleId = `dual-clip-title-${clip.import_clip_id}`;
@@ -186,7 +320,9 @@ export function ImportedClipCard({
                 checked={clip.selected_for_delivery}
                 disabled={selectionDisabled}
                 onChange={(event) =>
-                  onDecide({ action: event.currentTarget.checked ? "select" : "deselect" })
+                  void onDecide({
+                    action: event.currentTarget.checked ? "select" : "deselect",
+                  }).catch(() => undefined)
                 }
               />
               选入交付
@@ -216,6 +352,15 @@ export function ImportedClipCard({
             <blockquote>{clip.effective.hook}</blockquote>
           </section>
           <p className="dual-profile-summary">{clip.effective.summary}</p>
+          {clip.text_warnings.length > 0 ? (
+            <p
+              className={`dual-profile-warning-badge ${clip.text_warnings.some((warning) => warning.kind === "strong") ? "is-strong" : "is-narration"}`}
+            >
+              {clip.text_warnings.some((warning) => warning.kind === "strong")
+                ? "文案含疑似审核备注，批准前请改写"
+                : "文案叙述了收尾方式，建议改写"}
+            </p>
+          ) : null}
           <div className="badge-row">
             <span className="metric">评分 {clip.score.toFixed(1)}</span>
             {subtitleUrl ? (
@@ -246,7 +391,7 @@ export function ImportedClipCard({
                 type="button"
                 className="button button-secondary"
                 disabled={busy || clip.review_state === "rejected"}
-                onClick={() => onDecide({ action: "reject" })}
+                onClick={() => void onDecide({ action: "reject" }).catch(() => undefined)}
               >
                 不通过
               </button>
@@ -258,9 +403,13 @@ export function ImportedClipCard({
               limits={limits}
               busy={busy}
               onCancel={() => setApproving(false)}
-              onSubmit={(overrides) => {
+              onSubmit={async (overrides, acknowledgeWarnings) => {
+                await onDecide({
+                  action: "approve",
+                  ...overrides,
+                  ...(acknowledgeWarnings ? { acknowledge_warnings: true } : {}),
+                });
                 setApproving(false);
-                onDecide({ action: "approve", ...overrides });
               }}
             />
           ) : null}
@@ -368,9 +517,9 @@ export function DualProfileReviewSection({
                       canReview={canReview}
                       canDeliver={canDeliver}
                       busy={decisionMutation.isPending && pendingClipId === clip.import_clip_id}
-                      onDecide={(body) =>
-                        decisionMutation.mutate({ clipId: clip.import_clip_id, body })
-                      }
+                      onDecide={async (body) => {
+                        await decisionMutation.mutateAsync({ clipId: clip.import_clip_id, body });
+                      }}
                     />
                   </li>
                 ))}
@@ -418,6 +567,7 @@ export function CustomerDeliveryPanel({
   const selected = review.groups.flatMap((group) =>
     group.clips.filter((clip) => clip.selected_for_delivery),
   );
+  const flagged = selected.filter((clip) => clip.text_warnings.length > 0);
   const createMutation = useMutation({
     mutationFn: () =>
       api.createCustomerDelivery(
@@ -475,6 +625,21 @@ export function CustomerDeliveryPanel({
             </ol>
           ) : null}
         </div>
+        {flagged.length > 0 ? (
+          <div className="dual-profile-text-warning is-narration" role="note" aria-label="交付文案提示">
+            <strong>以下切片的客户文案仍有提示（仅供参考，不阻止生成）：</strong>
+            <ul>
+              {flagged.map((clip) => (
+                <li key={clip.import_clip_id}>
+                  {clip.effective.title} ·{" "}
+                  {clip.text_warnings.some((warning) => warning.kind === "strong")
+                    ? "疑似审核备注"
+                    : "叙述收尾方式"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <button
           type="submit"
           className="button button-primary"

@@ -284,3 +284,109 @@ it("creates a customer delivery with the previewed selection and lists versions"
     response.download_url,
   );
 });
+
+const FLAGGED_SUMMARY = "老师示范推气，最后以OK收束。“那口腔”疑为转写错误。";
+const flaggedLesson = {
+  ...dualProfileLessonClip,
+  original: { ...dualProfileLessonClip.original, summary: FLAGGED_SUMMARY },
+  effective: { ...dualProfileLessonClip.effective, summary: FLAGGED_SUMMARY },
+  text_warnings: [
+    { field: "summary" as const, kind: "narration" as const, start: FLAGGED_SUMMARY.indexOf("以OK收束"), end: FLAGGED_SUMMARY.indexOf("以OK收束") + 5, match: "以OK收束", message: "叙述片段如何收尾" },
+    { field: "summary" as const, kind: "strong" as const, start: FLAGGED_SUMMARY.indexOf("疑为"), end: FLAGGED_SUMMARY.indexOf("疑为") + 2, match: "疑为", message: "“疑为/疑似”是审核推测，不应给客户看" },
+    { field: "summary" as const, kind: "strong" as const, start: FLAGGED_SUMMARY.indexOf("转写"), end: FLAGGED_SUMMARY.indexOf("转写") + 2, match: "转写", message: "提及转写/误转写，属于审核备注" },
+  ],
+};
+
+it("flags reviewer-style notes in the approval form and sends an explicit acknowledgement", async () => {
+  let body: DualProfileDecisionRequest | null = null;
+  serveWorkspace(dualProfileProject, [dualProfileShortClip, flaggedLesson]);
+  server.use(
+    http.post(
+      "/api/v1/projects/dual-1/dual-profile-import/clips/clip-lesson/decisions",
+      async ({ request }) => {
+        body = (await request.json()) as DualProfileDecisionRequest;
+        return HttpResponse.json(dualProfileReview([dualProfileShortClip, flaggedLesson]));
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+  await screen.findByRole("heading", { name: "小课（1）" });
+  expect(within(card("审核改写标题")).getByText("文案含疑似审核备注，批准前请改写")).toBeInTheDocument();
+
+  await user.click(within(card("审核改写标题")).getByRole("button", { name: "批准" }));
+  const form = screen.getByRole("form", { name: "批准 审核改写标题" });
+  const notice = within(form).getByRole("note", { name: "内容摘要文案提示" });
+  expect(notice).toHaveTextContent("疑似审核备注，请改写");
+  expect([...notice.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual([
+    "以OK收束",
+    "疑为",
+    "转写",
+  ]);
+  const confirm = within(form).getByRole("button", { name: "确认批准" });
+  expect(confirm).toBeDisabled();
+  await user.click(within(form).getByRole("checkbox", { name: "仍然保留原文" }));
+  expect(confirm).toBeEnabled();
+  await user.click(confirm);
+
+  await waitFor(() =>
+    expect(body).toEqual({
+      action: "approve",
+      title: "审核改写标题",
+      acknowledge_warnings: true,
+    }),
+  );
+});
+
+it("clears the notice after a rewrite and shows the server's warnings on a 409", async () => {
+  const bodies: DualProfileDecisionRequest[] = [];
+  serveWorkspace(dualProfileProject, [dualProfileShortClip, flaggedLesson]);
+  server.use(
+    http.post(
+      "/api/v1/projects/dual-1/dual-profile-import/clips/clip-lesson/decisions",
+      async ({ request }) => {
+        bodies.push((await request.json()) as DualProfileDecisionRequest);
+        return HttpResponse.json(
+          {
+            error: {
+              schema_version: "1",
+              code: "CUSTOMER_TEXT_WARNING",
+              message: "customer text still contains reviewer-style notes",
+              retryable: false,
+              resource_id: null,
+              correlation_id: "c-2",
+              details: [{ location: ["summary", 3, 5], type: "customer_text_warning.strong" }],
+            },
+          },
+          { status: 409 },
+        );
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+  await screen.findByRole("heading", { name: "小课（1）" });
+  await user.click(within(card("审核改写标题")).getByRole("button", { name: "批准" }));
+  const form = screen.getByRole("form", { name: "批准 审核改写标题" });
+  const summary = within(form).getByLabelText("内容摘要");
+  await user.clear(summary);
+  await user.type(summary, "改写后疑似仍有问题");
+  expect(within(form).queryByRole("note", { name: "内容摘要文案提示" })).not.toBeInTheDocument();
+  await user.click(within(form).getByRole("button", { name: "确认批准" }));
+
+  const notice = await within(form).findByRole("note", { name: "内容摘要文案提示" });
+  expect(notice.querySelector("mark")?.textContent).toBe("疑似");
+  expect(bodies[0]).not.toHaveProperty("acknowledge_warnings");
+  expect(within(form).getByRole("checkbox", { name: "仍然保留原文" })).not.toBeChecked();
+});
+
+it("lists selected clips with text warnings before 生成交付包", async () => {
+  serveWorkspace(dualProfileProject, [
+    dualProfileShortClip,
+    { ...flaggedLesson, review_state: "approved", deliverable: true, selected_for_delivery: true },
+  ]);
+  renderWorkspace();
+  const note = await screen.findByRole("note", { name: "交付文案提示" });
+  expect(note).toHaveTextContent("审核改写标题 · 疑似审核备注");
+  expect(screen.getByRole("button", { name: "生成交付包" })).toBeEnabled();
+});

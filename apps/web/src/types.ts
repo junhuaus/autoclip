@@ -1144,6 +1144,16 @@ export interface DualProfileDecisionView {
   actor_username: string;
   actor_display_name: string;
   decided_at: string;
+  acknowledge_warnings: boolean;
+}
+
+export interface DualProfileTextWarning {
+  field: "title" | "hook" | "summary";
+  kind: "strong" | "narration";
+  start: number;
+  end: number;
+  match: string;
+  message: string;
 }
 
 export interface DualProfileReviewClip {
@@ -1159,6 +1169,7 @@ export interface DualProfileReviewClip {
   original: DualProfileClipText;
   effective: DualProfileClipText;
   has_override: boolean;
+  text_warnings: DualProfileTextWarning[];
   score: number;
   review_reason: string;
   quality_flags: string[];
@@ -1203,6 +1214,7 @@ export interface DualProfileDecisionRequest {
   title?: string;
   hook?: string;
   summary?: string;
+  acknowledge_warnings?: boolean;
 }
 
 export interface CustomerDeliverySnapshot {

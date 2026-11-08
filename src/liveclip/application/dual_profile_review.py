@@ -29,10 +29,14 @@ from liveclip.domain.customer_delivery import (
     TITLE_MAX_CHARS,
     ClipDecision,
     ClipDecisionAction,
+    CustomerText,
+    CustomerTextWarning,
+    customer_text_warnings,
     effective_customer_text,
     is_deliverable,
     is_selected_for_delivery,
     latest_review_decision,
+    strong_customer_text_warnings,
 )
 
 PROFILE_ORDER = (ClipProfile.SHORT_HIGHLIGHT, ClipProfile.MINI_LESSON)
@@ -41,6 +45,42 @@ ReviewState = Literal["pending", "approved", "rejected"]
 
 class DualProfileImportNotFound(LookupError):
     """The project has no dual-profile import (HTTP 404)."""
+
+
+class CustomerTextWarningConflict(RuntimeError):
+    """An approval would publish customer text that still has strong warnings (409)."""
+
+    def __init__(self, warnings: tuple[CustomerTextWarning, ...]) -> None:
+        super().__init__(
+            "customer text still contains reviewer-style notes; rewrite it or "
+            "approve with acknowledge_warnings"
+        )
+        self.warnings = warnings
+
+
+class DualProfileTextWarningView(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: Literal["title", "hook", "summary"]
+    kind: Literal["strong", "narration"]
+    start: int
+    end: int
+    match: str
+    message: str
+
+
+def _warning_views(text: CustomerText) -> tuple[DualProfileTextWarningView, ...]:
+    return tuple(
+        DualProfileTextWarningView(
+            field=value.field,
+            kind=value.kind,
+            start=value.start,
+            end=value.end,
+            match=value.match,
+            message=value.message,
+        )
+        for value in customer_text_warnings(text.title, text.hook, text.summary)
+    )
 
 
 class DualProfileDecisionView(BaseModel):
@@ -54,6 +94,7 @@ class DualProfileDecisionView(BaseModel):
     actor_username: str
     actor_display_name: str
     decided_at: datetime
+    acknowledge_warnings: bool
 
 
 class DualProfileClipText(BaseModel):
@@ -79,6 +120,7 @@ class DualProfileReviewClip(BaseModel):
     original: DualProfileClipText
     effective: DualProfileClipText
     has_override: bool
+    text_warnings: tuple[DualProfileTextWarningView, ...]
     score: float
     review_reason: str
     quality_flags: tuple[str, ...]
@@ -131,6 +173,7 @@ class DualProfileReviewRepository(Protocol):
         hook_override: str | None = None,
         summary_override: str | None = None,
         require_deliverable: bool = False,
+        acknowledge_warnings: bool = False,
         now: datetime,
     ) -> ClipDecision: ...
 
@@ -186,9 +229,30 @@ class DualProfileReviewService:
         title_override: str | None = None,
         hook_override: str | None = None,
         summary_override: str | None = None,
+        acknowledge_warnings: bool = False,
     ) -> DualProfileReviewView:
-        if self._repository.load_review(project_id=project_id) is None:
+        record = self._repository.load_review(project_id=project_id)
+        if record is None:
             raise DualProfileImportNotFound("project has no dual-profile import")
+        if action is ClipDecisionAction.APPROVE:
+            clip = next(
+                (value for value in record.clips if value.import_clip_id == import_clip_id), None
+            )
+            if clip is not None:
+                proposed = CustomerText(
+                    title=title_override
+                    if title_override is not None
+                    else clip.original_text.title,
+                    hook=hook_override if hook_override is not None else clip.original_text.hook,
+                    summary=(
+                        summary_override
+                        if summary_override is not None
+                        else clip.original_text.summary
+                    ),
+                )
+                strong = strong_customer_text_warnings(proposed)
+                if strong and not acknowledge_warnings:
+                    raise CustomerTextWarningConflict(strong)
         self._repository.append_decision(
             project_id=project_id,
             import_clip_id=import_clip_id,
@@ -198,6 +262,7 @@ class DualProfileReviewService:
             hook_override=hook_override,
             summary_override=summary_override,
             require_deliverable=action is ClipDecisionAction.SELECT,
+            acknowledge_warnings=acknowledge_warnings and action is ClipDecisionAction.APPROVE,
             now=self._now(),
         )
         return self.get_review(project_id)
@@ -232,6 +297,7 @@ def _clip_view(clip: ReviewClipRecord) -> DualProfileReviewClip:
             title=effective.title, hook=effective.hook, summary=effective.summary
         ),
         has_override=effective != clip.original_text,
+        text_warnings=_warning_views(effective),
         score=clip.score,
         review_reason=clip.review_reason,
         quality_flags=clip.quality_flags,
@@ -250,6 +316,7 @@ def _clip_view(clip: ReviewClipRecord) -> DualProfileReviewClip:
                 actor_username=value.actor_username,
                 actor_display_name=value.actor_display_name,
                 decided_at=value.decided_at,
+                acknowledge_warnings=value.acknowledge_warnings,
             )
             for value in clip.history
         ),
@@ -297,6 +364,7 @@ def _review_view(record: DualProfileReviewRecord) -> DualProfileReviewView:
 
 
 __all__ = [
+    "CustomerTextWarningConflict",
     "DualProfileClipText",
     "DualProfileDecisionView",
     "DualProfileImportNotFound",
@@ -305,5 +373,6 @@ __all__ = [
     "DualProfileReviewRepository",
     "DualProfileReviewService",
     "DualProfileReviewView",
+    "DualProfileTextWarningView",
     "decision_permission",
 ]

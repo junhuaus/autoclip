@@ -319,6 +319,7 @@ function dualClip(overrides: Partial<DualProfileReviewClip>): DualProfileReviewC
     original: { title: "短片原标题", hook: "短片原钩子", summary: "短片原摘要" },
     effective: { title: "短片原标题", hook: "短片原钩子", summary: "短片原摘要" },
     has_override: false,
+    text_warnings: [],
     score: 88,
     review_reason: "短片内部理由",
     quality_flags: [],
@@ -360,6 +361,7 @@ export const dualProfileLessonClip = dualClip({
       actor_username: "local-admin",
       actor_display_name: "本机管理员",
       decided_at: "2026-11-07T12:00:00Z",
+      acknowledge_warnings: false,
     },
     {
       sequence: 2,
@@ -370,6 +372,7 @@ export const dualProfileLessonClip = dualClip({
       actor_username: "local-admin",
       actor_display_name: "本机管理员",
       decided_at: "2026-11-07T12:05:00Z",
+      acknowledge_warnings: false,
     },
   ],
 });

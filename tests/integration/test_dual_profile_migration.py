@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, inspect
 PARENT = "c84f5d1a702e"
 REVISION = "d5e8a1c3f907"
 DELETE_GUARD_REVISION = "e4b2c7d9a1f3"
+ACKNOWLEDGE_REVISION = "f6a1b3c5d7e9"
 NEW_TABLES = {
     "dual_profile_imports",
     "dual_profile_import_clips",
@@ -62,7 +63,7 @@ def test_dual_profile_customer_delivery_migration_round_trip(
     monkeypatch.setenv("LIVECLIP_DATABASE_PATH", str(database_path))
     config = Config(str(project_root / "alembic.ini"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == DELETE_GUARD_REVISION
+    assert script.get_current_head() == ACKNOWLEDGE_REVISION
     revision = script.get_revision(REVISION)
     assert revision is not None and revision.down_revision == PARENT
 
@@ -98,6 +99,26 @@ def test_dual_profile_customer_delivery_migration_round_trip(
         assert "token" not in {
             value["name"] for value in inspector.get_columns("customer_share_links")
         }
+    finally:
+        engine.dispose(close=True)
+
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        columns = {
+            value["name"] for value in inspect(engine).get_columns("dual_profile_clip_decisions")
+        }
+        assert "acknowledge_warnings" in columns
+    finally:
+        engine.dispose(close=True)
+    command.downgrade(config, DELETE_GUARD_REVISION)
+    tables, triggers = _snapshot(database_path)
+    assert triggers >= IMMUTABLE_TRIGGERS
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    try:
+        columns = {
+            value["name"] for value in inspect(engine).get_columns("dual_profile_clip_decisions")
+        }
+        assert "acknowledge_warnings" not in columns
     finally:
         engine.dispose(close=True)
 

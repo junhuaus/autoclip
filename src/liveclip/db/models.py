@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.expression import false
 
 from liveclip.db.base import Base, UTCDateTime, new_id, utc_now
 from liveclip.domain.completion import (
@@ -1689,6 +1690,9 @@ class DualProfileClipDecisionRow(Base):
         ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
     )
     decided_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    acknowledge_warnings: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
 
 class CustomerDeliveryRow(Base):

@@ -740,13 +740,15 @@ class DualProfileDecisionRequest(ApiRequestModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     hook: str | None = Field(default=None, min_length=1, max_length=600)
     summary: str | None = Field(default=None, min_length=1, max_length=1_200)
+    acknowledge_warnings: bool = False
 
     @model_validator(mode="after")
     def validate_overrides(self) -> DualProfileDecisionRequest:
-        if self.action != "approve" and any(
-            value is not None for value in (self.title, self.hook, self.summary)
+        if self.action != "approve" and (
+            any(value is not None for value in (self.title, self.hook, self.summary))
+            or self.acknowledge_warnings
         ):
-            raise ValueError("only an approval may override customer text")
+            raise ValueError("only an approval may override text or acknowledge warnings")
         return self
 
 

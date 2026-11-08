@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001, RUF003
 """Pure customer-delivery rules for imported dual-profile clips (Stage 19).
 
 An imported clip is immutable evidence from one dual-profile run: its routed
@@ -197,6 +198,93 @@ def effective_customer_text(
     )
 
 
+# Customer-text meta-note guard (Stage 19d, Controller decision 2026-11-07).
+# Model-written summaries sometimes contain reviewer-style notes ("…疑为转写错误",
+# "…纳入后会超过时长上限，因此该单元…结束") or narration of how a clip ends
+# ("以“OK”收束"). Those must not reach a customer unedited. The patterns live
+# here only; each entry is (kind, compiled pattern, short Chinese message).
+# "strong" warnings block an approval unless the reviewer explicitly keeps the
+# text (acknowledge_warnings); "narration" warnings are advisory only.
+WarningKind = Literal["strong", "narration"]
+CustomerTextField = Literal["title", "hook", "summary"]
+CUSTOMER_TEXT_WARNING_PATTERNS: tuple[tuple[WarningKind, re.Pattern[str], str], ...] = (
+    ("strong", re.compile(r"误?转写"), "提及转写/误转写，属于审核备注"),
+    ("strong", re.compile(r"疑为|疑似"), "“疑为/疑似”是审核推测，不应给客户看"),
+    ("strong", re.compile(r"ASR", re.IGNORECASE), "提及 ASR 语音识别"),
+    ("strong", re.compile(r"字幕(?:中|作|误作)|误作"), "提及字幕识别差异"),
+    ("strong", re.compile(r"时长上限"), "提及切片时长上限"),
+    ("strong", re.compile(r"纳入后"), "提及切片取舍（纳入后…）"),
+    ("strong", re.compile(r"(?:该|本|这一?)单元"), "提及切片单元"),
+    ("strong", re.compile(r"片段在[^。；;！!？?\n]{0,40}?结束"), "描述片段在哪里结束"),
+    ("strong", re.compile(r"课程片段"), "提及课程片段"),
+    ("strong", re.compile(r"不包含后面"), "说明片段未包含的内容"),
+    ("strong", re.compile(r"区间(?:内|之内|之后|之前|以外|外)"), "提及切片区间"),
+    ("strong", re.compile(r"\bcue\b", re.IGNORECASE), "包含内部字段 cue"),
+    ("strong", re.compile(r"\d+\s*ms\b", re.IGNORECASE), "包含毫秒时间戳"),
+    ("strong", re.compile(r"候选"), "提及候选切片"),
+    ("strong", re.compile(r"边界"), "提及切片边界"),
+    ("narration", re.compile(r"以[^。；;！!？?\n]{0,40}?收束"), "叙述片段如何收尾"),
+    ("narration", re.compile(r"(?<!以)收束"), "叙述片段如何收尾"),
+    ("narration", re.compile(r"约\s*\d+\s*秒"), "提及片段时长"),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CustomerTextWarning:
+    field: CustomerTextField
+    kind: WarningKind
+    start: int
+    end: int
+    match: str
+    message: str
+
+
+def customer_text_warnings(title: str, hook: str, summary: str) -> tuple[CustomerTextWarning, ...]:
+    """Reviewer-style notes in customer-visible text, ordered by field then offset.
+
+    Overlapping matches of the same kind are reported once (the earliest,
+    longest match wins), so one note yields one warning per kind.
+    """
+
+    found: list[CustomerTextWarning] = []
+    for field, text in (("title", title), ("hook", hook), ("summary", summary)):
+        taken: dict[WarningKind, list[tuple[int, int]]] = {"strong": [], "narration": []}
+        candidates = sorted(
+            (
+                (match.start(), -(match.end() - match.start()), kind, match, message)
+                for kind, pattern, message in CUSTOMER_TEXT_WARNING_PATTERNS
+                for match in pattern.finditer(text)
+                if match.end() > match.start()
+            ),
+            key=lambda value: (value[0], value[1]),
+        )
+        for start, _, kind, match, message in candidates:
+            end = match.end()
+            if any(start < used_end and used_start < end for used_start, used_end in taken[kind]):
+                continue
+            taken[kind].append((start, end))
+            found.append(
+                CustomerTextWarning(
+                    field=field,  # type: ignore[arg-type]
+                    kind=kind,
+                    start=start,
+                    end=end,
+                    match=match.group(0),
+                    message=message,
+                )
+            )
+    order = {"title": 0, "hook": 1, "summary": 2}
+    return tuple(sorted(found, key=lambda value: (order[value.field], value.start, value.kind)))
+
+
+def strong_customer_text_warnings(text: CustomerText) -> tuple[CustomerTextWarning, ...]:
+    return tuple(
+        value
+        for value in customer_text_warnings(text.title, text.hook, text.summary)
+        if value.kind == "strong"
+    )
+
+
 _SHARE_HREF = re.compile(r"/s/[A-Za-z0-9_-]{16,128}/clips/[1-9][0-9]{0,4}/(?:video|subtitle)")
 _OFFLINE_HREF_PREFIXES = ("clips/short/", "clips/lesson/")
 _OFFLINE_SUFFIXES = (".mp4", ".srt")
@@ -303,6 +391,7 @@ def customer_clip_view(
 
 
 __all__ = [
+    "CUSTOMER_TEXT_WARNING_PATTERNS",
     "HOOK_MAX_CHARS",
     "PROFILE_LABELS",
     "SUMMARY_MAX_CHARS",
@@ -312,13 +401,16 @@ __all__ = [
     "CustomerClipView",
     "CustomerDeliveryRuleError",
     "CustomerText",
+    "CustomerTextWarning",
     "ImportedClipStatus",
     "customer_clip_view",
+    "customer_text_warnings",
     "effective_customer_text",
     "is_deliverable",
     "is_selected_for_delivery",
     "latest_approval",
     "latest_review_decision",
     "ordered_decisions",
+    "strong_customer_text_warnings",
     "validate_customer_text_field",
 ]
