@@ -106,3 +106,22 @@ def test_share_server_exits_2_for_a_public_bind(
     monkeypatch.setenv("LIVECLIP_SHARE_BASE_URL", "http://192.168.1.20:8766")
     assert main() == 2
     assert "public addresses" in capsys.readouterr().err
+
+
+def test_share_server_never_trusts_proxy_headers_and_disables_access_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import uvicorn
+
+    import liveclip.api.share as share_module
+
+    captured: dict[str, object] = {}
+    for name in ("HOST", "PORT", "ALLOW_LAN", "BASE_URL"):
+        monkeypatch.delenv(f"LIVECLIP_SHARE_{name}", raising=False)
+    monkeypatch.setattr(share_module, "create_share_app", lambda *args, **kwargs: object())
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: captured.update(kwargs))
+
+    assert main() == 0
+    assert captured["proxy_headers"] is False
+    assert captured["access_log"] is False
+    assert (captured["host"], captured["port"]) == ("127.0.0.1", 8766)
