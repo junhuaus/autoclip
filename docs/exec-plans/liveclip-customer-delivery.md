@@ -770,33 +770,101 @@ Freeze evidence at `b346229` (re-checked at `629b2fc`): closure diff to `f525338
 empty; pins in the full run; `dual-profile-eval --help` rc 0; single alembic
 head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcbb01aee7f0dfa3d50882beedb7712318d` rc 0: backend pytest 3572 passed (29 warnings: deprecations, including the TestClient/httpx and per-request cookie notices from the new share tests), vitest 15 files / 93 tests passed, e2e 7 passed (4 mock specs incl. the new share-panel flow and the file:// offline test, 3 real-browser scenario runs). (The first full run at `b346229` had 1 failure, `tests/unit/test_delivery.py::test_zip_stream_rejects_subtitle_symlink_swap_without_external_read`, whose seam replaces `_write_pinned_zip_member` without the new `member_mode` keyword; fixed in `629b2fc` by passing it only for non-default modes.).
 
-## Operator guide (Stage 19d/19e)
+## Operator guide (Stage 19d/19e; revised after the 19d review)
 
-1. Start the console and worker: `make dev` (API on 127.0.0.1:8765, web on
-   127.0.0.1:5173).
-2. Import cold-36 in the console with 导入双轨结果: run directory
+The share link is **LAN only**: the share server answers only loopback,
+private (10/8, 172.16/12, 192.168/16), link-local and IPv6 unique-local /
+link-local client addresses, and refuses to bind to public addresses, `::` or
+hostnames. There is no TLS: use it only on a trusted home/office network,
+never on public Wi-Fi, and never forward the port to the internet; customers
+elsewhere get the offline ZIP.
+
+1. Find the Mac's LAN address once per session: `ipconfig getifaddr en0`
+   (Wi-Fi; try `en1` if empty), for example `192.168.1.20`. If DHCP later
+   gives the Mac a different address, links created with the old address
+   stop working — create new links.
+2. Use the **same** share variables for both processes (the console builds
+   the link URL; the share server binds and serves it). Exporting only
+   `LIVECLIP_SHARE_HOST` (or a non-loopback host without the other two) makes
+   both the console and the share server refuse to start. The base URL is
+   `http://<address>:<port>` with no path, no `?` and no `#`:
+
+   ```sh
+   export LIVECLIP_SHARE_HOST=192.168.1.20        # the Mac's LAN address, not 0.0.0.0
+   export LIVECLIP_SHARE_PORT=8766
+   export LIVECLIP_SHARE_ALLOW_LAN=true
+   export LIVECLIP_SHARE_BASE_URL=http://192.168.1.20:8766
+   make dev      # terminal 1: console + worker (127.0.0.1:8765 / :5173)
+   make share    # terminal 2 (same exports): share server on 192.168.1.20:8766
+   ```
+
+   For a loopback-only demo, set nothing and run `make dev` and `make share`
+   (127.0.0.1:8766). The first LAN start may trigger the macOS firewall prompt
+   "accept incoming network connections" for Python; allow it, otherwise the
+   phone cannot connect.
+3. Import cold-36 in the console with 导入双轨结果: run directory
    `data/evaluations/dual-profile-benchmark-20261106-claude-cold-36`, transcript
    `input/8-30-full-transcript.srt`. The transcript must be under an allowed
    transcript root; the operator copies it once (the coder does not):
    `cp tests/fixtures/8-30-full-transcript.srt input/8-30-full-transcript.srt`.
-3. Approve (rewrite flagged summaries, or tick 仍然保留原文), select, create
-   a customer delivery version, wait for 已完成, download the ZIP.
-4. Start the share server. Loopback only (this Mac): `make share`
-   (127.0.0.1:8766). For a phone on the same Wi-Fi, find the Mac's LAN
-   address (System Settings → Wi-Fi → Details, e.g. 192.168.1.20) and run:
-   `LIVECLIP_SHARE_HOST=0.0.0.0 LIVECLIP_SHARE_ALLOW_LAN=true
-   LIVECLIP_SHARE_BASE_URL=http://192.168.1.20:8766 make share`. The links shown
-   by the console use `LIVECLIP_SHARE_BASE_URL`, so start `make dev` with the
-   same `LIVECLIP_SHARE_*` variables when creating LAN links. There is no TLS:
-   use only on a trusted home/office network, never on public Wi-Fi, and never
-   forward the port to the internet; customers elsewhere get the offline ZIP.
-5. 19e phone test checklist: create a 7-day link (copy it; it is shown once);
-   on the phone (same Wi-Fi) open it: the page shows the title, 短片/小课
-   sections, expiry date; each video plays and seeks; MP4 and 字幕（SRT）
-   download with Chinese filenames; 下载全部（ZIP） downloads and extracts; a
-   wrong token shows "链接不可用"; revoke the link in the console and confirm
-   the phone gets "链接不可用"; confirm the console list shows the views and
-   downloads; stop `make share`.
+4. Approve each clip, rewriting flagged summaries (or tick 仍然保留原文);
+   for an automatically selected clip with flagged text, 选入交付 asks to keep
+   the text explicitly. Select, create a customer delivery version, wait for
+   已完成, download the ZIP.
+5. Create a share link for the finished version (7 days by default); copy it
+   immediately — it is shown once.
+
+19e phone test checklist (same Wi-Fi as the Mac):
+- [ ] Open the link on the phone: title, 短片/小课 sections and the Chinese
+  expiry date are shown.
+- [ ] Each video plays and seeks (Range requests).
+- [ ] MP4 and 字幕（SRT） downloads keep the Chinese filenames.
+- [ ] 下载全部（ZIP） downloads and extracts; its `index.html` works offline.
+- [ ] A wrong token shows "链接不可用".
+- [ ] Revoke the link in the console; the phone now gets "链接不可用".
+- [ ] The console link list shows the views and downloads.
+- [ ] Optional: from a phone on mobile data (not the Wi-Fi) the link must not
+  load.
+- [ ] Stop `make share`.
+
+Note: shared subtitles are the imported SRT bytes, while the offline package
+contains a normalized copy (LF line endings, one trailing newline): the same
+text with different hashes.
+
+## Stage 19d review fix (2026-11-07)
+
+Reviewer REJECT at `e50adfa` on one P1 (everything else ACCEPT-WITH-NITS):
+"LAN only" was not enforced — only the base URL was checked, a public or
+`::` bind was accepted with `LIVECLIP_SHARE_ALLOW_LAN`, the share app had no
+client-address check, and the guide suggested `0.0.0.0`. Fixed in
+`e90626749d8477ed26243f5a02cc48e44558d77e`:
+
+- `LAN_NETWORKS` / `is_lan_address()` (`src/liveclip/customer_delivery_settings.py`):
+  127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, ::1, fc00::/7, fe80::/10;
+  IPv4-mapped IPv6 is unwrapped; missing or unparseable is refused.
+- Share app guard: a non-LAN client gets the identical generic 404 (with the
+  security headers) before any database access, link statistic, audit or
+  limiter state. These requests are counted only in a single bounded
+  counter (`RefusedClientCounter`, O(1)): per-address tracking of internet
+  clients would let them grow memory, and a 429 would distinguish the server
+  from an unknown link. `proxy_headers=False`; forwarding headers are never
+  read.
+- Bind host must be an IP literal: loopback, `0.0.0.0`, private/link-local
+  IPv4 or unique-local/link-local IPv6; hostnames, `::` and public addresses
+  are refused and `make share` exits 2 with the reason.
+- P2: `(?<![答质存])疑[为似]` (no false positive on 答疑为什么); the strong-warning
+  gate also applies at select time (automatically selected clips never need
+  an approval) and at customer-delivery creation, and a select may carry
+  `acknowledge_warnings` (the existing column from `f6a1b3c5d7e9`, whose
+  meaning — "explicitly kept customer text with warnings" — is unchanged, now
+  recorded on approve or select; no new column); base URLs reject any `?` or
+  `#`; the rate limiter deletes empty windows and sweeps stale keys every 256
+  operations; migration `a7c9e1b3d5f2` adds `ix_audit_events_target`
+  (`target_type`, `target_id`) — new head; unexpected errors in the share app
+  return the generic 404 with security headers and log only the error type;
+  share tests set cookies on the client instance.
+- Real run: loopback share server on 127.0.0.1:18777 against a scratch cold-36 import: page 200, video 200, subtitle 200, ZIP 200, Range 206 (`bytes 0-1023/42541490`), beyond-end 416 (`bytes */42541490`), unknown token, `/api/v1/projects`, `/docs`, `/openapi.json` 404, security headers present, token 0 times in the log; with uvicorn's default proxy handling a loopback request carrying `X-Forwarded-For: 8.8.8.8` was refused (404), and with `proxy_headers=False` (as `make share` runs) the header is ignored (200); `LIVECLIP_SHARE_HOST=8.8.8.8` and `LIVECLIP_SHARE_HOST=::` both exit 2 with the reason.
+- Validation: `make lint` rc 0; full `make test` at `e90626749d8477ed26243f5a02cc48e44558d77e` rc 0: backend pytest 3610 passed (15 warnings; the 14 share-test cookie deprecations are gone), vitest 15 files / 94 tests passed, e2e 7 passed (4 mock, 3 real-browser); the follow-up test commit `a37ecfe7d3d7d66d2e510a1f8a0523aa0dca611a` adds one unit test (share_settings 39 passed).
 
 ## Surprises and Discoveries
 
@@ -931,7 +999,8 @@ head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcb
 
 ## Recovery Notes
 
-2026-11-07 (Stage 19d): implemented at `6e7e20a`, `1887826`, `b346229` plus
+2026-11-07 (Stage 19d, after review): P1 fixed at `e906267`; pending re-review;
+alembic head `a7c9e1b3d5f2`. (Earlier:) implemented at `6e7e20a`, `1887826`, `b346229` plus
 this docs commit; pending independent tester and reviewer (re-check the
 freeze evidence; new head `f6a1b3c5d7e9`). First next task after
 acceptance: Stage 19e (ADR, Product Spec amendment, operator LAN phone test

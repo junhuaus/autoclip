@@ -92,7 +92,19 @@
   paths and docs 404, security headers present, no cookies, logs redacted.
   Operator guide and 19e phone checklist in the Stage 19 ExecPlan. Freeze
   evidence clean; alembic head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcbb01aee7f0dfa3d50882beedb7712318d` rc 0: backend pytest 3572 passed (29 warnings: deprecations, including the TestClient/httpx and per-request cookie notices from the new share tests), vitest 15 files / 93 tests passed, e2e 7 passed (4 mock specs incl. the new share-panel flow and the file:// offline test, 3 real-browser scenario runs). (The first full run at `b346229` had 1 failure, `tests/unit/test_delivery.py::test_zip_stream_rejects_subtitle_symlink_swap_without_external_read`, whose seam replaces `_write_pinned_zip_member` without the new `member_mode` keyword; fixed in `629b2fc` by passing it only for non-default modes.).
-  Next: independent tester and reviewer for 19d, then 19e.
+  (Historical next step; reviewed below.) Next: independent tester and reviewer for 19d, then 19e.
+- **Stage 19d review (e50adfa): tester green, reviewer REJECT on P1 — "LAN
+  only" not enforced.** Fixed in `e90626749d8477ed26243f5a02cc48e44558d77e`: the share app answers only
+  loopback/RFC 1918/link-local/IPv6 ULA and link-local clients (everyone else
+  gets the generic 404, no state touched); the bind host must be a LAN IP
+  literal or `0.0.0.0` (`::`, public addresses and hostnames refused, exit 2).
+  P2s: 答疑 false positive, warning gate at select and delivery creation,
+  `?`/`#` in base URLs, bounded limiter, audit target index (migration
+  `a7c9e1b3d5f2`, new head), catch-all generic 404, test cookie hygiene.
+  Operator guide rewritten (bind the Mac's LAN address, same env for
+  `make dev` and `make share`, macOS firewall prompt, DHCP changes). Real
+  loopback run and refused public bind: loopback share server on 127.0.0.1:18777 against a scratch cold-36 import: page 200, video 200, subtitle 200, ZIP 200, Range 206 (`bytes 0-1023/42541490`), beyond-end 416 (`bytes */42541490`), unknown token, `/api/v1/projects`, `/docs`, `/openapi.json` 404, security headers present, token 0 times in the log; with uvicorn's default proxy handling a loopback request carrying `X-Forwarded-For: 8.8.8.8` was refused (404), and with `proxy_headers=False` (as `make share` runs) the header is ignored (200); `LIVECLIP_SHARE_HOST=8.8.8.8` and `LIVECLIP_SHARE_HOST=::` both exit 2 with the reason. Validation:
+  `make lint` rc 0; full `make test` at `e90626749d8477ed26243f5a02cc48e44558d77e` rc 0: backend pytest 3610 passed (15 warnings; the 14 share-test cookie deprecations are gone), vitest 15 files / 94 tests passed, e2e 7 passed (4 mock, 3 real-browser); the follow-up test commit `a37ecfe7d3d7d66d2e510a1f8a0523aa0dca611a` adds one unit test (share_settings 39 passed). Next: re-review of 19d, then 19e.
 - Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
   for an imported project, a role-denied call (for example a viewer) or any
   mutation on an archived project returns 403 from `require_project_action`

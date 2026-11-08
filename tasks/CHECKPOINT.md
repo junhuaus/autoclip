@@ -1525,3 +1525,13 @@ links and the separate `make share` server). Real loopback share run
 against a scratch cold-36 import passed (statuses and headers in the
 ExecPlan). Operator guide and 19e phone checklist in the ExecPlan.
 Next: independent tester and reviewer, then 19e.
+
+## Stage 19d review P1 fixed, pending re-review (2026-11-07)
+
+Reviewer REJECT at `e50adfa` (tester green): "LAN only" was not enforced.
+Fixed in `e906267`: client-address allowlist in the share app (generic 404
+for everyone else), LAN-only bind host (exit 2 otherwise), plus P2s
+(答疑 false positive, warning gate at select and delivery creation, base
+URL `?`/`#`, bounded limiter, audit target index migration `a7c9e1b3d5f2`,
+catch-all generic 404, cookie hygiene). Operator guide and 19e phone
+checklist rewritten. Next: re-review.
