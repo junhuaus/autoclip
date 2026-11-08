@@ -52,12 +52,14 @@ def parse_single_range(value: str | None, *, size_bytes: int) -> ByteRange | Non
     return ByteRange(start=size_bytes - length, end=size_bytes - 1)
 
 
-def content_disposition(download_filename: str) -> str:
+def content_disposition(download_filename: str, *, unicode_filename: bool = False) -> str:
     """``attachment`` with an ASCII ``filename`` and, when needed, RFC 5987 ``filename*``.
 
-    The ASCII fallback keeps the historical sanitizer; a name with non-ASCII
-    characters (for example Chinese) is also sent as UTF-8 ``filename*`` after
-    removing control characters, quotes and path separators.
+    The ASCII fallback keeps the historical sanitizer. Only callers that opt in
+    with ``unicode_filename`` (Stage 19c customer deliveries) also send a name
+    with non-ASCII characters (for example Chinese) as UTF-8 ``filename*``,
+    after removing control characters, quotes and path separators; every
+    existing download keeps its exact historical header.
     """
 
     safe_name = re.sub(r"[^A-Za-z0-9_.-]", "-", download_filename)[:160]
@@ -66,7 +68,7 @@ def content_disposition(download_filename: str) -> str:
         "-" if unicodedata.category(character).startswith("C") or character in '/\\"' else character
         for character in download_filename
     )[:160]
-    if unicode_name and unicode_name != safe_name:
+    if unicode_filename and unicode_name and unicode_name != safe_name:
         value += f"; filename*=UTF-8''{quote(unicode_name, safe='')}"
     return value
 
@@ -76,6 +78,7 @@ def stream_asset_response(
     *,
     range_header: str | None,
     download_filename: str | None = None,
+    unicode_filename: bool = False,
 ) -> StreamingResponse:
     selected = parse_single_range(range_header, size_bytes=asset.size_bytes)
     start = selected.start if selected is not None else 0
@@ -90,7 +93,9 @@ def stream_asset_response(
     if selected is not None:
         headers["Content-Range"] = f"bytes {selected.start}-{selected.end}/{asset.size_bytes}"
     if download_filename is not None:
-        headers["Content-Disposition"] = content_disposition(download_filename)
+        headers["Content-Disposition"] = content_disposition(
+            download_filename, unicode_filename=unicode_filename
+        )
     descriptor = _open_verified_asset_descriptor(asset)
     return StreamingResponse(
         _read_file_range(descriptor, asset=asset, start=start, length=length),

@@ -2164,6 +2164,7 @@ def create_app(
             asset,
             range_header=range_header,
             download_filename=customer_download_filename(delivery.title, delivery.delivery_version),
+            unicode_filename=True,
         )
 
     @app.get("/api/v1/edit-packages/{edit_package_id}/download")
