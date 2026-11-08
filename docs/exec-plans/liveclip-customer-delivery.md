@@ -359,12 +359,15 @@ benchmark files.
   in `29dd574cdaa8587173fb555daa2d26fe81b7819c` (see Decision Log).
 - [x] 2026-11-07 Stage 19b implemented (pending independent tester and
   reviewer): code `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56`. Evidence in "Stage 19b results".
-- [ ] Stage 19c: offline customer package (golden key set; recursive
-  forbidden-token scan of manifest/HTML/member names for `score`, `risk`,
-  `manual_review`, `review_reason`, `prompt`, `/Users`, `data/`;
-  byte-identical ZIP for the same inputs; XSS escaping; overrides shown;
-  non-eligible → 409; later decisions do not change v001 (→ v002);
-  Playwright `file://` with network blocked).
+- [x] 2026-11-07 Stage 19b ACCEPTED at `7fc669b` (reviewer ACCEPT-WITH-NITS
+  after auditing all 84 routes); nits fixed in `83d9a78792d12b0bf433f01391e9640d8fa3d482`.
+- [x] 2026-11-07 Stage 19c implemented (pending independent tester and
+  reviewer): `96778478af1677b39bc12c1a6edc7ba1638e5b84` plus `79287e6131ec377d3781b1a6d0e0132d54d56402` (opt-in `filename*`). Evidence in "Stage 19c results". (Original
+  milestone text: offline customer package (golden key set; recursive
+  forbidden-token scan of manifest/HTML/member names; byte-identical ZIP for
+  the same inputs; XSS escaping; overrides shown; non-eligible → 409; later
+  decisions do not change v001 (→ v002); Playwright `file://` with network
+  blocked).)
 - [ ] Stage 19d: share links (no raw token in DB; expired/revoked 404; other
   deliveries unreachable; traversal 404/422; Range 206/416; no Set-Cookie;
   internal session cookie gains nothing; internal paths 404 on the share
@@ -620,6 +623,85 @@ guard. Fixed in `248082c7fbb4a9b2a5a3dbc903acb4263eb13179`:
   `comment` is removed from the imported-project actions (no route accepts
   comments on imported clips): owner read/manage_members/manage_project/
   review_clip/deliver, editor read/deliver, reviewer read/review_clip.
+
+## Stage 19c results (2026-11-07)
+
+Files: new `src/liveclip/application/customer_deliveries.py`,
+`src/liveclip/db/customer_delivery_repository.py`,
+`src/liveclip/delivery/customer_package.py`,
+`src/liveclip/delivery/customer_delivery_task_handler.py`; changed
+`src/liveclip/application/delivery_runner.py` (customer-delivery dispatch),
+`src/liveclip/db/task_queue.py` (claim scope and failure propagation),
+`src/liveclip/db/storage_repository.py` (purge covers customer-delivery
+tasks and ids), `src/liveclip/application/media_assets.py`
+(`customer_delivery_zip` scoped kind), `src/liveclip/bootstrap.py`,
+`src/liveclip/api/app.py`, `src/liveclip/api/schemas.py`,
+`src/liveclip/api/media.py` (`content_disposition`: RFC 5987 `filename*`
+only when the caller opts in with `unicode_filename=True`, which only the
+customer-delivery download does; every existing download keeps its exact
+historical header — corrected in `79287e6131ec377d3781b1a6d0e0132d54d56402` after the first full run, where
+the real-browser e2e caught a changed release-package header). Web: `CustomerDeliveryPanel` in `apps/web/src/DualProfileReview.tsx`,
+`api.ts`, `types.ts`, `styles.css`. Tests:
+`tests/unit/test_customer_package.py`,
+`tests/unit/test_media_content_disposition.py`,
+`tests/integration/test_customer_delivery_api.py`,
+`tests/support/build_customer_package_fixture.py`,
+`apps/web/tests/dual-profile-review.test.tsx`,
+`apps/web/e2e/customer-package-offline.spec.ts`. No migration (the 19a
+tables suffice); alembic head stays `e4b2c7d9a1f3`.
+`services/dual_profile_delivery.py` is untouched.
+
+- Snapshot: `POST /api/v1/projects/{id}/customer-deliveries` (`deliver`,
+  imported projects only; archived 403; non-member 404; reviewer/viewer
+  403) inserts, in one `BEGIN IMMEDIATE` transaction, the next version
+  (v001…v999), its immutable `customer_delivery_clips` (ordinal by profile
+  → source start → candidate id; effective title/hook/summary; asset ids and
+  hashes; the approving decision id) and one worker Task
+  (`operation_key customer-delivery:<id>`). 409 when nothing is selected,
+  when an `expected_clip_ids` entry is not deliverable, or when the
+  selection changed. Idempotency-Key replays the same version and a reused
+  key with another body is 409, as for other delivery endpoints.
+- Build (worker): `build_customer_package` copies verified MP4s, writes
+  normalized SRTs, `manifest.json` (`liveclip.customer-delivery.v1`, built
+  only from `CustomerClipView`), `index.html` (`customer_index_html`, the
+  template 19d will reuse), `checksums.sha256` and a verified ZIP with fixed
+  1980 member timestamps; publishes `customer-deliveries/vNNN` with a
+  no-replace rename; a retry after publication must rebuild byte-identical
+  bytes and then reuses the directory. Completion commits the manifest and
+  ZIP as Assets. Tampered imported media fails the task deterministically
+  and publishes nothing.
+- Page: `lang="zh-CN"`, CSP `default-src 'none'; style-src 'unsafe-inline';
+  media-src 'self' file:; img-src 'none'; base-uri 'none'; form-action 'none'`
+  (`file:` is needed because a `file://` page has an opaque origin, so
+  `'self'` alone does not cover sibling media), no script, no external
+  resource, no `<track>`, sections 短片 then 小课 (empty ones omitted),
+  cards with video, title, hook, summary, 时长 mm:ss, MP4 and 字幕（SRT）
+  links; offline note "本文件夹就是完整的交付包" (no ZIP link offline).
+  Filenames keep Chinese (`safe_filename_component` keeps Unicode L/M/N;
+  separators, punctuation and control characters are removed).
+- Tests: golden manifest/clip key sets; recursive forbidden-token scan
+  (score, risk, manual_review, review_reason, routed, candidate, prompt,
+  /Users, data/, evaluations, quality, flag, the source hash, the tmp base)
+  over manifest JSON, index.html and ZIP member names; byte-identical ZIP
+  for the same inputs; XSS escaping; overrides shown and originals absent;
+  409s; v001 unchanged after later decisions and v002 reflecting them;
+  authorization; idempotency; Chinese filenames and `filename*`; tampered
+  media; Playwright opens an extracted package via `file://` with every
+  non-file request aborted and asserts none happened.
+- Real package (scratch only): the stored cold-36 run imported into a
+  scratch data dir (`LIVECLIP_DUAL_PROFILE_TRANSCRIPT_ROOTS` = `tests/fixtures`
+  for that run only), 1 short + 2 lessons approved and selected (one title
+  override), v001 built by the worker: 3 MP4s (about 42/90/232 MB), 3 SRTs,
+  index.html, manifest.json, checksums.sha256 and a 364 MB ZIP; forbidden-token
+  scan clean; cold-36 inputs unchanged (`inputs-after-render.sha256` OK).
+  Observation for editorial review: some model summaries contain reviewer-
+  style notes (for example "…疑为转写错误", "…纳入后会超过时长上限…");
+  they are customer-visible unless a reviewer overrides the summary at
+  approval.
+- Freeze evidence at `9677847` (re-checked at `79287e6`): closure diff to `f525338` rc 0, porcelain
+  empty; 17/17 prompt identities; Settings fingerprint unchanged;
+  `dual-profile-eval --help` rc 0; single alembic head `e4b2c7d9a1f3`.
+- Validation: `make lint` rc 0; full `make test` at `79287e6131ec377d3781b1a6d0e0132d54d56402` rc 0: backend pytest 3482 passed (15 deprecation warnings), vitest 15 files / 89 tests passed, e2e 6 passed (3 mock specs incl. the new file:// offline test, 3 real-browser scenario runs). (The first full run at `9677847` had backend 3481 passed and vitest 89 passed, but the real-browser legacy e2e failed because the global `filename*` changed the release-package download header; fixed in `79287e6`.).
 
 ## Surprises and Discoveries
 

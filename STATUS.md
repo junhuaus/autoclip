@@ -63,6 +63,20 @@
 - **Stage 19b ACCEPTED at `7fc669b`** (tester: lint rc 0, make test
   3447/87/5, focused 211, freeze rc 0, single head; reviewer
   ACCEPT-WITH-NITS after auditing all 84 routes).
+- Stage 19b nits fixed in `83d9a78792d12b0bf433f01391e9640d8fa3d482` (details below).
+- **Stage 19c implemented** at `96778478af1677b39bc12c1a6edc7ba1638e5b84` and `79287e6131ec377d3781b1a6d0e0132d54d56402` (the RFC 5987
+  `filename*` is opt-in for customer ZIPs only, so existing download headers
+  are unchanged) (pending independent tester and
+  reviewer): immutable versioned customer deliveries (effective text,
+  409 when nothing selected or the selection is stale, idempotent), worker
+  build of the offline package (allowlisted manifest from
+  `CustomerClipView`, shared `customer_index_html`, deterministic ZIP,
+  Chinese filenames, RFC 5987 download name), `CustomerDeliveryPanel`, and a
+  Playwright `file://` test with all network blocked. No migration. A real
+  package from the cold-36 import was built in scratch:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
+  Freeze evidence clean at `9677847`. Validation: `make lint` rc 0; full `make test` at `79287e6131ec377d3781b1a6d0e0132d54d56402` rc 0: backend pytest 3482 passed (15 deprecation warnings), vitest 15 files / 89 tests passed, e2e 6 passed (3 mock specs incl. the new file:// offline test, 3 real-browser scenario runs). (The first full run at `9677847` had backend 3481 passed and vitest 89 passed, but the real-browser legacy e2e failed because the global `filename*` changed the release-package download header; fixed in `79287e6`.). Next:
+  independent tester and reviewer for 19c, then 19d.
 - Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
   for an imported project, a role-denied call (for example a viewer) or any
   mutation on an archived project returns 403 from `require_project_action`

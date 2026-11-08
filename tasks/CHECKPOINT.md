@@ -1503,3 +1503,14 @@ links, archived and purge tests, 不通过 wording, e2e request log; P2-6
 residual recorded verbatim). Freeze evidence clean (closure diff rc 0,
 single head `e4b2c7d9a1f3`, `dual-profile-eval --help` rc 0). `make lint`
 rc 0; `make test` rc 0 (backend 3447, vitest 87, e2e 5). Next: re-review.
+
+## Stage 19b accepted; Stage 19c implemented, pending verification (2026-11-07)
+
+Stage 19b accepted at `7fc669b`; nits fixed in `83d9a78` (comment dropped
+from imported actions; release approval two-step authorization explained;
+403-before-409 documented). Stage 19c at `9677847`: immutable versioned
+customer deliveries, worker-built offline package (allowlisted manifest,
+shared page template, deterministic ZIP, Chinese filenames), download with
+RFC 5987 name, `CustomerDeliveryPanel`, file:// browser test. Real cold-36
+package (scratch): `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
+Freeze evidence clean. Next: independent tester and reviewer, then 19d.
