@@ -426,6 +426,7 @@ def _assemble(
             members=tuple(PurePosixPath(name) for name in sorted(member_sha256)),
             manifest=manifest_dict,
             expected_sha256=dict(member_sha256),
+            member_mode=0o644,
         )
     except DeliveryError as exc:
         raise CustomerPackageError("customer delivery ZIP could not be verified") from exc

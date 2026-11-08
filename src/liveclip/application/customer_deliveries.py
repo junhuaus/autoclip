@@ -47,7 +47,7 @@ class CustomerDeliveryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     title: str = Field(min_length=1, max_length=200)
-    expected_clip_ids: tuple[str, ...] | None = Field(default=None, max_length=500)
+    expected_clip_ids: tuple[str, ...] = Field(max_length=500)
 
     @field_validator("title")
     @classmethod

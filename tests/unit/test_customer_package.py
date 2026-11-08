@@ -203,6 +203,16 @@ def test_share_variant_links_the_zip_and_omits_empty_sections(tmp_path: Path) ->
     assert 'href="/s/token/download"' in index and "下载全部（ZIP）" in index
 
 
+def test_zip_members_are_readable_by_the_customer(tmp_path: Path) -> None:
+    result = _build(tmp_path)
+    archive_path = result.directory / "liveclip-customer-delivery-v001.zip"  # type: ignore[attr-defined]
+    with zipfile.ZipFile(archive_path) as archive:
+        modes = {info.filename: (info.external_attr >> 16) & 0o777 for info in archive.infolist()}
+        stamps = {info.date_time for info in archive.infolist()}
+    assert set(modes.values()) == {0o644}
+    assert stamps == {(1980, 1, 1, 0, 0, 0)}
+
+
 def test_same_inputs_build_a_byte_identical_zip(tmp_path: Path) -> None:
     first = _build(tmp_path, "first")
     second = _build(tmp_path, "second")

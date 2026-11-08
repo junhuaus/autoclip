@@ -759,7 +759,7 @@ class DualProfileReviewResponse(BaseModel):
 
 class CustomerDeliveryCreateRequest(ApiRequestModel):
     title: str = Field(min_length=1, max_length=200)
-    expected_clip_ids: tuple[str, ...] | None = Field(default=None, max_length=500)
+    expected_clip_ids: tuple[str, ...] = Field(max_length=500)
 
     @model_validator(mode="after")
     def validate_title(self) -> CustomerDeliveryCreateRequest:

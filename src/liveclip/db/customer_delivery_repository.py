@@ -91,19 +91,16 @@ class SqlAlchemyCustomerDeliveryRepository:
                 raise CustomerDeliveryNotFound("project has no dual-profile import")
             username = _active_username(connection, acting_user_id)
             selected = _selected_clips(connection, project_id)
-            if request.expected_clip_ids is not None:
-                expected = set(request.expected_clip_ids)
-                eligible = {
-                    clip["id"]
-                    for clip in _clip_states(connection, project_id)
-                    if clip["deliverable"]
-                }
-                if not expected <= eligible:
-                    raise CustomerDeliveryConflict("a requested clip is not deliverable")
-                if expected != {clip["id"] for clip in selected}:
-                    raise CustomerDeliveryConflict(
-                        "the delivery selection changed; reload and try again"
-                    )
+            expected = set(request.expected_clip_ids)
+            eligible = {
+                clip["id"] for clip in _clip_states(connection, project_id) if clip["deliverable"]
+            }
+            if not expected <= eligible:
+                raise CustomerDeliveryConflict("a requested clip is not deliverable")
+            if expected != {clip["id"] for clip in selected}:
+                raise CustomerDeliveryConflict(
+                    "the delivery selection changed; reload and try again"
+                )
             if not selected:
                 raise CustomerDeliveryConflict("no deliverable clip is selected for delivery")
             version = (

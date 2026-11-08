@@ -787,6 +787,30 @@ tables suffice); alembic head stays `e4b2c7d9a1f3`.
   `deselect` is allowed regardless of eligibility (it can only narrow a
   delivery). The customer-delivery panel is a placeholder until 19c.
 
+- 2026-11-07 (coder, 19c; accepted by the 19c reviewer, recorded after review):
+  (1) customer-delivery manifest/ZIP Assets are committed by
+  `SqlAlchemyCustomerDeliveryRepository.complete_customer_delivery` with the
+  producing task attempt id, inside the same transaction that re-checks the
+  task lease (task id, worker, lease token, unexpired, not cancelled) and the
+  snapshot fingerprint, because the lease-scoped asset store requires a
+  pipeline run that imported projects do not have; a stale worker therefore
+  commits nothing. (2) `expected_clip_ids` is required (19c reviewer P2-1):
+  the request must name exactly the current selection, so a stale UI gets
+  409 instead of silently packaging a different set. (3) Package SRTs are
+  normalized (`normalize_srt`: LF line endings, one trailing newline), so
+  their bytes can differ from the imported SRT; the imported SRT's hash is
+  verified before normalizing. (4) RFC 5987 `filename*` is opt-in
+  (`unicode_filename=True`, customer ZIP only) so every existing download
+  header is byte-for-byte unchanged. (5) Customer ZIP members are recorded
+  with mode 0o644 (19c reviewer P2-5; every other package keeps 0o600); the
+  member timestamps stay fixed at 1980-01-01, so builds stay deterministic.
+- 2026-11-07 (19c reviewer P2-2): customer text (overrides and the
+  allowlisted view) rejects Unicode format characters (category Cf, which
+  includes bidi overrides/isolates U+202A–U+202E, U+2066–U+2069 and
+  zero-width U+200B–U+200D, U+2060, U+FEFF), surrogates and private-use
+  characters; newlines and tabs stay allowed. The stored cold-35/cold-36
+  final results contain none (183/192 text fields checked).
+
 ## Risks and Mitigations
 
 - Leaking internal fields to the customer: allowlist model with
@@ -802,7 +826,17 @@ tables suffice); alembic head stays `e4b2c7d9a1f3`.
 
 ## Recovery Notes
 
-2026-11-07 (Stage 19b, after review): P1 fixed at `248082c`; pending
+2026-11-07 (Stage 19c): ACCEPTED at `3e17ed4` (tester: lint rc 0, make test
+3482/89/6; reviewer ACCEPT-WITH-NITS, own scans of the real and an
+adversarial package clean, stale-worker fencing verified). Stage 19d (19c
+nits, customer-text warning guard, LAN share links) is next/in progress on
+the same branch. Recovery: a customer delivery that fails stays a `failed`
+version (DELETE is guarded); create a new version after fixing the cause.
+A version whose directory was published but whose completion was lost is
+reused by the retry only when the rebuild is byte-identical.
+
+(Historical) 2026-11-07 (Stage 19b): ACCEPTED at `7fc669b` after the P1 fix at `248082c`.
+(Earlier note:) P1 fixed at `248082c`; pending
 re-review. (Earlier:) implemented at `cf11aef` plus this docs commit;
 pending independent tester and reviewer (re-check the six freeze-evidence
 items). First next task after acceptance: Stage 19c (offline customer

@@ -175,6 +175,32 @@ def test_title_override_text_is_bounded_and_printable(value: str) -> None:
         ClipDecision(sequence=1, action=APPROVE, title_override=value)
 
 
+@pytest.mark.parametrize(
+    "character",
+    [
+        "\u202a",
+        "\u202b",
+        "\u202c",
+        "\u202d",
+        "\u202e",
+        "\u2066",
+        "\u2067",
+        "\u2068",
+        "\u2069",
+        "\u200b",
+        "\u200c",
+        "\u200d",
+        "\u2060",
+        "\ufeff",
+        "\u00ad",
+        "\ue000",
+    ],
+)
+def test_invisible_and_bidi_characters_are_rejected(character: str) -> None:
+    with pytest.raises(CustomerDeliveryRuleError, match="invisible or formatting"):
+        ClipDecision(sequence=1, action=APPROVE, summary_override=f"正常{character}文字")
+
+
 def test_summary_override_allows_newlines() -> None:
     decision = ClipDecision(sequence=1, action=APPROVE, summary_override="第一行\n第二行")
     assert decision.has_override

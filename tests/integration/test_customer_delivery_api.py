@@ -66,8 +66,19 @@ class Harness:
             json={"action": action, **body},
         )
 
+    def selected_ids(self) -> list[str]:
+        review = self.client.get(
+            f"/api/v1/projects/{self.project_id}/dual-profile-import", headers=self.auth()
+        ).json()
+        return [
+            clip["import_clip_id"]
+            for group in review["review"]["groups"]
+            for clip in group["clips"]
+            if clip["selected_for_delivery"]
+        ]
+
     def create(self, role: str = "owner", **body: Any) -> Any:
-        payload = {"title": "张老师 · 精选", **body}
+        payload = {"title": "张老师 · 精选", "expected_clip_ids": self.selected_ids(), **body}
         return self.client.post(
             f"/api/v1/projects/{self.project_id}/customer-deliveries",
             headers=self.auth(role),
@@ -276,11 +287,12 @@ def test_idempotency_key_replays_the_same_version(harness: Harness) -> None:
     assert harness.decide("short-one", "select", role="editor").status_code == 200
     headers = harness.auth(**{"Idempotency-Key": "customer-delivery-0001"})
     url = f"/api/v1/projects/{harness.project_id}/customer-deliveries"
-    first = harness.client.post(url, headers=headers, json={"title": "交付"})
-    second = harness.client.post(url, headers=headers, json={"title": "交付"})
+    body = {"title": "交付", "expected_clip_ids": harness.selected_ids()}
+    first = harness.client.post(url, headers=headers, json=body)
+    second = harness.client.post(url, headers=headers, json=body)
     assert first.status_code == second.status_code == 202
     assert first.json()["delivery"]["delivery_id"] == second.json()["delivery"]["delivery_id"]
-    conflict = harness.client.post(url, headers=headers, json={"title": "不同标题"})
+    conflict = harness.client.post(url, headers=headers, json={**body, "title": "不同标题"})
     assert conflict.status_code == 409
     assert len(harness.listing()) == 1
 
@@ -289,6 +301,16 @@ def test_idempotency_key_replays_the_same_version(harness: Harness) -> None:
 def test_invalid_titles_are_rejected(harness: Harness, title: str) -> None:
     assert harness.decide("short-one", "select", role="editor").status_code == 200
     assert harness.create(title=title).status_code == 422
+
+
+def test_expected_clip_ids_are_required(harness: Harness) -> None:
+    assert harness.decide("short-one", "select", role="editor").status_code == 200
+    response = harness.client.post(
+        f"/api/v1/projects/{harness.project_id}/customer-deliveries",
+        headers=harness.auth(),
+        json={"title": "交付"},
+    )
+    assert response.status_code == 422
 
 
 def test_download_requires_access_and_a_finished_build(harness: Harness) -> None:
@@ -316,3 +338,89 @@ def test_tampered_imported_media_fails_the_build_without_publishing(harness: Har
     [entry] = harness.listing()
     assert entry["download_url"] is None
     assert not (project_dir / "customer-deliveries" / "v001").exists()
+
+
+def test_a_stale_worker_cannot_commit_after_its_lease_expired(harness: Harness) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from liveclip.application.pipeline import LeaseIdentity
+    from liveclip.db.customer_delivery_repository import SqlAlchemyCustomerDeliveryRepository
+    from liveclip.delivery.customer_delivery_task_handler import CustomerDeliveryTaskHandler
+    from liveclip.domain.state_transitions import TaskKind
+
+    assert harness.decide("short-one", "select", role="editor").status_code == 200
+    delivery = harness.create().json()["delivery"]
+    queue = harness.runtime.task_queue
+    repository = SqlAlchemyCustomerDeliveryRepository(harness.runtime.engine)
+    handler = CustomerDeliveryTaskHandler(
+        data_dir=harness.base / "projects",
+        publication_fence=repository.assert_customer_delivery_current,
+    )
+    stale = queue.claim(worker_id="stale-worker", task_kind=TaskKind.DELIVERY)
+    assert stale is not None
+    stale_identity = LeaseIdentity(
+        task_id=stale.task_id, worker_id=stale.worker_id, lease_token=stale.lease_token
+    )
+    work = repository.start_customer_delivery(stale_identity)
+    persistence = handler.execute(work, stale_identity, cancel_requested=lambda: False)
+
+    later = datetime.now(UTC) + timedelta(hours=2)
+    fresh = queue.claim(worker_id="fresh-worker", task_kind=TaskKind.DELIVERY, now=later)
+    assert fresh is not None and fresh.task_id == stale.task_id
+    assert fresh.lease_token != stale.lease_token
+
+    assert repository.complete_customer_delivery(stale_identity, work, persistence) is False
+    snapshot = repository.get_customer_delivery(delivery["delivery_id"])
+    assert snapshot.status.value != "succeeded" and snapshot.zip_asset_id is None
+    with pytest.raises(Exception, match="no longer publishable"):
+        repository.assert_customer_delivery_current(stale_identity, work)
+
+
+def test_purge_removes_a_project_with_a_built_customer_delivery(harness: Harness) -> None:
+    from liveclip.application.storage import ProjectPurgeCommand
+
+    assert harness.decide("short-one", "select", role="editor").status_code == 200
+    delivery = harness.create().json()["delivery"]
+    assert harness.build(delivery["delivery_id"]).status.value == "succeeded"
+    project_dir = harness.base / "projects" / harness.project_id
+    assert (project_dir / "customer-deliveries" / "v001" / "manifest.json").is_file()
+    project = harness.client.get(
+        f"/api/v1/projects/{harness.project_id}", headers=harness.auth()
+    ).json()
+    assert (
+        harness.client.post(
+            f"/api/v1/projects/{harness.project_id}/lifecycle",
+            headers=harness.auth(),
+            json={
+                "expected_management_version": project["management_version"],
+                "target": "archived",
+                "reason": "清理",
+            },
+        ).status_code
+        == 200
+    )
+    admin = harness.runtime.workspace_service.get_user_by_username("local-admin")
+    service = harness.runtime.storage_administration_service
+    plan = service.project_purge_plan(admin, harness.project_id)
+    assert plan.ready is True, plan.blockers
+    service.purge_project(
+        admin,
+        harness.project_id,
+        ProjectPurgeCommand(
+            snapshot_fingerprint=plan.snapshot_fingerprint,
+            project_name=plan.project_name,
+            administrator_username=admin.username,
+            confirmation_phrase=plan.confirmation_phrase,
+        ),
+    )
+    assert not project_dir.exists()
+    with harness.runtime.engine.connect() as connection:
+        for table in (
+            "customer_deliveries",
+            "customer_delivery_clips",
+            "dual_profile_imports",
+            "assets",
+            "projects",
+        ):
+            count = connection.exec_driver_sql(f"SELECT count(*) FROM {table}").scalar_one()
+            assert count == 0, table

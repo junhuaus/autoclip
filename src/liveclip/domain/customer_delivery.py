@@ -97,10 +97,17 @@ def validate_customer_text_field(value: str, *, max_chars: int) -> str:
         raise CustomerDeliveryRuleError("customer text must be non-empty and trimmed")
     if len(value) > max_chars:
         raise CustomerDeliveryRuleError("customer text exceeds its length limit")
-    if any(ord(character) < 32 and character not in "\n\t" for character in value):
-        raise CustomerDeliveryRuleError("customer text contains a control character")
-    if "\x7f" in value:
-        raise CustomerDeliveryRuleError("customer text contains a control character")
+    for character in value:
+        category = unicodedata.category(character)
+        if category == "Cc" and character not in "\n\t":
+            raise CustomerDeliveryRuleError("customer text contains a control character")
+        if category in {"Cf", "Cs", "Co"}:
+            # Format characters include bidi overrides/isolates (U+202A-U+202E,
+            # U+2066-U+2069) and zero-width characters (U+200B-U+200D, U+2060,
+            # U+FEFF), which can disguise customer-visible text.
+            raise CustomerDeliveryRuleError(
+                "customer text contains an invisible or formatting character"
+            )
     return value
 
 
