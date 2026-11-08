@@ -434,7 +434,16 @@ def test_auto_selected_clips_with_reviewer_notes_need_an_explicit_keep(tmp_path:
         refused = harness.decide("short-one", "select", role="editor")
         assert refused.status_code == 409
         assert refused.json()["error"]["code"] == "CUSTOMER_TEXT_WARNING"
-        kept = harness.decide("short-one", "select", role="editor", acknowledge_warnings=True)
+        editor_keep = harness.decide(
+            "short-one", "select", role="editor", acknowledge_warnings=True
+        )
+        assert editor_keep.status_code == 403
+        assert editor_keep.json()["error"]["code"] == "PROJECT_ACTION_DENIED"
+        reviewer_keep = harness.decide(
+            "short-one", "select", role="reviewer", acknowledge_warnings=True
+        )
+        assert reviewer_keep.status_code == 403
+        kept = harness.decide("short-one", "select", role="owner", acknowledge_warnings=True)
         assert kept.status_code == 200, kept.text
         short = next(
             clip
@@ -480,7 +489,12 @@ def _flagged_harness(tmp_path: Path) -> Iterator[Harness]:
         data_dir=base / "projects",
         allowed_media_roots_raw=str(base / "media"),
         api_token=SecretStr(TOKENS["owner"]),
-        workspace_tokens_raw=json.dumps({"customer-delivery-editor": TOKENS["editor"]}),
+        workspace_tokens_raw=json.dumps(
+            {
+                "customer-delivery-editor": TOKENS["editor"],
+                "customer-delivery-reviewer": TOKENS["reviewer"],
+            }
+        ),
         ai_provider="mock",
         _env_file=None,
     )
@@ -501,15 +515,16 @@ def _flagged_harness(tmp_path: Path) -> Iterator[Harness]:
             json={"run_dir": str(fixture.run_dir), "transcript_path": str(fixture.transcript)},
         )
         project_id = created.json()["project_id"]
-        client.post(
-            f"/api/v1/projects/{project_id}/members",
-            headers=owner,
-            json={
-                "username": "customer-delivery-editor",
-                "display_name": "editor",
-                "role": "editor",
-            },
-        )
+        for role in ("editor", "reviewer"):
+            client.post(
+                f"/api/v1/projects/{project_id}/members",
+                headers=owner,
+                json={
+                    "username": f"customer-delivery-{role}",
+                    "display_name": role,
+                    "role": role,
+                },
+            )
         review = client.get(f"/api/v1/projects/{project_id}/dual-profile-import", headers=owner)
         clips = {
             clip["candidate_id"]: clip["import_clip_id"]

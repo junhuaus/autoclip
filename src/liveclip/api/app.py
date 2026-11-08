@@ -1074,6 +1074,16 @@ def create_app(
             action=decision_permission(action),
             allow_imported=True,
         )
+        if body.acknowledge_warnings and action is ClipDecisionAction.SELECT:
+            # Keeping flagged customer text is a review judgement (Stage 19e):
+            # the selecting user also needs review_clip.
+            _require_project_access(
+                active,
+                _caller(request),
+                project_id,
+                action="review_clip",
+                allow_imported=True,
+            )
         review = active.dual_profile_review_service.decide(
             project_id,
             import_clip_id,

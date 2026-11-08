@@ -125,3 +125,20 @@ def test_share_server_never_trusts_proxy_headers_and_disables_access_log(
     assert captured["proxy_headers"] is False
     assert captured["access_log"] is False
     assert (captured["host"], captured["port"]) == ("127.0.0.1", 8766)
+
+
+def test_console_preparation_refuses_bad_share_settings_with_one_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from scripts.prepare_runtime import main as prepare_main
+
+    monkeypatch.setenv("LIVECLIP_SHARE_HOST", "0.0.0.0")
+    monkeypatch.delenv("LIVECLIP_SHARE_ALLOW_LAN", raising=False)
+    monkeypatch.delenv("LIVECLIP_SHARE_BASE_URL", raising=False)
+
+    assert prepare_main() == 2
+    error = capsys.readouterr().err.strip()
+    assert error.startswith(
+        "LiveClip console refused to start: LIVECLIP_SHARE_HOST is not loopback"
+    )
+    assert "\n" not in error and "Traceback" not in error and "Value error" not in error

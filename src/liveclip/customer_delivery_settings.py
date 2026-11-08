@@ -28,7 +28,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -236,10 +236,21 @@ class ShareSettings(BaseSettings):
         return f"{self.public_base_url}/s/{token}"
 
 
+def share_settings_error_message(error: ValidationError) -> str:
+    """One clean line describing why ``LIVECLIP_SHARE_*`` settings were refused."""
+
+    messages = []
+    for item in error.errors():
+        message = str(item.get("msg", "invalid share setting"))
+        messages.append(message.removeprefix("Value error, "))
+    return "; ".join(messages) or "invalid LIVECLIP_SHARE_* settings"
+
+
 __all__ = [
     "LAN_NETWORKS",
     "DualProfileImportSettings",
     "ShareSettings",
     "ShareSettingsError",
     "is_lan_address",
+    "share_settings_error_message",
 ]

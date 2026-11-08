@@ -353,14 +353,18 @@ export function ImportedClipCard({
             <div className="dual-profile-text-warning is-strong" role="note" aria-label="选入交付文案提示">
               <strong>疑似审核备注，请改写</strong>
               <span>这条切片的客户文案仍含疑似审核备注。请先“批准”并改写文案，或明确保留原文后选入。</span>
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={busy}
-                onClick={() => void select({ action: "select", acknowledge_warnings: true })}
-              >
-                仍然保留原文并选入
-              </button>
+              {canReview ? (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => void select({ action: "select", acknowledge_warnings: true })}
+                >
+                  仍然保留原文并选入
+                </button>
+              ) : (
+                <span className="hint">需审核人批准后才能保留原文</span>
+              )}
             </div>
           ) : null}
           <h3 id={titleId}>

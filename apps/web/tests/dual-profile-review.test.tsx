@@ -533,3 +533,47 @@ it("asks to keep flagged text explicitly when selecting an automatically selecte
   );
   expect(within(card("短片原标题")).queryByRole("note", { name: "选入交付文案提示" })).not.toBeInTheDocument();
 });
+
+it("tells an editor without review rights that a reviewer must keep flagged text", async () => {
+  const bodies: DualProfileDecisionRequest[] = [];
+  const flaggedShort = {
+    ...dualProfileShortClip,
+    text_warnings: [
+      { field: "summary" as const, kind: "strong" as const, start: 0, end: 2, match: "疑为", message: "审核推测" },
+    ],
+  };
+  serveWorkspace(
+    { ...dualProfileProject, current_user_role: "editor", allowed_actions: ["read", "deliver"] },
+    [flaggedShort, dualProfileLessonClip],
+  );
+  server.use(
+    http.post(
+      "/api/v1/projects/dual-1/dual-profile-import/clips/clip-short/decisions",
+      async ({ request }) => {
+        bodies.push((await request.json()) as DualProfileDecisionRequest);
+        return HttpResponse.json(
+          {
+            error: {
+              schema_version: "1",
+              code: "CUSTOMER_TEXT_WARNING",
+              message: "customer text still contains reviewer-style notes",
+              retryable: false,
+              resource_id: null,
+              correlation_id: "c-4",
+              details: [{ location: ["summary", 0, 2], type: "customer_text_warning.strong" }],
+            },
+          },
+          { status: 409 },
+        );
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+  await screen.findByRole("heading", { name: "短片（1）" });
+  await user.click(within(card("短片原标题")).getByRole("checkbox", { name: "选入交付" }));
+  const note = await within(card("短片原标题")).findByRole("note", { name: "选入交付文案提示" });
+  expect(within(note).getByText("需审核人批准后才能保留原文")).toBeInTheDocument();
+  expect(within(note).queryByRole("button", { name: "仍然保留原文并选入" })).not.toBeInTheDocument();
+  expect(bodies).toEqual([{ action: "select" }]);
+});

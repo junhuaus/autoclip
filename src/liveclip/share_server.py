@@ -18,14 +18,16 @@ def main() -> int:
 
     from liveclip.api.share import create_share_app
     from liveclip.config import get_settings
-    from liveclip.customer_delivery_settings import ShareSettings
+    from liveclip.customer_delivery_settings import ShareSettings, share_settings_error_message
     from liveclip.observability import configure_logging
 
     try:
         sharing = ShareSettings()
     except ValidationError as exc:
-        messages = "; ".join(str(error.get("msg", "invalid setting")) for error in exc.errors())
-        print(f"LiveClip share server refused to start: {messages}", file=sys.stderr)
+        print(
+            f"LiveClip share server refused to start: {share_settings_error_message(exc)}",
+            file=sys.stderr,
+        )
         return 2
     settings = get_settings()
     configure_logging(settings.log_level)
