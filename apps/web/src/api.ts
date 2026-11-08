@@ -1,4 +1,12 @@
 import type {
+  CreatedShareLink,
+  ShareLinkSnapshot,
+  CustomerDeliveryCreateRequest,
+  CustomerDeliveryResponse,
+  DualProfileDecisionRequest,
+  DualProfileImportRequest,
+  DualProfileImportResponse,
+  DualProfileReviewResponse,
   CompletionPresetsResponse,
   CompletionPresetCreateRequest,
   CompletionGoalResponse,
@@ -465,6 +473,68 @@ export class LiveClipApiClient {
       method: "POST",
       body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
     });
+  }
+
+  createShareLink(
+    projectId: string,
+    deliveryId: string,
+    expiresInDays: number,
+  ): Promise<CreatedShareLink> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/customer-deliveries/${encodeURIComponent(deliveryId)}/share-links`,
+      { method: "POST", body: JSON.stringify({ expires_in_days: expiresInDays }) },
+    );
+  }
+
+  listShareLinks(projectId: string, deliveryId: string): Promise<ShareLinkSnapshot[]> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/customer-deliveries/${encodeURIComponent(deliveryId)}/share-links`,
+    );
+  }
+
+  revokeShareLink(projectId: string, linkId: string): Promise<ShareLinkSnapshot> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/share-links/${encodeURIComponent(linkId)}/revoke`,
+      { method: "POST" },
+    );
+  }
+
+  listCustomerDeliveries(projectId: string): Promise<CustomerDeliveryResponse[]> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/customer-deliveries`);
+  }
+
+  createCustomerDelivery(
+    projectId: string,
+    body: CustomerDeliveryCreateRequest,
+    requestKey: string,
+  ): Promise<CustomerDeliveryResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/customer-deliveries`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
+    });
+  }
+
+  importDualProfileRun(body: DualProfileImportRequest): Promise<DualProfileImportResponse> {
+    return this.request("/dual-profile-imports", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  getDualProfileReview(projectId: string): Promise<DualProfileReviewResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/dual-profile-import`);
+  }
+
+  decideDualProfileClip(
+    projectId: string,
+    importClipId: string,
+    body: DualProfileDecisionRequest,
+  ): Promise<DualProfileReviewResponse> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/dual-profile-import/clips/${encodeURIComponent(importClipId)}/decisions`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
   }
 
   createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {

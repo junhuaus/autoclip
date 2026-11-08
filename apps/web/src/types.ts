@@ -78,6 +78,8 @@ export interface ProjectSnapshot {
   project_id: string;
   name: string;
   source_filename: string;
+  /** "dual_profile_import" projects have no pipeline run (current_run_id is ""). */
+  source_kind?: "pipeline" | "dual_profile_import";
   status: ProjectStatus;
   current_run_id: string;
   generation: number;
@@ -1108,4 +1110,159 @@ export interface ApiErrorDetail {
 
 export interface ApiErrorEnvelope {
   error: ApiErrorDetail;
+}
+
+export type DualProfileClipProfile = "short_highlight" | "mini_lesson";
+export type DualProfileDecisionAction = "approve" | "reject" | "select" | "deselect";
+
+export interface DualProfileImportRequest {
+  run_dir: string;
+  transcript_path: string;
+  project_name?: string;
+}
+
+export interface DualProfileImportResponse {
+  project_id: string;
+  import_id: string;
+  snapshot: string;
+  clip_count: number;
+  created: boolean;
+}
+
+export interface DualProfileClipText {
+  title: string;
+  hook: string;
+  summary: string;
+}
+
+export interface DualProfileDecisionView {
+  sequence: number;
+  action: DualProfileDecisionAction;
+  title_override: string | null;
+  hook_override: string | null;
+  summary_override: string | null;
+  actor_username: string;
+  actor_display_name: string;
+  decided_at: string;
+  acknowledge_warnings: boolean;
+}
+
+export interface DualProfileTextWarning {
+  field: "title" | "hook" | "summary";
+  kind: "strong" | "narration";
+  start: number;
+  end: number;
+  match: string;
+  message: string;
+}
+
+export interface DualProfileReviewClip {
+  import_clip_id: string;
+  candidate_id: string;
+  profile: DualProfileClipProfile;
+  routed_status: "selected" | "manual_review";
+  review_state: "pending" | "approved" | "rejected";
+  variant_group_id: string;
+  start_ms: number;
+  end_ms: number;
+  duration_ms: number;
+  original: DualProfileClipText;
+  effective: DualProfileClipText;
+  has_override: boolean;
+  text_warnings: DualProfileTextWarning[];
+  score: number;
+  review_reason: string;
+  quality_flags: string[];
+  risk_tags: string[];
+  video_asset_id: string;
+  subtitle_asset_id: string;
+  deliverable: boolean;
+  selected_for_delivery: boolean;
+  decisions: DualProfileDecisionView[];
+}
+
+export interface DualProfileReviewGroup {
+  profile: DualProfileClipProfile;
+  label: "短片" | "小课";
+  clips: DualProfileReviewClip[];
+}
+
+export interface DualProfileReviewView {
+  schema_version: "1";
+  project_id: string;
+  import_id: string;
+  source_filename: string;
+  snapshot: string;
+  algorithm_version: string;
+  routing_policy_version: string;
+  clip_count: number;
+  imported_at: string;
+  imported_by: string;
+  deliverable_count: number;
+  selected_count: number;
+  text_limits: { title: number; hook: number; summary: number };
+  groups: DualProfileReviewGroup[];
+}
+
+export interface DualProfileReviewResponse {
+  review: DualProfileReviewView;
+  asset_urls: Record<string, string>;
+}
+
+export interface DualProfileDecisionRequest {
+  action: DualProfileDecisionAction;
+  title?: string;
+  hook?: string;
+  summary?: string;
+  acknowledge_warnings?: boolean;
+}
+
+export interface CustomerDeliverySnapshot {
+  delivery_id: string;
+  project_id: string;
+  task_id: string | null;
+  version: number;
+  delivery_version: string;
+  title: string;
+  status: "queued" | "creating" | "succeeded" | "failed";
+  clip_count: number;
+  short_count: number;
+  lesson_count: number;
+  created_by: string;
+  created_at: string;
+  completed_at: string | null;
+  zip_asset_id: string | null;
+  error_code: string | null;
+  safe_error_message: string | null;
+}
+
+export interface CustomerDeliveryResponse {
+  delivery: CustomerDeliverySnapshot;
+  download_url: string | null;
+}
+
+export interface CustomerDeliveryCreateRequest {
+  title: string;
+  expected_clip_ids?: string[];
+}
+
+export interface ShareLinkSnapshot {
+  link_id: string;
+  delivery_id: string;
+  project_id: string;
+  delivery_version: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  status: "active" | "expired" | "revoked";
+  view_count: number;
+  download_count: number;
+  last_accessed_at: string | null;
+}
+
+export interface CreatedShareLink {
+  link: ShareLinkSnapshot;
+  url: string;
 }

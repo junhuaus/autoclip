@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.expression import false
 
 from liveclip.db.base import Base, UTCDateTime, new_id, utc_now
 from liveclip.domain.completion import (
@@ -183,6 +184,7 @@ class AuthLoginAttemptRow(Base):
 
 class AuditEventRow(Base):
     __tablename__ = "audit_events"
+    __table_args__ = (Index("ix_audit_events_target", "target_type", "target_id"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     actor_user_id: Mapped[str | None] = mapped_column(
@@ -1538,3 +1540,273 @@ class IdempotencyRecordRow(Base):
     response_status_code: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+# Stage 19: customer delivery of imported dual-profile results. Imports, imported
+# clips, decisions and customer-delivery clips are immutable/append-only; the
+# migration adds BEFORE UPDATE triggers, and their foreign keys avoid SET NULL so
+# that no referential action ever updates them.
+_SHA256_SHAPE = "length({column}) = 64"
+
+
+class DualProfileImportRow(Base):
+    __tablename__ = "dual_profile_imports"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="dual_profile_import_project"),
+        UniqueConstraint(
+            "imported_by", "snapshot_fingerprint", name="dual_profile_import_actor_snapshot"
+        ),
+        CheckConstraint("schema_version = '1'", name="dual_profile_import_schema_v1"),
+        CheckConstraint(
+            "algorithm_version = 'dual-profile-direct-v1'",
+            name="dual_profile_import_algorithm",
+        ),
+        CheckConstraint(
+            "routing_policy_version = 'quality-gate-risk-routing-v9'",
+            name="dual_profile_import_routing",
+        ),
+        CheckConstraint("source_hash = transcript_sha256", name="dual_profile_import_source"),
+        CheckConstraint("clip_count > 0", name="dual_profile_import_clip_count"),
+        CheckConstraint(
+            " AND ".join(
+                _SHA256_SHAPE.format(column=column)
+                for column in (
+                    "source_hash",
+                    "transcript_sha256",
+                    "final_result_sha256",
+                    "run_manifest_sha256",
+                    "render_manifest_sha256",
+                    "snapshot_fingerprint",
+                )
+            ),
+            name="dual_profile_import_hash_shape",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    schema_version: Mapped[str] = mapped_column(String(8), nullable=False, default="1")
+    source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    transcript_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    final_result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    render_manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    routing_policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    snapshot_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    prompt_hashes_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    clip_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    imported_by: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class DualProfileImportClipRow(Base):
+    __tablename__ = "dual_profile_import_clips"
+    __table_args__ = (
+        UniqueConstraint("import_id", "candidate_id", name="dual_profile_import_candidate"),
+        UniqueConstraint("video_asset_id", name="dual_profile_import_clip_video"),
+        UniqueConstraint("subtitle_asset_id", name="dual_profile_import_clip_subtitle"),
+        CheckConstraint(
+            "profile IN ('short_highlight', 'mini_lesson')",
+            name="dual_profile_import_clip_profile",
+        ),
+        CheckConstraint(
+            "routed_status IN ('selected', 'manual_review')",
+            name="dual_profile_import_clip_status",
+        ),
+        CheckConstraint("start_ms >= 0", name="dual_profile_import_clip_start"),
+        CheckConstraint(
+            "end_ms > start_ms AND duration_ms = end_ms - start_ms",
+            name="dual_profile_import_clip_interval",
+        ),
+        CheckConstraint(
+            "end_cue_id >= start_cue_id AND start_cue_id >= 1",
+            name="dual_profile_import_clip_cues",
+        ),
+        CheckConstraint("score >= 0 AND score <= 100", name="dual_profile_import_clip_score"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    import_id: Mapped[str] = mapped_column(
+        ForeignKey("dual_profile_imports.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    candidate_id: Mapped[str] = mapped_column(String(96), nullable=False)
+    profile: Mapped[str] = mapped_column(String(32), nullable=False)
+    routed_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    variant_group_id: Mapped[str] = mapped_column(String(96), nullable=False, default="")
+    start_cue_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_cue_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    end_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    hook: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    review_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    quality_flags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    risk_tags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    video_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), nullable=False)
+    subtitle_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+
+
+class DualProfileClipDecisionRow(Base):
+    __tablename__ = "dual_profile_clip_decisions"
+    __table_args__ = (
+        UniqueConstraint("import_clip_id", "sequence", name="dual_profile_decision_sequence"),
+        CheckConstraint("sequence > 0", name="dual_profile_decision_sequence_positive"),
+        CheckConstraint(
+            "action IN ('approve', 'reject', 'select', 'deselect')",
+            name="dual_profile_decision_action",
+        ),
+        CheckConstraint(
+            "action = 'approve' OR (title_override IS NULL AND hook_override IS NULL "
+            "AND summary_override IS NULL)",
+            name="dual_profile_decision_override_on_approve",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    import_clip_id: Mapped[str] = mapped_column(
+        ForeignKey("dual_profile_import_clips.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    title_override: Mapped[str | None] = mapped_column(String(200))
+    hook_override: Mapped[str | None] = mapped_column(Text)
+    summary_override: Mapped[str | None] = mapped_column(Text)
+    actor_user_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    decided_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    acknowledge_warnings: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+
+
+class CustomerDeliveryRow(Base):
+    __tablename__ = "customer_deliveries"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version", name="customer_delivery_version"),
+        CheckConstraint("version > 0", name="customer_delivery_version_positive"),
+        CheckConstraint(
+            f"status IN ({_enum_sql(DeliveryStatus)})", name="customer_delivery_status"
+        ),
+        CheckConstraint(
+            "length(snapshot_fingerprint) = 64", name="customer_delivery_fingerprint_shape"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_id: Mapped[str] = mapped_column(
+        ForeignKey("dual_profile_imports.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), unique=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=DeliveryStatus.QUEUED.value, index=True
+    )
+    snapshot_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    directory_relative_path: Mapped[str | None] = mapped_column(String(500))
+    manifest_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    zip_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="SET NULL"), unique=True
+    )
+    created_by: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    safe_error_message: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class CustomerDeliveryClipRow(Base):
+    __tablename__ = "customer_delivery_clips"
+    __table_args__ = (
+        UniqueConstraint("delivery_id", "ordinal", name="customer_delivery_clip_ordinal"),
+        UniqueConstraint("delivery_id", "import_clip_id", name="customer_delivery_clip_source"),
+        CheckConstraint("ordinal > 0", name="customer_delivery_clip_ordinal_positive"),
+        CheckConstraint(
+            "profile IN ('short_highlight', 'mini_lesson')",
+            name="customer_delivery_clip_profile",
+        ),
+        CheckConstraint("duration_ms > 0", name="customer_delivery_clip_duration"),
+        CheckConstraint(
+            "length(video_sha256) = 64 AND length(subtitle_sha256) = 64",
+            name="customer_delivery_clip_hash_shape",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    delivery_id: Mapped[str] = mapped_column(
+        ForeignKey("customer_deliveries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    import_clip_id: Mapped[str] = mapped_column(
+        ForeignKey("dual_profile_import_clips.id"), nullable=False, index=True
+    )
+    approval_decision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("dual_profile_clip_decisions.id")
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    profile: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    hook: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    video_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), nullable=False)
+    subtitle_asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), nullable=False)
+    video_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    subtitle_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class CustomerShareLinkRow(Base):
+    __tablename__ = "customer_share_links"
+    __table_args__ = (
+        UniqueConstraint("token_sha256", name="customer_share_link_token"),
+        CheckConstraint("length(token_sha256) = 64", name="customer_share_link_token_shape"),
+        CheckConstraint("expires_at > created_at", name="customer_share_link_expiry"),
+        CheckConstraint(
+            "(revoked_at IS NULL AND revoked_by IS NULL) OR "
+            "(revoked_at IS NOT NULL AND revoked_by IS NOT NULL)",
+            name="customer_share_link_revocation",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    delivery_id: Mapped[str] = mapped_column(
+        ForeignKey("customer_deliveries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    revoked_by: Mapped[str | None] = mapped_column(
+        ForeignKey("workspace_users.id", ondelete="RESTRICT")
+    )

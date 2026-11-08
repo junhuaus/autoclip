@@ -18,7 +18,12 @@ from liveclip.application.completion_preset_contract import (
     CompletionPresetId,
     CompletionPresetSummary,
 )
+from liveclip.application.customer_deliveries import (
+    CustomerDeliverySnapshot,
+    validate_delivery_title,
+)
 from liveclip.application.deliveries import DeliverySnapshot
+from liveclip.application.dual_profile_review import DualProfileReviewView
 from liveclip.application.edit_packages import (
     EditPackageItem,
     EditPackageRequest,
@@ -704,3 +709,73 @@ class ApiErrorEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     error: ApiErrorDetail
+
+
+class DualProfileImportRequest(ApiRequestModel):
+    """Server-local run directory and transcript of a finished dual-profile run."""
+
+    run_dir: str = Field(min_length=1, max_length=4_096)
+    transcript_path: str = Field(min_length=1, max_length=4_096)
+    project_name: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_paths(self) -> DualProfileImportRequest:
+        if "\x00" in self.run_dir or "\x00" in self.transcript_path:
+            raise ValueError("paths must not contain NUL")
+        return self
+
+
+class DualProfileImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    project_id: str
+    import_id: str
+    snapshot: str
+    clip_count: int
+    created: bool
+
+
+class DualProfileDecisionRequest(ApiRequestModel):
+    action: Literal["approve", "reject", "select", "deselect"]
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    hook: str | None = Field(default=None, min_length=1, max_length=600)
+    summary: str | None = Field(default=None, min_length=1, max_length=1_200)
+    acknowledge_warnings: bool = False
+
+    @model_validator(mode="after")
+    def validate_overrides(self) -> DualProfileDecisionRequest:
+        if self.action != "approve" and any(
+            value is not None for value in (self.title, self.hook, self.summary)
+        ):
+            raise ValueError("only an approval may override customer text")
+        if self.acknowledge_warnings and self.action not in {"approve", "select"}:
+            raise ValueError("only an approval or a selection may acknowledge warnings")
+        return self
+
+
+class DualProfileReviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    review: DualProfileReviewView
+    asset_urls: dict[str, str]
+
+
+class CustomerDeliveryCreateRequest(ApiRequestModel):
+    title: str = Field(min_length=1, max_length=200)
+    expected_clip_ids: tuple[str, ...] = Field(max_length=500)
+
+    @model_validator(mode="after")
+    def validate_title(self) -> CustomerDeliveryCreateRequest:
+        validate_delivery_title(self.title)
+        return self
+
+
+class CustomerDeliveryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    delivery: CustomerDeliverySnapshot
+    download_url: str | None
+
+
+class ShareLinkCreateRequest(ApiRequestModel):
+    expires_in_days: int = Field(default=7, ge=1, le=30)

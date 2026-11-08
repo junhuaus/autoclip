@@ -18,8 +18,12 @@ from liveclip.application.clips import ClipQueryService
 from liveclip.application.comments import ClipCommentService
 from liveclip.application.completion_runner import CompletionRunner
 from liveclip.application.completion_service import CompletionService
+from liveclip.application.customer_deliveries import CustomerDeliveryService
+from liveclip.application.customer_share_links import ShareLinkService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
+from liveclip.application.dual_profile_imports import DualProfileImportService
+from liveclip.application.dual_profile_review import DualProfileReviewService
 from liveclip.application.edit_packages import EditPackageService
 from liveclip.application.governance import ProjectGovernanceService
 from liveclip.application.identity import AuthenticationService, UserAdministrationService
@@ -62,11 +66,15 @@ from liveclip.clipping_skills.semantic_windowed_v2 import (
     load_semantic_windowed_v2_discovery_prompt,
 )
 from liveclip.config import Settings
+from liveclip.customer_delivery_settings import DualProfileImportSettings, ShareSettings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.comment_repository import SqlAlchemyClipCommentRepository
 from liveclip.db.completion_repository import SqlAlchemyCompletionRepository
+from liveclip.db.customer_delivery_repository import SqlAlchemyCustomerDeliveryRepository
+from liveclip.db.customer_share_link_repository import SqlAlchemyShareLinkRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
+from liveclip.db.dual_profile_repository import SqlAlchemyDualProfileImportRepository
 from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.governance_repository import SqlAlchemyProjectGovernanceRepository
@@ -86,6 +94,7 @@ from liveclip.db.storage_repository import (
 )
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.db.workspace_repository import SqlAlchemyWorkspaceRepository
+from liveclip.delivery.customer_delivery_task_handler import CustomerDeliveryTaskHandler
 from liveclip.delivery.edit_package_task_handler import EditPackageTaskHandler
 from liveclip.delivery.release_package_task_handler import ReleasePackageTaskHandler
 from liveclip.delivery.task_handler import DeliveryTaskHandler
@@ -154,6 +163,9 @@ class LiveClipRuntime:
     user_administration_service: UserAdministrationService
     project_governance_service: ProjectGovernanceService
     storage_administration_service: StorageAdministrationService
+    dual_profile_review_service: DualProfileReviewService
+    customer_delivery_service: CustomerDeliveryService
+    share_link_service: ShareLinkService
 
     @classmethod
     def open(
@@ -161,6 +173,8 @@ class LiveClipRuntime:
         settings: Settings,
         *,
         project_root: Path | None = None,
+        dual_profile_settings: DualProfileImportSettings | None = None,
+        share_settings: ShareSettings | None = None,
     ) -> LiveClipRuntime:
         configure_logging(settings.log_level)
         data_dir = settings.resolved_data_dir(project_root or Path.cwd())
@@ -304,6 +318,7 @@ class LiveClipRuntime:
                 release_repository,
                 max_retries=settings.max_stage_retries,
             )
+            customer_delivery_repository = SqlAlchemyCustomerDeliveryRepository(engine)
             delivery_runner = DeliveryTaskRunner(
                 queue=queue,
                 repository=delivery_repository,
@@ -321,6 +336,19 @@ class LiveClipRuntime:
                     assets=asset_store,
                     publication_fence=release_repository.assert_release_package_current,
                 ),
+                customer_delivery_repository=customer_delivery_repository,
+                customer_delivery_handler=CustomerDeliveryTaskHandler(
+                    data_dir=data_dir,
+                    publication_fence=customer_delivery_repository.assert_customer_delivery_current,
+                ),
+            )
+            share_link_service = ShareLinkService(
+                SqlAlchemyShareLinkRepository(engine),
+                share_url=(share_settings or ShareSettings()).share_url,
+            )
+            customer_delivery_service = CustomerDeliveryService(
+                customer_delivery_repository,
+                max_retries=settings.max_stage_retries,
             )
             completion_repository = SqlAlchemyCompletionRepository(
                 engine,
@@ -347,6 +375,21 @@ class LiveClipRuntime:
             )
             storage_administration_service = StorageAdministrationService(
                 SqlAlchemyStorageAdministrationRepository(engine, data_dir=data_dir)
+            )
+            dual_profile_root = (project_root or _installed_project_root()).resolve()
+            dual_profile_config = dual_profile_settings or DualProfileImportSettings()
+            dual_profile_repository = SqlAlchemyDualProfileImportRepository(engine)
+            dual_profile_review_service = DualProfileReviewService(
+                dual_profile_repository,
+                DualProfileImportService(
+                    dual_profile_repository,
+                    data_dir=data_dir,
+                    allowed_run_roots=dual_profile_config.import_roots(dual_profile_root),
+                    allowed_transcript_roots=dual_profile_config.transcript_roots(
+                        dual_profile_root
+                    ),
+                    relative_path_base=dual_profile_root,
+                ),
             )
             return cls(
                 settings=settings,
@@ -378,6 +421,9 @@ class LiveClipRuntime:
                 user_administration_service=user_administration_service,
                 project_governance_service=project_governance_service,
                 storage_administration_service=storage_administration_service,
+                dual_profile_review_service=dual_profile_review_service,
+                customer_delivery_service=customer_delivery_service,
+                share_link_service=share_link_service,
             )
         except Exception:
             engine.dispose(close=True)

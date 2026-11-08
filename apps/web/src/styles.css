@@ -2745,3 +2745,188 @@ summary {
     flex-direction: column;
   }
 }
+
+/* Stage 19b: imported dual-profile review */
+.dual-profile-group {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.dual-profile-group > h3 {
+  margin: 0;
+}
+
+.dual-profile-override-tag {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 0.72rem;
+  vertical-align: middle;
+}
+
+.dual-profile-summary {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dual-profile-approval-form {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--surface-soft);
+}
+
+.dual-profile-approval-form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.dual-profile-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dual-profile-history summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.dual-profile-history ol {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.dual-profile-select-hint {
+  margin: 0;
+}
+
+/* Stage 19c: customer delivery panel */
+.customer-delivery-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.customer-delivery-form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.customer-delivery-preview ol {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}
+
+/* Stage 19d: customer-text warnings */
+.dual-profile-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dual-profile-text-warning {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--warning);
+  border-radius: calc(var(--radius) / 3);
+  background: rgba(242, 202, 107, 0.12);
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
+.dual-profile-text-warning.is-narration {
+  border-style: dashed;
+  background: transparent;
+}
+
+.dual-profile-text-warning ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.dual-profile-warning-text {
+  color: inherit;
+  white-space: pre-wrap;
+}
+
+.dual-profile-warning-text mark {
+  background: var(--warning);
+  color: #1b1b1b;
+  border-radius: 3px;
+  padding: 0 0.15rem;
+}
+
+.dual-profile-warning-badge {
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.8rem;
+}
+
+.dual-profile-keep-original {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--warning);
+  font-size: 0.82rem;
+}
+
+/* Stage 19d: share links */
+.share-links {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.5rem;
+}
+
+.share-link-create,
+.share-link-created {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.share-link-created label {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.share-link-created .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.share-lan-warning {
+  color: var(--warning);
+}
+
+.share-link-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-link-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}

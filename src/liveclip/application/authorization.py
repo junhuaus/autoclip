@@ -89,3 +89,21 @@ def project_actions(role: WorkspaceRole, *, archived: bool = False) -> tuple[Pro
         for action in PROJECT_ACTION_ORDER
         if action in _ALLOWED[role] and (not archived or action in {"read", "manage_project"})
     )
+
+
+# Stage 19: an imported dual-profile project has no pipeline run, candidates,
+# renders or legacy deliveries. Only these actions apply to it; every
+# pipeline-oriented action is refused server-side (HTTP 409).
+IMPORTED_PROJECT_ACTIONS: frozenset[ProjectAction] = frozenset(
+    {"read", "manage_members", "manage_project", "review_clip", "deliver"}
+)
+
+
+def imported_project_actions(
+    role: WorkspaceRole, *, archived: bool = False
+) -> tuple[ProjectAction, ...]:
+    return tuple(
+        action
+        for action in project_actions(role, archived=archived)
+        if action in IMPORTED_PROJECT_ACTIONS
+    )

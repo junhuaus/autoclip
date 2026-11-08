@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy import case, func, insert, or_, select, update
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
-from liveclip.application.authorization import project_actions
+from liveclip.application.authorization import imported_project_actions, project_actions
 from liveclip.application.idempotency import IdempotencyContext
 from liveclip.application.pipeline import (
     CreatedPipeline,
@@ -42,6 +42,7 @@ from liveclip.db.models import (
     AuditEventRow,
     CandidateClipRow,
     DeliveryRow,
+    DualProfileImportRow,
     EditPlanRevisionRow,
     PipelineRunRow,
     ProjectMemberRow,
@@ -71,6 +72,7 @@ from liveclip.domain.state_transitions import (
     PipelineRunStatus,
     PipelineStage,
     ProjectStateFacts,
+    ProjectStatus,
     RenderStatus,
     ResourceClass,
     ReviewStatus,
@@ -268,6 +270,17 @@ class SqlAlchemyPipelineRepository:
             ).one_or_none()
             if project is None:
                 raise PipelineResourceNotFound("project does not exist")
+            if (
+                connection.scalar(
+                    select(DualProfileImportRow.id).where(
+                        DualProfileImportRow.project_id == project_id
+                    )
+                )
+                is not None
+            ):
+                raise PipelineConflict(
+                    "imported dual-profile projects do not support this pipeline action"
+                )
             if str(project.lifecycle) == ProjectLifecycle.ARCHIVED.value:
                 raise PipelineConflict("archived project must be restored before processing")
             current_run_id = project.current_pipeline_run_id
@@ -536,8 +549,20 @@ class SqlAlchemyPipelineRepository:
                 .mappings()
                 .one_or_none()
             )
-            if project is None or project["current_pipeline_run_id"] is None:
+            if project is None:
                 raise PipelineResourceNotFound("project does not exist")
+            imported_source_filename: str | None = None
+            if project["current_pipeline_run_id"] is None:
+                # Stage 19: an imported dual-profile result is a project without a
+                # pipeline run; any other run-less project stays invisible.
+                imported = connection.scalar(
+                    select(DualProfileImportRow.source_filename).where(
+                        DualProfileImportRow.project_id == project_id
+                    )
+                )
+                if imported is None:
+                    raise PipelineResourceNotFound("project does not exist")
+                imported_source_filename = str(imported)
             members = tuple(
                 connection.execute(
                     select(
@@ -584,6 +609,15 @@ class SqlAlchemyPipelineRepository:
             )
             if owner_member is None:
                 raise PipelineResourceNotFound("project owner membership does not exist")
+            if imported_source_filename is not None:
+                return _imported_project_snapshot(
+                    project,
+                    members=members,
+                    owner_member=owner_member,
+                    current_member=current_member,
+                    user_id=user_id,
+                    source_filename=imported_source_filename,
+                )
             run_id = str(project["current_pipeline_run_id"])
             run_facts = connection.execute(
                 select(
@@ -2136,6 +2170,71 @@ def _checkpoint_count(checkpoint: dict[str, object], key: str, *, allow_zero: bo
     ):
         raise PipelineConflict(f"stage checkpoint {key} is invalid")
     return value
+
+
+def _imported_project_snapshot(
+    project: RowMapping,
+    *,
+    members: tuple[RowMapping, ...],
+    owner_member: RowMapping,
+    current_member: RowMapping | None,
+    user_id: str | None,
+    source_filename: str,
+) -> ProjectSnapshot:
+    """Snapshot of an imported dual-profile project, which has no pipeline run.
+
+    ``current_run_id`` is the empty string and ``generation`` is 0: there is no
+    run or generation, and no identifier is invented for one.
+    """
+
+    current_role = (
+        str(current_member["role"])
+        if current_member is not None
+        else "owner"
+        if user_id is None
+        else "viewer"
+    )
+    if current_role not in {"owner", "editor", "reviewer", "viewer"}:
+        raise PipelineResourceNotFound("project membership role is invalid")
+    lifecycle = ProjectLifecycle(str(project["lifecycle"]))
+    restore_lifecycle = (
+        ProjectLifecycle(str(project["lifecycle_before_archive"]))
+        if project["lifecycle_before_archive"] is not None
+        else None
+    )
+    assignee_member = next(
+        (member for member in members if str(member["id"]) == str(project["assignee_user_id"])),
+        None,
+    )
+    return ProjectSnapshot(
+        project_id=str(project["id"]),
+        name=str(project["name"]),
+        source_filename=source_filename,
+        source_kind="dual_profile_import",
+        status=ProjectStatus.PENDING_REVIEW,
+        current_run_id="",
+        generation=int(project["current_generation"]),
+        visibility=str(project["visibility"]),  # type: ignore[arg-type]
+        lifecycle=lifecycle,
+        lifecycle_before_archive=restore_lifecycle,
+        management_version=int(project["management_version"]),
+        assignee=(_workspace_member(assignee_member) if assignee_member is not None else None),
+        priority=ProjectPriority(str(project["priority"])),
+        due_at=project["due_at"],
+        updated_at=project["updated_at"],
+        owner=_workspace_member(owner_member),
+        members=tuple(_workspace_member(member) for member in members),
+        current_user_role=current_role,  # type: ignore[arg-type]
+        allowed_actions=imported_project_actions(
+            current_role,  # type: ignore[arg-type]
+            archived=lifecycle is ProjectLifecycle.ARCHIVED,
+        ),
+        allowed_lifecycle_transitions=(
+            allowed_project_lifecycle_transitions(lifecycle, restore_target=restore_lifecycle)
+            if current_role == "owner"
+            else ()
+        ),
+    )
 
 
 def _default_workspace_user_id(connection: Connection) -> str:

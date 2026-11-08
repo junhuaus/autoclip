@@ -713,9 +713,12 @@ class ProjectSnapshot(BaseModel):
     project_id: str
     name: str
     source_filename: str
+    # Stage 19: "dual_profile_import" projects have no pipeline run; their
+    # current_run_id is "" and generation is 0 (nothing is invented).
+    source_kind: Literal["pipeline", "dual_profile_import"] = "pipeline"
     status: ProjectStatus
     current_run_id: str
-    generation: int = Field(ge=1)
+    generation: int = Field(ge=0)
     visibility: Literal["private", "workspace"] = "private"
     lifecycle: ProjectLifecycle = ProjectLifecycle.PROCESSING
     lifecycle_before_archive: ProjectLifecycle | None = None
@@ -729,6 +732,15 @@ class ProjectSnapshot(BaseModel):
     current_user_role: Literal["owner", "editor", "reviewer", "viewer"]
     allowed_actions: tuple[ProjectAction, ...] = ()
     allowed_lifecycle_transitions: tuple[ProjectLifecycle, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_source_kind(self) -> ProjectSnapshot:
+        if self.source_kind == "pipeline":
+            if not self.current_run_id or self.generation < 1:
+                raise ValueError("a pipeline project needs a current run and generation >= 1")
+        elif self.current_run_id != "" or self.generation != 0:
+            raise ValueError("an imported dual-profile project has no run and generation 0")
+        return self
 
 
 class LeaseIdentity(BaseModel):

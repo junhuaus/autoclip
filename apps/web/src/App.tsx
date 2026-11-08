@@ -4,6 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { AdminUsers } from "./AdminUsers";
 import { CompletionCreate } from "./CompletionCreate";
 import { CompletionWatch } from "./CompletionWatch";
+import { DualProfileImportDialog } from "./DualProfileReview";
 import { AdminStorage } from "./AdminStorage";
 import { AdminGovernance } from "./AdminGovernance";
 import { LiveClipApiClient, createIdempotencyKey, errorMessage } from "./api";
@@ -147,6 +148,7 @@ export function App() {
   const [authVersion, setAuthVersion] = useState(0);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showDualImport, setShowDualImport] = useState(false);
   const [completionCreateBusy, setCompletionCreateBusy] = useState(false);
   const [confirmedGoal, setConfirmedGoal] = useState<{ id: string; api: LiveClipApiClient } | null>(null);
   const [clippingAlgorithm, setClippingAlgorithm] = useState<
@@ -415,6 +417,9 @@ export function App() {
           <button type="button" className="button button-primary" onClick={() => setShowCreate(true)}>
             ＋ 新建项目
           </button>
+          <button type="button" className="button button-secondary" onClick={() => setShowDualImport(true)}>
+            导入双轨结果
+          </button>
           <button
             type="button"
             className="user-menu"
@@ -560,6 +565,19 @@ export function App() {
       )}
 
       <CompletionWatch key={authVersion} api={api} intentId={confirmedGoal?.api === api ? confirmedGoal.id : undefined} />
+
+      {showDualImport ? (
+        <DualProfileImportDialog
+          api={api}
+          onClose={() => setShowDualImport(false)}
+          onImported={(projectId) => {
+            setShowDualImport(false);
+            setActiveView("projects");
+            setSelectedProjectId(projectId);
+            void queryClient.invalidateQueries({ queryKey: ["project-search"] });
+          }}
+        />
+      ) : null}
 
       {showCreate ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !completionCreateBusy) setShowCreate(false); }}>

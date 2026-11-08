@@ -47,8 +47,14 @@ from liveclip.api.schemas import (
     CompletionPresetCreateRequest,
     CompletionPresetsResponse,
     CompletionVersionCommandRequest,
+    CustomerDeliveryCreateRequest,
+    CustomerDeliveryResponse,
     DeliveryCreateRequest,
     DeliveryDetailResponse,
+    DualProfileDecisionRequest,
+    DualProfileImportRequest,
+    DualProfileImportResponse,
+    DualProfileReviewResponse,
     EditPackageCreateRequest,
     EditPackageDetailResponse,
     HealthResponse,
@@ -78,9 +84,11 @@ from liveclip.api.schemas import (
     SavedProjectViewsResponse,
     SavedProjectViewUpdateRequest,
     SessionResponse,
+    ShareLinkCreateRequest,
 )
 from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
 from liveclip.application.authorization import (
+    IMPORTED_PROJECT_ACTIONS,
     ProjectAction,
     ProjectActionDenied,
     require_project_action,
@@ -100,10 +108,30 @@ from liveclip.application.completion_presets import (
     list_completion_presets,
     resolve_completion_preset,
 )
+from liveclip.application.customer_deliveries import (
+    CUSTOMER_DELIVERY_ZIP_KIND,
+    CustomerDeliveryConflict,
+    CustomerDeliveryCreate,
+    CustomerDeliverySnapshot,
+)
+from liveclip.application.customer_share_links import (
+    CreatedShareLink,
+    ShareLinkConflict,
+    ShareLinkSnapshot,
+)
 from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
     DeliverySnapshot,
+)
+from liveclip.application.dual_profile_imports import (
+    DualProfileDecisionConflict,
+    DualProfileImportError,
+)
+from liveclip.application.dual_profile_review import (
+    CustomerTextWarningConflict,
+    DualProfileReviewView,
+    decision_permission,
 )
 from liveclip.application.edit_packages import (
     EditPackageConflict,
@@ -171,6 +199,8 @@ from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
 from liveclip.db.workspace_repository import WorkspaceConflict, WorkspacePermissionDenied
+from liveclip.delivery.customer_package import customer_download_filename
+from liveclip.domain.customer_delivery import ClipDecisionAction, CustomerDeliveryRuleError
 from liveclip.domain.project_lifecycle import (
     ProjectLifecycle,
     ProjectLifecycleConflict,
@@ -988,6 +1018,175 @@ def create_app(
         workspace_user = active.workspace_service.get_user_by_username(_caller(request).username)
         return active.pipeline_service.get_project(project_id, user_id=workspace_user.user_id)
 
+    @protected.post(
+        "/dual-profile-imports",
+        response_model=DualProfileImportResponse,
+    )
+    def import_dual_profile_run(
+        body: DualProfileImportRequest,
+        response: Response,
+        request: Request,
+    ) -> DualProfileImportResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        result = active.dual_profile_review_service.import_run(
+            acting_user_id=actor.user_id,
+            run_dir=Path(body.run_dir),
+            transcript_path=Path(body.transcript_path),
+            project_name=body.project_name,
+        )
+        response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
+        return DualProfileImportResponse(
+            project_id=result.project_id,
+            import_id=result.import_id,
+            snapshot=result.snapshot_fingerprint[:20],
+            clip_count=result.clip_count,
+            created=result.created,
+        )
+
+    @protected.get(
+        "/projects/{project_id}/dual-profile-import",
+        response_model=DualProfileReviewResponse,
+    )
+    def get_dual_profile_review(project_id: str, request: Request) -> DualProfileReviewResponse:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return _dual_profile_review_response(
+            security, active.dual_profile_review_service.get_review(project_id)
+        )
+
+    @protected.post(
+        "/projects/{project_id}/dual-profile-import/clips/{import_clip_id}/decisions",
+        response_model=DualProfileReviewResponse,
+    )
+    def decide_dual_profile_clip(
+        project_id: str,
+        import_clip_id: str,
+        body: DualProfileDecisionRequest,
+        request: Request,
+    ) -> DualProfileReviewResponse:
+        active = _runtime(request)
+        action = ClipDecisionAction(body.action)
+        actor = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action=decision_permission(action),
+            allow_imported=True,
+        )
+        if body.acknowledge_warnings and action is ClipDecisionAction.SELECT:
+            # Keeping flagged customer text is a review judgement (Stage 19e):
+            # the selecting user also needs review_clip.
+            _require_project_access(
+                active,
+                _caller(request),
+                project_id,
+                action="review_clip",
+                allow_imported=True,
+            )
+        review = active.dual_profile_review_service.decide(
+            project_id,
+            import_clip_id,
+            acting_user_id=actor.user_id,
+            action=action,
+            title_override=body.title,
+            hook_override=body.hook,
+            summary_override=body.summary,
+            acknowledge_warnings=body.acknowledge_warnings,
+        )
+        return _dual_profile_review_response(security, review)
+
+    @protected.post(
+        "/projects/{project_id}/customer-deliveries",
+        status_code=status.HTTP_202_ACCEPTED,
+        response_model=CustomerDeliveryResponse,
+    )
+    def create_customer_delivery(
+        project_id: str,
+        body: CustomerDeliveryCreateRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> CustomerDeliveryResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _require_project_access(
+            active, caller, project_id, action="deliver", allow_imported=True
+        )
+        delivery = active.customer_delivery_service.create(
+            project_id,
+            acting_user_id=actor.user_id,
+            request=CustomerDeliveryCreate(
+                title=body.title, expected_clip_ids=body.expected_clip_ids
+            ),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/projects/:project_id/customer-deliveries",
+                payload={"project_id": project_id, **body.model_dump(mode="json")},
+            ),
+        )
+        return _customer_delivery_response(security, delivery)
+
+    @protected.post(
+        "/projects/{project_id}/customer-deliveries/{delivery_id}/share-links",
+        status_code=status.HTTP_201_CREATED,
+        response_model=CreatedShareLink,
+    )
+    def create_share_link(
+        project_id: str,
+        delivery_id: str,
+        body: ShareLinkCreateRequest,
+        request: Request,
+    ) -> CreatedShareLink:
+        active = _runtime(request)
+        actor = _require_project_access(
+            active, _caller(request), project_id, action="deliver", allow_imported=True
+        )
+        return active.share_link_service.create(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            acting_user_id=actor.user_id,
+            expires_in_days=body.expires_in_days,
+        )
+
+    @protected.get(
+        "/projects/{project_id}/customer-deliveries/{delivery_id}/share-links",
+        response_model=list[ShareLinkSnapshot],
+    )
+    def list_share_links(
+        project_id: str, delivery_id: str, request: Request
+    ) -> list[ShareLinkSnapshot]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return list(active.share_link_service.list(project_id=project_id, delivery_id=delivery_id))
+
+    @protected.post(
+        "/projects/{project_id}/share-links/{link_id}/revoke",
+        response_model=ShareLinkSnapshot,
+    )
+    def revoke_share_link(project_id: str, link_id: str, request: Request) -> ShareLinkSnapshot:
+        active = _runtime(request)
+        actor = _require_project_access(
+            active, _caller(request), project_id, action="deliver", allow_imported=True
+        )
+        return active.share_link_service.revoke(
+            project_id=project_id, link_id=link_id, acting_user_id=actor.user_id
+        )
+
+    @protected.get(
+        "/projects/{project_id}/customer-deliveries",
+        response_model=list[CustomerDeliveryResponse],
+    )
+    def list_customer_deliveries(
+        project_id: str, request: Request
+    ) -> list[CustomerDeliveryResponse]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return [
+            _customer_delivery_response(security, item)
+            for item in active.customer_delivery_service.list(project_id)
+        ]
+
     @protected.get(
         "/projects/{project_id}/members",
         response_model=ProjectMembersResponse,
@@ -1015,6 +1214,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         active.workspace_service.add_project_member(
             project_id=project_id,
@@ -1044,6 +1244,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         active.workspace_service.remove_project_member(
             project_id=project_id,
@@ -1071,6 +1272,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_members",
+            allow_imported=True,
         )
         members = active.workspace_service.transfer_project_ownership(
             project_id=project_id,
@@ -1095,6 +1297,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_project",
+            allow_imported=True,
         )
         active.project_management_service.update_management(
             project_id=project_id,
@@ -1119,6 +1322,7 @@ def create_app(
             _caller(request),
             project_id,
             action="manage_project",
+            allow_imported=True,
         )
         active.project_management_service.transition_lifecycle(
             project_id=project_id,
@@ -1764,6 +1968,10 @@ def create_app(
     ) -> ReleaseItemSnapshot:
         active = _runtime(request)
         caller = _caller(request)
+        # Two-step authorization: the read-level lookup only learns the release's
+        # current approval state; the real action (approve_release or
+        # manage_release, which differ by role) is enforced just below, and that
+        # call also applies the imported-project guard.
         release = _require_release_access(
             active,
             caller,
@@ -1986,6 +2194,41 @@ def create_app(
             asset,
             range_header=range_header,
             download_filename=f"liveclip-{delivery.delivery_version}.zip",
+        )
+
+    @app.get("/api/v1/customer-deliveries/{delivery_id}/download")
+    def download_customer_delivery(
+        delivery_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        range_header: Annotated[str | None, Header(alias="Range")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        delivery = active.customer_delivery_service.get(delivery_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=delivery.project_id,
+            path=f"/api/v1/customer-deliveries/{delivery_id}/download",
+            resource=f"customer-delivery:{delivery_id}",
+            expires=expires,
+            signature=signature,
+        )
+        if delivery.zip_asset_id is None or delivery.status.value != "succeeded":
+            raise CustomerDeliveryConflict("customer delivery ZIP is not available")
+        asset = active.media_asset_service.resolve(
+            delivery.zip_asset_id,
+            required_kind=CUSTOMER_DELIVERY_ZIP_KIND,
+        )
+        return stream_asset_response(
+            asset,
+            range_header=range_header,
+            download_filename=customer_download_filename(delivery.title, delivery.delivery_version),
+            unicode_filename=True,
         )
 
     @app.get("/api/v1/edit-packages/{edit_package_id}/download")
@@ -2282,7 +2525,16 @@ def _require_project_access(
     project_id: str,
     *,
     action: ProjectAction = "read",
+    allow_imported: bool = False,
 ) -> WorkspaceUser:
+    """Authorize one project action for the caller.
+
+    Imported dual-profile projects (Stage 19) accept only reads and the
+    endpoints that opt in with ``allow_imported`` (membership, management,
+    lifecycle and dual-profile review decisions); every pipeline-oriented
+    mutation is refused with a state conflict.
+    """
+
     user = runtime.workspace_service.get_user_by_username(caller.username)
     project = runtime.pipeline_service.get_project(project_id, user_id=user.user_id)
     require_project_action(
@@ -2290,6 +2542,13 @@ def _require_project_access(
         action,
         archived=project.lifecycle.value == "archived",
     )
+    if project.source_kind == "dual_profile_import" and action != "read":
+        if not allow_imported:
+            raise PipelineConflict(
+                "imported dual-profile projects do not support this pipeline action"
+            )
+        if action not in IMPORTED_PROJECT_ACTIONS:
+            raise ProjectActionDenied("imported projects do not grant this action")
     return user
 
 
@@ -2413,6 +2672,37 @@ def _review_patch(body: ReviewActionRequest) -> ClipPatch:
             if body.captions is not None
             else None
         ),
+    )
+
+
+def _customer_delivery_response(
+    security: ApiSecurity,
+    delivery: CustomerDeliverySnapshot,
+) -> CustomerDeliveryResponse:
+    download_url = None
+    if delivery.status.value == "succeeded" and delivery.zip_asset_id is not None:
+        download_url = security.signed_url(
+            path=f"/api/v1/customer-deliveries/{delivery.delivery_id}/download",
+            resource=f"customer-delivery:{delivery.delivery_id}",
+        )
+    return CustomerDeliveryResponse(delivery=delivery, download_url=download_url)
+
+
+def _dual_profile_review_response(
+    security: ApiSecurity,
+    review: DualProfileReviewView,
+) -> DualProfileReviewResponse:
+    asset_ids = sorted(
+        {
+            asset_id
+            for group in review.groups
+            for clip in group.clips
+            for asset_id in (clip.video_asset_id, clip.subtitle_asset_id)
+        }
+    )
+    return DualProfileReviewResponse(
+        review=review,
+        asset_urls={asset_id: _asset_url(security, asset_id) for asset_id in asset_ids},
     )
 
 
@@ -2693,6 +2983,72 @@ def _install_exception_handlers(app: FastAPI) -> None:
             status_code=409,
             code="STATE_CONFLICT",
             message=message if 0 < len(message) <= 500 else "Resource state conflicts with request",
+        )
+
+    @app.exception_handler(DualProfileImportError)
+    async def dual_profile_import_invalid_handler(
+        request: Request,
+        exc: DualProfileImportError,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=422,
+            code="DUAL_PROFILE_IMPORT_INVALID",
+            message=message
+            if 0 < len(message) <= 300
+            else "The dual-profile run cannot be imported",
+        )
+
+    @app.exception_handler(CustomerDeliveryRuleError)
+    async def dual_profile_decision_invalid_handler(
+        request: Request,
+        exc: CustomerDeliveryRuleError,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=422,
+            code="DUAL_PROFILE_DECISION_INVALID",
+            message=message if 0 < len(message) <= 300 else "The review decision is invalid",
+        )
+
+    @app.exception_handler(CustomerTextWarningConflict)
+    async def customer_text_warning_handler(
+        request: Request,
+        exc: CustomerTextWarningConflict,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=409,
+            code="CUSTOMER_TEXT_WARNING",
+            message=str(exc),
+            details=tuple(
+                ApiErrorItem(
+                    location=(
+                        (exc.clip_ids[index], value.field, value.start, value.end)
+                        if exc.clip_ids
+                        else (value.field, value.start, value.end)
+                    ),
+                    type=f"customer_text_warning.{value.kind}",
+                )
+                for index, value in enumerate(exc.warnings)
+            ),
+        )
+
+    @app.exception_handler(ShareLinkConflict)
+    @app.exception_handler(CustomerDeliveryConflict)
+    @app.exception_handler(DualProfileDecisionConflict)
+    async def dual_profile_decision_conflict_handler(
+        request: Request,
+        exc: DualProfileDecisionConflict | CustomerDeliveryConflict | ShareLinkConflict,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=409,
+            code="STATE_CONFLICT",
+            message=message if 0 < len(message) <= 300 else "Resource state conflicts with request",
         )
 
     @app.exception_handler(MediaAssetInvalid)

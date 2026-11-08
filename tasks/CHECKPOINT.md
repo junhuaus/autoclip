@@ -1440,3 +1440,107 @@ L07 listening check of `input/8-30.ts` 1:40:07–1:40:35.
 Next: that human review and listening check (user). Branch
 `claude/liveclip-stage18-l05` is not pushed. Push, PR and merge still need
 explicit user consent.
+
+## Stage 19 started: customer delivery of dual-profile results (2026-11-07)
+
+Stage 18 is merged to `main` as `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`
+(merge commit of PR #2; tree equals `d386981`). Stage 19 runs on
+`claude/liveclip-stage19-customer-delivery` (from `origin/main`; not
+pushed). Plan: `docs/exec-plans/liveclip-customer-delivery.md` (user
+decisions of 2026-11-07, design, stages 19a–19e).
+
+Freeze rule amended by the user: the benchmark freeze now covers only the
+dual-profile benchmark closure (path list and five-item reviewer evidence
+in `STATUS.md`, "Acceptance policy from Stage 17", amendment bullet). The
+freeze SHA stays `f525338` with count 2/2. The coder verified the closure
+by an AST import walk and added `cli/app.py`/`__main__.py`, package
+`__init__` files, the imported `domain/`, `media/` and `pipeline/` modules,
+`limits.py`, `prompts/`, `observability/`, `scripts/__init__.py`,
+`pyproject.toml` and `uv.lock` to the draft list. Stage 19 must not edit
+`src/liveclip/cli/app.py`.
+
+Next: Stage 19a (freeze pin test, verified render-set refactor,
+eligibility domain, migration and repository, import service). Push, PR
+and merge still need explicit user consent.
+
+## Stage 19a implemented, pending verification (2026-11-07)
+
+Commits `cb13bb6` (freeze pin test; `load_verified_dual_profile_render_set`
+refactor), `096a7ca` (eligibility domain, migration `d5e8a1c3f907`, models,
+repository, import service, `CustomerClipView`, tests), `437f5f0`
+(concurrent-import test), `49f8f66` (schema inventory test). Freeze
+evidence clean (closure diff rc 0, pins and independent recompute 17/17,
+Settings fingerprint unchanged, evaluator re-run byte-identical on cold-35
+and cold-36, cold-36 review package byte-identical with a fixed clock).
+`make lint` rc 0; `make test` rc 0 at `49f8f66` (backend 3353, vitest 80,
+e2e 4). Deviations for Controller confirmation are in the Stage 19
+ExecPlan Decision Log. Next: independent tester and reviewer, then 19b.
+
+## Stage 19a accepted; Stage 19b implemented, pending verification (2026-11-07)
+
+Stage 19a accepted at `ba1e8b0`; reviewer nits fixed in `29dd574`
+(strict customer links, select only after the latest review, DELETE
+guards via migration `e4b2c7d9a1f3`, absolute-path tamper case, docs).
+Stage 19b at `cf11aef`: import and internal review API (approve/reject
+`review_clip`, select/deselect `deliver`, select on non-deliverable 409,
+non-member 404, path-free errors), imported projects listed/searchable,
+web import dialog and `DualProfileReviewSection`. Freeze evidence clean
+(closure diff rc 0, 17/17, Settings fingerprint, evaluator byte-identical,
+`dual-profile-eval --help` rc 0). `make lint` rc 0; `make test` rc 0
+(backend 3424, vitest 87, e2e 5). Next: independent tester and reviewer,
+then 19c.
+
+## Stage 19b review P1 fixed, pending re-review (2026-11-07)
+
+Reviewer REJECT at `68e6edb` (tester green): `POST /projects/{imported}/runs`
+queued a run on an imported project. Fixed in `248082c`: `create_run`
+refuses imported projects in its transaction; imported projects expose
+only read/manage_members/manage_project/review_clip/comment/deliver and
+`_require_project_access` returns 409 for every other mutation unless the
+endpoint opts in; `ProjectSnapshot` validator; P2s (managed data dir
+excluded like `/jobs`, no existence oracle, root parsing, profile-matched
+links, archived and purge tests, 不通过 wording, e2e request log; P2-6
+residual recorded verbatim). Freeze evidence clean (closure diff rc 0,
+single head `e4b2c7d9a1f3`, `dual-profile-eval --help` rc 0). `make lint`
+rc 0; `make test` rc 0 (backend 3447, vitest 87, e2e 5). Next: re-review.
+
+## Stage 19b accepted; Stage 19c implemented, pending verification (2026-11-07)
+
+Stage 19b accepted at `7fc669b`; nits fixed in `83d9a78` (comment dropped
+from imported actions; release approval two-step authorization explained;
+403-before-409 documented). Stage 19c at `9677847`: immutable versioned
+customer deliveries, worker-built offline package (allowlisted manifest,
+shared page template, deterministic ZIP, Chinese filenames), download with
+RFC 5987 name, `CustomerDeliveryPanel`, file:// browser test. Real cold-36
+package (scratch): `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
+Freeze evidence clean. Next: independent tester and reviewer, then 19d.
+
+## Stage 19c accepted; Stage 19d implemented, pending verification (2026-11-07)
+
+Stage 19c accepted at `3e17ed4`. Stage 19d: `6e7e20a` (19c nits: required
+expected_clip_ids, invisible-character guard, stale-worker and purge
+tests, 0644 ZIP members), `1887826` (customer-text meta-note guard with
+`acknowledge_warnings`, migration `f6a1b3c5d7e9`), `b346229` (LAN share
+links and the separate `make share` server). Real loopback share run
+against a scratch cold-36 import passed (statuses and headers in the
+ExecPlan). Operator guide and 19e phone checklist in the ExecPlan.
+Next: independent tester and reviewer, then 19e.
+
+## Stage 19d review P1 fixed, pending re-review (2026-11-07)
+
+Reviewer REJECT at `e50adfa` (tester green): "LAN only" was not enforced.
+Fixed in `e906267`: client-address allowlist in the share app (generic 404
+for everyone else), LAN-only bind host (exit 2 otherwise), plus P2s
+(答疑 false positive, warning gate at select and delivery creation, base
+URL `?`/`#`, bounded limiter, audit target index migration `a7c9e1b3d5f2`,
+catch-all generic 404, cookie hygiene). Operator guide and 19e phone
+checklist rewritten. Next: re-review.
+
+## Stage 19: 19a–19d accepted; 19e code/docs done, phone test pending (2026-11-08)
+
+Accepted: 19a `ba1e8b0`, 19b `7fc669b`, 19c `3e17ed4`, 19d `2670115`.
+Stage 19e code `72a0376` (acknowledging flagged text on a select needs
+`review_clip`; clean console refusal for bad `LIVECLIP_SHARE_*`), ADR053,
+Product Spec amendment, Chinese operator guide
+`docs/operator/customer-delivery-guide.zh.md`. Next: the operator's LAN
+phone test; push/PR/merge only with explicit consent.

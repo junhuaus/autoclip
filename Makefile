@@ -14,7 +14,7 @@ VENV_BIN := $(PROJECT_ROOT)/.venv/bin
 NODE_LTS_BIN ?= /usr/local/bin
 UV_ENV := UV_CACHE_DIR=$(UV_CACHE_DIR_LOCAL) UV_PYTHON_INSTALL_DIR=$(UV_PYTHON_DIR_LOCAL)
 
-.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-claude smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status start-codex resume-codex
+.PHONY: setup setup-local-asr doctor dev lint test e2e schema demo smoke-cloud smoke-codex smoke-claude smoke-openrouter smoke-mlx clean-demo loop-doctor loop-profiles loop-init loop-run loop-status start-codex resume-codex share
 
 setup:
 	@command -v $(UV) >/dev/null || { echo "uv is required: https://docs.astral.sh/uv/"; exit 1; }
@@ -37,6 +37,9 @@ doctor:
 
 dev:
 	@./scripts/dev.sh
+
+share:
+	@"$(VENV_BIN)/python" -m liveclip.share_server
 
 lint:
 	@"$(VENV_BIN)/ruff" check src tests scripts tools

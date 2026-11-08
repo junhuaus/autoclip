@@ -35,6 +35,7 @@ from liveclip.db.models import (
     CandidateClipRow,
     ClipCommentRow,
     ClipCommentThreadRow,
+    CustomerDeliveryRow,
     DeliveryRow,
     EditPackageRow,
     EditPlanRevisionRow,
@@ -614,6 +615,10 @@ def _project_task_ids(connection: Connection, project_id: str) -> set[str]:
         ReleasePackageRow.project_id == project_id,
         ReleasePackageRow.task_id.is_not(None),
     )
+    customer_delivery_task_ids = select(CustomerDeliveryRow.task_id).where(
+        CustomerDeliveryRow.project_id == project_id,
+        CustomerDeliveryRow.task_id.is_not(None),
+    )
     return {
         str(task_id)
         for task_id in connection.scalars(
@@ -624,6 +629,7 @@ def _project_task_ids(connection: Connection, project_id: str) -> set[str]:
                     TaskRow.id.in_(delivery_task_ids),
                     TaskRow.id.in_(edit_package_task_ids),
                     TaskRow.id.in_(release_package_task_ids),
+                    TaskRow.id.in_(customer_delivery_task_ids),
                 )
             )
         )
@@ -656,6 +662,7 @@ def _project_resource_ids(connection: Connection, project_id: str) -> set[str]:
         select(DeliveryRow.id).where(DeliveryRow.project_id == project_id),
         select(EditPackageRow.id).where(EditPackageRow.project_id == project_id),
         select(ReleasePackageRow.id).where(ReleasePackageRow.project_id == project_id),
+        select(CustomerDeliveryRow.id).where(CustomerDeliveryRow.project_id == project_id),
         select(ReleaseItemRow.id).where(ReleaseItemRow.project_id == project_id),
         select(ReleaseMetricSnapshotRow.id)
         .join(ReleaseItemRow, ReleaseItemRow.id == ReleaseMetricSnapshotRow.release_item_id)

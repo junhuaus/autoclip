@@ -765,8 +765,14 @@ def create_verified_zip(
     members: tuple[PurePosixPath, ...],
     manifest: dict[str, object],
     expected_sha256: dict[str, str],
+    member_mode: int = 0o600,
 ) -> str:
-    """Stream pinned package members into a verified immutable ZIP."""
+    """Stream pinned package members into a verified immutable ZIP.
+
+    ``member_mode`` is the Unix permission recorded for every member (default
+    0o600, as for every existing package); customer packages use 0o644 so that
+    extracted files are readable by the customer.
+    """
 
     return _create_and_verify_zip(
         root=root,
@@ -774,6 +780,7 @@ def create_verified_zip(
         members=members,
         manifest=manifest,
         expected_sha256=expected_sha256,
+        member_mode=member_mode,
     )
 
 
@@ -792,7 +799,10 @@ def _create_and_verify_zip(
     expected_sha256: dict[str, str],
     progress: DeliveryProgressSink | None = None,
     check_cancel: Callable[[], None] | None = None,
+    member_mode: int = 0o600,
 ) -> str:
+    if member_mode not in {0o600, 0o644}:
+        raise DeliveryError("ZIP member mode must be 0o600 or 0o644")
     names = validate_zip_members(member.as_posix() for member in members)
     if set(names) != set(expected_sha256):
         raise DeliveryError("ZIP members differ from their expected hashes")
@@ -827,11 +837,26 @@ def _create_and_verify_zip(
                 ) as archive,
             ):
                 for name in names:
+                    # Pass member_mode only when it differs from the default so
+                    # the historical call shape (and its test seams) is unchanged.
                     if progress is None and check_cancel is None:
-                        _write_pinned_zip_member(archive, name, pinned_members[name])
-                    else:
+                        if member_mode == 0o600:
+                            _write_pinned_zip_member(archive, name, pinned_members[name])
+                        else:
+                            _write_pinned_zip_member(
+                                archive, name, pinned_members[name], member_mode=member_mode
+                            )
+                    elif member_mode == 0o600:
                         _write_pinned_zip_member(
                             archive, name, pinned_members[name], progress=accepted
+                        )
+                    else:
+                        _write_pinned_zip_member(
+                            archive,
+                            name,
+                            pinned_members[name],
+                            progress=accepted,
+                            member_mode=member_mode,
                         )
             output.seal_after_write()
             zip_sha256 = output.sha256()
@@ -879,11 +904,12 @@ def _write_pinned_zip_member(
     evidence: PinnedFileEvidence,
     *,
     progress: Callable[[int], None] | None = None,
+    member_mode: int = 0o600,
 ) -> None:
     info = zipfile.ZipInfo(filename=name)
     info.create_system = 3
     info.compress_type = zipfile.ZIP_DEFLATED
-    info.external_attr = (stat.S_IFREG | 0o600) << 16
+    info.external_attr = (stat.S_IFREG | member_mode) << 16
     digest = hashlib.sha256()
     offset = 0
     with archive.open(info, mode="w", force_zip64=True) as writer:

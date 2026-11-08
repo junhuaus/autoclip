@@ -18,6 +18,194 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
+## Stage 19: customer delivery of dual-profile results (2026-11-07/08) — 19a–19e ACCEPTED; operator phone test pending
+
+- **Accepted** (independent tester and reviewer): 19a `ba1e8b0`, 19b
+  `7fc669b`, 19c `3e17ed4`, 19d `2670115` (after the LAN-only P1 fix).
+- **Stage 19e**: code `72a037602740d91f7e0de3f1b0a3fec75143def0` (keeping flagged customer text on a select
+  needs `review_clip`; `make dev` refuses bad `LIVECLIP_SHARE_*` with one clean
+  line); docs: ADR053 (`docs/adr/053-customer-delivery-of-dual-profile-results.md`),
+  Product Spec amendment (insert-only), Chinese operator guide
+  `docs/operator/customer-delivery-guide.zh.md`, revised operator guide in the
+  Stage 19 ExecPlan. Freeze evidence clean; alembic head `a7c9e1b3d5f2`.
+  Validation: `make lint` rc 0; full `make test` at `72a037602740d91f7e0de3f1b0a3fec75143def0` rc 0: backend pytest 3612 passed (15 warnings), vitest 15 files / 95 tests passed, e2e 7 passed (4 mock, 3 real-browser).
+- **19e accepted** at `0fd5c575121c197e9a371b5d9329572f9035137b`; a docs-only follow-up adds login/account, first-time
+  `make setup`, per-terminal `export`, Chrome/iPhone-Safari and refused-start checklist guidance to the Chinese guide.
+- **Remaining**: the operator LAN phone test (user), section 8 of the Chinese
+  guide. Push, PR and merge need explicit user consent.
+
+(Earlier heading, kept for history: Stage 19a ACCEPTED at ba1e8b0; Stage 19b IMPLEMENTED, pending independent verification.)
+
+- **Stage 19a accepted** at `ba1e8b0` (tester: lint rc 0, backend 3353,
+  vitest 80, e2e 4; reviewer ACCEPT-WITH-NITS, five freeze-evidence items
+  reproduced, five deviations accepted). Reviewer nits fixed in
+  `29dd574cdaa8587173fb555daa2d26fe81b7819c`: strict customer-link shapes (P2-3), a select counts only
+  after the latest review decision and select on a non-deliverable clip is
+  refused (P2-4), BEFORE DELETE guards via migration `e4b2c7d9a1f3` with the
+  project-purge cascade still working (P2-5), absolute-path tamper case
+  (P2-7), docs P2-1/P2-2/P2-8/P2-9; P2-6 recorded as a pre-existing residual.
+- **Stage 19b implemented** at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` (pending independent tester and
+  reviewer): import API, internal review API (authz: approve/reject
+  `review_clip`, select/deselect `deliver`, viewer read-only, non-member
+  404, select on non-deliverable 409), imported projects listed and
+  searchable (`source_kind` `dual_profile_import`, `current_run_id` "",
+  `generation` 0), web "导入双轨结果" dialog and `DualProfileReviewSection`
+  (短片/小课 groups, prefilled approval form, gated 选入交付). Details and
+  deviations in `docs/exec-plans/liveclip-customer-delivery.md` ("Stage 19b
+  results", Decision Log).
+- Freeze evidence at `cf11aef`: closure diff rc 0; pins and 17/17
+  recompute; Settings fingerprint unchanged; evaluator re-run on
+  cold-35/cold-36 byte-identical; `dual_profile_delivery.py` unchanged since
+  `cb13bb6`; `python -m liveclip dual-profile-eval --help` rc 0.
+- Validation: `make lint` rc 0; targeted API/import/migration/settings pytest and vitest green; full `make test` at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` rc 0: backend pytest 3424 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (mock: `review-delivery.spec.ts` and the new `dual-profile-review.spec.ts`; real-browser: 3 scenario runs). Unrelated pytest processes from other host repositories were running during the suite; they were not touched.
+- (Historical next step; reviewed below.) Next: independent tester and reviewer for Stage 19b, then 19c. Push, PR
+  and merge need explicit user consent.
+- **Stage 19b review (68e6edb): tester green, reviewer REJECT on P1** —
+  pipeline actions were possible on imported projects (`POST
+  /projects/{id}/runs` queued a run and turned the project into a pipeline
+  project). **Fixed in `248082c7fbb4a9b2a5a3dbc903acb4263eb13179`**: `create_run` refuses imported projects in
+  its transaction; imported projects expose only read, manage_members,
+  manage_project, review_clip, comment, deliver, and every other mutation
+  returns 409 server-side (runs, batch review, legacy deliveries, edit
+  packages, releases tested with valid bodies); `ProjectSnapshot`
+  validator; P2s (managed data dir excluded like `/jobs`, no existence
+  oracle, root parsing, profile-matched links, archived/purge tests,
+  不通过 wording, e2e request log). The Stage 19a reviewer P2-6 residual is
+  recorded verbatim in the ExecPlan. Freeze evidence at `248082c`: closure
+  diff rc 0, single alembic head `e4b2c7d9a1f3`, `dual-profile-eval --help`
+  rc 0, pins in the full run. Validation: `make lint` rc 0; full `make test` at `248082c7fbb4a9b2a5a3dbc903acb4263eb13179` rc 0: backend pytest 3447 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (2 mock specs, 3 real-browser scenario runs).
+- (Historical next step; done.) Next: re-review of Stage 19b, then 19c. Push, PR and merge need explicit
+  user consent.
+- **Stage 19b ACCEPTED at `7fc669b`** (tester: lint rc 0, make test
+  3447/87/5, focused 211, freeze rc 0, single head; reviewer
+  ACCEPT-WITH-NITS after auditing all 84 routes).
+- Stage 19b nits fixed in `83d9a78792d12b0bf433f01391e9640d8fa3d482` (details below).
+- **Stage 19c implemented** at `96778478af1677b39bc12c1a6edc7ba1638e5b84` and `79287e6131ec377d3781b1a6d0e0132d54d56402` (the RFC 5987
+  `filename*` is opt-in for customer ZIPs only, so existing download headers
+  are unchanged) (pending independent tester and
+  reviewer): immutable versioned customer deliveries (effective text,
+  409 when nothing selected or the selection is stale, idempotent), worker
+  build of the offline package (allowlisted manifest from
+  `CustomerClipView`, shared `customer_index_html`, deterministic ZIP,
+  Chinese filenames, RFC 5987 download name), `CustomerDeliveryPanel`, and a
+  Playwright `file://` test with all network blocked. No migration. A real
+  package from the cold-36 import was built in scratch:
+  `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
+  Freeze evidence clean at `9677847`. Validation: `make lint` rc 0; full `make test` at `79287e6131ec377d3781b1a6d0e0132d54d56402` rc 0: backend pytest 3482 passed (15 deprecation warnings), vitest 15 files / 89 tests passed, e2e 6 passed (3 mock specs incl. the new file:// offline test, 3 real-browser scenario runs). (The first full run at `9677847` had backend 3481 passed and vitest 89 passed, but the real-browser legacy e2e failed because the global `filename*` changed the release-package download header; fixed in `79287e6`.). Next:
+  independent tester and reviewer for 19c, then 19d.
+- **Stage 19c ACCEPTED at `3e17ed4`** (reviewer ACCEPT-WITH-NITS; own scans
+  of the real and an adversarial package clean; stale-worker fencing
+  verified).
+- **Stage 19d implemented** (pending independent tester and reviewer):
+  `6e7e20a3fe99112ebf9d29f2ac5f383671fde615` (19c nits), `1887826046fa370f7a8be76266f614025ac43250` (customer-text
+  meta-note guard: strong warnings block approval unless
+  `acknowledge_warnings`, migration `f6a1b3c5d7e9`), `b34622985617de6a2aba74bf616b607dd571ebf2` (LAN share
+  links: token shown once, sha256 stored, 1-30 day expiry, revocable;
+  separate share app `make share`, loopback by default, LAN only with
+  `LIVECLIP_SHARE_ALLOW_LAN=true` and a private `LIVECLIP_SHARE_BASE_URL`; no
+  TLS, do not use on public Wi-Fi). Real loopback run against a scratch
+  cold-36 import: page 200, video 200/206/416, subtitle 200, ZIP 200, internal
+  paths and docs 404, security headers present, no cookies, logs redacted.
+  Operator guide and 19e phone checklist in the Stage 19 ExecPlan. Freeze
+  evidence clean; alembic head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcbb01aee7f0dfa3d50882beedb7712318d` rc 0: backend pytest 3572 passed (29 warnings: deprecations, including the TestClient/httpx and per-request cookie notices from the new share tests), vitest 15 files / 93 tests passed, e2e 7 passed (4 mock specs incl. the new share-panel flow and the file:// offline test, 3 real-browser scenario runs). (The first full run at `b346229` had 1 failure, `tests/unit/test_delivery.py::test_zip_stream_rejects_subtitle_symlink_swap_without_external_read`, whose seam replaces `_write_pinned_zip_member` without the new `member_mode` keyword; fixed in `629b2fc` by passing it only for non-default modes.).
+  (Historical next step; reviewed below.) Next: independent tester and reviewer for 19d, then 19e.
+- **Stage 19d review (e50adfa): tester green, reviewer REJECT on P1 — "LAN
+  only" not enforced.** Fixed in `e90626749d8477ed26243f5a02cc48e44558d77e`: the share app answers only
+  loopback/RFC 1918/link-local/IPv6 ULA and link-local clients (everyone else
+  gets the generic 404, no state touched); the bind host must be a LAN IP
+  literal or `0.0.0.0` (`::`, public addresses and hostnames refused, exit 2).
+  P2s: 答疑 false positive, warning gate at select and delivery creation,
+  `?`/`#` in base URLs, bounded limiter, audit target index (migration
+  `a7c9e1b3d5f2`, new head), catch-all generic 404, test cookie hygiene.
+  Operator guide rewritten (bind the Mac's LAN address, same env for
+  `make dev` and `make share`, macOS firewall prompt, DHCP changes). Real
+  loopback run and refused public bind: loopback share server on 127.0.0.1:18777 against a scratch cold-36 import: page 200, video 200, subtitle 200, ZIP 200, Range 206 (`bytes 0-1023/42541490`), beyond-end 416 (`bytes */42541490`), unknown token, `/api/v1/projects`, `/docs`, `/openapi.json` 404, security headers present, token 0 times in the log; with uvicorn's default proxy handling a loopback request carrying `X-Forwarded-For: 8.8.8.8` was refused (404), and with `proxy_headers=False` (as `make share` runs) the header is ignored (200); `LIVECLIP_SHARE_HOST=8.8.8.8` and `LIVECLIP_SHARE_HOST=::` both exit 2 with the reason. Validation:
+  `make lint` rc 0; full `make test` at `e90626749d8477ed26243f5a02cc48e44558d77e` rc 0: backend pytest 3610 passed (15 warnings; the 14 share-test cookie deprecations are gone), vitest 15 files / 94 tests passed, e2e 7 passed (4 mock, 3 real-browser); the follow-up test commit `a37ecfe7d3d7d66d2e510a1f8a0523aa0dca611a` adds one unit test (share_settings 39 passed). Next: re-review of 19d, then 19e.
+- Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
+  for an imported project, a role-denied call (for example a viewer) or any
+  mutation on an archived project returns 403 from `require_project_action`
+  before the imported-project guard returns 409; (P2-b) `POST
+  /releases/{id}/approval` keeps its read-level lookup, because the real
+  action (`approve_release` vs `manage_release`) depends on the release's
+  current state and differs by role — switching the lookup to
+  `manage_release` would deny reviewers who may approve today; the second
+  `_require_project_access` call already enforces the real action and the
+  imported-project guard (and an imported project has no release items), so
+  only an explanatory comment was added; (P2-c, Controller decision)
+  `comment` is removed from the imported-project actions (no route accepts
+  comments on imported clips): owner read/manage_members/manage_project/
+  review_clip/deliver, editor read/deliver, reviewer read/review_clip.
+
+
+- **Stage 18 is merged to `main`:** `origin/main` =
+  `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`, the merge commit of PR #2
+  (`claude/liveclip-stage18-l05`); its tree equals `d386981`. Stage 18
+  strict benchmark acceptance (2/2 on frozen `f525338`) is unchanged.
+- Branch `claude/liveclip-stage19-customer-delivery` created from
+  `origin/main` `a79deaf` (no upstream set; not pushed).
+- Authoritative plan: `docs/exec-plans/liveclip-customer-delivery.md`
+  (user decisions of 2026-11-07, design, stages 19a–19e, freeze closure).
+  User decisions: end-customer audience (read-only watch, read and
+  download; no internal fields); offline ZIP package and expiring
+  read-only LAN share link; import existing dual-profile CLI results
+  first; customer text overrides at approval (originals immutable); clean
+  MP4 plus separate SRT; LAN-only share link, explicit opt-in, no TLS.
+- **Freeze rule amended (user decision 2026-11-07):** the benchmark freeze
+  now covers only the dual-profile benchmark closure; see the amendment
+  bullet at the end of "Acceptance policy from Stage 17" below for the
+  path list and the five-item reviewer evidence. Closure verified by an AST
+  import walk at `a79deaf`; `git diff --exit-code f525338 -- <closure>`
+  rc 0. Added to the Controller's draft list: `cli/app.py` and
+  `__main__.py` (the `dual-profile-eval` command owns the `--short-top-n`
+  and `--mini-lesson-top-n` defaults of 15 used by the counted runs),
+  package `__init__` files, `domain/`, `media/` and `pipeline/` modules
+  imported by the closure, `limits.py`, `prompts/`, `observability/`,
+  `scripts/__init__.py`, `pyproject.toml`, `uv.lock`.
+- Discovery: the existing `dual-profile-review-package` CLI rejects the
+  stored cold-36 render manifest ("video path is not an absolute system
+  path") because its video/subtitle paths are repo-relative; Stage 19a's
+  import resolves relative paths against an allowed import root.
+- (Historical next step; done below.) Next: Stage 19a (freeze pin test, verified render-set refactor, eligibility
+  domain, migration and repository, import service, `CustomerClipView`).
+  Human editorial/audio review of cold-27 r2 through cold-36 renders and
+  the L07 listening check remain pending (separate evidence category).
+  Push, PR and merge need explicit user consent.
+- **Stage 19a implemented, pending independent tester and reviewer.**
+  Commits `cb13bb69098f26cafd9f7ec752ccd2d4ebef64b6` (freeze pin test;
+  `load_verified_dual_profile_render_set()` extracted from
+  `export_dual_profile_review_package`), `096a7ca1884ce1ff6d5b1b8daa3010e37a61881b` (eligibility
+  domain `src/liveclip/domain/customer_delivery.py`, migration
+  `d5e8a1c3f907` with six tables and immutability triggers, models,
+  `src/liveclip/db/dual_profile_repository.py`,
+  `src/liveclip/application/dual_profile_imports.py`, `CustomerClipView`,
+  tests), `437f5f015e2f0f43b51c4c42f9905834973733e8` (concurrent-import test),
+  `49f8f661e5542eac593052a1d4d662c43b20f995` (schema inventory test). No API route or UI
+  yet (19b). Details and deviations (stricter eligibility: a later reject
+  also blocks an auto-`selected` clip; idempotency per importer and
+  snapshot; relative render paths resolved against the repo base;
+  separate transcript roots) in the Stage 19 ExecPlan.
+- Freeze evidence at `096a7ca` (and unchanged at the docs HEAD): closure
+  diff to `f525338` rc 0; pins 21 passed and independent recompute 17/17;
+  Settings fingerprint `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; evaluator
+  re-run on stored cold-35/cold-36 byte-identical; cold-36 review package
+  byte-identical before/after the refactor with a fixed clock (69 files,
+  `manifest.json` `a7a5a6f13f3cb651b494a0ed9784c3048092161eee71c859215544c20b0e2590`), and identical except
+  `created_at` via the CLI. The stored cold-36 render manifest has
+  repo-relative video/subtitle paths that the existing export rejects, so
+  the comparison used an APFS clone with absolutised paths in scratch.
+- Real-data smoke (read-only on `data/evaluations`): cold-36 imports into
+  a scratch data dir as 12 clips (7 short, 5 mini), all `manual_review`,
+  0 deliverable before approval; re-import is idempotent.
+- Validation: `make lint` rc 0; targeted pytest 364 passed; full `make test` at `49f8f661e5542eac593052a1d4d662c43b20f995` rc 0: backend pytest 3353 passed (15 deprecation warnings), vitest 14 files / 80 tests passed, e2e 4 passed. (A first full run at `437f5f0` had 2 failures: `tests/unit/test_db_models.py` schema inventory, fixed in `49f8f66` by listing the six new tables, and `tests/unit/test_b2_synthetic_worker.py::test_canonical_independent_worker_commits_two_real_pauses` (`needs_action` instead of `succeeded`), which passed 3/3 in isolation and in the second full run; the first run overlapped an unrelated pytest process on the host, so it is classified transient and timing-related, recorded, not hidden).
+  Deterministic only; no real model call.
+- Next: independent tester and reviewer for Stage 19a (re-check the five
+  freeze-evidence items), then Stage 19b. Push, PR and merge need explicit
+  user consent.
+- Resume prompt: "Read CLAUDE.md, AGENTS.md, STATUS.md (Stage 19 section)
+  and docs/exec-plans/liveclip-customer-delivery.md; on branch
+  claude/liveclip-stage19-customer-delivery verify the five freeze-evidence
+  items, then continue with the first unchecked Stage 19 milestone."
+
 ## cold-36 real run on frozen f525338 (2026-11-06) — strict PASS 92.5 (fresh cold; consecutive cold strict PASS 2/2 for f525338; Stage 18 strict acceptance satisfied)
 
 - **Counted run 2 of 2** on the Stage 18 freeze
@@ -1130,6 +1318,56 @@ result exactly; no model call, nothing written under `data/`).
   candidate, because Stage 17b changes 16 of the 17 prompt identities.
   (Later, 2026-11-05: accepted; `50232af0cb0b0194fb663528b569998a8a2fd79b` is the
   freeze SHA.)
+- **Amendment (user decision 2026-11-07, Stage 19; appended, the bullets
+  above are historical and unchanged).** The benchmark freeze now covers
+  only the **dual-profile benchmark closure**, no longer the whole
+  `src tests scripts config tools apps migrations pyproject.toml uv.lock
+  alembic.ini Makefile .gitignore` tree. The current freeze SHA stays
+  `f525338ed9427b0fcac9925bac6075d60af13e69` and its count stays **2/2**. Changes outside the closure do
+  not reset the count and need no cold re-run, provided the reviewer's
+  freeze evidence below is clean at every checkpoint. A change inside the
+  closure, to a prompt identity, the routing policy or the algorithm
+  version still starts a new freeze SHA and a count of zero. The closure
+  (transitive in-repo import closure of
+  `src/liveclip/services/dual_profile_evaluation.py` and
+  `src/liveclip/pipeline/dual_profile.py`, the `dual-profile-eval` CLI
+  entry, the evaluator and its imports, the benchmark files and the
+  dependency lock; derivation in
+  `docs/exec-plans/liveclip-customer-delivery.md`, "Freeze closure"):
+  `src/liveclip/__init__.py`, `src/liveclip/__main__.py`,
+  `src/liveclip/limits.py`, `src/liveclip/cli/__init__.py`,
+  `src/liveclip/cli/app.py`, `src/liveclip/clipping_skills`,
+  `src/liveclip/config`,
+  `src/liveclip/domain/{__init__,candidate,clip_profile,edit_plan,review,semantic_validation,state_transitions,time,transcript}.py`,
+  `src/liveclip/media/{__init__,ingest,models,process,secure_files}.py`,
+  `src/liveclip/observability`,
+  `src/liveclip/pipeline/{__init__,dual_profile,semantic_global,semantic_lineage,semantic_profiles,semantic_transport,srt}.py`,
+  `src/liveclip/prompts`, `src/liveclip/providers`,
+  `src/liveclip/renderer`,
+  `src/liveclip/services/{__init__,captions,dual_profile_evaluation,structured_editorial_provider}.py`,
+  `scripts/{__init__,evaluate_benchmark,benchmark_gates}.py`,
+  `liveclip_dual_profile_benchmark_v1.json`,
+  `liveclip_dual_profile_benchmark_v1.md`, `pyproject.toml`, `uv.lock`
+  (brace lists expand to individual files; directories are frozen
+  recursively). **Reviewer freeze evidence, every checkpoint:** (1)
+  `git diff --exit-code f525338 -- <closure paths>` exits 0 and
+  `git status --porcelain -- <closure paths>` is empty; (2)
+  `tests/unit/test_dual_profile_freeze_pins.py` passes and an independent
+  recompute of the 17 prompt identities matches the Stage 18b "after"
+  column; (3) the Settings fingerprint recompute equals
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1`; (4) re-running
+  `scripts/evaluate_benchmark.py` on the stored cold-35 and cold-36 inputs
+  yields byte-identical `benchmark-result.json`; (5) when
+  `src/liveclip/services/dual_profile_delivery.py` changes, the cold-36
+  review-package `manifest.json` regenerated before/after is identical
+  (only the wall-clock `created_at` normalised; procedure in the Stage 19
+  ExecPlan). Stage 19 must not edit `src/liveclip/cli/app.py`.
+- Clarification (appended 2026-11-07 after the Stage 19a review; the bullet
+  above is unchanged): of the CLI only the three files
+  `src/liveclip/__main__.py`, `src/liveclip/cli/__init__.py` and
+  `src/liveclip/cli/app.py` are frozen, not `cli/app.py`'s whole import
+  graph. Evidence item (3): the Settings fingerprint is computed with exactly two environment overrides, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli` and `LIVECLIP_CLAUDE_EXECUTABLE=<repo>/.cache/claude-cli/2.1.308/claude` (key names and path only; no `.env` value is read or recorded), the same as the counted cold-35/cold-36 runs. Evidence item (6), added:
+  `.venv/bin/python -m liveclip dual-profile-eval --help` exits 0.
 
 ### Stage 16b status
 
