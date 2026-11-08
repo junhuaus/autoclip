@@ -19,6 +19,7 @@ import type {
   DualProfileReviewView,
   DualProfileTextWarning,
   ProjectSnapshot,
+  ShareLinkSnapshot,
 } from "./types";
 
 const DECISION_LABELS: Record<DualProfileDecisionAction, string> = {
@@ -533,6 +534,130 @@ export function DualProfileReviewSection({
   );
 }
 
+const SHARE_STATUS_LABELS: Record<ShareLinkSnapshot["status"], string> = {
+  active: "有效",
+  expired: "已过期",
+  revoked: "已撤销",
+};
+const SHARE_DAY_OPTIONS = [1, 3, 7, 14, 30];
+
+export function ShareLinksPanel({
+  api,
+  project,
+  delivery,
+}: {
+  api: LiveClipApiClient;
+  project: ProjectSnapshot;
+  delivery: CustomerDeliverySnapshot;
+}) {
+  const queryClient = useQueryClient();
+  const queryKey = ["share-links", project.project_id, delivery.delivery_id];
+  const [days, setDays] = useState(7);
+  const [created, setCreated] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const canDeliver = project.allowed_actions.includes("deliver");
+  const linksQuery = useQuery({
+    queryKey,
+    queryFn: () => api.listShareLinks(project.project_id, delivery.delivery_id),
+  });
+  const createMutation = useMutation({
+    mutationFn: () => api.createShareLink(project.project_id, delivery.delivery_id, days),
+    onSuccess: (result) => {
+      setCreated(result.url);
+      setCopied(false);
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+  const revokeMutation = useMutation({
+    mutationFn: (linkId: string) => api.revokeShareLink(project.project_id, linkId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
+  });
+  const copy = async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="share-links" aria-label={`${delivery.delivery_version} 分享链接`}>
+      {canDeliver ? (
+        <div className="share-link-create">
+          <label>
+            有效期
+            <select value={days} onChange={(event) => setDays(Number(event.currentTarget.value))}>
+              {SHARE_DAY_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value} 天
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={createMutation.isPending}
+            onClick={() => createMutation.mutate()}
+          >
+            创建分享链接
+          </button>
+        </div>
+      ) : null}
+      {created ? (
+        <div className="share-link-created" role="status">
+          <label>
+            分享链接（只显示这一次）
+            <input readOnly value={created} onFocus={(event) => event.currentTarget.select()} />
+          </label>
+          <button type="button" className="button button-primary" onClick={() => void copy()}>
+            {copied ? "已复制" : "复制"}
+          </button>
+          <p className="hint">链接只显示这一次，请立即复制保存；关闭后无法再次查看。</p>
+          <p className="hint share-lan-warning">
+            仅限同一局域网（Wi-Fi）内的设备访问，传输未加密，请勿在公共 Wi-Fi 下使用；不在同一网络的客户请发送离线 ZIP。
+          </p>
+          <button type="button" className="button button-ghost" onClick={() => setCreated(null)}>
+            我已保存，隐藏链接
+          </button>
+        </div>
+      ) : null}
+      {createMutation.isError ? (
+        <p className="form-error" role="alert">
+          {errorMessage(createMutation.error)}
+        </p>
+      ) : null}
+      {linksQuery.data && linksQuery.data.length > 0 ? (
+        <ul className="share-link-list" aria-label={`${delivery.delivery_version} 分享链接列表`}>
+          {linksQuery.data.map((link) => (
+            <li key={link.link_id}>
+              <StatusBadge
+                status={link.status === "active" ? "succeeded" : link.status === "revoked" ? "failed" : "stale"}
+                label={SHARE_STATUS_LABELS[link.status]}
+              />
+              <span>
+                到期 {new Date(link.expires_at).toLocaleString("zh-CN")} · {link.created_by} 创建 · 访问{" "}
+                {link.view_count} 次 · 下载 {link.download_count} 次
+              </span>
+              {canDeliver && link.status === "active" ? (
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  disabled={revokeMutation.isPending}
+                  onClick={() => revokeMutation.mutate(link.link_id)}
+                >
+                  撤销
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 const DELIVERY_STATUS_LABELS: Record<CustomerDeliverySnapshot["status"], string> = {
   queued: "排队中",
   creating: "生成中",
@@ -681,6 +806,9 @@ export function CustomerDeliveryPanel({
               ) : null}
               {delivery.status === "failed" && delivery.safe_error_message ? (
                 <span className="hint">{delivery.safe_error_message}</span>
+              ) : null}
+              {delivery.status === "succeeded" ? (
+                <ShareLinksPanel api={api} project={project} delivery={delivery} />
               ) : null}
             </li>
           ))}

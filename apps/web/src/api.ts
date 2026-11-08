@@ -1,4 +1,6 @@
 import type {
+  CreatedShareLink,
+  ShareLinkSnapshot,
   CustomerDeliveryCreateRequest,
   CustomerDeliveryResponse,
   DualProfileDecisionRequest,
@@ -471,6 +473,30 @@ export class LiveClipApiClient {
       method: "POST",
       body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
     });
+  }
+
+  createShareLink(
+    projectId: string,
+    deliveryId: string,
+    expiresInDays: number,
+  ): Promise<CreatedShareLink> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/customer-deliveries/${encodeURIComponent(deliveryId)}/share-links`,
+      { method: "POST", body: JSON.stringify({ expires_in_days: expiresInDays }) },
+    );
+  }
+
+  listShareLinks(projectId: string, deliveryId: string): Promise<ShareLinkSnapshot[]> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/customer-deliveries/${encodeURIComponent(deliveryId)}/share-links`,
+    );
+  }
+
+  revokeShareLink(projectId: string, linkId: string): Promise<ShareLinkSnapshot> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/share-links/${encodeURIComponent(linkId)}/revoke`,
+      { method: "POST" },
+    );
   }
 
   listCustomerDeliveries(projectId: string): Promise<CustomerDeliveryResponse[]> {

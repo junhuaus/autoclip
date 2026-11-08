@@ -221,6 +221,7 @@ def customer_index_html(
     manifest: CustomerDeliveryManifest,
     *,
     download_href: str | None = None,
+    notice: str | None = None,
 ) -> str:
     """Render the customer page; offline when ``download_href`` is None.
 
@@ -255,6 +256,8 @@ def customer_index_html(
             f'<p class="note"><a class="all" href="{_text(download_href)}" download>'
             "下载全部（ZIP）</a></p>"
         )
+    if notice is not None:
+        package_note += f'\n    <p class="note">{_text(notice)}</p>'
     counts = f"共 {manifest.clip_count} 条"
     if manifest.short_count:
         counts += f" · 短片 {manifest.short_count} 条"

@@ -2882,3 +2882,51 @@ summary {
   color: var(--warning);
   font-size: 0.82rem;
 }
+
+/* Stage 19d: share links */
+.share-links {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.5rem;
+}
+
+.share-link-create,
+.share-link-created {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.share-link-created label {
+  display: grid;
+  flex: 1 1 18rem;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.share-link-created .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.share-lan-warning {
+  color: var(--warning);
+}
+
+.share-link-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-link-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}

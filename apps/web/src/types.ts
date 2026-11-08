@@ -1245,3 +1245,24 @@ export interface CustomerDeliveryCreateRequest {
   title: string;
   expected_clip_ids?: string[];
 }
+
+export interface ShareLinkSnapshot {
+  link_id: string;
+  delivery_id: string;
+  project_id: string;
+  delivery_version: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  status: "active" | "expired" | "revoked";
+  view_count: number;
+  download_count: number;
+  last_accessed_at: string | null;
+}
+
+export interface CreatedShareLink {
+  link: ShareLinkSnapshot;
+  url: string;
+}

@@ -8,6 +8,7 @@ import { DualProfileImportDialog, approvalOverrides } from "../src/DualProfileRe
 import { ProjectWorkspace } from "../src/ProjectWorkspace";
 import type {
   CustomerDeliveryCreateRequest,
+  ShareLinkSnapshot,
   DualProfileDecisionRequest,
   DualProfileImportRequest,
   DualProfileReviewClip,
@@ -254,6 +255,9 @@ it("creates a customer delivery with the previewed selection and lists versions"
     http.get("/api/v1/projects/dual-1/customer-deliveries", () =>
       HttpResponse.json(created ? [response] : []),
     ),
+    http.get("/api/v1/projects/dual-1/customer-deliveries/cd-1/share-links", () =>
+      HttpResponse.json([]),
+    ),
     http.post("/api/v1/projects/dual-1/customer-deliveries", async ({ request }) => {
       body = (await request.json()) as CustomerDeliveryCreateRequest;
       idempotencyKey = request.headers.get("Idempotency-Key");
@@ -389,4 +393,91 @@ it("lists selected clips with text warnings before 生成交付包", async () =>
   const note = await screen.findByRole("note", { name: "交付文案提示" });
   expect(note).toHaveTextContent("审核改写标题 · 疑似审核备注");
   expect(screen.getByRole("button", { name: "生成交付包" })).toBeEnabled();
+});
+
+it("creates a share link, shows the URL once with copy, and revokes links", async () => {
+  const delivery = {
+    delivery_id: "cd-1",
+    project_id: "dual-1",
+    task_id: "task-1",
+    version: 1,
+    delivery_version: "v001",
+    title: "张老师 精选",
+    status: "succeeded" as const,
+    clip_count: 1,
+    short_count: 1,
+    lesson_count: 0,
+    created_by: "本机管理员",
+    created_at: "2026-11-07T12:00:00Z",
+    completed_at: "2026-11-07T12:00:05Z",
+    zip_asset_id: "asset-zip",
+    error_code: null,
+    safe_error_message: null,
+  };
+  const link: ShareLinkSnapshot = {
+    link_id: "link-1",
+    delivery_id: "cd-1",
+    project_id: "dual-1",
+    delivery_version: "v001",
+    created_by: "本机管理员",
+    created_at: "2026-11-07T12:00:00Z",
+    expires_at: "2026-11-14T12:00:00Z",
+    revoked_at: null,
+    revoked_by: null,
+    status: "active",
+    view_count: 2,
+    download_count: 1,
+    last_accessed_at: null,
+  };
+  let links: ShareLinkSnapshot[] = [];
+  let createdBody: unknown = null;
+  let revoked = false;
+  serveWorkspace();
+  server.use(
+    http.get("/api/v1/projects/dual-1/customer-deliveries", () =>
+      HttpResponse.json([{ delivery, download_url: "/api/v1/customer-deliveries/cd-1/download?expires=9999999999&signature=s" }]),
+    ),
+    http.get("/api/v1/projects/dual-1/customer-deliveries/cd-1/share-links", () =>
+      HttpResponse.json(links),
+    ),
+    http.post("/api/v1/projects/dual-1/customer-deliveries/cd-1/share-links", async ({ request }) => {
+      createdBody = await request.json();
+      links = [link];
+      return HttpResponse.json(
+        { link, url: "http://192.168.1.20:8766/s/TOKEN_SHOWN_ONCE_aaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+        { status: 201 },
+      );
+    }),
+    http.post("/api/v1/projects/dual-1/share-links/link-1/revoke", () => {
+      revoked = true;
+      links = [{ ...link, status: "revoked", revoked_at: "2026-11-07T13:00:00Z", revoked_by: "本机管理员" }];
+      return HttpResponse.json(links[0]);
+    }),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+
+  const panel = await screen.findByLabelText("v001 分享链接");
+  await user.selectOptions(within(panel).getByLabelText("有效期"), "14");
+  await user.click(within(panel).getByRole("button", { name: "创建分享链接" }));
+  await waitFor(() => expect(createdBody).toEqual({ expires_in_days: 14 }));
+  const shown = await within(panel).findByLabelText("分享链接（只显示这一次）");
+  expect(shown).toHaveValue("http://192.168.1.20:8766/s/TOKEN_SHOWN_ONCE_aaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  expect(within(panel).getByText(/请勿在公共 Wi-Fi 下使用/)).toBeInTheDocument();
+  await user.click(within(panel).getByRole("button", { name: "复制" }));
+  expect(await navigator.clipboard.readText()).toBe(
+    "http://192.168.1.20:8766/s/TOKEN_SHOWN_ONCE_aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  expect(await within(panel).findByRole("button", { name: "已复制" })).toBeInTheDocument();
+  await user.click(within(panel).getByRole("button", { name: "我已保存，隐藏链接" }));
+  expect(within(panel).queryByLabelText("分享链接（只显示这一次）")).not.toBeInTheDocument();
+  expect(panel.textContent).not.toContain("TOKEN_SHOWN_ONCE");
+
+  const list = await within(panel).findByRole("list", { name: "v001 分享链接列表" });
+  expect(within(list).getByText("有效")).toBeInTheDocument();
+  expect(list).toHaveTextContent("访问 2 次 · 下载 1 次");
+  await user.click(within(list).getByRole("button", { name: "撤销" }));
+  await waitFor(() => expect(revoked).toBe(true));
+  expect(await within(panel).findByText("已撤销")).toBeInTheDocument();
+  expect(within(panel).queryByRole("button", { name: "撤销" })).not.toBeInTheDocument();
 });

@@ -84,6 +84,7 @@ from liveclip.api.schemas import (
     SavedProjectViewsResponse,
     SavedProjectViewUpdateRequest,
     SessionResponse,
+    ShareLinkCreateRequest,
 )
 from liveclip.api.security import ApiAuthenticationError, ApiSecurity, AuthenticatedCaller
 from liveclip.application.authorization import (
@@ -112,6 +113,11 @@ from liveclip.application.customer_deliveries import (
     CustomerDeliveryConflict,
     CustomerDeliveryCreate,
     CustomerDeliverySnapshot,
+)
+from liveclip.application.customer_share_links import (
+    CreatedShareLink,
+    ShareLinkConflict,
+    ShareLinkSnapshot,
 )
 from liveclip.application.deliveries import (
     DeliveryConflict,
@@ -1110,6 +1116,52 @@ def create_app(
             ),
         )
         return _customer_delivery_response(security, delivery)
+
+    @protected.post(
+        "/projects/{project_id}/customer-deliveries/{delivery_id}/share-links",
+        status_code=status.HTTP_201_CREATED,
+        response_model=CreatedShareLink,
+    )
+    def create_share_link(
+        project_id: str,
+        delivery_id: str,
+        body: ShareLinkCreateRequest,
+        request: Request,
+    ) -> CreatedShareLink:
+        active = _runtime(request)
+        actor = _require_project_access(
+            active, _caller(request), project_id, action="deliver", allow_imported=True
+        )
+        return active.share_link_service.create(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            acting_user_id=actor.user_id,
+            expires_in_days=body.expires_in_days,
+        )
+
+    @protected.get(
+        "/projects/{project_id}/customer-deliveries/{delivery_id}/share-links",
+        response_model=list[ShareLinkSnapshot],
+    )
+    def list_share_links(
+        project_id: str, delivery_id: str, request: Request
+    ) -> list[ShareLinkSnapshot]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return list(active.share_link_service.list(project_id=project_id, delivery_id=delivery_id))
+
+    @protected.post(
+        "/projects/{project_id}/share-links/{link_id}/revoke",
+        response_model=ShareLinkSnapshot,
+    )
+    def revoke_share_link(project_id: str, link_id: str, request: Request) -> ShareLinkSnapshot:
+        active = _runtime(request)
+        actor = _require_project_access(
+            active, _caller(request), project_id, action="deliver", allow_imported=True
+        )
+        return active.share_link_service.revoke(
+            project_id=project_id, link_id=link_id, acting_user_id=actor.user_id
+        )
 
     @protected.get(
         "/projects/{project_id}/customer-deliveries",
@@ -2970,11 +3022,12 @@ def _install_exception_handlers(app: FastAPI) -> None:
             ),
         )
 
+    @app.exception_handler(ShareLinkConflict)
     @app.exception_handler(CustomerDeliveryConflict)
     @app.exception_handler(DualProfileDecisionConflict)
     async def dual_profile_decision_conflict_handler(
         request: Request,
-        exc: DualProfileDecisionConflict | CustomerDeliveryConflict,
+        exc: DualProfileDecisionConflict | CustomerDeliveryConflict | ShareLinkConflict,
     ) -> JSONResponse:
         message = str(exc).strip()
         return _error_response(
