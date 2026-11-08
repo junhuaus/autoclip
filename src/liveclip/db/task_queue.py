@@ -24,6 +24,7 @@ from liveclip.db.engine import begin_immediate
 from liveclip.db.models import (
     CandidateClipRow,
     CompletionIntentRow,
+    CustomerDeliveryRow,
     DeliveryRow,
     EditPackageRow,
     PipelineRunRow,
@@ -1226,6 +1227,45 @@ def _fail_task_dependents(
         safe_message=safe_message,
         instant=instant,
     )
+    _fail_task_customer_deliveries(
+        connection,
+        task_id=task_id,
+        target=target,
+        error_code=error_code,
+        safe_message=safe_message,
+        instant=instant,
+    )
+
+
+def _fail_task_customer_deliveries(
+    connection: Connection,
+    *,
+    task_id: str,
+    target: TaskStatus,
+    error_code: str,
+    safe_message: str,
+    instant: datetime,
+) -> None:
+    target_status = DeliveryStatus.QUEUED if target == TaskStatus.QUEUED else DeliveryStatus.FAILED
+    for current in (DeliveryStatus.QUEUED, DeliveryStatus.CREATING):
+        transition_delivery(current, DeliveryStatus.FAILED)
+        if target_status == DeliveryStatus.QUEUED:
+            transition_delivery(DeliveryStatus.FAILED, DeliveryStatus.QUEUED)
+    connection.execute(
+        update(CustomerDeliveryRow)
+        .where(
+            CustomerDeliveryRow.task_id == task_id,
+            CustomerDeliveryRow.status.in_(
+                [DeliveryStatus.QUEUED.value, DeliveryStatus.CREATING.value]
+            ),
+        )
+        .values(
+            status=target_status.value,
+            error_code=error_code,
+            safe_error_message=safe_message,
+            completed_at=None if target_status == DeliveryStatus.QUEUED else instant,
+        )
+    )
 
 
 def _fail_task_renders(
@@ -1381,7 +1421,7 @@ def _project_id_for_claim(connection: Connection, claimed: RowMapping) -> str:
         if value is not None:
             project_ids.add(str(value))
     elif kind == TaskKind.DELIVERY:
-        for model in (DeliveryRow, EditPackageRow, ReleasePackageRow):
+        for model in (DeliveryRow, EditPackageRow, ReleasePackageRow, CustomerDeliveryRow):
             value = connection.scalar(select(model.project_id).where(model.id == target_id))
             if value is not None:
                 project_ids.add(str(value))

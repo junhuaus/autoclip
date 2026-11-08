@@ -7,6 +7,7 @@ import { LiveClipApiClient } from "../src/api";
 import { DualProfileImportDialog, approvalOverrides } from "../src/DualProfileReview";
 import { ProjectWorkspace } from "../src/ProjectWorkspace";
 import type {
+  CustomerDeliveryCreateRequest,
   DualProfileDecisionRequest,
   DualProfileImportRequest,
   DualProfileReviewClip,
@@ -33,6 +34,7 @@ function serveWorkspace(
     http.get("/api/v1/projects/dual-1/dual-profile-import", () =>
       HttpResponse.json(dualProfileReview(clips)),
     ),
+    http.get("/api/v1/projects/dual-1/customer-deliveries", () => HttpResponse.json([])),
   );
 }
 
@@ -206,4 +208,79 @@ it("imports a dual-profile run from the dialog", async () => {
 
   await waitFor(() => expect(onImported).toHaveBeenCalledWith("dual-1"));
   expect(body).toEqual({ run_dir: "data/evaluations/run-1", transcript_path: "input/live.srt" });
+});
+
+it("gates 生成交付包 until a deliverable clip is selected", async () => {
+  serveWorkspace();
+  renderWorkspace();
+  const button = await screen.findByRole("button", { name: "生成交付包" });
+  expect(button).toBeDisabled();
+  expect(screen.getByText("请先在上方选入至少一条可交付的切片")).toBeInTheDocument();
+});
+
+it("creates a customer delivery with the previewed selection and lists versions", async () => {
+  let body: CustomerDeliveryCreateRequest | null = null;
+  let idempotencyKey: string | null = null;
+  let created = false;
+  const selectedLesson = {
+    ...dualProfileLessonClip,
+    review_state: "approved" as const,
+    deliverable: true,
+    selected_for_delivery: true,
+  };
+  serveWorkspace(dualProfileProject, [dualProfileShortClip, selectedLesson]);
+  const response = {
+    delivery: {
+      delivery_id: "cd-1",
+      project_id: "dual-1",
+      task_id: "task-1",
+      version: 1,
+      delivery_version: "v001",
+      title: "张老师 精选",
+      status: "succeeded" as const,
+      clip_count: 1,
+      short_count: 0,
+      lesson_count: 1,
+      created_by: "本机管理员",
+      created_at: "2026-11-07T12:00:00Z",
+      completed_at: "2026-11-07T12:00:05Z",
+      zip_asset_id: "asset-zip",
+      error_code: null,
+      safe_error_message: null,
+    },
+    download_url: "/api/v1/customer-deliveries/cd-1/download?expires=9999999999&signature=signed",
+  };
+  server.use(
+    http.get("/api/v1/projects/dual-1/customer-deliveries", () =>
+      HttpResponse.json(created ? [response] : []),
+    ),
+    http.post("/api/v1/projects/dual-1/customer-deliveries", async ({ request }) => {
+      body = (await request.json()) as CustomerDeliveryCreateRequest;
+      idempotencyKey = request.headers.get("Idempotency-Key");
+      created = true;
+      return HttpResponse.json(response, { status: 202 });
+    }),
+  );
+  const user = userEvent.setup();
+  renderWorkspace();
+
+  const preview = await screen.findByLabelText("将包含的切片");
+  expect(within(preview).getByText("小课 · 审核改写标题")).toBeInTheDocument();
+  const title = screen.getByLabelText("交付标题（客户可见）");
+  expect(title).toHaveValue("8-30 双轨结果 精选");
+  await user.clear(title);
+  await user.type(title, " 张老师 精选 ");
+  await user.click(screen.getByRole("button", { name: "生成交付包" }));
+
+  await waitFor(() =>
+    expect(body).toEqual({ title: "张老师 精选", expected_clip_ids: ["clip-lesson"] }),
+  );
+  expect(idempotencyKey).toMatch(/^liveclip-web-customer-delivery-/);
+  const versions = await screen.findByRole("list", { name: "客户交付版本列表" });
+  expect(within(versions).getByText("v001")).toBeInTheDocument();
+  expect(within(versions).getByText("已完成")).toBeInTheDocument();
+  expect(within(versions).getByRole("link", { name: "下载 ZIP" })).toHaveAttribute(
+    "href",
+    response.download_url,
+  );
 });

@@ -127,6 +127,10 @@ test("imports dual-profile results, approves with an override and selects for de
       await route.fulfill({ json: { schema_version: "1", project_id: "dual-1", events: [] } });
       return;
     }
+    if (path === "/api/v1/projects/dual-1/customer-deliveries" && method === "GET") {
+      await route.fulfill({ json: [] });
+      return;
+    }
     if (path === "/api/v1/projects/dual-1/dual-profile-import" && method === "GET") {
       await route.fulfill({ json: review() });
       return;

@@ -18,6 +18,7 @@ from liveclip.application.clips import ClipQueryService
 from liveclip.application.comments import ClipCommentService
 from liveclip.application.completion_runner import CompletionRunner
 from liveclip.application.completion_service import CompletionService
+from liveclip.application.customer_deliveries import CustomerDeliveryService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
 from liveclip.application.dual_profile_imports import DualProfileImportService
@@ -69,6 +70,7 @@ from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.comment_repository import SqlAlchemyClipCommentRepository
 from liveclip.db.completion_repository import SqlAlchemyCompletionRepository
+from liveclip.db.customer_delivery_repository import SqlAlchemyCustomerDeliveryRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
 from liveclip.db.dual_profile_repository import SqlAlchemyDualProfileImportRepository
 from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
@@ -90,6 +92,7 @@ from liveclip.db.storage_repository import (
 )
 from liveclip.db.task_queue import SQLiteTaskQueue
 from liveclip.db.workspace_repository import SqlAlchemyWorkspaceRepository
+from liveclip.delivery.customer_delivery_task_handler import CustomerDeliveryTaskHandler
 from liveclip.delivery.edit_package_task_handler import EditPackageTaskHandler
 from liveclip.delivery.release_package_task_handler import ReleasePackageTaskHandler
 from liveclip.delivery.task_handler import DeliveryTaskHandler
@@ -159,6 +162,7 @@ class LiveClipRuntime:
     project_governance_service: ProjectGovernanceService
     storage_administration_service: StorageAdministrationService
     dual_profile_review_service: DualProfileReviewService
+    customer_delivery_service: CustomerDeliveryService
 
     @classmethod
     def open(
@@ -310,6 +314,7 @@ class LiveClipRuntime:
                 release_repository,
                 max_retries=settings.max_stage_retries,
             )
+            customer_delivery_repository = SqlAlchemyCustomerDeliveryRepository(engine)
             delivery_runner = DeliveryTaskRunner(
                 queue=queue,
                 repository=delivery_repository,
@@ -327,6 +332,15 @@ class LiveClipRuntime:
                     assets=asset_store,
                     publication_fence=release_repository.assert_release_package_current,
                 ),
+                customer_delivery_repository=customer_delivery_repository,
+                customer_delivery_handler=CustomerDeliveryTaskHandler(
+                    data_dir=data_dir,
+                    publication_fence=customer_delivery_repository.assert_customer_delivery_current,
+                ),
+            )
+            customer_delivery_service = CustomerDeliveryService(
+                customer_delivery_repository,
+                max_retries=settings.max_stage_retries,
             )
             completion_repository = SqlAlchemyCompletionRepository(
                 engine,
@@ -400,6 +414,7 @@ class LiveClipRuntime:
                 project_governance_service=project_governance_service,
                 storage_administration_service=storage_administration_service,
                 dual_profile_review_service=dual_profile_review_service,
+                customer_delivery_service=customer_delivery_service,
             )
         except Exception:
             engine.dispose(close=True)

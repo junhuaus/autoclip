@@ -2810,3 +2810,22 @@ summary {
 .dual-profile-select-hint {
   margin: 0;
 }
+
+/* Stage 19c: customer delivery panel */
+.customer-delivery-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.customer-delivery-form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.customer-delivery-preview ol {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}

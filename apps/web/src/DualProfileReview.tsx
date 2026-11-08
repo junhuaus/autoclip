@@ -1,9 +1,15 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { LiveClipApiClient, errorMessage, signedUrlRefreshInterval } from "./api";
+import {
+  LiveClipApiClient,
+  createIdempotencyKey,
+  errorMessage,
+  signedUrlRefreshInterval,
+} from "./api";
 import { EmptyState, ErrorState, LoadingState, StatusBadge, formatMs } from "./ui";
 import type {
+  CustomerDeliverySnapshot,
   DualProfileClipText,
   DualProfileDecisionAction,
   DualProfileDecisionRequest,
@@ -373,17 +379,149 @@ export function DualProfileReviewSection({
           </section>
         ))}
       </section>
-      <section className="panel" aria-labelledby="customer-delivery-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">客户交付</p>
-            <h2 id="customer-delivery-title">客户交付版本</h2>
-          </div>
-          <span className="metric">已选 {review.selected_count}</span>
-        </div>
-        <p className="hint">客户交付包与只读分享链接将在下一阶段提供。</p>
-      </section>
+      <CustomerDeliveryPanel api={api} project={project} review={review} />
     </>
+  );
+}
+
+const DELIVERY_STATUS_LABELS: Record<CustomerDeliverySnapshot["status"], string> = {
+  queued: "排队中",
+  creating: "生成中",
+  succeeded: "已完成",
+  failed: "生成失败",
+};
+
+export function CustomerDeliveryPanel({
+  api,
+  project,
+  review,
+}: {
+  api: LiveClipApiClient;
+  project: ProjectSnapshot;
+  review: DualProfileReviewView;
+}) {
+  const queryClient = useQueryClient();
+  const queryKey = ["customer-deliveries", project.project_id];
+  const [title, setTitle] = useState(() => `${project.name} 精选`.slice(0, 80));
+  const [requestKey, setRequestKey] = useState(() => createIdempotencyKey("customer-delivery"));
+  const deliveriesQuery = useQuery({
+    queryKey,
+    queryFn: () => api.listCustomerDeliveries(project.project_id),
+    refetchInterval: (query) => {
+      const items = query.state.data ?? [];
+      if (items.some(({ delivery }) => delivery.status === "queued" || delivery.status === "creating")) {
+        return 1_000;
+      }
+      return signedUrlRefreshInterval(items.map((item) => item.download_url));
+    },
+  });
+  const selected = review.groups.flatMap((group) =>
+    group.clips.filter((clip) => clip.selected_for_delivery),
+  );
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.createCustomerDelivery(
+        project.project_id,
+        { title: title.trim(), expected_clip_ids: selected.map((clip) => clip.import_clip_id) },
+        requestKey,
+      ),
+    onSuccess: () => {
+      setRequestKey(createIdempotencyKey("customer-delivery"));
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+  const canDeliver = project.allowed_actions.includes("deliver");
+  const trimmed = title.trim();
+  const disabledReason = !canDeliver
+    ? "当前角色不能生成客户交付包"
+    : selected.length === 0
+      ? "请先在上方选入至少一条可交付的切片"
+      : trimmed.length === 0
+        ? "请填写交付标题"
+        : null;
+  return (
+    <section className="panel" aria-labelledby="customer-delivery-title">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">客户交付</p>
+          <h2 id="customer-delivery-title">客户交付版本</h2>
+        </div>
+        <span className="metric">已选 {selected.length}</span>
+      </div>
+      <form
+        className="customer-delivery-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!disabledReason) createMutation.mutate();
+        }}
+      >
+        <label>
+          交付标题（客户可见）
+          <input
+            value={title}
+            maxLength={80}
+            onChange={(event) => setTitle(event.currentTarget.value)}
+          />
+        </label>
+        <div className="customer-delivery-preview" aria-label="将包含的切片">
+          <p className="hint">将包含 {selected.length} 条（按生效标题）：</p>
+          {selected.length > 0 ? (
+            <ol>
+              {selected.map((clip) => (
+                <li key={clip.import_clip_id}>
+                  {clip.profile === "short_highlight" ? "短片" : "小课"} · {clip.effective.title}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+        <button
+          type="submit"
+          className="button button-primary"
+          disabled={disabledReason !== null || createMutation.isPending}
+        >
+          {createMutation.isPending ? "正在创建…" : "生成交付包"}
+        </button>
+        {disabledReason ? <p className="hint disabled-reason">{disabledReason}</p> : null}
+        {createMutation.isError ? (
+          <p className="form-error" role="alert">
+            {errorMessage(createMutation.error)}
+          </p>
+        ) : null}
+      </form>
+      {deliveriesQuery.isError ? (
+        <ErrorState error={deliveriesQuery.error} onRetry={() => void deliveriesQuery.refetch()} />
+      ) : null}
+      {deliveriesQuery.data && deliveriesQuery.data.length === 0 ? (
+        <p className="hint">还没有客户交付版本。</p>
+      ) : null}
+      {deliveriesQuery.data && deliveriesQuery.data.length > 0 ? (
+        <ul className="delivery-list" aria-label="客户交付版本列表">
+          {deliveriesQuery.data.map(({ delivery, download_url: downloadUrl }) => (
+            <li key={delivery.delivery_id} className="delivery-row">
+              <strong>{delivery.delivery_version}</strong>
+              <span>{delivery.title}</span>
+              <StatusBadge
+                status={delivery.status === "succeeded" ? "succeeded" : delivery.status === "failed" ? "failed" : "queued"}
+                label={DELIVERY_STATUS_LABELS[delivery.status]}
+              />
+              <span>
+                {delivery.clip_count} 条 · {delivery.created_by} ·{" "}
+                {new Date(delivery.created_at).toLocaleString("zh-CN")}
+              </span>
+              {downloadUrl ? (
+                <a className="button button-secondary" href={downloadUrl}>
+                  下载 ZIP
+                </a>
+              ) : null}
+              {delivery.status === "failed" && delivery.safe_error_message ? (
+                <span className="hint">{delivery.safe_error_message}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

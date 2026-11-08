@@ -47,6 +47,8 @@ from liveclip.api.schemas import (
     CompletionPresetCreateRequest,
     CompletionPresetsResponse,
     CompletionVersionCommandRequest,
+    CustomerDeliveryCreateRequest,
+    CustomerDeliveryResponse,
     DeliveryCreateRequest,
     DeliveryDetailResponse,
     DualProfileDecisionRequest,
@@ -104,6 +106,12 @@ from liveclip.application.completion import (
 from liveclip.application.completion_presets import (
     list_completion_presets,
     resolve_completion_preset,
+)
+from liveclip.application.customer_deliveries import (
+    CUSTOMER_DELIVERY_ZIP_KIND,
+    CustomerDeliveryConflict,
+    CustomerDeliveryCreate,
+    CustomerDeliverySnapshot,
 )
 from liveclip.application.deliveries import (
     DeliveryConflict,
@@ -184,6 +192,7 @@ from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
 from liveclip.db.workspace_repository import WorkspaceConflict, WorkspacePermissionDenied
+from liveclip.delivery.customer_package import customer_download_filename
 from liveclip.domain.customer_delivery import ClipDecisionAction, CustomerDeliveryRuleError
 from liveclip.domain.project_lifecycle import (
     ProjectLifecycle,
@@ -1068,6 +1077,51 @@ def create_app(
             summary_override=body.summary,
         )
         return _dual_profile_review_response(security, review)
+
+    @protected.post(
+        "/projects/{project_id}/customer-deliveries",
+        status_code=status.HTTP_202_ACCEPTED,
+        response_model=CustomerDeliveryResponse,
+    )
+    def create_customer_delivery(
+        project_id: str,
+        body: CustomerDeliveryCreateRequest,
+        request: Request,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> CustomerDeliveryResponse:
+        active = _runtime(request)
+        caller = _caller(request)
+        actor = _require_project_access(
+            active, caller, project_id, action="deliver", allow_imported=True
+        )
+        delivery = active.customer_delivery_service.create(
+            project_id,
+            acting_user_id=actor.user_id,
+            request=CustomerDeliveryCreate(
+                title=body.title, expected_clip_ids=body.expected_clip_ids
+            ),
+            idempotency=_idempotency(
+                caller,
+                idempotency_key,
+                operation="POST:/api/v1/projects/:project_id/customer-deliveries",
+                payload={"project_id": project_id, **body.model_dump(mode="json")},
+            ),
+        )
+        return _customer_delivery_response(security, delivery)
+
+    @protected.get(
+        "/projects/{project_id}/customer-deliveries",
+        response_model=list[CustomerDeliveryResponse],
+    )
+    def list_customer_deliveries(
+        project_id: str, request: Request
+    ) -> list[CustomerDeliveryResponse]:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return [
+            _customer_delivery_response(security, item)
+            for item in active.customer_delivery_service.list(project_id)
+        ]
 
     @protected.get(
         "/projects/{project_id}/members",
@@ -2078,6 +2132,40 @@ def create_app(
             download_filename=f"liveclip-{delivery.delivery_version}.zip",
         )
 
+    @app.get("/api/v1/customer-deliveries/{delivery_id}/download")
+    def download_customer_delivery(
+        delivery_id: str,
+        request: Request,
+        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        range_header: Annotated[str | None, Header(alias="Range")] = None,
+        expires: Annotated[int | None, Query(ge=0)] = None,
+        signature: Annotated[str | None, Query(min_length=64, max_length=64)] = None,
+    ) -> Response:
+        active = _runtime(request)
+        delivery = active.customer_delivery_service.get(delivery_id)
+        _authorize_asset_read(
+            runtime=active,
+            security=security,
+            request=request,
+            authorization=authorization,
+            project_id=delivery.project_id,
+            path=f"/api/v1/customer-deliveries/{delivery_id}/download",
+            resource=f"customer-delivery:{delivery_id}",
+            expires=expires,
+            signature=signature,
+        )
+        if delivery.zip_asset_id is None or delivery.status.value != "succeeded":
+            raise CustomerDeliveryConflict("customer delivery ZIP is not available")
+        asset = active.media_asset_service.resolve(
+            delivery.zip_asset_id,
+            required_kind=CUSTOMER_DELIVERY_ZIP_KIND,
+        )
+        return stream_asset_response(
+            asset,
+            range_header=range_header,
+            download_filename=customer_download_filename(delivery.title, delivery.delivery_version),
+        )
+
     @app.get("/api/v1/edit-packages/{edit_package_id}/download")
     def download_edit_package(
         edit_package_id: str,
@@ -2522,6 +2610,19 @@ def _review_patch(body: ReviewActionRequest) -> ClipPatch:
     )
 
 
+def _customer_delivery_response(
+    security: ApiSecurity,
+    delivery: CustomerDeliverySnapshot,
+) -> CustomerDeliveryResponse:
+    download_url = None
+    if delivery.status.value == "succeeded" and delivery.zip_asset_id is not None:
+        download_url = security.signed_url(
+            path=f"/api/v1/customer-deliveries/{delivery.delivery_id}/download",
+            resource=f"customer-delivery:{delivery.delivery_id}",
+        )
+    return CustomerDeliveryResponse(delivery=delivery, download_url=download_url)
+
+
 def _dual_profile_review_response(
     security: ApiSecurity,
     review: DualProfileReviewView,
@@ -2847,10 +2948,11 @@ def _install_exception_handlers(app: FastAPI) -> None:
             message=message if 0 < len(message) <= 300 else "The review decision is invalid",
         )
 
+    @app.exception_handler(CustomerDeliveryConflict)
     @app.exception_handler(DualProfileDecisionConflict)
     async def dual_profile_decision_conflict_handler(
         request: Request,
-        exc: DualProfileDecisionConflict,
+        exc: DualProfileDecisionConflict | CustomerDeliveryConflict,
     ) -> JSONResponse:
         message = str(exc).strip()
         return _error_response(

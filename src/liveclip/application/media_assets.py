@@ -62,6 +62,7 @@ _SCOPED_ASSET_KINDS = frozenset(
         "edit_package_zip",
         "release_package_zip",
         "release_package_manifest",
+        "customer_delivery_zip",
     }
 )
 

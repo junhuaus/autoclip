@@ -1,4 +1,6 @@
 import type {
+  CustomerDeliveryCreateRequest,
+  CustomerDeliveryResponse,
   DualProfileDecisionRequest,
   DualProfileImportRequest,
   DualProfileImportResponse,
@@ -468,6 +470,22 @@ export class LiveClipApiClient {
     return this.request(`/projects/${encodeURIComponent(projectId)}/ownership-transfer`, {
       method: "POST",
       body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
+    });
+  }
+
+  listCustomerDeliveries(projectId: string): Promise<CustomerDeliveryResponse[]> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/customer-deliveries`);
+  }
+
+  createCustomerDelivery(
+    projectId: string,
+    body: CustomerDeliveryCreateRequest,
+    requestKey: string,
+  ): Promise<CustomerDeliveryResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/customer-deliveries`, {
+      method: "POST",
+      headers: { "Idempotency-Key": requestKey },
+      body: JSON.stringify(body),
     });
   }
 

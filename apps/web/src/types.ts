@@ -1204,3 +1204,32 @@ export interface DualProfileDecisionRequest {
   hook?: string;
   summary?: string;
 }
+
+export interface CustomerDeliverySnapshot {
+  delivery_id: string;
+  project_id: string;
+  task_id: string | null;
+  version: number;
+  delivery_version: string;
+  title: string;
+  status: "queued" | "creating" | "succeeded" | "failed";
+  clip_count: number;
+  short_count: number;
+  lesson_count: number;
+  created_by: string;
+  created_at: string;
+  completed_at: string | null;
+  zip_asset_id: string | null;
+  error_code: string | null;
+  safe_error_message: string | null;
+}
+
+export interface CustomerDeliveryResponse {
+  delivery: CustomerDeliverySnapshot;
+  download_url: string | null;
+}
+
+export interface CustomerDeliveryCreateRequest {
+  title: string;
+  expected_clip_ids?: string[];
+}

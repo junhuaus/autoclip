@@ -18,6 +18,10 @@ from liveclip.application.completion_preset_contract import (
     CompletionPresetId,
     CompletionPresetSummary,
 )
+from liveclip.application.customer_deliveries import (
+    CustomerDeliverySnapshot,
+    validate_delivery_title,
+)
 from liveclip.application.deliveries import DeliverySnapshot
 from liveclip.application.dual_profile_review import DualProfileReviewView
 from liveclip.application.edit_packages import (
@@ -751,3 +755,20 @@ class DualProfileReviewResponse(BaseModel):
 
     review: DualProfileReviewView
     asset_urls: dict[str, str]
+
+
+class CustomerDeliveryCreateRequest(ApiRequestModel):
+    title: str = Field(min_length=1, max_length=200)
+    expected_clip_ids: tuple[str, ...] | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_title(self) -> CustomerDeliveryCreateRequest:
+        validate_delivery_title(self.title)
+        return self
+
+
+class CustomerDeliveryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    delivery: CustomerDeliverySnapshot
+    download_url: str | None

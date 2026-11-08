@@ -4,6 +4,11 @@ import logging
 import threading
 from enum import StrEnum
 
+from liveclip.application.customer_deliveries import (
+    CustomerDeliveryConflict,
+    CustomerDeliveryRepository,
+    CustomerDeliverySnapshot,
+)
 from liveclip.application.deliveries import DeliveryConflict, DeliveryRepository, DeliverySnapshot
 from liveclip.application.delivery_progress import (
     DeliveryProgressLostLease,
@@ -27,6 +32,10 @@ from liveclip.application.releases import (
 )
 from liveclip.application.render_runner import RenderTaskQueue
 from liveclip.application.tasks import TaskLease, TaskQueueTransientError
+from liveclip.delivery.customer_delivery_task_handler import (
+    CustomerDeliveryTaskCancelled,
+    CustomerDeliveryTaskHandler,
+)
 from liveclip.delivery.edit_package import EditPackageError, EditPackageTransientError
 from liveclip.delivery.edit_package_task_handler import (
     EditPackageTaskCancelled,
@@ -69,6 +78,8 @@ class DeliveryTaskRunner:
         edit_package_handler: EditPackageTaskHandler | None = None,
         release_repository: ReleaseRepository | None = None,
         release_package_handler: ReleasePackageTaskHandler | None = None,
+        customer_delivery_repository: CustomerDeliveryRepository | None = None,
+        customer_delivery_handler: CustomerDeliveryTaskHandler | None = None,
     ) -> None:
         if heartbeat_seconds <= 0:
             raise ValueError("heartbeat interval must be positive")
@@ -84,6 +95,10 @@ class DeliveryTaskRunner:
             raise ValueError("release-package repository and handler must be configured together")
         self._release_repository = release_repository
         self._release_package_handler = release_package_handler
+        if (customer_delivery_repository is None) != (customer_delivery_handler is None):
+            raise ValueError("customer-delivery repository and handler must be configured together")
+        self._customer_delivery_repository = customer_delivery_repository
+        self._customer_delivery_handler = customer_delivery_handler
 
     def run_one(self, *, worker_id: str) -> DeliveryRunOutcome:
         try:
@@ -115,6 +130,15 @@ class DeliveryTaskRunner:
             )
         ):
             return self._run_release_package(lease, identity)
+        if (
+            self._customer_delivery_repository is not None
+            and self._customer_delivery_handler is not None
+            and self._customer_delivery_repository.is_customer_delivery_task(
+                lease.task_id,
+                lease.target_id,
+            )
+        ):
+            return self._run_customer_delivery(lease, identity)
         try:
             work = self._repository.start_delivery(identity)
         except Exception:
@@ -254,6 +278,101 @@ class DeliveryTaskRunner:
             outcome = self.run_one(worker_id=worker_id)
             if outcome in {DeliveryRunOutcome.IDLE, DeliveryRunOutcome.BUSY}:
                 threading.Event().wait(poll_seconds)
+
+    def run_customer_delivery_until_terminal(
+        self,
+        delivery_id: str,
+        *,
+        worker_id: str,
+        poll_seconds: float = 0.2,
+    ) -> CustomerDeliverySnapshot:
+        if self._customer_delivery_repository is None:
+            raise RuntimeError("customer-delivery runner is not configured")
+        if poll_seconds <= 0 or poll_seconds > 5:
+            raise ValueError("foreground poll interval must be between zero and five seconds")
+        while True:
+            snapshot = self._customer_delivery_repository.get_customer_delivery(delivery_id)
+            if snapshot.status in {DeliveryStatus.SUCCEEDED, DeliveryStatus.FAILED}:
+                return snapshot
+            outcome = self.run_one(worker_id=worker_id)
+            if outcome in {DeliveryRunOutcome.IDLE, DeliveryRunOutcome.BUSY}:
+                threading.Event().wait(poll_seconds)
+
+    def _run_customer_delivery(
+        self,
+        lease: TaskLease,
+        identity: LeaseIdentity,
+    ) -> DeliveryRunOutcome:
+        repository = self._customer_delivery_repository
+        handler = self._customer_delivery_handler
+        if repository is None or handler is None:  # pragma: no cover - guarded by caller
+            return self._fail(
+                lease,
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code="CUSTOMER_DELIVERY_NOT_CONFIGURED",
+                safe_message="The customer-delivery task is not configured on this worker",
+            )
+        try:
+            work = repository.start_customer_delivery(identity)
+        except Exception:
+            return self._fail(
+                lease,
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code="CUSTOMER_DELIVERY_STATE_INVALID",
+                safe_message="The customer-delivery task is no longer valid",
+            )
+        monitor = LeaseMonitor(
+            heartbeat=self._queue.heartbeat,
+            observe=getattr(self._queue, "observe", None),
+            lease=lease,
+            heartbeat_seconds=self._heartbeat_seconds,
+            thread_name=f"liveclip-customer-delivery-lease-{lease.task_id[:8]}",
+        )
+        monitor.start()
+        try:
+            persistence = handler.execute(work, identity, cancel_requested=monitor.should_stop)
+            monitor.refresh()
+            if monitor.cancel_requested:
+                return (
+                    DeliveryRunOutcome.CANCELLED
+                    if self._queue.acknowledge_cancel(lease)
+                    else DeliveryRunOutcome.LOST_LEASE
+                )
+            if monitor.lost_lease:
+                return DeliveryRunOutcome.LOST_LEASE
+            if repository.complete_customer_delivery(identity, work, persistence):
+                return DeliveryRunOutcome.SUCCEEDED
+            return DeliveryRunOutcome.LOST_LEASE
+        except CustomerDeliveryTaskCancelled:
+            return (
+                DeliveryRunOutcome.CANCELLED
+                if self._queue.acknowledge_cancel(lease)
+                else DeliveryRunOutcome.LOST_LEASE
+            )
+        except OSError:
+            return self._fail(
+                lease,
+                failure_class=FailureClass.TRANSIENT,
+                error_code="CUSTOMER_DELIVERY_IO_TEMPORARY",
+                safe_message="The customer delivery could not be written and may be retried",
+            )
+        except (CustomerDeliveryConflict, DeliveryError, ValueError) as exc:
+            logger.warning("customer_delivery_validation_failed error_type=%s", type(exc).__name__)
+            return self._fail(
+                lease,
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code="CUSTOMER_DELIVERY_VALIDATION_FAILED",
+                safe_message="The customer delivery did not pass deterministic validation",
+            )
+        except Exception:
+            return self._fail(
+                lease,
+                failure_class=FailureClass.DETERMINISTIC,
+                error_code="UNEXPECTED_CUSTOMER_DELIVERY_ERROR",
+                safe_message="The customer delivery failed with an unexpected local error",
+            )
+        finally:
+            monitor.stop()
 
     def _run_edit_package(
         self,
