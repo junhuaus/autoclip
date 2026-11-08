@@ -2,6 +2,8 @@ import type {
   ClipDetailResponse,
   ClipSummaryResponse,
   DeliveryDetailResponse,
+  DualProfileReviewClip,
+  DualProfileReviewResponse,
   ProjectSearchPage,
   ProjectSnapshot,
   RunSnapshot,
@@ -292,3 +294,122 @@ export const succeededDelivery: DeliveryDetailResponse = {
   },
   download_url: "/api/v1/deliveries/delivery-1/download?expires=9999999999&signature=signed",
 };
+
+export const dualProfileProject: ProjectSnapshot = {
+  ...project,
+  project_id: "dual-1",
+  name: "8-30 双轨结果",
+  source_filename: "8-30.ts",
+  source_kind: "dual_profile_import",
+  current_run_id: "",
+  generation: 0,
+};
+
+function dualClip(overrides: Partial<DualProfileReviewClip>): DualProfileReviewClip {
+  return {
+    import_clip_id: "clip-short",
+    candidate_id: "short-one",
+    profile: "short_highlight",
+    routed_status: "selected",
+    review_state: "pending",
+    variant_group_id: "",
+    start_ms: 0,
+    end_ms: 45_000,
+    duration_ms: 45_000,
+    original: { title: "短片原标题", hook: "短片原钩子", summary: "短片原摘要" },
+    effective: { title: "短片原标题", hook: "短片原钩子", summary: "短片原摘要" },
+    has_override: false,
+    score: 88,
+    review_reason: "短片内部理由",
+    quality_flags: [],
+    risk_tags: [],
+    video_asset_id: "asset-short-video",
+    subtitle_asset_id: "asset-short-srt",
+    deliverable: true,
+    selected_for_delivery: false,
+    decisions: [],
+    ...overrides,
+  };
+}
+
+export const dualProfileShortClip = dualClip({});
+export const dualProfileLessonClip = dualClip({
+  import_clip_id: "clip-lesson",
+  candidate_id: "lesson-one",
+  profile: "mini_lesson",
+  routed_status: "manual_review",
+  start_ms: 100_000,
+  end_ms: 200_000,
+  duration_ms: 100_000,
+  original: { title: "小课原标题", hook: "小课原钩子", summary: "小课原摘要" },
+  effective: { title: "审核改写标题", hook: "小课原钩子", summary: "小课原摘要" },
+  has_override: true,
+  review_state: "rejected",
+  review_reason: "小课内部理由",
+  risk_tags: ["medical_claim"],
+  video_asset_id: "asset-lesson-video",
+  subtitle_asset_id: "asset-lesson-srt",
+  deliverable: false,
+  decisions: [
+    {
+      sequence: 1,
+      action: "approve",
+      title_override: "审核改写标题",
+      hook_override: null,
+      summary_override: null,
+      actor_username: "local-admin",
+      actor_display_name: "本机管理员",
+      decided_at: "2026-11-07T12:00:00Z",
+    },
+    {
+      sequence: 2,
+      action: "reject",
+      title_override: null,
+      hook_override: null,
+      summary_override: null,
+      actor_username: "local-admin",
+      actor_display_name: "本机管理员",
+      decided_at: "2026-11-07T12:05:00Z",
+    },
+  ],
+});
+
+export function dualProfileReview(
+  clips: DualProfileReviewClip[] = [dualProfileShortClip, dualProfileLessonClip],
+): DualProfileReviewResponse {
+  return {
+    review: {
+      schema_version: "1",
+      project_id: "dual-1",
+      import_id: "import-1",
+      source_filename: "8-30.ts",
+      snapshot: "744f55f73e45152c4f54",
+      algorithm_version: "dual-profile-direct-v1",
+      routing_policy_version: "quality-gate-risk-routing-v9",
+      clip_count: clips.length,
+      imported_at: "2026-11-07T11:00:00Z",
+      imported_by: "local-admin",
+      deliverable_count: clips.filter((clip) => clip.deliverable).length,
+      selected_count: clips.filter((clip) => clip.selected_for_delivery).length,
+      text_limits: { title: 120, hook: 600, summary: 1200 },
+      groups: [
+        {
+          profile: "short_highlight",
+          label: "短片",
+          clips: clips.filter((clip) => clip.profile === "short_highlight"),
+        },
+        {
+          profile: "mini_lesson",
+          label: "小课",
+          clips: clips.filter((clip) => clip.profile === "mini_lesson"),
+        },
+      ],
+    },
+    asset_urls: Object.fromEntries(
+      clips.flatMap((clip) => [
+        [clip.video_asset_id, `/api/v1/media/${clip.video_asset_id}?expires=9999999999&signature=signed`],
+        [clip.subtitle_asset_id, `/api/v1/media/${clip.subtitle_asset_id}?expires=9999999999&signature=signed`],
+      ]),
+    ),
+  };
+}

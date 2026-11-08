@@ -49,6 +49,10 @@ from liveclip.api.schemas import (
     CompletionVersionCommandRequest,
     DeliveryCreateRequest,
     DeliveryDetailResponse,
+    DualProfileDecisionRequest,
+    DualProfileImportRequest,
+    DualProfileImportResponse,
+    DualProfileReviewResponse,
     EditPackageCreateRequest,
     EditPackageDetailResponse,
     HealthResponse,
@@ -104,6 +108,14 @@ from liveclip.application.deliveries import (
     DeliveryConflict,
     DeliveryRequest,
     DeliverySnapshot,
+)
+from liveclip.application.dual_profile_imports import (
+    DualProfileDecisionConflict,
+    DualProfileImportError,
+)
+from liveclip.application.dual_profile_review import (
+    DualProfileReviewView,
+    decision_permission,
 )
 from liveclip.application.edit_packages import (
     EditPackageConflict,
@@ -171,6 +183,7 @@ from liveclip.application.workspace import WorkspaceUser
 from liveclip.bootstrap import LiveClipRuntime, pipeline_config_from_settings
 from liveclip.config import Settings, get_settings
 from liveclip.db.workspace_repository import WorkspaceConflict, WorkspacePermissionDenied
+from liveclip.domain.customer_delivery import ClipDecisionAction, CustomerDeliveryRuleError
 from liveclip.domain.project_lifecycle import (
     ProjectLifecycle,
     ProjectLifecycleConflict,
@@ -987,6 +1000,72 @@ def create_app(
         active = _runtime(request)
         workspace_user = active.workspace_service.get_user_by_username(_caller(request).username)
         return active.pipeline_service.get_project(project_id, user_id=workspace_user.user_id)
+
+    @protected.post(
+        "/dual-profile-imports",
+        response_model=DualProfileImportResponse,
+    )
+    def import_dual_profile_run(
+        body: DualProfileImportRequest,
+        response: Response,
+        request: Request,
+    ) -> DualProfileImportResponse:
+        active = _runtime(request)
+        actor = _workspace_user_from_caller(active, _caller(request))
+        result = active.dual_profile_review_service.import_run(
+            acting_user_id=actor.user_id,
+            run_dir=Path(body.run_dir),
+            transcript_path=Path(body.transcript_path),
+            project_name=body.project_name,
+        )
+        response.status_code = status.HTTP_201_CREATED if result.created else status.HTTP_200_OK
+        return DualProfileImportResponse(
+            project_id=result.project_id,
+            import_id=result.import_id,
+            snapshot=result.snapshot_fingerprint[:20],
+            clip_count=result.clip_count,
+            created=result.created,
+        )
+
+    @protected.get(
+        "/projects/{project_id}/dual-profile-import",
+        response_model=DualProfileReviewResponse,
+    )
+    def get_dual_profile_review(project_id: str, request: Request) -> DualProfileReviewResponse:
+        active = _runtime(request)
+        _require_project_access(active, _caller(request), project_id)
+        return _dual_profile_review_response(
+            security, active.dual_profile_review_service.get_review(project_id)
+        )
+
+    @protected.post(
+        "/projects/{project_id}/dual-profile-import/clips/{import_clip_id}/decisions",
+        response_model=DualProfileReviewResponse,
+    )
+    def decide_dual_profile_clip(
+        project_id: str,
+        import_clip_id: str,
+        body: DualProfileDecisionRequest,
+        request: Request,
+    ) -> DualProfileReviewResponse:
+        active = _runtime(request)
+        action = ClipDecisionAction(body.action)
+        actor = _require_project_access(
+            active,
+            _caller(request),
+            project_id,
+            action=decision_permission(action),
+        )
+        review = active.dual_profile_review_service.decide(
+            project_id,
+            import_clip_id,
+            acting_user_id=actor.user_id,
+            action=action,
+            title_override=body.title,
+            hook_override=body.hook,
+            summary_override=body.summary,
+        )
+        return _dual_profile_review_response(security, review)
 
     @protected.get(
         "/projects/{project_id}/members",
@@ -2416,6 +2495,24 @@ def _review_patch(body: ReviewActionRequest) -> ClipPatch:
     )
 
 
+def _dual_profile_review_response(
+    security: ApiSecurity,
+    review: DualProfileReviewView,
+) -> DualProfileReviewResponse:
+    asset_ids = sorted(
+        {
+            asset_id
+            for group in review.groups
+            for clip in group.clips
+            for asset_id in (clip.video_asset_id, clip.subtitle_asset_id)
+        }
+    )
+    return DualProfileReviewResponse(
+        review=review,
+        asset_urls={asset_id: _asset_url(security, asset_id) for asset_id in asset_ids},
+    )
+
+
 def _asset_url(security: ApiSecurity, asset_id: str) -> str:
     return security.signed_url(
         path=f"/api/v1/media/{asset_id}",
@@ -2693,6 +2790,47 @@ def _install_exception_handlers(app: FastAPI) -> None:
             status_code=409,
             code="STATE_CONFLICT",
             message=message if 0 < len(message) <= 500 else "Resource state conflicts with request",
+        )
+
+    @app.exception_handler(DualProfileImportError)
+    async def dual_profile_import_invalid_handler(
+        request: Request,
+        exc: DualProfileImportError,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=422,
+            code="DUAL_PROFILE_IMPORT_INVALID",
+            message=message
+            if 0 < len(message) <= 300
+            else "The dual-profile run cannot be imported",
+        )
+
+    @app.exception_handler(CustomerDeliveryRuleError)
+    async def dual_profile_decision_invalid_handler(
+        request: Request,
+        exc: CustomerDeliveryRuleError,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=422,
+            code="DUAL_PROFILE_DECISION_INVALID",
+            message=message if 0 < len(message) <= 300 else "The review decision is invalid",
+        )
+
+    @app.exception_handler(DualProfileDecisionConflict)
+    async def dual_profile_decision_conflict_handler(
+        request: Request,
+        exc: DualProfileDecisionConflict,
+    ) -> JSONResponse:
+        message = str(exc).strip()
+        return _error_response(
+            request,
+            status_code=409,
+            code="STATE_CONFLICT",
+            message=message if 0 < len(message) <= 300 else "Resource state conflicts with request",
         )
 
     @app.exception_handler(MediaAssetInvalid)

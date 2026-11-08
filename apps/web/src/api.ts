@@ -1,4 +1,8 @@
 import type {
+  DualProfileDecisionRequest,
+  DualProfileImportRequest,
+  DualProfileImportResponse,
+  DualProfileReviewResponse,
   CompletionPresetsResponse,
   CompletionPresetCreateRequest,
   CompletionGoalResponse,
@@ -465,6 +469,28 @@ export class LiveClipApiClient {
       method: "POST",
       body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
     });
+  }
+
+  importDualProfileRun(body: DualProfileImportRequest): Promise<DualProfileImportResponse> {
+    return this.request("/dual-profile-imports", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  getDualProfileReview(projectId: string): Promise<DualProfileReviewResponse> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/dual-profile-import`);
+  }
+
+  decideDualProfileClip(
+    projectId: string,
+    importClipId: string,
+    body: DualProfileDecisionRequest,
+  ): Promise<DualProfileReviewResponse> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectId)}/dual-profile-import/clips/${encodeURIComponent(importClipId)}/decisions`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
   }
 
   createJob(body: JobCreateRequest): Promise<AcceptedPipelineResponse> {

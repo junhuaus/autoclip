@@ -20,6 +20,7 @@ import type {
   RunSnapshot,
   StageSnapshot,
 } from "./types";
+import { DualProfileReviewSection } from "./DualProfileReview";
 import { EmptyState, ErrorState, LoadingState, StatusBadge, formatMs, statusLabel } from "./ui";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -813,7 +814,9 @@ export function ProjectWorkspace({
     queryFn: () => api.getProject(projectId),
     refetchInterval: (query) => query.state.data?.status === "processing" ? 1_000 : false,
   });
-  const runId = projectQuery.data?.current_run_id ?? null;
+  const isDualProfileImport = projectQuery.data?.source_kind === "dual_profile_import";
+  const runId =
+    projectQuery.data && !isDualProfileImport ? projectQuery.data.current_run_id : null;
   const runQuery = useQuery({
     queryKey: ["run", runId],
     queryFn: () => api.getRun(runId as string),
@@ -943,6 +946,46 @@ export function ProjectWorkspace({
   const canReview = project.allowed_actions.includes("review_clip");
   const canComment = project.allowed_actions.includes("comment");
   const canRender = project.allowed_actions.includes("render");
+
+  if (isDualProfileImport) {
+    return (
+      <main className="workspace">
+        <button type="button" className="button button-ghost back-button" onClick={onBack}>
+          ← 返回项目列表
+        </button>
+        <section className="project-hero">
+          <div>
+            <p className="eyebrow">项目 {project.project_id.slice(0, 8)} · 双轨导入结果</p>
+            <h1>{project.name}</h1>
+            <p>{project.source_filename}</p>
+          </div>
+          <div className="hero-status">
+            <StatusBadge status={project.lifecycle} label={PROJECT_LIFECYCLE_LABELS[project.lifecycle]} />
+            <span>
+              {MEMBER_ROLE_LABELS[project.current_user_role]} · {project.members.length} 位成员
+            </span>
+          </div>
+        </section>
+        <ProjectOperations
+          api={api}
+          project={project}
+          onChanged={(updated) => {
+            queryClient.setQueryData(["project", projectId], updated);
+            void queryClient.invalidateQueries({ queryKey: ["projects"] });
+          }}
+        />
+        <ProjectMembersPanel
+          api={api}
+          project={project}
+          onChanged={() => {
+            void projectQuery.refetch();
+            void queryClient.invalidateQueries({ queryKey: ["project-activity", projectId] });
+          }}
+        />
+        <DualProfileReviewSection api={api} project={project} />
+      </main>
+    );
+  }
 
   return (
     <main className="workspace">

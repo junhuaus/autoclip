@@ -713,9 +713,12 @@ class ProjectSnapshot(BaseModel):
     project_id: str
     name: str
     source_filename: str
+    # Stage 19: "dual_profile_import" projects have no pipeline run; their
+    # current_run_id is "" and generation is 0 (nothing is invented).
+    source_kind: Literal["pipeline", "dual_profile_import"] = "pipeline"
     status: ProjectStatus
     current_run_id: str
-    generation: int = Field(ge=1)
+    generation: int = Field(ge=0)
     visibility: Literal["private", "workspace"] = "private"
     lifecycle: ProjectLifecycle = ProjectLifecycle.PROCESSING
     lifecycle_before_archive: ProjectLifecycle | None = None

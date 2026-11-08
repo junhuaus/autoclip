@@ -20,6 +20,8 @@ from liveclip.application.completion_runner import CompletionRunner
 from liveclip.application.completion_service import CompletionService
 from liveclip.application.deliveries import DeliveryService
 from liveclip.application.delivery_runner import DeliveryTaskRunner
+from liveclip.application.dual_profile_imports import DualProfileImportService
+from liveclip.application.dual_profile_review import DualProfileReviewService
 from liveclip.application.edit_packages import EditPackageService
 from liveclip.application.governance import ProjectGovernanceService
 from liveclip.application.identity import AuthenticationService, UserAdministrationService
@@ -62,11 +64,13 @@ from liveclip.clipping_skills.semantic_windowed_v2 import (
     load_semantic_windowed_v2_discovery_prompt,
 )
 from liveclip.config import Settings
+from liveclip.customer_delivery_settings import DualProfileImportSettings
 from liveclip.db.assets import SqlAlchemyAssetStore
 from liveclip.db.clip_repository import SqlAlchemyClipQueryRepository
 from liveclip.db.comment_repository import SqlAlchemyClipCommentRepository
 from liveclip.db.completion_repository import SqlAlchemyCompletionRepository
 from liveclip.db.delivery_repository import SqlAlchemyDeliveryRepository
+from liveclip.db.dual_profile_repository import SqlAlchemyDualProfileImportRepository
 from liveclip.db.edit_package_repository import SqlAlchemyEditPackageRepository
 from liveclip.db.engine import create_sqlite_engine
 from liveclip.db.governance_repository import SqlAlchemyProjectGovernanceRepository
@@ -154,6 +158,7 @@ class LiveClipRuntime:
     user_administration_service: UserAdministrationService
     project_governance_service: ProjectGovernanceService
     storage_administration_service: StorageAdministrationService
+    dual_profile_review_service: DualProfileReviewService
 
     @classmethod
     def open(
@@ -161,6 +166,7 @@ class LiveClipRuntime:
         settings: Settings,
         *,
         project_root: Path | None = None,
+        dual_profile_settings: DualProfileImportSettings | None = None,
     ) -> LiveClipRuntime:
         configure_logging(settings.log_level)
         data_dir = settings.resolved_data_dir(project_root or Path.cwd())
@@ -348,6 +354,21 @@ class LiveClipRuntime:
             storage_administration_service = StorageAdministrationService(
                 SqlAlchemyStorageAdministrationRepository(engine, data_dir=data_dir)
             )
+            dual_profile_root = (project_root or _installed_project_root()).resolve()
+            dual_profile_config = dual_profile_settings or DualProfileImportSettings()
+            dual_profile_repository = SqlAlchemyDualProfileImportRepository(engine)
+            dual_profile_review_service = DualProfileReviewService(
+                dual_profile_repository,
+                DualProfileImportService(
+                    dual_profile_repository,
+                    data_dir=data_dir,
+                    allowed_run_roots=dual_profile_config.import_roots(dual_profile_root),
+                    allowed_transcript_roots=dual_profile_config.transcript_roots(
+                        dual_profile_root
+                    ),
+                    relative_path_base=dual_profile_root,
+                ),
+            )
             return cls(
                 settings=settings,
                 data_dir=data_dir,
@@ -378,6 +399,7 @@ class LiveClipRuntime:
                 user_administration_service=user_administration_service,
                 project_governance_service=project_governance_service,
                 storage_administration_service=storage_administration_service,
+                dual_profile_review_service=dual_profile_review_service,
             )
         except Exception:
             engine.dispose(close=True)

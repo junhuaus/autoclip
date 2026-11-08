@@ -78,6 +78,8 @@ export interface ProjectSnapshot {
   project_id: string;
   name: string;
   source_filename: string;
+  /** "dual_profile_import" projects have no pipeline run (current_run_id is ""). */
+  source_kind?: "pipeline" | "dual_profile_import";
   status: ProjectStatus;
   current_run_id: string;
   generation: number;
@@ -1108,4 +1110,97 @@ export interface ApiErrorDetail {
 
 export interface ApiErrorEnvelope {
   error: ApiErrorDetail;
+}
+
+export type DualProfileClipProfile = "short_highlight" | "mini_lesson";
+export type DualProfileDecisionAction = "approve" | "reject" | "select" | "deselect";
+
+export interface DualProfileImportRequest {
+  run_dir: string;
+  transcript_path: string;
+  project_name?: string;
+}
+
+export interface DualProfileImportResponse {
+  project_id: string;
+  import_id: string;
+  snapshot: string;
+  clip_count: number;
+  created: boolean;
+}
+
+export interface DualProfileClipText {
+  title: string;
+  hook: string;
+  summary: string;
+}
+
+export interface DualProfileDecisionView {
+  sequence: number;
+  action: DualProfileDecisionAction;
+  title_override: string | null;
+  hook_override: string | null;
+  summary_override: string | null;
+  actor_username: string;
+  actor_display_name: string;
+  decided_at: string;
+}
+
+export interface DualProfileReviewClip {
+  import_clip_id: string;
+  candidate_id: string;
+  profile: DualProfileClipProfile;
+  routed_status: "selected" | "manual_review";
+  review_state: "pending" | "approved" | "rejected";
+  variant_group_id: string;
+  start_ms: number;
+  end_ms: number;
+  duration_ms: number;
+  original: DualProfileClipText;
+  effective: DualProfileClipText;
+  has_override: boolean;
+  score: number;
+  review_reason: string;
+  quality_flags: string[];
+  risk_tags: string[];
+  video_asset_id: string;
+  subtitle_asset_id: string;
+  deliverable: boolean;
+  selected_for_delivery: boolean;
+  decisions: DualProfileDecisionView[];
+}
+
+export interface DualProfileReviewGroup {
+  profile: DualProfileClipProfile;
+  label: "短片" | "小课";
+  clips: DualProfileReviewClip[];
+}
+
+export interface DualProfileReviewView {
+  schema_version: "1";
+  project_id: string;
+  import_id: string;
+  source_filename: string;
+  snapshot: string;
+  algorithm_version: string;
+  routing_policy_version: string;
+  clip_count: number;
+  imported_at: string;
+  imported_by: string;
+  deliverable_count: number;
+  selected_count: number;
+  text_limits: { title: number; hook: number; summary: number };
+  groups: DualProfileReviewGroup[];
+}
+
+export interface DualProfileReviewResponse {
+  review: DualProfileReviewView;
+  asset_urls: Record<string, string>;
+}
+
+export interface DualProfileDecisionRequest {
+  action: DualProfileDecisionAction;
+  title?: string;
+  hook?: string;
+  summary?: string;
 }

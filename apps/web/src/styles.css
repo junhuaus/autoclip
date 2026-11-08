@@ -2745,3 +2745,68 @@ summary {
     flex-direction: column;
   }
 }
+
+/* Stage 19b: imported dual-profile review */
+.dual-profile-group {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.dual-profile-group > h3 {
+  margin: 0;
+}
+
+.dual-profile-override-tag {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: 0.72rem;
+  vertical-align: middle;
+}
+
+.dual-profile-summary {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dual-profile-approval-form {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--surface-soft);
+}
+
+.dual-profile-approval-form label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.dual-profile-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dual-profile-history summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.dual-profile-history ol {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.dual-profile-select-hint {
+  margin: 0;
+}

@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, time, timedelta
 from typing import Any, cast
 
-from sqlalchemy import and_, case, delete, func, insert, or_, select, update
+from sqlalchemy import and_, case, delete, exists, func, insert, or_, select, update
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql import Select
@@ -37,6 +37,7 @@ from liveclip.db.engine import begin_immediate
 from liveclip.db.idempotency import load_idempotent_resource, record_idempotent_resource
 from liveclip.db.models import (
     CandidateClipRow,
+    DualProfileImportRow,
     EditPlanRevisionRow,
     ProjectMemberRow,
     ProjectRow,
@@ -318,7 +319,10 @@ def _authorized_projects(acting_user_id: str) -> Any:
             ),
         )
         .where(
-            ProjectRow.current_pipeline_run_id.is_not(None),
+            or_(
+                ProjectRow.current_pipeline_run_id.is_not(None),
+                exists().where(DualProfileImportRow.project_id == ProjectRow.id),
+            ),
             or_(
                 membership.user_id == acting_user_id,
                 ProjectRow.visibility == "workspace",

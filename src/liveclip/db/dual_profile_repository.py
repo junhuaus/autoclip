@@ -9,11 +9,15 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from liveclip.application.dual_profile_imports import (
+    DecisionRecord,
+    DualProfileDecisionConflict,
     DualProfileImportDuplicate,
     DualProfileImportError,
     DualProfileImportResult,
+    DualProfileReviewRecord,
     ImportedClipState,
     NewDualProfileImport,
+    ReviewClipRecord,
     clip_decision_from_values,
 )
 from liveclip.db.base import new_id
@@ -34,6 +38,7 @@ from liveclip.domain.customer_delivery import (
     ClipDecisionAction,
     CustomerText,
     ImportedClipStatus,
+    is_deliverable,
 )
 from liveclip.domain.project_lifecycle import ProjectLifecycle, ProjectPriority
 from liveclip.domain.state_transitions import AssetStatus
@@ -186,24 +191,33 @@ class SqlAlchemyDualProfileImportRepository:
         title_override: str | None = None,
         hook_override: str | None = None,
         summary_override: str | None = None,
+        require_deliverable: bool = False,
         now: datetime,
     ) -> ClipDecision:
         """Append one decision with the next per-clip sequence number.
 
-        Authorization and eligibility gating (for example "select only when
-        deliverable") belong to the calling application service.
+        Authorization belongs to the caller. With ``require_deliverable`` the
+        clip's eligibility is re-evaluated inside the same write transaction, so
+        a concurrent rejection cannot slip between the check and the append.
         """
 
         with begin_immediate(self._engine) as connection:
             _require_active_user(connection, acting_user_id)
-            exists = connection.scalar(
-                select(DualProfileImportClipRow.id).where(
+            routed_status = connection.scalar(
+                select(DualProfileImportClipRow.routed_status).where(
                     DualProfileImportClipRow.id == import_clip_id,
                     DualProfileImportClipRow.project_id == project_id,
                 )
             )
-            if exists is None:
+            if routed_status is None:
                 raise DualProfileClipNotFound("imported clip does not exist")
+            if require_deliverable and not is_deliverable(
+                ImportedClipStatus(str(routed_status)),
+                _clip_decisions(connection, import_clip_id),
+            ):
+                raise DualProfileDecisionConflict(
+                    "only an automatically selected or approved clip can be selected for delivery"
+                )
             current = connection.scalar(
                 select(func.max(DualProfileClipDecisionRow.sequence)).where(
                     DualProfileClipDecisionRow.import_clip_id == import_clip_id
@@ -242,6 +256,104 @@ class SqlAlchemyDualProfileImportRepository:
                 now=now,
             )
         return decision
+
+    def load_review(self, *, project_id: str) -> DualProfileReviewRecord | None:
+        """The import, its immutable clips (internal fields) and decision history."""
+
+        with self._engine.connect() as connection:
+            imported = connection.execute(
+                select(
+                    DualProfileImportRow.id,
+                    DualProfileImportRow.source_filename,
+                    DualProfileImportRow.snapshot_fingerprint,
+                    DualProfileImportRow.algorithm_version,
+                    DualProfileImportRow.routing_policy_version,
+                    DualProfileImportRow.clip_count,
+                    DualProfileImportRow.created_at,
+                    WorkspaceUserRow.username,
+                )
+                .join(WorkspaceUserRow, WorkspaceUserRow.id == DualProfileImportRow.imported_by)
+                .where(DualProfileImportRow.project_id == project_id)
+            ).one_or_none()
+            if imported is None:
+                return None
+            clips = connection.execute(
+                select(DualProfileImportClipRow).where(
+                    DualProfileImportClipRow.project_id == project_id
+                )
+            ).all()
+            decisions = connection.execute(
+                select(
+                    DualProfileClipDecisionRow.import_clip_id,
+                    DualProfileClipDecisionRow.sequence,
+                    DualProfileClipDecisionRow.action,
+                    DualProfileClipDecisionRow.title_override,
+                    DualProfileClipDecisionRow.hook_override,
+                    DualProfileClipDecisionRow.summary_override,
+                    DualProfileClipDecisionRow.decided_at,
+                    WorkspaceUserRow.username,
+                    WorkspaceUserRow.display_name,
+                )
+                .join(
+                    WorkspaceUserRow,
+                    WorkspaceUserRow.id == DualProfileClipDecisionRow.actor_user_id,
+                )
+                .where(DualProfileClipDecisionRow.project_id == project_id)
+                .order_by(
+                    DualProfileClipDecisionRow.import_clip_id,
+                    DualProfileClipDecisionRow.sequence,
+                )
+            ).all()
+        history: dict[str, list[DecisionRecord]] = {}
+        for row in decisions:
+            history.setdefault(str(row.import_clip_id), []).append(
+                DecisionRecord(
+                    decision=clip_decision_from_values(
+                        sequence=int(row.sequence),
+                        action=str(row.action),
+                        title_override=row.title_override,
+                        hook_override=row.hook_override,
+                        summary_override=row.summary_override,
+                    ),
+                    actor_username=str(row.username),
+                    actor_display_name=str(row.display_name),
+                    decided_at=row.decided_at,
+                )
+            )
+        return DualProfileReviewRecord(
+            import_id=str(imported.id),
+            project_id=project_id,
+            source_filename=str(imported.source_filename),
+            snapshot_fingerprint=str(imported.snapshot_fingerprint),
+            algorithm_version=str(imported.algorithm_version),
+            routing_policy_version=str(imported.routing_policy_version),
+            clip_count=int(imported.clip_count),
+            imported_at=imported.created_at,
+            imported_by=str(imported.username),
+            clips=tuple(
+                ReviewClipRecord(
+                    import_clip_id=str(row.id),
+                    candidate_id=str(row.candidate_id),
+                    profile=ClipProfile(row.profile),
+                    routed_status=ImportedClipStatus(row.routed_status),
+                    variant_group_id=str(row.variant_group_id),
+                    start_ms=int(row.start_ms),
+                    end_ms=int(row.end_ms),
+                    duration_ms=int(row.duration_ms),
+                    original_text=CustomerText(
+                        title=str(row.title), hook=str(row.hook), summary=str(row.summary)
+                    ),
+                    score=float(row.score),
+                    review_reason=str(row.review_reason),
+                    quality_flags=tuple(str(value) for value in row.quality_flags_json),
+                    risk_tags=tuple(str(value) for value in row.risk_tags_json),
+                    video_asset_id=str(row.video_asset_id),
+                    subtitle_asset_id=str(row.subtitle_asset_id),
+                    history=tuple(history.get(str(row.id), ())),
+                )
+                for row in clips
+            ),
+        )
 
     def list_clip_states(self, *, project_id: str) -> tuple[ImportedClipState, ...]:
         with self._engine.connect() as connection:
@@ -301,6 +413,30 @@ class SqlAlchemyDualProfileImportRepository:
             )
             for row in clips
         )
+
+
+def _clip_decisions(connection: Connection, import_clip_id: str) -> tuple[ClipDecision, ...]:
+    rows = connection.execute(
+        select(
+            DualProfileClipDecisionRow.sequence,
+            DualProfileClipDecisionRow.action,
+            DualProfileClipDecisionRow.title_override,
+            DualProfileClipDecisionRow.hook_override,
+            DualProfileClipDecisionRow.summary_override,
+        )
+        .where(DualProfileClipDecisionRow.import_clip_id == import_clip_id)
+        .order_by(DualProfileClipDecisionRow.sequence)
+    ).all()
+    return tuple(
+        clip_decision_from_values(
+            sequence=int(row.sequence),
+            action=str(row.action),
+            title_override=row.title_override,
+            hook_override=row.hook_override,
+            summary_override=row.summary_override,
+        )
+        for row in rows
+    )
 
 
 def _require_active_user(connection: Connection, user_id: str) -> None:

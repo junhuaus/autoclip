@@ -59,6 +59,10 @@ class DualProfileImportError(RuntimeError):
     """The run cannot be imported; the message is safe to show to an operator."""
 
 
+class DualProfileDecisionConflict(RuntimeError):
+    """The decision is not allowed in the clip's current review state (HTTP 409)."""
+
+
 class DualProfileImportDuplicate(RuntimeError):
     """A concurrent import of the same snapshot by the same user won the race."""
 
@@ -155,6 +159,54 @@ class ImportedClipState:
     @property
     def effective_text(self) -> CustomerText:
         return effective_customer_text(self.original_text, self.decisions)
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionRecord:
+    decision: ClipDecision
+    actor_username: str
+    actor_display_name: str
+    decided_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewClipRecord:
+    """Internal review view of one immutable imported clip and its history."""
+
+    import_clip_id: str
+    candidate_id: str
+    profile: ClipProfile
+    routed_status: ImportedClipStatus
+    variant_group_id: str
+    start_ms: int
+    end_ms: int
+    duration_ms: int
+    original_text: CustomerText
+    score: float
+    review_reason: str
+    quality_flags: tuple[str, ...]
+    risk_tags: tuple[str, ...]
+    video_asset_id: str
+    subtitle_asset_id: str
+    history: tuple[DecisionRecord, ...]
+
+    @property
+    def decisions(self) -> tuple[ClipDecision, ...]:
+        return tuple(value.decision for value in self.history)
+
+
+@dataclass(frozen=True, slots=True)
+class DualProfileReviewRecord:
+    import_id: str
+    project_id: str
+    source_filename: str
+    snapshot_fingerprint: str
+    algorithm_version: str
+    routing_policy_version: str
+    clip_count: int
+    imported_at: datetime
+    imported_by: str
+    clips: tuple[ReviewClipRecord, ...]
 
 
 class DualProfileImportRepository(Protocol):
@@ -459,15 +511,19 @@ __all__ = [
     "DUAL_PROFILE_IMPORT_SOURCE_PREFIX",
     "DUAL_PROFILE_SUBTITLE_ASSET_KIND",
     "DUAL_PROFILE_VIDEO_ASSET_KIND",
+    "DecisionRecord",
+    "DualProfileDecisionConflict",
     "DualProfileImportDuplicate",
     "DualProfileImportError",
     "DualProfileImportRepository",
     "DualProfileImportResult",
     "DualProfileImportService",
+    "DualProfileReviewRecord",
     "ImportedAssetFile",
     "ImportedClipState",
     "NewDualProfileImport",
     "NewImportedClip",
+    "ReviewClipRecord",
     "clip_decision_from_values",
     "default_dual_profile_import_root",
     "dual_profile_import_source_request_path",
