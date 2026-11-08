@@ -58,8 +58,25 @@
   recorded verbatim in the ExecPlan. Freeze evidence at `248082c`: closure
   diff rc 0, single alembic head `e4b2c7d9a1f3`, `dual-profile-eval --help`
   rc 0, pins in the full run. Validation: `make lint` rc 0; full `make test` at `248082c7fbb4a9b2a5a3dbc903acb4263eb13179` rc 0: backend pytest 3447 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (2 mock specs, 3 real-browser scenario runs).
-- Next: re-review of Stage 19b, then 19c. Push, PR and merge need explicit
+- (Historical next step; done.) Next: re-review of Stage 19b, then 19c. Push, PR and merge need explicit
   user consent.
+- **Stage 19b ACCEPTED at `7fc669b`** (tester: lint rc 0, make test
+  3447/87/5, focused 211, freeze rc 0, single head; reviewer
+  ACCEPT-WITH-NITS after auditing all 84 routes).
+- Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
+  for an imported project, a role-denied call (for example a viewer) or any
+  mutation on an archived project returns 403 from `require_project_action`
+  before the imported-project guard returns 409; (P2-b) `POST
+  /releases/{id}/approval` keeps its read-level lookup, because the real
+  action (`approve_release` vs `manage_release`) depends on the release's
+  current state and differs by role — switching the lookup to
+  `manage_release` would deny reviewers who may approve today; the second
+  `_require_project_access` call already enforces the real action and the
+  imported-project guard (and an imported project has no release items), so
+  only an explanatory comment was added; (P2-c, Controller decision)
+  `comment` is removed from the imported-project actions (no route accepts
+  comments on imported clips): owner read/manage_members/manage_project/
+  review_clip/deliver, editor read/deliver, reviewer read/review_clip.
 
 
 - **Stage 18 is merged to `main`:** `origin/main` =

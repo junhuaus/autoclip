@@ -540,7 +540,7 @@ Tests: `tests/integration/test_dual_profile_review_api.py`,
   `pending_review`. **Pipeline actions are refused** on imported projects
   (corrected after the 19b review, P1): `allowed_actions` is limited to
   `read`, `manage_members`, `manage_project`, `review_clip`, `comment`,
-  `deliver`; `_require_project_access` returns 409 for every non-read action
+  `deliver` (`comment` later dropped, see "Stage 19b nits after acceptance"); `_require_project_access` returns 409 for every non-read action
   unless the endpoint opts in (members, ownership transfer, management,
   lifecycle, dual-profile decisions); `create_run` also refuses inside its
   write transaction. Tested with valid bodies for runs, batch review, legacy
@@ -603,6 +603,23 @@ guard. Fixed in `248082c7fbb4a9b2a5a3dbc903acb4263eb13179`:
   stage should move it to a worker Task with progress, like deliveries.
 - Residual (Stage 19a reviewer P2-6; pre-existing, not changed by Stage 19): `load_verified_dual_profile_render_set()` in `src/liveclip/services/dual_profile_delivery.py` parses `final-validated.json`, `run-manifest.json` and `renders/render-manifest.json` from one no-follow read but computes their recorded SHA-256 (`_hash_file`) from a second, separate read; likewise the transcript is hashed and then re-read by `load_srt_transcript`. A process able to write inside the allowed import root between the two reads could make the stored hashes and snapshot fingerprint describe bytes other than the parsed content. Rendered media are not affected: `copy_immutable_member` re-hashes exactly the bytes it copies against the manifest hash. Exploiting it requires local write access to the operator-controlled import root; accepted for Stage 19. A future fix hashes and parses the same in-memory bytes.
 - Validation: `make lint` rc 0; full `make test` at `248082c7fbb4a9b2a5a3dbc903acb4263eb13179` rc 0: backend pytest 3447 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (2 mock specs, 3 real-browser scenario runs).
+
+## Stage 19b nits after acceptance (2026-11-07)
+
+- Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
+  for an imported project, a role-denied call (for example a viewer) or any
+  mutation on an archived project returns 403 from `require_project_action`
+  before the imported-project guard returns 409; (P2-b) `POST
+  /releases/{id}/approval` keeps its read-level lookup, because the real
+  action (`approve_release` vs `manage_release`) depends on the release's
+  current state and differs by role — switching the lookup to
+  `manage_release` would deny reviewers who may approve today; the second
+  `_require_project_access` call already enforces the real action and the
+  imported-project guard (and an imported project has no release items), so
+  only an explanatory comment was added; (P2-c, Controller decision)
+  `comment` is removed from the imported-project actions (no route accepts
+  comments on imported clips): owner read/manage_members/manage_project/
+  review_clip/deliver, editor read/deliver, reviewer read/review_clip.
 
 ## Surprises and Discoveries
 

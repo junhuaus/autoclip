@@ -348,7 +348,6 @@ IMPORTED_OWNER_ACTIONS = [
     "manage_members",
     "manage_project",
     "review_clip",
-    "comment",
     "deliver",
 ]
 
@@ -424,9 +423,9 @@ def test_imported_project_exposes_only_supported_actions(api: ApiHarness) -> Non
     owner = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("owner")).json()
     assert owner["allowed_actions"] == IMPORTED_OWNER_ACTIONS
     editor = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("editor")).json()
-    assert editor["allowed_actions"] == ["read", "comment", "deliver"]
+    assert editor["allowed_actions"] == ["read", "deliver"]
     reviewer = api.client.get(f"/api/v1/projects/{project_id}", headers=api.auth("reviewer")).json()
-    assert reviewer["allowed_actions"] == ["read", "review_clip", "comment"]
+    assert reviewer["allowed_actions"] == ["read", "review_clip"]
 
 
 def test_create_run_repository_refuses_imported_projects(api: ApiHarness) -> None:

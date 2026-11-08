@@ -1850,6 +1850,10 @@ def create_app(
     ) -> ReleaseItemSnapshot:
         active = _runtime(request)
         caller = _caller(request)
+        # Two-step authorization: the read-level lookup only learns the release's
+        # current approval state; the real action (approve_release or
+        # manage_release, which differ by role) is enforced just below, and that
+        # call also applies the imported-project guard.
         release = _require_release_access(
             active,
             caller,

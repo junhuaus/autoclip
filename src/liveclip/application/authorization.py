@@ -95,7 +95,7 @@ def project_actions(role: WorkspaceRole, *, archived: bool = False) -> tuple[Pro
 # renders or legacy deliveries. Only these actions apply to it; every
 # pipeline-oriented action is refused server-side (HTTP 409).
 IMPORTED_PROJECT_ACTIONS: frozenset[ProjectAction] = frozenset(
-    {"read", "manage_members", "manage_project", "review_clip", "deliver", "comment"}
+    {"read", "manage_members", "manage_project", "review_clip", "deliver"}
 )
 
 
