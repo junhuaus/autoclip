@@ -837,9 +837,18 @@ def _create_and_verify_zip(
                 ) as archive,
             ):
                 for name in names:
+                    # Pass member_mode only when it differs from the default so
+                    # the historical call shape (and its test seams) is unchanged.
                     if progress is None and check_cancel is None:
+                        if member_mode == 0o600:
+                            _write_pinned_zip_member(archive, name, pinned_members[name])
+                        else:
+                            _write_pinned_zip_member(
+                                archive, name, pinned_members[name], member_mode=member_mode
+                            )
+                    elif member_mode == 0o600:
                         _write_pinned_zip_member(
-                            archive, name, pinned_members[name], member_mode=member_mode
+                            archive, name, pinned_members[name], progress=accepted
                         )
                     else:
                         _write_pinned_zip_member(
