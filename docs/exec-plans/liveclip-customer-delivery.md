@@ -353,9 +353,12 @@ benchmark files.
   follow-ups `437f5f015e2f0f43b51c4c42f9905834973733e8` (concurrent duplicate import) and
   `49f8f661e5542eac593052a1d4d662c43b20f995` (schema inventory test). Evidence in
   "Stage 19a results" below.
-- [ ] Stage 19b: API and internal review UI (authz matrix, project
-  isolation 404, overrides; vitest; Playwright `e2e/dual-profile-review.spec.ts`
-  with the mock provider).
+- [x] 2026-11-07 Stage 19a ACCEPTED at `ba1e8b0` (tester: lint rc 0,
+  backend 3353, vitest 80, e2e 4; reviewer ACCEPT-WITH-NITS, five freeze
+  evidence items reproduced, five deviations accepted). Reviewer nits fixed
+  in `29dd574cdaa8587173fb555daa2d26fe81b7819c` (see Decision Log).
+- [x] 2026-11-07 Stage 19b implemented (pending independent tester and
+  reviewer): code `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56`. Evidence in "Stage 19b results".
 - [ ] Stage 19c: offline customer package (golden key set; recursive
   forbidden-token scan of manifest/HTML/member names for `score`, `risk`,
   `manual_review`, `review_reason`, `prompt`, `/Users`, `data/`;
@@ -497,6 +500,58 @@ unused by `export_dual_profile_review_package`, so export behaviour is
 byte-identical). Reviewer P2-6 is a pre-existing condition outside Stage 19's
 change and is recorded as a known residual, not fixed here.
 
+## Stage 19b results (2026-11-07)
+
+Backend: `src/liveclip/customer_delivery_settings.py` (new,
+`DualProfileImportSettings`, env-only), `src/liveclip/application/dual_profile_review.py`
+(new: review views, `DualProfileReviewService`, `decision_permission`),
+`src/liveclip/application/dual_profile_imports.py` (review records,
+`DualProfileDecisionConflict`), `src/liveclip/db/dual_profile_repository.py`
+(`load_review`, transactional `require_deliverable`),
+`src/liveclip/bootstrap.py` (wiring), `src/liveclip/api/app.py` and
+`src/liveclip/api/schemas.py` (three routes, three error handlers),
+`src/liveclip/application/pipeline.py` (`ProjectSnapshot.source_kind`,
+`generation` ≥ 0), `src/liveclip/db/pipeline_repository.py` (run-less
+imported snapshot), `src/liveclip/db/project_discovery_repository.py`
+(search includes imported projects). Web: `apps/web/src/DualProfileReview.tsx`
+(new: `DualProfileReviewSection`, `ImportedClipCard`, approval form,
+`DualProfileImportDialog`), `App.tsx` ("导入双轨结果"), `ProjectWorkspace.tsx`
+(imported branch; no run/clip queries), `api.ts`, `types.ts`, `styles.css`.
+Tests: `tests/integration/test_dual_profile_review_api.py`,
+`tests/unit/test_customer_delivery_settings.py`, `tests/dual_profile_fixtures.py`
+(shared synthetic run builder), `apps/web/tests/dual-profile-review.test.tsx`,
+`apps/web/e2e/dual-profile-review.spec.ts`.
+
+- API: `POST /api/v1/dual-profile-imports` (201 new, 200 idempotent
+  replay; any authenticated workspace user, who becomes owner, as for
+  `POST /jobs`); `GET /api/v1/projects/{id}/dual-profile-import` (`read`);
+  `POST /api/v1/projects/{id}/dual-profile-import/clips/{clip}/decisions`
+  (approve/reject need `review_clip`; select/deselect need `deliver`).
+  Matrix tested: viewer read-only (403 on all four actions), reviewer
+  approve/reject only, editor select/deselect only, owner all, non-member
+  404, cross-project clip 404. Select on a non-deliverable clip is 409
+  (checked inside the write transaction). Invalid overrides and overrides
+  on non-approve actions are 422. Import errors are 422
+  `DUAL_PROFILE_IMPORT_INVALID` with messages that contain no path (tested
+  against the tmp base, `/etc`, `/definitely`, `../outside`, relative input).
+- Imported projects: `GET /projects`, `/projects/search` and
+  `/projects/{id}` work; the snapshot has `source_kind`
+  `dual_profile_import`, `current_run_id` "" and `generation` 0, status
+  `pending_review`.
+- UI: the imported workspace never requests `/runs/*` or `/clips` (vitest
+  and e2e assert it); 批准 opens a form prefilled with the effective text and
+  sends only fields that differ from the model original, so re-approval
+  keeps earlier overrides; 选入交付 is disabled with a reason until the clip
+  is deliverable.
+- Freeze evidence at `cf11aef`: (1) closure diff to `f525338` rc 0, porcelain
+  empty; (2) pins pass (in the full run) and the cold-36 `tree_ph.py`
+  recompute is 17/17; (3) Settings fingerprint
+  `c81f0ece91debb4f1637ba5eecc3af64a91da256f586917408de458317d170d1` with the two documented env overrides; (4)
+  evaluator re-run on stored cold-35/cold-36 byte-identical; (5)
+  `services/dual_profile_delivery.py` unchanged since `cb13bb6`; (6)
+  `.venv/bin/python -m liveclip dual-profile-eval --help` rc 0.
+- Validation: `make lint` rc 0; targeted API/import/migration/settings pytest and vitest green; full `make test` at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` rc 0: backend pytest 3424 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (mock: `review-delivery.spec.ts` and the new `dual-profile-review.spec.ts`; real-browser: 3 scenario runs). Unrelated pytest processes from other host repositories were running during the suite; they were not touched. Deterministic only; no model call.
+
 ## Surprises and Discoveries
 
 - 2026-11-07: the existing `dual-profile-review-package` CLI cannot export
@@ -565,6 +620,22 @@ change and is recorded as a known residual, not fixed here.
   customer-delivery clips that abort while the owning project exists; the
   project-purge cascade still removes them.
 
+- 2026-11-07 (coder, 19b): imported projects keep `ProjectSnapshot.current_run_id`
+  a string (`""`) instead of becoming optional, because the frozen
+  `src/liveclip/cli/app.py` passes it to `get_run(str)` and an optional type
+  would fail mypy in a file Stage 19 may not edit; `source_kind` tells
+  clients there is no run, and `generation` is 0 (no invented ids).
+- 2026-11-07 (coder, 19b): transcript roots default to
+  `<repo>/data/evaluations` and `<repo>/input`; repository code/test
+  directories are never allowed by default. The stored cold-36 transcript
+  (`tests/fixtures/8-30-full-transcript.srt`) therefore needs
+  `LIVECLIP_DUAL_PROFILE_TRANSCRIPT_ROOTS` or a copy under `input/`.
+  Settings are read from the process environment only, never `.env`.
+- 2026-11-07 (coder, 19b): the mock e2e follows the existing Playwright
+  `page.context().route` pattern (MSW is used only by vitest in this repo).
+  `deselect` is allowed regardless of eligibility (it can only narrow a
+  delivery). The customer-delivery panel is a placeholder until 19c.
+
 ## Risks and Mitigations
 
 - Leaking internal fields to the customer: allowlist model with
@@ -580,7 +651,12 @@ change and is recorded as a known residual, not fixed here.
 
 ## Recovery Notes
 
-2026-11-07 (Stage 19a): implemented at `096a7ca` (code) plus a test
+2026-11-07 (Stage 19b): implemented at `cf11aef` plus this docs commit;
+pending independent tester and reviewer (re-check the six freeze-evidence
+items). First next task after acceptance: Stage 19c (offline customer
+package from `CustomerClipView`, immutable `customer_deliveries` v001…).
+
+(Historical) 2026-11-07 (Stage 19a): implemented at `096a7ca` (code) plus a test
 follow-up and this docs commit; pending independent tester and reviewer,
 who must re-check the five freeze-evidence items. First next task after
 acceptance: Stage 19b (API and internal review UI); wire

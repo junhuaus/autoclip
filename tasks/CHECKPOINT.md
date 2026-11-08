@@ -1475,3 +1475,17 @@ and cold-36, cold-36 review package byte-identical with a fixed clock).
 `make lint` rc 0; `make test` rc 0 at `49f8f66` (backend 3353, vitest 80,
 e2e 4). Deviations for Controller confirmation are in the Stage 19
 ExecPlan Decision Log. Next: independent tester and reviewer, then 19b.
+
+## Stage 19a accepted; Stage 19b implemented, pending verification (2026-11-07)
+
+Stage 19a accepted at `ba1e8b0`; reviewer nits fixed in `29dd574`
+(strict customer links, select only after the latest review, DELETE
+guards via migration `e4b2c7d9a1f3`, absolute-path tamper case, docs).
+Stage 19b at `cf11aef`: import and internal review API (approve/reject
+`review_clip`, select/deselect `deliver`, select on non-deliverable 409,
+non-member 404, path-free errors), imported projects listed/searchable,
+web import dialog and `DualProfileReviewSection`. Freeze evidence clean
+(closure diff rc 0, 17/17, Settings fingerprint, evaluator byte-identical,
+`dual-profile-eval --help` rc 0). `make lint` rc 0; `make test` rc 0
+(backend 3424, vitest 87, e2e 5). Next: independent tester and reviewer,
+then 19c.

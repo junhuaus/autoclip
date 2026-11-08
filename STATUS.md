@@ -18,7 +18,33 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 19: customer delivery of dual-profile results (2026-11-07) — Stage 19a IMPLEMENTED, pending independent verification (Checkpoint 1 docs done)
+## Stage 19: customer delivery of dual-profile results (2026-11-07) — Stage 19a ACCEPTED at ba1e8b0; Stage 19b IMPLEMENTED, pending independent verification
+
+- **Stage 19a accepted** at `ba1e8b0` (tester: lint rc 0, backend 3353,
+  vitest 80, e2e 4; reviewer ACCEPT-WITH-NITS, five freeze-evidence items
+  reproduced, five deviations accepted). Reviewer nits fixed in
+  `29dd574cdaa8587173fb555daa2d26fe81b7819c`: strict customer-link shapes (P2-3), a select counts only
+  after the latest review decision and select on a non-deliverable clip is
+  refused (P2-4), BEFORE DELETE guards via migration `e4b2c7d9a1f3` with the
+  project-purge cascade still working (P2-5), absolute-path tamper case
+  (P2-7), docs P2-1/P2-2/P2-8/P2-9; P2-6 recorded as a pre-existing residual.
+- **Stage 19b implemented** at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` (pending independent tester and
+  reviewer): import API, internal review API (authz: approve/reject
+  `review_clip`, select/deselect `deliver`, viewer read-only, non-member
+  404, select on non-deliverable 409), imported projects listed and
+  searchable (`source_kind` `dual_profile_import`, `current_run_id` "",
+  `generation` 0), web "导入双轨结果" dialog and `DualProfileReviewSection`
+  (短片/小课 groups, prefilled approval form, gated 选入交付). Details and
+  deviations in `docs/exec-plans/liveclip-customer-delivery.md` ("Stage 19b
+  results", Decision Log).
+- Freeze evidence at `cf11aef`: closure diff rc 0; pins and 17/17
+  recompute; Settings fingerprint unchanged; evaluator re-run on
+  cold-35/cold-36 byte-identical; `dual_profile_delivery.py` unchanged since
+  `cb13bb6`; `python -m liveclip dual-profile-eval --help` rc 0.
+- Validation: `make lint` rc 0; targeted API/import/migration/settings pytest and vitest green; full `make test` at `cf11aefd513f9b26a87a8e7ceae7ecd9fec8fa56` rc 0: backend pytest 3424 passed (15 deprecation warnings), vitest 15 files / 87 tests passed, e2e 5 passed (mock: `review-delivery.spec.ts` and the new `dual-profile-review.spec.ts`; real-browser: 3 scenario runs). Unrelated pytest processes from other host repositories were running during the suite; they were not touched.
+- Next: independent tester and reviewer for Stage 19b, then 19c. Push, PR
+  and merge need explicit user consent.
+
 
 - **Stage 18 is merged to `main`:** `origin/main` =
   `a79deaf0a62e4a506b8ea2c3221e9388d12dd286`, the merge commit of PR #2

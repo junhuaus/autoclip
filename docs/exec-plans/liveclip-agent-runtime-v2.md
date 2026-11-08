@@ -26,6 +26,11 @@
   prompt identities, Settings fingerprint unchanged, evaluator re-run
   byte-identical). Details in `STATUS.md` and
   `docs/exec-plans/liveclip-customer-delivery.md`.
+- [x] 2026-11-07 (inserted) Stage 19a ACCEPTED at `ba1e8b0`; reviewer nits
+  fixed in `29dd574`; Stage 19b (import/review API and internal UI)
+  implemented at `cf11aef`, pending independent verification; freeze
+  evidence clean (closure diff to `f525338` rc 0, 17/17 identities, Settings
+  fingerprint, evaluator re-run byte-identical, `dual-profile-eval --help` rc 0).
 
 ## cold-36 strict PASS 92.5 on frozen f525338 (consecutive 2/2; Stage 18 strict acceptance satisfied) (2026-11-06)
 
