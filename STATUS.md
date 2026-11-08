@@ -18,7 +18,7 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 19: customer delivery of dual-profile results (2026-11-07/08) — 19a–19d ACCEPTED; 19e code/docs pending verification; operator phone test pending
+## Stage 19: customer delivery of dual-profile results (2026-11-07/08) — 19a–19e ACCEPTED; operator phone test pending
 
 - **Accepted** (independent tester and reviewer): 19a `ba1e8b0`, 19b
   `7fc669b`, 19c `3e17ed4`, 19d `2670115` (after the LAN-only P1 fix).
@@ -29,6 +29,8 @@
   `docs/operator/customer-delivery-guide.zh.md`, revised operator guide in the
   Stage 19 ExecPlan. Freeze evidence clean; alembic head `a7c9e1b3d5f2`.
   Validation: `make lint` rc 0; full `make test` at `72a037602740d91f7e0de3f1b0a3fec75143def0` rc 0: backend pytest 3612 passed (15 warnings), vitest 15 files / 95 tests passed, e2e 7 passed (4 mock, 3 real-browser).
+- **19e accepted** at `0fd5c575121c197e9a371b5d9329572f9035137b`; a docs-only follow-up adds login/account, first-time
+  `make setup`, per-terminal `export`, Chrome/iPhone-Safari and refused-start checklist guidance to the Chinese guide.
 - **Remaining**: the operator LAN phone test (user), section 8 of the Chinese
   guide. Push, PR and merge need explicit user consent.
 

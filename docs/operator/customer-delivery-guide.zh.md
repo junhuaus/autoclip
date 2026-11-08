@@ -44,12 +44,37 @@ export LIVECLIP_SHARE_BASE_URL=http://192.168.x.y:8766
 make dev
 ```
 
-- 如果提示找不到 Node，先运行 `export NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin`，再运行 `make dev`。
+- **这四行 `export` 只对当前这个终端窗口有效。** 每打开一个新的终端窗口（包括关掉后重新打开、
+  或电脑重启之后），都要重新进入项目根目录，再把这四行重新输入一遍，然后才能运行 `make dev` 或 `make share`。
+- **第一次使用这台电脑时**：如果 `make dev` 显示
+  `LiveClip Python environment is missing; run make setup first` 或
+  `LiveClip Web dependencies are missing; run make setup first`，先运行下面这一行（需要联网，等它自己结束），
+  再重新运行 `make dev`：
+
+  ```sh
+  make setup NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin
+  ```
+
+- 如果显示 `Node LTS was not found at …`（找不到 Node），先运行
+  `export NODE_LTS_BIN=/opt/homebrew/opt/node@22/bin`，再运行 `make dev`。这一行同样要在每个新终端窗口里重新输入。
 - 启动成功后终端会打印 `LiveClip Web: http://...`，用浏览器打开**它打印的那个地址**
   （端口可能被本机配置改过，以终端显示为准）。
 - `make dev` 会一直占用这个终端窗口，不要关闭它。
 - 如果看到 `LiveClip console refused to start: …`，说明上面四行设置有误（例如只设置了
   `LIVECLIP_SHARE_HOST`、地址不是局域网地址、或网址里带了 `?` 或 `#`），按提示改正后重新运行。
+
+### 登录
+
+- 如果浏览器显示 **登录 LiveClip** 页面（要求填写 **账号 / 密码**），用你平时使用的账号登录。
+  **不要把密码写进任何文档**（包括本指南、聊天记录、截图或交接说明）。
+- 如果没有出现登录页、直接进入了控制台首页，说明这台电脑还没有启用密码登录，直接继续下一步即可。
+- **没有账号或忘记密码**：请联系这台电脑的 LiveClip 管理员。管理员登录后在控制台的
+  **成员管理** 页面为你创建账号或重置密码。
+- LiveClip **没有**用来创建账号或管理员账号的命令行命令。第一个管理员账号只能由负责这台电脑的人
+  按 `README.md` 中关于“成员管理”的说明初始化：在项目根目录被 Git 忽略的 `.env.local` 文件里设置
+  `LIVECLIP_BOOTSTRAP_ADMIN_PASSWORD`（12–128 个字符），重启 `make dev` 后，用
+  `LIVECLIP_WORKSPACE_USERNAME` 对应的用户名（未设置时为 `local-admin`）登录。这个设置只会为还没有密码的
+  管理员补上密码，不会修改已有密码。日常操作人员不需要做这一步。
 
 ## 3. 导入 cold-36 结果
 
@@ -82,6 +107,8 @@ make dev
 4. 点 **下载 ZIP**，下载后解压。
 5. 双击解压后的 `index.html`，即可在浏览器里离线观看；视频在 `clips/short`（短片）和
    `clips/lesson`（小课）文件夹里，字幕是同名的 `.srt` 文件。整个文件夹就是可以直接发给客户的交付包。
+6. 若视频无法播放，请用 Chrome 打开（离线 `index.html` 目前只在 Chrome / Chromium 中验证过；
+   Safari 等其他浏览器直接打开本地文件时可能无法播放）。也可以直接双击 `clips` 文件夹里的视频文件观看。
 
 ## 6. 启动分享服务（终端 2）
 
@@ -123,6 +150,13 @@ make share
 - [ ] 在控制台点 **撤销** 后，手机刷新页面，应显示“链接不可用”。
 - [ ] 控制台的链接列表里，访问和下载次数有增加。
 - [ ] （顺带检查）手机关掉 Wi-Fi、改用移动数据时打不开链接——这是正常的，分享只在局域网内有效。
+- [ ] **iPhone + Safari**：在 iPhone 上用 Safari 打开分享链接（以 `http://192.168.x.y:8766/` 开头的网址，
+  不是 `file://` 开头的本地文件），确认视频能播放、能拖动进度条、能下载，并把结果（能 / 不能、哪一项不行、
+  iOS 版本）记录下来交给开发人员。
+- [ ] （可选）**故意写错地址启动一次**：在新的终端窗口里，把 `LIVECLIP_SHARE_HOST` 故意写成没有替换的
+  `192.168.x.y`（其余三行照常），运行 `make dev`，确认看到一行 `LiveClip console refused to start: …`
+  提示、控制台没有启动（紧接着可能还有一行 `make: *** … Error 2`，属正常）；然后改回正确地址重新运行，
+  确认能正常启动。
 
 ## 9. 安全须知
 
