@@ -212,6 +212,15 @@ import it; its 19a refactor must be byte-preserving, evidence item 5),
 5. When `src/liveclip/services/dual_profile_delivery.py` changes: the cold-36
    review-package `manifest.json` regenerated before/after is identical
    (see 19a for the exact procedure and the one normalised field).
+6. (Added 2026-11-07, Stage 19a reviewer P2-2.) `.venv/bin/python -m liveclip
+   dual-profile-eval --help` exits 0 (the frozen CLI entry still imports and
+   wires).
+
+Clarifications (appended 2026-11-07 after the Stage 19a review; the items
+above are unchanged): item 3 — the Settings fingerprint is computed with exactly two environment overrides, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli` and `LIVECLIP_CLAUDE_EXECUTABLE=<repo>/.cache/claude-cli/2.1.308/claude` (key names and path only; no `.env` value is read or recorded), the same as the counted cold-35/cold-36 runs. Item 1 — of the CLI only the
+three files `src/liveclip/__main__.py`, `src/liveclip/cli/__init__.py` and
+`src/liveclip/cli/app.py` are frozen; the rest of `cli/app.py`'s import graph
+(application, db, delivery, api, …) is not frozen.
 
 ## Scope and explicit non-goals
 
@@ -481,6 +490,13 @@ set in `tests/unit/test_db_models.py`.
   integration, migration suites) 364 passed; full `make test` at `49f8f661e5542eac593052a1d4d662c43b20f995` rc 0: backend pytest 3353 passed (15 deprecation warnings), vitest 14 files / 80 tests passed, e2e 4 passed. (A first full run at `437f5f0` had 2 failures: `tests/unit/test_db_models.py` schema inventory, fixed in `49f8f66` by listing the six new tables, and `tests/unit/test_b2_synthetic_worker.py::test_canonical_independent_worker_commits_two_real_pauses` (`needs_action` instead of `succeeded`), which passed 3/3 in isolation and in the second full run; the first run overlapped an unrelated pytest process on the host, so it is classified transient and timing-related, recorded, not hidden).
   Deterministic validation only; no real model call, no render.
 
+Reviewer notes on 19a (recorded 2026-11-07): commit `cb13bb6` is not a
+*pure* refactor — besides extracting `load_verified_dual_profile_render_set()`
+it adds the opt-in `relative_render_path_base` parameter (default `None`,
+unused by `export_dual_profile_review_package`, so export behaviour is
+byte-identical). Reviewer P2-6 is a pre-existing condition outside Stage 19's
+change and is recorded as a known residual, not fixed here.
+
 ## Surprises and Discoveries
 
 - 2026-11-07: the existing `dual-profile-review-package` CLI cannot export
@@ -535,6 +551,19 @@ set in `tests/unit/test_db_models.py`.
   immutable; their FKs never use SET NULL. Customer deliveries and share
   links are created in the same migration (19c/19d may add a later
   migration if they need changes). Imported SRTs are copied byte-for-byte.
+
+- 2026-11-07 (Controller, 19a reviewer nits): P2-4 — a `select` counts
+  only when it was made after the clip's latest review decision (a later
+  reject, or reject then approve, voids earlier selects); the 19b service
+  refuses `select` on a clip that is not currently deliverable (HTTP 409).
+  P2-3 — customer links accept only the emitted shapes
+  `clips/short|lesson/NN-<safe title>.mp4|.srt` and
+  `/s/<token>/clips/<ordinal>/video|subtitle`; every URL scheme,
+  protocol-relative link, backslash, dot segment, query and fragment is
+  rejected. P2-5 — migration `e4b2c7d9a1f3` adds BEFORE DELETE guards on
+  imports, imported clips, decisions, customer deliveries and
+  customer-delivery clips that abort while the owning project exists; the
+  project-purge cascade still removes them.
 
 ## Risks and Mitigations
 

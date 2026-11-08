@@ -27,7 +27,7 @@ from liveclip.db.models import (
 
 pytestmark = pytest.mark.integration
 PARENT = "a13f9c6d2e80"
-HEAD = "d5e8a1c3f907"
+HEAD = "e4b2c7d9a1f3"
 GRAPH = (
     ProjectRow,
     PipelineRunRow,

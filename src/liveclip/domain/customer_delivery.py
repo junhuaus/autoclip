@@ -9,6 +9,8 @@ those two inputs; nothing in this module touches storage.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -146,12 +148,22 @@ def is_selected_for_delivery(
     status: ImportedClipStatus,
     decisions: Iterable[ClipDecision],
 ) -> bool:
-    """Chosen for the next customer delivery: eligible and the latest selection is select."""
+    """Chosen for the next customer delivery.
+
+    The clip must be deliverable, and the latest selection decision made after
+    the clip's latest review decision (approve or reject) must be ``select``.
+    A later review voids earlier selections: reject, or reject then approve,
+    requires a fresh ``select``.
+    """
 
     values = ordered_decisions(decisions)
     if not is_deliverable(status, values):
         return False
-    selections = [value for value in values if value.action in _SELECTION_ACTIONS]
+    latest_review = latest_review_decision(values)
+    floor = latest_review.sequence if latest_review is not None else 0
+    selections = [
+        value for value in values if value.action in _SELECTION_ACTIONS and value.sequence > floor
+    ]
     return bool(selections) and selections[-1].action is ClipDecisionAction.SELECT
 
 
@@ -178,19 +190,41 @@ def effective_customer_text(
     )
 
 
+_SHARE_HREF = re.compile(r"/s/[A-Za-z0-9_-]{16,128}/clips/[1-9][0-9]{0,4}/(?:video|subtitle)")
+_OFFLINE_HREF_PREFIXES = ("clips/short/", "clips/lesson/")
+_OFFLINE_SUFFIXES = (".mp4", ".srt")
+
+
+def _is_offline_filename(name: str) -> bool:
+    stem, _, suffix = name.rpartition(".")
+    if not stem or f".{suffix}" not in _OFFLINE_SUFFIXES or len(name.encode("utf-8")) > 120:
+        return False
+    number, dash, title = stem.partition("-")
+    if not (number.isascii() and number.isdigit() and 2 <= len(number) <= 4 and dash and title):
+        return False
+    return all(
+        character in "-_" or unicodedata.category(character)[0] in {"L", "M", "N"}
+        for character in title
+    )
+
+
 def _validate_href(value: str) -> str:
-    if (
-        not value
-        or "\x00" in value
-        or "\\" in value
-        or "://" in value
-        or value.startswith("//")
-        or ".." in value.split("/")
-    ):
-        raise ValueError("customer link is not a safe relative or share-scoped path")
-    if value.startswith("/") and not value.startswith("/s/"):
-        raise ValueError("customer link is not a safe relative or share-scoped path")
-    return value
+    """Accept only the two link shapes customer packages and share pages emit.
+
+    Offline package: ``clips/short|lesson/NN-<safe title>.mp4|.srt`` (letters,
+    marks, digits, ``-`` and ``_`` only). Share page:
+    ``/s/<token>/clips/<ordinal>/video|subtitle``. Anything else, including every
+    URL scheme (``javascript:``, ``data:``, ``mailto:``, ``http(s):``, ``file:``),
+    protocol-relative ``//`` links, backslashes, dot segments, queries and
+    fragments, is rejected.
+    """
+
+    if _SHARE_HREF.fullmatch(value):
+        return value
+    for prefix in _OFFLINE_HREF_PREFIXES:
+        if value.startswith(prefix) and _is_offline_filename(value[len(prefix) :]):
+            return value
+    raise ValueError("customer link is not a safe relative or share-scoped path")
 
 
 class CustomerClipView(BaseModel):

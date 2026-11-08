@@ -16,7 +16,7 @@
   evidence is clean at every checkpoint. The FROZEN path list in the
   sections below (whole `src tests scripts …` tree) is superseded for
   future checkpoints, not rewritten.
-- [ ] Next: Stage 19a (freeze pin test, verified render-set refactor,
+- [x] Next: Stage 19a (freeze pin test, verified render-set refactor,
   eligibility domain, migration, import service). Human editorial/audio
   review and the L07 listening check remain pending. Push/merge only with
   explicit user consent.

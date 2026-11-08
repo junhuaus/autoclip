@@ -26,6 +26,7 @@ SELECT = ClipDecisionAction.SELECT
 DESELECT = ClipDecisionAction.DESELECT
 SELECTED = ImportedClipStatus.SELECTED
 MANUAL = ImportedClipStatus.MANUAL_REVIEW
+TOKEN = "Abc_def-0123456789abcdefABCDEFghijklmnopqrstu"
 ORIGINAL = CustomerText(title="原标题", hook="原钩子", summary="原摘要")
 
 
@@ -97,7 +98,13 @@ def test_duplicate_sequence_numbers_are_rejected() -> None:
         (MANUAL, (SELECT,), False),
         (MANUAL, (APPROVE,), False),
         (MANUAL, (APPROVE, SELECT), True),
-        (MANUAL, (SELECT, APPROVE), True),
+        (MANUAL, (SELECT, APPROVE), False),
+        (MANUAL, (APPROVE, SELECT, REJECT, APPROVE), False),
+        (MANUAL, (APPROVE, SELECT, REJECT, APPROVE, SELECT), True),
+        (MANUAL, (APPROVE, SELECT, APPROVE), False),
+        (MANUAL, (APPROVE, DESELECT, SELECT), True),
+        (SELECTED, (SELECT, APPROVE), False),
+        (SELECTED, (REJECT, APPROVE, SELECT), True),
         (MANUAL, (APPROVE, SELECT, DESELECT), False),
         (MANUAL, (APPROVE, SELECT, REJECT), False),
         (SELECTED, (), False),
@@ -211,8 +218,8 @@ def test_customer_clip_view_allowlist_is_exact() -> None:
         profile=ClipProfile.MINI_LESSON,
         text=CustomerText(title="小课标题", hook="小课钩子", summary="小课摘要"),
         duration_ms=150_000,
-        video_href="/s/token/clips/2/video",
-        subtitle_href="/s/token/clips/2/subtitle",
+        video_href=f"/s/{TOKEN}/clips/2/video",
+        subtitle_href=f"/s/{TOKEN}/clips/2/subtitle",
     )
     assert view.profile_label == "小课"
     dumped = view.model_dump(mode="json")
@@ -241,13 +248,47 @@ def test_customer_clip_view_forbids_internal_fields(field: str) -> None:
 @pytest.mark.parametrize(
     "href",
     [
+        "clips/short/01-标题.mp4",
+        "clips/lesson/12-小课_标题-二.srt",
+        "clips/short/001-Title9.mp4",
+        f"/s/{TOKEN}/clips/1/video",
+        f"/s/{TOKEN}/clips/12/subtitle",
+    ],
+)
+def test_customer_clip_view_accepts_emitted_link_shapes(href: str) -> None:
+    assert CustomerClipView(**_view(video_href=href)).video_href == href  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
         "/Users/someone/data/clip.mp4",
         "../escape.mp4",
         "clips/../../escape.mp4",
+        "clips/short/../01-a.mp4",
         "file:///Users/someone/clip.mp4",
         "https://example.invalid/clip.mp4",
+        "http://example.invalid/clip.mp4",
+        "javascript:alert(1)",
+        "JavaScript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "mailto:someone@example.invalid",
         "//example.invalid/clip.mp4",
         "clips\\short\\clip.mp4",
+        "clips/short/01-标题.mp4?x=1",
+        "clips/short/01-标题.mp4#frag",
+        "clips/short/01-<b>.mp4",
+        "clips/short/01-a:b.mp4",
+        "clips/short/01-标题.exe",
+        "clips/short/标题.mp4",
+        "clips/other/01-标题.mp4",
+        " clips/short/01-标题.mp4",
+        "/s/short/clips/1/video",
+        f"/s/{TOKEN}/clips/0/video",
+        f"/s/{TOKEN}/clips/1/download",
+        f"/s/{TOKEN}/clips/1/video/",
+        f"/x/{TOKEN}/clips/1/video",
+        "",
     ],
 )
 def test_customer_clip_view_rejects_unsafe_links(href: str) -> None:

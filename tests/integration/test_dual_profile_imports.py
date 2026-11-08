@@ -34,6 +34,8 @@ from liveclip.db.media_repository import SqlAlchemyMediaAssetRepository
 from liveclip.db.models import (
     AssetRow,
     AuditEventRow,
+    CustomerDeliveryClipRow,
+    CustomerDeliveryRow,
     DualProfileClipDecisionRow,
     DualProfileImportClipRow,
     DualProfileImportRow,
@@ -578,6 +580,17 @@ def _tamper_relative_path_outside_render_root(fixture: RunFixture) -> None:
     fixture.write_manifest(manifest)
 
 
+def _tamper_absolute_path_outside_render_root(fixture: RunFixture) -> None:
+    outside = fixture.root / "other-run"
+    outside.mkdir()
+    video = fixture.run_dir / "renders" / "short_highlight" / "short-one.mp4"
+    copied = outside / "short-one.mp4"
+    shutil.copyfile(video, copied)
+    manifest = fixture.manifest()
+    manifest["clips"][0]["video_path"] = str(copied)
+    fixture.write_manifest(manifest)
+
+
 def _tamper_relative_dotdot(fixture: RunFixture) -> None:
     manifest = fixture.manifest()
     manifest["clips"][0]["video_path"] = "../outside/short-one.mp4"
@@ -616,6 +629,7 @@ def _tamper_renders_symlink(fixture: RunFixture) -> None:
         (_tamper_blocked_candidate, "not selected/manual final evidence"),
         (_tamper_symlink_escape, "escapes the render directory"),
         (_tamper_relative_path_outside_render_root, "escapes the render directory"),
+        (_tamper_absolute_path_outside_render_root, "escapes the render directory"),
         (_tamper_relative_dotdot, "not an absolute system path"),
         (_tamper_quality_not_passed, "automatically validated"),
         (_tamper_renders_symlink, "symbolic link"),
@@ -794,6 +808,84 @@ def test_imported_rows_are_immutable_in_sqlite(
         harness.engine.begin() as connection,
     ):
         connection.execute(update(row).values(**values))
+
+
+@pytest.mark.parametrize(
+    "row",
+    [DualProfileImportRow, DualProfileImportClipRow, DualProfileClipDecisionRow],
+)
+def test_immutable_rows_cannot_be_deleted_while_their_project_exists(
+    harness: Harness,
+    row: Any,
+) -> None:
+    result = _import(harness, build_run(harness.base))
+    clip_id = harness.repository.list_clip_states(project_id=result.project_id)[0].import_clip_id
+    harness.repository.append_decision(
+        project_id=result.project_id,
+        import_clip_id=clip_id,
+        acting_user_id=USER_ID,
+        action=ClipDecisionAction.APPROVE,
+        now=FIXED_NOW,
+    )
+
+    with (
+        pytest.raises((IntegrityError, OperationalError), match="deleted only with their project"),
+        harness.engine.begin() as connection,
+    ):
+        connection.execute(delete(row))
+    with harness.engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(row)) >= 1
+
+
+def test_customer_delivery_clips_cannot_be_deleted_directly(harness: Harness) -> None:
+    result = _import(harness, build_run(harness.base))
+    state = harness.repository.list_clip_states(project_id=result.project_id)[0]
+    with harness.engine.begin() as connection:
+        connection.execute(
+            insert(CustomerDeliveryRow).values(
+                id="d" * 32,
+                project_id=result.project_id,
+                import_id=result.import_id,
+                version=1,
+                title="交付",
+                status="succeeded",
+                snapshot_fingerprint="e" * 64,
+                created_by=USER_ID,
+                created_at=FIXED_NOW,
+            )
+        )
+        connection.execute(
+            insert(CustomerDeliveryClipRow).values(
+                id="c" * 32,
+                delivery_id="d" * 32,
+                import_clip_id=state.import_clip_id,
+                ordinal=1,
+                profile=state.profile.value,
+                title="标题",
+                hook="钩子",
+                summary="摘要",
+                duration_ms=state.duration_ms,
+                video_asset_id=state.video_asset_id,
+                subtitle_asset_id=state.subtitle_asset_id,
+                video_sha256="1" * 64,
+                subtitle_sha256="2" * 64,
+            )
+        )
+    for statement in (
+        delete(CustomerDeliveryClipRow),
+        delete(CustomerDeliveryRow),
+    ):
+        with (
+            pytest.raises((IntegrityError, OperationalError), match="deleted only"),
+            harness.engine.begin() as connection,
+        ):
+            connection.execute(statement)
+
+    with harness.engine.begin() as connection:
+        connection.execute(delete(ProjectRow).where(ProjectRow.id == result.project_id))
+    with harness.engine.connect() as connection:
+        for table in (CustomerDeliveryRow, CustomerDeliveryClipRow, DualProfileImportRow):
+            assert connection.scalar(select(func.count()).select_from(table)) == 0
 
 
 def test_decision_override_columns_are_constrained_to_approvals(harness: Harness) -> None:

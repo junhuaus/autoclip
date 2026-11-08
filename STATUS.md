@@ -1245,6 +1245,12 @@ result exactly; no model call, nothing written under `data/`).
   review-package `manifest.json` regenerated before/after is identical
   (only the wall-clock `created_at` normalised; procedure in the Stage 19
   ExecPlan). Stage 19 must not edit `src/liveclip/cli/app.py`.
+- Clarification (appended 2026-11-07 after the Stage 19a review; the bullet
+  above is unchanged): of the CLI only the three files
+  `src/liveclip/__main__.py`, `src/liveclip/cli/__init__.py` and
+  `src/liveclip/cli/app.py` are frozen, not `cli/app.py`'s whole import
+  graph. Evidence item (3): the Settings fingerprint is computed with exactly two environment overrides, `LIVECLIP_STRUCTURED_PROVIDER=claude-cli` and `LIVECLIP_CLAUDE_EXECUTABLE=<repo>/.cache/claude-cli/2.1.308/claude` (key names and path only; no `.env` value is read or recorded), the same as the counted cold-35/cold-36 runs. Evidence item (6), added:
+  `.venv/bin/python -m liveclip dual-profile-eval --help` exits 0.
 
 ### Stage 16b status
 
