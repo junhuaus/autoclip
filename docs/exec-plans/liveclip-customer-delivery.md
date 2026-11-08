@@ -368,11 +368,15 @@ benchmark files.
   the same inputs; XSS escaping; overrides shown; non-eligible → 409; later
   decisions do not change v001 (→ v002); Playwright `file://` with network
   blocked).)
-- [ ] Stage 19d: share links (no raw token in DB; expired/revoked 404; other
-  deliveries unreachable; traversal 404/422; Range 206/416; no Set-Cookie;
-  internal session cookie gains nothing; internal paths 404 on the share
-  app; headers; 429; redacted logs; LAN opt-in validation; vitest URL shown
-  once).
+- [x] 2026-11-07 Stage 19c ACCEPTED at `3e17ed4` (reviewer ACCEPT-WITH-NITS).
+- [x] 2026-11-07 Stage 19d implemented (pending independent tester and
+  reviewer): 19c nits `6e7e20a3fe99112ebf9d29f2ac5f383671fde615`, customer-text meta-note guard
+  `1887826046fa370f7a8be76266f614025ac43250`, share links `b34622985617de6a2aba74bf616b607dd571ebf2`, ZIP-writer call-shape fix `629b2fcbb01aee7f0dfa3d50882beedb7712318d`. Evidence in "Stage 19d results".
+  (Original milestone text: share links (no raw token in DB; expired/revoked
+  404; other deliveries unreachable; traversal 404/422; Range 206/416; no
+  Set-Cookie; internal session cookie gains nothing; internal paths 404 on
+  the share app; headers; 429; redacted logs; LAN opt-in validation; vitest
+  URL shown once).)
 - [ ] Stage 19e: ADR, Product Spec amendment, STATUS, operator LAN phone test
   (user).
 
@@ -703,6 +707,97 @@ tables suffice); alembic head stays `e4b2c7d9a1f3`.
   `dual-profile-eval --help` rc 0; single alembic head `e4b2c7d9a1f3`.
 - Validation: `make lint` rc 0; full `make test` at `79287e6131ec377d3781b1a6d0e0132d54d56402` rc 0: backend pytest 3482 passed (15 deprecation warnings), vitest 15 files / 89 tests passed, e2e 6 passed (3 mock specs incl. the new file:// offline test, 3 real-browser scenario runs). (The first full run at `9677847` had backend 3481 passed and vitest 89 passed, but the real-browser legacy e2e failed because the global `filename*` changed the release-package download header; fixed in `79287e6`.).
 
+## Stage 19d results (2026-11-07)
+
+**19c nits** (`6e7e20a`): `expected_clip_ids` required; customer text rejects
+Unicode format characters (bidi controls U+202A–U+202E, U+2066–U+2069,
+zero-width U+200B–U+200D, U+2060, U+FEFF, soft hyphen), surrogates and
+private-use characters; regression tests for a stale worker after lease
+expiry and recovery, and for purging a project with a built customer
+delivery; customer ZIP members 0o644 (`create_verified_zip(member_mode=…)`,
+default 0o600 unchanged elsewhere); Decision Log and Recovery Notes.
+
+**Customer-text meta-note guard** (`1887826`, Controller decision; prompts and
+the closure untouched): `customer_text_warnings()` and the one pattern table
+`CUSTOMER_TEXT_WARNING_PATTERNS` in `src/liveclip/domain/customer_delivery.py`.
+Strong: 转写/误转写, 疑为/疑似, ASR, 字幕中/字幕作/字幕误作/误作, 时长上限,
+纳入后, 该/本/这一单元, 片段在…结束, 课程片段, 不包含后面, 区间内/之后/之前/外,
+cue, N ms, 候选, 边界. Narration (advisory): 以…收束, 收束, 约N秒. On the stored
+runs: cold-35 61 manual-review clips → 8 strong + 13 narration-only; cold-36
+64 → 10 strong + 11 narration-only (the reviewer's counts were 7/16 and
+8/13 with a slightly different list). The review view returns
+`text_warnings` on the effective text; an approval whose resulting customer
+text still has a strong warning is 409 `CUSTOMER_TEXT_WARNING` (details:
+field and offsets) unless `acknowledge_warnings: true`, which is stored on
+the decision (migration `f6a1b3c5d7e9`, plain ADD COLUMN, triggers intact;
+head `f6a1b3c5d7e9`). Web: yellow "疑似审核备注，请改写" notice under the
+field with highlighted spans, 确认批准 disabled until rewritten or
+仍然保留原文 is ticked, server warnings re-shown after a 409, card badge,
+delivery-panel preview of flagged selected clips (advisory).
+
+**Share links** (`b346229`): `ShareSettings`
+(`src/liveclip/customer_delivery_settings.py`), `ShareLinkService`
+(`src/liveclip/application/customer_share_links.py`),
+`SqlAlchemyShareLinkRepository`, internal routes
+`POST/GET /api/v1/projects/{id}/customer-deliveries/{delivery}/share-links`
+and `POST /api/v1/projects/{id}/share-links/{link}/revoke`, the share app
+`create_share_app()` in `src/liveclip/api/share.py` and
+`python -m liveclip.share_server` (`make share`; `Makefile` is outside the
+freeze closure). No migration: `customer_share_links` from 19a suffices;
+view/download counts are derived from the audit events. The share page is
+`customer_index_html` with share-scoped links, a 下载全部（ZIP） link and the
+expiry in Chinese. An archived project stops sharing. Video/subtitle are
+served from the imported Assets (the subtitle bytes are the imported SRT,
+not the package's normalized copy).
+
+Real loopback run (scratch only; cold-36 imported with
+`LIVECLIP_DUAL_PROFILE_TRANSCRIPT_ROOTS`=`tests/fixtures` for that run; 1 short
++ 1 lesson approved with `acknowledge_warnings` and selected; v001 built;
+link created; share app on `127.0.0.1:18766`): page 200 (`text/html`, 4929
+bytes, 短片（1）/小课（1）, "此分享链接将于 2026年11月14日 21:17 失效"); video 200
+(42,541,490 bytes, `filename*` with the Chinese title), Range `bytes=0-1023`
+206 (`content-range: bytes 0-1023/42541490`), beyond-end 416
+(`bytes */42541490`); subtitle 200; ZIP 200 (132,552,901 bytes,
+`filename*=UTF-8''8-30-直播精选分享演示-v001.zip`); every response
+`cache-control: no-store`, `referrer-policy: no-referrer`,
+`x-robots-tag: noindex, nofollow`, `x-frame-options: DENY`,
+`x-content-type-options: nosniff`, the CSP with `frame-ancestors 'none'`, no
+`set-cookie`; unknown token, `/api/v1/projects`, `/docs`, `/openapi.json` 404;
+log lines show `/s/<redacted>` and the token never appears. Stopped; scratch
+media deleted; cold-36 inputs unchanged.
+
+Freeze evidence at `b346229` (re-checked at `629b2fc`): closure diff to `f525338` rc 0, porcelain
+empty; pins in the full run; `dual-profile-eval --help` rc 0; single alembic
+head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcbb01aee7f0dfa3d50882beedb7712318d` rc 0: backend pytest 3572 passed (29 warnings: deprecations, including the TestClient/httpx and per-request cookie notices from the new share tests), vitest 15 files / 93 tests passed, e2e 7 passed (4 mock specs incl. the new share-panel flow and the file:// offline test, 3 real-browser scenario runs). (The first full run at `b346229` had 1 failure, `tests/unit/test_delivery.py::test_zip_stream_rejects_subtitle_symlink_swap_without_external_read`, whose seam replaces `_write_pinned_zip_member` without the new `member_mode` keyword; fixed in `629b2fc` by passing it only for non-default modes.).
+
+## Operator guide (Stage 19d/19e)
+
+1. Start the console and worker: `make dev` (API on 127.0.0.1:8765, web on
+   127.0.0.1:5173).
+2. Import cold-36 in the console with 导入双轨结果: run directory
+   `data/evaluations/dual-profile-benchmark-20261106-claude-cold-36`, transcript
+   `input/8-30-full-transcript.srt`. The transcript must be under an allowed
+   transcript root; the operator copies it once (the coder does not):
+   `cp tests/fixtures/8-30-full-transcript.srt input/8-30-full-transcript.srt`.
+3. Approve (rewrite flagged summaries, or tick 仍然保留原文), select, create
+   a customer delivery version, wait for 已完成, download the ZIP.
+4. Start the share server. Loopback only (this Mac): `make share`
+   (127.0.0.1:8766). For a phone on the same Wi-Fi, find the Mac's LAN
+   address (System Settings → Wi-Fi → Details, e.g. 192.168.1.20) and run:
+   `LIVECLIP_SHARE_HOST=0.0.0.0 LIVECLIP_SHARE_ALLOW_LAN=true
+   LIVECLIP_SHARE_BASE_URL=http://192.168.1.20:8766 make share`. The links shown
+   by the console use `LIVECLIP_SHARE_BASE_URL`, so start `make dev` with the
+   same `LIVECLIP_SHARE_*` variables when creating LAN links. There is no TLS:
+   use only on a trusted home/office network, never on public Wi-Fi, and never
+   forward the port to the internet; customers elsewhere get the offline ZIP.
+5. 19e phone test checklist: create a 7-day link (copy it; it is shown once);
+   on the phone (same Wi-Fi) open it: the page shows the title, 短片/小课
+   sections, expiry date; each video plays and seeks; MP4 and 字幕（SRT）
+   download with Chinese filenames; 下载全部（ZIP） downloads and extracts; a
+   wrong token shows "链接不可用"; revoke the link in the console and confirm
+   the phone gets "链接不可用"; confirm the console list shows the views and
+   downloads; stop `make share`.
+
 ## Surprises and Discoveries
 
 - 2026-11-07: the existing `dual-profile-review-package` CLI cannot export
@@ -811,6 +906,16 @@ tables suffice); alembic head stays `e4b2c7d9a1f3`.
   characters; newlines and tabs stay allowed. The stored cold-35/cold-36
   final results contain none (183/192 text fields checked).
 
+- 2026-11-07 (coder, 19d): share-link view/download counts are derived from
+  audit events (no new columns); the share app maps 404/405 and malformed
+  paths (non-integer ordinal) to one identical 404 instead of 422; an
+  archived project's links stop resolving; video/subtitle are streamed from
+  the imported Assets; the share app re-applies the redacting JSON logging
+  after the runtime's Alembic run (whose fileConfig disables existing
+  loggers). Customer-text warnings: the gate checks the approval's
+  resulting customer text, so editing a flagged field but leaving a strong
+  pattern is still 409.
+
 ## Risks and Mitigations
 
 - Leaking internal fields to the customer: allowlist model with
@@ -825,6 +930,14 @@ tables suffice); alembic head stays `e4b2c7d9a1f3`.
   eligible); "render more" is deferred.
 
 ## Recovery Notes
+
+2026-11-07 (Stage 19d): implemented at `6e7e20a`, `1887826`, `b346229` plus
+this docs commit; pending independent tester and reviewer (re-check the
+freeze evidence; new head `f6a1b3c5d7e9`). First next task after
+acceptance: Stage 19e (ADR, Product Spec amendment, operator LAN phone test
+per the operator guide). Recovery: revoke a leaked link in the console; a
+misconfigured share server refuses to start (`python -m liveclip.share_server`
+exits 2 with the reason).
 
 2026-11-07 (Stage 19c): ACCEPTED at `3e17ed4` (tester: lint rc 0, make test
 3482/89/6; reviewer ACCEPT-WITH-NITS, own scans of the real and an

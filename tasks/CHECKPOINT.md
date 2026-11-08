@@ -1514,3 +1514,14 @@ shared page template, deterministic ZIP, Chinese filenames), download with
 RFC 5987 name, `CustomerDeliveryPanel`, file:// browser test. Real cold-36
 package (scratch): `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
 Freeze evidence clean. Next: independent tester and reviewer, then 19d.
+
+## Stage 19c accepted; Stage 19d implemented, pending verification (2026-11-07)
+
+Stage 19c accepted at `3e17ed4`. Stage 19d: `6e7e20a` (19c nits: required
+expected_clip_ids, invisible-character guard, stale-worker and purge
+tests, 0644 ZIP members), `1887826` (customer-text meta-note guard with
+`acknowledge_warnings`, migration `f6a1b3c5d7e9`), `b346229` (LAN share
+links and the separate `make share` server). Real loopback share run
+against a scratch cold-36 import passed (statuses and headers in the
+ExecPlan). Operator guide and 19e phone checklist in the ExecPlan.
+Next: independent tester and reviewer, then 19e.

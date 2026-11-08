@@ -77,6 +77,22 @@
   `/private/tmp/claude-501/-Users-junhuaxu-autoclip-claude/11442fc6-5e35-49d6-afb1-e25ebe8c47b5/scratchpad/stage19c/real-package/`.
   Freeze evidence clean at `9677847`. Validation: `make lint` rc 0; full `make test` at `79287e6131ec377d3781b1a6d0e0132d54d56402` rc 0: backend pytest 3482 passed (15 deprecation warnings), vitest 15 files / 89 tests passed, e2e 6 passed (3 mock specs incl. the new file:// offline test, 3 real-browser scenario runs). (The first full run at `9677847` had backend 3481 passed and vitest 89 passed, but the real-browser legacy e2e failed because the global `filename*` changed the release-package download header; fixed in `79287e6`.). Next:
   independent tester and reviewer for 19c, then 19d.
+- **Stage 19c ACCEPTED at `3e17ed4`** (reviewer ACCEPT-WITH-NITS; own scans
+  of the real and an adversarial package clean; stale-worker fencing
+  verified).
+- **Stage 19d implemented** (pending independent tester and reviewer):
+  `6e7e20a3fe99112ebf9d29f2ac5f383671fde615` (19c nits), `1887826046fa370f7a8be76266f614025ac43250` (customer-text
+  meta-note guard: strong warnings block approval unless
+  `acknowledge_warnings`, migration `f6a1b3c5d7e9`), `b34622985617de6a2aba74bf616b607dd571ebf2` (LAN share
+  links: token shown once, sha256 stored, 1-30 day expiry, revocable;
+  separate share app `make share`, loopback by default, LAN only with
+  `LIVECLIP_SHARE_ALLOW_LAN=true` and a private `LIVECLIP_SHARE_BASE_URL`; no
+  TLS, do not use on public Wi-Fi). Real loopback run against a scratch
+  cold-36 import: page 200, video 200/206/416, subtitle 200, ZIP 200, internal
+  paths and docs 404, security headers present, no cookies, logs redacted.
+  Operator guide and 19e phone checklist in the Stage 19 ExecPlan. Freeze
+  evidence clean; alembic head `f6a1b3c5d7e9`. Validation: `make lint` rc 0; full `make test` at `629b2fcbb01aee7f0dfa3d50882beedb7712318d` rc 0: backend pytest 3572 passed (29 warnings: deprecations, including the TestClient/httpx and per-request cookie notices from the new share tests), vitest 15 files / 93 tests passed, e2e 7 passed (4 mock specs incl. the new share-panel flow and the file:// offline test, 3 real-browser scenario runs). (The first full run at `b346229` had 1 failure, `tests/unit/test_delivery.py::test_zip_stream_rejects_subtitle_symlink_swap_without_external_read`, whose seam replaces `_write_pinned_zip_member` without the new `member_mode` keyword; fixed in `629b2fc` by passing it only for non-default modes.).
+  Next: independent tester and reviewer for 19d, then 19e.
 - Stage 19b reviewer nits (2026-11-07, after acceptance at `7fc669b`): (P2-a)
   for an imported project, a role-denied call (for example a viewer) or any
   mutation on an archived project returns 403 from `require_project_action`
