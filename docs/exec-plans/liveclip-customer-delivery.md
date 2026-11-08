@@ -377,8 +377,14 @@ benchmark files.
   Set-Cookie; internal session cookie gains nothing; internal paths 404 on
   the share app; headers; 429; redacted logs; LAN opt-in validation; vitest
   URL shown once).)
-- [ ] Stage 19e: ADR, Product Spec amendment, STATUS, operator LAN phone test
-  (user).
+- [x] 2026-11-08 Accepted sub-stages (independent tester and reviewer): 19a at
+  `ba1e8b0`, 19b at `7fc669b`, 19c at `3e17ed4`, 19d at `2670115`.
+- [x] 2026-11-08 Stage 19e code and docs: `72a037602740d91f7e0de3f1b0a3fec75143def0` (keeping flagged text on a
+  select needs `review_clip`; clean console refusal for bad `LIVECLIP_SHARE_*`),
+  ADR053, Product Spec amendment, Chinese operator guide
+  `docs/operator/customer-delivery-guide.zh.md`, guide fixes below.
+- [ ] Stage 19e: operator LAN phone test (user), following the checklist in
+  `docs/operator/customer-delivery-guide.zh.md` section 8.
 
 ## Work breakdown and file ownership
 
@@ -776,14 +782,23 @@ The share link is **LAN only**: the share server answers only loopback,
 private (10/8, 172.16/12, 192.168/16), link-local and IPv6 unique-local /
 link-local client addresses, and refuses to bind to public addresses, `::` or
 hostnames. There is no TLS: use it only on a trusted home/office network,
-never on public Wi-Fi, and never forward the port to the internet; customers
-elsewhere get the offline ZIP.
+never on public Wi-Fi, and never forward the port to the internet. Never run a
+tunnel or reverse proxy (ngrok, cloudflared, `ssh -R`, router port forwarding
+and the like) to the share port: loopback clients are trusted, so a tunnel
+would let internet clients through. CGNAT addresses (100.64.0.0/10, used by
+some ISP routers and by Tailscale and other mesh VPNs) and IPv6 transition
+addresses (6to4, Teredo, NAT64) are deliberately refused. Customers elsewhere
+get the offline ZIP. A step-by-step Chinese guide for operators is
+`docs/operator/customer-delivery-guide.zh.md`.
 
 1. Find the Mac's LAN address once per session: `ipconfig getifaddr en0`
    (Wi-Fi; try `en1` if empty), for example `192.168.1.20`. If DHCP later
    gives the Mac a different address, links created with the old address
    stop working — create new links.
-2. Use the **same** share variables for both processes (the console builds
+2. Use the **same** share variables for both processes (console and share
+   server). `make dev` occupies its terminal: open a **second terminal**, change
+   to the repository root and run the same `export` lines again before
+   `make share` (the console builds
    the link URL; the share server binds and serves it). Exporting only
    `LIVECLIP_SHARE_HOST` (or a non-loopback host without the other two) makes
    both the console and the share server refuse to start. The base URL is
@@ -798,8 +813,12 @@ elsewhere get the offline ZIP.
    make share    # terminal 2 (same exports): share server on 192.168.1.20:8766
    ```
 
-   For a loopback-only demo, set nothing and run `make dev` and `make share`
-   (127.0.0.1:8766). The first LAN start may trigger the macOS firewall prompt
+   Open the Web address that `make dev` prints after `LiveClip Web:` (ports may
+   be overridden locally; use what the terminal shows). A misconfiguration is
+   refused with one line — `LiveClip console refused to start: …` from
+   `make dev`, `LiveClip share server refused to start: …` (exit 2) from
+   `make share` — fix the variables and start again. For a loopback-only demo,
+   set nothing and run `make dev` and `make share` (127.0.0.1:8766). The first LAN start may trigger the macOS firewall prompt
    "accept incoming network connections" for Python; allow it, otherwise the
    phone cannot connect.
 3. Import cold-36 in the console with 导入双轨结果: run directory
@@ -823,8 +842,8 @@ elsewhere get the offline ZIP.
 - [ ] A wrong token shows "链接不可用".
 - [ ] Revoke the link in the console; the phone now gets "链接不可用".
 - [ ] The console link list shows the views and downloads.
-- [ ] Optional: from a phone on mobile data (not the Wi-Fi) the link must not
-  load.
+- [ ] Sanity check: from a phone on mobile data (not the Wi-Fi) the link does
+  not load (expected; sharing is LAN-only).
 - [ ] Stop `make share`.
 
 Note: shared subtitles are the imported SRT bytes, while the offline package
@@ -865,6 +884,23 @@ client-address check, and the guide suggested `0.0.0.0`. Fixed in
   share tests set cookies on the client instance.
 - Real run: loopback share server on 127.0.0.1:18777 against a scratch cold-36 import: page 200, video 200, subtitle 200, ZIP 200, Range 206 (`bytes 0-1023/42541490`), beyond-end 416 (`bytes */42541490`), unknown token, `/api/v1/projects`, `/docs`, `/openapi.json` 404, security headers present, token 0 times in the log; with uvicorn's default proxy handling a loopback request carrying `X-Forwarded-For: 8.8.8.8` was refused (404), and with `proxy_headers=False` (as `make share` runs) the header is ignored (200); `LIVECLIP_SHARE_HOST=8.8.8.8` and `LIVECLIP_SHARE_HOST=::` both exit 2 with the reason.
 - Validation: `make lint` rc 0; full `make test` at `e90626749d8477ed26243f5a02cc48e44558d77e` rc 0: backend pytest 3610 passed (15 warnings; the 14 share-test cookie deprecations are gone), vitest 15 files / 94 tests passed, e2e 7 passed (4 mock, 3 real-browser); the follow-up test commit `a37ecfe7d3d7d66d2e510a1f8a0523aa0dca611a` adds one unit test (share_settings 39 passed).
+
+## Stage 19e results (2026-11-08)
+
+- `72a0376`: a select carrying `acknowledge_warnings` also requires
+  `review_clip` (Controller decision: keeping flagged customer text is a
+  review judgement). Matrix: editor 403 (`PROJECT_ACTION_DENIED`), reviewer
+  403 (no `deliver`), owner 200. The console shows 仍然保留原文并选入 only with
+  `review_clip`, otherwise "需审核人批准后才能保留原文" (vitest).
+  `scripts/prepare_runtime.py` (the first step of `make dev`; not in the
+  freeze closure) validates `LIVECLIP_SHARE_*` and prints
+  `LiveClip console refused to start: <reason>` with exit 2 instead of a
+  traceback; `make share` uses the same `share_settings_error_message`.
+  `config/settings.py` and `cli/app.py` are untouched.
+- Docs: ADR053, the insert-only Product Spec amendment, the Chinese operator
+  guide, the revised operator guide above (tunnels, second terminal, printed
+  URL, refusal messages, mobile-data sanity check, CGNAT/IPv6 transition).
+- Validation: `make lint` rc 0; full `make test` at `72a037602740d91f7e0de3f1b0a3fec75143def0` rc 0: backend pytest 3612 passed (15 warnings), vitest 15 files / 95 tests passed, e2e 7 passed (4 mock, 3 real-browser).
 
 ## Surprises and Discoveries
 
@@ -998,6 +1034,12 @@ client-address check, and the guide suggested `0.0.0.0`. Fixed in
   eligible); "render more" is deferred.
 
 ## Recovery Notes
+
+2026-11-08 (Stage 19e): 19a–19d accepted (`ba1e8b0`, `7fc669b`, `3e17ed4`,
+`2670115`); 19e code `72a0376` and the docs commit are pending independent
+verification; the only remaining acceptance activity is the operator's LAN
+phone test (`docs/operator/customer-delivery-guide.zh.md`, section 8).
+Alembic head `a7c9e1b3d5f2`. Push, PR and merge need explicit user consent.
 
 2026-11-07 (Stage 19d, after review): P1 fixed at `e906267`; pending re-review;
 alembic head `a7c9e1b3d5f2`. (Earlier:) implemented at `6e7e20a`, `1887826`, `b346229` plus

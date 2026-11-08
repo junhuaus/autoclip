@@ -1,5 +1,17 @@
 # LiveClip Agent Runtime v2 — Living ExecPlan
 
+## Stage 19 customer delivery: 19a–19d accepted; 19e pending phone test (2026-11-08)
+
+- [x] 2026-11-08 Recovery Note (insert-only; sections below unchanged).
+  Stage 19 sub-stages accepted by the independent tester and reviewer: 19a
+  `ba1e8b0`, 19b `7fc669b`, 19c `3e17ed4`, 19d `2670115`. Stage 19e code
+  `72a0376` plus ADR053, the Product Spec amendment and the Chinese operator
+  guide `docs/operator/customer-delivery-guide.zh.md`. The benchmark freeze
+  (dual-profile closure, `f525338`, 2/2) is untouched; alembic head
+  `a7c9e1b3d5f2`.
+- [ ] Next: operator LAN phone test (user). Push, PR and merge only with
+  explicit user consent.
+
 ## Stage 19 started; benchmark freeze amended to the dual-profile closure (2026-11-07)
 
 - [x] 2026-11-07 Recovery Note (insert-only; the dual-profile sections below

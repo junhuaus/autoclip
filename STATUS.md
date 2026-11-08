@@ -18,7 +18,21 @@
   Those paths stay ignored and local-only.
 - Push and merge still require explicit operator consent.
 
-## Stage 19: customer delivery of dual-profile results (2026-11-07) — Stage 19a ACCEPTED at ba1e8b0; Stage 19b IMPLEMENTED, pending independent verification
+## Stage 19: customer delivery of dual-profile results (2026-11-07/08) — 19a–19d ACCEPTED; 19e code/docs pending verification; operator phone test pending
+
+- **Accepted** (independent tester and reviewer): 19a `ba1e8b0`, 19b
+  `7fc669b`, 19c `3e17ed4`, 19d `2670115` (after the LAN-only P1 fix).
+- **Stage 19e**: code `72a037602740d91f7e0de3f1b0a3fec75143def0` (keeping flagged customer text on a select
+  needs `review_clip`; `make dev` refuses bad `LIVECLIP_SHARE_*` with one clean
+  line); docs: ADR053 (`docs/adr/053-customer-delivery-of-dual-profile-results.md`),
+  Product Spec amendment (insert-only), Chinese operator guide
+  `docs/operator/customer-delivery-guide.zh.md`, revised operator guide in the
+  Stage 19 ExecPlan. Freeze evidence clean; alembic head `a7c9e1b3d5f2`.
+  Validation: `make lint` rc 0; full `make test` at `72a037602740d91f7e0de3f1b0a3fec75143def0` rc 0: backend pytest 3612 passed (15 warnings), vitest 15 files / 95 tests passed, e2e 7 passed (4 mock, 3 real-browser).
+- **Remaining**: the operator LAN phone test (user), section 8 of the Chinese
+  guide. Push, PR and merge need explicit user consent.
+
+(Earlier heading, kept for history: Stage 19a ACCEPTED at ba1e8b0; Stage 19b IMPLEMENTED, pending independent verification.)
 
 - **Stage 19a accepted** at `ba1e8b0` (tester: lint rc 0, backend 3353,
   vitest 80, e2e 4; reviewer ACCEPT-WITH-NITS, five freeze-evidence items

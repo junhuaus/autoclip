@@ -1535,3 +1535,12 @@ for everyone else), LAN-only bind host (exit 2 otherwise), plus P2s
 URL `?`/`#`, bounded limiter, audit target index migration `a7c9e1b3d5f2`,
 catch-all generic 404, cookie hygiene). Operator guide and 19e phone
 checklist rewritten. Next: re-review.
+
+## Stage 19: 19a–19d accepted; 19e code/docs done, phone test pending (2026-11-08)
+
+Accepted: 19a `ba1e8b0`, 19b `7fc669b`, 19c `3e17ed4`, 19d `2670115`.
+Stage 19e code `72a0376` (acknowledging flagged text on a select needs
+`review_clip`; clean console refusal for bad `LIVECLIP_SHARE_*`), ADR053,
+Product Spec amendment, Chinese operator guide
+`docs/operator/customer-delivery-guide.zh.md`. Next: the operator's LAN
+phone test; push/PR/merge only with explicit consent.
